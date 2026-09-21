@@ -8,8 +8,14 @@ TARGET_INCLUDE_DIRECTORIES(
     tsim_static
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+# The simulator calls the public C API (taos_connect, taos_query, taos_errno,
+# ...) as well as a few engine internals.  The API lives in libtaos.so, which
+# dispatches to the driver it dlopen()s; on Linux the driver no longer exports
+# those names, so naming it alone leaves the API undefined.  tsim_static is an
+# archive, so the executable is what resolves them -- keep both here.
 TARGET_LINK_LIBRARIES(
     tsim_static
+    PUBLIC ${TAOS_LIB}
     PUBLIC ${TAOS_NATIVE_LIB}
     PUBLIC util
     PUBLIC common

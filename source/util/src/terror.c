@@ -436,6 +436,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_INVALID_VERSION,    "Anode invalid version
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO,      "Anode too many algorithm")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME, "Anode too long algorithm name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algorithm type")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_BLOCKED_URL,        "Anode URL resolves to a private/internal address")
 
 // mnode encrypt
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST,       "Encrypt algorithm not exists in list")

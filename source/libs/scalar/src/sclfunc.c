@@ -3465,6 +3465,19 @@ static int32_t repeatStringHelper(char *input, int32_t inputLen, int32_t count, 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t repeatResultLength(int32_t inputLen, int32_t count, int32_t *resultLen) {
+  if (resultLen == NULL || inputLen < 0) return TSDB_CODE_INVALID_PARA;
+  if (count <= 0) {
+    *resultLen = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (inputLen > (TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE) / count) {
+    return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+  }
+  *resultLen = inputLen * count;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData *pInputData[2];
@@ -3484,10 +3497,12 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   }
   pInputData[0] = pInput[0].columnData;
   pInputData[1] = pInput[1].columnData;
-  outputLen = (int32_t)(pInputData[0]->info.bytes * maxCount + VARSTR_HEADER_SIZE);
-  if (outputLen > TSDB_MAX_FIELD_LEN) {
+  if (pInputData[0]->info.bytes < 0) return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+  int64_t outputLen64 = (int64_t)pInputData[0]->info.bytes * maxCount + VARSTR_HEADER_SIZE;
+  if (outputLen64 > TSDB_MAX_FIELD_LEN || outputLen64 > INT32_MAX) {
     return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
   }
+  outputLen = (int32_t)outputLen64;
   numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   char *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
@@ -3512,7 +3527,9 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
         SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
       } else {
         char *orgStr = colDataGetData(pInputData[0], i);
-        varDataSetLen(output, varDataLen(orgStr) * count);
+        int32_t repeatedLen = 0;
+        SCL_ERR_JRET(repeatResultLength(varDataLen(orgStr), count, &repeatedLen));
+        varDataSetLen(output, repeatedLen);
         SCL_ERR_JRET(repeatStringHelper(varDataVal(orgStr), varDataLen(orgStr), count, varDataVal(output)));
         SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
       }
@@ -3535,7 +3552,9 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
         } else {
           char *orgStr = colDataGetData(pInputData[0], 0);
-          varDataSetLen(output, varDataLen(orgStr) * count);
+          int32_t repeatedLen = 0;
+          SCL_ERR_JRET(repeatResultLength(varDataLen(orgStr), count, &repeatedLen));
+          varDataSetLen(output, repeatedLen);
           SCL_ERR_JRET(repeatStringHelper(varDataVal(orgStr), varDataLen(orgStr), count, varDataVal(output)));
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
         }
@@ -3559,7 +3578,9 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
         } else {
           char *orgStr = colDataGetData(pInputData[0], i);
-          varDataSetLen(output, varDataLen(orgStr) * count);
+          int32_t repeatedLen = 0;
+          SCL_ERR_JRET(repeatResultLength(varDataLen(orgStr), count, &repeatedLen));
+          varDataSetLen(output, repeatedLen);
           SCL_ERR_JRET(repeatStringHelper(varDataVal(orgStr), varDataLen(orgStr), count, varDataVal(output)));
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
         }

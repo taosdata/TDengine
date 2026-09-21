@@ -3,7 +3,8 @@
 #
 # <target_pkg_path> : full path to the newly published .tar.gz package
 # <green_base_dir>  : directory containing green baseline version subdirs
-#                     (e.g. /green_version/3.3.6.0/{taosd,libtaos.so})
+#                     (e.g. /green_version/3.3.6.0/{taosd,libtaos.so}); packages built
+#                     with the thin dispatcher also get libtaosnative.so
 # [branch]          : target branch name, default: main
 #                     supported: main, 3.3.6
 
@@ -97,7 +98,9 @@ if echo "$PKG_BASENAME" | grep -qiE 'explorer|client|agent|docker|debug|tdgpt'; 
     echo "Error: wrong package type: $PKG_BASENAME"
     echo ""
     echo "  This script requires a TDengine enterprise SERVER package, which contains"
-    echo "  taosd and libtaos.so. Common server package name patterns:"
+    echo "  taosd and the client library (libtaos.so, plus libtaosnative.so when the"
+    echo "  package ships the thin-dispatcher build)."
+    echo "  Common server package name patterns:"
     echo "    TDengine-enterprise-server-<ver>-Linux-x64.tar.gz     (3.0.x ~ 3.1.x)"
     echo "    TDengine-enterprise-<ver>-Linux-x64.tar.gz            (3.2.x ~ 3.3.5.x)"
     echo "    tdengine-tsdb-enterprise-<ver>-linux-x64.tar.gz       (3.3.6.x and later)"

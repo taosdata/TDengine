@@ -443,12 +443,8 @@ void* taosLoadDllFunc(void* handle, const char* funcName) {
   void *fptr = dlsym(handle, funcName);
 #endif
 
-  if (handle == NULL) {
-    if (errno != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-    } else {
-      terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
-    }
+  if (fptr == NULL) {
+    terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
   }
 
   return fptr;

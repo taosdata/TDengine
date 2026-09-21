@@ -100,11 +100,37 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ENDIF ()
 TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE toolscJson)
 
+# libtaos.so owns the public API and dispatches to the driver it dlopen()s;
+# libtaosnative.so carries the engine internals this tool uses directly
+# (functions *and* globals such as gMemPoolHandle).  Both are listed, and the
+# order does not matter on Linux: the driver no longer exports the public names
+# there -- it hands them to the dispatcher through tdNativeApiTable -- so even
+# if CMake hoists it ahead of libtaos.so, taos_options() still lands in the
+# dispatcher.  macOS keeps the driver's own export of those names, so it
+# resolves the internals through libtaos.dylib's re-export of the driver dylib
+# instead of naming it here.
+#
+# No --copy-dt-needed-entries: naming libtaosnative.so explicitly is what pulls
+# the internals in, and mold rejects that option outright.
 TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos)
+if(TD_LINUX)
+  TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE ${TAOS_NATIVE_LIB})
+endif()
 
 if(NOT WIN32)
   target_link_libraries(taosBenchmark PRIVATE stdc++)
   target_link_libraries(taosBenchmark PRIVATE m)
+endif()
+
+# benchCsv.c calls zlib (gzopen/gzwrite/gzerror/gzclose) directly.  That used to
+# arrive by accident: libtaos linked os/util PUBLIC, and CMake propagates a
+# static library's private dependencies ($<LINK_ONLY:...>) to its consumers, so
+# libz.a was already on every tool's link line.  Hiding the bundled dependency
+# symbols (cmake/third_party_symbols.cmake, --exclude-libs on Linux) ended that:
+# libz's symbols are no longer exported by libtaos/libtaosnative, so name the
+# archive explicitly here (same fix as tools/taosdump).
+if(TD_LINUX OR TD_DARWIN)
+  target_link_libraries(taosBenchmark PRIVATE ${ext_zlib_libs})
 endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")

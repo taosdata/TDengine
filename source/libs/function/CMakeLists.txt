@@ -71,6 +71,16 @@ if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
     target_link_options(taosudf PRIVATE "LINKER:--undefined=nodesRemotePlanToSQL")
 endif()
 
+# Export convergence for taosudf: no static consumers; UDF plugins (dlopen) need
+# only libc (verified). Hide all non-taos_* (see taosudf.ver). GNU ld only.
+# NOTE: also lets --gc-sections drop dead code previously kept only because it
+# was exported (this tree otherwise fails to link: gsasl_init).
+if(TD_LINUX)
+    target_link_options(taosudf PRIVATE
+        "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/taosudf.ver")
+endif()
+
+
 if(NOT TD_WINDOWS)
     if(APPLE)
         # macOS uses @loader_path (not $ORIGIN) and one LC_RPATH entry per path.

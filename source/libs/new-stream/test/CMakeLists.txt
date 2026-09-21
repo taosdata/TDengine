@@ -42,7 +42,14 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
   streamNotifyTest
-  PUBLIC taos os common executor function index new-stream
+  # This test replaces tcurlSend()/tcurlConnect() (from util) and curl_ws_send()
+  # with cppstub, and cppstub can only patch calls made from the main image.  The
+  # helpers therefore have to be linked into the test executable itself, so the
+  # static libraries must precede the shared dispatcher: on macOS libtaos.dylib
+  # re-exports the driver, which defines tcurlSend() too, and anything listed
+  # ahead of util would bind the test to that copy and silently disable the stubs
+  # (gCurlWsSendCalls stayed 0 and the test then crashed).
+  PUBLIC os util common executor function index new-stream taos
 )
 
 add_test(

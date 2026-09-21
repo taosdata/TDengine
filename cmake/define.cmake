@@ -138,9 +138,9 @@ IF(TD_WINDOWS)
             # _DISABLE_VECTOR_ANNOTATION/_DISABLE_STRING_ANNOTATION: suppress STL ASan
             # annotations to avoid LNK2038 mismatch with pre-built libs (e.g. rocksdb)
             # that were compiled without /fsanitize=address.
-            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O1 /MD /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
+            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /FS /O1 /MD /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
         ELSE()
-            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O2 /GL /MD")
+            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /FS /O2 /GL /MD")
         ENDIF()
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
@@ -149,9 +149,9 @@ IF(TD_WINDOWS)
             MESSAGE("${Green} will build Debug with AddressSanitizer (MSVC ASan)! ${ColourReset}")
             # /fsanitize=address is compatible with /MDd; no /GL or /RTC1 in Debug
             # so there are no incompatibility constraints unlike Release.
-            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
+            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /FS /MDd /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
         ELSE()
-            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
+            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /FS /MDd")
         ENDIF()
     ENDIF()
 

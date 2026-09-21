@@ -161,9 +161,9 @@ int32_t l2CompressImpl_tsz(const char *const input, const int32_t inputSize, cha
   // TSZ(SZ lossy) is now selected purely per column (l2 == TSZ); the legacy global
   // lossyColumns/lossyFloat/lossyDouble switch is gone, so a tsz column always SZ-compresses.
   if (type == TSDB_DATA_TYPE_FLOAT) {
-    return tsCompressFloatLossyImp(input, inputSize / sizeof(float), output);
+    return tsCompressFloatLossyImp(input, inputSize / sizeof(float), output, outputSize);
   } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-    return tsCompressDoubleLossyImp(input, inputSize / sizeof(double), output);
+    return tsCompressDoubleLossyImp(input, inputSize / sizeof(double), output, outputSize);
   }
   return l2CompressImpl_lz4(input, inputSize, output, outputSize, type, lvl);
 }
@@ -1376,11 +1376,17 @@ int32_t tsDecompressFloatImp(const char *const input, int32_t ninput, const int3
 //
 //   ----------  float double lossy  -----------
 //
-int32_t tsCompressFloatLossyImp(const char *input, const int32_t nelements, char *const output) {
+int32_t tsCompressFloatLossyImp(const char *input, const int32_t nelements, char *const output, int32_t outputSize) {
+  if (output == NULL || input == NULL || nelements <= 0)
+    return TSDB_CODE_INVALID_PARA;
+  // the algo byte goes to output[0], the compressed payload must stay inside the remaining capacity
+  if (outputSize < 1 + nelements * (int32_t)sizeof(float))
+    return TSDB_CODE_INVALID_PARA;
+
   // compress with sz
-  int32_t       compressedSize = tdszCompress(SZ_FLOAT, input, nelements, output + 1);
+  int32_t       compressedSize = tdszCompress(SZ_FLOAT, input, nelements, output + 1, outputSize - 1);
   unsigned char algo = ALGO_SZ_LOSSY << 1;
-  if (compressedSize == 0 || compressedSize >= nelements * sizeof(float)) {
+  if (compressedSize == 0 || compressedSize >= nelements * (int32_t)sizeof(float)) {
     // compressed error or large than original
     output[0] = MODE_NOCOMPRESS | algo;
     memcpy(output + 1, input, nelements * sizeof(float));
@@ -1397,23 +1403,34 @@ int32_t tsCompressFloatLossyImp(const char *input, const int32_t nelements, char
 int32_t tsDecompressFloatLossyImp(const char *input, int32_t compressedSize, const int32_t nelements,
                                   char *const output) {
   int32_t decompressedSize = 0;
+  if (input == NULL || output == NULL || nelements <= 0 || compressedSize <= 0)
+    return TSDB_CODE_INVALID_PARA;
+
   if (HEAD_MODE(input[0]) == MODE_NOCOMPRESS) {
     // orginal so memcpy directly
+    if (compressedSize < 1 + nelements * (int32_t)sizeof(float))
+      return TSDB_CODE_INVALID_PARA;
     decompressedSize = nelements * sizeof(float);
     memcpy(output, input + 1, decompressedSize);
 
     return decompressedSize;
   }
 
-  // decompressed with sz
+  // decompressed with sz (a negative value means the block was rejected)
   return tdszDecompress(SZ_FLOAT, input + 1, compressedSize - 1, nelements, output);
 }
 
-int32_t tsCompressDoubleLossyImp(const char *input, const int32_t nelements, char *const output) {
+int32_t tsCompressDoubleLossyImp(const char *input, const int32_t nelements, char *const output, int32_t outputSize) {
+  if (output == NULL || input == NULL || nelements <= 0)
+    return TSDB_CODE_INVALID_PARA;
+  // the algo byte goes to output[0], the compressed payload must stay inside the remaining capacity
+  if (outputSize < 1 + nelements * (int32_t)sizeof(double))
+    return TSDB_CODE_INVALID_PARA;
+
   // compress with sz
-  int32_t       compressedSize = tdszCompress(SZ_DOUBLE, input, nelements, output + 1);
+  int32_t       compressedSize = tdszCompress(SZ_DOUBLE, input, nelements, output + 1, outputSize - 1);
   unsigned char algo = ALGO_SZ_LOSSY << 1;
-  if (compressedSize == 0 || compressedSize >= nelements * sizeof(double)) {
+  if (compressedSize == 0 || compressedSize >= nelements * (int32_t)sizeof(double)) {
     // compressed error or large than original
     output[0] = MODE_NOCOMPRESS | algo;
     memcpy(output + 1, input, nelements * sizeof(double));
@@ -1430,15 +1447,20 @@ int32_t tsCompressDoubleLossyImp(const char *input, const int32_t nelements, cha
 int32_t tsDecompressDoubleLossyImp(const char *input, int32_t compressedSize, const int32_t nelements,
                                    char *const output) {
   int32_t decompressedSize = 0;
+  if (input == NULL || output == NULL || nelements <= 0 || compressedSize <= 0)
+    return TSDB_CODE_INVALID_PARA;
+
   if (HEAD_MODE(input[0]) == MODE_NOCOMPRESS) {
     // orginal so memcpy directly
+    if (compressedSize < 1 + nelements * (int32_t)sizeof(double))
+      return TSDB_CODE_INVALID_PARA;
     decompressedSize = nelements * sizeof(double);
     memcpy(output, input + 1, decompressedSize);
 
     return decompressedSize;
   }
 
-  // decompressed with sz
+  // decompressed with sz (a negative value means the block was rejected)
   return tdszDecompress(SZ_DOUBLE, input + 1, compressedSize - 1, nelements, output);
 }
 
@@ -1779,7 +1801,7 @@ int32_t tsCompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
                          int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
   if (l2 == L2_TSZ && lvl != 0) {
-    return tsCompressFloatLossyImp(pIn, nEle, pOut);
+    return tsCompressFloatLossyImp(pIn, nEle, pOut, nOut);
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_FLOAT, 1);
 }
@@ -1799,7 +1821,7 @@ int32_t tsCompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
   DEFINE_VAR(cmprAlg)
   if (l2 == L2_TSZ && lvl != 0) {
     // lossy mode
-    return tsCompressDoubleLossyImp(pIn, nEle, pOut);
+    return tsCompressDoubleLossyImp(pIn, nEle, pOut, nOut);
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_DOUBLE, 1);
 }
