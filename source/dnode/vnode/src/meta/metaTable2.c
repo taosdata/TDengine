@@ -4466,13 +4466,13 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
   int32_t code = TSDB_CODE_SUCCESS;
   SMetaEntry *pChild = NULL;
   SMetaEntry *pSuper = NULL;
-  SHashObj* pUpdatedTagVals = NULL;
+  SHashObj*   pUpdatedTagVals = NULL;
   SSchema    *pMergedTags = NULL;
-  bool tagRefCleared = false;
+  bool        tagRefCleared = false;
+
   // Declared and initialized at function scope: the ntb/vntb branch jumps to _exit before the
   // vchild-only merge block below -- a mid-function `= NULL` initializer would be skipped there
   // and _exit would free an uninitialized pointer.
-  SSchema        *pMergedTags = NULL;
   SSchemaWrapper  mergedTagSchema = {0};
 
   // fetch child entry
@@ -4536,7 +4536,6 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
   // followed by own tags) so own tags can be located by name and the shared tag blob is
   // rebuilt with the merged schema (keeping own tag values, whose colIds sort after all vstb
   // colIds, intact)
-  SSchemaWrapper  mergedTagSchema = {0};
   SSchemaWrapper *pTagSchema = &pSuper->stbEntry.schemaTag;
   if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE && pChild->own.nOwnTags > 0) {
     int32_t nMergedTags = 0;
