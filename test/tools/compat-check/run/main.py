@@ -195,6 +195,7 @@ def _init_metrics(manager):
     m["write_last_ts"]             = 0
     m["query_last_count"]          = 0
     m["subscribe_recv_total"]      = 0
+    m["subscribe_dup_total"]       = 0   # rows dropped as re-delivered duplicates
     m["subscribe_last_batch_rows"] = 0
     m["subscribe_last_recv_time"]  = 0.0   # unix timestamp; 0 = never received
     # Phase-4 success counters (reset at start of rolling upgrade)
@@ -735,9 +736,10 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
     total_written = metrics.get("write_total_rows", 0)
     total_recv    = metrics.get("subscribe_recv_total", 0)
     _chk(
-        "Subscribe: rows received == rows written",
+        "Subscribe: rows received == rows written (dup ignored)",
         total_written == total_recv,
-        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
+        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}  "
+        f"dup_ignored={metrics.get('subscribe_dup_total', 0):,}",
     )
 
     # ---- user / privilege / schema checks ----
@@ -1149,9 +1151,10 @@ def _run_cold_phase2(state_file: str):
     total_written = metrics.get("write_total_rows", 0)
     total_recv    = metrics.get("subscribe_recv_total", 0)
     _chk(
-        "Subscribe: rows received == rows written",
+        "Subscribe: rows received == rows written (dup ignored)",
         total_written == total_recv,
-        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
+        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}  "
+        f"dup_ignored={metrics.get('subscribe_dup_total', 0):,}",
     )
 
     if no_user:

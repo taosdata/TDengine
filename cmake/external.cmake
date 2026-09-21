@@ -316,6 +316,33 @@ macro(get_from_local_if_exists url)                       # {
   endif()
 endmacro()                                                # }
 
+# ---------------------------------------------------------------------------
+# Build external static libs with function/data sections so that taosd's
+# --gc-sections (already applied to engine code via platform.cmake) can also
+# dead-strip unused code *inside* these third-party libs at final link.
+# Best-effort seed: a sub-project that sets its own CMAKE_C_FLAGS simply
+# overrides this (no harm); ones that append keep both.
+#
+# Keep the flag list empty unless the final link actually runs --gc-sections,
+# i.e. Linux Release (see the "Linux Release binary size optimization" block
+# in platform.cmake).  Reason:
+#   * -ffunction-sections/-fdata-sections are GCC/Clang-only; handing them to
+#     an MSVC ExternalProject (Windows) makes configure fail outright.
+#   * Darwin has no --gc-sections, so the flags would only slow the build down.
+# ---------------------------------------------------------------------------
+set(TD_EXT_DEADSTRIP_CFLAGS "")
+if(TD_LINUX AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(TD_EXT_DEADSTRIP_CFLAGS "-ffunction-sections -fdata-sections")
+endif()
+
+# Same flags for the few sites that append them to an existing option string
+# ("CFLAGS=-fPIC ..."): the separator lives here so that an empty flag list cannot
+# leave a stray trailing space in the configure environment.
+set(TD_EXT_DEADSTRIP_SUFFIX "")
+if(TD_EXT_DEADSTRIP_CFLAGS)
+    set(TD_EXT_DEADSTRIP_SUFFIX " ${TD_EXT_DEADSTRIP_CFLAGS}")
+endif()
+
 # zlib
 if(TD_LINUX)
     set(ext_zlib_static libz.a)
@@ -337,6 +364,8 @@ ExternalProject_Add(ext_zlib
     URL ${_url}
     URL_HASH SHA256=17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c
     PREFIX "${_base}"
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DINSTALL_BIN_DIR:PATH=${_ins}/bin
@@ -632,6 +661,8 @@ ExternalProject_Add(ext_lz4
     URL_HASH SHA256=537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b
     PREFIX "${_base}"
     SOURCE_SUBDIR build/cmake
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -666,6 +697,8 @@ ExternalProject_Add(ext_cjson
     URL ${_url}
     URL_HASH SHA256=1f0e45ff5c2dca61e88bbc47b2537b64fd8bceb02b4abbdcd85a6c7135e4bd75
     PREFIX "${_base}"
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -839,6 +872,8 @@ if(BUILD_WITH_UV)        # {
         URL ${_url}
         URL_HASH SHA256=388ffcf3370d4cf7c4b3a3205504eea06c4be5f9e80d2ab32d19f8235accc1cf
         PREFIX "${_base}"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1056,6 +1091,15 @@ if(NOT TD_WINDOWS)       # {
     # _EXT_CCACHE_EXPORT conditionally sets CCACHE_DISABLE=1.
     # MAKEFLAGS is unset to prevent the parent cmake make's flags (e.g. -s -j1)
     # from leaking into OpenSSL's own make invocation.
+    #
+    # The section flags below are passed as bare trailing arguments, which
+    # Configure collects into %useradd{CFLAGS}/%useradd{CXXFLAGS} and appends
+    # to the target flags -- the documented "./Configure [options] [flags...]"
+    # form (Configure: "push @{$useradd{CFLAGS}}, $_" for any arg that is not a
+    # known option).  Do NOT additionally set CFLAGS=/CXXFLAGS= here: Configure
+    # aborts with "Mixing make variables and additional compiler/linker flags
+    # as configure command line option is not permitted", and it ignores the
+    # environment entirely once %useradd is non-empty.
     ExternalProject_Add(ext_ssl
         URL ${_url}
         URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
@@ -1065,6 +1109,7 @@ if(NOT TD_WINDOWS)       # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             COMMAND ./Configure --prefix=${_ins} no-shared --libdir=lib
+                    ${TD_EXT_DEADSTRIP_CFLAGS}
         BUILD_COMMAND
             COMMAND sh -c "unset MAKEFLAGS && ${_EXT_CCACHE_EXPORT}make -j4"
         INSTALL_COMMAND
@@ -1078,7 +1123,7 @@ endif()    # }
 if(NOT TD_WINDOWS)       # {
     if(TD_LINUX)
         set(ext_curl_static libcurl.a)
-        set(_c_flags_list -fPIC -Wno-implicit-function-declaration)
+        set(_c_flags_list -fPIC -Wno-implicit-function-declaration ${TD_EXT_DEADSTRIP_CFLAGS})
     elseif(TD_DARWIN)
         set(ext_curl_static libcurl.a)
         set(_c_flags_list -Wno-implicit-function-declaration)
@@ -1209,6 +1254,8 @@ if(BUILD_GEOS)           # {
         URL ${_url}
         URL_HASH SHA256=0b4fca58fc09677e6230bc8aef527fd2d7cdf9ff55b4ef3af75a775cb8d76e89
         PREFIX "${_base}"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1343,6 +1390,8 @@ if(BUILD_PCRE2)          # {
         URL ${_url}
         URL_HASH SHA256=409c443549b13b216da40049850a32f3e6c57d4224ab11553ab5a786878a158e
         PREFIX "${_base}"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1392,6 +1441,8 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
             URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
             # GIT_SHALLOW TRUE
             PREFIX "${_base}"
+            CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+            CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
             CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -1669,6 +1720,8 @@ ExternalProject_Add(ext_libxml2
     URL_HASH SHA256=5ef0c82e17b26c90ecd06f0feaeb60892bf1f9a8beef89dce20f3425bec337de
     PREFIX "${_base}"
     DEPENDS ${_libxml2_depends}
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1722,6 +1775,8 @@ ExternalProject_Add(ext_libs3
     ${_libs3_ts_args}
     DEPENDS ${_libs3_depends}
     PREFIX "${_base}"
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -2011,8 +2066,8 @@ if(${BUILD_LIBSASL})      # {
             COMMAND "${CMAKE_COMMAND}" -E env
                 CC=gcc
                 CC_FOR_BUILD=gcc
-                CFLAGS=-Wno-missing-braces
-                CXXFLAGS=-Wno-missing-braces
+                "CFLAGS=-Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
+                "CXXFLAGS=-Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
                 ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no --with-saslauthd=no --with-authdaemond=no
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make
@@ -2064,7 +2119,7 @@ if(${BUILD_LIBGSASL} AND ${TD_LINUX})      # {
             COMMAND "${CMAKE_COMMAND}" -E env
                 CC=gcc
                 CC_FOR_BUILD=gcc
-                CFLAGS=-fPIC
+                "CFLAGS=-fPIC${TD_EXT_DEADSTRIP_SUFFIX}"
                 ./configure --prefix=${_ins} --with-pic --enable-static=yes --enable-shared=no
                     --disable-nls --enable-scram-sha256
                     --without-stringprep
