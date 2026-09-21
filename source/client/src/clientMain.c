@@ -1382,7 +1382,15 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   int32_t len = 0;
   for (int i = 0; i < num_fields; ++i) {
-    if (i > 0 && len < size - 1) {
+    // the buffer holds size - 1 characters at most plus the terminator: stop
+    // before writing anything once it is full. len may already have jumped
+    // past size through the return value of snprintf(), and the "size - len"
+    // below would underflow in that case
+    if ((uint32_t)len + 1 >= size) {
+      break;
+    }
+
+    if (i > 0) {
       str[len++] = ' ';
     }
 
@@ -1501,10 +1509,6 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       } break;
       default:
         break;
-    }
-
-    if (len >= size - 1) {
-      break;
     }
   }
   if (len < size) {

@@ -161,6 +161,7 @@ class TestBugs:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:
@@ -199,6 +200,124 @@ class TestBugs:
         print("do jira TD-22190 ...................... [passed]")
 
     #
+    # ------------------- untrusted csv input (Devon scan 61/62/63) ----------------
+    #
+    def do_untrusted_csv_input(self, benchmark):
+        """summary: taosBenchmark must bound every copy of csv input
+
+        description: a csv line or tag table name longer than the local buffer
+        must be rejected instead of overflowing the fixed size row slot or the
+        193 byte table name buffer.
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,security,tools
+
+        Jira: None
+
+        History:
+            - 2026-09-18 Alex Duan Created for Devon static scan findings 61/62/63
+
+        """
+        work_dir = f"{os.path.dirname(__file__)}/tmp/untrusted_csv"
+        os.makedirs(work_dir, exist_ok=True)
+
+        def run_case(name, super_table, files):
+            for file_name, content in files.items():
+                with open(os.path.join(work_dir, file_name), "w") as fp:
+                    fp.write(content)
+
+            config = {
+                "filetype": "insert",
+                "cfgdir": "/etc/taos",
+                "host": "127.0.0.1",
+                "port": 6030,
+                "user": "root",
+                "password": "taosdata",
+                "thread_count": 1,
+                "create_table_thread_count": 1,
+                "confirm_parameter_prompt": "no",
+                "prepared_rand": 100,
+                "databases": [{
+                    "dbinfo": {
+                        "name": "bench_bugs_csv",
+                        "drop": "yes",
+                        "replica": 1,
+                        "vgroups": 1,
+                        "precision": "ms",
+                    },
+                    "super_tables": [super_table],
+                }],
+            }
+            config_path = os.path.join(work_dir, f"{name}.json")
+            with open(config_path, "w") as fp:
+                json.dump(config, fp, indent=2)
+
+            cmd = f"{benchmark} -y -f {config_path}"
+            tdLog.info(cmd)
+            proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True, timeout=300)
+            output = proc.stdout or ""
+            with open(os.path.join(work_dir, f"{name}.log"), "w") as fp:
+                fp.write(output)
+            tdLog.info("taosBenchmark exit code: %d" % proc.returncode)
+            return proc.returncode, output
+
+        columns = [{"type": "BINARY", "name": "c1", "length": 16},
+                   {"type": "INT", "name": "c2"}]
+
+        # a csv line that does not fit into its row slot must be rejected
+        long_line = os.path.join(work_dir, "long_line.csv")
+        ret, output = run_case("long_line", {
+            "name": "st_long_line",
+            "child_table_exists": "no",
+            "childtable_count": 2,
+            "childtable_prefix": "d",
+            "insert_rows": 2,
+            "data_source": "sample",
+            "sample_file": long_line,
+            "columns": columns,
+            "tags": [{"type": "INT", "name": "t1"}],
+        }, {"long_line.csv": "A" * 400 + ",1\n"})
+        assert ret != 0, f"an over-long csv line must fail the job, ret={ret}"
+        assert "csv line is too long" in output, \
+            f"an over-long csv line must be rejected by length, output={output}"
+
+        # a csv line that fits into its row slot must still be accepted
+        valid = os.path.join(work_dir, "valid.csv")
+        ret, output = run_case("valid_line", {
+            "name": "st_valid_line",
+            "child_table_exists": "no",
+            "childtable_count": 2,
+            "childtable_prefix": "d",
+            "insert_rows": 2,
+            "data_source": "sample",
+            "sample_file": valid,
+            "columns": columns,
+            "tags": [{"type": "INT", "name": "t1"}],
+        }, {"valid.csv": "NULL,7\n"})
+        assert ret == 0, f"a csv line that fits must be accepted, ret={ret} output={output}"
+
+        # a tag csv table name longer than TSDB_TABLE_NAME_LEN must be rejected
+        tags = os.path.join(work_dir, "long_name_tags.csv")
+        ret, output = run_case("long_tag_name", {
+            "name": "st_long_name",
+            "child_table_exists": "no",
+            "childtable_count": 2,
+            "childtable_prefix": "d",
+            "insert_rows": 2,
+            "use_tag_table_name": "yes",
+            "tags_file": tags,
+            "columns": columns,
+            "tags": [{"type": "INT", "name": "t1"}],
+        }, {"long_name_tags.csv": "".join("B" * 200 + ",%d\n" % i for i in range(20))})
+        assert ret != 0, f"an over-long tag table name must fail the job, ret={ret} output={output}"
+        assert "invalid table name length" in output, \
+            f"an over-long tag table name must be rejected by length, output={output}"
+
+        print("do untrusted csv input ................ [passed]")
+
+    #
     # ------------------- main ----------------
     #
     def test_benchmark_bugs(self):
@@ -210,15 +329,18 @@ class TestBugs:
         4. Verify bug TS-5846
         5. Verify bug TS-5234
         6. Verify bug TD-22190
+        7. Verify untrusted csv input is bounded (Devon scan findings 61/62/63)
 
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-10-24 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_bugs.py
             - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_reuse_exist_stb.py
+            - 2026-09-18 Alex Duan Added untrusted csv input cases for Devon scan 61/62/63
 
         """
 
@@ -229,4 +351,5 @@ class TestBugs:
         # td
         self.bugsTD(benchmark)
         self.do_reuse_exist_stb()
+        self.do_untrusted_csv_input(benchmark)
 
