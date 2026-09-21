@@ -591,6 +591,8 @@ typedef struct SSortLogicNode {
   bool       skipPKSortOpt;
   bool       calcGroupId;
   bool       excludePkCol;  // exclude PK ts col when calc group id
+  // Leading sort keys used for group id; 0 keeps legacy behavior.
+  int32_t numOfGroupKeys;
 } SSortLogicNode;
 
 typedef struct SDistinctFilterLogicNode {
@@ -1275,6 +1277,8 @@ typedef struct SSortPhysiNode {
   SNodeList* pTargets;
   bool       calcGroupId;
   bool       excludePkCol;
+  // Leading sort keys used for group id; 0 keeps legacy behavior.
+  int32_t numOfGroupKeys;
 } SSortPhysiNode;
 
 typedef SSortPhysiNode SGroupSortPhysiNode;

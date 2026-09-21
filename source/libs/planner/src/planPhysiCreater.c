@@ -6522,6 +6522,7 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   int32_t    code = rewritePrecalcExprs(pCxt, pSortLogicNode->pSortKeys, &pPrecalcExprs, &pSortKeys);
   pSort->calcGroupId = pSortLogicNode->calcGroupId;
   pSort->excludePkCol = pSortLogicNode->excludePkCol;
+  pSort->numOfGroupKeys = pSortLogicNode->numOfGroupKeys;
 
   SDataBlockDescNode* pChildTupe = NULL;
   if (TSDB_CODE_SUCCESS == code) {
