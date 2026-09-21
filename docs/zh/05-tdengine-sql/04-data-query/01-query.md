@@ -163,7 +163,7 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 | `BATCH_SCAN`          | 无 | 采用批量读表方式 | 超级表 `JOIN` 语句 |
 | `NO_BATCH_SCAN`       | 无 | 采用顺序读表方式 | 超级表 `JOIN` 语句 |
 | `SORT_FOR_GROUP`      | 无 | 采用 sort 方式分组，与 `PARTITION_FIRST` 冲突 | `PARTITION BY` 列表含普通列时 |
-| `PARTITION_FIRST`     | 无 | 聚合前先按 `PARTITION` 分组，与 `SORT_FOR_GROUP` 冲突 | `PARTITION BY` 列表含普通列时 |
+| `PARTITION_FIRST`     | 无 | 优先保留独立的 `Partition` 算子完成分区，与 `SORT_FOR_GROUP` 冲突 | `PARTITION BY` 列表含普通列时；从 `v3.4.3.0` 起，也适用于超级表按标签列或 `tbname` 分区的 `STATE_WINDOW` 查询 |
 | `PARA_TABLES_SORT`    | 无 | 超级表按时间戳排序时不使用临时磁盘空间，仅使用内存；子表多、行长大时可能 OOM | 超级表按时间戳排序时 |
 | `SMALLDATA_TS_SORT`   | 无 | 超级表按时间戳排序时，查询列长度大于等于 256 但行数不多，可提升性能 | 超级表按时间戳排序时 |
 | `SMALLDATA_SCAN_SORT` | 无 | 超级表需要按时间戳有序扫描输出时，用普通表扫描加排序代替表合并扫描；每 vnode 数据量较小时更优。适用于引擎会用表合并扫描产生时间戳有序输出的场景，包括 `ORDER BY ts`，以及会话窗口 `SESSION`、状态窗口 `STATE_WINDOW`（无需显式 `ORDER BY`）；对时间窗口 `INTERVAL`（本身不使用表合并扫描）以及按非时间戳列的 `ORDER BY` 无效 | 小数据量超级表需要时间戳有序时 |
@@ -177,12 +177,20 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ gid, _wstart, COUNT(*) FROM meters PARTITION BY gid STATE_WINDOW(status);
+SELECT /*+ PARTITION_FIRST() */ category, _wstart, COUNT(*) FROM meters PARTITION BY category STATE_WINDOW(status);
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
 SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 ```
+
+从 `v3.4.3.0` 起，`PARTITION_FIRST` 也适用于超级表按标签列或 `tbname` 分区的状态窗口查询。在该执行路径中，Table Merge Scan 先扫描相关子表，独立的 `Partition` 算子再按标签列或 `tbname` 组织分区，之后由 `STATE_WINDOW` 在每个分区内计算状态窗口。多 vnode 查询会保持分区内的主时间戳顺序；表具有第二主键时，也会使用第二主键确定相同时间戳记录的顺序。
+
+当 `PARTITION BY` 包含普通数据列，或者同时包含标签和普通数据列时，系统在有无 `PARTITION_FIRST` 时都会保留独立的 `Partition`。这是因为普通列的值可能逐行变化，不能按子表标签在扫描阶段预先分组。多 vnode 查询同样会保持分区内的主时间戳和可选第二主键顺序。此类查询使用 Hint 通常不会改变算子结构，也不应预期获得额外的扫描性能收益。
+
+该 Hint 不改变查询结果语义。对纯标签或 `tbname` 分区，它主要用于减少大量小分区带来的扫描分组切换和小数据块调度开销；少量大分区可能因额外的分区重组而无法获得性能收益。建议使用 `EXPLAIN` 确认计划中存在独立的 `Partition`，并使用 `EXPLAIN ANALYZE` 对比启用 Hint 前后的耗时和资源使用。不使用该 Hint 时，系统继续采用默认计划。
 
 ## SELECT 列表
 

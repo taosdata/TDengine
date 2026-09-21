@@ -4737,7 +4737,8 @@ enum {
   PHY_SORT_CODE_SORT_KEYS,
   PHY_SORT_CODE_TARGETS,
   PHY_SORT_CODE_CALC_GROUPID,
-  PHY_SORT_CODE_EXCLUDE_PK_COL
+  PHY_SORT_CODE_EXCLUDE_PK_COL,
+  PHY_SORT_CODE_NUM_OF_GROUP_KEYS
 };
 
 static int32_t physiSortNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4758,6 +4759,9 @@ static int32_t physiSortNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_SORT_CODE_EXCLUDE_PK_COL, pNode->excludePkCol);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_SORT_CODE_NUM_OF_GROUP_KEYS, pNode->numOfGroupKeys);
   }
 
   return code;
@@ -4787,6 +4791,9 @@ static int32_t msgToPhysiSortNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_CODE_EXCLUDE_PK_COL:
         code = tlvDecodeBool(pTlv, &pNode->excludePkCol);
+        break;
+      case PHY_SORT_CODE_NUM_OF_GROUP_KEYS:
+        code = tlvDecodeI32(pTlv, &pNode->numOfGroupKeys);
         break;
       default:
         break;

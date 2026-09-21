@@ -179,8 +179,22 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
       nodesClearList(pSortColsNodeArr);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      // PK ts col should always at last, see partColOptCreateSort
-      if (pSortNode->excludePkCol) taosArrayPop(pGroupIdCalc->pSortColsArr);
+      int32_t numOfSortKeys = taosArrayGetSize(pGroupIdCalc->pSortColsArr);
+      int32_t numOfGroupKeys = pSortNode->numOfGroupKeys;
+      if (numOfGroupKeys < 0 || numOfGroupKeys > numOfSortKeys) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _error;
+      }
+      if (numOfGroupKeys == 0) {
+        // Plans without an explicit prefix retain the single-PK exclusion.
+        numOfGroupKeys = numOfSortKeys - (pSortNode->excludePkCol ? 1 : 0);
+      }
+      // Only the original partition keys define group identity. Appended time
+      // keys still participate in pSortInfo, including both timestamp and PK.
+      while (numOfSortKeys > numOfGroupKeys) {
+        taosArrayPop(pGroupIdCalc->pSortColsArr);
+        --numOfSortKeys;
+      }
       code = extractKeysLen(pGroupIdCalc->pSortColsArr, &keyLen);
       QUERY_CHECK_CODE(code, lino, _error);
     }
