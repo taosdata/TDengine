@@ -75,5 +75,12 @@ if(TD_ENTERPRISE)
   add_subdirectory("${TD_ENTERPRISE_DIR}" "${CMAKE_BINARY_DIR}/enterprise")
 endif()
 
+include(cmake/third_party_symbols.cmake)
+foreach(client_library ${TAOS_LIB} ${TAOS_NATIVE_LIB} taos_ext_influx_arrow)
+  if(TARGET ${client_library})
+    taos_hide_third_party_symbols(${client_library})
+  endif()
+endforeach()
+
 include(cmake/install.cmake)
 include(CPack)
