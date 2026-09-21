@@ -245,7 +245,32 @@ waitress_config = {
 CREATE ANODE {node_url}
 ```
 
-`node_url` 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`CREATE ANODE '127.0.0.1:6035'`。Anode 启动后需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+`node_url` 是提供服务的 Anode 的 URL 字符串。Anode 启动后需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+
+**URL 格式要求**
+
+URL 须满足以下所有条件：
+
+- 协议前缀必须为 `http://` 或 `https://`。不带协议的 `host:port` 格式及其他协议（如 `file://`、`ftp://`）将被拒绝。
+- 默认情况下，解析到私有或内网地址的 URL **被允许**。如需拒绝此类地址，在 `taos.cfg` 中将 `anodeAllowInternalUrl` 设置为 `false` 并重启 `taosd`。受限范围包括：回环地址（`127.0.0.0/8`、`::1`）、链路本地地址（`169.254.0.0/16`、`fe80::/10`）及 RFC-1918 私有地址段（`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`）。
+
+示例：
+
+```sql
+CREATE ANODE 'http://192.168.1.50:6035'
+```
+
+**限制 Anode URL 只能使用公网地址**
+
+在 TDengine 服务端不应连接内部服务的环境中（例如多租户或云端部署），可在 `taos.cfg` 中将 `anodeAllowInternalUrl` 设置为 `false` 并重启 `taosd`：
+
+```ini
+anodeAllowInternalUrl false
+```
+
+| 参数 | 作用范围 | 默认值 | 说明 |
+|------|---------|--------|------|
+| `anodeAllowInternalUrl` | taosd | `true` | 允许 `CREATE ANODE` 使用解析到私有或内网地址的 URL。设置为 `false` 后将拒绝回环、链路本地及 RFC-1918 地址。可通过 `ALTER ALL DNODES 'anodeAllowInternalUrl' '0'` 热更新，无需重启。 |
 
 #### 查看 Anode
 

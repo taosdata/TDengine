@@ -19,6 +19,8 @@
 
 #include "wrapper.h"
 #include "wrapperHint.h"
+#include "taosNativeApi.h"
+#include <string.h>
 #ifndef WINDOWS
 #include <dlfcn.h>
 #endif
@@ -34,13 +36,59 @@
 #define DRIVER_WSBSOCKET_NAME "libtaosws.so"
 #endif
 
+/* The native driver hides its public entry points: they would compete with this
+ * dispatcher in symbol lookup for every consumer that links both libraries, and
+ * whoever comes first wins (which used to let taosdump bypass the dispatcher).
+ * Its symbols are therefore taken from the table it exports; the WebSocket driver
+ * exports the plain names and is still resolved with dlsym. */
+static const TdNativeApiEntry *tsNativeApi = NULL;
+
+static void *taosNativeApiLookup(const char *funcName) {
+  if (tsNativeApi == NULL) {
+    tsNativeApi = (const TdNativeApiEntry *)taosLoadDllFunc(tsDriver, "tdNativeApiTable");
+    if (tsNativeApi == NULL) {
+      return NULL;
+    }
+  }
+
+  for (const TdNativeApiEntry *entry = tsNativeApi; entry->name != NULL; ++entry) {
+    if (strcmp(entry->name, funcName) == 0) {
+      return entry->fn;
+    }
+  }
+
+  return NULL;
+}
+
+static void *taosDriverFunc(const char *funcName) {
+  if (tsDriverType == DRIVER_NATIVE) {
+    return taosNativeApiLookup(funcName);
+  }
+
+  return taosLoadDllFunc(tsDriver, funcName);
+}
+
 #define LOAD_FUNC(fptr, fname)                \
   funcName = fname;                           \
-  fptr = taosLoadDllFunc(tsDriver, funcName); \
+  fptr = taosDriverFunc(funcName);            \
   if (fptr == NULL) goto _OVER;
 
-#define LOAD_FUNC_OPTIONAL(fptr, fname)           \
-  fptr = taosLoadDllFunc(tsDriver, fname);
+/* An optional entry point keeps its fallback when the driver does not provide it.
+ * The table in wrapperVariable.c detects "not provided" by comparing a slot with
+ * that fallback, and wrapperFunc.c does not check for NULL on the call path any
+ * more, so letting a failed lookup write the slot would both hide the entry point
+ * from taosDriverReportMissing() and make every call jump to NULL.  The WebSocket
+ * driver lacks the txn, tz and instance entry points, so that is the normal case
+ * there.  (The mandatory macro above may assign the NULL it just tested, because a
+ * missing entry point aborts the whole init instead of being tolerated.) */
+#define LOAD_FUNC_OPTIONAL(fptr, fname)             \
+  funcName = fname;                                 \
+  {                                                 \
+    void *fpLoaded = taosDriverFunc(funcName);      \
+    if (fpLoaded != NULL) {                         \
+      fptr = fpLoaded;                              \
+    }                                               \
+  }
 
 #ifdef WEBSOCKET
 EDriverType tsDriverType = DRIVER_NATIVE;  // todo simon
@@ -59,6 +107,56 @@ static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
   }
 
   return ret;
+}
+
+/* dlopen() records the name it was handed and sanitizers print that name
+ * verbatim.  Handing it a bare file name makes the loader build the record from
+ * whichever search-path entry matched, so the record can still carry
+ * "source/taos-community/test/../../../" segments.  The CI ASAN check matches
+ * leak frames by path, which would then count every frame of the driver -- including
+ * frames of statically linked third-party code (libuv, cJSON) -- as TDengine code.
+ * Resolve the candidate to an absolute canonical path first so the recorded name
+ * no longer depends on how the caller happened to find us. */
+static int32_t taosResolveDriverPath(char *driverPath, int32_t pathLen, const char *driverName) {
+  char resolved[PATH_MAX] = {0};
+
+  /* the name may already be resolvable from the current directory */
+  if (taosRealPath((char *)driverName, resolved, sizeof(resolved)) == 0) {
+    tstrncpy(driverPath, resolved, pathLen);
+    return 0;
+  }
+
+#ifndef WINDOWS
+  const char *pathVars[] = {"LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"};
+
+  for (size_t i = 0; i < sizeof(pathVars) / sizeof(pathVars[0]); ++i) {
+    const char *pathList = getenv(pathVars[i]);
+    if (pathList == NULL || pathList[0] == '\0') {
+      continue;
+    }
+
+    char *copy = taosStrdupi(pathList);
+    if (copy == NULL) {
+      return -1;
+    }
+
+    char *save = NULL;
+    for (char *dir = strtok_r(copy, ":", &save); dir != NULL; dir = strtok_r(NULL, ":", &save)) {
+      if (snprintf(resolved, sizeof(resolved), "%s%s%s", dir[0] == '\0' ? "." : dir, TD_DIRSEP, driverName) < 0) {
+        continue;
+      }
+      if (taosRealPath(resolved, NULL, sizeof(resolved)) == 0) {
+        tstrncpy(driverPath, resolved, pathLen);
+        taosMemoryFree(copy);
+        return 0;
+      }
+    }
+
+    taosMemoryFree(copy);
+  }
+#endif
+
+  return -1;
 }
 
 #ifndef WINDOWS
@@ -123,9 +221,15 @@ int32_t taosDriverInit(EDriverType driverType) {
     tsDriver = taosLoadDll(driverPath);
   }  
 
-  // load from system path
+  // load from system path; resolve it to an absolute canonical path first so the
+  // name recorded by the loader is stable (see taosResolveDriverPath())
   if (tsDriver == NULL) {
-    tsDriver = taosLoadDll(driverName);
+    if (taosResolveDriverPath(driverPath, sizeof(driverPath), driverName) == 0) {
+      tsDriver = taosLoadDll(driverPath);
+    }
+    if (tsDriver == NULL) {
+      tsDriver = taosLoadDll(driverName);
+    }
   }
 
 // load from install path on mac
@@ -338,6 +442,22 @@ int32_t taosDriverInit(EDriverType driverType) {
 
   LOAD_FUNC(fp_taos_connect_is_alive, "taos_connect_is_alive");
 
+  /* Appended after the original list so existing entries keep their order.
+   * The WebSocket driver does not implement the instance management APIs, so
+   * they must be optional: a mandatory lookup here would fail the whole
+   * taosDriverInit() for every WebSocket connection (taosBenchmark -Z 1, the
+   * adapter's ws path, ...) even though none of them uses these functions.
+   * The wrappers in wrapperFunc.c report TSDB_CODE_DLL_FUNC_NOT_LOAD when the
+   * pointer stays NULL. */
+  LOAD_FUNC_OPTIONAL(fp_taos_register_instance, "taos_register_instance");
+  LOAD_FUNC_OPTIONAL(fp_taos_list_instances, "taos_list_instances");
+  LOAD_FUNC_OPTIONAL(fp_taos_free_instances, "taos_free_instances");
+
+  /* The optional entry points the driver does not have are named once here.
+   * Their slots keep the fallback, which answers TSDB_CODE_DLL_FUNC_NOT_LOAD,
+   * and the wrappers no longer have to check for that on every call. */
+  taosDriverReportMissing();
+
   code = 0;
 
 _OVER:
@@ -351,6 +471,16 @@ _OVER:
 }
 
 void taosDriverCleanup() {
+  /* The slots must not stay pointing into the image that is about to go: the
+   * wrappers no longer check for NULL on the way in, so a later call would jump
+   * into unloaded code.  Put the fallbacks back first -- they report the failure
+   * instead. */
+  taosDriverResetSlots();
+
+  /* The table lives inside the driver being unloaded, so the cache has to go with
+   * it: a later taosDriverInit() may load a different driver, and a stale pointer
+   * would make taosNativeApiLookup() walk freed memory. */
+  tsNativeApi = NULL;
   if (tsDriver != NULL) {
     taosCloseDll(tsDriver);
     tsDriver = NULL;

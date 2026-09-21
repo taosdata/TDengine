@@ -1,3 +1,18 @@
+# These programs are internal test tools -- they are never shipped -- so they
+# link the *static* driver and own exactly one copy of the engine.
+#
+# With the shared driver the public API lives in libtaos.so while the engine
+# archives still get listed here (util/common/os); on Linux the driver hides the
+# public names, so the linker pulls those archive members into the executable
+# instead of resolving them dynamically.  The executable then defines its own
+# osDefaultInit/tsNumOfCores and, being first in the lookup scope, becomes the
+# provider for libtaosnative.so -- which initialises the executable's copy and
+# leaves the driver's uninitialised, so taosInitCfg fails and taos_connect()
+# returns NULL (TMQ tests then sit at "row: 0" until they time out).
+#
+# Shadowing the variable covers every target_link_libraries block below.
+set(TAOS_NATIVE_LIB ${TAOS_NATIVE_LIB_STATIC})
+
 add_executable(tmq_demo tmqDemo.c)
 add_dependencies(tmq_demo ${TAOS_NATIVE_LIB})
 add_executable(tmq_sim tmqSim.c)
@@ -42,6 +57,9 @@ add_executable(tmq_taosx_txn tmq_taosx_txn.c)
 
 if(TD_LINUX)
     add_executable(tsz_test tsz_test.c)
+    # malformed TSZ/SZ payload rejection (Devon static scan defect 7114784001): the SZ decoder
+    # must reject garbage blocks with an error code instead of overflowing or calling exit()
+    add_test(NAME tsz_test_malformed_reject COMMAND tsz_test -sec)
 endif()
 
 target_link_libraries(

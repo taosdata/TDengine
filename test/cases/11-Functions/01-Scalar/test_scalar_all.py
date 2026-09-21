@@ -130,6 +130,13 @@ class TestScalarFunction:
 
     def run_repeat(self):
         self.run_normal_query_new("repeat")
+        tdSql.error("select repeat('ab', 2147483647);")
+        tdSql.execute("create table repeat_overflow_input (ts timestamp, repeat_count int);")
+        try:
+            tdSql.execute("insert into repeat_overflow_input values (now, 2147483647);")
+            tdSql.error("select repeat('ab', repeat_count) from repeat_overflow_input;")
+        finally:
+            tdSql.execute("drop table repeat_overflow_input;")
 
     def run_substr(self):
         self.run_normal_query_new("substr")

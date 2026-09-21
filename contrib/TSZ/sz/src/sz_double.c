@@ -267,9 +267,17 @@ size_t dataLength, double realPrecision, size_t *outSize, double valueRangeSize,
 }
 
 
-void SZ_compress_args_double_withinRange(unsigned char* newByteData, double *oriData, size_t dataLength, size_t *outSize)
+int SZ_compress_args_double_withinRange(unsigned char* newByteData, size_t newByteDataCapacity, double *oriData, size_t dataLength, size_t *outSize)
 {
+	//the "all values are equal" stream is always tiny (16 bytes), but serialize it into a scratch
+	//buffer first so the caller's buffer is only written once its size is known
+	unsigned char tmpBytes[64];
 	TightDataPointStorageD* tdps = (TightDataPointStorageD*) malloc(sizeof(TightDataPointStorageD));
+	if(tdps == NULL)
+	{
+		*outSize = 0;
+		return SZ_ALGORITHM_ERR;
+	}
 	memset(tdps, 0, sizeof(TightDataPointStorageD));
 	tdps->leadNumArray = NULL;
 	tdps->residualMidBits = NULL;
@@ -277,28 +285,49 @@ void SZ_compress_args_double_withinRange(unsigned char* newByteData, double *ori
 	tdps->allSameData = 1;
 	tdps->dataSeriesLength = dataLength;
 	tdps->exactMidBytes = (unsigned char*)malloc(sizeof(unsigned char)*8);
+	if(tdps->exactMidBytes == NULL)
+	{
+		free(tdps);
+		*outSize = 0;
+		return SZ_ALGORITHM_ERR;
+	}
 	tdps->isLossless = 0;
 	double value = oriData[0];
 	doubleToBytes(tdps->exactMidBytes, value);
 	tdps->exactMidBytes_size = 8;
 	
-	size_t tmpOutSize;
+	size_t tmpOutSize = 0;
 	//unsigned char *tmpByteData;
-	convertTDPStoFlatBytes_double(tdps, newByteData, &tmpOutSize);
+	if(!convertTDPStoFlatBytes_double(tdps, tmpBytes, &tmpOutSize) || tmpOutSize > sizeof(tmpBytes) || tmpOutSize > newByteDataCapacity)
+	{
+		free_TightDataPointStorageD(tdps);
+		*outSize = 0;
+		return SZ_ALGORITHM_ERR;
+	}
 	//convertTDPStoFlatBytes_double(tdps, &tmpByteData, &tmpOutSize);
 
 	//*newByteData = (unsigned char*)malloc(sizeof(unsigned char)*16); //for floating-point data (1+3+4+4)
 	//memcpy(*newByteData, tmpByteData, 16);
+	memcpy(newByteData, tmpBytes, tmpOutSize);
 	*outSize = tmpOutSize;//12==3+1+8(double_size)+MetaDataByteLength_double
 	free_TightDataPointStorageD(tdps);	
+	return SZ_SUCCESS;
 }
 
-int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteData, size_t *outSize, sz_params* params)
+int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteData, size_t *outSize, size_t newByteDataCapacity, sz_params* params)
 {		
 	int status = SZ_SUCCESS;
 	size_t dataLength = r1;
 	
 	double valueRangeSize = 0, medianValue = 0;
+
+	if(oriData == NULL || newByteData == NULL || outSize == NULL || params == NULL)
+	{
+		if(outSize != NULL)
+			*outSize = 0;
+		return SZ_ALGORITHM_ERR;
+	}
+	*outSize = 0;
 
 	// check at least elements count  
 	if(dataLength <= MIN_NUM_OF_ELEMENTS)
@@ -333,22 +362,28 @@ int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteDa
 	}	
 	if(valueRangeSize <= realPrecision)
 	{		
-		SZ_compress_args_double_withinRange(newByteData, oriData, dataLength, outSize);
+		//an invalid error bound mode is reported by getRealPrecision_double(): do not swallow it
+		if(status != SZ_SUCCESS)
+			return status;
+		return SZ_compress_args_double_withinRange(newByteData, newByteDataCapacity, oriData, dataLength, outSize);
 	}
 	else
 	{
 		size_t tmpOutSize = 0;
-		unsigned char* tmpByteData = newByteData;
-		bool twoStage = params->szMode != SZ_BEST_SPEED;
-		if(twoStage)
+		//stage one always runs in a scratch buffer: the caller's buffer must never be written before
+		//its capacity is known, whatever the compressor produces
+		unsigned char* tmpByteData = (unsigned char*)malloc(r1*sizeof(double)*1.2 + 1024);
+		if(tmpByteData == NULL)
 		{
-			tmpByteData = (unsigned char*)malloc(r1*sizeof(double)*1.2);
+			*outSize = 0;
+			return SZ_ALGORITHM_ERR;
 		}
+		bool twoStage = params->szMode != SZ_BEST_SPEED;
 
 		if(!SZ_compress_args_double_NoCkRngeNoGzip_1D(tmpByteData, oriData, r1, realPrecision, &tmpOutSize, valueRangeSize, medianValue))
 		{
-			if(twoStage)
-				free(tmpByteData);
+			*outSize = 0;
+			free(tmpByteData);
 
 			return SZ_ALGORITHM_ERR;
 		}
@@ -360,13 +395,26 @@ int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteDa
 		//
 		if(twoStage)
 		{
-			*outSize = sz_lossless_compress(params->losslessCompressor, tmpByteData, tmpOutSize, newByteData);
-			free(tmpByteData);
+			*outSize = sz_lossless_compress(params->losslessCompressor, tmpByteData, tmpOutSize, newByteData, newByteDataCapacity);
+			if(*outSize == 0 || *outSize > newByteDataCapacity)
+			{
+				*outSize = 0;
+				free(tmpByteData);
+				return SZ_ALGORITHM_ERR;
+			}
 		}
 		else
 		{
+			if(tmpOutSize > newByteDataCapacity)
+			{
+				*outSize = 0;
+				free(tmpByteData);
+				return SZ_ALGORITHM_ERR;
+			}
+			memcpy(newByteData, tmpByteData, tmpOutSize);
 			*outSize = tmpOutSize;
 		}
+		free(tmpByteData);
 	}
 
 	return status;

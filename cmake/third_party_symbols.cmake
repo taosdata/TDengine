@@ -1,0 +1,134 @@
+# Keep bundled dependencies private without hiding TDengine's cross-library APIs.
+# Walk the actual link closure so optional/unlinked archives are never loaded.
+function(_taos_hide_dependencies owner dependencies condition)
+    # CMake lists also split semicolons *inside* a generator expression. Reassemble
+    # those items before walking e.g. $<$<CONFIG:Debug>:package_a;package_b>.
+    set(depth 0)
+    set(dependency "")
+    foreach(part IN LISTS dependencies)
+        if(depth GREATER 0)
+            string(APPEND dependency ";${part}")
+        else()
+            set(dependency "${part}")
+        endif()
+        string(REGEX MATCHALL "\\$<|>" brackets "${part}")
+        foreach(bracket IN LISTS brackets)
+            if(bracket STREQUAL "$<")
+                math(EXPR depth "${depth} + 1")
+            elseif(depth GREATER 0)
+                # A '>' outside a generator expression is a literal path character.
+                math(EXPR depth "${depth} - 1")
+            endif()
+        endforeach()
+        if(depth EQUAL 0)
+            _taos_hide_dependency("${owner}" "${dependency}" "${condition}")
+        endif()
+    endforeach()
+endfunction()
+
+function(_taos_hide_dependency owner dependency condition)
+    if(dependency MATCHES "^\\$<(LINK_ONLY|BUILD_INTERFACE|TARGET_NAME_IF_EXISTS):(.*)>$")
+        _taos_hide_dependencies("${owner}" "${CMAKE_MATCH_2}" "${condition}")
+        return()
+    elseif(dependency MATCHES "^\\$<(\\$<CONFIG:[^>]+>):(.*)>$")
+        set(config_condition "${CMAKE_MATCH_1}")
+        set(config_dependencies "${CMAKE_MATCH_2}")
+        string(FIND "${condition}" "${config_condition}" existing_condition)
+        if(existing_condition EQUAL -1)
+            set(condition "$<AND:${condition},${config_condition}>")
+        endif()
+        _taos_hide_dependencies("${owner}" "${config_dependencies}" "${condition}")
+        return()
+    endif()
+
+    get_property(visited TARGET ${owner} PROPERTY _TD_SYMBOL_VISITED)
+    set(key "${condition}:${dependency}")
+    if(key IN_LIST visited)
+        return()
+    endif()
+    set_property(TARGET ${owner} APPEND PROPERTY _TD_SYMBOL_VISITED "${key}")
+
+    set(archive "")
+    if(TARGET "${dependency}")
+        get_target_property(kind "${dependency}" TYPE)
+        get_target_property(imported "${dependency}" IMPORTED)
+        get_target_property(source_dir "${dependency}" SOURCE_DIR)
+        string(FIND "${source_dir}/" "${TD_CONTRIB_DIR}/" contrib_prefix)
+        if(kind STREQUAL "STATIC_LIBRARY" AND (imported OR contrib_prefix EQUAL 0))
+            set(archive "$<TARGET_FILE:${dependency}>")
+        elseif(imported AND kind STREQUAL "UNKNOWN_LIBRARY")
+            get_target_property(configurations "${dependency}" IMPORTED_CONFIGURATIONS)
+            set(locations IMPORTED_LOCATION)
+            foreach(configuration IN LISTS configurations)
+                string(TOUPPER "${configuration}" configuration)
+                list(APPEND locations "IMPORTED_LOCATION_${configuration}")
+            endforeach()
+            foreach(location IN LISTS locations)
+                get_target_property(path "${dependency}" "${location}")
+                if(path MATCHES "\\.a$")
+                    set(archive "$<TARGET_FILE:${dependency}>")
+                endif()
+            endforeach()
+        endif()
+        if(archive)
+            set(archive_name "$<TARGET_FILE_NAME:${dependency}>")
+        endif()
+        # Public dependencies of shared libraries also reach the owner's link line.
+        # Private dependencies stay within the shared library's own export policy.
+        get_target_property(dependencies "${dependency}" INTERFACE_LINK_LIBRARIES)
+        if(dependencies)
+            _taos_hide_dependencies("${owner}" "${dependencies}" "${condition}")
+        endif()
+    elseif(dependency MATCHES "\\.a$")
+        # TDengine's own archives are linked as targets, third-party archives as paths.
+        set(archive "${dependency}")
+        get_filename_component(archive_name "${archive}" NAME)
+    endif()
+
+    if(archive)
+        set(archive_option "")
+        if(APPLE)
+            # No per-archive option on Darwin.  ld64 has no --exclude-libs equivalent
+            # that re-labels an archive already present as a link item: -load_hidden
+            # *loads* the archive in addition to that item, so the same members get
+            # pulled twice and ld64 errors with "duplicate symbol" (reproduced locally:
+            # 64 duplicates from libcrypto.a while linking libtaosnative.dylib).
+            #
+            # Matching the two spellings does avoid the duplicate pull, but the
+            # spelling CMake chooses for a link item (absolute vs. relative to the
+            # target's binary dir) is not predictable from here -- it differs between
+            # in-tree and out-of-tree externals -- so it cannot be reproduced safely.
+            #
+            # Skipping is the correct trade-off on Darwin: the two-level namespace
+            # binds each image's undefined references to a specific library at link
+            # time, so a second copy of a bundled dependency cannot interpose on them
+            # the way it can with the flat ELF namespace that --exclude-libs guards.
+            set(archive_option "")
+        elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            set(archive_option "LINKER:--exclude-libs,${archive_name}")
+        endif()
+        if(archive_option)
+            # Keep literal '>' in unconditional paths outside generator expressions.
+            if(NOT condition STREQUAL "1")
+                set(archive_option "$<${condition}:${archive_option}>")
+            endif()
+            target_link_options(${owner} PRIVATE "${archive_option}")
+        endif()
+    endif()
+endfunction()
+
+function(taos_hide_third_party_symbols target)
+    if(WIN32)
+        # PE exports are explicit (DLL_EXPORT/JNIEXPORT). Do not inherit a caller's
+        # automatic export setting, which would also expose implementation symbols.
+        set_target_properties(${target} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS OFF)
+        if(MINGW)
+            target_link_options(${target} PRIVATE "LINKER:--exclude-all-symbols")
+        endif()
+        return()
+    endif()
+
+    set_property(TARGET ${target} PROPERTY _TD_SYMBOL_VISITED "")
+    get_target_property(dependencies ${target} LINK_LIBRARIES)
+    _taos_hide_dependencies("${target}" "${dependencies}" "1")
+endfunction()

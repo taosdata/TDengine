@@ -22,10 +22,56 @@ else()
     target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_JEMALLOC} ${LINK_ARGP})
 endif()
 
-target_link_libraries(
-    shell
-    PUBLIC ${LINK_WEBSOCKET}
-    PRIVATE os common transport geometry util
+# The shell uses the public API through libtaos.so (the driver dispatcher) and
+# resolves the implicit engine/third-party symbols it needs from
+# libtaosnative.so instead of embedding them itself.  Linking those statics here
+# would pull ~17 MB into the binary (measured) and would also force libtaos.so to
+# keep exporting ~850 engine symbols for this tool alone.
+#
+# libtaos.so is named above, so the dispatcher is always the first definition of
+# the public API on this link line.  On Linux the driver is named as well, which
+# is safe: it does not export the public names there -- it hands them to the
+# dispatcher through tdNativeApiTable -- so taos_options() cannot be bound to it
+# even if CMake hoists it ahead of libtaos.so.  macOS gets the engine symbols
+# through libtaos.dylib's re-export of the driver dylib (see
+# source/client/wrapper/CMakeLists.txt) and so does not name it here.
+#
+# Windows keeps the previous setup (engine archives linked in here) because its
+# dispatcher is still fat, so its exports already satisfy the shell.
+if(TD_LINUX OR TD_DARWIN)
+    target_link_libraries(
+        shell
+        PUBLIC ${LINK_WEBSOCKET}
+    )
+    if(TD_LINUX)
+        # macOS resolves these through libtaos.dylib's re-export of the driver.
+        target_link_libraries(shell PRIVATE ${TAOS_NATIVE_LIB})
+    endif()
+else()
+    target_link_libraries(
+        shell
+        PUBLIC ${LINK_WEBSOCKET}
+        PRIVATE os common transport geometry util
+    )
+endif()
+
+# Engine headers for compilation only; they used to come in as a side effect of
+# linking os/common/util, which the shell no longer embeds.  Most of the engine
+# tree is advertised by libtaos.so's interface; these are the extra paths the
+# shell needs (geometry for geosWrapper.h, plus private source dirs no interface
+# exposes).
+target_include_directories(shell PRIVATE
+    "${TD_SOURCE_DIR}/include"
+    "${TD_SOURCE_DIR}/include/os"
+    "${TD_SOURCE_DIR}/include/util"
+    "${TD_SOURCE_DIR}/include/common"
+    "${TD_SOURCE_DIR}/include/libs/transport"
+    "${TD_SOURCE_DIR}/include/libs/geometry"
+    "${TD_SOURCE_DIR}/source/common/inc"
+    "${TD_SOURCE_DIR}/source/os/inc"
+    "${TD_SOURCE_DIR}/source/util/inc"
+    "${TD_SOURCE_DIR}/source/libs/transport/inc"
+    "${TD_SOURCE_DIR}/source/libs/scalar/inc"
 )
 
 IF(TD_WEBSOCKET)

@@ -6,6 +6,11 @@ IF(TD_LINUX)
   INCLUDE_DIRECTORIES(. ${TD_SOURCE_DIR}/src/inc ${TD_SOURCE_DIR}/src/client/inc ${TD_SOURCE_DIR}/inc)
   AUX_SOURCE_DIRECTORY(. SRC)
 
+  # These examples speak the public C API.  It lives in libtaos.so, which
+  # dispatches to the driver it dlopen()s; on Linux the driver no longer exports
+  # those names, so it cannot supply them on its own.
+  link_libraries(${TAOS_LIB})
+
   add_executable(tmq "")
   add_executable(stream_demo "")
   add_executable(schemaless "")

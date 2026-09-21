@@ -1670,6 +1670,10 @@ int32_t shellExecute(int argc, char *argv[]) {
 
     shellWriteHistory();
     shellCleanupHistory();
+    // Push the result out while this process is still in control of it: a
+    // sanitizer runtime that is preloaded into the client ends the process with
+    // _exit() and would otherwise discard whatever is still buffered here.
+    fflush(stdout);
     return 0;
   }
 
