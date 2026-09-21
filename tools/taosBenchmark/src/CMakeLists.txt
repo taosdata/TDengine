@@ -122,6 +122,17 @@ if(NOT WIN32)
   target_link_libraries(taosBenchmark PRIVATE m)
 endif()
 
+# benchCsv.c calls zlib (gzopen/gzwrite/gzerror/gzclose) directly.  That used to
+# arrive by accident: libtaos linked os/util PUBLIC, and CMake propagates a
+# static library's private dependencies ($<LINK_ONLY:...>) to its consumers, so
+# libz.a was already on every tool's link line.  Hiding the bundled dependency
+# symbols (cmake/third_party_symbols.cmake, --exclude-libs on Linux) ended that:
+# libz's symbols are no longer exported by libtaos/libtaosnative, so name the
+# archive explicitly here (same fix as tools/taosdump).
+if(TD_LINUX OR TD_DARWIN)
+  target_link_libraries(taosBenchmark PRIVATE ${ext_zlib_libs})
+endif()
+
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   check_include_file("argp.h" _have_argp "-I${BREW_PREFIX}/include")
   if(NOT _have_argp)

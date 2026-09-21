@@ -88,9 +88,22 @@ function(_taos_hide_dependency owner dependency condition)
     if(archive)
         set(archive_option "")
         if(APPLE)
-            # Keep the original link item too: it supplies the build dependency and
-            # archive ordering. The first occurrence marks this archive as hidden.
-            set(archive_option "LINKER:-load_hidden,${archive}")
+            # No per-archive option on Darwin.  ld64 has no --exclude-libs equivalent
+            # that re-labels an archive already present as a link item: -load_hidden
+            # *loads* the archive in addition to that item, so the same members get
+            # pulled twice and ld64 errors with "duplicate symbol" (reproduced locally:
+            # 64 duplicates from libcrypto.a while linking libtaosnative.dylib).
+            #
+            # Matching the two spellings does avoid the duplicate pull, but the
+            # spelling CMake chooses for a link item (absolute vs. relative to the
+            # target's binary dir) is not predictable from here -- it differs between
+            # in-tree and out-of-tree externals -- so it cannot be reproduced safely.
+            #
+            # Skipping is the correct trade-off on Darwin: the two-level namespace
+            # binds each image's undefined references to a specific library at link
+            # time, so a second copy of a bundled dependency cannot interpose on them
+            # the way it can with the flat ELF namespace that --exclude-libs guards.
+            set(archive_option "")
         elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             set(archive_option "LINKER:--exclude-libs,${archive_name}")
         endif()
