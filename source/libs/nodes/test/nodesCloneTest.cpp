@@ -131,6 +131,55 @@ class NodesCloneTest : public testing::Test {
   std::function<void(const SNode*, const SNode*)> checkFunc_;
 };
 
+TEST_F(NodesCloneTest, sortPreservesGroupKeyPrefix) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+  SSortLogicNode*                          pSort = (SSortLogicNode*)pNode;
+  pSort->calcGroupId = true;
+  pSort->numOfGroupKeys = 2;
+
+  SNode* pClone = nullptr;
+  ASSERT_EQ(nodesCloneNode(pNode, &pClone), TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> clone(pClone, nodesDestroyNode);
+  EXPECT_TRUE(((SSortLogicNode*)pClone)->calcGroupId);
+  EXPECT_EQ(((SSortLogicNode*)pClone)->numOfGroupKeys, 2);
+}
+
+TEST(NodesCodeTest, sortGroupKeyPrefixRoundTrip) {
+  for (int32_t numOfGroupKeys : {0, 1, 2}) {
+    SCOPED_TRACE(numOfGroupKeys);
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    SSortPhysiNode*                          pSort = (SSortPhysiNode*)pNode;
+    pSort->calcGroupId = true;
+    pSort->excludePkCol = true;
+    pSort->numOfGroupKeys = numOfGroupKeys;
+
+    char* pJson = nullptr;
+    ASSERT_EQ(nodesNodeToString(pNode, false, &pJson, nullptr), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> json(pJson, freeTestBuffer);
+    SNode*                                 pJsonNode = nullptr;
+    ASSERT_EQ(nodesStringToNode(pJson, &pJsonNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(pJsonNode, nodesDestroyNode);
+    EXPECT_TRUE(((SSortPhysiNode*)pJsonNode)->calcGroupId);
+    EXPECT_TRUE(((SSortPhysiNode*)pJsonNode)->excludePkCol);
+    EXPECT_EQ(((SSortPhysiNode*)pJsonNode)->numOfGroupKeys, numOfGroupKeys);
+
+    char*   pMsg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToMsg(pNode, &pMsg, &len), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> msg(pMsg, freeTestBuffer);
+    SNode*                                 pMsgNode = nullptr;
+    ASSERT_EQ(nodesMsgToNode(pMsg, len, &pMsgNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> msgNode(pMsgNode, nodesDestroyNode);
+    EXPECT_TRUE(((SSortPhysiNode*)pMsgNode)->calcGroupId);
+    EXPECT_TRUE(((SSortPhysiNode*)pMsgNode)->excludePkCol);
+    EXPECT_EQ(((SSortPhysiNode*)pMsgNode)->numOfGroupKeys, numOfGroupKeys);
+  }
+}
+
 TEST(NodesCodeTest, queryPlanJsonRoundTripPreservesAllSubplanLevels) {
   SNode* pNode = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, &pNode));

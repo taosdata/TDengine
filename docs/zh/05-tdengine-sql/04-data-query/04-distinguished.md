@@ -220,6 +220,22 @@ STATE_WINDOW(state_expr [, state_expr ...])
 - `ZEROTH_STATE(...)`：可选，指定"零状态"。通过 `ZEROTH_STATE` 指定这些不关心的状态值后，匹配的窗口会被自动过滤，不参与计算也不输出，从而简化结果。参数个数必须与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，且可以转换为对应状态键的数据类型；`NO_ZEROTH` 表示对应位置不参与零状态判断。只有所有已配置零状态的位置都等于对应值时，该窗口才会被过滤。
 - `TRUE_FOR(true_for_expr)`：可选，指定窗口过滤条件。支持 `TRUE_FOR(duration_time)`、`TRUE_FOR(COUNT n)`、`TRUE_FOR(duration_time AND COUNT n)`、`TRUE_FOR(duration_time OR COUNT n)` 四种形式。
 
+#### 分区优化
+
+从 `v3.4.3.0` 起，超级表按标签列或 `tbname` 分区执行状态窗口查询时，可以使用 `PARTITION_FIRST` Hint 保留独立的 `Partition` 算子：
+
+```sql
+SELECT /*+ PARTITION_FIRST() */
+       gid, _wstart, COUNT(*), SUM(val)
+FROM meters
+PARTITION BY gid
+STATE_WINDOW(status);
+```
+
+该计划先通过 Table Merge Scan 扫描相关子表，再由 `Partition` 按 `gid` 组织数据，最后由 `STATE_WINDOW` 在每个分区内计算窗口。它主要适用于分区数量多、每个分区数据量较小的场景，不保证所有数据分布都能获得性能提升。该 Hint 不改变窗口边界和聚合结果；不使用 Hint 时继续采用默认计划。详细说明和验证方法请参阅 [Hints](./01-query.md#hints)。
+
+状态窗口也支持按普通数据列以及标签与普通数据列的组合分区，例如 `PARTITION BY category STATE_WINDOW(status)` 或 `PARTITION BY gid, category STATE_WINDOW(status)`。这两类查询在有无 `PARTITION_FIRST` 时都会使用独立的 `Partition`，并在多 vnode 环境保持分区内的主时间戳和可选第二主键顺序。由于它们本来就是一次扫描加上层分区，使用 Hint 通常不改变计划结构，也不承诺获得上述纯标签分区的扫描优化收益。
+
 状态键中的 `NULL` 按下面的规则处理：
 
 - 连续相同状态键（`NULL` 位置相同，且非 `NULL` 状态键也完全相同）的行会作为一个整体决定是并入前一个窗口、并入后一个窗口，还是独立成窗，其归属和扩展与 `EXTEND` 参数相关；

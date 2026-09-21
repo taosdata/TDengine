@@ -220,6 +220,22 @@ Where:
 - `ZEROTH_STATE(...)` optionally specifies the zero state. A zero state is a baseline state value that the user does not care about. State-window queries often produce many windows in default, idle, or normal states, while users usually care only about exceptional or target states. By specifying these baseline values with `ZEROTH_STATE`, matching windows are filtered out automatically and are neither calculated nor returned, which keeps the result set focused. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
 - `TRUE_FOR(true_for_expr)` optionally filters windows by duration, row count, or both. For `EVENT_WINDOW`, also supports `start(...)` for open-condition streak thresholds and `end(...)` for close-condition streak thresholds.
 
+#### Partition Optimization
+
+Starting from v3.4.3.0, a state-window query on a supertable partitioned by tag columns or `tbname` can use the `PARTITION_FIRST` hint to retain an independent Partition operator:
+
+```sql
+SELECT /*+ PARTITION_FIRST() */
+       gid, _wstart, COUNT(*), SUM(val)
+FROM meters
+PARTITION BY gid
+STATE_WINDOW(status);
+```
+
+This plan first scans the relevant subtables with Table Merge Scan, then uses Partition to organize the data by `gid`, and finally calculates windows within each partition with `STATE_WINDOW`. It is intended mainly for workloads with many partitions and a small amount of data in each partition; it does not guarantee a performance improvement for every data distribution. The hint does not change window boundaries or aggregate results. Without the hint, TDengine continues to use the default plan. See [Hints](./01-query.md#hints) for details and validation guidance.
+
+State-window queries also support partitioning by regular data columns and by combinations of tag and regular data columns, for example `PARTITION BY category STATE_WINDOW(status)` and `PARTITION BY gid, category STATE_WINDOW(status)`. These queries retain an independent Partition operator with or without `PARTITION_FIRST`, and multi-vnode execution preserves the primary-timestamp and optional second-primary-key order within each partition. Because this path already performs one scan followed by upper-layer partitioning, the hint normally does not change the plan shape and does not promise the scan optimization described above for tag-only partitions.
+
 `NULL` values in state keys are handled as follows:
 
 - Consecutive rows with the same state key pattern, meaning the `NULL` positions are the same and the non-`NULL` state-key values are also identical, are handled as a whole. Depending on `EXTEND`, that whole segment may merge into the previous window, merge into the next window, or become an independent window.

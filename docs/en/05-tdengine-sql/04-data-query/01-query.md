@@ -161,7 +161,7 @@ The currently supported Hints list is as follows:
 |     BATCH_SCAN      | None          | Use batch table reading                                                                                                                                                               | Supertable JOIN statements                      |
 |    NO_BATCH_SCAN    | None          | Use sequential table reading                                                                                                                                                          | Supertable JOIN statements                      |
 |   SORT_FOR_GROUP    | None          | Use sort method for grouping, conflicts with PARTITION_FIRST                                                                                                                          | When partition by list includes regular columns |
-|   PARTITION_FIRST   | None          | Use PARTITION to calculate groups before aggregation, conflicts with SORT_FOR_GROUP                                                                                                   | When partition by list includes regular columns |
+|   PARTITION_FIRST   | None          | Prefer an independent Partition operator to form partitions; conflicts with SORT_FOR_GROUP                                                                                            | When the PARTITION BY list includes regular columns; starting from v3.4.3.0, also for STATE_WINDOW queries on a supertable partitioned by tag columns or tbname |
 |  PARA_TABLES_SORT   | None          | When sorting supertable data by timestamp, use memory instead of temporary disk space. When there are many subtables and rows are large, it will use a lot of memory and may cause OOM | When sorting supertable data by timestamp       |
 |  SMALLDATA_TS_SORT  | None          | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance    | When sorting supertable data by timestamp       |
 | SMALLDATA_SCAN_SORT | None          | When a supertable query needs timestamp-ordered scan output, use a plain table scan plus a sort instead of a table merge scan; for small per-vnode data this can be faster. It applies wherever the engine would otherwise use a table merge scan to produce timestamp order: ORDER BY ts, and also SESSION / STATE_WINDOW (no explicit ORDER BY required). It has no effect on INTERVAL windows (which do not use a table merge scan), nor on ORDER BY of non-timestamp columns | Small per-vnode supertable data needing timestamp order |
@@ -175,12 +175,20 @@ Examples:
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ gid, _wstart, COUNT(*) FROM meters PARTITION BY gid STATE_WINDOW(status);
+SELECT /*+ PARTITION_FIRST() */ category, _wstart, COUNT(*) FROM meters PARTITION BY category STATE_WINDOW(status);
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
 SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 ```
+
+Starting from v3.4.3.0, `PARTITION_FIRST` also applies to state-window queries on a supertable partitioned by tag columns or `tbname`. In this execution path, Table Merge Scan first scans the relevant subtables, an independent Partition operator then forms partitions by the tag columns or `tbname`, and `STATE_WINDOW` calculates windows within each partition. A multi-vnode query preserves the primary-timestamp order within each partition. If the table has a second primary key, it is also used to determine the order of rows with the same timestamp.
+
+When the `PARTITION BY` list contains a regular data column, or both tag and regular data columns, TDengine retains an independent Partition operator with or without `PARTITION_FIRST`. A regular column can change from row to row and therefore cannot be grouped in advance from subtable tags during the scan. Multi-vnode queries also preserve the primary-timestamp order and the optional second-primary-key order within each partition. For these queries, the hint normally does not change the operator shape and is not expected to provide an additional scan-performance gain.
+
+This hint does not change query-result semantics. For tag-only or `tbname` partitions, it is intended mainly to reduce scan-group switching and small-block scheduling overhead when there are many small partitions. A workload with a few large partitions might not benefit because it incurs additional repartitioning work. Use `EXPLAIN` to verify that the plan contains an independent Partition operator, and use `EXPLAIN ANALYZE` to compare execution time and resource usage with and without the hint. Without this hint, TDengine continues to use the default plan.
 
 ## List
 
