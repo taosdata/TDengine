@@ -69,6 +69,7 @@ static int32_t cloneVgroups(SVgroupsInfo **pDst, SVgroupsInfo* pSrc) {
 }
 
 static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, SNodeList** pOutput);
+int32_t stbSplFindPkFromScan(SScanLogicNode* pScan, SNode** ppNode);
 
 static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
@@ -1206,6 +1207,59 @@ static void stbSplSetTableMergeScan(SLogicNode* pNode) {
   }
 }
 
+static SScanLogicNode* stbSplFindSingleScan(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    return (SScanLogicNode*)pNode;
+  }
+  if (1 == LIST_LENGTH(pNode->pChildren)) {
+    return stbSplFindSingleScan((SLogicNode*)nodesListGetNode(pNode->pChildren, 0));
+  }
+  return NULL;
+}
+
+static int32_t stbSplAppendSecondPrimaryKeyMergeKey(SLogicNode* pChild, EOrder order, SNodeList** pMergeKeys) {
+  SScanLogicNode* pScan = stbSplFindSingleScan(pChild);
+  if (NULL == pScan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode*  pPk = NULL;
+  int32_t code = stbSplFindPkFromScan(pScan, &pPk);
+  if (TSDB_CODE_SUCCESS != code || NULL == pPk) {
+    return code;
+  }
+
+  SColumnNode* pPkCol = (SColumnNode*)pPk;
+  if ('\0' == pPkCol->node.aliasName[0]) {
+    tstrncpy(pPkCol->node.aliasName, pPkCol->colName, TSDB_COL_NAME_LEN);
+  }
+  if ('\0' == pPkCol->node.userAlias[0]) {
+    tstrncpy(pPkCol->node.userAlias, pPkCol->colName, TSDB_COL_NAME_LEN);
+  }
+
+  SNode* pMergePk = pPk;
+  if ((SLogicNode*)pScan != pChild) {
+    SNode* pTarget = NULL;
+    FOREACH(pTarget, pChild->pTargets) {
+      if (nodesEqualNode(pTarget, pPk)) {
+        pMergePk = pTarget;
+        break;
+      }
+    }
+    if (NULL == pTarget) {
+      pMergePk = NULL;
+      code = nodesCloneNode(pPk, &pMergePk);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesListStrictAppend(pChild->pTargets, pMergePk);
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = stbSplCreateMergeKeysByExpr(pMergePk, order, pMergeKeys);
+  }
+  return code;
+}
+
 static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SLogicNode* pWindow = pInfo->pSplitNode;
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pWindow->pChildren, 0);
@@ -1213,6 +1267,10 @@ static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSpl
   SNodeList* pMergeKeys = NULL;
   int32_t    code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pWindow)->pTspk,
                                                       ((SWindowLogicNode*)pWindow)->node.inputTsOrder, &pMergeKeys);
+
+  if (TSDB_CODE_SUCCESS == code && WINDOW_TYPE_STATE == ((SWindowLogicNode*)pWindow)->winType) {
+    code = stbSplAppendSecondPrimaryKeyMergeKey(pChild, ((SWindowLogicNode*)pWindow)->node.inputTsOrder, &pMergeKeys);
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pChild, pMergeKeys, (SLogicNode*)pChild, true, true);
@@ -1823,7 +1881,7 @@ int32_t stbSplFindPkFromScan(SScanLogicNode* pScan, SNode** ppNode) {
   bool   find = false;
   SNode* pCol = NULL;
   FOREACH(pCol, pScan->pScanCols) {
-    if (((SColumnNode*)pCol)->isPk) {
+    if (((SColumnNode*)pCol)->isPk && PRIMARYKEY_TIMESTAMP_COL_ID != ((SColumnNode*)pCol)->colId) {
       find = true;
       break;
     }

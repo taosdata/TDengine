@@ -5700,6 +5700,49 @@ static bool partTagsOptAreSupportedFuncs(SNodeList* pFuncs) {
   return true;
 }
 
+static bool partTagsOptIsPartitionFirst(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode)) {
+    return false;
+  }
+
+  SLogicNode* pParent = pNode->pParent;
+  if (NULL == pParent || QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pParent) ||
+      WINDOW_TYPE_STATE != ((SWindowLogicNode*)pParent)->winType) {
+    return false;
+  }
+
+  SLogicNode* pRoot = getLogicNodeRootNode(pNode);
+  return NULL != pRoot && getOptHint(pRoot->pHint, HINT_PARTITION_FIRST);
+}
+
+static bool partTagsOptShouldPreservePartitionOrder(SLogicNode* pNode) {
+  if (!keysHasCol(partTagsGetPartKeys(pNode))) {
+    return partTagsOptIsPartitionFirst(pNode);
+  }
+
+  // A data-column Partition remains explicit in both plan variants. STATE_WINDOW
+  // requires its known scan order for deterministic distributed merging.
+  SLogicNode* pParent = pNode->pParent;
+  return NULL != pParent && QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent) &&
+         WINDOW_TYPE_STATE == ((SWindowLogicNode*)pParent)->winType;
+}
+
+static void partTagsOptPreservePartitionOrder(SLogicNode* pNode) {
+  if (partTagsIsOptimizableNode(pNode) && partTagsOptShouldPreservePartitionOrder(pNode)) {
+    SLogicNode* pScan = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    if (ORDER_ASC == pScan->outputTsOrder || ORDER_DESC == pScan->outputTsOrder) {
+      pNode->inputTsOrder = pScan->outputTsOrder;
+      pNode->outputTsOrder = pScan->outputTsOrder;
+      if (NULL != pNode->pParent) {
+        pNode->pParent->inputTsOrder = pNode->outputTsOrder;
+      }
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) { partTagsOptPreservePartitionOrder((SLogicNode*)pChild); }
+}
+
 static bool partTagsOptCanSplitInterpPartition(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode) ||
       NULL == pNode->pParent ||
@@ -5744,6 +5787,10 @@ static bool partTagsOptCanSplitInterpPartition(SLogicNode* pNode) {
 
 static bool partTagsOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (!partTagsIsOptimizableNode(pNode)) {
+    return false;
+  }
+
+  if (partTagsOptIsPartitionFirst(pNode)) {
     return false;
   }
 
@@ -6211,6 +6258,8 @@ static int32_t partTagsOptRollbackInterpSplit(
 }
 
 static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  partTagsOptPreservePartitionOrder(pLogicSubplan->pNode);
+
   SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode, partTagsOptMayBeOptimized, NULL);
   if (NULL == pNode) {
     return TSDB_CODE_SUCCESS;
@@ -10196,6 +10245,61 @@ static bool partColOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   return false;
 }
 
+static bool partColOptHasSortKey(const SSortLogicNode* pSort, const SNode* pExpr) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pSort->pSortKeys) {
+    if (nodesEqualNode(((SOrderByExprNode*)pNode)->pExpr, pExpr)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t partColOptAppendStateWindowOrderKeys(SPartitionLogicNode* pPartition, SSortLogicNode* pSort) {
+  SLogicNode* pParent = pPartition->node.pParent;
+  EOrder      order = pPartition->node.outputTsOrder;
+  if (NULL == pParent || QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pParent) ||
+      WINDOW_TYPE_STATE != ((SWindowLogicNode*)pParent)->winType) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (ORDER_ASC != order && ORDER_DESC != order) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  if (1 != LIST_LENGTH(pPartition->node.pChildren)) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SNode* pChild = nodesListGetNode(pPartition->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SNode*          pTs = NULL;
+  SNode*          pPk = NULL;
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  int32_t         code = stbSplFindPrimaryKeyFromScan(pScan, &pTs);
+  if (TSDB_CODE_SUCCESS == code && NULL == pTs) {
+    code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  if (TSDB_CODE_SUCCESS == code && !partColOptHasSortKey(pSort, pTs)) {
+    code = stbSplCreateMergeKeysByExpr(pTs, order, &pSort->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = stbSplFindPkFromScan(pScan, &pPk);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pPk && !partColOptHasSortKey(pSort, pPk)) {
+    code = stbSplCreateMergeKeysByExpr(pPk, order, &pSort->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pSort->node.inputTsOrder = pPartition->node.inputTsOrder;
+    pSort->node.outputTsOrder = order;
+    // Timestamp and second-PK suffixes order rows within a business partition.
+    pSort->numOfGroupKeys = LIST_LENGTH(pPartition->pPartitionKeys);
+  }
+  return code;
+}
+
 static int32_t partColOptCreateSort(SPartitionLogicNode* pPartition, SSortLogicNode** ppSort) {
   SNode*          node;
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -10250,6 +10354,9 @@ static int32_t partColOptCreateSort(SPartitionLogicNode* pPartition, SSortLogicN
           }
         }
       }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = partColOptAppendStateWindowOrderKeys(pPartition, pSort);
     }
   }
   if (code != TSDB_CODE_SUCCESS) {

@@ -4587,6 +4587,7 @@ static const char* jkSortPhysiPlanSortKeys = "SortKeys";
 static const char* jkSortPhysiPlanTargets = "Targets";
 static const char* jkSortPhysiPlanCalcGroupIds = "CalcGroupIds";
 static const char* jkSortPhysiPlanExcludePKCol = "ExcludePKCol";
+static const char* jkSortPhysiPlanNumOfGroupKeys = "NumOfGroupKeys";
 
 static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   const SSortPhysiNode* pNode = (const SSortPhysiNode*)pObj;
@@ -4606,6 +4607,9 @@ static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkSortPhysiPlanExcludePKCol, pNode->excludePkCol);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSortPhysiPlanNumOfGroupKeys, pNode->numOfGroupKeys);
   }
 
   return code;
@@ -4629,6 +4633,9 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSortPhysiPlanExcludePKCol, &pNode->excludePkCol);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkSortPhysiPlanNumOfGroupKeys, &pNode->numOfGroupKeys);
   }
 
   return code;
