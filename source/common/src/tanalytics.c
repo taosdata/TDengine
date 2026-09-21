@@ -14,10 +14,14 @@
  */
 
 #define _DEFAULT_SOURCE
+// the opensocket callback below creates the connection socket itself
+#define ALLOW_FORBID_FUNC
+#include "os.h"
 #include "tanalytics.h"
 #include "ttypes.h"
 #include "tutil.h"
 #include "osTime.h"
+#include "tglobal.h"
 
 #ifdef USE_ANALYTICS
 
@@ -271,6 +275,25 @@ int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalyAlgoType type, char *url
 
 int64_t taosAnalyGetVersion() { return tsAlgos.ver; }
 
+// Reject connections to private/internal addresses before they are established.
+// CURLOPT_OPENSOCKETFUNCTION runs before connect() and is handed the resolved peer
+// address, the very sockaddr libcurl then passes to connect(), so rejecting it here
+// closes the DNS rebinding window that the URL level check in taosIsPrivateUrl() can not
+// cover. CURLOPT_SOCKOPTFUNCTION can not be used for this: it also runs before connect(),
+// where getpeername() reports no peer yet.
+// The caller installs this callback only while internal urls are forbidden and passes the
+// request url as CURLOPT_OPENSOCKETDATA for the log line.
+static curl_socket_t taosCurlOpensocketCb(void *clientp, curlsocktype purpose, struct curl_sockaddr *address) {
+  const char *url = (const char *)clientp;
+
+  if (purpose == CURLSOCKTYPE_IPCXN && taosIsPrivateIp((const struct sockaddr *)&address->addr)) {
+    uError("blocked connection to a private/internal address, url:%s", url != NULL ? url : "");
+    return CURL_SOCKET_BAD;
+  }
+
+  return socket(address->family, address->socktype, address->protocol);
+}
+
 static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void *userdata) {
   SCurlResp *pRsp = userdata;
   if (contLen == 0 || nmemb == 0 || pCont == NULL) {
@@ -325,6 +348,12 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   }
 
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L) != 0) goto _OVER;
+  if (!tsAnodeAllowInternalUrl) {
+    // the socket layer refuses connections to private/internal addresses before they are made
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, taosCurlOpensocketCb) != 0) goto _OVER;
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, (void *)url) != 0) goto _OVER;
+  }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000) != 0) goto _OVER;
@@ -355,6 +384,12 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
   if (curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L) != 0) goto _OVER;
+  if (!tsAnodeAllowInternalUrl) {
+    // the socket layer refuses connections to private/internal addresses before they are made
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, taosCurlOpensocketCb) != 0) goto _OVER;
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, (void *)url) != 0) goto _OVER;
+  }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout) != 0) goto _OVER;

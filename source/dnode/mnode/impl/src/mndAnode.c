@@ -14,12 +14,16 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
+#include "tanalytics.h"
+#include "ttypes.h"
+#include "tjson.h"
+#include "tglobal.h"
+#include "tutil.h"
 #include "mndAnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
-#include "tanalytics.h"
-#include "tjson.h"
 
 #ifdef USE_ANALYTICS
 
@@ -321,6 +325,16 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   anodeObj.url = taosMemoryCalloc(1, pCreate->urlLen);
   if (anodeObj.url == NULL) goto _OVER;
   (void)memcpy(anodeObj.url, pCreate->url, pCreate->urlLen);
+
+  if (strncasecmp(anodeObj.url, "http://", 7) != 0 && strncasecmp(anodeObj.url, "https://", 8) != 0) {
+    code = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+    goto _OVER;
+  }
+
+  if (!tsAnodeAllowInternalUrl && taosIsPrivateUrl(anodeObj.url)) {
+    code = TSDB_CODE_MND_ANODE_BLOCKED_URL;
+    goto _OVER;
+  }
 
   code = mndGetAnodeAlgoList(anodeObj.url, &anodeObj);
   if (code != 0) goto _OVER;

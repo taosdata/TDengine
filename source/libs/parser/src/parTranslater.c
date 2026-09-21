@@ -21048,6 +21048,9 @@ static int32_t translateDropEncryptAlgr(STranslateContext* pCxt, SDropEncryptAlg
 }
 
 static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* pStmt) {
+  if (strncasecmp(pStmt->url, "http://", 7) != 0 && strncasecmp(pStmt->url, "https://", 8) != 0) {
+    return TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+  }
   SMCreateAnodeReq createReq = {0};
   createReq.urlLen = strlen(pStmt->url) + 1;
   if (createReq.urlLen > TSDB_ANALYTIC_ANODE_URL_LEN) {
