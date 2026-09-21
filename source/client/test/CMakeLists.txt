@@ -47,9 +47,14 @@ TARGET_LINK_LIBRARIES(
         PUBLIC ${TAOS_NATIVE_LIB_STATIC}
 )
 else()
+# userOperTest drives the public C API, which lives in libtaos.so (the
+# dispatcher).  On Linux the driver no longer exports those names -- it hands
+# them to the dispatcher through tdNativeApiTable -- so naming it alone leaves
+# taos_connect/taos_query/... undefined.  The other targets in this directory
+# use the static archive and are unaffected.
 TARGET_LINK_LIBRARIES(
         userOperTest
-	PUBLIC ${TAOS_NATIVE_LIB}
+        PUBLIC ${TAOS_LIB} ${TAOS_NATIVE_LIB}
 )
 endif()
 

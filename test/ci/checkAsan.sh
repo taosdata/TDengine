@@ -48,17 +48,117 @@ error_num=$(cat "${LOG_DIR}"/*.asan | grep "ERROR" | wc -l)
 archOs=$(arch)
 
 # ---------- 1. 集中白名单，以后要加只改这里 ----------
-ignore_pat='taosMemCalloc|transDumpFromBuffer|cliHandleResp'
+# 1a. 命中即忽略：块里只要有任一帧命中这些已知无害的 TDengine 符号，整块不计。
+#     这里只放「已知无害的调用点」。不要放通用分配器：taosMemCalloc 是引擎的 malloc
+#     对应物，几乎每条引擎泄漏栈里都有它，放在这一档等于把整类泄漏豁免掉。
+ignore_pat='transDumpFromBuffer|cliHandleResp'
 
-# ---------- 2. 一次性读出内容，避免 4 次 cat ----------
+# 1a'. 通用分配器（taosMemCalloc）按「管道帧」处理：它只说明分配走了引擎内存池，
+#      本身不是泄漏现场。放进 plumbing 的效果是——栈里只有它加上第三方/sanitizer 帧
+#      （模块被剥符号、或静态链进来的第三方代码）时仍然豁免；一旦出现引擎源码帧，
+#      整块重新计入。这样既保留了原来的豁免意图，又不会把「分配器 + 引擎代码」的
+#      真泄漏一起放掉。
+allocator_pat='taosMemCalloc'
+
+# 1b. 纯第三方栈：OpenSSL 被链进 libtaos.so 后，它自己的一次性 config/error-state
+# 初始化（OPENSSL_init_crypto -> CONF_modules_load_file_ex -> ERR_set_mark ->
+# CRYPTO_zalloc）会被 LSan 报成 Direct leak。整条分配链都在 libcrypto 里，没有一帧是
+# TDengine 代码；TDengine 只是触发者。
+#
+# 判定方式：块里所有帧都属于「第三方管道」（libcrypto/libssl 符号、只有 module+offset
+# 的 libcrypto/libssl 帧、sanitizer 自己的 malloc 包装、glibc 的 pthread_once、以及引擎
+# 的通用分配器 taosMemCalloc）时才忽略。
+# 只要出现一帧不认识的——尤其是 TDengine 源码帧——整块仍然计入。
+openssl_internal_pat="CRYPTO_|ERR_|BIO_(new_file|meth_new)|def_load|NCONF_load|CONF_modules_load_file_ex|ossl_|OPENSSL_|sk_[A-Za-z0-9_]+_deep_copy|EVP_|RAND_|SSL_CTX_|inner_(evp|ossl)_|evp_(generic_fetch|cipher_|rand_)|ssl_(evp_md_fetch|load_ciphers)|provider_|algorithm_|construct_evp_method|drbg_|rand_new_|seed_src_|pgtls_|initialize_SSL|aes_[A-Za-z0-9_]+_newctx"
+# libpq.so.5 may bundle OpenSSL symbols under the taos-community build path.
+# Keep this filter tied to libpq so TDengine-owned frames remain visible.
+libpq_openssl_internal_pat="(X509_[A-Za-z0-9_]+|by_file_ctrl_ex).*/libpq\\.so\\.5"
+# libcrypto/libssl 里被剥掉符号的帧只打印成 "(libcrypto.so.3+0x1234)"，没有函数名，
+# 所以按模块名单独放行。
+third_party_module_pat="[/(](libcrypto|libssl)\\.so"
+plumbing_pat="asan_malloc_linux|__interceptor_|__pthread_once|${allocator_pat}|${third_party_module_pat}|${openssl_internal_pat}|${libpq_openssl_internal_pat}"
+
+# ---------- 2. 一次性读出内容，避免多次 cat ----------
 asan=$(cat "${LOG_DIR}"/*.asan)
 
 # ---------- 3. 统计 ----------
-# non_32: 真泄漏（非 32 字节）
-non_32=$(grep -E "Direct leak(?! of 32 byte)" <<< "$asan" | grep -Ev "$ignore_pat" | wc -l)
-
-# byte32: 32 字节且非白名单
-byte32=$(grep -E "Direct leak of 32 byte" <<< "$asan" | grep -Ev "$ignore_pat" | wc -l)
+# 原实现把白名单 grep 作用在 "Direct leak of N byte(s) ... allocated from:" 这一行上，
+# 而白名单里的符号名只会出现在随后的调用帧里，于是 grep -Ev 永远命中不到——白名单
+# 是死代码（叠加上面已修的负向先行断言 bug，等于每一次泄漏都会被计入）。
+# 现在按「泄漏块」统计：块头连同它的全部调用帧一起判白名单，三条指标共用同一份名单，
+# 避免对同一批帧给出相反结论。
+leak_stats=$(
+  # 正则用环境变量传给 awk：awk 的 -v 会对值做转义处理（"\(" -> "("、"\." -> "."），
+  # 会把转义吃掉导致括号不配对、正则连编译都过不了。ENVIRON 不做转义。
+  CHECKASAN_BENIGN_PAT="$ignore_pat" CHECKASAN_PLUMBING_PAT="$plumbing_pat" \
+  awk '
+    BEGIN {
+      benign   = ENVIRON["CHECKASAN_BENIGN_PAT"]
+      plumbing = ENVIRON["CHECKASAN_PLUMBING_PAT"]
+      header = ""; frames = ""; ignored = 0; allplumbing = 1
+      report_started = 0; counted = 0; blocks_seen = 0
+    }
+    function flush() {
+      if (header == "") return
+      blocks_seen = 1
+      if (ignored == 0 && allplumbing == 1 && frames != "") ignored = 1
+      if (header ~ /Direct leak of 32 byte/)      { if (ignored == 0) byte32++ }
+      else if (header ~ /Direct leak/)            { if (ignored == 0) non_32++ }
+      else if (header ~ /Indirect leak/)          { if (ignored == 0) indirect++ }
+      if (ignored == 0) counted = 1
+      header = ""; frames = ""; ignored = 0; allplumbing = 1
+    }
+    function close_report() {
+      # error_num 用 grep "ERROR" 统计，LeakSanitizer 报告头那行也被算了一次，这里
+      # 把「整份报告全是白名单泄漏」的那些报告数出来，好从 error_num 里减回去；
+      # 报告里只要有一块没被白名单，就不减，宁严勿松。
+      #
+      # 必须先 flush：最后一个块只有在这里才会结算，否则 counted 读到的还是
+      # 「上一块之前」的状态，最后一块是真泄漏的那份报告会被误判成全白名单，
+      # error_num 就少算了。
+      # blocks_seen 要求报告里真的出现过块头：一份没有块头的报告（LSan 输出格式
+      # 变化、只有 SUMMARY 等）不能被当成「全白名单」而减掉，宁多报不漏报。
+      flush()
+      if (report_started == 1 && counted == 0 && blocks_seen == 1) benign_reports++
+      report_started = 0; counted = 0; blocks_seen = 0
+    }
+    /ERROR: LeakSanitizer/ { close_report(); report_started = 1; next }
+    /^(Direct|Indirect) leak of / {
+      flush()
+      header = $0
+      if ($0 ~ benign) ignored = 1
+      next
+    }
+    /^[[:space:]]+#[0-9]+/ {
+      frames = frames $0 "\n"
+      if ($0 ~ benign) ignored = 1
+      if ($0 !~ plumbing) allplumbing = 0
+      next
+    }
+    END {
+      flush(); close_report()
+      printf "%d %d %d %d\n", non_32 + 0, byte32 + 0, indirect + 0, benign_reports + 0
+    }
+  ' <<< "$asan"
+)
+if [[ -n "$leak_stats" ]]; then
+  # non_32: 真泄漏（非 32 字节且非白名单）
+  # byte32: 32 字节且非白名单
+  # indirect_leak: 间接泄漏且非白名单
+  # benign_reports: 整份报告只有白名单泄漏的 LeakSanitizer 报告数
+  read -r non_32 byte32 indirect_leak benign_reports <<< "$leak_stats"
+  if [[ ${benign_reports:-0} -gt 0 ]]; then
+    echo "ignore ${benign_reports} LeakSanitizer report(s) whose frames are all whitelisted"
+    error_num=$(( error_num - benign_reports ))
+    [[ $error_num -lt 0 ]] && error_num=0
+  fi
+else
+  # 解析器没输出（awk 报错/无输入）：退回到不带白名单的保守计数，宁可多报不可漏报。
+  echo "WARN: leak block parser produced no output, falling back to plain counts"
+  non_32=$(grep -E "Direct leak" <<< "$asan" | grep -v "Direct leak of 32 byte" | wc -l)
+  byte32=$(grep -E "Direct leak of 32 byte" <<< "$asan" | wc -l)
+  indirect_leak=$(grep -E "Indirect leak" <<< "$asan" | wc -l)
+fi
 
 # ---------- 4. 判断 ----------
 if [[ $archOs == *aarch64* ]]; then
@@ -74,8 +174,6 @@ else
 fi
 memory_leak=${non_32}
 
-# shellcheck disable=SC2126
-indirect_leak=$(cat "${LOG_DIR}"/*.asan | grep "Indirect leak" | wc -l)
 # shellcheck disable=SC2126
 # tmq_vtable intentionally triggers tAssert in error test cases (case_non_snapshot_stb_topic_error).
 # tAssert emits two consecutive lines:
@@ -100,17 +198,18 @@ python_error=$(
 # ignore gcov-instrumented noasan test binaries (sml_test/tmq_get_meta_json/replay_test etc.) running under ASAN:
 # when these noasan binaries exit, __gcov_open/__gcov_exit tries to write coverage data and SEGVs.
 # this is NOT a product bug — it's an artifact of running gcov-compiled binaries via LD_PRELOAD ASAN.
-# OpenSSL is linked into libtaos.so in some CI images, so its process-global
-# config/error-state init frames carry the taos-community lib path and can be
-# misclassified here.  Filter only OpenSSL-internal frames; any TDengine caller
-# frames in the same report remain counted.
-openssl_internal_pat="CRYPTO_|ERR_|BIO_(new_file|meth_new)|def_load|NCONF_load|CONF_modules_load_file_ex|ossl_|OPENSSL_|sk_[A-Za-z0-9_]+_deep_copy|EVP_|RAND_|SSL_CTX_|inner_(evp|ossl)_|evp_(generic_fetch|cipher_|rand_)|ssl_(evp_md_fetch|load_ciphers)|provider_|algorithm_|construct_evp_method|drbg_|rand_new_|seed_src_|pgtls_|initialize_SSL|aes_[A-Za-z0-9_]+_newctx"
-# libpq.so.5 may bundle OpenSSL symbols under the taos-community build path.
-# Keep this filter tied to libpq so TDengine-owned frames remain visible.
-libpq_openssl_internal_pat="(X509_[A-Za-z0-9_]+|by_file_ctrl_ex).*/libpq\\.so\\.5"
+# openssl_internal_pat / libpq_openssl_internal_pat 已在「集中白名单」里定义，这里用同一份。
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
   grep -E  "#[0-9]+ 0x[0-9a-f]+ .*(TDinternal|TDengine|/taosws/|/mnt/tsdb/source/taos-community/)" |
+  # 只统计带源码行的帧：形如 "  #1 0x... in func path/file.c:123"。
+  # 形如 "  #1 0x... in func (libfoo.so+0x123)" 的是 module+offset 帧——库被剥离符号、
+  # 或静态链进来的第三方代码（libuv、cJSON 等）都会这样打印。它们不是 TDengine 源码，
+  # 却会因为模块路径落在 taos-community 构建目录而被算进来，所以先排除。
+  grep -E  "\.(c|h|cc|cpp|cxx|hh|hpp|hxx|go):[0-9]+" |
+  # 与 memory_leak 共用同一份白名单（这里把通用分配器也算进来：它的帧只是一次分配的
+  # 中转，不是 python 侧的问题），避免两条指标对同一批帧给出相反结论。
+  grep -E -v "${ignore_pat}|${allocator_pat}" |
   grep -E -v "venv|taosws.abi3.so|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci|${openssl_internal_pat}|${libpq_openssl_internal_pat}" |
   wc -l
 )

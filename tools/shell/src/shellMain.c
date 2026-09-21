@@ -54,8 +54,24 @@ void initArgument(SShellArgs *pArgs) {
   pArgs->port_inputted = false;
 }
 
+static void shellFlushOnExit(void) {
+  fflush(stdout);
+  fflush(stderr);
+}
+
 int main(int argc, char *argv[]) {
   int code  = 0;
+
+  // Flush the stdio buffers on every normal exit path. exit() flushes them by
+  // itself, but a preloaded sanitizer runtime (libasan/LSan, as the test
+  // framework and CI use) installs an atexit hook that reports leaks and then
+  // terminates the process with _exit(), which skips that flush. Whenever
+  // stdout is redirected (taos -c cfg -f file > out, the way the test cases
+  // capture results) the last buffered block would then be dropped. Handlers
+  // run in reverse registration order and the sanitizer registers during
+  // start-up, so this one still runs first.
+  (void)atexit(shellFlushOnExit);
+
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
 #endif

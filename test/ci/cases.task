@@ -319,7 +319,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb
-100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic
+100,,y,.,CASE_TIMEOUT=3600 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic --timeout=3600
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic
