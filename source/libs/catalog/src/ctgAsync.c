@@ -4805,25 +4805,27 @@ int32_t ctgHandleGetVStbRefDbsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDat
   SVSubTablesRsp*    pRsp = NULL;
 
   if (TDMT_VND_VSUBTABLES_META != reqType) {
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    // A failed batch lacks a request type but still completes this vgroup.
+    code = rspCode ? rspCode : TSDB_CODE_CTG_INTERNAL_ERROR;
+  } else {
+    pRsp = taosArrayGet(pCtx->pSubTablesList, resIdx);
+    if (NULL == pRsp) {
+      code = TSDB_CODE_CTG_INTERNAL_ERROR;
+    } else {
+      code = ctgProcessRspMsg(pRsp, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target);
+    }
   }
 
-  pRsp = taosArrayGet(pCtx->pSubTablesList, resIdx);
-  if (NULL == pRsp) {
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-  }
-
-  code = ctgProcessRspMsg(pRsp, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target);
   if (code) {
-    pCtx->resCode = code;
+    (void)atomic_val_compare_exchange_32(&pCtx->resCode, TSDB_CODE_SUCCESS, code);
   }
 
   int32_t doneNum = atomic_add_fetch_32(&pCtx->resDoneNum, 1);
-  if (doneNum < pCtx->vgNum) {
+  if (doneNum != pCtx->vgNum) {
     return code;
   }
 
-  code = pCtx->resCode;
+  code = atomic_load_32(&pCtx->resCode);
   if (code) {
     goto _return;
   }
