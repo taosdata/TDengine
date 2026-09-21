@@ -294,6 +294,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32
 int32_t blockDecodeInternal(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 int32_t blockDecodeInternalBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos);
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
+// Decodes one normal block from pData[0, dataLen). On success, pEndPos, when non-NULL, points to the byte after the
+// encoded block; callers retain ownership of pBlock and must release it with blockDataDestroy.
+int32_t blockDecodeBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos);
 
 // for debug
 int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr, int64_t qId);
@@ -317,6 +320,11 @@ int32_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, 
 int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols, int32_t startIndex,
                           int32_t endIndex, int32_t* pLen);
 int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start, TSKEY end);
+// Decodes rows whose timestamp is within [start, end] from one normal block in pData[0, dataLen).
+// pEndPos is optional and has the same meaning as blockDecodeBounded; callers retain ownership of pBlock and must
+// release it with blockDataDestroy.
+int32_t blockSpecialDecodeLaterPartBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, int32_t tsColSlotId,
+                                           TSKEY start, TSKEY end, const char** pEndPos);
 int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, TSKEY* ts);
 
 #ifdef __cplusplus

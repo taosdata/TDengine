@@ -4549,6 +4549,9 @@ int32_t stTriggerTaskAcquireDropTableRequest(SStreamTriggerTask *pTask, int64_t 
   SSTriggerDropRequest *pRequest = NULL;
 
   *ppRequest = NULL;
+  if (taosArrayGetSize(pTask->pCalcNodes) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   taosWLockLatch(&pTask->calcPoolLock);
   needUnlock = true;
@@ -5884,8 +5887,10 @@ static int32_t stTriggerTaskCollectVirCols(SStreamTriggerTask *pTask, void *plan
   QUERY_CHECK_NULL(pScanPlan, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   QUERY_CHECK_CONDITION(nodeType(pScanPlan) == QUERY_NODE_PHYSICAL_SUBPLAN, code, lino, _end, TSDB_CODE_INVALID_PARA);
   STableScanPhysiNode *pScanNode = (STableScanPhysiNode *)((SSubplan *)pScanPlan)->pNode;
+  QUERY_CHECK_NULL(pScanNode, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(nodeType(pScanNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pScanNode->scan.node.pOutputDataBlockDesc, code, lino, _end, TSDB_CODE_INVALID_PARA);
   SNodeList *pSlots = pScanNode->scan.node.pOutputDataBlockDesc->pSlots;
   SNodeList *pScanCols = pScanNode->scan.pScanCols;
   SNodeList *pScanPseudoCols = pScanNode->scan.pScanPseudoCols;
@@ -6370,16 +6375,59 @@ static int32_t stTriggerTaskValidateWindowPlan(const SStreamTriggerTask *pTask, 
   return code;
 }
 
+static int32_t stTriggerTaskValidateDeployNodes(const SStreamTriggerDeployMsg *pMsg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SNode  *pStart = NULL;
+  SNode  *pEnd = NULL;
+  SNode  *pPlan = NULL;
+
+  if (pMsg->triggerType == WINDOW_TYPE_EVENT) {
+    code = nodesStringToNode(pMsg->trigger.event.startCond, &pStart);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = nodesStringToNode(pMsg->trigger.event.endCond, &pEnd);
+    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CONDITION(pStart != NULL && (nodeType(pStart) == QUERY_NODE_NODE_LIST || pEnd != NULL), code, lino,
+                          _end, TSDB_CODE_INVALID_PARA);
+  }
+  if (pMsg->isTriggerTblVirt) {
+    const char *plans[] = {pMsg->triggerScanPlan, pMsg->calcCacheScanPlan};
+    for (int32_t i = 0; i < ARRAY_SIZE(plans); ++i) {
+      if (plans[i] == NULL) continue;
+      code = nodesStringToNode(plans[i], &pPlan);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CONDITION(pPlan != NULL && nodeType(pPlan) == QUERY_NODE_PHYSICAL_SUBPLAN, code, lino, _end,
+                            TSDB_CODE_INVALID_PARA);
+      const SPhysiNode *pScan = ((const SSubplan *)pPlan)->pNode;
+      QUERY_CHECK_CONDITION(pScan != NULL && nodeType(pScan) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+                                pScan->pOutputDataBlockDesc != NULL,
+                            code, lino, _end, TSDB_CODE_INVALID_PARA);
+      nodesDestroyNode(pPlan);
+      pPlan = NULL;
+    }
+  }
+
+_end:
+  nodesDestroyNode(pPlan);
+  nodesDestroyNode(pEnd);
+  nodesDestroyNode(pStart);
+  return code;
+}
+
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *pMsg) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
   SNodeList *pPartitionCols = NULL;
 
   code = stTriggerTaskValidateWindowPlan(pTask, pMsg);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = stTriggerTaskValidateDeployNodes(pMsg);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed before task mutation since %s", __func__, tstrerror(code));
     return code;
   }
+  atomic_store_64(&pTask->waitingMgmtReqId, -1);
   code = streamTaskStatsInit(&pTask->task, &pTask->pStats);
   QUERY_CHECK_CODE(code, lino, _end);
   taosInitRWLatch(&pTask->readerProgressLock);
@@ -6437,8 +6485,11 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       const SEventTrigger *pEvent = &pMsg->trigger.event;
       code = nodesStringToNode(pEvent->startCond, &pTask->pStartCond);
       QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_NULL(pTask->pStartCond, code, lino, _end, TSDB_CODE_INVALID_PARA);
       code = nodesStringToNode(pEvent->endCond, &pTask->pEndCond);
       QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CONDITION(nodeType(pTask->pStartCond) == QUERY_NODE_NODE_LIST || pTask->pEndCond != NULL, code, lino,
+                            _end, TSDB_CODE_INVALID_PARA);
       pTask->eventTrueForInfo.trueForType = pEvent->trueForType;
       pTask->eventTrueForInfo.count = pEvent->trueForCount;
       pTask->eventTrueForInfo.duration = pEvent->trueForDuration;
@@ -7116,7 +7167,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;
       int64_t         reqId = pRsp->reqId;
       int64_t         waitingReqId = atomic_load_64(&pTask->waitingMgmtReqId);
-      if (reqId != waitingReqId) {
+      if (waitingReqId <= 0 || reqId != waitingReqId) {
         ST_TASK_DLOG("ignore outdated original reader info, reqId: %" PRId64 ", waitingReqId: %" PRId64, reqId,
                      waitingReqId);
         break;
@@ -7162,9 +7213,6 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         }
         px = tSimpleHashIterate(pOrigTableCols, px, &iter1);
       }
-      QUERY_CHECK_CONDITION(TARRAY_ELEM_IDX(pRsp->cont.vgIds, pVgId) == TARRAY_SIZE(pRsp->cont.vgIds), code, lino, _end,
-                            TSDB_CODE_INVALID_PARA);
-
       QUERY_CHECK_NULL(pTask->readerList, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       int32_t nPartReaders = TARRAY_SIZE(pTask->readerList);
       if (taosArrayGetSize(pRsp->cont.readerList) > 0) {
@@ -9489,6 +9537,43 @@ static int32_t stTriggerTaskConsumeNestedReplayRsp(SStreamTriggerTask *pTask, SS
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t stTriggerTaskValidateMetaSchema(const SSDataBlock *pBlock, const int8_t *pTypes, int32_t nCols) {
+  if (pBlock == NULL || pBlock->info.rows == 0) return TSDB_CODE_SUCCESS;
+  if (pBlock->info.rows < 0 || blockDataGetNumOfCols(pBlock) != nCols) return TSDB_CODE_INVALID_MSG;
+  for (int32_t col = 0; col < nCols; ++col) {
+    const SColumnInfoData *pColumn = taosArrayGet(pBlock->pDataBlock, col);
+    if (pColumn == NULL || pColumn->info.type != pTypes[col] || pColumn->info.bytes != tDataTypes[pTypes[col]].bytes ||
+        pColumn->pData == NULL) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    for (int32_t row = 0; row < pBlock->info.rows; ++row) {
+      if (colDataIsNull_s(pColumn, row)) return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stTriggerTaskValidateWalMeta(const SSDataBlock *pMetaBlock, const SSDataBlock *pDeleteBlock,
+                                            const SSDataBlock *pTableBlock) {
+  const int8_t walTypes[] = {TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_BIGINT,
+                             TSDB_DATA_TYPE_INT};
+  const int8_t tableTypes[] = {TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_TINYINT};
+  int32_t      nMetaCols = pMetaBlock != NULL && blockDataGetNumOfCols(pMetaBlock) == 5 ? 5 : 4;
+  int32_t      code = stTriggerTaskValidateMetaSchema(pMetaBlock, walTypes, nMetaCols);
+  if (code == TSDB_CODE_SUCCESS) code = stTriggerTaskValidateMetaSchema(pDeleteBlock, walTypes, 4);
+  if (code == TSDB_CODE_SUCCESS) code = stTriggerTaskValidateMetaSchema(pTableBlock, tableTypes, 3);
+  return code;
+}
+
+static int32_t stTriggerTaskValidateHistoryMeta(const SStreamTriggerTask *pTask, const SSDataBlock *pBlock) {
+  const int8_t normalTypes[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BIGINT,
+                                TSDB_DATA_TYPE_UBIGINT,   TSDB_DATA_TYPE_BIGINT,    TSDB_DATA_TYPE_INT};
+  const int8_t virtualTypes[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BIGINT,
+                                 TSDB_DATA_TYPE_BIGINT};
+  return stTriggerTaskValidateMetaSchema(pBlock, pTask->isVirtualTable ? virtualTypes : normalTypes,
+                                         pTask->isVirtualTable ? 4 : (pTask->isRollup ? 6 : 5));
+}
+
 static int32_t stTriggerTaskDecodeNestedValidateRsp(const SRpcMsg *pRsp, int64_t *pEndpoint) {
   if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
     if (pRsp->pCont == NULL || pRsp->contLen != (int32_t)(2 * sizeof(int64_t))) {
@@ -9527,6 +9612,10 @@ static int32_t stTriggerTaskDecodeNestedValidateRsp(const SRpcMsg *pRsp, int64_t
   SSTriggerWalNewRsp response = {
       .dataBlock = pDataBlock, .metaBlock = pMetaBlock, .deleteBlock = pDeleteBlock, .tableBlock = pTableBlock};
   code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &response, pSlices);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+  code = stTriggerTaskValidateWalMeta(pMetaBlock, pDeleteBlock, pTableBlock);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
@@ -15680,6 +15769,10 @@ _calc_done:
     goto _check;
   }
 
+  // Notify-only streams have no output tables to delete.
+  if (taosArrayGetSize(pTask->runnerList) == 0) {
+    taosArrayClear(pContext->groupsToDelete);
+  }
   int32_t deleteGroupNum = taosArrayGetSize(pContext->groupsToDelete);
   if (deleteGroupNum > 0) {
     pContext->status = STRIGGER_CONTEXT_SEND_DROP_REQ;
@@ -16336,13 +16429,15 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
-        QUERY_CHECK_CONDITION(pRsp->contLen >= sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
+        QUERY_CHECK_CONDITION(pRsp->pCont != NULL && (pRsp->contLen == (int32_t)sizeof(int64_t) ||
+                                                      pRsp->contLen >= (int32_t)(2 * sizeof(int64_t))),
+                              code, lino, _end, TSDB_CODE_INVALID_MSG);
         blockDataEmpty(pContext->pMetaBlock);
         blockDataEmpty(pContext->pDeleteBlock);
         blockDataEmpty(pContext->pTableBlock);
-        pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
-        if (pRsp->contLen > sizeof(int64_t)) {
-          pProgress->verTime = *(((int64_t *)pRsp->pCont) + 1);
+        memcpy(&pContext->pMetaBlock->info.version, pRsp->pCont, sizeof(int64_t));
+        if (pRsp->contLen >= (int32_t)(2 * sizeof(int64_t))) {
+          memcpy(&pProgress->verTime, (char *)pRsp->pCont + sizeof(int64_t), sizeof(int64_t));
         }
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -16350,6 +16445,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                                   .deleteBlock = pContext->pDeleteBlock,
                                   .tableBlock = pContext->pTableBlock};
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = stTriggerTaskValidateWalMeta(pContext->pMetaBlock, pContext->pDeleteBlock, pContext->pTableBlock);
         QUERY_CHECK_CODE(code, lino, _end);
         pContext->pMetaBlock->info.version = rsp.ver;
         pProgress->verTime = rsp.verTime;
@@ -16496,14 +16593,18 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       bool firstDataBlock = (blockDataGetNumOfCols(pProgress->pTrigBlock) == 0);
 
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
-        QUERY_CHECK_CONDITION(pRsp->contLen >= sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
+        QUERY_CHECK_CONDITION(pRsp->pCont != NULL && pRsp->contLen >= (int32_t)sizeof(int64_t), code, lino, _end,
+                              TSDB_CODE_INVALID_MSG);
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
+          QUERY_CHECK_CONDITION(
+              pRsp->contLen == (int32_t)sizeof(int64_t) || pRsp->contLen >= (int32_t)(2 * sizeof(int64_t)), code, lino,
+              _end, TSDB_CODE_INVALID_MSG);
           blockDataEmpty(pContext->pMetaBlock);
           blockDataEmpty(pContext->pDeleteBlock);
           blockDataEmpty(pContext->pTableBlock);
-          pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
-          if (pRsp->contLen > sizeof(int64_t)) {
-            pProgress->verTime = *(((int64_t *)pRsp->pCont) + 1);
+          memcpy(&pContext->pMetaBlock->info.version, pRsp->pCont, sizeof(int64_t));
+          if (pRsp->contLen >= (int32_t)(2 * sizeof(int64_t))) {
+            memcpy(&pProgress->verTime, (char *)pRsp->pCont + sizeof(int64_t), sizeof(int64_t));
           }
         }
         taosArrayClear(pContext->pTempSlices);
@@ -16518,6 +16619,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, pContext->pTempSlices);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
+          code = stTriggerTaskValidateWalMeta(pContext->pMetaBlock, pContext->pDeleteBlock, pContext->pTableBlock);
+          QUERY_CHECK_CODE(code, lino, _end);
           pContext->pMetaBlock->info.version = rsp.ver;
           pProgress->verTime = rsp.verTime;
         }
@@ -19400,16 +19503,20 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       }
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+      QUERY_CHECK_CONDITION(pRsp->contLen >= 0, code, lino, _end, TSDB_CODE_INVALID_MSG);
       pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
       QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
       if (pRsp->contLen > 0) {
         const char *pCont = pRsp->pCont;
-        code = blockDecode(pDataBlock, pCont, &pCont);
+        code = blockDecodeBounded(pDataBlock, pCont, pRsp->contLen, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
         QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       } else {
         blockDataEmpty(pDataBlock);
       }
+
+      code = stTriggerTaskValidateHistoryMeta(pTask, pDataBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       void *px = taosArrayPush(pProgress->pMetadatas, &pDataBlock);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);

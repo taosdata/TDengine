@@ -76,7 +76,7 @@ endif()
 DEP_ext_zlib(os)
 if(TD_WINDOWS)
     target_link_libraries(
-        os PUBLIC ws2_32 winmm dbghelp version KtmW32 Iphlpapi Userenv
+        os PUBLIC ws2_32 winmm dbghelp version KtmW32 Iphlpapi Userenv Advapi32
     )
 elseif(TD_DARWIN_64)
     find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation)

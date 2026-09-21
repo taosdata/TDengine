@@ -292,7 +292,13 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
 
 int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx) {
   SRpcMsg* pMsg = (SRpcMsg*)pParam;
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
+  if (pHeader->streamGid < 0 || pHeader->streamGid >= STREAM_MAX_GROUP_NUM) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   *pWorkerIdx = pHeader->streamGid % tsNumOfMnodeStreamMgmtThreads;
   return TSDB_CODE_SUCCESS;
 }
