@@ -96,6 +96,12 @@ typedef struct TdDirEntry *TdDirEntryPtr;
 void    taosRemoveDir(const char *dirname);
 void    taosClearDir(const char *dirname);
 bool    taosDirExist(const char *dirname);
+// Create or reuse a dedicated directory, resetting existing permissions to private.
+// POSIX requires effective-UID ownership and sets mode 0700. Windows requires the
+// process token's user as owner with a private DACL; existing directories may also
+// belong to the token's default owner. Only the final component is checked for links;
+// callers are responsible for the parent path.
+int32_t taosEnsurePrivateDir(const char *path);
 int32_t taosMkDir(const char *dirname);
 int32_t taosMulMkDir(const char *dirname);
 int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess);

@@ -69,6 +69,7 @@ int32_t stmAddPeriodReport(int64_t streamId, SArray** ppReport, SStreamTriggerTa
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats);
 int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp);
 void    tFreeSSTriggerRuntimeStatus(void* param);
+int32_t smStartStreamTasks(SStreamTaskStart* pStart);
 }
 
 /**
@@ -2779,6 +2780,54 @@ static SSDataBlock* makePipelineCalcProjectionBlock(const std::vector<TSKEY>&   
   return pBlock;
 }
 
+enum class MetadataSchemaVariant { Valid, WrongType, TinyInt, MissingColumn, NullValue, ExtraColumn };
+
+// Re-encode a structurally valid block with an invalid metadata schema or required value.
+static SSDataBlock* metadataSchemaVariant(SSDataBlock* source, MetadataSchemaVariant variant, int32_t target = -1) {
+  if (source == nullptr || variant == MetadataSchemaVariant::Valid) return source;
+  SSDataBlock* result = nullptr;
+  if (createDataBlock(&result) != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(source);
+    return nullptr;
+  }
+  const int32_t sourceCols = blockDataGetNumOfCols(source);
+  if (target < 0) target = sourceCols - 1;
+  const int32_t cols =
+      sourceCols + (variant == MetadataSchemaVariant::ExtraColumn) - (variant == MetadataSchemaVariant::MissingColumn);
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t col = 0; col < cols && code == TSDB_CODE_SUCCESS; ++col) {
+    const auto* original =
+        static_cast<const SColumnInfoData*>(taosArrayGet(source->pDataBlock, col < sourceCols ? col : 0));
+    SColumnInfoData info = createColumnInfoData(original->info.type, original->info.bytes, col);
+    if (col == target && variant == MetadataSchemaVariant::WrongType) {
+      info.info.type = original->info.type == TSDB_DATA_TYPE_BIGINT ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_BIGINT;
+      info.info.bytes = sizeof(int64_t);
+    } else if (col == target && variant == MetadataSchemaVariant::TinyInt) {
+      info.info.type = TSDB_DATA_TYPE_TINYINT;
+      info.info.bytes = sizeof(int8_t);
+    }
+    code = blockDataAppendColInfo(result, &info);
+  }
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(result, source->info.rows);
+  for (int32_t col = 0; col < cols && code == TSDB_CODE_SUCCESS; ++col) {
+    auto* original = static_cast<SColumnInfoData*>(taosArrayGet(source->pDataBlock, col < sourceCols ? col : 0));
+    auto* output = static_cast<SColumnInfoData*>(taosArrayGet(result->pDataBlock, col));
+    for (int32_t row = 0; row < source->info.rows && code == TSDB_CODE_SUCCESS; ++row) {
+      int64_t value = 0;
+      memcpy(&value, colDataGetData(original, row), original->info.bytes);
+      code = colDataSetVal(output, row, reinterpret_cast<const char*>(&value),
+                           col == target && variant == MetadataSchemaVariant::NullValue);
+    }
+  }
+  result->info.rows = source->info.rows;
+  blockDataDestroy(source);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(result);
+    return nullptr;
+  }
+  return result;
+}
+
 static SSDataBlock* makePipelineMetaBlock(int64_t gid, TSKEY endTs, int64_t version, TSKEY startTs = 0) {
   SSDataBlock* pBlock = nullptr;
   if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) return nullptr;
@@ -3088,7 +3137,7 @@ class RealtimePipelineHarness {
             int32_t readerCount = 1, bool partitionColumns = false,
             std::initializer_list<const char*> notifyUrls = {"ws://pipeline-notify.test"},
             int32_t notifyFailureOptions = 0, bool isRollup = false) {
-    if (maxDelayMs < 0 || runnerCount <= 0 || readerCount <= 0 || readerCount > 3) return false;
+    if (maxDelayMs < 0 || runnerCount < 0 || readerCount <= 0 || readerCount > 3) return false;
     if (gRealtimePipelineHarness != nullptr || g_pDataSinkManager.dsStreamTaskList != nullptr) return false;
     if (initStreamDataSink() != TSDB_CODE_SUCCESS) {
       destroyDataSinkMgr();
@@ -3247,6 +3296,11 @@ class RealtimePipelineHarness {
           return false;
         }
       }
+    }
+
+    if (runnerCount == 0) {
+      taosArrayDestroy(pMsg->runnerList);
+      pMsg->runnerList = nullptr;
     }
 
     task_.task.type = STREAM_TRIGGER_TASK;
@@ -3961,6 +4015,63 @@ class RealtimePipelineHarness {
     if (pScope == nullptr) return;
     taosArrayDestroy(pScope->lineage.pScopes);
     pScope->lineage.pScopes = nullptr;
+  }
+
+  int32_t prepareMetadataResponse(bool metaOnly = false) {
+    const int32_t last = findPull(STRIGGER_PULL_LAST_TS);
+    if (last >= 0 && processLastTs(last) != TSDB_CODE_SUCCESS) return -1;
+    return findPull(metaOnly ? STRIGGER_PULL_WAL_META_NEW : STRIGGER_PULL_WAL_META_DATA_NEW);
+  }
+
+  int32_t processMetadataSchema(int32_t index, int32_t blockKind, MetadataSchemaVariant variant, bool recovery = false,
+                                bool rollup = false, int64_t version = 2) {
+    if (recovery) index = findRecoverySend(index);
+    if (index < 0) return TSDB_CODE_INVALID_PARA;
+    const bool   withData = pendingSends_[index].pullType != STRIGGER_PULL_WAL_META_NEW;
+    SSDataBlock* data = withData ? makePipelineBlock({100}, {7}, {version}) : nullptr;
+    SSDataBlock* meta =
+        rollup ? makePipelineMetaBlock(std::vector<PipelineWalGroup>{{kGid, kUid, {100}, {7}, version, true, 1}})
+               : makePipelineMetaBlock(kGid, 100, version);
+    SSDataBlock* deleted = blockKind == 1 ? makePipelineMetaBlock(kGid, 100, version) : nullptr;
+    SSDataBlock* table = blockKind == 2 ? makePipelineTableBlock({kGid}, version) : nullptr;
+    if (recovery && table != nullptr) {
+      const int8_t type = TABLE_BLOCK_ADD;
+      auto*        column = static_cast<SColumnInfoData*>(taosArrayGet(table->pDataBlock, 2));
+      EXPECT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(column, 0, reinterpret_cast<const char*>(&type), false));
+    }
+    if (blockKind == 0) meta = metadataSchemaVariant(meta, variant);
+    if (blockKind == 1) deleted = metadataSchemaVariant(deleted, variant);
+    if (blockKind == 2) table = metadataSchemaVariant(table, variant, 0);
+    SSHashObj*         indexHash = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    SSTriggerWalNewRsp response = {.indexHash = indexHash,
+                                   .dataBlock = data,
+                                   .metaBlock = meta,
+                                   .deleteBlock = deleted,
+                                   .tableBlock = table,
+                                   .ver = version,
+                                   .verTime = version * 1000};
+    int32_t            len = tSerializeSStreamWalDataResponse(nullptr, 0, &response);
+    void*              payload = len > 0 ? rpcMallocCont(len) : nullptr;
+    int32_t            actual =
+        payload == nullptr ? TSDB_CODE_OUT_OF_MEMORY : tSerializeSStreamWalDataResponse(payload, len, &response);
+    blockDataDestroy(data);
+    blockDataDestroy(meta);
+    blockDataDestroy(deleted);
+    blockDataDestroy(table);
+    tSimpleHashCleanup(indexHash);
+    if (actual != len) {
+      rpcFreeCont(payload);
+      return actual < 0 ? actual : TSDB_CODE_INVALID_MSG;
+    }
+    return processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_SUCCESS, payload, len);
+  }
+
+  int32_t processMetadataNoData(int32_t index, int32_t len) {
+    const int64_t values[] = {2, 2000, 0};
+    void*         payload = rpcMallocCont(len > 0 ? len : 1);
+    if (payload == nullptr) return terrno;
+    if (len > 0) memcpy(payload, values, len);
+    return processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_STREAM_NO_DATA, payload, len);
   }
 
  private:
@@ -5430,6 +5541,152 @@ static bool setRecoveryCutoverRunningBlocker(SStreamTriggerTask* pTask, bool blo
   }
   taosWUnLockLatch(&pTask->calcPoolLock);
   return code == TSDB_CODE_SUCCESS;
+}
+
+TEST(StreamWalMetadataValidation, RejectsSchemaBeforeProgressAndGroups) {
+  for (bool metaOnly : {true, false}) {
+    for (int32_t kind : {0, 1, 2}) {
+      for (auto variant : {MetadataSchemaVariant::WrongType, MetadataSchemaVariant::MissingColumn,
+                           MetadataSchemaVariant::NullValue, MetadataSchemaVariant::ExtraColumn}) {
+        SCOPED_TRACE(::testing::Message() << metaOnly << "/" << kind << "/" << static_cast<int>(variant));
+        RealtimePipelineHarness harness;
+        if (metaOnly) harness.setDeployWatermark(10);
+        ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy));
+        ASSERT_TRUE(harness.start());
+        const int32_t index = harness.prepareMetadataResponse(metaOnly);
+        ASSERT_GE(index, 0);
+        auto*         context = harness.context();
+        const int32_t vg = RealtimePipelineHarness::kVgId;
+        auto*         progress =
+            static_cast<SSTriggerWalProgress*>(tSimpleHashGet(context->pReaderWalProgress, &vg, sizeof(vg)));
+        ASSERT_NE(nullptr, progress);
+        const int64_t version = progress->lastScanVer;
+        const int64_t verTime = progress->verTime;
+        const int64_t blockVersion = context->pMetaBlock->info.version;
+        const int32_t groups = tSimpleHashGetSize(context->pGroups);
+        const auto*   group = harness.group();
+        const int32_t tables = group == nullptr ? 0 : group->tableUids.neles;
+        const int32_t metas = group == nullptr ? 0 : tSimpleHashGetSize(group->pWalMetas);
+        EXPECT_EQ(TSDB_CODE_INVALID_MSG, harness.processMetadataSchema(index, kind, variant));
+        EXPECT_EQ(version, progress->lastScanVer);
+        EXPECT_EQ(verTime, progress->verTime);
+        EXPECT_EQ(blockVersion, context->pMetaBlock->info.version);
+        EXPECT_EQ(groups, tSimpleHashGetSize(context->pGroups));
+        EXPECT_EQ(group, harness.group());
+        if (group != nullptr) {
+          EXPECT_EQ(tables, group->tableUids.neles);
+          EXPECT_EQ(metas, tSimpleHashGetSize(group->pWalMetas));
+        }
+      }
+    }
+  }
+}
+
+TEST(StreamWalMetadataValidation, TinyIntMetadataIsRejectedBeforeInt64Reads) {
+  for (int32_t kind : {0, 1, 2}) {
+    RealtimePipelineHarness harness;
+    ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy));
+    ASSERT_TRUE(harness.start());
+    const int32_t index = harness.prepareMetadataResponse();
+    ASSERT_GE(index, 0);
+    auto*         context = harness.context();
+    const int32_t vg = RealtimePipelineHarness::kVgId;
+    auto* progress = static_cast<SSTriggerWalProgress*>(tSimpleHashGet(context->pReaderWalProgress, &vg, sizeof(vg)));
+    ASSERT_NE(nullptr, progress);
+    const int64_t version = progress->lastScanVer;
+    const int64_t time = progress->verTime;
+    const int32_t groups = tSimpleHashGetSize(context->pGroups);
+    EXPECT_EQ(TSDB_CODE_INVALID_MSG, harness.processMetadataSchema(index, kind, MetadataSchemaVariant::TinyInt));
+    EXPECT_EQ(version, progress->lastScanVer);
+    EXPECT_EQ(time, progress->verTime);
+    EXPECT_EQ(groups, tSimpleHashGetSize(context->pGroups));
+  }
+}
+
+TEST(StreamWalMetadataValidation, ReusedMetadataCannotSupplyMissingColumns) {
+  for (int32_t kind : {0, 1, 2}) {
+    SCOPED_TRACE(kind);
+    RealtimePipelineHarness harness;
+    ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy));
+    ASSERT_TRUE(harness.start());
+    int32_t index = harness.prepareMetadataResponse();
+    ASSERT_GE(index, 0);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.processMetadataSchema(index, kind, MetadataSchemaVariant::Valid));
+    index = harness.prepareMetadataResponse();
+    if (index < 0) {
+      ASSERT_TRUE(harness.driveRealtimeTurn());
+      index = harness.prepareMetadataResponse();
+    }
+    ASSERT_GE(index, 0);
+    auto*         context = harness.context();
+    const int32_t vg = RealtimePipelineHarness::kVgId;
+    auto* progress = static_cast<SSTriggerWalProgress*>(tSimpleHashGet(context->pReaderWalProgress, &vg, sizeof(vg)));
+    ASSERT_NE(nullptr, progress);
+    const int64_t version = progress->lastScanVer;
+    const int64_t verTime = progress->verTime;
+    const int64_t blockVersion = context->pMetaBlock->info.version;
+    const int32_t groups = tSimpleHashGetSize(context->pGroups);
+    const auto*   group = harness.group();
+    const int32_t tables = group == nullptr ? 0 : group->tableUids.neles;
+    const int32_t metas = group == nullptr ? 0 : tSimpleHashGetSize(group->pWalMetas);
+    EXPECT_EQ(TSDB_CODE_INVALID_MSG,
+              harness.processMetadataSchema(index, kind, MetadataSchemaVariant::MissingColumn, false, false, 3));
+    EXPECT_EQ(version, progress->lastScanVer);
+    EXPECT_EQ(verTime, progress->verTime);
+    EXPECT_EQ(blockVersion, context->pMetaBlock->info.version);
+    EXPECT_EQ(groups, tSimpleHashGetSize(context->pGroups));
+    EXPECT_EQ(group, harness.group());
+    if (group != nullptr) {
+      EXPECT_EQ(tables, group->tableUids.neles);
+      EXPECT_EQ(metas, tSimpleHashGetSize(group->pWalMetas));
+    }
+  }
+}
+
+TEST(StreamWalMetadataValidation, AcceptsCurrentWalSchemaVariants) {
+  for (bool metaOnly : {true, false}) {
+    for (bool rollup : {false, true}) {
+      RealtimePipelineHarness harness;
+      if (metaOnly) harness.setDeployWatermark(10);
+      ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy));
+      ASSERT_TRUE(harness.start());
+      const int32_t index = harness.prepareMetadataResponse(metaOnly);
+      ASSERT_GE(index, 0);
+      EXPECT_EQ(TSDB_CODE_SUCCESS,
+                harness.processMetadataSchema(index, 0, MetadataSchemaVariant::Valid, false, rollup));
+    }
+  }
+}
+
+TEST(StreamWalMetadataValidation, NoDataRequiresCompleteScalars) {
+  for (bool metaOnly : {true, false}) {
+    for (int32_t len : {-1, 0, 7, 8, 9, 15, 16, 17}) {
+      SCOPED_TRACE(::testing::Message() << metaOnly << "/" << len);
+      RealtimePipelineHarness harness;
+      if (metaOnly) harness.setDeployWatermark(10);
+      ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy));
+      ASSERT_TRUE(harness.start());
+      const int32_t index = harness.prepareMetadataResponse(metaOnly);
+      ASSERT_GE(index, 0);
+      auto*         context = harness.context();
+      const int32_t vg = RealtimePipelineHarness::kVgId;
+      auto* progress = static_cast<SSTriggerWalProgress*>(tSimpleHashGet(context->pReaderWalProgress, &vg, sizeof(vg)));
+      const int64_t version = progress->lastScanVer;
+      const int64_t time = progress->verTime;
+      const int64_t blockVersion = context->pMetaBlock->info.version;
+      const int32_t code = harness.processMetadataNoData(index, len);
+      if (len < 8 || (len > 8 && len < 16)) {
+        EXPECT_EQ(TSDB_CODE_INVALID_MSG, code);
+        EXPECT_EQ(version, progress->lastScanVer);
+        EXPECT_EQ(time, progress->verTime);
+        EXPECT_EQ(blockVersion, context->pMetaBlock->info.version);
+      } else {
+        EXPECT_EQ(TSDB_CODE_SUCCESS, code);
+        EXPECT_EQ(2, progress->lastScanVer);
+        EXPECT_EQ(len == 8 ? time : 2000, progress->verTime);
+      }
+    }
+  }
 }
 
 class StreamNestedRecoveryTest : public ::testing::Test {};
@@ -7307,6 +7564,40 @@ TEST_F(StreamNestedRecoveryTest, MixedStartEqualsSavedReaderIssuesNoRecoveryRequ
   EXPECT_EQ(RealtimePipelineHarness::kReaderTaskId + 1, harness.pendingRecoverySend(0)->readerTaskId);
   EXPECT_EQ(STRIGGER_NESTED_RECOVERY_REPLAY, harness.pendingRecoverySend(0)->recoveryToken.phase);
   EXPECT_EQ(STRIGGER_NESTED_RECOVERY_REPLAY, harness.task()->pNestedRecovery->phase);
+}
+
+TEST_F(StreamNestedRecoveryTest, MetadataSchemaRejectedBeforeValidationLedgerOrLiveMutation) {
+  for (int32_t kind : {0, 2}) {
+    for (auto variant :
+         {MetadataSchemaVariant::WrongType, MetadataSchemaVariant::TinyInt, MetadataSchemaVariant::MissingColumn,
+          MetadataSchemaVariant::NullValue, MetadataSchemaVariant::Valid}) {
+      RealtimePipelineHarness harness;
+      ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy));
+      std::vector<uint8_t> checkpoint;
+      ASSERT_TRUE(makeRecoveryCheckpoint({{RealtimePipelineHarness::kVgId, 1, 2}}, {}, 0, &checkpoint));
+      harness.setCheckpointBytes(std::move(checkpoint));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startCode());
+      auto*         context = harness.context();
+      const int32_t vg = RealtimePipelineHarness::kVgId;
+      auto* progress = static_cast<SSTriggerWalProgress*>(tSimpleHashGet(context->pReaderWalProgress, &vg, sizeof(vg)));
+      ASSERT_NE(nullptr, progress);
+      const int64_t version = progress->lastScanVer;
+      const int64_t time = progress->verTime;
+      const int32_t groups = tSimpleHashGetSize(context->pGroups);
+      const int32_t code = harness.processMetadataSchema(0, kind, variant, true);
+      if (variant == MetadataSchemaVariant::Valid) {
+        EXPECT_EQ(TSDB_CODE_SUCCESS, code);
+        ASSERT_NE(nullptr, harness.task()->pNestedRecovery);
+        EXPECT_EQ(STRIGGER_NESTED_RECOVERY_REPLAY, harness.task()->pNestedRecovery->phase);
+      } else {
+        EXPECT_EQ(TSDB_CODE_INVALID_MSG, code);
+        EXPECT_EQ(nullptr, harness.task()->pNestedRecovery);
+      }
+      EXPECT_EQ(version, progress->lastScanVer);
+      EXPECT_EQ(time, progress->verTime);
+      EXPECT_EQ(groups, tSimpleHashGetSize(context->pGroups));
+    }
+  }
 }
 
 TEST_F(StreamNestedRecoveryTest, ValidationDataPageDecodesPrivatelyWithoutScratchMutation) {
@@ -11690,7 +11981,7 @@ class NestedHistoryHarness {
     return pAttempt == nullptr ? TSDB_CODE_INTERNAL_ERROR : respondVirtualTableInfo(*pAttempt);
   }
 
-  int32_t respondVirtualMgmtReaders() {
+  int32_t respondVirtualMgmtReaders(bool throughMgmt = false) {
     auto* pReq = static_cast<SStreamMgmtReq*>(atomic_load_ptr(&task_.task.pMgmtReq));
     if (pReq == nullptr || pReq->cont.pReqs == nullptr || taosArrayGetSize(pReq->cont.pReqs) != 2) {
       return TSDB_CODE_INTERNAL_ERROR;
@@ -11730,14 +12021,19 @@ class NestedHistoryHarness {
       taosArrayDestroy(response.cont.readerList);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    if (pReq != atomic_val_compare_exchange_ptr(&task_.task.pMgmtReq, pReq, nullptr)) {
-      taosArrayDestroy(response.cont.vgIds);
-      taosArrayDestroy(response.cont.readerList);
-      return TSDB_CODE_INTERNAL_ERROR;
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (throughMgmt) {
+      code = smHandleTaskMgmtRsp(&response);
+    } else {
+      if (pReq != atomic_val_compare_exchange_ptr(&task_.task.pMgmtReq, pReq, nullptr)) {
+        taosArrayDestroy(response.cont.vgIds);
+        taosArrayDestroy(response.cont.readerList);
+        return TSDB_CODE_INTERNAL_ERROR;
+      }
+      tFreeSStreamMgmtReq(pReq);
+      taosMemoryFree(pReq);
+      code = stTriggerTaskExecute(&task_, &response.header);
     }
-    tFreeSStreamMgmtReq(pReq);
-    taosMemoryFree(pReq);
-    int32_t code = stTriggerTaskExecute(&task_, &response.header);
     taosArrayDestroy(response.cont.vgIds);
     taosArrayDestroy(response.cont.readerList);
     return code == TSDB_CODE_SUCCESS ? dispatchControl(kRealtimeSession) : code;
@@ -11907,6 +12203,17 @@ class NestedHistoryHarness {
     if (pAttempt == nullptr) return TSDB_CODE_INTERNAL_ERROR;
     SSDataBlock* pBlock = makeHistoryMetaBlock(rows);
     return respondBlock(*pAttempt, pBlock);
+  }
+
+  int32_t respondMetadataSchema(MetadataSchemaVariant variant, bool virtualTable = false, bool next = false) {
+    const ESTriggerPullType type = next ? STRIGGER_PULL_TSDB_META_NEXT : STRIGGER_PULL_TSDB_META;
+    CapturedPullAttempt*    attempt =
+        virtualTable ? findPullForReader(type, kHistorySession, kOriginalReaderTaskA) : findPull(type, kHistorySession);
+    if (attempt == nullptr) return TSDB_CODE_INTERNAL_ERROR;
+    const std::vector<NestedHistoryMetaRow> rows = {
+        {kScanStart, kScanStart, virtualTable ? kPhysicalUidA : kTableUid, 1}};
+    SSDataBlock* block = virtualTable ? makeVirtualHistoryMetaBlock(rows) : makeHistoryMetaBlock(rows, task_.isRollup);
+    return respondBlock(*attempt, metadataSchemaVariant(block, variant));
   }
 
   int32_t respondTriggerGroups(const std::vector<int64_t>& gids) {
@@ -12907,11 +13214,20 @@ class NestedHistoryHarness {
     return code;
   }
 
-  static SSDataBlock* makeHistoryMetaBlock(const std::vector<NestedHistoryMetaRow>& rows) {
+  static SSDataBlock* makeHistoryMetaBlock(const std::vector<NestedHistoryMetaRow>& rows, bool rollup = false) {
     SSDataBlock* pBlock = nullptr;
     if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) return nullptr;
     for (int32_t col = 0; col < 5; ++col) {
-      SColumnInfoData info = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), col);
+      SColumnInfoData info = createColumnInfoData(
+          col < 2 ? TSDB_DATA_TYPE_TIMESTAMP : (col == 3 ? TSDB_DATA_TYPE_UBIGINT : TSDB_DATA_TYPE_BIGINT),
+          sizeof(int64_t), col);
+      if (blockDataAppendColInfo(pBlock, &info) != TSDB_CODE_SUCCESS) {
+        blockDataDestroy(pBlock);
+        return nullptr;
+      }
+    }
+    if (rollup) {
+      SColumnInfoData info = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 5);
       if (blockDataAppendColInfo(pBlock, &info) != TSDB_CODE_SUCCESS) {
         blockDataDestroy(pBlock);
         return nullptr;
@@ -12933,6 +13249,16 @@ class NestedHistoryHarness {
         }
       }
     }
+    if (rollup) {
+      auto*         countColumn = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 5));
+      const int32_t count = 1;
+      for (int32_t row = 0; row < static_cast<int32_t>(rows.size()); ++row) {
+        if (colDataSetVal(countColumn, row, reinterpret_cast<const char*>(&count), false) != TSDB_CODE_SUCCESS) {
+          blockDataDestroy(pBlock);
+          return nullptr;
+        }
+      }
+    }
     pBlock->info.rows = static_cast<int32_t>(rows.size());
     return pBlock;
   }
@@ -12941,7 +13267,8 @@ class NestedHistoryHarness {
     SSDataBlock* pBlock = nullptr;
     if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) return nullptr;
     for (int32_t col = 0; col < 4; ++col) {
-      SColumnInfoData info = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), col);
+      SColumnInfoData info =
+          createColumnInfoData(col < 2 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), col);
       if (blockDataAppendColInfo(pBlock, &info) != TSDB_CODE_SUCCESS) {
         blockDataDestroy(pBlock);
         return nullptr;
@@ -14043,6 +14370,75 @@ class StreamNestedHistoryPeerTest : public ::testing::Test {};
 class StreamNestedHistoryRangeTest : public ::testing::Test {};
 class StreamNestedAllocationFailureTest : public ::testing::Test {};
 class StreamNestedHistoryRecoveryBoundaryTest : public ::testing::Test {};
+
+TEST(StreamHistoryMetadataValidation, RejectsBeforeAppendingOrCreatingGroups) {
+  for (bool virtualTable : {false, true}) {
+    for (auto variant :
+         {MetadataSchemaVariant::WrongType, MetadataSchemaVariant::TinyInt, MetadataSchemaVariant::MissingColumn,
+          MetadataSchemaVariant::NullValue, MetadataSchemaVariant::ExtraColumn}) {
+      SCOPED_TRACE(::testing::Message() << virtualTable << "/" << static_cast<int>(variant));
+      NestedHistoryHarness harness;
+      ASSERT_TRUE(virtualTable ? harness.deployVirtual() : harness.deploy());
+      ASSERT_EQ(TSDB_CODE_SUCCESS, virtualTable ? harness.driveVirtualDiscovery() : harness.startAndCreateHistory());
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+      ASSERT_EQ(TSDB_CODE_SUCCESS, virtualTable ? harness.respondAllVirtualFirstTs() : harness.respondFirstTs());
+      auto* context = harness.historyContext();
+      ASSERT_NE(nullptr, context);
+      const int32_t vg = virtualTable ? NestedHistoryHarness::kOriginalNodeA : NestedHistoryHarness::kReaderNodeId;
+      auto*         progress =
+          static_cast<SSTriggerTsdbProgress*>(tSimpleHashGet(context->pReaderTsdbProgress, &vg, sizeof(vg)));
+      ASSERT_NE(nullptr, progress);
+      const int32_t metas = taosArrayGetSize(progress->pMetadatas);
+      const int32_t groups = tSimpleHashGetSize(context->pGroups);
+      const int32_t readers = context->curReaderIdx;
+      const auto*   group = harness.historyGroup();
+      const int32_t tables = group == nullptr ? 0 : tSimpleHashGetSize(group->pTableMetas);
+      EXPECT_EQ(TSDB_CODE_INVALID_MSG, harness.respondMetadataSchema(variant, virtualTable));
+      EXPECT_EQ(metas, taosArrayGetSize(progress->pMetadatas));
+      EXPECT_EQ(groups, tSimpleHashGetSize(context->pGroups));
+      EXPECT_EQ(readers, context->curReaderIdx);
+      EXPECT_EQ(group, harness.historyGroup());
+      if (group != nullptr) EXPECT_EQ(tables, tSimpleHashGetSize(group->pTableMetas));
+    }
+  }
+}
+
+TEST(StreamHistoryMetadataValidation, AcceptsProducerNormalVirtualAndRollupSchemas) {
+  for (bool virtualTable : {false, true}) {
+    for (bool rollup : {false, true}) {
+      NestedHistoryHarness harness;
+      ASSERT_TRUE(virtualTable ? harness.deployVirtual() : harness.deploy());
+      ASSERT_EQ(TSDB_CODE_SUCCESS, virtualTable ? harness.driveVirtualDiscovery() : harness.startAndCreateHistory());
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+      ASSERT_EQ(TSDB_CODE_SUCCESS, virtualTable ? harness.respondAllVirtualFirstTs() : harness.respondFirstTs());
+      harness.task()->isRollup = rollup;
+      EXPECT_EQ(TSDB_CODE_SUCCESS, harness.respondMetadataSchema(MetadataSchemaVariant::Valid, virtualTable));
+    }
+  }
+}
+
+TEST(StreamHistoryMetadataValidation, RejectsNextPageWithoutChangingEarlierMetadata) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualFirstTs());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualMetas(true));
+  auto*         context = harness.historyContext();
+  const int32_t vg = NestedHistoryHarness::kOriginalNodeA;
+  auto* progress = static_cast<SSTriggerTsdbProgress*>(tSimpleHashGet(context->pReaderTsdbProgress, &vg, sizeof(vg)));
+  ASSERT_NE(nullptr, progress);
+  const int32_t metas = taosArrayGetSize(progress->pMetadatas);
+  ASSERT_GT(metas, 0);
+  const auto*   block = *static_cast<SSDataBlock**>(taosArrayGet(progress->pMetadatas, 0));
+  const int32_t groups = tSimpleHashGetSize(context->pGroups);
+  const int32_t readers = context->curReaderIdx;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, harness.respondMetadataSchema(MetadataSchemaVariant::TinyInt, true, true));
+  EXPECT_EQ(metas, taosArrayGetSize(progress->pMetadatas));
+  EXPECT_EQ(block, *static_cast<SSDataBlock**>(taosArrayGet(progress->pMetadatas, 0)));
+  EXPECT_EQ(groups, tSimpleHashGetSize(context->pGroups));
+  EXPECT_EQ(readers, context->curReaderIdx);
+}
 
 static void startNestedHistoryRangeRecalc(NestedHistoryHarness& harness, NestedHistoryPlan plan,
                                           const STimeWindow& calcRange, TSKEY scanEnd,
@@ -29506,6 +29902,231 @@ TEST(StreamCalcRequestAdmissionProducerTest, CreateOnlyMultiGroupShapeIsRejected
 
 }  // namespace
 
+TEST_F(StreamTriggerTaskTest, OriginalReaderResponseWithoutRequestIsIgnored) {
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  SStreamMgmtRsp response = {};
+  response.header.msgType = STREAM_MSG_ORIGTBL_READER_INFO;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskExecute(&task, &response.header));
+  EXPECT_EQ(nullptr, task.readerList);
+  EXPECT_EQ(nullptr, task.pRealtimeContext);
+}
+
+static void checkOriginalReaderResponseCount(int32_t responseCount, bool throughMgmt = false) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(NestedHistoryHarness::kScanStart - 1, false, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startVirtualDiscovery());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualTableInfo());
+  auto*         pTask = harness.task();
+  const int64_t waitingReqId = pTask->waitingMgmtReqId;
+  ASSERT_GT(waitingReqId, 0);
+  const int32_t                                    readerCount = taosArrayGetSize(pTask->readerList);
+  std::vector<std::pair<void*, std::vector<char>>> originals;
+  int32_t                                          dbIter = 0;
+  void*                                            pDb = nullptr;
+  while ((pDb = tSimpleHashIterate(pTask->pOrigTableCols, pDb, &dbIter)) != nullptr) {
+    auto*   pTables = *static_cast<SSHashObj**>(pDb);
+    int32_t tableIter = 0;
+    void*   pTable = nullptr;
+    while ((pTable = tSimpleHashIterate(pTables, pTable, &tableIter)) != nullptr) {
+      auto* begin = static_cast<char*>(pTable);
+      auto* end = static_cast<char*>(tSimpleHashGetKey(pTable, nullptr));
+      originals.emplace_back(pTable, std::vector<char>(begin, end));
+    }
+  }
+  ASSERT_EQ(2, originals.size());
+  SStreamMgmtRsp response = {};
+  response.header.msgType = STREAM_MSG_ORIGTBL_READER_INFO;
+  response.reqId = waitingReqId;
+  response.task = pTask->task;
+  if (responseCount > 0) {
+    response.cont.vgIds = taosArrayInit_s(sizeof(int32_t), responseCount);
+    ASSERT_NE(nullptr, response.cont.vgIds);
+    for (int32_t i = 0; i < responseCount; ++i) {
+      *static_cast<int32_t*>(taosArrayGet(response.cont.vgIds, i)) = 100 + i;
+    }
+  }
+
+  if (throughMgmt) {
+    void* pPending = pTask->task.pMgmtReq;
+    Stub  stub;
+    gManualAcquiredTask = &pTask->task;
+    stub.set(streamAcquireTask, acquireManualTriggerTask);
+    stub.set(streamReleaseTask, releaseManualTriggerTask);
+    EXPECT_EQ(TSDB_CODE_INVALID_PARA, smHandleTaskMgmtRsp(&response));
+    EXPECT_EQ(pPending, pTask->task.pMgmtReq);
+    gManualAcquiredTask = nullptr;
+  } else {
+    EXPECT_EQ(TSDB_CODE_INVALID_PARA, stTriggerTaskExecute(pTask, &response.header));
+  }
+  for (const auto& original : originals) {
+    EXPECT_EQ(0, memcmp(original.first, original.second.data(), original.second.size()));
+  }
+  EXPECT_EQ(waitingReqId, pTask->waitingMgmtReqId);
+  EXPECT_EQ(readerCount, taosArrayGetSize(pTask->readerList));
+  taosArrayDestroy(response.cont.vgIds);
+  if (throughMgmt) {
+    EXPECT_EQ(STREAM_STATUS_FAILED, pTask->task.status);
+    EXPECT_EQ(TSDB_CODE_INVALID_PARA, pTask->task.errorCode);
+  } else {
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondVirtualMgmtReaders());
+  }
+}
+
+TEST_F(StreamTriggerTaskTest, OriginalReaderResponseRejectsEmptyArray) { checkOriginalReaderResponseCount(0); }
+
+TEST_F(StreamTriggerTaskTest, OriginalReaderResponseRejectsShortArray) { checkOriginalReaderResponseCount(1); }
+
+TEST_F(StreamTriggerTaskTest, OriginalReaderResponseRejectsExtraEntriesBeforeMutation) {
+  checkOriginalReaderResponseCount(3);
+}
+
+TEST_F(StreamTriggerTaskTest, OriginalReaderMgmtResponseRetainsRequestOnMalformedArray) {
+  checkOriginalReaderResponseCount(3, true);
+}
+
+static int32_t rejectUnexpectedTriggerMgmtDispatch(SStreamTriggerTask*, const SStreamMsg*) {
+  return TSDB_CODE_APP_ERROR;
+}
+
+TEST_F(StreamTriggerTaskTest, TriggerMgmtResponsesRejectNonTriggerTask) {
+  SStreamTask task = {};
+  task.type = STREAM_READER_TASK;
+  SStreamMgmtRsp response = {};
+  Stub           stub;
+  gManualAcquiredTask = &task;
+  stub.set(streamAcquireTask, acquireManualTriggerTask);
+  stub.set(streamReleaseTask, releaseManualTriggerTask);
+  stub.set(stTriggerTaskExecute, rejectUnexpectedTriggerMgmtDispatch);
+  for (const auto msgType : {STREAM_MSG_ORIGTBL_READER_INFO, STREAM_MSG_UPDATE_RUNNER, STREAM_MSG_USER_RECALC}) {
+    SCOPED_TRACE(msgType);
+    response.header.msgType = msgType;
+    EXPECT_EQ(TSDB_CODE_INVALID_MSG, smHandleTaskMgmtRsp(&response));
+  }
+  gManualAcquiredTask = nullptr;
+}
+
+TEST_F(StreamTriggerTaskTest, OriginalReaderMgmtResponseIgnoresStaleAndCompletesMatchedRequest) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(NestedHistoryHarness::kScanStart - 1, false, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startVirtualDiscovery());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualTableInfo());
+  auto* pTask = harness.task();
+  void* pPending = pTask->task.pMgmtReq;
+  ASSERT_NE(nullptr, pPending);
+  const int64_t  waitingReqId = pTask->waitingMgmtReqId;
+  SStreamMgmtRsp response = {};
+  response.header.msgType = STREAM_MSG_ORIGTBL_READER_INFO;
+  response.task = pTask->task;
+  response.reqId = waitingReqId + 1;
+  Stub stub;
+  gManualAcquiredTask = &pTask->task;
+  stub.set(streamAcquireTask, acquireManualTriggerTask);
+  stub.set(streamReleaseTask, releaseManualTriggerTask);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, smHandleTaskMgmtRsp(&response));
+  EXPECT_EQ(pPending, pTask->task.pMgmtReq);
+  EXPECT_EQ(waitingReqId, pTask->waitingMgmtReqId);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, harness.respondVirtualMgmtReaders(true));
+  EXPECT_EQ(nullptr, pTask->task.pMgmtReq);
+  EXPECT_EQ(-1, pTask->waitingMgmtReqId);
+  EXPECT_EQ(4, taosArrayGetSize(pTask->readerList));
+  response.reqId = waitingReqId;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, smHandleTaskMgmtRsp(&response));
+  EXPECT_EQ(4, taosArrayGetSize(pTask->readerList));
+  gManualAcquiredTask = nullptr;
+}
+
+TEST_F(StreamTriggerTaskTest, NotifyOnlyDropConsumesPendingOutputDeletion) {
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_NONE,
+                           STRIGGER_EVENT_WINDOW_CLOSE, 0, 0));
+  EXPECT_EQ(-1, harness.task()->waitingMgmtReqId);
+  ASSERT_EQ(nullptr, harness.task()->pCalcNodes);
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.feedDroppedGroups({42}));
+  EXPECT_EQ(0, taosArrayGetSize(harness.context()->groupsToDelete));
+  EXPECT_TRUE(harness.droppedGids().empty());
+  ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
+  ASSERT_TRUE(harness.feedZeroRowWal());
+  EXPECT_EQ(0, taosArrayGetSize(harness.context()->groupsToDelete));
+}
+
+TEST_F(StreamTriggerTaskTest, EventDeployRejectsMissingStartCondition) {
+  SMStreamHbRspMsg         heartbeat = makeDeployHeartbeat(false);
+  SStreamTriggerDeployMsg* pMsg = deployTrigger(&heartbeat);
+  tDestroyStreamWindowPlan(&pMsg->pWindowPlan);
+  pMsg->addOptions = 0;
+  pMsg->triggerType = WINDOW_TYPE_EVENT;
+  pMsg->trigger.event = {};
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  task.task.undeployCb = releaseStackTask;
+  const SStreamTriggerTask before = task;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stTriggerTaskDeploy(&task, pMsg));
+  EXPECT_EQ(0, memcmp(&before, &task, sizeof(task)));
+  tDeepFreeSMStreamHbRspMsg(&heartbeat);
+}
+
+static void checkEventDeployWithoutEnd(bool multiStart) {
+  SMStreamHbRspMsg         heartbeat = makeDeployHeartbeat(false);
+  SStreamTriggerDeployMsg* pMsg = deployTrigger(&heartbeat);
+  tDestroyStreamWindowPlan(&pMsg->pWindowPlan);
+  pMsg->addOptions = 0;
+  pMsg->triggerType = WINDOW_TYPE_EVENT;
+  pMsg->trigger.event = {};
+  pMsg->trigger.event.startCond = multiStart ? makeDeployParityEventStartConditions() : makeDeployCondition(1, false);
+  ASSERT_NE(nullptr, pMsg->trigger.event.startCond);
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  task.task.undeployCb = releaseStackTask;
+  const SStreamTriggerTask before = task;
+  EXPECT_EQ(multiStart ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA, stTriggerTaskDeploy(&task, pMsg));
+  if (!multiStart) EXPECT_EQ(0, memcmp(&before, &task, sizeof(task)));
+  tDeepFreeSMStreamHbRspMsg(&heartbeat);
+  if (multiStart) {
+    SStreamTriggerTask* pTask = &task;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskUndeploy(&pTask, true));
+  }
+}
+
+TEST_F(StreamTriggerTaskTest, EventDeployRejectsMissingRequiredEnd) { checkEventDeployWithoutEnd(false); }
+
+TEST_F(StreamTriggerTaskTest, EventDeployAllowsSubEventWithoutEnd) { checkEventDeployWithoutEnd(true); }
+
+static void checkVirtualDeployMissingScanNode(bool missingRoot) {
+  SNode* pPlan = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pPlan));
+  if (!missingRoot) {
+    SNode* pScan = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, &pScan));
+    reinterpret_cast<SSubplan*>(pPlan)->pNode = reinterpret_cast<SPhysiNode*>(pScan);
+  }
+  char*   plan = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(pPlan, false, &plan, &len));
+  nodesDestroyNode(pPlan);
+  SMStreamHbRspMsg         heartbeat = makeDeployHeartbeat(false);
+  SStreamTriggerDeployMsg* pMsg = deployTrigger(&heartbeat);
+  tDestroyStreamWindowPlan(&pMsg->pWindowPlan);
+  pMsg->addOptions = 0;
+  pMsg->isTriggerTblVirt = 1;
+  pMsg->triggerScanPlan = plan;
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  task.task.undeployCb = releaseStackTask;
+  const SStreamTriggerTask before = task;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stTriggerTaskDeploy(&task, pMsg));
+  EXPECT_EQ(0, memcmp(&before, &task, sizeof(task)));
+  tDeepFreeSMStreamHbRspMsg(&heartbeat);
+}
+
+TEST_F(StreamTriggerTaskTest, VirtualDeployRejectsMissingScanRoot) { checkVirtualDeployMissingScanNode(true); }
+
+TEST_F(StreamTriggerTaskTest, VirtualDeployRejectsMissingOutputDescription) {
+  checkVirtualDeployMissingScanNode(false);
+}
+
 int main(int argc, char** argv) {
   const char* testConfigDir = std::getenv("TAOS_TEST_CONFIG_DIR");
   if (testConfigDir != nullptr && testConfigDir[0] != '\0') {
@@ -29532,3 +30153,251 @@ int main(int argc, char** argv) {
   taos_cleanup();
   return code;
 }
+
+namespace {
+int32_t capabilityDeployCalls[3] = {};
+int32_t capabilityStartCalls = 0;
+int32_t capabilitySyncCalls = 0;
+int32_t capabilityReaderDeploy(SStreamReaderTask*, const SStreamReaderDeployMsg*) {
+  ++capabilityDeployCalls[0];
+  return 0;
+}
+int32_t capabilityTriggerDeploy(SStreamTriggerTask*, SStreamTriggerDeployMsg*) {
+  ++capabilityDeployCalls[1];
+  return 0;
+}
+int32_t capabilityRunnerDeploy(SStreamRunnerTask*, SStreamRunnerDeployMsg*) {
+  ++capabilityDeployCalls[2];
+  return 0;
+}
+SEpSet* capabilitySyncEndpoint(int32_t) {
+  ++capabilitySyncCalls;
+  return nullptr;
+}
+int32_t capabilityStartQueue(void* context, EQueueType queue, SRpcMsg* msg) {
+  EXPECT_EQ(context, nullptr);
+  EXPECT_EQ(queue, STREAM_TRIGGER_QUEUE);
+  EXPECT_EQ(msg->msgType, TDMT_STREAM_TRIGGER_CTRL);
+  ++capabilityStartCalls;
+  rpcFreeCont(msg->pCont);
+  return 0;
+}
+void capabilityFreeVgroup(void* value) { taosArrayDestroy(static_cast<SStreamVgReaderTasks*>(value)->taskList); }
+
+class StreamMgmtCapabilityTest : public StreamTriggerTaskTest {
+ protected:
+  static constexpr int64_t kStreamId = 7114707131;
+  static constexpr int32_t kGroup = kStreamId % STREAM_MAX_GROUP_NUM;
+  bool                     savedEnabled = false;
+  SMsgCb                   savedMsgCb = {};
+  getSynEpset_f            savedSync = nullptr;
+  SArray*                  savedSnodeTasks = nullptr;
+  bool                     ownsMaps = false;
+  Stub                     stub;
+  SStmStreamDeploy         deploy = {};
+  SStmTaskDeploy           triggerDeploy = {};
+
+  void SetUp() override {
+    StreamTriggerTaskTest::SetUp();
+    savedEnabled = gStreamMgmt.snodeEnabled;
+    savedMsgCb = gStreamMgmt.msgCb;
+    savedSync = gStreamMgmt.getSynEpset;
+    savedSnodeTasks = gStreamMgmt.snodeTasks;
+    ASSERT_EQ(gStreamMgmt.taskMap, nullptr);
+    ASSERT_EQ(gStreamMgmt.vgroupMap, nullptr);
+    ASSERT_EQ(gStreamMgmt.stmGrp[kGroup], nullptr);
+    gStreamMgmt.taskMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    gStreamMgmt.vgroupMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+    ownsMaps = true;
+    ASSERT_NE(gStreamMgmt.taskMap, nullptr);
+    ASSERT_NE(gStreamMgmt.vgroupMap, nullptr);
+    taosHashSetFreeFp(gStreamMgmt.vgroupMap, capabilityFreeVgroup);
+    gStreamMgmt.snodeEnabled = false;
+    gStreamMgmt.getSynEpset = capabilitySyncEndpoint;
+    gStreamMgmt.msgCb = {};
+    gStreamMgmt.msgCb.putToQueueFp = capabilityStartQueue;
+    memset(capabilityDeployCalls, 0, sizeof(capabilityDeployCalls));
+    capabilityStartCalls = capabilitySyncCalls = 0;
+    stub.set(stReaderTaskDeploy, capabilityReaderDeploy);
+    stub.set(stTriggerTaskDeploy, capabilityTriggerDeploy);
+    stub.set(stRunnerTaskDeploy, capabilityRunnerDeploy);
+  }
+  void TearDown() override {
+    if (ownsMaps) {
+      taosHashCleanup(gStreamMgmt.taskMap);
+      gStreamMgmt.taskMap = nullptr;
+      taosHashCleanup(gStreamMgmt.vgroupMap);
+      gStreamMgmt.vgroupMap = nullptr;
+      taosHashCleanup(gStreamMgmt.stmGrp[kGroup]);
+      gStreamMgmt.stmGrp[kGroup] = nullptr;
+    }
+    EXPECT_EQ(gStreamMgmt.snodeTasks, savedSnodeTasks);
+    gStreamMgmt.snodeEnabled = savedEnabled;
+    gStreamMgmt.msgCb = savedMsgCb;
+    gStreamMgmt.getSynEpset = savedSync;
+    taosArrayDestroy(deploy.readerTasks);
+    taosArrayDestroy(deploy.runnerTasks);
+    StreamTriggerTaskTest::TearDown();
+  }
+  void makeDeploy(bool trigger, bool runner) {
+    deploy.streamId = kStreamId;
+    SStmTaskDeploy reader = {};
+    reader.task.streamId = kStreamId;
+    reader.task.taskId = 1;
+    reader.task.type = STREAM_READER_TASK;
+    reader.task.nodeId = 7;
+    deploy.readerTasks = taosArrayInit(1, sizeof(reader));
+    ASSERT_NE(deploy.readerTasks, nullptr);
+    ASSERT_NE(taosArrayPush(deploy.readerTasks, &reader), nullptr);
+    if (trigger) {
+      triggerDeploy.task = reader.task;
+      triggerDeploy.task.taskId = 2;
+      triggerDeploy.task.type = STREAM_TRIGGER_TASK;
+      deploy.triggerTask = &triggerDeploy;
+    }
+    if (runner) {
+      SStmTaskDeploy runnerTask = {};
+      runnerTask.task = reader.task;
+      runnerTask.task.taskId = 3;
+      runnerTask.task.type = STREAM_RUNNER_TASK;
+      deploy.runnerTasks = taosArrayInit(1, sizeof(runnerTask));
+      ASSERT_NE(deploy.runnerTasks, nullptr);
+      ASSERT_NE(taosArrayPush(deploy.runnerTasks, &runnerTask), nullptr);
+    }
+  }
+  void expectDeployRejected() {
+    EXPECT_EQ(smDeployTasks(&deploy), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(gStreamMgmt.stmGrp[kGroup], nullptr);
+    EXPECT_EQ(taosHashGetSize(gStreamMgmt.taskMap), 0);
+    EXPECT_EQ(taosHashGetSize(gStreamMgmt.vgroupMap), 0);
+    for (int32_t calls : capabilityDeployCalls) EXPECT_EQ(calls, 0);
+  }
+  void registerTask(SStreamTask* task) {
+    task->streamId = kStreamId;
+    task->taskId = 12;
+    task->status = STREAM_STATUS_INIT;
+    taosInitRWLatch(&task->entryLock);
+    ASSERT_EQ(taosHashPut(gStreamMgmt.taskMap, &task->streamId, sizeof(task->streamId) + sizeof(task->taskId), &task,
+                          POINTER_BYTES),
+              0);
+  }
+  void expectStartRejected(SStreamTask* task) {
+    registerTask(task);
+    const SStreamTask original = *task;
+    SStreamTaskStart  start = {};
+    start.task = *task;
+    start.task.type = STREAM_TRIGGER_TASK;
+    start.startMsg.header.msgType = STREAM_MSG_ORIGTBL_READER_INFO;
+    const SStreamTaskStart originalStart = start;
+    EXPECT_EQ(smStartStreamTasks(&start), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(memcmp(task, &original, sizeof(original)), 0);
+    EXPECT_EQ(memcmp(&start, &originalStart, sizeof(start)), 0);
+    EXPECT_EQ(capabilityStartCalls, 0);
+    EXPECT_EQ(capabilitySyncCalls, 0);
+  }
+};
+
+TEST_F(StreamMgmtCapabilityTest, DisabledRejectsReaderAndTriggerBeforeAnyDeployment) {
+  makeDeploy(true, false);
+  expectDeployRejected();
+}
+TEST_F(StreamMgmtCapabilityTest, DisabledRejectsReaderAndRunnerBeforeAnyDeployment) {
+  makeDeploy(false, true);
+  expectDeployRejected();
+}
+TEST_F(StreamMgmtCapabilityTest, DisabledAllowsReaderOnly) {
+  makeDeploy(false, false);
+  EXPECT_EQ(smDeployTasks(&deploy), 0);
+  EXPECT_EQ(capabilityDeployCalls[0], 1);
+  EXPECT_EQ(capabilityDeployCalls[1], 0);
+  EXPECT_EQ(capabilityDeployCalls[2], 0);
+  EXPECT_EQ(taosHashGetSize(gStreamMgmt.taskMap), 1);
+}
+TEST_F(StreamMgmtCapabilityTest, DisabledAllowsReaderWithEmptyRunnerArray) {
+  makeDeploy(false, false);
+  deploy.runnerTasks = taosArrayInit(1, sizeof(SStmTaskDeploy));
+  ASSERT_NE(deploy.runnerTasks, nullptr);
+  EXPECT_EQ(smDeployTasks(&deploy), 0);
+  EXPECT_EQ(capabilityDeployCalls[0], 1);
+  EXPECT_EQ(taosHashGetSize(gStreamMgmt.taskMap), 1);
+}
+TEST_F(StreamMgmtCapabilityTest, EnabledAllowsMixedDeployment) {
+  makeDeploy(true, true);
+  gStreamMgmt.snodeEnabled = true;
+  EXPECT_EQ(smDeployTasks(&deploy), 0);
+  for (int32_t calls : capabilityDeployCalls) EXPECT_EQ(calls, 1);
+  EXPECT_EQ(taosHashGetSize(gStreamMgmt.taskMap), 3);
+}
+TEST_F(StreamMgmtCapabilityTest, DisabledStartPreservesTriggerAndMessage) {
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  task.realtimeStarted = 1;
+  expectStartRejected(&task.task);
+  EXPECT_EQ(task.realtimeStarted, 1);
+}
+TEST_F(StreamMgmtCapabilityTest, StartRejectsActualReaderDespiteClaimedTriggerType) {
+  SStreamReaderTask task = {};
+  task.task.type = STREAM_READER_TASK;
+  gStreamMgmt.snodeEnabled = true;
+  expectStartRejected(&task.task);
+}
+TEST_F(StreamMgmtCapabilityTest, StartRejectsActualRunnerDespiteClaimedTriggerType) {
+  SStreamRunnerTask task = {};
+  task.task.type = STREAM_RUNNER_TASK;
+  gStreamMgmt.snodeEnabled = true;
+  expectStartRejected(&task.task);
+}
+TEST_F(StreamMgmtCapabilityTest, StartRequiresSyncEndpointCallback) {
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  task.realtimeStarted = 1;
+  gStreamMgmt.snodeEnabled = true;
+  gStreamMgmt.getSynEpset = nullptr;
+  expectStartRejected(&task.task);
+}
+TEST_F(StreamMgmtCapabilityTest, StartRequiresQueueCallback) {
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  task.realtimeStarted = 1;
+  gStreamMgmt.snodeEnabled = true;
+  gStreamMgmt.msgCb.putToQueueFp = nullptr;
+  expectStartRejected(&task.task);
+}
+TEST_F(StreamMgmtCapabilityTest, EnabledActualTriggerStartsWithNullOpaqueContext) {
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  registerTask(&task.task);
+  SSTriggerRealtimeContext realtime = {};
+  realtime.pTask = &task;
+  realtime.sessionId = 17;
+  task.pRealtimeContext = &realtime;
+  gStreamMgmt.snodeEnabled = true;
+  SStreamTaskStart start = {};
+  start.task = task.task;
+  start.task.type = STREAM_READER_TASK;
+  EXPECT_EQ(smStartStreamTasks(&start), 0);
+  EXPECT_EQ(task.task.status, STREAM_STATUS_RUNNING);
+  EXPECT_EQ(task.realtimeStarted, 1);
+  EXPECT_EQ(task.task.entryLock, 0);
+  EXPECT_EQ(capabilityStartCalls, 1);
+  EXPECT_EQ(capabilitySyncCalls, 1);
+}
+TEST_F(StreamMgmtCapabilityTest, DisabledAllowsActualReaderUndeploy) {
+  makeDeploy(false, false);
+  ASSERT_EQ(smDeployTasks(&deploy), 0);
+  SStreamTaskUndeploy removal = {};
+  removal.task = static_cast<SStmTaskDeploy*>(taosArrayGet(deploy.readerTasks, 0))->task;
+  removal.undeployMsg.doCleanup = true;
+  SStreamUndeployActions actions = {};
+  actions.taskList = taosArrayInit(1, sizeof(removal));
+  ASSERT_NE(actions.taskList, nullptr);
+  ASSERT_NE(taosArrayPush(actions.taskList, &removal), nullptr);
+  EXPECT_EQ(smUndeployTasks(&actions), 0);
+  taosArrayDestroy(actions.taskList);
+  EXPECT_EQ(taosHashGetSize(gStreamMgmt.taskMap), 0);
+  auto* stream =
+      static_cast<SStreamInfo*>(taosHashGet(gStreamMgmt.stmGrp[kGroup], &deploy.streamId, sizeof(deploy.streamId)));
+  ASSERT_NE(stream, nullptr);
+  EXPECT_EQ(taosArrayGetSize(stream->undeployReaders), 1);
+}
+}  // namespace

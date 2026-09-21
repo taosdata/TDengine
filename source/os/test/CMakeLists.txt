@@ -107,3 +107,8 @@ add_test(
     NAME osLocaleTests
     COMMAND osLocaleTests
 )
+
+add_executable(osPrivateFileTest "osPrivateFileTest.cpp")
+DEP_ext_gtest(osPrivateFileTest)
+target_link_libraries(osPrivateFileTest PRIVATE os util)
+add_test(NAME osPrivateFileTest COMMAND osPrivateFileTest)
