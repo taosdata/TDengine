@@ -3395,7 +3395,18 @@ static void mndTransShowActions(SSdb *pSdb, STransDetailIter *pShowIter, SShowOb
   mInfo("stage:%s, Actions num:%d", mndTransStr(pShowIter->stage), actionNum);
 
   for (int32_t i = start; i < actionNum; ++i) {
-    STransAction *pAction = taosArrayGet(pShowIter->pTrans->redoActions, i);
+    // FIX (entry 191): fetch the action from the same stage-selected array `pActions`
+    // that bounds this loop, NOT from `pTrans->redoActions`. Indexing `redoActions`
+    // here was a NULL-pointer-dereference (CWE-476): when the current stage array
+    // (prepareActions / commitActions / undoActions) was longer than redoActions,
+    // taosArrayGet(redoActions, i) returned NULL for i >= redoActions->size, and that
+    // NULL was dereferenced without a check in mndShowTransCommonColumns.
+    STransAction *pAction = taosArrayGet(pActions, i);
+    if (pAction == NULL) {
+      mError("failed to retrieve transaction action, action is NULL at index:%d, transactionId:%d, stage:%s", i,
+             pShowIter->pTrans->id, mndTransStr(pShowIter->stage));
+      continue;
+    }
     mndShowTransAction(pShow, pBlock, pAction, pShowIter->pTrans->id, pShowIter->pTrans->lastAction, rows, *numOfRows);
     (*numOfRows)++;
     if (*numOfRows >= rows) break;
