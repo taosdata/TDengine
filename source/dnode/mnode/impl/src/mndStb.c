@@ -1132,6 +1132,10 @@ static int32_t mndSetCheckHasCtbRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
       action.pCont = pHead;
       action.contLen = contLen;
       action.msgType = TDMT_VND_CHECK_HAS_CTB;
+      // The batch-meta-txn COMMIT trans is TRN_EXEC_GROUP_PARALLEL, which rejects any
+      // action with groupId 0. The non-txn ADD BASE ON path uses a serial trans where 0 is
+      // fine, so this only surfaced once BASE ON became reachable inside a txn.
+      action.groupId = pVgroup->vgId;
       if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
         taosMemoryFree(pHead);
         sdbCancelFetch(pSdb, pIter);
@@ -1214,6 +1218,11 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
   SVgObj *pVgroup = NULL;
   void   *pIter = NULL;
   int32_t contLen;
+  // CREATE_STB broadcasts the same schema to every vgroup in the DB, and the
+  // trans treats those as one parallel group. A single non-zero groupId (2) is
+  // enough to satisfy TRN_EXEC_GROUP_PARALLEL (which rejects groupId 0); the
+  // per-vgroup identity does not matter here. Contrast CHECK_HAS_CTB, where
+  // each parent's check is its own parallel group and uses the vgId as groupId.
   int32_t groupId = (pTrans->exec == TRN_EXEC_GROUP_PARALLEL) ? 2 : 0;
 
   while (1) {
@@ -2340,6 +2349,24 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
 
   pStb = mndAcquireStb(pMnode, createReq.name);
   if (pStb != NULL) {
+    // batch-meta-txn: classify by txn state before the generic "already exists" paths.
+    // mndAcquireStb is a bare sdbAcquire and does no txn filtering, so an STB this txn
+    // already dropped is still returned here. Reporting "STable already exists" then
+    // points at a name clash, when the real reason is that the object is held until the
+    // txn ends - the SDB key stays occupied so ROLLBACK can restore it (FS Sec.5).
+    if (pStb->txnId != 0 && pStb->txnId == (txn_id_t)createReq.txnId &&
+        (pStb->txnStatus == META_TXN_PRE_DROP || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
+      code = TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED;
+      mError("stb:%s, dropped in txn:%" PRId64 ", cannot recreate with the same name until COMMIT/ROLLBACK",
+             createReq.name, (int64_t)createReq.txnId);
+      goto _OVER;
+    }
+    if (pStb->txnId != 0 && pStb->txnId != (txn_id_t)createReq.txnId) {
+      code = TSDB_CODE_TXN_RESOURCE_BUSY;
+      mError("stb:%s, owned by txn:%" PRId64 ", cannot create in txn:%" PRId64, createReq.name, pStb->txnId,
+             (int64_t)createReq.txnId);
+      goto _OVER;
+    }
     if (createReq.igExists) {
       if (createReq.source == TD_REQ_FROM_APP) {
         mInfo("stb:%s, already exist, ignore exist is set", createReq.name);
@@ -4597,6 +4624,103 @@ static int32_t mndAlterStbDropBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNe
   TAOS_RETURN(code);
 }
 
+// Apply one ALTER STABLE action, transforming pBase into pNew.
+//
+// Batch meta txn replays a super-table ALTER twice: once at statement time (to validate
+// against the schema the txn has accumulated so far) and once at COMMIT (to apply it to
+// SDB for real). Both replays, plus the prior-op replay that rebuilds the accumulated
+// schema, must accept exactly the same action set - an action handled at statement time
+// but not at COMMIT surfaces as a statement that succeeds and a COMMIT that fails, while
+// an action silently skipped at statement time makes every later ALTER in the same txn
+// validate against a stale schema. Keeping the dispatch in one function is what makes
+// those three sites agree by construction; they used to be three copies and had already
+// drifted (BASE ON was reachable only on the non-txn path).
+//
+// pDb may be NULL for actions that do not need it (everything except ADD BASE ON).
+static int32_t mndApplyAlterStbAction(SMnode *pMnode, SStbObj *pBase, SStbObj *pNew, const SMAlterStbReq *pAlter,
+                                      SDbObj *pDb) {
+  SField *pField0 = NULL;
+
+  // A virtual super table that other VSTs inherit from cannot have its schema reshaped:
+  // the inherited columns/tags are copied into each child VST at inherit time, so changing
+  // them here would silently desynchronize the children. Guard the actions that reshape
+  // schema; MODIFY COLUMN (widening a data column in place) is deliberately not in this
+  // set, matching the pre-existing non-txn behavior - widening keeps children compatible.
+  // ADD_COLUMN_WITH_COMPRESS_OPTION must be guarded alongside plain ADD_COLUMN: it adds a
+  // column just the same, the compress clause is only codec metadata. It was missing here,
+  // so `ADD COLUMN c INT ENCODE ...` on a parent VST slipped through and left the parent
+  // with a column its children did not have.
+  switch (pAlter->alterType) {
+    case TSDB_ALTER_TABLE_ADD_TAG:
+    case TSDB_ALTER_TABLE_DROP_TAG:
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+    case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      if (pBase->virtualStb && mndStbHasChildren(pMnode, pBase)) {
+        mError("stb:%s, cannot apply alter action %d: virtual stable has child inheritors", pBase->name,
+               pAlter->alterType);
+        return TSDB_CODE_MND_VST_HAS_CHILDREN;
+      }
+      break;
+    default:
+      break;
+  }
+
+  switch (pAlter->alterType) {
+    case TSDB_ALTER_TABLE_ADD_TAG:
+      return mndAddSuperTableTag(pBase, pNew, pAlter->pFields, pAlter->numOfFields);
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
+      return mndDropSuperTableTag(pMnode, pBase, pNew, pField0->name);
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+      return mndAlterStbTagName(pMnode, pBase, pNew, pAlter->pFields);
+    case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
+      return mndAlterStbTagBytes(pMnode, pBase, pNew, pField0);
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+      return mndAddSuperTableColumn(pBase, pNew, pAlter, pAlter->numOfFields, 0);
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+      return mndAddSuperTableColumn(pBase, pNew, pAlter, pAlter->numOfFields, 1);
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
+      return mndDropSuperTableColumn(pMnode, pBase, pNew, pField0->name);
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
+      return mndAlterStbColumnBytes(pMnode, pBase, pNew, pField0);
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      return mndAlterStbColumnName(pMnode, pBase, pNew, pAlter->pFields);
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+      return mndUpdateSuperTableColumnCompress(pMnode, pBase, pNew, pAlter->pFields, pAlter->numOfFields);
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS: {
+      int32_t optCode = mndUpdateTableOptions(pBase, pNew, pAlter->comment, pAlter->commentLen, pAlter->ttl,
+                                              pAlter->keep, pAlter->secureDelete, pAlter->securityLevel);
+#ifdef TD_ENTERPRISE
+      // MAC: STB security_level must not be below DB security_level
+      if (optCode == 0 && pDb != NULL && pAlter->securityLevel >= 0 &&
+          (uint8_t)pAlter->securityLevel < pDb->cfg.securityLevel) {
+        mError("stb:%s, security_level %d below db security_level %d", pAlter->name, pAlter->securityLevel,
+               pDb->cfg.securityLevel);
+        optCode = TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB;
+      }
+#endif
+      return optCode;
+    }
+    case TSDB_ALTER_TABLE_ADD_BASE_ON:
+      // Needs pDb to enforce the same-database rule on the parent VSTs.
+      if (pDb == NULL) {
+        return TSDB_CODE_MND_INVALID_STB_OPTION;
+      }
+      return mndAlterStbAddBaseOn(pMnode, pBase, pNew, pAlter, pDb);
+    case TSDB_ALTER_TABLE_DROP_BASE_ON:
+      return mndAlterStbDropBaseOn(pMnode, pBase, pNew, pAlter);
+    default:
+      return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+}
+
 // Collect the names that ADD BASE ON merged into the vstb schema, for the vnode-side vchild
 // own-name conflict check (mndSetCheckStbAlterNameRedoActions). The merge (mndAlterStbAddBaseOn)
 // assigns fresh colIds above the old maximum, so a name in pNew whose colId does not exist in
@@ -4687,6 +4811,7 @@ static int32_t mndCollectAlterStbNewNames(const SMAlterStbReq *pAlter, SArray **
 static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *pAlter, SDbObj *pDb, SStbObj *pOld) {
   bool    needRsp = true;
   int32_t code = -1;
+
   SField *pField0 = NULL;
   // Virtual stb: names newly introduced by this alter, checked against vchild own
   // (extension) column/tag names by vnode check actions prepended in the *Imp functions.
@@ -4710,101 +4835,25 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   // and the vnode-level ALTER_STB request silently carries no txnId.
   stbObj.txnId = pAlter->txnId;
   bool updateTagIndex = false;
+  // Schema transformation (and the VST-has-children guard) is shared with the txn path via
+  // mndApplyAlterStbAction; only the two dispatch side effects are decided here.
   switch (pAlter->alterType) {
-    case TSDB_ALTER_TABLE_ADD_TAG:
-      if (pOld->virtualStb && mndStbHasChildren(pMnode, pOld)) {
-        code = TSDB_CODE_MND_VST_HAS_CHILDREN;
-        mError("stb:%s, cannot add tag: virtual stable has child inheritors", pOld->name);
-        break;
-      }
-      code = mndAddSuperTableTag(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
-      break;
     case TSDB_ALTER_TABLE_DROP_TAG:
-      if (pOld->virtualStb && mndStbHasChildren(pMnode, pOld)) {
-        code = TSDB_CODE_MND_VST_HAS_CHILDREN;
-        mError("stb:%s, cannot drop tag: virtual stable has child inheritors", pOld->name);
-        break;
-      }
-      pField0 = taosArrayGet(pAlter->pFields, 0);
-      code = mndDropSuperTableTag(pMnode, pOld, &stbObj, pField0->name);
-      updateTagIndex = true;
-      break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
-      if (pOld->virtualStb && mndStbHasChildren(pMnode, pOld)) {
-        code = TSDB_CODE_MND_VST_HAS_CHILDREN;
-        mError("stb:%s, cannot rename tag: virtual stable has child inheritors", pOld->name);
-        break;
-      }
-      code = mndAlterStbTagName(pMnode, pOld, &stbObj, pAlter->pFields);
+      // These two also rewrite the tag index, so they take the AndUpdateTagIdx trans below.
       updateTagIndex = true;
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
-      if (pOld->virtualStb && mndStbHasChildren(pMnode, pOld)) {
-        code = TSDB_CODE_MND_VST_HAS_CHILDREN;
-        mError("stb:%s, cannot modify tag: virtual stable has child inheritors", pOld->name);
-        break;
-      }
-      pField0 = taosArrayGet(pAlter->pFields, 0);
-      code = mndAlterStbTagBytes(pMnode, pOld, &stbObj, pField0);
-      break;
-    case TSDB_ALTER_TABLE_ADD_COLUMN:
-      if (pOld->virtualStb && mndStbHasChildren(pMnode, pOld)) {
-        code = TSDB_CODE_MND_VST_HAS_CHILDREN;
-        mError("stb:%s, cannot add column: virtual stable has child inheritors", pOld->name);
-        break;
-      }
-      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter, pAlter->numOfFields, 0);
-      break;
-    case TSDB_ALTER_TABLE_DROP_COLUMN:
-      if (pOld->virtualStb && mndStbHasChildren(pMnode, pOld)) {
-        code = TSDB_CODE_MND_VST_HAS_CHILDREN;
-        mError("stb:%s, cannot drop column: virtual stable has child inheritors", pOld->name);
-        break;
-      }
-      pField0 = taosArrayGet(pAlter->pFields, 0);
-      code = mndDropSuperTableColumn(pMnode, pOld, &stbObj, pField0->name);
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
-      pField0 = taosArrayGet(pAlter->pFields, 0);
-      code = mndAlterStbColumnBytes(pMnode, pOld, &stbObj, pField0);
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-      if (pOld->virtualStb && mndStbHasChildren(pMnode, pOld)) {
-        code = TSDB_CODE_MND_VST_HAS_CHILDREN;
-        mError("stb:%s, cannot rename column: virtual stable has child inheritors", pOld->name);
-        break;
-      }
-      code = mndAlterStbColumnName(pMnode, pOld, &stbObj, pAlter->pFields);
       break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       needRsp = false;
-      code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep,
-                                   pAlter->secureDelete, pAlter->securityLevel);
-#ifdef TD_ENTERPRISE
-      // MAC: STB security_level must not be below DB security_level
-      if (code == 0 && pAlter->securityLevel >= 0 && (uint8_t)pAlter->securityLevel < pDb->cfg.securityLevel) {
-        mError("stb:%s, security_level %d below db security_level %d", pAlter->name, pAlter->securityLevel,
-               pDb->cfg.securityLevel);
-        code = TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB;
-      }
-#endif
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
-      code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
-      break;
-    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
-      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter, pAlter->numOfFields, 1);
-      break;
-    case TSDB_ALTER_TABLE_ADD_BASE_ON:
-      code = mndAlterStbAddBaseOn(pMnode, pOld, &stbObj, pAlter, pDb);
-      break;
-    case TSDB_ALTER_TABLE_DROP_BASE_ON:
-      code = mndAlterStbDropBaseOn(pMnode, pOld, &stbObj, pAlter);
       break;
     default:
-      needRsp = false;
-      terrno = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
+  }
+
+  code = mndApplyAlterStbAction(pMnode, pOld, &stbObj, pAlter, pDb);
+  if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
+    needRsp = false;
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
   }
 
   if (code != 0) goto _OVER;
@@ -4982,10 +5031,27 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
         virtualStb.pFuncs = NULL;
         virtualStb.pCmpr = NULL;
         virtualStb.pExtSchemas = NULL;
+        // comment is not copied by mndAllocStbSchemas, and mndUpdateTableOptions (the applier's
+        // UPDATE_OPTIONS branch) replaces it with a fresh allocation without releasing the
+        // previous value. Own a copy here so the replay loop can drop a carried copy before the
+        // applier overwrites it and free the survivor on the way out; the pointer inherited from
+        // pStb is borrowed and must never be freed. Mirrors mndApplyTxnAlterOpsToSchema.
+        virtualStb.comment = NULL;
+        if (pStb->commentLen > 0 && pStb->comment != NULL) {
+          virtualStb.comment = taosMemoryCalloc(1, pStb->commentLen + 1);
+          if (virtualStb.comment == NULL) {
+            taosRUnLockLatch(&pStb->lock);
+            taosArrayDestroy(pPriorOps);
+            code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+            goto _OVER;
+          }
+          memcpy(virtualStb.comment, pStb->comment, pStb->commentLen + 1);
+        }
         virtualStb.lock = 0;
         taosRUnLockLatch(&pStb->lock);
         valCode = mndAllocStbSchemas(pStb, &virtualStb);
         if (valCode != 0) {
+          taosMemoryFreeClear(virtualStb.comment);
           taosArrayDestroy(pPriorOps);
           code = valCode;
           goto _OVER;
@@ -5006,62 +5072,66 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
           nextStb.pFuncs = NULL;
           nextStb.pCmpr = NULL;
           nextStb.pExtSchemas = NULL;
+          // Transfer comment ownership from virtualStb to nextStb and clear it on the source, so
+          // the failure/transfer/cleanup points below release it exactly once and no path
+          // double-frees. mndUpdateTableOptions allocates a fresh comment for UPDATE_OPTIONS
+          // (commentLen > 0) without releasing what it overwrites, so drop the carried copy
+          // first. Mirrors mndApplyTxnAlterOpsToSchema.
+          nextStb.comment = virtualStb.comment;
+          virtualStb.comment = NULL;
+          if (priorReq.alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && priorReq.commentLen > 0) {
+            taosMemoryFreeClear(nextStb.comment);
+          }
           nextStb.lock = 0;
 
-          SField *pF = NULL;
-          int32_t rc = 0;
-          switch (priorReq.alterType) {
-            case TSDB_ALTER_TABLE_ADD_TAG:
-              rc = mndAddSuperTableTag(&virtualStb, &nextStb, priorReq.pFields, priorReq.numOfFields);
-              break;
-            case TSDB_ALTER_TABLE_DROP_TAG:
-              pF = taosArrayGet(priorReq.pFields, 0);
-              rc = mndDropSuperTableTag(pMnode, &virtualStb, &nextStb, pF->name);
-              break;
-            case TSDB_ALTER_TABLE_ADD_COLUMN:
-              rc = mndAddSuperTableColumn(&virtualStb, &nextStb, &priorReq, priorReq.numOfFields, 0);
-              break;
-            case TSDB_ALTER_TABLE_DROP_COLUMN:
-              pF = taosArrayGet(priorReq.pFields, 0);
-              rc = mndDropSuperTableColumn(pMnode, &virtualStb, &nextStb, pF->name);
-              break;
-            case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
-              pF = taosArrayGet(priorReq.pFields, 0);
-              rc = mndAlterStbColumnBytes(pMnode, &virtualStb, &nextStb, pF);
-              break;
-            case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
-              pF = taosArrayGet(priorReq.pFields, 0);
-              rc = mndAlterStbTagBytes(pMnode, &virtualStb, &nextStb, pF);
-              break;
-            case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
-              rc = mndAlterStbTagName(pMnode, &virtualStb, &nextStb, priorReq.pFields);
-              break;
-            case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-              rc = mndAlterStbColumnName(pMnode, &virtualStb, &nextStb, priorReq.pFields);
-              break;
-            case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
-              rc = mndAddSuperTableColumn(&virtualStb, &nextStb, &priorReq, priorReq.numOfFields, 1);
-              break;
-            default:
-              break;
-          }
-          tFreeSMAltertbReq(&priorReq);
-          if (rc == 0) {
-            taosMemoryFreeClear(virtualStb.pColumns);
-            taosMemoryFreeClear(virtualStb.pTags);
-            taosMemoryFreeClear(virtualStb.pCmpr);
-            taosMemoryFreeClear(virtualStb.pExtSchemas);
-            virtualStb = nextStb;
-          } else {
+          // Replay via the shared applier so this accumulation accepts exactly the same
+          // action set as the validation and COMMIT replays.
+          int32_t rc = mndApplyAlterStbAction(pMnode, &virtualStb, &nextStb, &priorReq, pDb);
+          if (rc != 0) {
+            // Any failure to replay a prior shadow op - not just OPS_NOT_SUPPORT - means the
+            // accumulated schema cannot be trusted as the base for validating the new ALTER
+            // (it would silently diverge from what COMMIT will produce). Fail the statement
+            // instead of continuing with a wrong base; OOM and validation errors are just as
+            // fatal here as an unsupported action.
+            mError("stb:%s, txn:%" PRId64 " cannot replay prior ALTER action %d, code:%s", alterReq.name,
+                   (int64_t)alterReq.txnId, priorReq.alterType, tstrerror(rc));
             taosMemoryFreeClear(nextStb.pColumns);
             taosMemoryFreeClear(nextStb.pTags);
             taosMemoryFreeClear(nextStb.pCmpr);
             taosMemoryFreeClear(nextStb.pExtSchemas);
+            // nextStb owns whatever comment it holds: either the applier's fresh allocation or
+            // the carried copy transferred from virtualStb above (which is now NULL there).
+            taosMemoryFreeClear(nextStb.comment);
+            tFreeSMAltertbReq(&priorReq);
+            valCode = rc;
+            break;
           }
+          tFreeSMAltertbReq(&priorReq);
+          // rc == 0 here: any non-zero return was handled above as a hard failure.
+          taosMemoryFreeClear(virtualStb.pColumns);
+          taosMemoryFreeClear(virtualStb.pTags);
+          taosMemoryFreeClear(virtualStb.pCmpr);
+          taosMemoryFreeClear(virtualStb.pExtSchemas);
+          virtualStb = nextStb;
         }
         pBase = &virtualStb;
       }
       taosArrayDestroy(pPriorOps);
+
+      // If replaying the prior in-txn ALTERs failed (e.g. an action the applier cannot
+      // replay), the virtual schema is not a trustworthy base - fail the statement without
+      // validating against it. virtualStb still owns its deep copies and must be released.
+      if (valCode != 0) {
+        if (pBase == &virtualStb) {
+          taosMemoryFreeClear(virtualStb.pColumns);
+          taosMemoryFreeClear(virtualStb.pTags);
+          taosMemoryFreeClear(virtualStb.pCmpr);
+          taosMemoryFreeClear(virtualStb.pExtSchemas);
+          taosMemoryFreeClear(virtualStb.comment);
+        }
+        code = valCode;
+        goto _OVER;
+      }
 
       // Now validate the new ALTER against the virtual current schema
       SStbObj tmpStb = {0};
@@ -5073,54 +5143,23 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
       tmpStb.pExtSchemas = NULL;
       tmpStb.lock = 0;
 
-      SField *pField0 = NULL;
-      switch (alterReq.alterType) {
-        case TSDB_ALTER_TABLE_ADD_TAG:
-          valCode = mndAddSuperTableTag(pBase, &tmpStb, alterReq.pFields, alterReq.numOfFields);
-          break;
-        case TSDB_ALTER_TABLE_DROP_TAG:
-          pField0 = taosArrayGet(alterReq.pFields, 0);
-          valCode = mndDropSuperTableTag(pMnode, pBase, &tmpStb, pField0->name);
-          break;
-        case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
-          valCode = mndAlterStbTagName(pMnode, pBase, &tmpStb, alterReq.pFields);
-          break;
-        case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
-          pField0 = taosArrayGet(alterReq.pFields, 0);
-          valCode = mndAlterStbTagBytes(pMnode, pBase, &tmpStb, pField0);
-          break;
-        case TSDB_ALTER_TABLE_ADD_COLUMN:
-          valCode = mndAddSuperTableColumn(pBase, &tmpStb, &alterReq, alterReq.numOfFields, 0);
-          break;
-        case TSDB_ALTER_TABLE_DROP_COLUMN:
-          pField0 = taosArrayGet(alterReq.pFields, 0);
-          valCode = mndDropSuperTableColumn(pMnode, pBase, &tmpStb, pField0->name);
-          break;
-        case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
-          pField0 = taosArrayGet(alterReq.pFields, 0);
-          valCode = mndAlterStbColumnBytes(pMnode, pBase, &tmpStb, pField0);
-          break;
-        case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-          valCode = mndAlterStbColumnName(pMnode, pBase, &tmpStb, alterReq.pFields);
-          break;
-        case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
-          valCode = mndUpdateSuperTableColumnCompress(pMnode, pBase, &tmpStb, alterReq.pFields, alterReq.numOfFields);
-          break;
-        case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
-          valCode = mndAddSuperTableColumn(pBase, &tmpStb, &alterReq, alterReq.numOfFields, 1);
-          break;
-        case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
-          valCode = mndUpdateTableOptions(pBase, &tmpStb, alterReq.comment, alterReq.commentLen, alterReq.ttl,
-                                          alterReq.keep, alterReq.secureDelete, alterReq.securityLevel);
-          break;
-        default:
-          break;
+      // Validate through the shared applier: whatever it accepts here is exactly what the
+      // COMMIT-time replay will accept, so a statement cannot pass validation and then
+      // fail at COMMIT (or vice versa).
+      // Detach comment before the call: mndUpdateTableOptions replaces it with a fresh
+      // allocation for UPDATE_OPTIONS, and keeping the base's pointer here would let a failed
+      // allocation leave the base's (now borrowed) comment freed by the cleanup below.
+      bool tmpHasFreshComment =
+          (alterReq.alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && alterReq.commentLen > 0);
+      if (tmpHasFreshComment) {
+        tmpStb.comment = NULL;
       }
+      valCode = mndApplyAlterStbAction(pMnode, pBase, &tmpStb, &alterReq, pDb);
       taosMemoryFreeClear(tmpStb.pColumns);
       taosMemoryFreeClear(tmpStb.pTags);
       taosMemoryFreeClear(tmpStb.pCmpr);
       taosMemoryFreeClear(tmpStb.pExtSchemas);
-      if (alterReq.commentLen > 0) {
+      if (tmpHasFreshComment) {
         taosMemoryFreeClear(tmpStb.comment);
       }
 
@@ -5130,6 +5169,9 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
         taosMemoryFreeClear(virtualStb.pTags);
         taosMemoryFreeClear(virtualStb.pCmpr);
         taosMemoryFreeClear(virtualStb.pExtSchemas);
+        // Owned copy (see the deep copy above), possibly replaced by the applier's UPDATE_OPTIONS
+        // allocation during replay; the borrowed pStb->comment was never adopted.
+        taosMemoryFreeClear(virtualStb.comment);
       }
 
       if (valCode != 0) {
@@ -5680,50 +5722,8 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   stbObj.txnStatus = META_TXN_NORMAL;  // Clear txn markers
   stbBuilt = true;
 
-  SField *pField0 = NULL;
-  switch (alterReq.alterType) {
-    case TSDB_ALTER_TABLE_ADD_TAG:
-      code = mndAddSuperTableTag(pOld, &stbObj, alterReq.pFields, alterReq.numOfFields);
-      break;
-    case TSDB_ALTER_TABLE_DROP_TAG:
-      pField0 = taosArrayGet(alterReq.pFields, 0);
-      code = mndDropSuperTableTag(pMnode, pOld, &stbObj, pField0->name);
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
-      code = mndAlterStbTagName(pMnode, pOld, &stbObj, alterReq.pFields);
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
-      pField0 = taosArrayGet(alterReq.pFields, 0);
-      code = mndAlterStbTagBytes(pMnode, pOld, &stbObj, pField0);
-      break;
-    case TSDB_ALTER_TABLE_ADD_COLUMN:
-      code = mndAddSuperTableColumn(pOld, &stbObj, &alterReq, alterReq.numOfFields, 0);
-      break;
-    case TSDB_ALTER_TABLE_DROP_COLUMN:
-      pField0 = taosArrayGet(alterReq.pFields, 0);
-      code = mndDropSuperTableColumn(pMnode, pOld, &stbObj, pField0->name);
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
-      pField0 = taosArrayGet(alterReq.pFields, 0);
-      code = mndAlterStbColumnBytes(pMnode, pOld, &stbObj, pField0);
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-      code = mndAlterStbColumnName(pMnode, pOld, &stbObj, alterReq.pFields);
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
-      code = mndUpdateTableOptions(pOld, &stbObj, alterReq.comment, alterReq.commentLen, alterReq.ttl, alterReq.keep,
-                                   alterReq.secureDelete, alterReq.securityLevel);
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
-      code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, alterReq.pFields, alterReq.numOfFields);
-      break;
-    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
-      code = mndAddSuperTableColumn(pOld, &stbObj, &alterReq, alterReq.numOfFields, 1);
-      break;
-    default:
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
-      break;
-  }
+  // Apply through the shared applier - same action set as the statement-time validation.
+  code = mndApplyAlterStbAction(pMnode, pOld, &stbObj, &alterReq, pDb);
   if (code != 0) goto _OVER;
 
   // Re-serialize altered request for VNode redo actions
@@ -5748,6 +5748,61 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   bool skipVnodeAlter = (oldTxnStatus == META_TXN_PRE_CREATE_DROP || oldTxnStatus == META_TXN_PRE_DROP);
   code = mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, &stbObj);
   if (code == 0) code = mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, &stbObj);
+
+  // DROP TAG / RENAME TAG cascade to the tag index object on that tag, exactly as the
+  // non-txn path does in mndAlterStbAndUpdateTagIdxImp. The index is a separate SDB object
+  // (SIdxObj) and is not carried by the STB's own SDB logs, so without this the schema
+  // change commits while the index is left pointing at a dropped or renamed tag.
+  // Look the index up on pOld: stbObj is the accumulated schema, from which the tag has
+  // already been removed/renamed, so mndGetIdxsByTagName would no longer find it there.
+  if (code == 0 && (alterReq.alterType == TSDB_ALTER_TABLE_DROP_TAG ||
+                    alterReq.alterType == TSDB_ALTER_TABLE_UPDATE_TAG_NAME)) {
+    SIdxObj idxObj = {0};
+    SField *pField0 = taosArrayGet(alterReq.pFields, 0);
+    if (pField0 != NULL && mndGetIdxsByTagName(pMnode, pOld, pField0->name, &idxObj) == 0) {
+      if (alterReq.alterType == TSDB_ALTER_TABLE_DROP_TAG) {
+        code = mndSetDropIdxPrepareLogs(pMnode, pTrans, &idxObj);
+        if (code == 0) code = mndSetDropIdxCommitLogs(pMnode, pTrans, &idxObj);
+      } else {
+        SField *pField1 = taosArrayGet(alterReq.pFields, 1);
+        if (pField1 != NULL) {
+          tstrncpy(idxObj.colName, pField1->name, TSDB_COL_NAME_LEN);
+          code = mndSetAlterIdxPrepareLogs(pMnode, pTrans, &idxObj);
+          if (code == 0) code = mndSetAlterIdxCommitLogs(pMnode, pTrans, &idxObj);
+        }
+      }
+    }
+  }
+
+  // ADD BASE ON additionally needs the vnode-side "does this parent VST already have child
+  // tables" check that the non-txn path issues as a serial pre-action. The COMMIT trans is
+  // shared by every shadow op in the txn and is not serial, so the check is appended as a
+  // redo action on the newly-added parents only; it runs on the vnodes alongside the
+  // schema change and fails the COMMIT trans if any parent turns out to have child tables.
+  if (code == 0 && !skipVnodeAlter && alterReq.alterType == TSDB_ALTER_TABLE_ADD_BASE_ON) {
+    int8_t numNew = stbObj.numParents - pOld->numParents;
+    if (numNew > 0) {
+      code = mndSetCheckHasCtbRedoActions(pMnode, pTrans, pDb, &stbObj.parentSuids[pOld->numParents], numNew);
+      if (code == 0) {
+        mndInvalidateParentHasChildrenCache(pMnode, &stbObj.parentSuids[pOld->numParents], numNew);
+      }
+    }
+  }
+  // DROP BASE ON drops inheritance; invalidate the parents it detached from so their
+  // hasChildren cache is recomputed rather than left stale at "has children".
+  if (code == 0 && !skipVnodeAlter && alterReq.alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+    int64_t droppedParentSuids[TSDB_MAX_VST_PARENTS] = {0};
+    int8_t  numDropped = 0;
+    for (int8_t i = 0; i < pOld->numParents; ++i) {
+      if (!mndContainsParentUid(stbObj.parentSuids, stbObj.numParents, pOld->parentSuids[i])) {
+        droppedParentSuids[numDropped++] = pOld->parentSuids[i];
+      }
+    }
+    if (numDropped > 0) {
+      mndInvalidateParentHasChildrenCache(pMnode, droppedParentSuids, numDropped);
+    }
+  }
+
   // stbObj.txnId stays 0 throughout (needed above so the SDB prepare/commit logs make the
   // STB visible on commit); the real batch txnId is passed explicitly here instead, so the
   // vnode-alter-stb wire message is tagged for WAL/CDC atomic ordered delivery.
@@ -5935,6 +5990,19 @@ static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SD
   current.pFuncs = NULL;
   current.pCmpr = NULL;
   current.pExtSchemas = NULL;
+  // comment is owned by this function: deep-copy the base value so mndBuildStbSchemaImp
+  // still sees it, and so mndUpdateTableOptions can overwrite/release it freely below.
+  // mndAllocStbSchemas does not copy comment, so it must be handled here.
+  if (pBaseStb->commentLen > 0 && pBaseStb->comment != NULL) {
+    current.comment = taosMemoryCalloc(1, pBaseStb->commentLen + 1);
+    if (current.comment == NULL) {
+      taosRUnLockLatch(&pBaseStb->lock);
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memcpy(current.comment, pBaseStb->comment, pBaseStb->commentLen + 1);
+  } else {
+    current.comment = NULL;
+  }
   current.lock = 0;
   taosRUnLockLatch(&pBaseStb->lock);
 
@@ -5960,53 +6028,24 @@ static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SD
     next.pFuncs = NULL;
     next.pCmpr = NULL;
     next.pExtSchemas = NULL;
+    // Transfer comment ownership from current to next: the applier's UPDATE_OPTIONS branch
+    // allocates a fresh comment when commentLen > 0 (dropping the carried one below), every
+    // other branch leaves it untouched, and the failure/transfer/cleanup points free it
+    // exactly once. current.comment is nulled so no path double-frees.
+    next.comment = current.comment;
+    current.comment = NULL;
     next.lock = 0;
     next.updateTime = taosGetTimestampMs();
 
-    SField *pField0 = NULL;
-    switch (alterReq.alterType) {
-      case TSDB_ALTER_TABLE_ADD_TAG:
-        code = mndAddSuperTableTag(&current, &next, alterReq.pFields, alterReq.numOfFields);
-        break;
-      case TSDB_ALTER_TABLE_DROP_TAG:
-        pField0 = taosArrayGet(alterReq.pFields, 0);
-        code = mndDropSuperTableTag(pMnode, &current, &next, pField0->name);
-        break;
-      case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
-        code = mndAlterStbTagName(pMnode, &current, &next, alterReq.pFields);
-        break;
-      case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
-        pField0 = taosArrayGet(alterReq.pFields, 0);
-        code = mndAlterStbTagBytes(pMnode, &current, &next, pField0);
-        break;
-      case TSDB_ALTER_TABLE_ADD_COLUMN:
-        code = mndAddSuperTableColumn(&current, &next, &alterReq, alterReq.numOfFields, 0);
-        break;
-      case TSDB_ALTER_TABLE_DROP_COLUMN:
-        pField0 = taosArrayGet(alterReq.pFields, 0);
-        code = mndDropSuperTableColumn(pMnode, &current, &next, pField0->name);
-        break;
-      case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
-        pField0 = taosArrayGet(alterReq.pFields, 0);
-        code = mndAlterStbColumnBytes(pMnode, &current, &next, pField0);
-        break;
-      case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-        code = mndAlterStbColumnName(pMnode, &current, &next, alterReq.pFields);
-        break;
-      case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
-        code = mndUpdateTableOptions(&current, &next, alterReq.comment, alterReq.commentLen, alterReq.ttl,
-                                     alterReq.keep, alterReq.secureDelete, alterReq.securityLevel);
-        break;
-      case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
-        code = mndUpdateSuperTableColumnCompress(pMnode, &current, &next, alterReq.pFields, alterReq.numOfFields);
-        break;
-      case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
-        code = mndAddSuperTableColumn(&current, &next, &alterReq, alterReq.numOfFields, 1);
-        break;
-      default:
-        code = TSDB_CODE_OPS_NOT_SUPPORT;
-        break;
+    // The applier's UPDATE_OPTIONS branch overwrites next.comment with a fresh allocation;
+    // drop the value carried over from current first, so the old copy is not leaked.
+    if (alterReq.alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && alterReq.commentLen > 0) {
+      taosMemoryFreeClear(next.comment);
     }
+
+    // Same shared applier as the validation/COMMIT replays, so the schema handed back to
+    // the client matches what COMMIT will actually produce for every supported action.
+    code = mndApplyAlterStbAction(pMnode, &current, &next, &alterReq, pDb);
 
     tFreeSMAltertbReq(&alterReq);
 
@@ -6015,6 +6054,7 @@ static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SD
       taosMemoryFreeClear(next.pTags);
       taosMemoryFreeClear(next.pCmpr);
       taosMemoryFreeClear(next.pExtSchemas);
+      taosMemoryFreeClear(next.comment);
       goto _DONE;
     }
 
@@ -6036,6 +6076,7 @@ _DONE:
   taosMemoryFreeClear(current.pTags);
   taosMemoryFreeClear(current.pCmpr);
   taosMemoryFreeClear(current.pExtSchemas);
+  taosMemoryFreeClear(current.comment);
   return code;
 }
 

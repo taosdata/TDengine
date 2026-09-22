@@ -1344,6 +1344,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_advanced.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_alter_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_ddl_visibility.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_batch_ops.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_op_matrix.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stream.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stress.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stress2.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_basic.py -N 3 -M 3
@@ -1355,9 +1358,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_fi.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_fi_b.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_fi_c.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_stream.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_capi.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_crash_recovery.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_seq_edge.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_series.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stability.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_recovery.py

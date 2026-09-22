@@ -639,7 +639,7 @@ TEST(vnodeTxnCase, inlineCommitPartialFailureFallsBackToLazyFinalize) {
   vnodeTxnCleanup(&vnode);
 }
 
-TEST(vnodeTxnCase, rollbackAlterFailureKeepsTxnEntryRetryable) {
+TEST(vnodeTxnCase, rollbackAlterFailureFallsBackToLazyFinalize) {
   resetMockContext();
 
   constexpr int64_t txnId = 6002;
@@ -659,16 +659,20 @@ TEST(vnodeTxnCase, rollbackAlterFailureKeepsTxnEntryRetryable) {
   std::vector<char> reqBuf = serializeRollbackReq(txnId, 1, 0);
   int32_t code = vnodeProcessTxnRollbackReq(&vnode, 0, reqBuf.data(), static_cast<int32_t>(reqBuf.size()), nullptr);
 
+  // The inline ALTER undo fails (OOM) and the txn falls back to lazy finalize +
+  // async vacuum (FS §4.14.2): the entry is finalized as ROLLEDBACK instead of
+  // staying retryable, and the remaining undo is handed to the vacuum thread.
   EXPECT_EQ(code, TSDB_CODE_OUT_OF_MEMORY);
   EXPECT_EQ(g_ctx.rollbackCalls, 1);
   EXPECT_EQ(g_ctx.txnIdxDeleteCalls, 0);
-  EXPECT_EQ(g_ctx.txnFinalIdxUpsertCalls, 0);
-  EXPECT_EQ(g_ctx.vnodeAsyncCalls, 0);
+  EXPECT_EQ(g_ctx.txnFinalIdxUpsertCalls, 1);
+  EXPECT_EQ(g_ctx.vnodeAsyncCalls, 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
-  EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 0);
+  EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 1);
 
   auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pTxnMetaCache, &txnId, sizeof(txnId)));
-  EXPECT_EQ(pFinalStatus, nullptr);
+  ASSERT_NE(pFinalStatus, nullptr);
+  EXPECT_EQ(*pFinalStatus, TXN_META_ROLLEDBACK);
 
   vnodeTxnCleanup(&vnode);
 }

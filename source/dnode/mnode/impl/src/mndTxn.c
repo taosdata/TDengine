@@ -23,6 +23,7 @@
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndStream.h"
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "mndTxnSeq.h"
@@ -1701,7 +1702,7 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, txn_id_t txnId, int8_t opType, const c
   taosWUnLockLatch(&pTxn->lock);
   mndReleaseTxn(pMnode, pTxn);
 
-  mDebug("txn:%" PRIi64 ", shadow op added (redo): opType=%d, stb=%s, uid=%" PRId64 ", dataLen:%d", txnId, opType,
+  mDebug("txn:%" PRIi64 ", shadow op added: opType=%d, stb=%s, uid=%" PRId64 ", dataLen:%d", txnId, opType,
          stbName, uid, reqDataLen);
   return TSDB_CODE_SUCCESS;
 }
@@ -1792,6 +1793,34 @@ int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t cal
   }
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t mndTxnAddVgId(SMnode *pMnode, txn_id_t txnId, int32_t vgId) {
+  if (txnId == 0) return TSDB_CODE_SUCCESS;
+  if (vgId <= 0) return TSDB_CODE_INVALID_PARA;
+
+  STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
+  if (pTxn == NULL) return TSDB_CODE_TXN_NOT_EXIST;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  taosWLockLatch(&pTxn->lock);  // same latch mndMergeVgList's callers hold
+  if (pTxn->pVgList == NULL) {
+    pTxn->pVgList = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    if (pTxn->pVgList == NULL) code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (code == TSDB_CODE_SUCCESS && tSimpleHashGet(pTxn->pVgList, &vgId, sizeof(vgId)) == NULL) {
+    int8_t dummy = 1;
+    if (tSimpleHashPut(pTxn->pVgList, &vgId, sizeof(vgId), &dummy, sizeof(dummy)) != 0) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      mInfo("txn:%" PRIi64 ", merged mnode-issued vgId:%d into participant set", txnId, vgId);
+    }
+  }
+  taosWUnLockLatch(&pTxn->lock);
+
+  mndReleaseTxn(pMnode, pTxn);
+  return code;
+}
+
 
 /**
  * Apply MNode shadow ops on COMMIT  -  embed SDB changes + VNode actions into the commit Trans.
@@ -1968,6 +1997,75 @@ static int32_t mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn, bool
     sdbRelease(pSdb, pStb);
   }
 
+  // Batch meta txn (stream phase 2): same rebuild for streams. SStreamObj.txnId /
+  // txnStatus are persisted in SDB_STREAM, so a stream-only txn (or the stream part of a
+  // mixed txn) is recovered here. Without this scan, stream shadow ops are lost whenever
+  // the in-memory STxnObj is re-decoded (which happens on every Raft-applied marker
+  // write, not only on restart), and COMMIT/ROLLBACK would silently skip the stream.
+  {
+    void       *pStmIter = NULL;
+    SStreamObj *pStream = NULL;
+    while (1) {
+      pStmIter = sdbFetch(pSdb, SDB_STREAM, pStmIter, (void **)&pStream);
+      if (pStmIter == NULL) break;
+
+      if (pStream->txnId != 0 && (txn_id_t)pStream->txnId == pTxn->id) {
+        if (pTmpOps == NULL) {
+          pTmpOps = taosArrayInit(4, sizeof(SMndShadowOp));
+          if (pTmpOps == NULL) {
+            sdbRelease(pSdb, pStream);
+            sdbCancelFetch(pSdb, pStmIter);
+            mError("txn:%" PRIi64 ", failed to alloc pShadowOps during stream rebuild", pTxn->id);
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          }
+        }
+
+        int64_t streamId = (pStream->pCreate != NULL) ? pStream->pCreate->streamId : 0;
+
+        // CREATE_STREAM: PRE_CREATE or PRE_CREATE_DROP
+        if (pStream->txnStatus == META_TXN_PRE_CREATE || pStream->txnStatus == META_TXN_PRE_CREATE_DROP) {
+          SMndShadowOp op = {0};
+          op.opType = MND_SHADOW_OP_CREATE_STREAM;
+          op.uid = streamId;
+          tstrncpy(op.name, pStream->name, sizeof(op.name));
+          if (pStream->pCreate != NULL && pStream->pCreate->streamDB != NULL) {
+            tstrncpy(op.db, pStream->pCreate->streamDB, sizeof(op.db));
+          }
+          if (taosArrayPush(pTmpOps, &op) == NULL) {
+            sdbRelease(pSdb, pStream);
+            sdbCancelFetch(pSdb, pStmIter);
+            retCode = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+            goto _rebuild_fail;
+          }
+          count++;
+          mInfo("txn:%" PRIi64 ", rebuilt CREATE_STREAM shadow op: stream=%s streamId=%" PRId64, pTxn->id,
+                pStream->name, streamId);
+        }
+
+        // DROP_STREAM: PRE_DROP or PRE_CREATE_DROP
+        if (pStream->txnStatus == META_TXN_PRE_DROP || pStream->txnStatus == META_TXN_PRE_CREATE_DROP) {
+          SMndShadowOp op = {0};
+          op.opType = MND_SHADOW_OP_DROP_STREAM;
+          op.uid = streamId;
+          tstrncpy(op.name, pStream->name, sizeof(op.name));
+          if (pStream->pCreate != NULL && pStream->pCreate->streamDB != NULL) {
+            tstrncpy(op.db, pStream->pCreate->streamDB, sizeof(op.db));
+          }
+          if (taosArrayPush(pTmpOps, &op) == NULL) {
+            sdbRelease(pSdb, pStream);
+            sdbCancelFetch(pSdb, pStmIter);
+            retCode = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+            goto _rebuild_fail;
+          }
+          count++;
+          mInfo("txn:%" PRIi64 ", rebuilt DROP_STREAM shadow op: stream=%s streamId=%" PRId64, pTxn->id, pStream->name,
+                streamId);
+        }
+      }
+      sdbRelease(pSdb, pStream);
+    }
+  }
+
   // All ops collected successfully  -  commit to pTxn
   if (pTmpOps != NULL) {
     pTxn->pShadowOps = pTmpOps;
@@ -2123,6 +2221,84 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTx
         }
         break;
       }
+      case MND_SHADOW_OP_CREATE_STREAM: {
+        // Undo-log model, same as CREATE_STB: the stream was written to SDB during the
+        // txn with txnId set (PRE_CREATE). At COMMIT we clear txnId/txnStatus so it
+        // becomes a normal visible stream. Task deployment is posted separately (async)
+        // after the commit trans succeeds - see mndApplyTxnStreamActions().
+        mDebug("txn:%" PRIi64 ", CREATE_STREAM shadow op %d/%d: clearing txn markers, stream=%s", pTxn->id, i + 1,
+               numOps, pOp->name);
+        SStreamObj *pStream = NULL;
+        if (mndAcquireStream(pMnode, (char *)pOp->name, &pStream) != 0 || pStream == NULL) {
+          mDebug("txn:%" PRIi64 ", CREATE_STREAM stream=%s not found in SDB, skip marker clear", pTxn->id, pOp->name);
+          break;
+        }
+        {
+          SStreamObj streamClone;
+          taosRLockLatch(&pStream->lock);
+          memcpy(&streamClone, pStream, sizeof(SStreamObj));
+          taosRUnLockLatch(&pStream->lock);
+          streamClone.lock = 0;
+          streamClone.txnId = 0;
+          streamClone.txnStatus = META_TXN_NORMAL;
+          SSdbRaw *pRaw = mndStreamActionEncode(&streamClone);
+          if (pRaw == NULL) {
+            mError("txn:%" PRIi64 ", mndStreamActionEncode failed for CREATE_STREAM stream=%s", pTxn->id, pOp->name);
+            mndReleaseStream(pMnode, pStream);
+            code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+            break;
+          }
+          int32_t rawCode = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+          if (rawCode == 0) rawCode = mndTransAppendCommitlog(pTrans, pRaw);
+          if (rawCode != 0) {
+            mError("txn:%" PRIi64 ", failed to append marker clear commit-log for CREATE_STREAM stream=%s: %s",
+                   pTxn->id, pOp->name, tstrerror(rawCode));
+            sdbFreeRaw(pRaw);
+            mndReleaseStream(pMnode, pStream);
+            code = rawCode;
+            break;
+          }
+          mDebug("txn:%" PRIi64 ", appended marker clear commit-log for CREATE_STREAM stream=%s", pTxn->id, pOp->name);
+        }
+        mndReleaseStream(pMnode, pStream);
+        break;
+      }
+      case MND_SHADOW_OP_DROP_STREAM: {
+        // The stream is PRE_DROP (or PRE_CREATE_DROP) in SDB and is still running.
+        // At COMMIT we remove it from SDB. userDropped/undeploy are handled after the
+        // commit trans succeeds - see mndApplyTxnStreamActions(), because
+        // msmUndeployStream is not reversible and must not run before the point of
+        // no return.
+        mDebug("txn:%" PRIi64 ", DROP_STREAM shadow op %d/%d: removing stream=%s from SDB", pTxn->id, i + 1, numOps,
+               pOp->name);
+        SStreamObj *pStream = NULL;
+        if (mndAcquireStream(pMnode, (char *)pOp->name, &pStream) != 0 || pStream == NULL) {
+          mDebug("txn:%" PRIi64 ", DROP_STREAM stream=%s already absent from SDB", pTxn->id, pOp->name);
+          break;
+        }
+        {
+          SSdbRaw *pRaw = mndStreamActionEncode(pStream);
+          if (pRaw == NULL) {
+            mError("txn:%" PRIi64 ", mndStreamActionEncode failed for DROP_STREAM stream=%s", pTxn->id, pOp->name);
+            mndReleaseStream(pMnode, pStream);
+            code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+            break;
+          }
+          int32_t rawCode = sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+          if (rawCode == 0) rawCode = mndTransAppendCommitlog(pTrans, pRaw);
+          if (rawCode != 0) {
+            mError("txn:%" PRIi64 ", failed to append drop commit-log for DROP_STREAM stream=%s: %s", pTxn->id,
+                   pOp->name, tstrerror(rawCode));
+            sdbFreeRaw(pRaw);
+            mndReleaseStream(pMnode, pStream);
+            code = rawCode;
+            break;
+          }
+          mDebug("txn:%" PRIi64 ", appended drop commit-log for DROP_STREAM stream=%s", pTxn->id, pOp->name);
+        }
+        mndReleaseStream(pMnode, pStream);
+        break;
+      }
       default:
         mError("txn:%" PRIi64 ", unknown shadow op type %d", pTxn->id, pOp->opType);
         code = TSDB_CODE_MND_TXN_ERROR;
@@ -2263,6 +2439,87 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
           }
           mndReleaseStb(pMnode, pStb);
         }
+        break;
+      }
+      case MND_SHADOW_OP_CREATE_STREAM: {
+        // Undo-log: the stream was written to SDB immediately as PRE_CREATE. Undo by
+        // deleting it. No snode-side compensation is needed - a PRE_CREATE stream was
+        // never deployed (deployment happens only after COMMIT), see DS 5.3.
+        mDebug("txn:%" PRIi64 ", undo CREATE_STREAM shadow op %d/%d: deleting stream=%s", pTxn->id, i + 1, numOps,
+               pOp->name);
+        SStreamObj *pStream = NULL;
+        if (mndAcquireStream(pMnode, (char *)pOp->name, &pStream) != 0 || pStream == NULL) {
+          mDebug("txn:%" PRIi64 ", undo CREATE_STREAM stream=%s already absent", pTxn->id, pOp->name);
+          break;
+        }
+        {
+          SSdbRaw *pRaw = mndStreamActionEncode(pStream);
+          if (pRaw == NULL) {
+            mError("txn:%" PRIi64 ", mndStreamActionEncode failed for undo CREATE_STREAM stream=%s", pTxn->id,
+                   pOp->name);
+            mndReleaseStream(pMnode, pStream);
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          }
+          int32_t rawCode = sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+          if (rawCode == 0) rawCode = mndTransAppendCommitlog(pTrans, pRaw);
+          if (rawCode != 0) {
+            mError("txn:%" PRIi64 ", failed to append delete for undo CREATE_STREAM stream=%s: %s", pTxn->id,
+                   pOp->name, tstrerror(rawCode));
+            sdbFreeRaw(pRaw);
+            mndReleaseStream(pMnode, pStream);
+            return rawCode;
+          }
+          mDebug("txn:%" PRIi64 ", appended delete commit-log for undo CREATE_STREAM stream=%s", pTxn->id, pOp->name);
+        }
+        mndReleaseStream(pMnode, pStream);
+        break;
+      }
+      case MND_SHADOW_OP_DROP_STREAM: {
+        // Undo a PRE_DROP marker by clearing txnId/txnStatus, restoring the stream to
+        // normal. The stream task kept running throughout the txn (userDropped was never
+        // set and msmUndeployStream was never called), so there is nothing to redeploy
+        // and no risk of duplicate output - see DS 5.2.
+        // Skip when PRE_CREATE_DROP: the CREATE_STREAM undo above already deletes it.
+        SStreamObj *pStream = NULL;
+        if (mndAcquireStream(pMnode, (char *)pOp->name, &pStream) != 0 || pStream == NULL) {
+          mDebug("txn:%" PRIi64 ", undo DROP_STREAM stream=%s already absent", pTxn->id, pOp->name);
+          break;
+        }
+        if (pStream->txnStatus == META_TXN_PRE_CREATE || pStream->txnStatus == META_TXN_PRE_CREATE_DROP) {
+          mDebug("txn:%" PRIi64 ", skip DROP_STREAM undo for stream=%s (status=%d, CREATE undo handles deletion)",
+                 pTxn->id, pOp->name, pStream->txnStatus);
+          mndReleaseStream(pMnode, pStream);
+          break;
+        }
+        mDebug("txn:%" PRIi64 ", undo DROP_STREAM shadow op %d/%d: clearing markers on stream=%s", pTxn->id, i + 1,
+               numOps, pOp->name);
+        {
+          SStreamObj streamClone;
+          taosRLockLatch(&pStream->lock);
+          memcpy(&streamClone, pStream, sizeof(SStreamObj));
+          taosRUnLockLatch(&pStream->lock);
+          streamClone.lock = 0;
+          streamClone.txnId = 0;
+          streamClone.txnStatus = META_TXN_NORMAL;
+          SSdbRaw *pRaw = mndStreamActionEncode(&streamClone);
+          if (pRaw == NULL) {
+            mError("txn:%" PRIi64 ", mndStreamActionEncode failed for undo DROP_STREAM stream=%s", pTxn->id, pOp->name);
+            mndReleaseStream(pMnode, pStream);
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          }
+          int32_t rawCode = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+          if (rawCode == 0) rawCode = mndTransAppendCommitlog(pTrans, pRaw);
+          if (rawCode != 0) {
+            mError("txn:%" PRIi64 ", failed to append marker cleanup for undo DROP_STREAM stream=%s: %s", pTxn->id,
+                   pOp->name, tstrerror(rawCode));
+            sdbFreeRaw(pRaw);
+            mndReleaseStream(pMnode, pStream);
+            return rawCode;
+          }
+          mDebug("txn:%" PRIi64 ", appended marker cleanup commit-log for undo DROP_STREAM stream=%s", pTxn->id,
+                 pOp->name);
+        }
+        mndReleaseStream(pMnode, pStream);
         break;
       }
       default: {
@@ -2563,9 +2820,108 @@ static void *mndBuildVTxnRollbackReq(SMnode *pMnode, int32_t vgId, STxnObj *pTxn
  *
  * Flow: ACTIVE  ->  COMMITTING (SDB redo log) + redo actions to VNodes  ->  delete STxnObj (commit log).
  */
+/* Batch meta txn (stream phase 2): one deferred stream side effect, applied only after
+ * the commit trans is durable. Kept as a plain snapshot because pShadowOps is destroyed
+ * by mndTxnApplyShadowOps before we reach the point of no return. */
+typedef struct {
+  int8_t  opType;    // MND_SHADOW_OP_CREATE_STREAM / MND_SHADOW_OP_DROP_STREAM
+  int64_t streamId;
+  char    name[TSDB_STREAM_FNAME_LEN];
+} SMndTxnStreamAct;
+
+/* Snapshot stream shadow ops before they are freed. Returns an (possibly empty) SArray
+ * on success, NULL on OOM. */
+static SArray *mndCollectTxnStreamActions(SMnode *pMnode, STxnObj *pTxn) {
+  SArray *pActs = taosArrayInit(4, sizeof(SMndTxnStreamAct));
+  if (pActs == NULL) return NULL;
+  if (pTxn->pShadowOps == NULL) return pActs;
+
+  int32_t numOps = (int32_t)taosArrayGetSize(pTxn->pShadowOps);
+  for (int32_t i = 0; i < numOps; ++i) {
+    SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
+    if (pOp->opType != MND_SHADOW_OP_CREATE_STREAM && pOp->opType != MND_SHADOW_OP_DROP_STREAM) continue;
+
+    SMndTxnStreamAct act = {.opType = pOp->opType, .streamId = pOp->uid};
+    tstrncpy(act.name, pOp->name, sizeof(act.name));
+
+    // A stream both created and dropped inside this txn nets out to nothing: it was never
+    // deployed, so there is neither anything to deploy nor anything to undeploy.
+    if (pOp->opType == MND_SHADOW_OP_DROP_STREAM) {
+      bool createdInSameTxn = false;
+      for (int32_t j = 0; j < i; ++j) {
+        SMndShadowOp *pPrev = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, j);
+        if (pPrev->opType == MND_SHADOW_OP_CREATE_STREAM &&
+            strncmp(pPrev->name, pOp->name, TSDB_STREAM_FNAME_LEN) == 0) {
+          createdInSameTxn = true;
+          break;
+        }
+      }
+      if (createdInSameTxn) {
+        // Drop the matching CREATE act too - neither side effect should run.
+        int32_t nActs = (int32_t)taosArrayGetSize(pActs);
+        for (int32_t k = nActs - 1; k >= 0; --k) {
+          SMndTxnStreamAct *pAct = (SMndTxnStreamAct *)taosArrayGet(pActs, k);
+          if (pAct->opType == MND_SHADOW_OP_CREATE_STREAM &&
+              strncmp(pAct->name, pOp->name, TSDB_STREAM_FNAME_LEN) == 0) {
+            taosArrayRemove(pActs, k);
+            break;
+          }
+        }
+        mDebug("txn:%" PRIi64 ", stream=%s created and dropped in same txn, no deploy/undeploy needed", pTxn->id,
+               pOp->name);
+        continue;
+      }
+    }
+
+    if (taosArrayPush(pActs, &act) == NULL) {
+      taosArrayDestroy(pActs);
+      return NULL;
+    }
+  }
+  return pActs;
+}
+
+/* Apply the deferred stream side effects. Called only after the commit trans is prepared
+ * (point of no return passed), so failures here cannot roll the txn back - they are
+ * logged and left to the stream management retry loop, consistent with non-txn behaviour
+ * when a snode goes down right after CREATE STREAM (DS 5.3). */
+static void mndApplyTxnStreamActions(SMnode *pMnode, SArray *pActs) {
+  if (pActs == NULL) return;
+  int32_t nActs = (int32_t)taosArrayGetSize(pActs);
+
+  for (int32_t i = 0; i < nActs; ++i) {
+    SMndTxnStreamAct *pAct = (SMndTxnStreamAct *)taosArrayGet(pActs, i);
+
+    if (pAct->opType == MND_SHADOW_OP_CREATE_STREAM) {
+      MND_STREAM_SET_LAST_TS(STM_EVENT_CREATE_STREAM, taosGetTimestampMs());
+      int32_t code = mstPostStreamAction(mStreamMgmt.actionQ, pAct->streamId, pAct->name, NULL, true,
+                                         STREAM_ACT_DEPLOY);
+      if (code != 0) {
+        mError("txn stream deploy post failed for stream=%s: %s (stream mgmt will retry)", pAct->name,
+               tstrerror(code));
+      } else {
+        mInfo("txn stream deploy posted for stream=%s streamId=%" PRId64, pAct->name, pAct->streamId);
+      }
+    } else {
+      // DROP: now - and only now - is it safe to set userDropped and undeploy, because
+      // the commit is durable and no rollback can follow. Before this point the stream
+      // had to keep running so a ROLLBACK would leave it untouched (DS 5.2).
+      SStreamObj *pStream = NULL;
+      if (mndAcquireStream(pMnode, pAct->name, &pStream) == 0 && pStream != NULL) {
+        atomic_store_8(&pStream->userDropped, 1);
+        mndReleaseStream(pMnode, pStream);
+      }
+      MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, taosGetTimestampMs());
+      msmUndeployStream(pMnode, pAct->streamId, pAct->name);
+      mInfo("txn stream undeploy issued for stream=%s streamId=%" PRId64, pAct->name, pAct->streamId);
+    }
+  }
+}
+
 static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
+  SArray *pStreamActs = NULL;  // batch-meta-txn (stream phase 2): deferred stream side effects
 
   // Rebuild shadow ops from SDB if needed (e.g. after MNode restart with ACTIVE txn  ->  client reconnects  ->  COMMIT)
   TAOS_CHECK_EXIT(mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn, true));
@@ -2680,7 +3036,19 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
     TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
   }
 
+  // Batch meta txn (stream phase 2): snapshot the stream actions to post after the
+  // commit trans is prepared. Must be collected here - mndTxnApplyShadowOps destroys
+  // pShadowOps. Deploy/undeploy are deliberately deferred to after the point of no
+  // return: msmUndeployStream is irreversible, so it must not run while a rollback
+  // is still possible (DS 5.2/5.3).
+  pStreamActs = mndCollectTxnStreamActions(pMnode, pTxn);
+  if (pStreamActs == NULL) {
+    taosHashCleanup(pVgSet);
+    TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   // Apply ALTER_STB / DROP_STB shadow ops: embed SDB logs + VNode actions into this commit STrans
+  // pStreamActs is owned by the _exit path; do not destroy it here (double-free) nor leak it.
   if ((code = mndTxnApplyShadowOps(pMnode, pTrans, pTxn)) != 0) {
     taosHashCleanup(pVgSet);
     TAOS_CHECK_EXIT(code);
@@ -2722,7 +3090,15 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 
+  // Batch meta txn (stream phase 2): the commit trans is now durable, so the stream
+  // side effects are safe to apply. Ordering matters - undeploy must not happen before
+  // this point because it cannot be undone (DS 5.2).
+  mndApplyTxnStreamActions(pMnode, pStreamActs);
+  taosArrayDestroy(pStreamActs);
+  pStreamActs = NULL;
+
 _exit:
+  taosArrayDestroy(pStreamActs);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }

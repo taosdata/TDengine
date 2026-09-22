@@ -87,8 +87,10 @@ class TestMndTxnSeqEdgeCases:
 
         assert success_count == num_txns, f"Expected {num_txns} successes, got {success_count}"
 
-        # Verify all tables exist
-        tdSql.query(f"select count(*) from {db}.stb")
+        # Verify all child tables exist (count metadata rows, not data rows —
+        # these txns only create tables, they never insert)
+        tdSql.query(f"select count(*) from information_schema.ins_tables "
+                    f"where db_name = '{db}' and stable_name = 'stb'")
         tdSql.checkData(0, 0, num_txns)
 
         tdSql.execute(f"drop database {db}")
@@ -179,7 +181,8 @@ class TestMndTxnSeqEdgeCases:
 
         # Verify all tables created (unique IDs means no collisions)
         expected = num_threads * txns_per_thread
-        tdSql.query(f"select count(*) from {db}.stb")
+        tdSql.query(f"select count(*) from information_schema.ins_tables "
+                    f"where db_name = '{db}' and stable_name = 'stb'")
         actual = tdSql.queryResult[0][0]
         assert actual == expected, f"Expected {expected} tables, got {actual}"
 
@@ -212,8 +215,9 @@ class TestMndTxnSeqEdgeCases:
         max_pre_id = max(pre_restart_ids) if pre_restart_ids else 0
         tdLog.info(f"Pre-restart max txnId: {max_pre_id}")
 
-        # Restart TDengine (all dnodes)
-        tdCom.restartTaosd(1)
+        # Restart TDengine (all dnodes). Pass db_name — restartTaosd defaults to
+        # "use db", which does not exist in this case.
+        tdCom.restartTaosd(1, db_name=db)
         time.sleep(3)
 
         # Create txns after restart
@@ -234,14 +238,28 @@ class TestMndTxnSeqEdgeCases:
             tdLog.info(f"Post-restart min txnId: {min_post_id} > pre-restart max: {max_pre_id}")
 
         # Verify all tables exist
-        tdSql.query(f"select count(*) from {db}.stb")
+        tdSql.query(f"select count(*) from information_schema.ins_tables "
+                    f"where db_name = '{db}' and stable_name = 'stb'")
         tdSql.checkData(0, 0, 40)
 
         tdSql.execute(f"drop database {db}")
         tdLog.info("s93 PASSED")
 
     def test_mnd_txn_seq(self):
-        """Run all mndTxnSeq edge case tests."""
+        """Run all mndTxnSeq edge case tests.
+
+        Covers txnId range exhaustion, monotonic txnId allocation across
+        concurrent writers, and txnId continuity across a dnode restart:
+
+        s90. range_exhaustion_seamless
+        s91. monotonic_ids
+        s92. concurrent_unique_ids
+        s93. restart_preserves_range
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+        """
         self.s90_range_exhaustion_seamless()
         self.s91_monotonic_ids()
         self.s92_concurrent_unique_ids()

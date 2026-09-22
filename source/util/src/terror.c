@@ -1109,9 +1109,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_ALTER,             "Table is being alte
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_DROP,              "Table is being dropped in a transaction")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_DELETE_ON_DROPPING,         "Cannot DELETE on a table being dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_INVALID_OPERATION,           "Only table DDL (CREATE/DROP/ALTER TABLE) allowed in transaction")
-TAOS_DEFINE_ERROR(TSDB_CODE_TXN_TOO_MANY_DDL_OPS,           "Transaction DDL operation count exceeds per-transaction limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_TOO_MANY_DDL_OPS,           "Transaction DDL operation count exceeds per-transaction limit; ROLLBACK and split into smaller transactions, or run the statement outside a transaction")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_EXCEEDED_LIFETIME,          "Transaction exceeded maximum lifetime")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_TIMEOUT_KILLED,             "Transaction killed by server due to inactivity timeout; execute ROLLBACK to clean up")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED,     "Object dropped in this transaction cannot be recreated with the same name; use a different name or COMMIT/ROLLBACK first")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")

@@ -10,17 +10,33 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-"""Batch meta txn: vacuum, TMQ, heartbeat & replicated timeout (s106-s113, s116-s118).
+"""Batch meta txn: vacuum, TMQ, heartbeat & replicated timeout (s106-s113, s116-s119).
 
 Tests cover:
   - Lazy vacuum COMMIT/ROLLBACK, pipeline stress (s106-s110)
   - Large rollback reuse, rapid vacuum serialization (s112-s113)
-  - TMQ invisibility, heartbeat keepalive, replicated timeout (s116-s118)
+  - TMQ invisibility, heartbeat keepalive (s116-s117)
+  - Large ALTER rollback via async vacuum, per-object DDL counting (s118-s119)
 """
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import time
 import re
+
+
+# Server-side txn DDL budget constants, mirrored from include/util/tdef.h so the
+# assumptions below stay visible and traceable:
+#   TSDB_TXN_MAX_DDL_OPS_PER_TXN = 50000  - per-object DDL budget per txn (tdef.h)
+#   TSDB_TXN_INLINE_THRESHOLD    = 64     - inline vs async vacuum cutover (tdef.h)
+#
+# s119 relies on these only as "well inside the budget" bounds: it creates/drops a
+# batch far below the 50000 cap, so the test stays meaningful (atomicity of one batch
+# statement, per-object acceptance) even if the exact threshold or counting granularity
+# is adjusted. The actual limit boundary is exercised by offline measurement
+# (measure_txn_scale.py) and by the per-STB ALTER limit case (test_meta_batch_txn_advanced
+# s116), not by this CI case - reaching 50000 objects under ASAN would be far too slow.
+TXN_MAX_DDL_OPS_PER_TXN = 50000
+TXN_INLINE_THRESHOLD = 64
 
 
 class TestBatchMetaTxnStress2:
@@ -58,7 +74,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("use txn_lazy_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
-        NUM_TABLES = 70  # > TSDB_TXN_INLINE_THRESHOLD (64); reduced for CI ASAN speed
+        NUM_TABLES = TXN_INLINE_THRESHOLD + 6  # just over the cutover; small for CI ASAN speed
         tdSql.execute("BEGIN")
         # Batch create in chunks of 35
         for batch_start in range(0, NUM_TABLES, 35):
@@ -99,7 +115,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("use txn_lazy_rb_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
-        NUM_TABLES = 70  # > TSDB_TXN_INLINE_THRESHOLD (64)
+        NUM_TABLES = TXN_INLINE_THRESHOLD + 6  # just over the cutover
         tdSql.execute("BEGIN")
         for batch_start in range(0, NUM_TABLES, 35):
             parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
@@ -135,7 +151,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("use txn_finalized_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
-        NUM_TABLES = 70  # > 64 threshold
+        NUM_TABLES = TXN_INLINE_THRESHOLD + 6  # just over the cutover
         tdSql.execute("BEGIN")
         for batch_start in range(0, NUM_TABLES, 35):
             parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
@@ -144,7 +160,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("COMMIT")
 
         # Immediately start a new txn and DROP one of the created tables
-        # This should work without conflict — the first txn is finalized
+        # This should work without conflict - the first txn is finalized
         tdSql.execute("BEGIN")
         tdSql.execute("drop table ct_0")
         tdSql.execute("drop table ct_1")
@@ -193,7 +209,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("insert into ct3 values(now, 2)")
         tdSql.execute("insert into nt1 values(now, 3, 1.5)")
 
-        # Queries — must work with fast-path guard skipping txn.idx lookups
+        # Queries - must work with fast-path guard skipping txn.idx lookups
         tdSql.query("show txn_fp_db.tables")
         tdSql.checkRows(3)  # ct1, ct3, nt1
         tdSql.query("select * from stb")
@@ -222,7 +238,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
         NUM_CYCLES = 3
-        TABLES_PER_CYCLE = 70  # > 64 threshold → lazy vacuum each time
+        TABLES_PER_CYCLE = 70  # > 64 threshold -> lazy vacuum each time
 
         for cycle in range(NUM_CYCLES):
             base = cycle * TABLES_PER_CYCLE
@@ -257,7 +273,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("drop database txn_vac_stress_db")
 
     # =========================================================================
-    # 112. Vacuum cleanup: large ROLLBACK → re-CREATE same table names
+    # 112. Vacuum cleanup: large ROLLBACK -> re-CREATE same table names
     #      Validates that vacuum properly cleans up rolled-back PRE_CREATE entries
     #      so that the same table names can be re-used in subsequent transactions.
     # =========================================================================
@@ -269,7 +285,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("use txn_reuse_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
-        NUM_TABLES = 70  # > TSDB_TXN_INLINE_THRESHOLD (64) → lazy vacuum path
+        NUM_TABLES = TXN_INLINE_THRESHOLD + 6  # just over the cutover -> lazy vacuum path
 
         # Create tables in a transaction, then ROLLBACK
         tdSql.execute("BEGIN")
@@ -286,7 +302,7 @@ class TestBatchMetaTxnStress2:
         tdSql.query("show txn_reuse_db.tables")
         tdSql.checkRows(0)
 
-        # Re-create the SAME table names in a new transaction → must succeed
+        # Re-create the SAME table names in a new transaction -> must succeed
         tdSql.execute("BEGIN")
         for batch_start in range(0, NUM_TABLES, 35):
             parts = [f"ct_{batch_start + j} using stb tags({1000 + batch_start + j})"
@@ -320,7 +336,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
         NUM_CYCLES = 3  # 3 cycles is sufficient to validate serialization guard
-        TABLES_PER_CYCLE = 70  # > 64 threshold → lazy vacuum each time
+        TABLES_PER_CYCLE = 70  # > 64 threshold -> lazy vacuum each time
 
         # Rapidly create and rollback multiple large txns
         for cycle in range(NUM_CYCLES):
@@ -448,7 +464,7 @@ class TestBatchMetaTxnStress2:
             tdSql.execute("COMMIT")
 
             # Verify the post-commit table actually shows up via SQL first
-            # (sanity gate — if this fails the txn itself is broken).
+            # (sanity gate - if this fails the txn itself is broken).
             tdSql.query("show txn_db.tables like 'ct_pre_tmq'")
             tdSql.checkRows(1)
 
@@ -484,7 +500,7 @@ class TestBatchMetaTxnStress2:
             if not saw_post_commit:
                 tdLog.info(
                     "  WARN: ct_pre_tmq not seen via TMQ within 5s post-commit "
-                    "(WAL/consumer lag — does not invalidate the invisibility "
+                    "(WAL/consumer lag - does not invalidate the invisibility "
                     "guarantee)"
                 )
             else:
@@ -538,11 +554,158 @@ class TestBatchMetaTxnStress2:
         tdSql.checkData(0, 0, 2)
 
     # =========================================================================
+    # 118. Large ALTER rollback goes through async vacuum, not inline undo.
+    #      The rollback dispatch used to force the synchronous inline path whenever
+    #      a txn contained any PRE_ALTER, ignoring the size threshold, so undoing a
+    #      bulk tag update ran N metaRollbackAlterTable calls on the vnode write
+    #      thread and blocked every other write for the duration. Dispatch is now
+    #      size-based like COMMIT: ROLLBACK returns promptly and the per-object
+    #      cleanup happens in the background.
+    # =========================================================================
+
+    def s118_large_alter_rollback_async_vacuum(self):
+        tdLog.info("======== s118_large_alter_rollback_async_vacuum")
+        tdSql.execute("drop database if exists txn_alter_rb_db")
+        tdSql.execute("create database txn_alter_rb_db vgroups 1 keep 36500")
+        tdSql.execute("use txn_alter_rb_db")
+        tdSql.execute("create table stb (ts timestamp, v int) tags (grp int)")
+
+        # > TSDB_TXN_INLINE_THRESHOLD (64) so the size-based dispatch picks the
+        # lazy/vacuum path. Kept modest for CI ASAN speed, as in s106/s107.
+        NUM_TABLES = TXN_INLINE_THRESHOLD * 2 - 8
+        for batch_start in range(0, NUM_TABLES, 40):
+            parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
+                     for j in range(min(40, NUM_TABLES - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
+        for i in range(NUM_TABLES):
+            tdSql.execute(f"insert into ct_{i} values(now, {i})")
+
+        # One statement marks every child PRE_ALTER.
+        # Read back per table by name rather than filtering on the new tag value:
+        # a WHERE on the uncommitted value does not match inside the txn (the tag
+        # index still carries the pre-txn value), so a count(grp=9999) would be 0
+        # even though every child was updated.
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table using stb set tag grp=9999 where grp >= 0")
+        for i in (0, NUM_TABLES // 2, NUM_TABLES - 1):
+            tdSql.query(f"select grp from stb where tbname='ct_{i}'")
+            tdSql.checkData(0, 0, 9999)
+
+        rb_start = time.time()
+        tdSql.execute("ROLLBACK")
+        rb_elapsed = time.time() - rb_start
+        tdLog.info(f"s118: ROLLBACK of {NUM_TABLES} PRE_ALTER children returned in "
+                   f"{rb_elapsed:.2f}s")
+
+        # The whole point of the size-based dispatch is that ROLLBACK does not undo every
+        # object inline on the vnode write thread - it finalizes lazily and returns O(1),
+        # leaving the actual undo to the background vacuum. Keep a loose bound (a
+        # synchronised inline undo of 120 PRE_ALTER entries plus WAL work takes well over
+        # this even on fast hardware) so CI/ASAN jitter does not make this flaky, while a
+        # regression to the inline path still fails it.
+        assert rb_elapsed < 10, (
+            f"ROLLBACK of {NUM_TABLES} PRE_ALTER children took {rb_elapsed:.2f}s, "
+            "expected the async vacuum path rather than inline undo"
+        )
+
+        # Every child is back to its original tag value. The read may briefly race
+        # the background vacuum, so allow it to settle.
+        deadline = time.time() + 60
+        while True:
+            restored = True
+            for i in (0, NUM_TABLES // 2, NUM_TABLES - 1):
+                tdSql.query(f"select grp from stb where tbname='ct_{i}'")
+                # The child may momentarily read back as zero rows while the shadow
+                # state settles; treat that as "not yet restored" rather than IndexError.
+                if tdSql.queryRows == 0 or tdSql.queryResult[0][0] != i:
+                    restored = False
+                    break
+            if restored:
+                break
+            if time.time() >= deadline:
+                raise AssertionError("rollback did not restore tags within 60s")
+            time.sleep(1)
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, NUM_TABLES)
+
+        # The vnode is fully usable straight after: a fresh txn commits normally.
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table using stb set tag grp=1234 where grp = 0")
+        tdSql.execute("COMMIT")
+        tdSql.query("select grp from stb where tbname='ct_0'")
+        tdSql.checkData(0, 0, 1234)
+
+        tdSql.execute("drop database txn_alter_rb_db")
+
+    # =========================================================================
+    # 119. DDL ops are counted per affected OBJECT, not per statement.
+    #      A batch statement therefore consumes the per-txn budget in proportion
+    #      to how many objects it touches. There is no per-statement cap.
+    # =========================================================================
+
+    def s119_ddl_ops_counted_per_object(self):
+        tdLog.info("======== s119_ddl_ops_counted_per_object")
+        tdSql.execute("drop database if exists txn_cnt_db")
+        tdSql.execute("create database txn_cnt_db vgroups 2 keep 36500")
+        tdSql.execute("use txn_cnt_db")
+        tdSql.execute("create table stb (ts timestamp, v int) tags (grp int)")
+
+        # Creating 200 subtables is charged per object and accepted: the total is well
+        # inside TXN_MAX_DDL_OPS_PER_TXN. Creation is done in batches of 50 (a single
+        # 200-clause CREATE TABLE would be under the parser limit too, but batching keeps
+        # the statement small); the per-object counting is what matters here, not whether
+        # the create itself is one statement or several. The count is kept far below the
+        # cap on purpose - see the module-level constants for why the exact boundary is
+        # not exercised here (ASAN CI speed).
+        NUM_TABLES = 200
+        assert NUM_TABLES < TXN_MAX_DDL_OPS_PER_TXN, \
+            f"s119 batch of {NUM_TABLES} must fit in the per-txn DDL budget"
+        tdSql.execute("BEGIN")
+        for batch_start in range(0, NUM_TABLES, 50):
+            parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
+                     for j in range(min(50, NUM_TABLES - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
+        tdSql.execute("COMMIT")
+        tdSql.query("show tables")
+        tdSql.checkRows(NUM_TABLES)
+
+        # A single batch DROP of all of them is likewise accepted and atomic. The
+        # statement is long (~1.5KB) but stays well under the parser limit; splitting
+        # it would defeat the "one batch statement is atomic" regression this checks.
+        #
+        # Note: inside the txn the dropped tables remain VISIBLE to this session's
+        # `show tables` - PRE_DROP is snapshot-isolated (metaQuery.c only hides it once
+        # finalStatus == TXN_META_COMMITTED), so no in-txn visibility assertion is made
+        # here. Atomicity is exercised by the ROLLBACK restoring all 200.
+        tdSql.execute("BEGIN")
+        names = ", ".join(f"ct_{i}" for i in range(NUM_TABLES))
+        tdSql.execute(f"drop table {names}")
+        tdSql.execute("ROLLBACK")
+
+        # 200 dropped tables (> TSDB_TXN_INLINE_THRESHOLD=64) are undone by the async
+        # vacuum path, so the restore is not instant - poll like s118 does instead of
+        # asserting visibility immediately (a fixed sleep is flaky under ASAN CI).
+        deadline = time.time() + 60
+        while True:
+            tdSql.query("show tables")
+            if tdSql.queryRows == NUM_TABLES:
+                break
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"rollback did not restore {NUM_TABLES} tables within 60s "
+                    f"(saw {tdSql.queryRows})")
+            time.sleep(1)
+        tdSql.query("show tables")
+        tdSql.checkRows(NUM_TABLES)
+
+        tdSql.execute("drop database txn_cnt_db")
+
+    # =========================================================================
     # Entry point
     # =========================================================================
 
     def test_meta_batch_txn_stress2(self):
-        """Batch meta txn: vacuum, TMQ & timeout (s106-s113, s116-s118)
+        """Batch meta txn: vacuum, TMQ & timeout (s106-s113, s116-s119)
 
         106. large_txn_lazy_vacuum_commit
         107. large_txn_lazy_vacuum_rollback
@@ -553,9 +716,14 @@ class TestBatchMetaTxnStress2:
         113. rapid_rollback_vacuum_serialization
         116. tmq_pre_create_invisibility
         117. heartbeat_keepalive_idle_gap
-        118. replicated_txn_timeout_exemption
+        118. large_alter_rollback_async_vacuum - a bulk ALTER rollback above the inline
+             threshold takes the lazy/vacuum path instead of undoing every object on the
+             vnode write thread
+        119. ddl_ops_counted_per_object - batch statements consume the per-txn DDL budget
+             per affected object, with no per-statement cap
 
         Since: v3.3.6.0
+
         Labels: common,ci
         """
         self.s106_large_txn_lazy_vacuum_commit()
@@ -567,3 +735,5 @@ class TestBatchMetaTxnStress2:
         self.s113_rapid_rollback_vacuum_serialization()
         self.s116_tmq_pre_create_invisibility()
         self.s117_heartbeat_keepalive_idle_gap()
+        self.s118_large_alter_rollback_async_vacuum()
+        self.s119_ddl_ops_counted_per_object()

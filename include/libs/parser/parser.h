@@ -158,6 +158,13 @@ typedef struct SParseContext {
   SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t     allocatorId;
   txn_id_t    txnId;
+  // Remaining per-txn DDL object budget (TSDB_TXN_MAX_DDL_OPS_PER_TXN - txnDdlCount) at the
+  // time this statement is parsed. Only consumed by the WHERE-based bulk tag update, whose
+  // object count is not knowable client-side; it is divided across the target db's vgroups
+  // and sent along so each vnode can abort its pre-scan instead of materialising an
+  // unbounded match set. 0 means "not in a txn" OR "in a txn but the budget is already
+  // exhausted" - use txnId, not this field, to tell whether a txn is active.
+  int32_t     txnDdlRemaining;
   SSHashObj*  pTxnVgSet;   // borrowed ref to STscObj->pTxnVgSet (read-only during parse)
   SHashObj*   pTxnTableMeta;  // borrowed ref to STscObj->pTxnTableMeta (same-txn table cache)
   SHashObj*   pTxnSuidMap;    // borrowed ref to STscObj->pTxnSuidMap (suid  ->  stbFullName for compact CTB assembly)

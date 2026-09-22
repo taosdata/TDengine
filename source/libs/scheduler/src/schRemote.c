@@ -264,6 +264,10 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         SCH_ERR_JRET(code);
         SCH_ERR_JRET(rsp.code);
 
+        if (rsp.numTouched > 0) {
+          (void)atomic_add_fetch_32(&pJob->resNumTouchedObjects, rsp.numTouched);
+        }
+
         if (rsp.pMeta) {
           SCH_LOCK(SCH_WRITE, &pJob->resLock);
           if (pJob->execRes.res) {

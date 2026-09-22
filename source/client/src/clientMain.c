@@ -2401,7 +2401,11 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
                            .charsetCxt = charsetCxt,
-                           .txnId = pTscObj->txnId,
+                           // .txnId / .txnDdlRemaining are filled in below, under
+                           // pTscObj->mutex: they are the pair that governs the txn DDL
+                           // budget and are written (and zeroed together) by the txn
+                           // lifecycle under that lock. Deriving the per-vgroup quota from
+                           // an unlocked read could see a half-updated txnId/txnDdlCount pair.
                            .pTxnVgSet = pTscObj->pTxnVgSet,
                            .pTxnTableMeta = pTscObj->pTxnTableMeta,
                            .pTxnSuidMap = pTscObj->pTxnSuidMap,
@@ -2415,6 +2419,12 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
 
   // Inject active external source context so 1-seg table refs can be resolved after USE ext_source
   (void)taosThreadMutexLock(&((STscObj *)pTscObj)->mutex);
+  // Snapshot the txn identity and the remaining budget under the same lock that the BEGIN
+  // handler and tscResetTxnState use to write (and zero) them. txnDdlCount is also charged
+  // from the scheduler completion callback, so deriving the per-vgroup quota from an unlocked
+  // read could see a half-updated txnId/txnDdlCount pair.
+  (*pCxt)->txnId = pTscObj->txnId;
+  (*pCxt)->txnDdlRemaining = txnDdlRemainingOps(pTscObj);
   tstrncpy((*pCxt)->currentExtSource, pTscObj->extSource, sizeof((*pCxt)->currentExtSource));
   tstrncpy((*pCxt)->currentExtNs1,    pTscObj->extNs1,    sizeof((*pCxt)->currentExtNs1));
   tstrncpy((*pCxt)->currentExtNs2,    pTscObj->extNs2,    sizeof((*pCxt)->currentExtNs2));

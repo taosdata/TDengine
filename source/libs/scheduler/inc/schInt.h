@@ -324,6 +324,9 @@ typedef struct SSchJob {
   bool                 fetched;
   bool                 noMoreRetry;
   int64_t              resNumOfRows;  // from int32_t to int64_t
+  // Objects touched by a bulk DDL, accumulated across per-vgroup responses. Surfaced via
+  // SExecResult::numTouchedObjects for the client's per-object txn DDL accounting.
+  int32_t              resNumTouchedObjects;
   SSchResInfo          userRes;
   char                *sql;
   SQueryProfileSummary summary;
