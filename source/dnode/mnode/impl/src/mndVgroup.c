@@ -202,6 +202,14 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pVgroup->dbUid, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pVgroup->isTsma, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pVgroup->replica, _OVER)
+  // Validate replica against the fixed vnodeGid array capacity (TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA
+  // slots). The raw bytes are rebuilt from an untrusted SSdbRaw, so an oversized/zero replica would either
+  // write past the sdb row object on the heap or build an invalid (empty) vgroup. Reject anything outside
+  // [1, capacity] before the copy loop; a raw with replica=100 now fails to decode instead of overflowing.
+  if (pVgroup->replica < 1 || pVgroup->replica > (TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA)) {
+    terrno = TSDB_CODE_INVALID_DATA_FMT;
+    goto _OVER;
+  }
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     SDB_GET_INT32(pRaw, dataPos, &pVgid->dnodeId, _OVER)
