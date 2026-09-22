@@ -4994,6 +4994,77 @@ TEST_F(ExternalWindowOperatorTest, RuntimeMultiGroupWithoutStaticJoinKeepsLegacy
   expectExtWinProtocol(drainExtWinProtocol(owner.pTaskInfo->pRoot), {{101, 101, 1, 1, false}});
 }
 
+TEST_F(ExternalWindowOperatorTest, LegacyEmptySettlementPreservesPublishedGroup) {
+  const std::vector<uint64_t> groups = {101, 202, 303, 404, 505};
+  for (ENodeType nodeType : {QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL}) {
+    SCOPED_TRACE(nodeType);
+    ExternalWindowFactoryOwner owner;
+    ASSERT_EQ(owner.init({1, 1, 1}, nodeType, "sum", false, false, 1, false, true, false, {101, 202, 303}, false,
+                         groups, true, false, FILL_MODE_NONE, {}, OPTR_EXEC_MODEL_STREAM, false, {0, 5, 7}),
+              TSDB_CODE_SUCCESS);
+
+    for (int pass = 0; pass < 2; ++pass) {
+      SCOPED_TRACE(pass);
+      std::vector<ExternalWindowPublication> publications;
+      ASSERT_EQ(drainExternalWindowPublications(&owner, &publications), TSDB_CODE_SUCCESS);
+      expectExternalWindowGroupsPublishedOnce(publications, groups);
+      ASSERT_EQ(publications.size(), groups.size());
+      for (const auto &publication : publications) {
+        bool hasData = publication.gid == 202 || publication.gid == 303;
+        EXPECT_EQ(publication.rows, hasData ? 1 : 0);
+        EXPECT_EQ(publication.dataLoad, 1);
+        if (hasData) {
+          EXPECT_EQ(publication.values, std::vector<int64_t>{publication.gid == 202 ? 5 : 7});
+        }
+      }
+      if (pass == 0) {
+        ASSERT_EQ(streamClearStatesForOperators(owner.pTaskInfo), TSDB_CODE_SUCCESS);
+      }
+    }
+  }
+}
+
+TEST_F(ExternalWindowOperatorTest, LegacyFilteredGroupsAfterPublishedGroupStillSettle) {
+  const std::vector<uint64_t> groups = {101, 202, 303, 404, 505, 606};
+  for (ENodeType nodeType : {QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL}) {
+    SCOPED_TRACE(nodeType);
+    for (bool scalar : {false, true}) {
+      // Hash scalar mode does not initialize the output filter used by this fixture.
+      if (scalar && nodeType == QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL) {
+        continue;
+      }
+      SCOPED_TRACE(scalar);
+      for (int32_t threshold : {1, 3072}) {
+        SCOPED_TRACE(threshold);
+        ExternalWindowFactoryOwner owner;
+        ASSERT_EQ(owner.init({1, 1, 1, 1, 1, 1}, nodeType, scalar ? nullptr : "sum", scalar, false, 1, false, true,
+                             false, {101, 101, 202, 303, 404, 505}, false, groups, true, false, FILL_MODE_NONE, {},
+                             OPTR_EXEC_MODEL_STREAM, false, {5, 0, 0, 0, 7, 0}),
+                  TSDB_CODE_SUCCESS);
+        owner.pTaskInfo->pRoot->resultInfo.threshold = threshold;
+
+        for (int pass = 0; pass < 2; ++pass) {
+          SCOPED_TRACE(pass);
+          std::vector<ExternalWindowPublication> publications;
+          ASSERT_EQ(drainExternalWindowPublications(&owner, &publications), TSDB_CODE_SUCCESS);
+          expectExternalWindowGroupsPublishedOnce(publications, groups);
+          ASSERT_EQ(publications.size(), groups.size());
+          for (const auto &publication : publications) {
+            bool hasData = publication.gid == 101 || publication.gid == 404;
+            EXPECT_EQ(publication.rows, hasData ? 1 : 0);
+            EXPECT_EQ(publication.dataLoad, 1);
+            EXPECT_EQ(publication.values,
+                      hasData ? std::vector<int64_t>{publication.gid == 101 ? 5 : 7} : std::vector<int64_t>{});
+          }
+          if (pass == 0) {
+            ASSERT_EQ(streamClearStatesForOperators(owner.pTaskInfo), TSDB_CODE_SUCCESS);
+          }
+        }
+      }
+    }
+  }
+}
+
 TEST_F(ExternalWindowOperatorTest, StaticMultiGroupJoinWithoutRuntimeModeFailsClosed) {
   ExternalWindowFactoryOwner owner;
   ASSERT_EQ(owner.init({1}, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL, "sum", false, false, 1), TSDB_CODE_SUCCESS);
@@ -7577,7 +7648,8 @@ _error:
   return code;
 }
 
-int32_t wrapExternalWindowWithInheritedProject(ExternalWindowFactoryOwner *pOwner, bool inheritedMultiGroupJoin) {
+int32_t wrapExternalWindowWithInheritedProject(ExternalWindowFactoryOwner *pOwner, bool inheritedMultiGroupJoin,
+                                               bool compareCoalesce = false) {
   SSubplan *pSubplan = nullptr;
   int32_t   code = nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, reinterpret_cast<SNode **>(&pSubplan));
   if (code != TSDB_CODE_SUCCESS) {
@@ -7597,6 +7669,37 @@ int32_t wrapExternalWindowWithInheritedProject(ExternalWindowFactoryOwner *pOwne
   code = appendProjectTestColumnProjection(pOwner->pProjectNode, kExtWinFactoryOutputBlockId);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
+  }
+  if (compareCoalesce) {
+    auto          *pTarget = reinterpret_cast<STargetNode *>(pOwner->pProjectNode->pProjections->pHead->pNode);
+    SCaseWhenNode *pCase = nullptr;
+    code = nodesMakeNode(QUERY_NODE_CASE_WHEN, reinterpret_cast<SNode **>(&pCase));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pCase->node.resType = reinterpret_cast<SExprNode *>(pTarget->pExpr)->resType;
+    pCase->pElse = makeIntValue(0);
+    SWhenThenNode *pWhen = nullptr;
+    code = nodesMakeNode(QUERY_NODE_WHEN_THEN, reinterpret_cast<SNode **>(&pWhen));
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode(reinterpret_cast<SNode *>(pCase));
+      return code;
+    }
+    pWhen->pThen = pTarget->pExpr;
+    pTarget->pExpr = reinterpret_cast<SNode *>(pCase);
+    code = nodesListMakeStrictAppend(&pCase->pWhenThenList, reinterpret_cast<SNode *>(pWhen));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    auto *pIsNotNull = reinterpret_cast<SOperatorNode *>(makeEqualCond(nullptr, nullptr));
+    pIsNotNull->opType = OP_TYPE_IS_NOT_NULL;
+    pWhen->pWhen = reinterpret_cast<SNode *>(pIsNotNull);
+    code = nodesCloneNode(pWhen->pThen, &pIsNotNull->pLeft);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    // COALESCE(value, 0) <= 1, using the CASE form produced by the parser.
+    auto *pCompare = reinterpret_cast<SOperatorNode *>(makeEqualCond(pTarget->pExpr, makeIntValue(1)));
+    pCompare->opType = OP_TYPE_LOWER_EQUAL;
+    pTarget->pExpr = reinterpret_cast<SNode *>(pCompare);
+    auto *pDesc = pOwner->pProjectNode->node.pOutputDataBlockDesc;
+    auto *pSlot = reinterpret_cast<SSlotDescNode *>(pDesc->pSlots->pHead->pNode);
+    pSlot->dataType = pCompare->node.resType;
+    pDesc->totalRowSize = pDesc->outputRowSize = sizeof(bool);
   }
   pOwner->pProjectNode->ignoreGroupId = true;
   pOwner->pProjectNode->inputIgnoreGroup = true;
@@ -7687,6 +7790,61 @@ TEST_F(ExternalWindowOperatorTest, RuntimeMultiGroupWithoutInheritedLeafKeepsLeg
   ASSERT_EQ(streamExecuteTask(owner.pTaskInfo, &pBlock, &finished), TSDB_CODE_SUCCESS);
   EXPECT_EQ(pBlock, nullptr);
   EXPECT_TRUE(finished);
+}
+
+TEST_F(ExternalWindowOperatorTest, LegacyProjectPreservesEmptySettlementsAcrossReset) {
+  const std::vector<uint64_t> groups = {101, 202, 303, 404, 505};
+  ExternalWindowFactoryOwner  owner;
+  ASSERT_EQ(owner.init({1, 1, 1}, QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL, nullptr, true, false, 1, false, true,
+                       false, {101, 202, 303}, false, groups, true, false, FILL_MODE_NONE, {}, OPTR_EXEC_MODEL_STREAM,
+                       false, {0, 5, 7}),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(wrapExternalWindowWithInheritedProject(&owner, false, true), TSDB_CODE_SUCCESS);
+  auto *pRuntime = &owner.pTaskInfo->pStreamRuntimeInfo->funcInfo;
+
+  for (int pass = 0; pass < 2; ++pass) {
+    SCOPED_TRACE(pass);
+    std::vector<uint64_t> publishedGroups;
+    std::vector<int8_t>   values;
+    bool                  finished = false;
+    for (size_t call = 0; call <= groups.size() && !finished; ++call) {
+      SSDataBlock *pBlock = nullptr;
+      ASSERT_EQ(streamExecuteTask(owner.pTaskInfo, &pBlock, &finished), TSDB_CODE_SUCCESS);
+      if (pBlock == nullptr) {
+        EXPECT_TRUE(finished);
+        break;
+      }
+      ASSERT_FALSE(finished);
+      uint64_t gid = pRuntime->groupId;
+      publishedGroups.push_back(gid);
+      auto *pGroup =
+          static_cast<SSTriggerGroupCalcInfo *>(tSimpleHashGet(pRuntime->pGroupCalcInfos, &gid, sizeof(gid)));
+      ASSERT_NE(pGroup, nullptr);
+      EXPECT_EQ(pRuntime->curGrpCalc, pGroup);
+      EXPECT_EQ(pRuntime->groupId, gid);
+      EXPECT_EQ(pRuntime->pStreamPesudoFuncVals, pGroup->pParams);
+      EXPECT_EQ(pRuntime->pStreamPartColVals, pGroup->pGroupColVals);
+      EXPECT_EQ(pRuntime->createTable, &pGroup->createTable);
+      bool hasData = gid == 202 || gid == 303;
+      ASSERT_EQ(pBlock->info.rows, hasData ? 1 : 0);
+      if (hasData) {
+        auto *pCol = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+        ASSERT_NE(pCol, nullptr);
+        ASSERT_EQ(pCol->info.type, TSDB_DATA_TYPE_BOOL);
+        values.push_back(*reinterpret_cast<int8_t *>(colDataGetData(pCol, 0)));
+      } else {
+        EXPECT_EQ(pRuntime->pStreamBlkWinIdx, nullptr);
+        EXPECT_EQ(pRuntime->curGrpRead, nullptr);
+      }
+    }
+    EXPECT_TRUE(finished);
+    std::sort(publishedGroups.begin(), publishedGroups.end());
+    EXPECT_EQ(publishedGroups, groups);
+    EXPECT_EQ(values, (std::vector<int8_t>{0, 0}));
+    if (pass == 0) {
+      ASSERT_EQ(streamClearStatesForOperators(owner.pTaskInfo), TSDB_CODE_SUCCESS);
+    }
+  }
 }
 
 int32_t appendProjectTestProcessByRowProjection(SProjectPhysiNode *pNode, const char *pFunctionName, int32_t outputSlot,
