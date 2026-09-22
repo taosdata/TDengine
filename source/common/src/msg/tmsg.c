@@ -19873,6 +19873,8 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
   // batch meta txn ID
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->txnId));
   TAOS_CHECK_EXIT(tEncodeSVAlterTbReqFilterCond(pEncoder, pReq));
+  // Per-vnode DDL budget share; only meaningful for the WHERE-based bulk tag update.
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->txnDdlQuota));
 
   tEndEncode(pEncoder);
 _exit:
@@ -20249,6 +20251,11 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->txnId));
   }
   TAOS_CHECK_EXIT(tDecodeSVAlterTbReqFilterCond(pDecoder, pReq));
+  // Per-vnode DDL budget share. Absent from pre-3.4.3 clients, which leaves it 0 =
+  // unlimited, preserving the old (uncapped) behaviour for them.
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->txnDdlQuota));
+  }
 
   tEndDecode(pDecoder);
 _exit:
@@ -20313,6 +20320,8 @@ int32_t tEncodeSVAlterTbRsp(SEncoder *pEncoder, const SVAlterTbRsp *pRsp) {
   if (pRsp->pMeta) {
     TAOS_CHECK_EXIT(tEncodeSTableMetaRsp(pEncoder, pRsp->pMeta));
   }
+  // Child tables actually rewritten, for per-object DDL accounting in a txn.
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->numTouched));
   tEndEncode(pEncoder);
 _exit:
   return code;
@@ -20331,6 +20340,13 @@ int32_t tDecodeSVAlterTbRsp(SDecoder *pDecoder, SVAlterTbRsp *pRsp) {
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeSTableMetaRsp(pDecoder, pRsp->pMeta));
+  }
+  // Absent from pre-3.4.3 vnodes, leaving numTouched 0. Consumers treat 0 as "not
+  // reported" - tscChargeTouchedObjects skips the charge adjustment (its guard is
+  // txnId == 0 || numTouchedObjects <= 0), so the provisional charge-as-1 made at
+  // statement time stays in place for old vnodes.
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->numTouched));
   }
   tEndDecode(pDecoder);
 _exit:

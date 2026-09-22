@@ -521,6 +521,7 @@ void schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);
   pRes->execDispatched = atomic_load_8(&pJob->execDispatched) != 0;
   pRes->numOfRows = pJob->resNumOfRows;
+  pRes->numTouchedObjects = atomic_load_32(&pJob->resNumTouchedObjects);
 
   SCH_LOCK(SCH_WRITE, &pJob->resLock);
   pRes->res = pJob->execRes.res;
@@ -1295,6 +1296,15 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
   SCH_ERR_RET(schChkResetJobRetry(pJob, rspCode));
 
   (void)atomic_add_fetch_64(&pJob->seriesId, 1);
+
+  // Every task in every level is reset and re-launched below, so the per-vgroup results already
+  // summed into this job are stale by definition - the re-run reports them again. Without this
+  // the counters double-count on every job-level retry: resNumTouchedObjects inflates the
+  // client's per-object txnDdlCount (over-charging the txn budget until it is exhausted early),
+  // resNumOfRows inflates the reported affected rows. Storing 0 simply discards the stale sum
+  // accumulated before the retry; the accumulators (schRemote.c) add fresh values afterwards.
+  (void)atomic_store_32(&pJob->resNumTouchedObjects, 0);
+  (void)atomic_store_64(&pJob->resNumOfRows, 0);
 
   for (int32_t i = 0; i < numOfLevels; ++i) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);

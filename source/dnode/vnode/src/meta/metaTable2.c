@@ -518,6 +518,17 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
             metaFetchEntryFree(&pExist);
             return TSDB_CODE_TXN_RESOURCE_BUSY;
           }
+          // batch-meta-txn: this txn dropped the table and has not finished yet, so the
+          // entry and its name.idx key are held until COMMIT (other sessions must still
+          // see the table, and ROLLBACK must be able to restore it). Say so, instead of
+          // reporting a name clash (FS 5). A table this txn CREATEd and then dropped is
+          // physically removed at drop time, so it never reaches this branch and can be
+          // recreated freely.
+          if ((pExist->txnStatus == META_TXN_PRE_DROP || pExist->txnStatus == META_TXN_PRE_CREATE_DROP) &&
+              pReq->txnId != 0 && pExist->txnId == pReq->txnId) {
+            metaFetchEntryFree(&pExist);
+            return TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED;
+          }
         }
         metaFetchEntryFree(&pExist);
       }
@@ -705,6 +716,17 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
           if (pExist->txnStatus == META_TXN_PRE_CREATE && pExist->txnId != pReq->txnId) {
             metaFetchEntryFree(&pExist);
             return TSDB_CODE_TXN_RESOURCE_BUSY;
+          }
+          // batch-meta-txn: this txn dropped the table and has not finished yet, so the
+          // entry and its name.idx key are held until COMMIT (other sessions must still
+          // see the table, and ROLLBACK must be able to restore it). Say so, instead of
+          // reporting a name clash (FS 5). A table this txn CREATEd and then dropped is
+          // physically removed at drop time, so it never reaches this branch and can be
+          // recreated freely.
+          if ((pExist->txnStatus == META_TXN_PRE_DROP || pExist->txnStatus == META_TXN_PRE_CREATE_DROP) &&
+              pReq->txnId != 0 && pExist->txnId == pReq->txnId) {
+            metaFetchEntryFree(&pExist);
+            return TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED;
           }
         }
         metaFetchEntryFree(&pExist);
@@ -1504,6 +1526,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   SEncoder encoder = {0};
   tEncodeSize(metaEncodeEntry, &entry, encodeSize, code);
   if (code) {
+    tFreeSSeriesWrapper(&entry.series);
     tDecoderClear(&decoder);
     tdbFreeClear(tbValue);
     metaULock(pMeta);
@@ -1512,6 +1535,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
 
   void *newValue = taosMemoryMalloc(encodeSize);
   if (!newValue) {
+    tFreeSSeriesWrapper(&entry.series);
     tDecoderClear(&decoder);
     tdbFreeClear(tbValue);
     metaULock(pMeta);
@@ -1523,6 +1547,11 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   tEncoderClear(&encoder);
   tDecoderClear(&decoder);
   tdbFreeClear(tbValue);
+  // entry.series (SSeriesWrapper) owns heap memory decoded from the B+ tree
+  // value (pSeries[i].tagCondJson); it is not referenced by the encoder output
+  // and must be released on every exit. metaCloneEntryFree does the same for
+  // heap-allocated entries (see metaFetchEntryFree).
+  tFreeSSeriesWrapper(&entry.series);
   if (code) {
     taosMemoryFree(newValue);
     metaULock(pMeta);
@@ -4836,9 +4865,28 @@ static int32_t metaIsChildTableQualified(SMeta *pMeta, tb_uid_t uid, SNode *pTag
   return TSDB_CODE_SUCCESS;
 }
 
-
-
-static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTagCond, SNode *pTagIndexCond, SArray *pUidList) {
+// maxUids > 0 bounds the RESULT set: more than maxUids children qualifying causes
+// TSDB_CODE_TXN_TOO_MANY_DDL_OPS, so an over-budget bulk tag update is rejected without
+// evaluating the remaining candidates once the budget is blown. The bound is checked BEFORE
+// pushing, so exactly maxUids matches still succeed and a successful return carries at most
+// maxUids entries. maxUids is a ceiling of the txn budget share (ceil(remaining / nVgroups)),
+// not an exact allowance - being conservative there is fine.
+//
+// The bound is on qualified children, NOT on the candidate set feeding them. With a tag
+// condition present a candidate may fail pTagCond, so the candidate array still grows to the
+// index match set (Step 1) or to the full child set (Step 2, capped there only when
+// pTagCond == NULL). Truncating candidates at maxUids is not a valid shortcut - the budget
+// could then be evaded by a predicate whose true reach exceeds maxUids but whose first
+// maxUids candidates happen to qualify. Bounding the candidates as well would require
+// doFilterTag to stream/abort, which it cannot do.
+//
+// Invariant relied on by Step 3: pTagIndexCond != NULL implies pTagCond != NULL, because
+// callers pass through both outputs of filterPartitionCond, which clones a
+// COND_TYPE_TAG_INDEX condition into both (see its two branches). So the uncapped
+// "all candidates qualify" branch cannot be reached with an index condition.
+// maxUids <= 0 is unlimited (the non-txn path).
+static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTagCond, SNode *pTagIndexCond,
+                                         SArray *pUidList, int32_t maxUids) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SVnode       *pVnode = pMeta->pVnode;
@@ -4896,6 +4944,13 @@ static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTa
       if (uid == 0) {
         break;
       }
+      // Without a tag condition every candidate qualifies, so the cap applies here directly.
+      // With one, candidates are still only candidates - the cap is enforced after filtering.
+      if (maxUids > 0 && pTagCond == NULL && taosArrayGetSize(pCandidateUids) >= maxUids) {
+        metaCloseCtbCursor(pCur);
+        code = TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
+        TAOS_CHECK_GOTO(code, &lino, _end);
+      }
       if (taosArrayPush(pCandidateUids, &uid) == NULL) {
         code = terrno;
         metaCloseCtbCursor(pCur);
@@ -4921,8 +4976,14 @@ static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTa
         TAOS_CHECK_GOTO(code, &lino, _end);
       }
 
-      if (qualified && taosArrayPush(pUidList, &uid) == NULL) {
-        TAOS_CHECK_GOTO(terrno, &lino, _end);
+      if (qualified) {
+        if (maxUids > 0 && taosArrayGetSize(pUidList) >= maxUids) {
+          code = TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
+          TAOS_CHECK_GOTO(code, &lino, _end);
+        }
+        if (taosArrayPush(pUidList, &uid) == NULL) {
+          TAOS_CHECK_GOTO(terrno, &lino, _end);
+        }
       }
     }
   }
@@ -4939,14 +5000,15 @@ _end:
 
 // Convenience wrapper: partition a raw WHERE condition into tag-related parts,
 // then call metaGetChildUidsByTagCond to get the filtered child table UIDs.
-int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList) {
+// maxUids bounds the match set; see metaGetChildUidsByTagCond. Pass 0 for unlimited.
+int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList, int32_t maxUids) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode  *pTagCond = NULL;
   SNode  *pTagIndexCond = NULL;
 
   if (pWhere == NULL) {
     // No WHERE condition  -  return all child table UIDs
-    return metaGetChildUidsByTagCond(pMeta, suid, NULL, NULL, pUidList);
+    return metaGetChildUidsByTagCond(pMeta, suid, NULL, NULL, pUidList, maxUids);
   }
 
   // Clone pWhere so the caller's node is not destroyed by filterPartitionCond
@@ -4963,7 +5025,7 @@ int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArr
   }
 
   // Call the core filtering function
-  code = metaGetChildUidsByTagCond(pMeta, suid, pTagCond, pTagIndexCond, pUidList);
+  code = metaGetChildUidsByTagCond(pMeta, suid, pTagCond, pTagIndexCond, pUidList, maxUids);
 
 _cleanup:
   nodesDestroyNode(pTagCond);
@@ -4974,7 +5036,8 @@ _cleanup:
 
 // Pre-scan to collect affected child table UIDs and their current versions
 // for TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL transactional path.
-int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray *pUids, SArray *pVersions) {
+int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray *pUids, SArray *pVersions,
+                                       SArray *pNames) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SNode      *pWhere = NULL;
   SMetaEntry *pSuper = NULL;
@@ -5021,7 +5084,9 @@ int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray 
     goto _exit;
   }
 
-  code = metaGetChildUidsByWhere(pMeta, pSuper->uid, pWhere, pChildUids);
+  // Bound the match set by this vnode's share of the txn's remaining DDL budget, so an
+  // over-budget predicate fails fast instead of building a multi-million-entry array here.
+  code = metaGetChildUidsByWhere(pMeta, pSuper->uid, pWhere, pChildUids, pReq->txnDdlQuota);
   if (code) {
     goto _exit;
   }
@@ -5052,6 +5117,18 @@ int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray 
         metaULock(pMeta);
         code = terrno;
         goto _exit;
+      }
+      // Collect the name too when requested, so the caller can take the per-table txn lock.
+      // Keep pNames index-aligned with pUids: push only after both pushes above succeeded.
+      if (pNames != NULL) {
+        char nameBuf[TSDB_TABLE_NAME_LEN] = {0};
+        tstrncpy(nameBuf, pChild->name, TSDB_TABLE_NAME_LEN);
+        if (taosArrayPush(pNames, nameBuf) == NULL) {
+          metaFetchEntryFree(&pChild);
+          metaULock(pMeta);
+          code = terrno;
+          goto _exit;
+        }
       }
       metaFetchEntryFree(&pChild);
     }
@@ -5120,7 +5197,9 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
     metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
     goto _exit;
   }
-  code = metaGetChildUidsByWhere(pMeta, pSuper->uid, pWhere, pUids);
+  // The authoritative apply. Unbounded: by this point the pre-scan already enforced the
+  // budget, and the non-txn path has no budget to enforce.
+  code = metaGetChildUidsByWhere(pMeta, pSuper->uid, pWhere, pUids, 0);
   if (code) {
     const char* fmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
     metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);

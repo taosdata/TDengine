@@ -3204,6 +3204,12 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
 
   TAOS_CHECK_EXIT(tSerializeSCMCreateStreamReqImpl(&encoder, pReq));
 
+  // batch-meta-txn (stream phase 2): appended after the JSON body, outside
+  // tSerializeSCMCreateStreamReqImpl, so it is never persisted into SDB along
+  // with pCreate. Old servers stop at the JSON body and ignore these fields.
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->outTblExists));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -3556,6 +3562,16 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     TAOS_CHECK_EXIT(tDeserializeSCMCreateStreamReqImplOld(&decoder, pReq, 0));
   }
 
+  // batch-meta-txn (stream phase 2): absent from older clients, which correctly
+  // leaves txnId = 0 (non-txn path). Decode order must match the encode order above;
+  // each field is guarded separately so a client that only carries txnId still works.
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->outTblExists));
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -3580,6 +3596,9 @@ int32_t tSerializeSMDropStreamReq(void *buf, int32_t bufLen, const SMDropStreamR
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->name[i], nameLen));
   }
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igNotExists));
+
+  // batch-meta-txn (stream phase 2): trailing field; old servers ignore it.
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
 
   tEndEncode(&encoder);
 
@@ -3612,6 +3631,11 @@ int32_t tDeserializeSMDropStreamReq(void *buf, int32_t bufLen, SMDropStreamReq *
     }
   }
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
+
+  // batch-meta-txn (stream phase 2): absent from older clients -> txnId stays 0.
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
+  }
 
   tEndDecode(&decoder);
 

@@ -6775,8 +6775,8 @@ TEST_F(MndStreamTest, StreamTimeConfigColumnsPreserveValuesAndLegacyNulls) {
   ASSERT_NE(streamMap.get(), nullptr);
   SnodeLookupStubGuard snodeLookup;
   SMnode               mnode = {};
-  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pBlock, 0), TSDB_CODE_SUCCESS);
-  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &legacyStream, pBlock, 1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pBlock, 0, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &legacyStream, pBlock, 1, 0), TSDB_CODE_SUCCESS);
 
   EXPECT_FALSE(isNullValue(pBlock, kStreamTimezoneColumn, 0, 2));
   EXPECT_EQ(getVarCharValue(pBlock, kStreamTimezoneColumn, 0), "Asia/Shanghai");
@@ -7358,7 +7358,7 @@ TEST_F(MndStreamRecalcTest, OldTriggerProgressFeedsLegacyColumnsWithNullStatus) 
   SMnode               mnode = {};
   SSDataBlock         *pStreamBlock = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
   ASSERT_NE(pStreamBlock, nullptr);
-  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream_, pStreamBlock, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream_, pStreamBlock, 0, 0), TSDB_CODE_SUCCESS);
   EXPECT_EQ(getInt32Value(pStreamBlock, kStreamHistoryProgressColumn, 0), 37);
   blockDataDestroy(pStreamBlock);
 
@@ -7382,14 +7382,14 @@ TEST_F(MndStreamRecalcTest, TypedHistoryInvalidityOverridesLegacyProgress) {
   SMnode               mnode = {};
   SSDataBlock         *pBlock = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
   ASSERT_NE(pBlock, nullptr);
-  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream_, pBlock, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream_, pBlock, 0, 0), TSDB_CODE_SUCCESS);
   EXPECT_TRUE(isNullValue(pBlock, kStreamHistoryProgressColumn, 0, 1));
   blockDataDestroy(pBlock);
 
   mstInvalidateTaskMetrics(&trigger_);
   pBlock = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
   ASSERT_NE(pBlock, nullptr);
-  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream_, pBlock, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream_, pBlock, 0, 0), TSDB_CODE_SUCCESS);
   EXPECT_TRUE(isNullValue(pBlock, kStreamHistoryProgressColumn, 0, 1));
   blockDataDestroy(pBlock);
 }
@@ -7505,7 +7505,7 @@ TEST_F(MndStreamTest, StreamMetricColumnsPreserveIndependentNullability) {
 
   SnodeLookupStubGuard snodeLookup;
   SMnode               mnode = {};
-  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pBlock, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pBlock, 0, 0), TSDB_CODE_SUCCESS);
 
   EXPECT_EQ(getInt64Value(pBlock, kStreamRealtimeLagColumn, 0), 1234);
   EXPECT_DOUBLE_EQ(getDoubleValue(pBlock, kStreamInputRateColumn, 0), 10.0);
@@ -7590,7 +7590,7 @@ TEST_F(MndStreamTest, FinalRunnerTopologyDrivesStreamAndTaskMetrics) {
 
   SnodeLookupStubGuard snodeLookup;
   SMnode               mnode = {};
-  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pStreamBlock, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pStreamBlock, 0, 0), TSDB_CODE_SUCCESS);
   EXPECT_DOUBLE_EQ(getDoubleValue(pStreamBlock, kStreamOutputRateColumn, 0), 2.0);
   EXPECT_DOUBLE_EQ(getDoubleValue(pStreamBlock, kStreamResultLatencyColumn, 0), 1000.0);
 

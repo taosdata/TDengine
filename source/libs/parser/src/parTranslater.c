@@ -25020,6 +25020,11 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
     }
     code = TSDB_CODE_SUCCESS;
   } else if (TSDB_CODE_SUCCESS == code) {
+    // batch-meta-txn (stream phase 2): getTableMeta succeeded, so the INTO target
+    // already exists. Set this for both the super-table and the normal-table branch
+    // below - outStbExists cannot serve as the "target exists" flag because it stays
+    // false for an existing normal table.
+    pReq->outTblExists = 1;
     if (outStable) {
       // create stb
       if (pMeta->tableType != TSDB_SUPER_TABLE) {
@@ -28664,6 +28669,9 @@ static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt*
   PAR_ERR_JRET(checkCreateStream(pCxt, pStmt));
   PAR_ERR_JRET(buildCreateStreamReq(pCxt, pStmt, &createReq));
   PAR_ERR_JRET(collectCreateStreamTriggerTable(pCxt, pStmt));
+  // batch-meta-txn (stream phase 2): tag the request with the active txn so the mnode
+  // takes the PRE_CREATE marker path instead of creating and deploying immediately.
+  createReq.txnId = pCxt->pParseCxt->txnId;
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_STREAM, (FSerializeFunc)tSerializeSCMCreateStreamReq, &createReq));
 
 _return:
@@ -28740,6 +28748,9 @@ static int32_t translateDropStream(STranslateContext* pCxt, SDropStreamStmt* pSt
 
   req.count = i;
   req.igNotExists = (int8_t)pStmt->ignoreNotExists;
+  // batch-meta-txn (stream phase 2): tag the request with the active txn so the mnode
+  // takes the PRE_DROP marker path instead of dropping immediately.
+  req.txnId = pCxt->pParseCxt->txnId;
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_STREAM, (FSerializeFunc)tSerializeSMDropStreamReq, &req));
 
 _return:
@@ -38249,6 +38260,24 @@ static int32_t createAlterChildTableTagValVgroupReqs(STranslateContext* pCxt, SA
   }
   taosHashSetFreeFp(reqs, destroyVgroupAlterTableReq);
 
+  // Share the remaining per-txn DDL budget across the vgroups this statement fans out to.
+  // The client cannot know how many children the predicate matches, so each vnode gets an
+  // equal slice and aborts its pre-scan on exceeding it (metaPreScanChildTableTagUpdate).
+  // Deliberately approximate: a skewed distribution can reject a statement whose true total
+  // would have fit, or let through up to (nVgroups-1) extra objects. The cap exists to keep a
+  // single statement from materialising an unbounded shadow-entry set, not to be exact.
+  // Rounded up so a small budget spread over many vgroups still leaves each a workable slice.
+  int32_t nVgroups = (int32_t)taosArrayGetSize(pDbVgs);
+  int32_t vgQuota = 0;
+  if (pCxt->pParseCxt->txnId != 0 && nVgroups > 0) {
+    int32_t remaining = pCxt->pParseCxt->txnDdlRemaining;
+    vgQuota = (remaining + nVgroups - 1) / nVgroups;
+    if (vgQuota <= 0) {
+      // Budget already exhausted; let the vnode reject rather than silently pass unlimited.
+      vgQuota = 1;
+    }
+  }
+
   for (int32_t i = 0; i < taosArrayGetSize(pDbVgs); ++i) {
     SVgroupAlterTableReq req = {0};
     req.vg = *(SVgroupInfo*)taosArrayGet(pDbVgs, i);
@@ -38288,6 +38317,7 @@ static int32_t createAlterChildTableTagValVgroupReqs(STranslateContext* pCxt, SA
 
     req.pReq->action = TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL;
     req.pReq->txnId = pCxt->pParseCxt->txnId;
+    req.pReq->txnDdlQuota = vgQuota;
 
     code = taosHashPut(reqs, &req.vg.vgId, sizeof(req.vg.vgId), &req, sizeof(req));
     if (code != TSDB_CODE_SUCCESS) {

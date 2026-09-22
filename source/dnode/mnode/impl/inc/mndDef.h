@@ -1288,6 +1288,13 @@ typedef struct {
   // (SCMCreateStreamReq.extSpecs), which is JSON-serialized as part of
   // pCreate and persists for the whole lifetime of the stream object; there
   // is no separate copy on SStreamObj itself.
+
+  // batch-meta-txn (stream phase 2): both fields are serialized into SDB_STREAM.
+  // Unlike userDropped/userStopped above, these MUST persist - the drop intent of
+  // an uncommitted txn has to survive a leader transfer, otherwise the new leader
+  // would resurrect a stream the txn had already dropped. See DS 5.2.
+  txn_id_t txnId;      // 0 = no associated txn; >0 = owning txn
+  int8_t   txnStatus;  // EMetaTxnStatus: NORMAL / PRE_CREATE / PRE_CREATE_DROP / PRE_DROP
 } SStreamObj;
 #if 0
 typedef struct SStreamConf {

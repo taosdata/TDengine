@@ -101,6 +101,10 @@ typedef struct SExecResult {
   void*    res;
   char*    extErrMsg;  // federated query: remote-side error message (heap-allocated, caller frees)
   SExtPushdownDiagnostic* extPushdownDiag;  // optional structured pushdown diagnostic (heap-allocated)
+  // Metadata objects a DDL statement actually touched, summed across vgroups. Only set for
+  // TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL, whose reach is resolved by the vnode
+  // pre-scan; the client adds it to txnDdlCount for the per-object accounting of FS Sec.4.13.
+  int32_t  numTouchedObjects;
 } SExecResult;
 
 #pragma pack(push, 1)
