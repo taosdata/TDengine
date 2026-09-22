@@ -913,8 +913,22 @@ int32_t tEncodeSConfigObj(SEncoder *pEncoder, const SConfigObj *pObj) {
 
 int32_t tDecodeSConfigObj(SDecoder *pDecoder, SConfigObj *pObj) {
   TAOS_CHECK_RETURN(tStartDecode(pDecoder));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->name));
-  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, (int32_t *)&pObj->dtype));
+  // pObj->name is the fixed CFG_NAME_MAX_LEN array of the sdb row, not a caller-owned buffer that
+  // is guaranteed to hold the whole message: bind this decode to the destination so a raw that
+  // carries a longer name is rejected instead of overflowing into pObj->dtype / the value union
+  // and the heap past the row (tDecodeCStrTo only checks the length against the source).
+  TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, pObj->name, CFG_NAME_MAX_LEN));
+
+  int32_t dtype = 0;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &dtype));
+  // No producer emits a dtype outside ECfgDataType, and neither the value switch below nor the
+  // consumers of SConfigObj (mndCfgActionUpdate, initConfigArrayFromSdb) have a default branch,
+  // so an out-of-range value would be stored as-is by a crafted raw. Reject it here.
+  if (dtype < CFG_DTYPE_NONE || dtype > CFG_DTYPE_TIMEZONE) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+  pObj->dtype = (ECfgDataType)dtype;
+
   switch (pObj->dtype) {
     case CFG_DTYPE_NONE:
       break;
