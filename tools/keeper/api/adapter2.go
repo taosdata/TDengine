@@ -134,15 +134,16 @@ func (a *Adapter) parseSql(report AdapterReport) string {
 	wsTbName := a.tableName(report.Endpoint, ws)
 	ts := time.Unix(report.Timestamp, 0).Format(time.RFC3339)
 	metric := report.Metric
+	escapedEndpoint := util.EscapeTrunc(report.Endpoint, 255)
 	return fmt.Sprintf("insert into %s using adapter_requests tags ('%s', %d) "+
 		"values('%s', %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d) "+
 		"%s using adapter_requests tags ('%s', %d) "+
 		"values('%s', %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-		restTbName, report.Endpoint, rest, ts, metric.RestTotal, metric.RestQuery, metric.RestWrite, metric.RestOther,
+		restTbName, escapedEndpoint, rest, ts, metric.RestTotal, metric.RestQuery, metric.RestWrite, metric.RestOther,
 		metric.RestInProcess, metric.RestSuccess, metric.RestFail, metric.RestQuerySuccess, metric.RestQueryFail,
 		metric.RestWriteSuccess, metric.RestWriteFail, metric.RestOtherSuccess, metric.RestOtherFail,
 		metric.RestQueryInProcess, metric.RestWriteInProcess,
-		wsTbName, report.Endpoint, ws, ts, metric.WSTotal,
+		wsTbName, escapedEndpoint, ws, ts, metric.WSTotal,
 		metric.WSQuery, metric.WSWrite, metric.WSOther, metric.WSInProcess, metric.WSSuccess, metric.WSFail,
 		metric.WSQuerySuccess, metric.WSQueryFail, metric.WSWriteSuccess, metric.WSWriteFail, metric.WSOtherSuccess,
 		metric.WSOtherFail, metric.WSQueryInProcess, metric.WSWriteInProcess)

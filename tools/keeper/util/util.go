@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"unicode"
+	"unicode/utf8"
 )
 
 // https://github.com/containerd/cgroups/blob/main/utils.go
@@ -48,6 +49,33 @@ func ParseUint(s string, base, bitSize int) (uint64, error) {
 	return v, nil
 }
 
+// SafeSubstringRunes truncates s to at most n characters (runes). Use it for
+// nchar(N) columns: TDengine sizes those in characters, so a value of N
+// characters fits however many bytes it occupies. Truncating to N bytes instead
+// would cut multi-byte text to a fraction of the column, while letting an
+// over-long ASCII value through to fail the whole insert with "Value too long".
+func SafeSubstringRunes(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	// the loop falls through when s is short enough, so it needs no separate
+	// rune count up front
+	count := 0
+	for i := range s {
+		if count == n {
+			return s[:i]
+		}
+		count++
+	}
+	return s
+}
+
+// EscapeTruncRunes truncates s to at most n characters and then escapes the
+// result for a single-quoted SQL string literal (like EscapeSQLString).
+func EscapeTruncRunes(s string, n int) string {
+	return EscapeSQLString(SafeSubstringRunes(s, n))
+}
+
 func EscapeInfluxProtocol(s string) string {
 	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, ",", "\\,")
@@ -61,6 +89,43 @@ func SafeSubstring(s string, n int) string {
 		return s[:n]
 	}
 	return s
+}
+
+// EscapeSQLString escapes a value for a single-quoted SQL string literal:
+// backslashes are doubled, and single quotes are doubled so they cannot
+// terminate the literal.
+func EscapeSQLString(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "'", "''")
+	return s
+}
+
+// EscapeTrunc truncates s to at most width bytes without splitting a
+// multi-byte UTF-8 character (the cut retreats to the last rune boundary),
+// then escapes the result for a single-quoted SQL string literal (like
+// EscapeSQLString). Use it everywhere a request-controlled string is
+// concatenated into SQL so truncation and escaping never drift apart.
+// TDengine checks a varchar width against the unescaped value, so the
+// escaped literal may exceed width bytes.
+func EscapeTrunc(s string, width int) string {
+	return EscapeSQLString(SafeSubstringUTF8(s, width))
+}
+
+// SafeSubstringUTF8 truncates s to at most n bytes, backing off to the last
+// rune boundary so the result is always valid UTF-8. Unlike SafeSubstring it
+// never emits a split multi-byte character.
+func SafeSubstringUTF8(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	if len(s) <= n {
+		return s
+	}
+	truncated := s[:n]
+	for !utf8.ValidString(truncated) {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated
 }
 
 func GetQid(qidStr string) uint64 {
@@ -101,6 +166,15 @@ func isValidChar(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
 
+// ToValidTableName maps input onto an unquoted TDengine identifier: every rune
+// that is not a letter, a digit or '_' becomes '_', and the result is lowercased.
+//
+// This is Unicode-aware, not an ASCII [A-Za-z0-9_] filter — "汉字" and "ABC" are
+// letters and survive. A non-ASCII name therefore still needs backticks in
+// TDengine (an unquoted one is a syntax error), and an uppercase ASCII name is
+// folded, so two inputs can map to the same identifier. Callers that need an
+// ASCII-only or collision-free name must constrain the input themselves;
+// processString in api/gen_metric.go is the ASCII-only variant.
 func ToValidTableName(input string) string {
 	var builder strings.Builder
 	for _, r := range input {
