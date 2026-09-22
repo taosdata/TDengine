@@ -2435,8 +2435,13 @@ void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
       vgInfo.hashBegin = pVgroup->hashBegin;
       vgInfo.hashEnd = pVgroup->hashEnd;
       vgInfo.numOfTable = pVgroup->numOfTables / TSDB_TABLE_NUM_UNIT;
-      vgInfo.epSet.numOfEps = pVgroup->replica;
-      for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
+      // The SEpSet.eps array has only TSDB_MAX_REPLICA slots, while pVgroup->replica may (with
+      // learners, by design) count more than TSDB_MAX_REPLICA vnodeGids. Clamp the number of
+      // endpoints we build so we never write past the fixed-size eps[] on this stack frame; a raw
+      // carrying an oversized replica would otherwise overflow the stack buffer on every USE DB /
+      // heartbeat read path.
+      vgInfo.epSet.numOfEps = (pVgroup->replica > TSDB_MAX_REPLICA) ? TSDB_MAX_REPLICA : pVgroup->replica;
+      for (int32_t gid = 0; gid < vgInfo.epSet.numOfEps; ++gid) {
         SVnodeGid *pVgid = &pVgroup->vnodeGid[gid];
         SEp       *pEp = &vgInfo.epSet.eps[gid];
         SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
