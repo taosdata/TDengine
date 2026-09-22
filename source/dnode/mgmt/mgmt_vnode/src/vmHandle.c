@@ -20,6 +20,7 @@
 #include "vnd.h"
 #include "vnodeInt.h"
 #include "tencrypt.h"
+#include "tdef.h"  // TSDB_MIN_PRECISION / TSDB_MAX_PRECISION / TSDB_DEFAULT_PRECISION
 
 extern taos_counter_t *tsInsertCounter;
 
@@ -280,6 +281,16 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->isTsma = pCreate->isTsma;
   pCfg->tsdbCfg.compression = pCreate->compression;
   pCfg->tsdbCfg.precision = pCreate->precision;
+  // [Security hardening for finding 180] precision is later used as an index into the 3-element
+  // global tick tables (tsTickPerMin / tsTickPerHour / tsSecTimes) in the tsdb layer. An out-of-range
+  // value would read past those tables or divide by a zero/garbage slot (SIGFPE -> whole taosd crash).
+  // The mnode is the authoritative source and already validates the range, but we clamp here as
+  // defense-in-depth so a malformed/compromised request can never reach the tick tables.
+  if (pCfg->tsdbCfg.precision < TSDB_MIN_PRECISION || pCfg->tsdbCfg.precision > TSDB_MAX_PRECISION) {
+    dError("vgId:%d, invalid precision %d in create vnode request, fallback to default", pCreate->vgId,
+           pCfg->tsdbCfg.precision);
+    pCfg->tsdbCfg.precision = TSDB_DEFAULT_PRECISION;
+  }
   pCfg->tsdbCfg.days = pCreate->daysPerFile;
   pCfg->tsdbCfg.keep0 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep1;
