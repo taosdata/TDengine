@@ -28,6 +28,15 @@ func StartMonitor(identity string, conf *config.Config, reporter *api.Reporter) 
 		identity = fmt.Sprintf("%s:%d", hostname, conf.Port)
 	}
 
+	// both derive only from the identity, which is fixed for this monitor
+	var kn string
+	if len(identity) <= util.MAX_TABLE_NAME_LEN {
+		kn = util.ToValidTableName(identity)
+	} else {
+		kn = util.GetMd5HexStr(identity)
+	}
+	escapedIdentity := util.EscapeTruncRunes(identity, api.IdentifyChars)
+
 	systemStatus := make(chan SysStatus)
 	_ = pool.GoroutinePool.Submit(func() {
 		var (
@@ -54,15 +63,8 @@ func StartMonitor(identity string, conf *config.Config, reporter *api.Reporter) 
 				reporter.GetTotalRep().Store(0)
 			}
 
-			var kn string
-			if len(identity) <= util.MAX_TABLE_NAME_LEN {
-				kn = util.ToValidTableName(identity)
-			} else {
-				kn = util.GetMd5HexStr(identity)
-			}
-
 			sql := fmt.Sprintf("insert into `km_%s` using keeper_monitor tags ('%s') values ( now, "+
-				" %f, %f, %d)", kn, identity, cpuPercent, memPercent, totalReport)
+				" %f, %f, %d)", kn, escapedIdentity, cpuPercent, memPercent, totalReport)
 			conn, err := db.NewConnectorWithDb(conf.TDengine.Username, conf.TDengine.Password, conf.TDengine.Host,
 				conf.TDengine.Port, conf.Metrics.Database.Name, conf.TDengine.Usessl)
 			if err != nil {

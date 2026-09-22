@@ -85,8 +85,8 @@ func TestMemoryStoreCollector_Collect(t *testing.T) {
 	// Verify collected metrics
 	metricCount := countMetricsWithTimeout(ch, 1*time.Second)
 
-	// Should collect 4 metrics (2+2)
-	assert.Equal(t, 4, metricCount)
+	// Should collect 5 metrics (2+2 data + the rejection counter)
+	assert.Equal(t, 5, metricCount)
 }
 
 func TestMemoryStoreCollector_CollectWithMaxAge(t *testing.T) {
@@ -115,8 +115,8 @@ func TestMemoryStoreCollector_CollectWithMaxAge(t *testing.T) {
 
 	metricCount := countMetricsWithTimeout(ch, 1*time.Second)
 
-	// Should only collect new data (1 metric)
-	assert.Equal(t, 1, metricCount)
+	// Should only collect new data (1 metric) plus the rejection counter
+	assert.Equal(t, 2, metricCount)
 }
 
 func TestMemoryStoreCollector_Describe(t *testing.T) {
@@ -137,12 +137,12 @@ func TestMemoryStoreCollector_EmptyStore(t *testing.T) {
 	defer store.Close()
 	collector := NewMemoryStoreCollector(store, 30*time.Second)
 
-	// Empty store should not produce any metrics
+	// Empty store produces no data metrics, only the rejection counter
 	ch := make(chan prometheus.Metric, 100)
 	go collector.Collect(ch)
 
 	metricCount := countMetricsWithTimeout(ch, 100*time.Millisecond)
-	assert.Equal(t, 0, metricCount)
+	assert.Equal(t, 1, metricCount)
 }
 
 func TestMemoryStoreCollector_Integration(t *testing.T) {
@@ -166,6 +166,6 @@ func TestMemoryStoreCollector_Integration(t *testing.T) {
 
 	metricCount := countMetricsWithTimeout(ch, 1*time.Second)
 
-	// Should collect 2 metrics
-	assert.Equal(t, 2, metricCount)
+	// Should collect 3 metrics (2 data + the rejection counter)
+	assert.Equal(t, 3, metricCount)
 }
