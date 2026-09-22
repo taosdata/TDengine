@@ -18,6 +18,7 @@
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "clientSession.h"
+#include "cmdnodes.h"
 #include "command.h"
 #include "extConnector.h"
 #include "extError.h"
@@ -46,6 +47,7 @@ static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorE
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode,
                                const char* saslToken);
 static int32_t removeQueryDbMeta(STscObj* pTscObj, SArray* dbList);
+static void    tscChargeTouchedObjects(STscObj* pTscObj, const SQuery* pQuery, const SExecResult* pRes);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -413,7 +415,9 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .setQueryFp = setQueryRequest,
       .timezone = pTscObj->optionInfo.timezone,
       .charsetCxt = taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt),
-      .txnId = pTscObj->txnId,
+      // .txnId / .txnDdlRemaining are filled in below, under pTscObj->mutex: they are the pair
+      // that governs the txn DDL budget and are written (and zeroed together) by the txn
+      // lifecycle under that lock.
       .pTxnVgSet = pTscObj->pTxnVgSet,
       .pTxnTableMeta = pTscObj->pTxnTableMeta,
       .pTxnSuidMap = pTscObj->pTxnSuidMap,
@@ -422,6 +426,12 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
   // Inject active external source context so 1-seg table refs can be resolved
   (void)taosThreadMutexLock(&pTscObj->mutex);
+  // Snapshot the txn identity and the remaining budget under the same lock that the BEGIN
+  // handler and tscResetTxnState use to write (and zero) them. txnDdlCount is also charged from
+  // the scheduler completion callback, so deriving the per-vgroup quota from an unlocked read
+  // could see a half-updated txnId/txnDdlCount pair.
+  cxt.txnId = pTscObj->txnId;
+  cxt.txnDdlRemaining = txnDdlRemainingOps(pTscObj);
   tstrncpy(cxt.currentExtSource, pTscObj->extSource, sizeof(cxt.currentExtSource));
   tstrncpy(cxt.currentExtNs1,    pTscObj->extNs1,    sizeof(cxt.currentExtNs1));
   tstrncpy(cxt.currentExtNs2,    pTscObj->extNs2,    sizeof(cxt.currentExtNs2));
@@ -1797,6 +1807,14 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     return pRequest->code;
   }
 
+  // Only reconcile the DDL budget when the statement itself succeeded, mirroring the
+  // async path (schedulerExecCb): a failed statement's numTouchedObjects is not
+  // trustworthy (the vnode may have assigned it before the lock/track loop failed),
+  // so charging it here would diverge from the async behavior and skew txnDdlCount.
+  if (res.code == TSDB_CODE_SUCCESS) {
+    tscChargeTouchedObjects(pRequest->pTscObj, pRequest->pQuery, &res);
+  }
+
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
       TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
@@ -2708,6 +2726,17 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     pRequest->execDispatched |= pResult->execDispatched;
     destroyQueryExecRes(&pRequest->body.resInfo.execRes);
     (void)memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
+    // Only reconcile on success, matching the sync path above.
+    //
+    // Exact for a single-vgroup statement. On a partial multi-vgroup failure it is not: the
+    // vnodes that already applied did leave their children PRE_ALTER'd under this txn, yet the
+    // provisional charge of 1 is kept, so txnDdlCount understates the real reach until the txn
+    // ends. The per-vnode pre-scan quota is the backstop bounding that window. Charging the
+    // partial count from here is not possible: a response carrying a non-zero code has no
+    // trustworthy numTouched to add.
+    if (code == TSDB_CODE_SUCCESS) {
+      tscChargeTouchedObjects(pTscObj, pRequest->pQuery, pResult);
+    }
   }
 
   int32_t type = pRequest->type;
@@ -2859,6 +2888,70 @@ static bool nodeIsShowStmt(int16_t type) {
 #define TXN_STMT_NON_DDL   1
 #define TXN_STMT_DDL       2
 
+// Number of metadata objects a single statement affects, for DDL-op accounting.
+//
+// Counting per object rather than per statement: a batch statement occupies vnode/mnode
+// resources proportional to how many objects it touches (one shadow B+tree entry and one
+// track record each), so charging it as a single op made TSDB_TXN_MAX_DDL_OPS_PER_TXN
+// meaningless for batches - DROP TABLE with 5000 clauses used to cost the same as one.
+//
+// There is no per-statement cap: a batch may affect any number of objects as long as the
+// transaction total stays within the limit. Statements whose object count is only known
+// server-side (WHERE-based bulk tag update) are counted as 1 here; see the note below.
+static int32_t txnStmtObjectCount(SNode* pRoot) {
+  switch ((int32_t)pRoot->type) {
+    case QUERY_NODE_DROP_TABLE_STMT:
+      return TMAX(1, LIST_LENGTH(((SDropTableStmt*)pRoot)->pTables));
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      return TMAX(1, LIST_LENGTH(((SDropVirtualTableStmt*)pRoot)->pTables));
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      return TMAX(1, LIST_LENGTH(((SCreateMultiTablesStmt*)pRoot)->pSubTables));
+    case QUERY_NODE_DROP_STREAM_STMT:
+      return TMAX(1, LIST_LENGTH(((SDropStreamStmt*)pRoot)->pStreamList));
+    case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT: {
+      SAlterTableStmt* pAlter = (SAlterTableStmt*)pRoot;
+      // Multi-table SET TAG carries one clause per table in pList.
+      if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+        return TMAX(1, LIST_LENGTH(pAlter->pList));
+      }
+      // UPDATE_CHILD_TABLE_TAG_VAL (SET TAG ... WHERE) matches an arbitrary number of
+      // children, resolved by the vnode pre-scan. The client cannot know the count here,
+      // so it is charged as 1; the real resource bound for that statement is the vnode
+      // pre-scan plus the async vacuum, not this counter.
+      return 1;
+    }
+    case QUERY_NODE_VNODE_MODIFY_STMT: {
+      // After translation, CREATE/DROP table statements are rewritten into per-vgroup
+      // blocks; each block records how many tables it carries.
+      SVnodeModifyOpStmt* pModify = (SVnodeModifyOpStmt*)pRoot;
+      if (pModify->pDataBlocks == NULL) {
+        return 1;
+      }
+      // Accumulate in int64_t: pVgData->numOfTables is int32_t and a batch spanning
+      // many vgroups could overflow an int32 sum, which would then wrap negative and
+      // make TMAX(1, total) return 1 - under-counting the batch and evading the limit.
+      // Non-positive per-block counts are skipped for the same reason. The final
+      // int32 cast is safe because the sum is clamped to the (50000) txn limit.
+      int64_t total = 0;
+      int32_t numBlocks = (int32_t)taosArrayGetSize(pModify->pDataBlocks);
+      for (int32_t i = 0; i < numBlocks; ++i) {
+        SVgDataBlocks* pVgData = *(SVgDataBlocks**)TARRAY_GET_ELEM(pModify->pDataBlocks, i);
+        if (pVgData != NULL && pVgData->numOfTables > 0) {
+          total += pVgData->numOfTables;
+        }
+      }
+      if (total > TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
+        total = TSDB_TXN_MAX_DDL_OPS_PER_TXN;
+      }
+      return (int32_t)TMAX(1, total);
+    }
+    default:
+      return 1;
+  }
+}
+
 int32_t isTxnAllowedStmtType(SNode* pRoot) {
   // switch lets the compiler emit a jump table  -  O(1) dispatch instead of a linear if-chain.
   // SHOW ranges (spanning ~200 values) are still handled by nodeIsShowStmt() in the default branch.
@@ -2876,6 +2969,11 @@ int32_t isTxnAllowedStmtType(SNode* pRoot) {
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
     case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
+    // Stream DDL (phase 2). Only CREATE/DROP are in scope; ALTER/STOP/START/
+    // RECALCULATE STREAM stay rejected via the default branch (runtime control,
+    // not metadata DDL).
+    case QUERY_NODE_CREATE_STREAM_STMT:
+    case QUERY_NODE_DROP_STREAM_STMT:
       return TXN_STMT_DDL;
     // SELECT, read-only utilities, transaction control  -  not counted
     case QUERY_NODE_SELECT_STMT:
@@ -2888,6 +2986,16 @@ int32_t isTxnAllowedStmtType(SNode* pRoot) {
     case QUERY_NODE_COMMIT_TRANS_STMT:
     case QUERY_NODE_ROLLBACK_TRANS_STMT:
       return TXN_STMT_NON_DDL;
+
+    // Tag-index DDL is rejected. The index is a separate mnode SDB object (SIdxObj) with
+    // no txnId/txnStatus marker and no shadow-op type, so it cannot be committed or rolled
+    // back together with the super table it belongs to. Listed explicitly rather than left
+    // to the default branch to make the exclusion deliberate and greppable.
+    // Note: the index updates that DROP TAG / RENAME TAG perform as a side effect are
+    // unaffected - those ride along with the super-table change.
+    case QUERY_NODE_CREATE_INDEX_STMT:
+    case QUERY_NODE_DROP_INDEX_STMT:
+      return TXN_STMT_REJECTED;
 
     case QUERY_NODE_VNODE_MODIFY_STMT: {
       // VNODE_MODIFY_STMT wraps both CREATE TABLE and INSERT after translation.
@@ -2911,6 +3019,72 @@ int32_t isTxnAllowedStmtType(SNode* pRoot) {
       // SHOW statements cover two discontiguous ranges; delegate to nodeIsShowStmt().
       return nodeIsShowStmt((int32_t)pRoot->type) ? TXN_STMT_NON_DDL : TXN_STMT_REJECTED;
   }
+}
+
+// Charge the objects a completed statement actually touched against the txn's DDL budget.
+//
+// Most statements' object count is known client-side and already charged in
+// tscCheckTxnState. The exception is the WHERE-based bulk tag update, whose reach is
+// resolved by the vnode pre-scan: it is provisionally charged as 1 there, and the real count
+// arrives here via SExecResult::numTouchedObjects (summed across vgroups by the scheduler).
+// Replace the provisional 1 with the real figure.
+//
+// The budget was already enforced per-vnode during the pre-scan, so a statement reaching
+// this point is within its share; this only keeps the running total honest for the
+// statements that follow. Clamped at the limit so the counter cannot be driven past it by
+// the divide-across-vgroups approximation.
+//
+// Note on the vnode-side over-quota rejection: when the pre-scan finds more matching
+// children than the txn's remaining budget allows, the vnode aborts the statement with
+// TSDB_CODE_TXN_TOO_MANY_DDL_OPS and no result reaches this function. The provisional
+// charge of 1 from tscCheckTxnState is therefore left in txnDdlCount - a statement that
+// failed to execute still consumed its provisional unit. That is an over-count of at most
+// one object per rejected statement, which only makes the limit marginally stricter;
+// it never under-counts, so the budget can never be evaded through this path.
+static void tscChargeTouchedObjects(STscObj* pTscObj, const SQuery* pQuery, const SExecResult* pRes) {
+#ifdef TD_ENTERPRISE
+  if (pTscObj == NULL || pTscObj->txnId == 0 || pRes == NULL || pRes->numTouchedObjects <= 0) {
+    return;
+  }
+  // Only the WHERE-based bulk tag update is charged provisionally as 1 in
+  // txnStmtObjectCount; every other statement is already charged by its real object count.
+  // Verify that is the statement we are reconciling rather than relying on numTouchedObjects
+  // being populated by that path alone - otherwise the -1 below would silently discount a
+  // correctly-charged statement.
+  if (pQuery == NULL || pQuery->pRoot == NULL) {
+    return;
+  }
+  int32_t nodeT = (int32_t)nodeType(pQuery->pRoot);
+  if (nodeT != QUERY_NODE_ALTER_TABLE_STMT && nodeT != QUERY_NODE_ALTER_SUPER_TABLE_STMT &&
+      nodeT != QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT) {
+    return;
+  }
+  if (((SAlterTableStmt*)pQuery->pRoot)->alterType != TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
+    return;
+  }
+  // Undo the provisional charge of 1 before adding the measured count.
+  //
+  // This runs on the scheduler completion thread, while the next statement's budget slice is
+  // computed on the parse thread and the txn lifecycle zeroes the counter - all under
+  // pTscObj->mutex. Charge under the same lock so this read-modify-write cannot interleave with
+  // those and lose an update. Only a completed WHERE-based bulk tag update inside a txn reaches
+  // here, so the lock is not on a hot path.
+  int32_t prev = 0;
+  int32_t adjusted = 0;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  prev = pTscObj->txnDdlCount;
+  adjusted = prev - 1 + pRes->numTouchedObjects;
+  if (adjusted > TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
+    adjusted = TSDB_TXN_MAX_DDL_OPS_PER_TXN;
+  }
+  if (adjusted < 0) {
+    adjusted = 0;
+  }
+  pTscObj->txnDdlCount = adjusted;
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  tscDebug("txn:%" PRIu64 " bulk DDL touched %d objects, DDL count %d -> %d", pTscObj->txnId,
+           pRes->numTouchedObjects, prev, adjusted);
+#endif
 }
 
 // Validate transaction state and statement type for the current request.
@@ -2966,12 +3140,35 @@ int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, b
     return TSDB_CODE_TXN_INVALID_OPERATION;
   }
   if (stmtKind == TXN_STMT_DDL) {
-    if (pTscObj->txnDdlCount >= TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
-      tscError("req:0x%" PRIx64 ", txn:%" PRIu64 " DDL count %d >= limit %d, reject", pRequest->self, pTscObj->txnId,
-               pTscObj->txnDdlCount, TSDB_TXN_MAX_DDL_OPS_PER_TXN);
+    int32_t objCount = txnStmtObjectCount(pRequest->pQuery->pRoot);
+    // Clamp the object count to [1, limit] before the budget arithmetic: a count that
+    // is somehow out of range (e.g. an overflowing batch accumulator) must neither make
+    // limit - objCount negative-and-then-always-true (rejecting everything) nor inflate
+    // the remaining budget past the real limit.
+    if (objCount < 1) {
+      objCount = 1;
+    } else if (objCount > TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
+      objCount = TSDB_TXN_MAX_DDL_OPS_PER_TXN;
+    }
+    // The check-and-add below must run under the same mutex that the scheduler
+    // completion thread uses in tscChargeTouchedObjects to reconcile txnDdlCount
+    // (prev - 1 + numTouchedObjects) and that the txn lifecycle uses to zero it.
+    // An unlocked read-modify-write here could lose an add (under-charging and
+    // evading the limit) or interleave with the -1 reconciliation of a WHERE-based
+    // bulk update that is still in flight from an earlier statement.
+    bool overLimit = false;
+    (void)taosThreadMutexLock(&pTscObj->mutex);
+    if (pTscObj->txnDdlCount > TSDB_TXN_MAX_DDL_OPS_PER_TXN - objCount) {
+      overLimit = true;
+    } else {
+      pTscObj->txnDdlCount += objCount;
+    }
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    if (overLimit) {
+      tscError("req:0x%" PRIx64 ", txn:%" PRIu64 " DDL count %d + %d objects > limit %d, reject", pRequest->self,
+               pTscObj->txnId, pTscObj->txnDdlCount, objCount, TSDB_TXN_MAX_DDL_OPS_PER_TXN);
       return TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
     }
-    pTscObj->txnDdlCount++;
   }
 #endif
   return TSDB_CODE_SUCCESS;

@@ -1282,29 +1282,44 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TXN_ROLLEDBACK                 TAOS_DEF_ERROR_CODE(0, 0x3316)  // txn already rolled back (MNode retained record)
 
 // Transaction conflict error codes - for DDL-level conflict detection.
-// Conflict matrix:
+// The PREPARED_* block below describes how each in-txn shadow state behaves towards
+// other connections. These are behavioural semantics (which other code paths enforce),
+// not claims that every row maps to one of the listed codes:
 //   PREPARED_CREATE: table is being created (shadow state, invisible)
 //     - SELECT/INSERT/DELETE: Table does not exist (invisible)
 //     - CREATE: Resource busy / Conflict (physical slot conflict)
 //     - ALTER/DROP: Table does not exist (invisible)
 //   PREPARED_DROP: table is being deleted (logically deleted state)
-//     - SELECT/INSERT: executes normally (snapshot isolation, reads old data)
+//     - SELECT/INSERT: executes normally (snapshot isolation; the drop is invisible
+//       outside the owning txn, so the table still looks normal to other connections)
 //     - DELETE: Resource busy / Conflict (protect metadata)
-//     - CREATE: Table already exists (name conflict)
+//     - CREATE: Table already exists (name conflict); if the same txn already dropped
+//       this object, TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED (0x3320) instead
 //     - ALTER/DROP: Resource busy / Conflict
 //   PREPARED_ALTER: table is being modified (tag-change state)
 //     - SELECT/INSERT/DELETE: executes normally (transparent)
 //     - CREATE: Table already exists (name conflict)
 //     - ALTER/DROP: Resource busy / Conflict
+//
+// Note: TSDB_CODE_TXN_PREPARED_DROP is kept only for source compatibility - no code
+// path ever returns it, and none should be added. An in-txn DROP is invisible outside
+// the owning txn (snapshot isolation), so external connections never observe a "being
+// dropped" error for it - they see a normal table and their operations either proceed
+// (SELECT/INSERT) or collide via the codes above (0x3317 RESOURCE_BUSY, name-conflict,
+// or 0x331B DELETE_ON_DROPPING on the metadata-protect DELETE path). The 0x331A slot is
+// never returned and must not be reused.
 #define TSDB_CODE_TXN_RESOURCE_BUSY              TAOS_DEF_ERROR_CODE(0, 0x3317)  // Resource busy, table is being modified by another transaction
 #define TSDB_CODE_TXN_PREPARED_CREATE            TAOS_DEF_ERROR_CODE(0, 0x3318)  // Table is being created in a transaction (shadow state, invisible)
 #define TSDB_CODE_TXN_PREPARED_ALTER             TAOS_DEF_ERROR_CODE(0, 0x3319)  // Table is being altered in a transaction (old schema visible)
-#define TSDB_CODE_TXN_PREPARED_DROP              TAOS_DEF_ERROR_CODE(0, 0x331A)  // Table is being dropped in a transaction (old data visible)
+// Deprecated: kept for source compatibility with released versions (3.4.2.x). Never
+// returned by any code path; do not use. The 0x331A value is reserved and not reused.
+#define TSDB_CODE_TXN_PREPARED_DROP              TAOS_DEF_ERROR_CODE(0, 0x331A)  // Deprecated: never returned; 0x331A reserved (see comment above)
 #define TSDB_CODE_TXN_DELETE_ON_DROPPING         TAOS_DEF_ERROR_CODE(0, 0x331B)  // Cannot DELETE on a table being dropped (protect metadata)
 #define TSDB_CODE_TXN_INVALID_OPERATION          TAOS_DEF_ERROR_CODE(0, 0x331C)  // Only table DDL allowed in transaction
 #define TSDB_CODE_TXN_TOO_MANY_DDL_OPS           TAOS_DEF_ERROR_CODE(0, 0x331D)  // Transaction DDL operation count exceeds per-transaction limit
 #define TSDB_CODE_TXN_EXCEEDED_LIFETIME          TAOS_DEF_ERROR_CODE(0, 0x331E)  // Transaction exceeded maximum lifetime
 #define TSDB_CODE_TXN_TIMEOUT_KILLED             TAOS_DEF_ERROR_CODE(0, 0x331F)  // Transaction was forcibly rolled back by server due to inactivity timeout; execute ROLLBACK to clean up
+#define TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED     TAOS_DEF_ERROR_CODE(0, 0x3320)  // Object was dropped in this transaction; creating it again with the same name is not supported until COMMIT/ROLLBACK
 
 //tmq
 #define TSDB_CODE_TMQ_INVALID_MSG                TAOS_DEF_ERROR_CODE(0, 0x4000)

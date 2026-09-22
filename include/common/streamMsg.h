@@ -447,6 +447,23 @@ typedef struct {
   int32_t numOfExtSpecs;
   SArray* extSpecs;
   SStreamWindowPlan* pWindowPlan;
+
+  // batch-meta-txn (stream phase 2): owning txn, 0 = not in a txn. Encoded in the
+  // outer frame of tSerializeSCMCreateStreamReq, NOT in the JSON body, because the
+  // JSON body is what gets persisted into SDB as part of SStreamObj.pCreate - a
+  // txnId baked in there would outlive the txn. The authoritative persisted copy
+  // is SStreamObj.txnId.
+  txn_id_t txnId;
+
+  // batch-meta-txn (stream phase 2): 1 when the INTO target already exists, whatever
+  // its type. Needed because outStbExists above is only set for an existing SUPER
+  // table - translateStreamOutTable leaves it 0 for an existing NORMAL table - so it
+  // cannot answer "does the target exist?". The txn path must not try to create an
+  // existing table: unlike the non-txn path it does not honour TD_CREATE_IF_NOT_EXISTS
+  // (vnodeSvr.c takes metaCreateTable2's return code as final when txnId != 0), so the
+  // CREATE STREAM would fail with TABLE_ALREADY_EXIST inside a txn while succeeding
+  // outside one. Encoded in the outer frame, same reasoning as txnId above.
+  int8_t outTblExists;
 } SCMCreateStreamReq;
 
 typedef enum SStreamMsgType {

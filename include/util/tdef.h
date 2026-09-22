@@ -958,13 +958,15 @@ typedef enum {
 //   PRE_ALTER       - shadow alter: queries see old schema (snapshot isolation);
 //                     writes use old schema
 //   PRE_DROP        - shadow drop: queries still see old data (snapshot isolation);
-//                     INSERT returns TSDB_CODE_PREPARED_DROP
+//                     INSERT is still allowed - the entry stays visible until COMMIT,
+//                     so rows written during the txn are dropped with the table on
+//                     COMMIT and retained together with it on ROLLBACK
 typedef enum {
   META_TXN_NORMAL = 0,      // normal state; no associated transaction
   META_TXN_PRE_CREATE,      // shadow create: written to B+ tree but invisible externally; awaiting COMMIT
   META_TXN_PRE_CREATE_DROP, // shadow create immediately marked for drop: CREATE then DROP in the same txn
   META_TXN_PRE_ALTER,       // shadow alter: new schema written; old schema still visible externally (snapshot isolation)
-  META_TXN_PRE_DROP,        // shadow drop: table marked for deletion; queries still visible; INSERT fails fast
+  META_TXN_PRE_DROP,        // shadow drop: table marked for deletion; queries and INSERT both still see it
 } EMetaTxnStatus;
 
 // EUtxnStage: lifecycle stages of a user batch transaction (shared by the client and MNode).

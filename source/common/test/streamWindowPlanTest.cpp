@@ -235,8 +235,14 @@ SCMCreateStreamReq makeLegacyCountRequest() {
 }
 
 constexpr char kLegacyCountRequestBytes[] =
-    "\x54\x03\x00\x00\xd2\x06"
-    R"({"streamId":"0","igExists":"0","triggerType":"5","igDisorder":"0","deleteReCalc":"0","deleteOutTbl":"0","fillHistory":"0","fillHistoryFirst":"0","calcNotifyOnly":"0","lowLatencyCalc":"0","igNoDataTrigger":"0","multiGroupCalc":"0","notifyEventTypes":"0","addOptions":"0","notifyHistory":"0","maxDelay":"0","fillHistoryStartTime":"0","watermark":"0","expiredTime":"0","idleTimeoutMs":"0","trigger":{"countVal":"2","sliding":"2"},"triggerTblType":"0","triggerTblUid":"0","triggerTblSuid":"0","triggerPrec":"0","vtableCalc":"0","outTblType":"0","outStbExists":"0","outStbUid":"0","outStbSversion":"0","eventTypes":"0","flags":"0","tsmaId":"0","placeHolderBitmap":"0","calcTsSlotId":"-1","triTsSlotId":"-1","calcPkSlotId":"-1","triPkSlotId":"-1","triggerTblVgId":"0","outTblVgId":"0","triggerHasPF":"0","numOfCalcSubplan":"0","nodelayCreateSubtable":"0"})";
+    "\x5d\x03\x00\x00\xd2\x06"
+    R"({"streamId":"0","igExists":"0","triggerType":"5","igDisorder":"0","deleteReCalc":"0","deleteOutTbl":"0","fillHistory":"0","fillHistoryFirst":"0","calcNotifyOnly":"0","lowLatencyCalc":"0","igNoDataTrigger":"0","multiGroupCalc":"0","notifyEventTypes":"0","addOptions":"0","notifyHistory":"0","maxDelay":"0","fillHistoryStartTime":"0","watermark":"0","expiredTime":"0","idleTimeoutMs":"0","trigger":{"countVal":"2","sliding":"2"},"triggerTblType":"0","triggerTblUid":"0","triggerTblSuid":"0","triggerPrec":"0","vtableCalc":"0","outTblType":"0","outStbExists":"0","outStbUid":"0","outStbSversion":"0","eventTypes":"0","flags":"0","tsmaId":"0","placeHolderBitmap":"0","calcTsSlotId":"-1","triTsSlotId":"-1","calcPkSlotId":"-1","triPkSlotId":"-1","triggerTblVgId":"0","outTblVgId":"0","triggerHasPF":"0","numOfCalcSubplan":"0","nodelayCreateSubtable":"0"})"
+    // Tail appended by tSerializeSCMCreateStreamReq after the JSON body, in encode order:
+    // txnId (tEncodeI64, 8 bytes) then outTblExists (tEncodeI8, 1 byte), both zero here
+    // because this golden buffer models a legacy non-txn request. The leading 6 bytes are
+    // the tStartEncode/tEncodeCStrWithLen prefix (see kLegacyCountRequestPrefixSize).
+    // Adding, removing or reordering fields in that tail requires updating these bytes.
+    "\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 constexpr size_t      kLegacyCountRequestPrefixSize = 6;
 constexpr const char* kLegacyCountRequestJson = kLegacyCountRequestBytes + kLegacyCountRequestPrefixSize;
 

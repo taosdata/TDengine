@@ -5810,7 +5810,20 @@ static bool msmCheckLoopStreamSdb(SMnode *pMnode, void *pObj, void *p1, void *p2
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   SStmCheckStatusCtx* pCtx = (SStmCheckStatusCtx*)p1;
   int8_t userDropped = atomic_load_8(&pStream->userDropped), userStopped = atomic_load_8(&pStream->userStopped);
-  
+
+  // Batch meta txn (stream phase 2): a stream created inside a transaction is written to
+  // SDB immediately as PRE_CREATE, but must not deploy until COMMIT clears the marker.
+  // Deploying early would run a stream the user can still ROLLBACK, and on rollback the
+  // undo path assumes it was never deployed (mndTxn.c, undo CREATE_STREAM does no
+  // snode-side compensation). Skip it explicitly rather than relying on the isolation
+  // window, which is a timing parameter and would let a long-running txn's stream through.
+  if (pStream->txnId != 0 && (pStream->txnStatus == META_TXN_PRE_CREATE ||
+                              pStream->txnStatus == META_TXN_PRE_CREATE_DROP)) {
+    mstsDebug("stream is uncommitted in txn:%" PRId64 " (txnStatus:%d), skip deploy until COMMIT",
+              pStream->txnId, pStream->txnStatus);
+    return true;
+  }
+
   if ((userDropped || userStopped) && (NULL == pStatus)) {
     mstsDebug("stream userDropped %d userStopped %d and not in streamMap, ignore it", userDropped, userStopped);
     return true;

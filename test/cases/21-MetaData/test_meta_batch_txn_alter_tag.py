@@ -1121,6 +1121,56 @@ class TestBatchMetaTxnAlterTag:
         tdLog.info("s17 PASSED: repeated single-named bulk SET TAG keeps original version")
 
     # =========================================================================
+    # s18: WHERE-based bulk SET TAG must LOCK every child it matches.
+    #      The pre-scan path used to record each child's pre-txn version without
+    #      taking the per-child txn lock (the multi-table SET TAG path did lock).
+    #      Without the lock another session could mark the same child PRE_ALTER
+    #      and overwrite the recorded original version, so the value restored by
+    #      ROLLBACK became indeterminate.
+    # =========================================================================
+
+    def s18_bulk_set_tag_locks_matched_children(self):
+        self.s0_reset_env()
+        tdLog.info("======== s18_bulk_set_tag_locks_matched_children")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        for i in (1, 2, 3):
+            tdSql.execute(f"create table ct{i} using stb tags({i})")
+            tdSql.execute(f"insert into ct{i} values(now, {i})")
+
+        tdSql.execute("BEGIN")
+        # Matches ct1 and ct2; ct3 stays outside the matched set.
+        tdSql.execute("alter table using stb set tag t1=50 where t1 < 3")
+
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_tag_db")
+        # Matched children are locked: a non-txn ALTER naming them is refused.
+        tdSql2.error("alter table ct1 set tag t1=999",
+                     expectErrInfo="Resource busy, table is being modified by another transaction")
+        tdSql2.error("alter table ct2 set tag t1=999",
+                     expectErrInfo="Resource busy, table is being modified by another transaction")
+        # The unmatched child is untouched and still writable.
+        tdSql2.execute("alter table ct3 set tag t1=333")
+
+        # ROLLBACK restores the ORIGINAL values of the locked children — no
+        # clobbered pre-txn version.
+        tdSql.execute("ROLLBACK")
+        for i in (1, 2):
+            tdSql.query(f"select t1 from stb where tbname='ct{i}'")
+            tdSql.checkData(0, 0, i)
+        # ct3 keeps the other session's committed value.
+        tdSql.query("select t1 from stb where tbname='ct3'")
+        tdSql.checkData(0, 0, 333)
+
+        # Locks are released with the txn: the children are writable again.
+        tdSql2.execute("alter table ct1 set tag t1=111")
+        tdSql2.query("select t1 from stb where tbname='ct1'")
+        tdSql2.checkData(0, 0, 111)
+        tdSql2.close()
+
+        tdLog.info("s18 PASSED: bulk SET TAG locks every matched child")
+
+    # =========================================================================
     # s16: repeated SET TAG on the same VIRTUAL child within one txn must keep
     #      the ORIGINAL pre-txn version (mirrors the user-reported vtable repro).
     # =========================================================================
@@ -1203,8 +1253,12 @@ class TestBatchMetaTxnAlterTag:
             (mirrors the user-reported virtual-table repro)
         17. Repeated SET TAG via super table with a single named child (`using stb ...
             where tbname='x'`, action 20 pre-scan, nChildren==1): keeps ORIGINAL version
+        18. WHERE-based bulk SET TAG takes a per-child txn lock on every matched child, so
+            a concurrent non-txn ALTER on those children is refused and cannot clobber the
+            recorded pre-txn version; unmatched children stay writable (regression)
 
         Since: v3.3.6.0
+
         Labels: common,ci
         """
         self.s1_rollback_reverts_tag()
@@ -1224,3 +1278,4 @@ class TestBatchMetaTxnAlterTag:
         self.s15_repeated_bulk_set_tag_keeps_original()
         self.s16_repeated_set_tag_vctb_keeps_original()
         self.s17_repeated_bulk_set_tag_single_named_keeps_original()
+        self.s18_bulk_set_tag_locks_matched_children()

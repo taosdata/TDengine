@@ -6364,6 +6364,13 @@ typedef struct SVAlterTbReq {
   char*   seriesTagCondJson;
   // TSDB_ALTER_TABLE_REMOVE_SERIES  -  uses seriesAlias above
   int64_t txnId;  // batch meta txn ID (0 = not in txn)
+  // Per-vnode share of the remaining TSDB_TXN_MAX_DDL_OPS_PER_TXN budget, for
+  // TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL only. The client cannot know how many
+  // children a WHERE predicate matches (tag values live on the vnode, and inside a txn the
+  // predicate must be evaluated against uncommitted shadow state), so it sends the quota it
+  // can afford and the vnode aborts its pre-scan once the match count exceeds it. 0 = no
+  // limit (non-txn path). See metaPreScanChildTableTagUpdate.
+  int32_t txnDdlQuota;
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -6376,6 +6383,14 @@ void    tfreeUpdateTableTagVal(void* pMultiTable);
 typedef struct {
   int32_t        code;
   STableMetaRsp* pMeta;
+  // Number of child tables this vnode actually rewrote, for
+  // TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL (WHERE-based bulk tag update) inside a
+  // txn. The vnode fills this in when that action runs with txnId != 0
+  // (vnodeProcessAlterTbReq, txn path); it stays 0 on the non-txn path and for all
+  // other action types. Only txn callers consume it: the client sums this across
+  // vgroups into txnDdlCount so the per-object accounting in FS Sec.4.13 reflects the
+  // real object count for a statement whose reach is only knowable server-side.
+  int32_t        numTouched;
 } SVAlterTbRsp;
 
 int32_t tEncodeSVAlterTbRsp(SEncoder* pEncoder, const SVAlterTbRsp* pRsp);
@@ -6794,6 +6809,7 @@ typedef struct {
   char**  name;
   int32_t count;
   int8_t  igNotExists;
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SMDropStreamReq;
 
 typedef struct {
