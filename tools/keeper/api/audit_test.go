@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -148,7 +149,9 @@ func TestAudit(t *testing.T) {
 		})
 	}
 
+	maxSqlLen := MAX_SQL_LEN
 	MAX_SQL_LEN = 300
+	t.Cleanup(func() { MAX_SQL_LEN = maxSqlLen })
 	// test audit batch
 	input := `{"records":[{"timestamp":"1702548856940013848","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45166","db":"test","resource":"","details":"d630302"},{"timestamp":"1702548856939746458","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45230","db":"test","resource":"","details":"d130277"},{"timestamp":"1702548856939586665","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:50288","db":"test","resource":"","details":"d5268"},{"timestamp":"1702548856939528940","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:50222","db":"test","resource":"","details":"d255282"},{"timestamp":"1702548856939336371","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45126","db":"test","resource":"","details":"d755297"},{"timestamp":"1702548856939075131","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45122","db":"test","resource":"","details":"d380325"},{"timestamp":"1702548856938640661","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45152","db":"test","resource":"","details":"d255281"},{"timestamp":"1702548856938505795","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45122","db":"test","resource":"","details":"d130276"},{"timestamp":"1702548856938363319","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45178","db":"test","resource":"","details":"d755296"},{"timestamp":"1702548856938201478","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45166","db":"test","resource":"","details":"d380324"},{"timestamp":"1702548856937740618","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:50288","db":"test","resource":"","details":"d5266"}]}`
 
@@ -200,11 +203,135 @@ func TestNewAudit(t *testing.T) {
 }
 
 func Test_handleDetails(t *testing.T) {
-	details := handleDetails("\"")
-	assert.Equal(t, "\\\"", details)
+	// double quotes need no escaping inside single-quoted literals
+	assert.Equal(t, "\"", handleDetails("\""))
+	// single quotes are doubled so they cannot terminate the literal
+	assert.Equal(t, "''", handleDetails("'"))
+	// the backslash is escaped before the quote, so it cannot escape the quote itself
+	assert.Equal(t, "\\\\''", handleDetails("\\'"))
+	// truncated to the details column width
+	assert.Equal(t, 50000, len(handleDetails(strings.Repeat("a", 60000))))
+}
 
-	details = handleDetails(strings.Repeat("a", 60000))
-	assert.Equal(t, 50000, len(details))
+// Escaping doubles a backslash or a quote, so details made of those characters
+// grow past the parser's per-token limit even though the raw text fits the
+// column. The parser refuses such a token outright, which would fail the whole
+// insert, so handleDetails has to bound the escaped form too.
+func Test_handleDetails_StaysUnderParserTokenLimit(t *testing.T) {
+	// ordinary text keeps the full column width
+	assert.Equal(t, MAX_DETAIL_LEN, len(handleDetails(strings.Repeat("a", MAX_DETAIL_LEN))))
+
+	// characters that double when escaped are clamped to the token limit
+	// instead of being refused by the server
+	for _, c := range []string{`\`, `'`} {
+		got := handleDetails(strings.Repeat(c, MAX_DETAIL_LEN))
+		assert.Less(t, len(got), maxEscapedDetailLen, "%q must stay under the token limit", c)
+	}
+
+	// the clamp must still leave the literal escaped: a dangling backslash
+	// would escape the closing quote and corrupt the statement
+	got := handleDetails(strings.Repeat(`\`, MAX_DETAIL_LEN))
+	assert.Zero(t, strings.Count(got, `\`)%2, "backslashes must stay paired")
+}
+
+func TestParseSql_InjectionFieldsAreNeutralized(t *testing.T) {
+	evilClusterID := "c1' ,('x"
+	evilUser := "u'); drop table operations; --"
+	info := AuditInfo{
+		Timestamp: "1699839716440000000",
+		ClusterID: evilClusterID,
+		User:      evilUser,
+		Operation: "op",
+		Db:        "db\\'x",
+		Resource:  "res",
+		ClientAdd: "addr",
+		Details:   "d\\' ; drop table x; --",
+	}
+
+	sql, err := parseSql(info)
+	assert.NoError(t, err)
+	// table name is built from a whitelisted cluster id
+	assert.Contains(t, sql, "insert into t_operations_"+util.ToValidTableName(evilClusterID)+" ")
+	// payloads with quote/backslash sequences must not appear verbatim
+	assert.NotContains(t, sql, evilClusterID)
+	assert.NotContains(t, sql, evilUser)
+	assert.NotContains(t, sql, "db\\'x")
+	assert.Contains(t, sql, "'"+util.EscapeTrunc(evilUser, 25)+"'")
+	// a second statement must not break out of the string literal
+	assert.NotContains(t, sql, "'; drop")
+
+	// non-numeric timestamp is rejected instead of being concatenated
+	_, err = parseSql(AuditInfo{Timestamp: "1,0); drop table operations; --"})
+	assert.Error(t, err)
+
+	// timestamps beyond the int64 TIMESTAMP range are rejected up front
+	_, err = parseSql(AuditInfo{Timestamp: "9223372036854775808"})
+	assert.Error(t, err)
+	_, err = parseSql(AuditInfo{Timestamp: "18446744073709551615"})
+	assert.Error(t, err)
+	_, err = parseSql(AuditInfo{Timestamp: "9223372036854775807"})
+	assert.NoError(t, err)
+
+	old := parseSqlOld(AuditInfoOld{
+		Timestamp: 1699839716445,
+		ClusterID: evilClusterID,
+		User:      evilUser,
+		Operation: "op",
+		Db:        "db",
+		Resource:  "res",
+		ClientAdd: "addr",
+		Details:   "d",
+	})
+	assert.Contains(t, old, "insert into t_operations_"+util.ToValidTableName(evilClusterID)+" ")
+	assert.NotContains(t, old, evilUser)
+
+	// batch records with an invalid timestamp fail before any SQL is executed
+	err = handleBatchRecord([]AuditInfo{{Timestamp: "1);drop--", ClusterID: "c"}}, nil, 0)
+	assert.Error(t, err)
+}
+
+// The batch insert path shares buildAuditValues with parseSql; assert the
+// tuple it emits so the escaping/truncation contract is pinned for the
+// success path too, not only for rejection paths.
+func TestBuildAuditValues_EscapesAndTruncates(t *testing.T) {
+	evilUser := "u'); drop table operations; --"
+	values, err := buildAuditValues(AuditInfo{
+		Timestamp: "1699839716440000000",
+		User:      evilUser,
+		Operation: "op",
+		Db:        "db\\'x",
+		Resource:  "res",
+		ClientAdd: "addr",
+		Details:   "d\\' ; drop table x; --",
+	})
+	assert.NoError(t, err)
+	assert.True(t, strings.HasPrefix(values, "(1699839716440000000, "))
+	assert.Contains(t, values, "'"+util.EscapeTrunc(evilUser, 25)+"'")
+	assert.NotContains(t, values, evilUser)
+	assert.NotContains(t, values, "db\\'x")
+	// details land escaped verbatim, so a quote can never close the literal
+	details := "d\\' ; drop table x; --"
+	assert.Contains(t, values, "'"+handleDetails(details)+"'")
+	assert.NotContains(t, values, details)
+
+	// an invalid timestamp is rejected here, not only by the callers
+	_, err = buildAuditValues(AuditInfo{Timestamp: "1);drop--"})
+	assert.Error(t, err)
+}
+
+func TestAudit_InvalidDBName_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Audit{}
+	r.POST("/audit", a.handleFunc())
+
+	// '?' would let the db parameter inject extra DSN parameters
+	req := httptest.NewRequest(http.MethodPost, "/audit?db=x%3FskipVerify%3Dfalse", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestAudit_handleBatchFunc_NoConnection_Returns500(t *testing.T) {
@@ -1601,4 +1728,68 @@ func TestAuditV2SwitchDBAndToken(t *testing.T) {
 
 	_, err = conn.Exec(context.Background(), "drop user sw_token_user", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
+}
+
+// Leading zeros are valid per ParseUint but ambiguous downstream (a C-based
+// parser may read them as octal); the canonical form, not the raw request
+// string, must reach the SQL statement.
+func TestBuildAuditValues_NormalizesTimestamp(t *testing.T) {
+	values, err := buildAuditValues(AuditInfo{Timestamp: "0000123"})
+	assert.NoError(t, err)
+	assert.True(t, strings.HasPrefix(values, "(123, "))
+}
+
+// The ?db= parameter ends up in the connection DSN, so it is restricted to
+// plain TDengine identifiers. Underscore-leading names are regular identifiers
+// (only a leading digit is disallowed), so they must stay usable — rejecting
+// them was a regression of this allowlist.
+func TestValidAuditDBName(t *testing.T) {
+	for _, ok := range []string{"audit", "_audit", "a", "_", "Audit_2", "keeper_test_audit"} {
+		assert.True(t, validAuditDBName.MatchString(ok), "%q must be accepted", ok)
+	}
+	// anything that could change the DSN or the statement is rejected
+	for _, bad := range []string{"", "2audit", "audit-db", "audit db", "audit;drop", "a.b", "a?b", "a&b", "a'b", `a"b`} {
+		assert.False(t, validAuditDBName.MatchString(bad), "%q must be rejected", bad)
+	}
+}
+
+// A switch that fails must not leave the cached (db, token) naming a connection
+// the cache does not hold. It used to update the pair before building the
+// connection, so a malformed token made the next identical request look like a
+// cache hit and the audit record was written through the previous connection,
+// into the previous database.
+//
+// The malformed token is rejected before any network I/O, so this needs no
+// running TDengine.
+func TestPrepareConnectionAndTable_FailedSwitchDoesNotReuseOldConnection(t *testing.T) {
+	audit := &Audit{username: "root", password: "taosdata", host: "127.0.0.1", port: 6041}
+
+	// stand in for a connection an earlier request had established
+	seed, err := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
+	assert.NoError(t, err)
+	audit.conn = seed
+	audit.db = "audit"
+	audit.inited = true
+
+	// the query has to be encoded: a raw '&' would split into two parameters
+	// before the handler ever sees it, so a token carrying one arrives as %26 —
+	// which is exactly how a peer delivers it.
+	call := func(dbParam, token string) bool {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/audit", nil)
+		c.Request.URL.RawQuery = url.Values{"db": {dbParam}, "token": {token}}.Encode()
+		return audit.prepareConnectionAndTable(c, logrus.NewEntry(logrus.New()))
+	}
+
+	assert.False(t, call("audit2", "bad&token"), "a token that cannot build a DSN must fail")
+	assert.False(t, call("audit2", "bad&token"), "the retry must fail too, not be served by the old connection")
+	assert.False(t, audit.inited, "the cache must not claim to be initialised")
+	assert.Equal(t, "audit2", audit.db, "the cache must record the key it failed to build for")
+
+	// The previous connector is deliberately left open rather than closed or
+	// nil'd: a concurrent request may already have read it into a local, and
+	// the handlers do not hold a.mu while they write. inited==false is what
+	// stops it being handed out — every request rebuilds for its own key.
+	assert.NotNil(t, audit.conn)
 }
