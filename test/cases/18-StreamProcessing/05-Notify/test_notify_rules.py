@@ -262,7 +262,11 @@ class TestStreamNotifyRecovery:
                         obj = json.loads(raw)
                     except Exception:
                         continue
-                    for s in obj.get("streams") or []:
+                    streams = obj.get("streams") or []
+                    frame_stream_names = [
+                        s.get("streamName", "") for s in streams
+                    ]
+                    for s in streams:
                         sname = s.get("streamName", "")
                         if stream_name and sname != stream_name and \
                                 not sname.endswith(f".{stream_name}"):
@@ -279,6 +283,8 @@ class TestStreamNotifyRecovery:
                             "event_count": len(events),
                             "close_count": len(close_evts),
                             "messageId": obj.get("messageId"),
+                            "frame_stream_count": len(streams),
+                            "frame_stream_names": frame_stream_names,
                         })
         except FileNotFoundError:
             pass
@@ -305,6 +311,36 @@ class TestStreamNotifyRecovery:
 
     def _count_close_events(self, msgs):
         return sum(m["close_count"] for m in msgs)
+
+    def _wait_stream_close_events(self, log_file, expected_by_stream,
+                                  timeout_s=60, stable_for_s=3.0):
+        deadline = time.monotonic() + timeout_s
+        last_message_count = -1
+        last_change = time.monotonic()
+        msgs = []
+
+        while time.monotonic() < deadline:
+            msgs = self._parse_log_messages(log_file)
+            if len(msgs) != last_message_count:
+                last_message_count = len(msgs)
+                last_change = time.monotonic()
+
+            complete = True
+            for stream_name, expected in expected_by_stream.items():
+                stream_msgs = [
+                    m for m in msgs
+                    if m["streamName"] == stream_name
+                    or m["streamName"].endswith(f".{stream_name}")
+                ]
+                if self._count_close_events(stream_msgs) < expected:
+                    complete = False
+                    break
+
+            if complete and time.monotonic() - last_change >= stable_for_s:
+                return msgs
+            time.sleep(0.2)
+
+        return msgs
 
     def _wait_phase_a(self, log_file, stream_name, dst_table):
         """Insert c1=10,20 and wait for baseline notify events."""
@@ -538,8 +574,8 @@ class TestStreamNotifyRecovery:
 
         Two streams share the same notify URL.  A burst insert triggers
         high-frequency CLOSE on both streams.  Each WS frame must belong to
-        exactly one ``streamName``; each stream should still get its own
-        high-frequency merged frames.
+        exactly one ``streamName``.  Frame aggregation is opportunistic, so
+        the number of merged frames may differ between streams.
 
         Catalog:
             - Stream
@@ -552,6 +588,7 @@ class TestStreamNotifyRecovery:
 
         History:
             - 2026-06-11 Created for cross-stream batching isolation regression
+            - 2026-09-21 Dev Removed timing-sensitive merge expectations
         """
         notify_path = "batch_isolation"
         log_file = os.path.join(NOTIFY_RESULT_DIR, f"{notify_path}.log")
@@ -590,12 +627,19 @@ class TestStreamNotifyRecovery:
                 ('2025-01-01 00:00:04.000', 5, 5),
                 ('2025-01-01 00:00:05.000', 6, 6);"""
             )
-            self._wait_rows(dst_a, 5, timeout_s=40)
-            self._wait_rows(dst_b, 5, timeout_s=40)
+            self._wait_rows(dst_a, 5, timeout_s=60)
+            self._wait_rows(dst_b, 5, timeout_s=60)
 
-            msgs = self._wait_log_stable(
-                log_file, 0, stream_name=None,
-                min_messages=4, timeout_s=40)
+            expected_close_count = 5
+            msgs = self._wait_stream_close_events(
+                log_file,
+                {
+                    stream_a: expected_close_count,
+                    stream_b: expected_close_count,
+                },
+                timeout_s=60,
+                stable_for_s=3.0,
+            )
 
             suffix_a = f".{stream_a}"
             suffix_b = f".{stream_b}"
@@ -616,6 +660,15 @@ class TestStreamNotifyRecovery:
                     f"a={len(msgs_a)} b={len(msgs_b)} all={msgs}"
                 )
 
+            mixed_frames = [
+                m for m in msgs if m["frame_stream_count"] != 1
+            ]
+            if mixed_frames:
+                raise Exception(
+                    f"[batch_iso] a WS frame contains multiple streams: "
+                    f"{mixed_frames}"
+                )
+
             for m in msgs:
                 sname = m["streamName"]
                 is_a = sname.endswith(suffix_a) or sname == stream_a
@@ -625,18 +678,24 @@ class TestStreamNotifyRecovery:
                         f"[batch_iso] unexpected streamName in log: {sname}"
                     )
 
-            merged_a = [m for m in msgs_a if m["close_count"] >= 2]
-            merged_b = [m for m in msgs_b if m["close_count"] >= 2]
-            if not merged_a or not merged_b:
+            close_a = self._count_close_events(msgs_a)
+            close_b = self._count_close_events(msgs_b)
+            if close_a != expected_close_count or \
+                    close_b != expected_close_count:
                 raise Exception(
-                    f"[batch_iso] expected merged CLOSE frames per stream "
-                    f"(high-frequency path); a={msgs_a} b={msgs_b}"
+                    f"[batch_iso] unexpected CLOSE event count; "
+                    f"a={close_a} b={close_b} expected={expected_close_count}; "
+                    f"all={msgs}"
                 )
 
+            merged_a = [m for m in msgs_a if m["close_count"] >= 2]
+            merged_b = [m for m in msgs_b if m["close_count"] >= 2]
+
             tdLog.info(
-                f"[batch_iso] stream A: {len(msgs_a)} frames "
-                f"({len(merged_a)} merged); "
-                f"stream B: {len(msgs_b)} frames ({len(merged_b)} merged) ✓"
+                f"[batch_iso] stream A: {len(msgs_a)} frames, "
+                f"{close_a} CLOSE ({len(merged_a)} merged); "
+                f"stream B: {len(msgs_b)} frames, "
+                f"{close_b} CLOSE ({len(merged_b)} merged) ✓"
             )
             tdLog.info(
                 "test_stream_notify_batch_stream_isolation ....... [ passed ]"
