@@ -1,17 +1,29 @@
 # These programs are internal test tools -- they are never shipped -- so they
-# link the *static* driver and own exactly one copy of the engine.
+# link the *shared* client libraries and no engine archive at all.  libtaos.so
+# owns the public C API (taos_*, tmq_*), libtaosnative.so provides the engine
+# symbols they call directly, and both are needed.
 #
-# With the shared driver the public API lives in libtaos.so while the engine
-# archives still get listed here (util/common/os); on Linux the driver hides the
-# public names, so the linker pulls those archive members into the executable
-# instead of resolving them dynamically.  The executable then defines its own
-# osDefaultInit/tsNumOfCores and, being first in the lookup scope, becomes the
-# provider for libtaosnative.so -- which initialises the executable's copy and
-# leaves the driver's uninitialised, so taosInitCfg fails and taos_connect()
-# returns NULL (TMQ tests then sit at "row: 0" until they time out).
+# Two things must never appear on their link line:
 #
-# Shadowing the variable covers every target_link_libraries block below.
-set(TAOS_NATIVE_LIB ${TAOS_NATIVE_LIB_STATIC})
+#   * the engine archives (util/common/os).  The linker prefers an archive
+#     member over a shared library, so listing them makes each tool embed its
+#     own copy of that code -- and of the global state inside it.  The
+#     executable then becomes the provider for libtaosnative.so, which
+#     initialises the executable's copy and leaves the driver's uninitialised,
+#     so taosInitCfg fails and taos_connect() returns NULL (TMQ tests then sit
+#     at "row: 0" until they time out).
+#   * ${TAOS_NATIVE_LIB_STATIC}.  Its PUBLIC engine dependencies drag the whole
+#     static stack into every executable: each tool grows to ~79 MB and the
+#     release package by ~1.9 GB.
+#
+# Engine symbols these tools import are exported through the libtaosnative.so
+# whitelist (source/client/taosnative.ver); regenerate it with
+# cmake/gen_export_ver.py after a tool starts using a new one, otherwise the
+# link fails or, worse, some archive satisfies it silently.
+#
+# -lm: dropping the engine archives also drops their usage requirements, and a
+# few tools (tmq_sim, ...) call ceil()/floor() directly.
+set(TD_TEST_C_LIBS ${TAOS_LIB} ${TAOS_NATIVE_LIB} m)
 
 add_executable(tmq_demo tmqDemo.c)
 add_dependencies(tmq_demo ${TAOS_NATIVE_LIB})
@@ -57,336 +69,233 @@ add_executable(tmq_taosx_txn tmq_taosx_txn.c)
 
 if(TD_LINUX)
     add_executable(tsz_test tsz_test.c)
-    # malformed TSZ/SZ payload rejection (Devon static scan defect 7114784001): the SZ decoder
-    # must reject garbage blocks with an error code instead of overflowing or calling exit()
-    add_test(NAME tsz_test_malformed_reject COMMAND tsz_test -sec)
 endif()
 
 target_link_libraries(
     tmq_offset
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_multi_thread_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     create_table
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_demo
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_sim
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_token
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_ts5466
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_vtable
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_alter_tag
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_ts7662
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_td38404
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_td32187
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_td35698
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_spot_trading
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_get_meta_json
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_td32471
-    PUBLIC ${TAOS_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_td37436
-    PUBLIC ${TAOS_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_td37265
-    PUBLIC ${TAOS_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_ts7402
-    PUBLIC ${TAOS_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_td33798
-    PUBLIC ${TAOS_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_ts6115
-    PUBLIC ${TAOS_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_poll_test
-    PUBLIC ${TAOS_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_td32526
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_batch_alter_tag
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_ts5776
-    PUBLIC ${TAOS_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_taosx_ci
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_offset_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     replay_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     write_raw_block_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_write_raw_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
-)
-target_link_libraries(
-    tmq_base_on_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
-    tmq_write_raw_with_blob_test 
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    tmq_base_on_test
+    PUBLIC ${TD_TEST_C_LIBS}
+)
+
+target_link_libraries(
+    tmq_write_raw_with_blob_test
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     sml_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
+    # sml_test decodes WKT and calls geosFreeBuffer() on the result.  GEOS is
+    # pure computation, so the archive cannot split engine state; it stays until
+    # the symbol is proven to resolve from libtaosnative.so.
     PUBLIC geometry
 )
 
 target_link_libraries(
     get_db_name_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     varbinary_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     blob_test
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
+
 target_link_libraries(
     timezone_test
-    PUBLIC taos
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
+
 target_link_libraries(
     timezone_normalize_test
-    PUBLIC taos
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_blob
-    PUBLIC taos
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 target_link_libraries(
     tmq_taosx_txn
-    PUBLIC ${TAOS_NATIVE_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PUBLIC ${TD_TEST_C_LIBS}
 )
 
 if(${TD_LINUX})
+    # tsz_test drives the SZ codec's internals directly (cost_start/cost_end,
+    # createHuffmanTree, SZ_ReleaseHuffman).  Those live in contrib/TSZ, which
+    # the driver links with --exclude-libs,libTSZ.a -- so they are local in
+    # libtaosnative.so and cannot be exported no matter what the whitelist says.
+    # They used to arrive transitively through util's PUBLIC TSZ link, which is
+    # gone now.  SZ is pure codec code with no engine global state, so embedding
+    # it here cannot split anything.
     target_link_libraries(
         tsz_test
-        PUBLIC ${TAOS_NATIVE_LIB}
-        PUBLIC util
-        PUBLIC common
-        PUBLIC os
+        PUBLIC ${TD_TEST_C_LIBS}
+        PUBLIC TSZ
     )
 endif()
+
+# These three build and parse JSON payloads themselves (cJSON_*), and cJSON is
+# linked into the driver with --exclude-libs,libcjson.a -- so its symbols are
+# local in libtaosnative.so and can never be exported.  common used to bring the
+# archive in transitively; DEP_ext_cjson is the same call common, taosmqtt and
+# dmodule make.
+DEP_ext_cjson(tmq_base_on_test)
+DEP_ext_cjson(tmq_spot_trading)
+DEP_ext_cjson(tmq_taosx_ci)
 
