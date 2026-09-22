@@ -3967,6 +3967,14 @@ void msmClearStreamToDeployMaps(SStreamHbMsg* pHb) {
 }
 
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb) {
+  // SECURITY: this helper dereferences deployStm[gid]/actionStm[gid] as SHashObj (taosHashClear
+  // frees through them). Never index the fixed-size arrays with a group id that is out of range,
+  // even if a caller forgot to validate the wire-supplied gid.
+  if (pHb->streamGId < 0 || pHb->streamGId >= STREAM_MAX_GROUP_NUM) {
+    mstError("invalid stream gid %d, skip cleaning the stream grp ctx", pHb->streamGId);
+    return;
+  }
+
   int32_t tidx = streamGetThreadIdx(mStreamMgmt.threadNum, pHb->streamGId);
   if (mStreamMgmt.tCtx) {
     taosHashClear(mStreamMgmt.tCtx[tidx].actionStm[pHb->streamGId]);
