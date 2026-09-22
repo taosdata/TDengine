@@ -30,6 +30,7 @@ def make_installer(install_module, tmp_path):
     installer._archive_member_cache = {}
     installer.print_error = mock.Mock()
     installer.print_info = mock.Mock()
+    installer.print_success = mock.Mock()
     installer.print_warning = mock.Mock()
     return installer
 
@@ -128,3 +129,73 @@ def test_tar_fast_path_does_not_prescan_archive(install_module, tmp_path):
     installer.get_archive_member_names.assert_not_called()
     run.assert_called_once()
     assert run.call_args.args[0][1] == "-xf"
+
+
+def test_remove_legacy_resource_directory_preserves_dynamic_resources(
+    install_module, tmp_path
+):
+    installer = make_installer(install_module, tmp_path)
+    dynamic_root = tmp_path / "data" / "resource"
+    dynamic_files = {
+        "state/models/moment.json": "model-state",
+        "state/tasks/digest.json": "task-state",
+        "cache/digest.part": "partial-download",
+    }
+    for relative_path, content in dynamic_files.items():
+        path = dynamic_root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    legacy_root = tmp_path / "resource"
+    (legacy_root / "nested").mkdir(parents=True)
+    (legacy_root / "foundation_models.db").write_bytes(b"old")
+    (legacy_root / "nested" / "obsolete.txt").write_text("old", encoding="utf-8")
+
+    installer.remove_legacy_resource_directory()
+
+    for relative_path, content in dynamic_files.items():
+        assert (dynamic_root / relative_path).read_text(encoding="utf-8") == content
+    assert not legacy_root.exists()
+
+
+def test_remove_legacy_resource_directory_warns_on_failure(install_module, tmp_path):
+    installer = make_installer(install_module, tmp_path)
+    legacy_root = tmp_path / "resource"
+    legacy_root.mkdir()
+
+    with mock.patch.object(
+        install_module.shutil, "rmtree", side_effect=OSError("blocked")
+    ):
+        installer.remove_legacy_resource_directory()
+
+    assert legacy_root.exists()
+    installer.print_warning.assert_called_once()
+
+
+def test_install_cleans_legacy_resource_after_service_setup(install_module):
+    source = Path(install_module.__file__).read_text(encoding="utf-8")
+
+    service_setup = source.index("if not self.install_service():")
+    legacy_cleanup = source.index(
+        "self.remove_legacy_resource_directory()", service_setup
+    )
+    successful_return = source.index("return True", legacy_cleanup)
+
+    assert service_setup < legacy_cleanup < successful_return
+
+
+def test_migrate_legacy_windows_config_uses_data_resource(install_module, tmp_path):
+    installer = make_installer(install_module, tmp_path)
+    config_path = tmp_path / "cfg" / "taosanode.config.py"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        "resource_dir = _os.path.join(base_dir, 'resource', '') if "
+        "(on_windows or on_github_actions) else _os.path.join(data_dir, 'resource', '')\n"
+        "resource_base_url = 'https://example.invalid'\n",
+        encoding="utf-8",
+    )
+
+    installer.migrate_legacy_windows_config_paths()
+
+    updated = config_path.read_text(encoding="utf-8")
+    assert "resource_dir = _os.path.join(data_dir, 'resource', '')" in updated
+    assert "resource_base_url = 'https://example.invalid'" in updated

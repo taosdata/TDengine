@@ -49,7 +49,6 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "{#MyAppIco}"; DestDir: "{app}"; DestName: "favicon.ico"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\cfg\*"; DestDir: "{app}\cfg"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppSourceDir}\resource\*"; DestDir: "{app}\resource"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyAppSourceDir}\requirements\*"; DestDir: "{app}\requirements"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
@@ -71,6 +70,9 @@ Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C call ""{app}\uninstall.bat"" & exit /b 0"; Flags: runhidden waituntilterminated
+
+[InstallDelete]
+Name: "{app}\resource"; Type: filesandordirs
 
 [Icons]
 Name: "{group}\Start Taosanode"; Filename: "{app}\bin\start-taosanode.bat"

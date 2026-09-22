@@ -305,23 +305,6 @@ def copy_python_files():
     logging.info("Python files copied")
 
 
-def copy_resource_files():
-    """Copy resource files"""
-    resource_dir = os.path.join(install_info.install_dir, "resource")
-    os.makedirs(resource_dir, exist_ok=True)
-
-    source_resource = os.path.join(install_info.source_dir, "resource")
-    if os.path.exists(source_resource):
-        for item in os.listdir(source_resource):
-            src = os.path.join(source_resource, item)
-            dst = os.path.join(resource_dir, item)
-            if os.path.isdir(src):
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-            else:
-                shutil.copy2(src, dst)
-        logging.info("Copied resource files")
-
-
 def copy_requirements():
     """Copy requirements files"""
     source_dir = install_info.source_dir
@@ -1030,7 +1013,6 @@ def main():
     # Copy all necessary files
     copy_config_files()
     copy_python_files()
-    copy_resource_files()
     copy_requirements()
     if install_info.bundle_python_runtime:
         copy_packaged_python_runtime()

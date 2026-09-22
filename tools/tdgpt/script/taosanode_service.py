@@ -370,6 +370,7 @@ class Config:
         self.tsfm_model_dir = os.path.join(self.model_dir, "tsfm")
         self.model_venvs_dir = os.path.join(self.data_dir, "model_venvs")
         self.tsfm_venv = os.path.join(self.model_venvs_dir, "tsfm")
+        self.resource_dir = os.path.join(self.data_dir, "resource")
         self.python_runtime_dir = None
         self.resource_base_url = os.environ.get(
             "TDGPT_RESOURCE_BASE_URL", "https://downloads.taosdata.com"
@@ -425,6 +426,11 @@ class Config:
                 config_module,
                 'tsfm_venv',
                 os.path.join(self.model_venvs_dir, "tsfm"),
+            )
+            self.resource_dir = getattr(
+                config_module,
+                'resource_dir',
+                os.path.join(self.data_dir, "resource"),
             )
             self.python_runtime_dir = getattr(config_module, "python_runtime_dir", None)
             self.resource_base_url = getattr(
@@ -492,6 +498,7 @@ class Config:
             self.tsfm_model_dir = os.path.join(self.model_dir, "tsfm")
             self.model_venvs_dir = os.path.join(self.data_dir, "model_venvs")
             self.tsfm_venv = os.path.join(self.model_venvs_dir, "tsfm")
+            self.resource_dir = os.path.join(self.data_dir, "resource")
             self.venv_dir = _preferred_venv_path(self.install_dir, "venv")
             self.bind = "0.0.0.0:6035"
             self.workers = 2
@@ -2392,7 +2399,7 @@ Examples:
     config = Config(args.config)
     try:
         if args.command in {"model-start", "model-stop", "resource-import", "resource-apply", "resource-delete"}:
-            with lifecycle_lock(config.data_dir):
+            with lifecycle_lock(config.resource_dir):
                 execute_command(args, config)
         else:
             execute_command(args, config)

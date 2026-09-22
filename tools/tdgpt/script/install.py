@@ -3391,6 +3391,11 @@ except Exception as exc:
             "img_dir = _os.path.join(base_dir, 'img', '') if (on_windows or on_github_actions) "
             "else _os.path.join(data_dir, 'img', '')"
         )
+        legacy_resource_line = (
+            "resource_dir = _os.path.join(base_dir, 'resource', '') if "
+            "(on_windows or on_github_actions) else _os.path.join(data_dir, 'resource', '')"
+        )
+        migrated_resource_line = "resource_dir = _os.path.join(data_dir, 'resource', '')"
 
         try:
             original = config_path.read_text(encoding="utf-8")
@@ -3403,18 +3408,33 @@ except Exception as exc:
         updated = original
         updated = updated.replace(legacy_model_line, migrated_model_line)
         updated = updated.replace(legacy_img_line, migrated_img_line)
+        updated = updated.replace(legacy_resource_line, migrated_resource_line)
 
         if updated == original:
             return
 
         try:
             config_path.write_text(updated, encoding="utf-8")
-            self.print_info(
-                "Migrated legacy Windows taosanode.config.py paths from data/model to install-dir model."
-            )
+            self.print_info("Migrated legacy Windows taosanode.config.py paths.")
         except Exception as exc:
             self.print_warning(
                 f"Failed to update legacy Windows taosanode.config.py paths: {exc}"
+            )
+
+    def remove_legacy_resource_directory(self) -> None:
+        """Remove the obsolete Windows installation-root resource directory."""
+        legacy_resource_dir = self.install_dir / "resource"
+        if not legacy_resource_dir.exists():
+            return
+        try:
+            shutil.rmtree(legacy_resource_dir)
+            self.print_info(
+                f"Removed legacy resource directory: {legacy_resource_dir}"
+            )
+        except OSError as exc:
+            self.print_warning(
+                f"Unable to remove legacy resource directory "
+                f"{legacy_resource_dir}: {exc}"
             )
 
     def write_enabled_models(self) -> None:
@@ -3619,6 +3639,13 @@ except Exception as exc:
             if not self.install_service():
                 return False
             self.finish_phase_timer("Install Windows service", timer)
+            # Some upgrade steps may still touch the former installation-root
+            # resource path while replacing an existing installation. Remove it
+            # after all service and environment setup so the obsolete directory
+            # is absent when installation returns successfully.
+            timer = self.start_phase_timer("Clean legacy resource directory")
+            self.remove_legacy_resource_directory()
+            self.finish_phase_timer("Clean legacy resource directory", timer)
             timer = self.start_phase_timer("Write install state marker")
             self.write_install_state()
             self.finish_phase_timer("Write install state marker", timer)
