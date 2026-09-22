@@ -224,8 +224,20 @@ void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
 int32_t       metaFlagCache(SVnode* pVnode);
 
-int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList);
-int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray *pUids, SArray *pVersions);
+// maxUids > 0 bounds the result set: more than maxUids qualifying children causes the scan
+// to stop and return TSDB_CODE_TXN_TOO_MANY_DDL_OPS (the bound is checked before pushing,
+// so exactly maxUids matches still succeed and the successful return carries at most maxUids
+// entries). maxUids is a ceiling of the txn budget share, not an exact allowance - being
+// conservative there is fine. maxUids <= 0 means unlimited (the non-txn path) - 0 is a
+// "no limit" sentinel, not "must match nothing".
+int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList, int32_t maxUids);
+// Pre-scan the child tables matched by a WHERE-based bulk tag update (action
+// TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL).  pUids/pVersions collect the matched uids and
+// their pre-txn versions (for rollback).  pNames, when non-NULL, collects the matched table
+// names (char[TSDB_TABLE_NAME_LEN] elements) so the caller can take per-table txn locks -
+// vnodeTxnLockTable keys on the full table name, which is not derivable from a uid alone.
+int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray *pUids, SArray *pVersions,
+                                       SArray *pNames);
 int64_t metaGetTbNum(SMeta* pMeta);
 void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags, int64_t txnId);
 

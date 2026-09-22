@@ -573,7 +573,10 @@ int32_t mndStreamTransAppendRecalcUpdate(SStreamObj* pStream, uint64_t revision,
                                          int32_t status);
 int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, STrans **ppTrans);
 void    mndStreamLifecycleTransStopped(SMnode* pMnode, void* param, int32_t paramLen);
-int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
+// viewerTxnId: the requesting connection's txn (0 = none). Used to report pending_create /
+// pending_drop to the owning txn only; other connections see the real runtime status.
+int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows,
+                                 int64_t viewerTxnId);
 int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
 int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
 /**

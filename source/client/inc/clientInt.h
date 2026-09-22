@@ -275,6 +275,18 @@ typedef struct STscObj {
   char  extNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg); empty = none
 } STscObj;
 
+// Remaining DDL object budget in the current txn, clamped at 0. Returns 0 both when no txn
+// is active (nothing to budget) and when the txn's budget is already exhausted - use txnId,
+// not this return value, to tell whether a txn is active. Passed into the parse context so the WHERE-based bulk tag
+// update can divide it across the target db's vgroups; see SParseContext::txnDdlRemaining.
+static FORCE_INLINE int32_t txnDdlRemainingOps(const STscObj* pTscObj) {
+  if (pTscObj == NULL || pTscObj->txnId == 0) {
+    return 0;
+  }
+  int32_t remaining = TSDB_TXN_MAX_DDL_OPS_PER_TXN - pTscObj->txnDdlCount;
+  return remaining > 0 ? remaining : 0;
+}
+
 typedef struct STscDbg {
   bool memEnable;
 } STscDbg;

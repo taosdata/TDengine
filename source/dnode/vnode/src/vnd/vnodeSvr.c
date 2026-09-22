@@ -2183,6 +2183,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     int64_t  alterPrevVer = -1;
     SArray  *pAffectedUids = NULL;
     SArray  *pAffectedVers = NULL;
+    SArray  *pAffectedNames = NULL;
 
     if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
       int32_t nTables = taosArrayGetSize(vAlterTbReq.tables);
@@ -2249,35 +2250,84 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       // Child table tag update via WHERE clause: pre-scan affected children
       pAffectedUids = taosArrayInit(16, sizeof(tb_uid_t));
       pAffectedVers = taosArrayInit(16, sizeof(int64_t));
-      if (pAffectedUids == NULL || pAffectedVers == NULL) {
+      pAffectedNames = taosArrayInit(16, TSDB_TABLE_NAME_LEN);
+      if (pAffectedUids == NULL || pAffectedVers == NULL || pAffectedNames == NULL) {
         vAlterTbRsp.code = terrno;
         taosArrayDestroy(pAffectedUids);
         taosArrayDestroy(pAffectedVers);
+        taosArrayDestroy(pAffectedNames);
         tDecoderClear(&dc);
         goto _exit;
       }
-      int32_t scanCode = metaPreScanChildTableTagUpdate(pVnode->pMeta, &vAlterTbReq, pAffectedUids, pAffectedVers);
+      int32_t scanCode =
+          metaPreScanChildTableTagUpdate(pVnode->pMeta, &vAlterTbReq, pAffectedUids, pAffectedVers, pAffectedNames);
       if (scanCode != 0) {
         vError("vgId:%d, txn alter child table tags: metaPreScanChildTableTagUpdate failed, code:0x%x", TD_VID(pVnode),
                scanCode);
         vAlterTbRsp.code = scanCode;
         taosArrayDestroy(pAffectedUids);
         taosArrayDestroy(pAffectedVers);
+        taosArrayDestroy(pAffectedNames);
         tDecoderClear(&dc);
         goto _exit;
       }
-      // Lock and track each affected child table
+      // Lock and track each affected child table.
+      // The lock must be taken for every matched child, exactly as the MULTI_TABLE_TAG_VAL
+      // path above does: without it two txns can both mark the same children PRE_ALTER and
+      // overwrite each other's recorded pre-txn version, making the rollback value
+      // indeterminate. Any child held by another txn fails the whole statement; locks
+      // already taken here stay with this txn and are released when it ends.
       int32_t nAffected = taosArrayGetSize(pAffectedUids);
+      // Report the real reach back to the client so it can charge txnDdlCount per object;
+      // the client charges 1 for this statement until it sees this value.
+      //
+      // Contract: numTouched is only meaningful when vAlterTbRsp.code == TSDB_CODE_SUCCESS.
+      // It is assigned here, before the lock/track loop and before metaAlterTable, so a failure
+      // raised in that loop leaves it holding the pre-scan count even though nothing was
+      // applied. The sole consumer (schRemote.c, TDMT_VND_ALTER_TABLE_RSP) checks rsp.code
+      // before accumulating, so the stale value is never read today. Do not "fix" this by
+      // zeroing on failure: a failure in the mark/upsert loop further down happens AFTER
+      // metaAlterTable succeeded, where nAffected is the accurate figure.
+      vAlterTbRsp.numTouched = nAffected;
       for (int32_t i = 0; i < nAffected; i++) {
-        tb_uid_t uid = *(tb_uid_t *)TARRAY_GET_ELEM(pAffectedUids, i);
-        int64_t  prevVer = *(int64_t *)taosArrayGet(pAffectedVers, i);
-        int32_t  trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, uid, prevVer);
+        tb_uid_t    uid = *(tb_uid_t *)TARRAY_GET_ELEM(pAffectedUids, i);
+        int64_t     prevVer = *(int64_t *)taosArrayGet(pAffectedVers, i);
+        const char *childName = (const char *)taosArrayGet(pAffectedNames, i);
+
+        char childNameFull[TSDB_TABLE_FNAME_LEN];
+        int32_t nameLen = snprintf(childNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, childName);
+        if (nameLen < 0 || nameLen >= TSDB_TABLE_FNAME_LEN) {
+          // Truncation would silently lock a wrong (prefix-colliding) name; fail the
+          // statement instead of proceeding with a corrupted lock key.
+          vError("vgId:%d, txn alter child table name too long: %s (db:%s)", TD_VID(pVnode), childName,
+                 pVnode->config.dbname);
+          vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
+          taosArrayDestroy(pAffectedUids);
+          taosArrayDestroy(pAffectedVers);
+          taosArrayDestroy(pAffectedNames);
+          tDecoderClear(&dc);
+          goto _exit;
+        }
+        int32_t lockCode = vnodeTxnLockTable(pVnode, childNameFull, vAlterTbReq.txnId);
+        if (lockCode != TSDB_CODE_SUCCESS) {
+          vError("vgId:%d, txn alter child table %s: vnodeTxnLockTable failed, code:0x%x", TD_VID(pVnode), childName,
+                 lockCode);
+          vAlterTbRsp.code = lockCode;
+          taosArrayDestroy(pAffectedUids);
+          taosArrayDestroy(pAffectedVers);
+          taosArrayDestroy(pAffectedNames);
+          tDecoderClear(&dc);
+          goto _exit;
+        }
+
+        int32_t trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, uid, prevVer);
         if (trackCode != 0) {
           vError("vgId:%d, txn alter child table uid:%" PRId64 ": vnodeTxnTrackAlter failed, code:0x%x", TD_VID(pVnode),
                  uid, trackCode);
           vAlterTbRsp.code = trackCode;
           taosArrayDestroy(pAffectedUids);
           taosArrayDestroy(pAffectedVers);
+          taosArrayDestroy(pAffectedNames);
           tDecoderClear(&dc);
           goto _exit;
         }
@@ -2363,6 +2413,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     }
     taosArrayDestroy(pAffectedUids);
     taosArrayDestroy(pAffectedVers);
+    taosArrayDestroy(pAffectedNames);
     // Return new schema to client for same-txn visibility (pTxnTableMeta update)
     if (NULL != vMetaRsp.pSchemas) {
       vnodeUpdateMetaRsp(pVnode, &vMetaRsp);
@@ -2384,6 +2435,15 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
         conflictCode = vnodeTxnCheckConflict(pVnode, pTable->tbName, TXN_CONFLICT_OP_ALTER);
       }
     } else {
+      // Known gap for TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL (SET TAG ... WHERE):
+      // tbName is the SUPER table, so this checks the super table's own txn status and
+      // not the children the statement actually rewrites. A non-txn bulk WHERE update
+      // therefore still slips past a txn holding those children. Naming a child
+      // directly IS blocked (the txn locks each matched child), so the exposure is
+      // limited to bulk-vs-bulk. Resolving it needs the conflict check to run against
+      // the pre-scanned child set on this path too; deferred rather than done here
+      // because the pre-scan resolves the predicate against uncommitted shadow state
+      // and would need the same visibility rules as the read path.
       conflictCode = vnodeTxnCheckConflict(pVnode, vAlterTbReq.tbName, TXN_CONFLICT_OP_ALTER);
     }
     if (conflictCode != TSDB_CODE_SUCCESS) {

@@ -1313,7 +1313,8 @@ _exit:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBlock* pBlock, int32_t numOfRows) {
+int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBlock* pBlock, int32_t numOfRows,
+                                 int64_t viewerTxnId) {
   int32_t code = 0;
   int32_t cols = 0;
   int32_t lino = 0;
@@ -1361,8 +1362,20 @@ int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBloc
   // status
   char   status[20 + VARSTR_HEADER_SIZE] = {0};
   char msg[TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
-  code = mstGetStreamStatusStr(pStream, status, sizeof(status), msg, sizeof(msg));
-  TSDB_CHECK_CODE(code, lino, _end);
+  // batch-meta-txn (stream phase 2): to the txn that owns an uncommitted change, report the
+  // pending state instead of the runtime status (FS Sec.4.6/Sec.9). A pending_create stream has no
+  // runtime instance at all, and a pending_drop one is still running - the runtime status
+  // would say "Running" in both cases and hide the fact that the change is uncommitted.
+  // Other connections fall through to the real status: they must not see the pending state.
+  if (pStream->txnId != 0 && pStream->txnId == (txn_id_t)viewerTxnId &&
+      (pStream->txnStatus == META_TXN_PRE_CREATE || pStream->txnStatus == META_TXN_PRE_DROP)) {
+    const char* pending =
+        (pStream->txnStatus == META_TXN_PRE_CREATE) ? "pending_create" : "pending_drop";
+    STR_WITH_MAXSIZE_TO_VARSTR(status, pending, sizeof(status));
+  } else {
+    code = mstGetStreamStatusStr(pStream, status, sizeof(status), msg, sizeof(msg));
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);

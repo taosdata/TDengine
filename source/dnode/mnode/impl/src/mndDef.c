@@ -53,6 +53,12 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
     TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->end));
     TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->requestTimeMs));
   }
+  // batch-meta-txn (stream phase 2): appended after the recalc block. Persisting these is
+  // required for correctness across a leader transfer - see DS 5.2. Streams
+  // written before this change decode as txnId=0/txnStatus=NORMAL via
+  // tDecodeIsEnd, i.e. not owned by any txn.
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->txnId));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->txnStatus));
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -116,6 +122,19 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
         TAOS_CHECK_RETURN(terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_INVALID_MSG : terrno);
       }
     }
+  }
+
+  // batch-meta-txn (stream phase 2): txn markers are appended after the recalc
+  // block, so they get their own end-guard. They must NOT sit inside the recalc
+  // guard above: a stream persisted before this change still has the recalc
+  // fields (recalcRevision + recalcNum) to decode, so tDecodeIsEnd is false when
+  // that block is entered, and once the recalc fields are consumed the decoder
+  // is at the buffer end - decoding txnId from there returns OUT_OF_RANGE and
+  // every pre-upgrade stream fails to load. A separate guard decodes them only
+  // when the writer actually appended them.
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->txnId));
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->txnStatus));
   }
 
 _exit:

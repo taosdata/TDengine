@@ -933,6 +933,111 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
 }
 
 /**
+ * Undo one PRE_ALTER entry: restore the pre-ALTER version and, if that restores a
+ * PRE_CREATE entry belonging to the same txn (CREATE->ALTER in one txn), delete it too.
+ *
+ * Shared by the inline rollback path and the async vacuum rollback path so the two cannot
+ * diverge: both must prefer pME->txnOrigVer (persisted in the B+ tree, so it survives a
+ * snapshot/WAL replay that leaves pAlterPrevVers empty) and both must perform the chained
+ * delete, or a large-txn rollback would leave the CREATE behind.
+ *
+ * pME may be NULL (vacuum passes what it already fetched; NULL means "look it up here").
+ */
+static int32_t vnodeTxnUndoPreAlter(SVnode *pVnode, SVnodeTxnEntry *pEntry, tb_uid_t uid, const SMetaEntry *pME) {
+  int64_t prevVersion = (pME != NULL) ? pME->txnOrigVer : -1;
+  if (prevVersion < 0 && pEntry->pAlterPrevVers) {
+    int64_t *pPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
+    if (pPrevVer != NULL) {
+      prevVersion = *pPrevVer;
+    }
+  }
+
+  if (prevVersion < 0) {
+    // Old version not available (e.g. TMQ snapshot targets replicate only the latest
+    // pTbDb entry). Clear txnStatus so the table is accessible again; it keeps the
+    // post-ALTER schema - acceptable degraded behavior for this rare sequence.
+    int32_t code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+    if (code != 0) {
+      vError("vgId:%d, rollback: failed to clear ALTER status for uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid,
+             code);
+      return code;
+    }
+    vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status (snapshot degraded)",
+          TD_VID(pVnode), uid);
+    return 0;
+  }
+
+  int32_t code = metaRollbackAlterTable(pVnode->pMeta, uid, prevVersion);
+  if (code != 0) {
+    vError("vgId:%d, rollback: metaRollbackAlterTable failed for uid %" PRId64 ", since %s", TD_VID(pVnode), uid,
+           tstrerror(code));
+    return code;
+  }
+  vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid, prevVersion);
+
+  // Chained undo: If the restored entry is a PRE_CREATE from this same txn, the CREATE
+  // must be undone as well (CREATE->ALTER->ROLLBACK).
+  //
+  // metaFetchEntryByUid (metaEntry2.c) only does tdbTbGet and takes no lock of its own.
+  // This helper runs both on the vnode write thread (inline rollback) and on the async
+  // vacuum thread (vnodeTxnVacuumOneTxn), where it races the vnode-write thread mutating
+  // pUidIdx/pTbDb under metaWLock - the same reason vnodeTxnVacuumOneTxn wraps its fetch
+  // in metaRLock/metaULock. Hold the read lock here too; the mutating helpers that follow
+  // (metaHandleEntry2 / metaDropTable2) take their own wlocks, so we drop it before calling.
+  SMetaEntry *pRestored = NULL;
+  metaRLock(pVnode->pMeta);
+  int32_t fetchCode = metaFetchEntryByUid(pVnode->pMeta, uid, &pRestored);
+  metaULock(pVnode->pMeta);
+  if (fetchCode != 0 || pRestored == NULL) {
+    // Fetch failure and "no chained delete needed" differ semantically: log the former so
+    // a leftover PRE_CREATE is diagnosable, but treat both as "nothing more to undo".
+    if (fetchCode != 0) {
+      vWarn("vgId:%d, rollback: fetch restored entry for uid %" PRId64 " failed, code:0x%x; skip chained delete",
+            TD_VID(pVnode), uid, fetchCode);
+    }
+    return 0;
+  }
+  if (pRestored->txnId == pEntry->txnId && pRestored->txnStatus == META_TXN_PRE_CREATE) {
+    int32_t dropCode;
+    if (pRestored->type == TSDB_SUPER_TABLE) {
+      SMetaEntry delEntry = {.version = -1, .type = -TSDB_SUPER_TABLE, .uid = uid};
+      dropCode = metaHandleEntry2(pVnode->pMeta, &delEntry);
+    } else {
+      SVDropTbReq dropReq = {0};
+      dropReq.name = pRestored->name;
+      dropReq.uid = uid;
+      dropReq.suid = (pRestored->type == TSDB_CHILD_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE)
+                         ? pRestored->ctbEntry.suid
+                         : 0;
+      dropReq.isVirtual =
+          (pRestored->type == TSDB_VIRTUAL_NORMAL_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE) ? 1 : 0;
+      dropReq.txnId = 0;
+      dropCode = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+    }
+    if (dropCode == 0) {
+      vInfo("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64, TD_VID(pVnode), uid);
+    } else if (dropCode == TSDB_CODE_TDB_TABLE_NOT_EXIST || dropCode == TSDB_CODE_TDB_STB_NOT_EXIST ||
+               dropCode == TSDB_CODE_NOT_FOUND) {
+      // The entry is already gone: either cascade-deleted along with its STB, or its name
+      // was reclaimed by a new CREATE while this helper ran on the async vacuum thread.
+      // Either way there is nothing left to undo, so this is not a failure - returning
+      // non-zero here would make the vacuum retry the txn forever. Unlike the vacuum's own
+      // PRE_CREATE branch we do not call metaDropOrphanedEntry: that branch reaches the
+      // PRE_CREATE entry directly and owns its cleanup, whereas here metaRollbackAlterTable
+      // has already succeeded and the caller still deletes txn.idx for this uid.
+      vInfo("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64 " already gone (code:0x%x), skip",
+            TD_VID(pVnode), uid, dropCode);
+    } else {
+      vError("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64 " failed, since %s", TD_VID(pVnode), uid,
+             tstrerror(dropCode));
+      code = dropCode;
+    }
+  }
+  metaFetchEntryFree(&pRestored);
+  return code;
+}
+
+/**
  * Undo a single shadow entry during ROLLBACK.
  * If stbOnly==false, skip STB entries (process CTB/NTB).
  * If stbOnly==true, only process STB entries.
@@ -1001,72 +1106,10 @@ static int32_t vnodeTxnUndoOneShadowEntry(SVnode *pVnode, SVnodeTxnEntry *pEntry
       break;
 
     case META_TXN_PRE_ALTER: {
-      // ALTER created a new version  -  need to delete it and restore old version.
-      // Primary source: txnOrigVer persisted in B+ tree entry (survives snapshot).
-      // Fallback: in-memory pAlterPrevVers hash (O(1) lookup by uid).
-      int64_t prevVersion = pME->txnOrigVer;
-      if (prevVersion < 0 && pEntry->pAlterPrevVers) {
-        int64_t *pPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
-        if (pPrevVer != NULL) {
-          prevVersion = *pPrevVer;
-        }
-      }
-
-      if (prevVersion >= 0) {
-        code = metaRollbackAlterTable(pVnode->pMeta, uid, prevVersion);
-        if (code == 0) {
-          vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid,
-                prevVersion);
-          // Chained undo: if restored entry is PRE_CREATE from same txn, also delete it
-          // (handles CREATE -> ALTER -> ROLLBACK: after ALTER undo, PRE_CREATE must also be undone)
-          SMetaEntry *pRestored = NULL;
-          if (metaFetchEntryByUid(pVnode->pMeta, uid, &pRestored) == 0 && pRestored != NULL) {
-            if (pRestored->txnId == pEntry->txnId && pRestored->txnStatus == META_TXN_PRE_CREATE) {
-              int32_t dropCode;
-              if (pRestored->type == TSDB_SUPER_TABLE) {
-                SMetaEntry delEntry = {.version = -1, .type = -TSDB_SUPER_TABLE, .uid = uid};
-                dropCode = metaHandleEntry2(pVnode->pMeta, &delEntry);
-              } else {
-                SVDropTbReq dropReq = {0};
-                dropReq.name = pRestored->name;
-                dropReq.uid = uid;
-                dropReq.suid = (pRestored->type == TSDB_CHILD_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE)
-                                   ? pRestored->ctbEntry.suid
-                                   : 0;
-                dropReq.isVirtual =
-                    (pRestored->type == TSDB_VIRTUAL_NORMAL_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE) ? 1
-                                                                                                                  : 0;
-                dropReq.txnId = 0;
-                dropCode = metaDropTable2(pVnode->pMeta, -1, &dropReq);
-              }
-              if (dropCode == 0) {
-                vInfo("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64, TD_VID(pVnode), uid);
-              } else {
-                vError("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64 " failed, since %s", TD_VID(pVnode),
-                       uid, tstrerror(dropCode));
-                code = dropCode;
-              }
-            }
-            metaFetchEntryFree(&pRestored);
-          }
-        } else {
-          vError("vgId:%d, rollback: metaRollbackAlterTable failed for uid %" PRId64 ", since %s", TD_VID(pVnode), uid,
-                 tstrerror(code));
-        }
-      } else {
-        // Fallback: old version not available (common for TMQ snapshot targets where
-        // only the latest pTbDb entry is replicated). Clear txnStatus to restore normal
-        // accessibility. The table retains the post-ALTER schema  -  acceptable degraded
-        // behavior for the extremely rare PRE_ALTER + Snapshot + ROLLBACK sequence.
-        // Phase 2 fix: extend TMQ snapshot to also send old-version pTbDb entry.
-        code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
-        if (code != 0) {
-          vError("vgId:%d, rollback: failed to clear ALTER status for uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid,
-                 code);
-        }
-        vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status (snapshot degraded)",
-              TD_VID(pVnode), uid);
-      }
+      // ALTER created a new version - restore the old one. Shared with the async vacuum
+      // rollback path so both prefer the persisted txnOrigVer and both do the chained
+      // CREATE->ALTER delete.
+      code = vnodeTxnUndoPreAlter(pVnode, pEntry, uid, pME);
       break;
     }
 
@@ -1458,26 +1501,21 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
               }
             }
           }
-          // Handle chained undo (CREATE -> ALTER in same txn)
-          if (pEntry->pAlterPrevVers) {
-            int64_t *pChainedPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
-            if (pChainedPrevVer != NULL && *pChainedPrevVer >= 0) {
-              vDebug("vgId:%d, vacuum-rollback: chained CREATE->ALTER undo for uid %" PRId64, TD_VID(pVnode), uid);
-            }
-          }
+          // CREATE->ALTER in one txn needs no chained undo here: the entry this branch
+          // reaches is PRE_CREATE, and the drop above removes it outright, ALTER included.
+          // The reverse order (undoing the ALTER first, then the CREATE it restores) is
+          // handled by vnodeTxnUndoPreAlter in the PRE_ALTER branch below.
           break;
         }
         case META_TXN_PRE_DROP:
           code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
           break;
         case META_TXN_PRE_ALTER: {
-          int64_t *pPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
-          int64_t  prevVer = (pPrevVer != NULL) ? *pPrevVer : -1;
-          if (prevVer >= 0) {
-            code = metaRollbackAlterTable(pVnode->pMeta, uid, prevVer);
-          } else {
-            code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
-          }
+          // Same helper as the inline path: prefer pME->txnOrigVer (persisted, so it
+          // survives snapshot/WAL replay where pAlterPrevVers is empty) and perform the
+          // chained CREATE->ALTER delete. Reading only pAlterPrevVers here used to make a
+          // large-txn ALTER rollback silently degrade to clearing txnStatus.
+          code = vnodeTxnUndoPreAlter(pVnode, pEntry, uid, pME);
           break;
         }
         default:
@@ -1910,15 +1948,19 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   pEntry->stage = VTXN_STAGE_FINISHING;
 
   int32_t numUids = pEntry->pTouchedUids ? tSimpleHashGetSize(pEntry->pTouchedUids) : 0;
-  bool    hasAlterRollback = pEntry->pAlterPrevVers && tSimpleHashGetSize(pEntry->pAlterPrevVers) > 0;
   bool    forceVacuum = pEntry->hasBulkDrop;
 
-  if ((numUids <= TSDB_TXN_INLINE_THRESHOLD && !forceVacuum) || hasAlterRollback) {
+  // Dispatch on size only, exactly as COMMIT does. An earlier version forced the inline
+  // path whenever the txn contained any PRE_ALTER, on the belief that
+  // metaRollbackAlterTable could not run on the async vacuum thread. That is not the
+  // case: the vacuum rollback branch calls metaRollbackAlterTable itself, and that
+  // function takes its own r/w locks and is written to serialize against async vacuum.
+  // Forcing inline made a bulk tag update over N children undo all N of them on the
+  // vnode write thread, blocking every other write to this vnode for the duration.
+  if (numUids <= TSDB_TXN_INLINE_THRESHOLD && !forceVacuum) {
     // -- Small txn: synchronous inline undo --
     // Note: hasBulkDrop means children were NOT marked PRE_DROP (no per-child
     // undo needed), but we still use the lazy path for consistency with COMMIT.
-    // PRE_ALTER rollback is kept on the write thread because metaRollbackAlterTable
-    // is not safe to run from async vacuum today.
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     code = vnodeTxnUndoShadowEntries(pVnode, pEntry);
@@ -1926,15 +1968,9 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
       vWarn("vgId:%d, inline rollback partial failure for txnId:%" PRId64 ", code:0x%x (continuing)", TD_VID(pVnode),
             req.txnId, code);
 
-      if (hasAlterRollback) {
-        (void)taosThreadMutexLock(&pVnode->txnMutex);
-        if (pEntry->status == TXN_META_NONE) {
-          pEntry->stage = VTXN_STAGE_ACTIVE;
-        }
-        (void)taosThreadMutexUnlock(&pVnode->txnMutex);
-        return code;
-      }
-
+      // Fall back to lazy finalize so async vacuum retries whatever is left. Previously a
+      // txn containing PRE_ALTER returned here with stage reset to ACTIVE, which retried
+      // the same failing inline path indefinitely instead of handing off to vacuum.
       (void)taosThreadMutexLock(&pVnode->txnMutex);
       int32_t finalizeCode = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_META_ROLLEDBACK);
       (void)taosThreadMutexUnlock(&pVnode->txnMutex);
