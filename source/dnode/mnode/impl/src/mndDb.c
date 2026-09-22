@@ -536,7 +536,13 @@ int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->minRows > pCfg->maxRows) return code;
   if (pCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return code;
   if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) return code;
-  if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return code;
+  // [Security fix for finding 180] The range test must use ||, not &&: precision is valid only
+  // when it is within [TSDB_MIN_PRECISION, TSDB_MAX_PRECISION] (0..2). The previous `&&` made the
+  // condition unsatisfiable, so an out-of-range precision (e.g. 3..127) was accepted, persisted in
+  // the SDB_DB row, propagated to every vnode, and later used as an index into the 3-element
+  // global tick tables (tsTickPerMin/tsTickPerHour/tsSecTimes). That caused out-of-bounds reads and
+  // potential SIGFPE (division by a zero/garbage slot) which terminated the whole taosd process.
+  if (pCfg->precision < TSDB_MIN_PRECISION || pCfg->precision > TSDB_MAX_PRECISION) return code;
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return code;
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return code;
 #ifdef TD_ENTERPRISE
