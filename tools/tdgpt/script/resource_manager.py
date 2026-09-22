@@ -49,8 +49,8 @@ class ResourceBusyError(ResourceImportError):
 
 
 @contextmanager
-def lifecycle_lock(data_dir, filename=".tdgpt-lifecycle.lock"):
-    root = Path(data_dir) / "resource"
+def lifecycle_lock(resource_dir, filename=".tdgpt-lifecycle.lock"):
+    root = Path(resource_dir)
     root.mkdir(parents=True, exist_ok=True)
     with (root / filename).open("a+b") as handle:
         handle.seek(0, os.SEEK_END)
@@ -106,7 +106,10 @@ class DynamicResourceManager:
         self.model_root = Path(config.tsfm_model_dir)
         self.model_venvs_root = Path(config.model_venvs_dir)
         self.runtime_root = Path(config.tsfm_venv)
-        self.resource_root = Path(config.data_dir) / "resource"
+        self.resource_root = Path(
+            getattr(config, "resource_dir", None)
+            or (Path(config.data_dir) / "resource")
+        )
         self.state_root = self.resource_root / "state" / "models"
         self.task_root = self.resource_root / "state" / "tasks"
         self.python_runtime_dir = self._resolve_python_runtime_dir(config)
@@ -558,7 +561,7 @@ class DynamicResourceManager:
         lock_stack = ExitStack()
         try:
             lock_stack.enter_context(
-                lifecycle_lock(self.resource_root.parent, ".tdgpt-resource-os.lock")
+                lifecycle_lock(self.resource_root, ".tdgpt-resource-os.lock")
             )
             self._resource_lock = lock_stack
             self._resource_lock_depth = 1
