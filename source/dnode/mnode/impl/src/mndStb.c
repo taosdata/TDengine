@@ -43,6 +43,11 @@
 #define STB_VER_SUPPORT_INHERIT 6
 #define STB_VER_NUMBER          STB_VER_SUPPORT_INHERIT
 #define STB_RESERVE_SIZE        51
+// Max super-table comment length accepted by the mnode. TSDB_TB_COMMENT_LEN is enforced only by the
+// client-side parser (parAstCreater.c checkComment), which is not a trust boundary, so the mnode must
+// reject anything above the same limit itself: mndRetrieveStb (SHOW STABLES / ins_stables) renders the
+// comment into a fixed stack buffer sized for TSDB_TB_COMMENT_LEN bytes.
+#define MND_STB_MAX_COMMENT_LEN (TSDB_TB_COMMENT_LEN - 1)
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
@@ -981,6 +986,20 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
   return pHead;
 }
 
+// Validate the comment carried by a CREATE/ALTER STABLE request. commentLen is an arbitrary int32 read
+// from the wire and the stored comment is later copied into a fixed-size stack buffer, so it must be
+// bounded (and consistent with the string itself) before the object is built or persisted.
+static int32_t mndCheckStbComment(const char *pComment, int32_t commentLen) {
+  // -1 means "no comment"; any other negative value is malformed.
+  if (commentLen < -1 || commentLen > MND_STB_MAX_COMMENT_LEN) {
+    return TSDB_CODE_PAR_COMMENT_TOO_LONG;
+  }
+  if (commentLen > 0 && (pComment == NULL || (int32_t)strlen(pComment) != commentLen)) {
+    return TSDB_CODE_MND_INVALID_STB_OPTION;
+  }
+  return 0;
+}
+
 int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   int32_t code = 0;
   if (pCreate->igExists < 0 || pCreate->igExists > 1) {
@@ -990,6 +1009,10 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
 
   if (pCreate->virtualStb != 0 && pCreate->virtualStb != 1) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
+    TAOS_RETURN(code);
+  }
+
+  if ((code = mndCheckStbComment(pCreate->pComment, pCreate->commentLen)) != 0) {
     TAOS_RETURN(code);
   }
 
@@ -2613,7 +2636,14 @@ _OVER:
 
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   int32_t code = 0;
-  if (pAlter->commentLen >= 0) return 0;
+  if (pAlter->commentLen >= 0) {
+    // TSDB_ALTER_TABLE_UPDATE_OPTIONS: mndUpdateTableOptions stores this comment verbatim into the
+    // SStbObj, so it has to be bounded here (nothing downstream checks it again).
+    if ((code = mndCheckStbComment(pAlter->comment, pAlter->commentLen)) != 0) {
+      TAOS_RETURN(code);
+    }
+    return 0;
+  }
   if (pAlter->ttl != 0) return 0;
   if (pAlter->keep != -1) return 0;
   if (pAlter->secureDelete >= 0) return 0;
@@ -6527,8 +6557,17 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pStb->commentLen > 0) {
-      char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(comment, pStb->comment);
+      // A row written before the mnode started validating commentLen can hold a longer comment:
+      // cap the copy at the payload capacity so that such a row is rendered (and can therefore be
+      // listed, found and dropped) instead of overflowing this stack buffer.
+      char    comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
+      int32_t clen = 0;
+      if (pStb->comment != NULL) {
+        clen = pStb->commentLen;
+        if (clen > MND_STB_MAX_COMMENT_LEN) clen = MND_STB_MAX_COMMENT_LEN;
+        (void)memcpy(varDataVal(comment), pStb->comment, clen);
+      }
+      varDataSetLen(comment, clen);
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, comment, false), pStb, &lino, _ERROR);
     } else if (pStb->commentLen == 0) {
       char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
