@@ -766,6 +766,19 @@ static int32_t mndProcessSsMigrateListFileSetsRsp(SRpcMsg *pMsg) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_RETURN_VALUE_NULL, &lino, _exit);
   }
 
+  // Bound-check vgIdx against the current vgroup array size before any array
+  // access. The migration object may already have advanced past its last
+  // vgroup (vgIdx == size) because the timer increments vgIdx on timeout/skip,
+  // and the object is only retired later by an asynchronous drop transaction.
+  // A response arriving in that window (or for an object created with an empty
+  // vgroup list) must be rejected instead of dereferencing the NULL returned
+  // by taosArrayGet, which would crash the mnode write worker.
+  if (pSsMigrate->vgIdx >= taosArrayGetSize(pSsMigrate->vgroups)) {
+    mError("ssmigrate:%d, vgIdx:%d out of range (numVg:%d), drop list-filesets response",
+           rsp.ssMigrateId, pSsMigrate->vgIdx, (int32_t)taosArrayGetSize(pSsMigrate->vgroups));
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _exit);
+  }
+
   int32_t vgId = *(int32_t*)taosArrayGet(pSsMigrate->vgroups, pSsMigrate->vgIdx);
   if (vgId != rsp.vgId) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _exit);
@@ -875,6 +888,16 @@ static int32_t mndProcessSsMigrateFileSetRsp(SRpcMsg *pMsg) {
   pSsMigrate = mndAcquireSsMigrate(pMnode, rsp.ssMigrateId);
   if (pSsMigrate == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_RETURN_VALUE_NULL, &lino, _exit);
+  }
+
+  // Bound-check vgIdx against the current vgroup array size before any array
+  // access. See mndProcessSsMigrateListFileSetsRsp for the rationale: the
+  // object can reach vgIdx == size while still alive (awaiting async drop),
+  // and dereferencing the NULL from taosArrayGet would crash the mnode.
+  if (pSsMigrate->vgIdx >= taosArrayGetSize(pSsMigrate->vgroups)) {
+    mError("ssmigrate:%d, vgIdx:%d out of range (numVg:%d), drop fileset response",
+           rsp.ssMigrateId, pSsMigrate->vgIdx, (int32_t)taosArrayGetSize(pSsMigrate->vgroups));
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _exit);
   }
 
   int32_t vgId = *(int32_t*)taosArrayGet(pSsMigrate->vgroups, pSsMigrate->vgIdx);
@@ -1048,7 +1071,6 @@ void mndSendQuerySsMigrateProgressReq(SMnode *pMnode, SSsMigrateObj *pSsMigrate)
 
 static void mndUpdateSsMigrateProgress(SMnode* pMnode, SSsMigrateObj* pSsMigrate) {
   int32_t numVg = taosArrayGetSize(pSsMigrate->vgroups);
-  int32_t numFset = taosArrayGetSize(pSsMigrate->fileSets);
 
   if (pSsMigrate->vgIdx >= numVg) {
     mInfo("ssmigrate:%d, all vgroups has been processed", pSsMigrate->id);
@@ -1127,7 +1149,12 @@ static void mndUpdateSsMigrateProgress(SMnode* pMnode, SSsMigrateObj* pSsMigrate
 
   // this file set has been processed, move to the next file set
   pSsMigrate->fsetIdx++;
-  if (pSsMigrate->fsetIdx >= numFset) {
+  // Use the live file-set array size rather than the snapshot taken at the top
+  // of this function: a forged LIST_FILESETS_RSP may have replaced
+  // pSsMigrate->fileSets with a shorter array, so dereferencing the stale count
+  // would read past the end and return NULL from taosArrayGet, crashing the mnode
+  // timer worker.
+  if (pSsMigrate->fsetIdx >= taosArrayGetSize(pSsMigrate->fileSets)) {
     pSsMigrate->vgIdx++;
     pSsMigrate->vgState = SSMIGRATE_VGSTATE_INIT;
   } else {
