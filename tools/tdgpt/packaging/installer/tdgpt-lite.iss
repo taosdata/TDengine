@@ -44,7 +44,6 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "{#MyAppIco}"; DestDir: "{app}"; DestName: "favicon.ico"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\cfg\*"; DestDir: "{app}\cfg"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppSourceDir}\resource\*"; DestDir: "{app}\resource"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyAppSourceDir}\requirements\*"; DestDir: "{app}\requirements"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
@@ -58,8 +57,11 @@ Source: "{#MyAppSourceDir}\uninstall.py"; DestDir: "{app}"; Flags: ignoreversion
 Name: "{app}\cfg"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\log"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\model"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\model_venvs"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\venvs"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\data"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\data\pids"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\data\resource"; Permissions: everyone-modify; Flags: uninsneveruninstall
 
 [Run]
 Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "View the installation log now (clear this checkbox to skip opening it)"; Flags: postinstall nowait skipifsilent
@@ -72,6 +74,7 @@ Filename: "{cmd}"; Parameters: "/C call ""{app}\uninstall.bat"""; Flags: runhidd
 Name: "{commonprograms}\{#MyAppName}"; Type: filesandordirs
 Name: "{commonprograms}\{#MyLegacyAppName}"; Type: filesandordirs
 Name: "{commondesktop}\Start Taosanode.lnk"; Type: files
+Name: "{app}\resource"; Type: filesandordirs
 
 [Registry]
 Root: HKLM; Subkey: "Software\taosdata\TDgpt"; ValueType: string; ValueName: "InstallDir"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty

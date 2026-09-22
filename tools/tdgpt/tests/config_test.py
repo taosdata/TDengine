@@ -62,6 +62,7 @@ class TestConfig:
 bind = '127.0.0.1:8080'
 workers = 4
 timeouts = {"model_startup": 240}
+resource_dir = 'C:/TDengine/taosanode/resource'
 models = {
     "tdtsfm": {"script": "tdtsfm-server.py", "port": 6061, "required": True},
     "timemoe": {"script": "timemoe-server.py", "port": 6062, "required": True},
@@ -73,6 +74,7 @@ models = {
         assert config.workers == 4
         assert config.timeouts["model_startup"] == 240
         assert config.timeouts["service_startup"] == 180
+        assert config.resource_dir == "C:/TDengine/taosanode/resource"
 
     def test_config_fallback_on_missing_file(self, temp_dir):
         """Test Config fallback when config file doesn't exist"""
@@ -102,6 +104,7 @@ models = {
         assert isinstance(mock_config.pid_file, str)
         assert isinstance(mock_config.app_log, str)
         assert isinstance(mock_config.model_dir, str)
+        assert isinstance(mock_config.resource_dir, str)
         assert isinstance(mock_config.venv_dir, str)
 
     def test_gunicorn_threads_is_integer(self):
@@ -135,8 +138,10 @@ models = {
 
         normalized_model_dir = config_module.model_dir.replace("\\", "/").lower()
         normalized_img_dir = config_module.img_dir.replace("\\", "/").lower()
+        normalized_resource_dir = config_module.resource_dir.replace("\\", "/").lower()
 
         assert normalized_model_dir.endswith("/model")
         assert "/data/model" not in normalized_model_dir
         assert normalized_img_dir.endswith("/img/")
         assert "/data/img/" not in normalized_img_dir
+        assert normalized_resource_dir.endswith("/data/resource/")

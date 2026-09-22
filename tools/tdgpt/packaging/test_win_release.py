@@ -107,6 +107,27 @@ def test_lite_installer_waits_for_existing_service_and_file_unlocks():
     assert "Installation timed out" in installer_template
 
 
+def test_lite_installer_preserves_dynamic_resource_directories():
+    template_path = MODULE_PATH.parent / "installer" / "tdgpt-lite.iss"
+    installer_template = template_path.read_text(encoding="utf-8-sig")
+    uninstall_script = (MODULE_PATH.parent.parent / "script" / "uninstall.py").read_text(
+        encoding="utf-8"
+    )
+
+    for directory in ("model", "model_venvs", "venvs"):
+        assert f'Name: "{{app}}\\{directory}"; Permissions: everyone-modify; Flags: uninsneveruninstall' in installer_template
+    assert 'Name: "{app}\\data\\resource"; Permissions: everyone-modify; Flags: uninsneveruninstall' in installer_template
+
+    default_directories = uninstall_script.split("directories = [", 1)[1].split(
+        "if self.remove_venv:", 1
+    )[0]
+    assert 'self.install_dir / "data"' not in default_directories
+    remove_data_block = uninstall_script.split("if self.remove_data:", 1)[1].split(
+        "if self.remove_model:", 1
+    )[0]
+    assert 'self.install_dir / "data"' in remove_data_block
+
+
 def test_installers_use_installed_icon_for_windows_apps_settings():
     for template_name in ("tdgpt.iss", "tdgpt-lite.iss"):
         template_path = MODULE_PATH.parent / "installer" / template_name
@@ -117,6 +138,15 @@ def test_installers_use_installed_icon_for_windows_apps_settings():
             'Source: "{#MyAppIco}"; DestDir: "{app}"; '
             'DestName: "favicon.ico"; Flags: ignoreversion'
         ) in installer_template
+
+
+def test_installers_do_not_package_obsolete_sample_sql_files():
+    for template_name in ("tdgpt.iss", "tdgpt-lite.iss"):
+        template_path = MODULE_PATH.parent / "installer" / template_name
+        installer_template = template_path.read_text(encoding="utf-8-sig")
+
+        assert 'Source: "{#MyAppSourceDir}\\resource\\*"' not in installer_template
+        assert 'Name: "{app}\\resource"; Type: filesandordirs' in installer_template
 
 
 def test_lite_installer_removes_legacy_shortcuts_without_publishing_new_ones():
