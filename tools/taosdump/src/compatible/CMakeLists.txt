@@ -32,6 +32,16 @@ DEP_ext_snappy(compatAvro)
 # is not installed.
 DEP_ext_xz(compatAvro)
 
+# libavro.a's codec.c calls zlib (crc32/deflate/inflate), so libz.a has to sit
+# *after* libavro.a on the link line of whoever pulls the archive in.
+# It must therefore be declared here, next to the archive's own dependency
+# macros: a ${ext_zlib_libs} entry in taosdump's CMakeLists does not work.
+# CMake emits taosdump's direct libraries first and appends compatAvro's
+# interface expansion ($<LINK_ONLY:libavro.a>, ...) afterwards, so the direct
+# entry lands *before* libavro.a and the linker still reports the undefined
+# crc32/deflate/inflate references.
+DEP_ext_zlib(compatAvro)
+
 # Hide symbols to avoid conflicts with Arrow's bundled snappy/zstd
 if(NOT WIN32)
     target_compile_options(compatAvro PRIVATE -fvisibility=hidden)

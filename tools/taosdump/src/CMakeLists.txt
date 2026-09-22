@@ -327,12 +327,13 @@ endif()
 # dependencies ($<LINK_ONLY:...>) to its consumers, so libz.a was already on
 # every tool's link line.  The thin dispatcher dropped that, and on macOS neither
 # libtaos.dylib nor libtaosnative.dylib provides the symbol (ld64 has no
-# --copy-dt-needed-entries to reach one through the driver's dependency), so
-# link it explicitly here.  The AVRO archive is placed after the Arrow ones, so
-# this has to stay last on the line.
-if(TD_LINUX OR TD_DARWIN)
-    target_link_libraries(taosdump PRIVATE ${ext_zlib_libs})
-endif()
+# --copy-dt-needed-entries to reach one through the driver's dependency).
+#
+# zlib is linked through compatAvro now (see compatible/CMakeLists.txt): CMake
+# emits this target's direct libraries first and compatAvro's interface
+# expansion -- which is where libavro.a itself appears -- afterwards, so a
+# ${ext_zlib_libs} entry listed here would be hoisted ahead of libavro.a and
+# fail to resolve its crc32/deflate/inflate references.
 
 MESSAGE("")
 MESSAGE("********** End build taosdump ! **********")
