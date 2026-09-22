@@ -8,11 +8,12 @@ import (
 )
 
 type TDengineRestful struct {
-	Host     string `toml:"host"`
-	Port     int    `toml:"port"`
-	Username string `toml:"username"`
-	Password string `toml:"password"`
-	Usessl   bool   `toml:"usessl"`
+	Host       string `toml:"host"`
+	Port       int    `toml:"port"`
+	Username   string `toml:"username"`
+	Password   string `toml:"password"`
+	Usessl     bool   `toml:"usessl"`
+	SkipVerify bool   `toml:"skipVerify"`
 }
 
 func (t TDengineRestful) String() string {
@@ -42,4 +43,8 @@ func initTDengine() {
 	viper.SetDefault("tdengine.usessl", false)
 	_ = viper.BindEnv("tdengine.usessl", "TAOS_KEEPER_TDENGINE_USESSL")
 	pflag.Bool("tdengine.usessl", false, `TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"`)
+
+	viper.SetDefault("tdengine.skipVerify", true)
+	_ = viper.BindEnv("tdengine.skipVerify", "TAOS_KEEPER_TDENGINE_SKIPVERIFY")
+	pflag.Bool("tdengine.skipVerify", true, `Skip TDengine server TLS certificate verification, default true for compatibility. Set false to verify the server certificate. Env "TAOS_KEEPER_TDENGINE_SKIPVERIFY"`)
 }

@@ -61,6 +61,7 @@ Usage of taoskeeper:
       --tdengine.host string                         TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
       --tdengine.password string                     TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
       --tdengine.port int                            TDengine REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
+      --tdengine.skipVerify                          Skip TDengine server TLS certificate verification, default true for compatibility. Set false to verify the server certificate. Env "TAOS_KEEPER_TDENGINE_SKIPVERIFY" (default true)
       --tdengine.username string                     TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
       --tdengine.usessl                              TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
       --transfer string                              run taoskeeper in command mode, only support old_taosd_metric. transfer old metrics data to new tables and exit
@@ -96,6 +97,14 @@ port = 6041
 username = "root"
 password = "taosdata"
 usessl = false
+
+# Skip TDengine server TLS certificate verification when usessl is true.
+# Default is true for compatibility; set to false to verify the server certificate.
+# Before setting this to false, make sure the CA that signed the server certificate
+# is installed in the system trust store (on Linux you may instead point
+# SSL_CERT_FILE/SSL_CERT_DIR to the CA file), otherwise connections will fail
+# with x509 errors when the server uses a self-signed or internal-CA certificate.
+skipVerify = true
 
 [metrics]
 # Metrics prefix in metrics names.
@@ -332,6 +341,16 @@ includeTables = []
 # Default: 300 (5 minutes), Minimum: 60 (1 minute)
 cacheTTL = 300
 ```
+
+#### Rejected-Entries Metric
+
+The v2 memory cache is bounded by both the number of series and the number of bytes it holds, and either bound can reject a write. A new series is rejected once either bound is reached; a series that is already cached keeps being refreshed until its new payload alone no longer fits the byte budget, in which case the refresh is rejected and the series keeps its previous value. taoskeeper exposes a counter on `/metrics/v2`:
+
+```text
+taoskeeper_memory_store_rejected_total
+```
+
+This metric counts the total number of rejected entries. Note that this metric name does not follow the `metrics.prefix` setting.
 
 #### Usage Example
 
