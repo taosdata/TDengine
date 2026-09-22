@@ -343,8 +343,21 @@ ELSE()
         ENDIF()
         MESSAGE(STATUS "Compile with Address Sanitizer!")
     elseif(TD_LINUX)
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Wformat=2 -Werror=format -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wformat=2 -Werror=format -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null")
+        # ── Security hardening ────────────────────────────────────────────
+        # Stack protection: -fstack-protector-strong inserts stack canaries in
+        #   functions that have local buffers or address-taken variables.
+        # PIE: objects are compiled -fPIC (position independent and a valid
+        #   input for PIE executables); executables are linked with -pie below
+        #   so shipped binaries are position-independent executables.
+        #   NOTE: do NOT append -fPIE after -fPIC — the last switch wins, and
+        #   -fPIE would degrade shared-library codegen (GOT/interposition).
+        # RELRO: -z relro makes GOT/other relocations read-only after startup;
+        #   -z now disables lazy binding => Full RELRO.
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Wformat=2 -Werror=format -fstack-protector-strong -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wformat=2 -Werror=format -fstack-protector-strong -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null")
+        SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie -Wl,-z,relro -Wl,-z,now")
+        SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,relro -Wl,-z,now")
+        MESSAGE(STATUS "Linux hardening enabled: -fstack-protector-strong -pie -z relro -z now")
     elseif(TD_DARWIN)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wno-reserved-user-defined-literal -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations -Wno-literal-conversion -Wno-writable-strings -Wno-unused-value -Wno-format -Wno-null-conversion")
