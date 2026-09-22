@@ -15,6 +15,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	taosErrors "github.com/taosdata/driver-go/v3/errors"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
 	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/util"
@@ -23,6 +24,32 @@ import (
 func TestMain(m *testing.M) {
 	config.InitConfig()
 	os.Exit(m.Run())
+}
+
+func TestIsAuthFailure(t *testing.T) {
+	// 0x0357 literal, not authFailureErrCode: the constant is only correct
+	// because driver-go masks the module bits off TDengine's wire value
+	// (TSDB_CODE_MND_AUTH_FAILURE = 0x80000357 -> NewError does code & 0xffff).
+	// Asserting against the constant itself would pass even if it were wrong.
+	assert.True(t, isAuthFailure(&taosErrors.TaosError{Code: 0x0357, ErrStr: "Authentication failure"}))
+	// attacker-controlled text echoed in a syntax error must not match
+	assert.False(t, isAuthFailure(&taosErrors.TaosError{
+		Code:   0x2600,
+		ErrStr: "syntax error near 'Authentication failure, 'a', 1, 'b') ' (invalid timestamp format)",
+	}))
+	assert.False(t, isAuthFailure(errors.New("Authentication failure")))
+	assert.False(t, isAuthFailure(nil))
+
+	// an intermediary answering 401 with a non-TDengine body yields the
+	// driver's untyped "server response: <status> - <body>" error; it is not
+	// proof of a credential problem, so it must NOT be treated as one (that
+	// would let any proxy in front of taosAdapter restart-loop keeper)
+	assert.False(t, isAuthFailure(errors.New("server response: 401 Unauthorized - <html>nginx</html>")))
+	assert.False(t, isAuthFailure(errors.New("server response: 400 Bad Request - server response: 401")))
+	assert.False(t, isAuthFailure(errors.New(`{"code":401}`)))
+	// only the typed TDengine auth code counts, whatever the text says
+	assert.True(t, isAuthFailure(&taosErrors.TaosError{Code: 0x0357, ErrStr: "anything"}))
+	assert.False(t, isAuthFailure(&taosErrors.TaosError{Code: 0x0358, ErrStr: "Authentication failure"}))
 }
 
 func TestIPv6(t *testing.T) {
@@ -397,4 +424,80 @@ func TestNewConnectorWithSpecialChars(t *testing.T) {
 
 	_, err = conn.Exec(context.Background(), "drop user user_1768379499", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
+}
+
+func TestBuildRESTfulDSNToken(t *testing.T) {
+	// a valid token is sent verbatim: the driver does not unescape the DSN
+	// bearerToken parameter, so escaping it here would send the escaped form
+	dsn := buildRESTfulDSN("root", "taosdata", "http", "127.0.0.1", 6041, "audit", "abc.def_123-xyz")
+	assert.Contains(t, dsn, "&bearerToken=abc.def_123-xyz")
+	// only the two intended query parameters survive
+	assert.Equal(t, 1, strings.Count(dsn, "&"))
+
+	// empty token adds no parameter
+	dsn = buildRESTfulDSN("root", "taosdata", "http", "127.0.0.1", 6041, "audit", "")
+	assert.NotContains(t, dsn, "bearerToken")
+}
+
+func TestValidateBearerToken(t *testing.T) {
+	assert.NoError(t, validateBearerToken(""))
+	assert.NoError(t, validateBearerToken("ABmTXHdQAN9au7w4JcXcp4gpXgrDxLxhjaIOiumuA8f1"))
+	// the driver splits a parameter on the first '=' only, so a padded token
+	// keeps its full value and must not be rejected
+	assert.NoError(t, validateBearerToken("AbC12xY="))
+
+	// '&' appends driver parameters (e.g. skipVerify), '/' moves the boundary
+	// the driver uses to find the database name, and whitespace would be
+	// written into the Authorization header
+	assert.Error(t, validateBearerToken("x&skipVerify=true"))
+	assert.Error(t, validateBearerToken("a/b"))
+	assert.Error(t, validateBearerToken("a b"))
+	assert.Error(t, validateBearerToken("a\tb"))
+	assert.Error(t, validateBearerToken("a\nb"))
+}
+
+// skipVerify comes from configuration — the only place an operator can turn
+// certificate verification off (finding 301) — not from a per-call argument.
+func TestBuildRESTfulDSNSkipVerifyFromConfig(t *testing.T) {
+	old := config.Conf.TDengine.SkipVerify
+	t.Cleanup(func() { config.Conf.TDengine.SkipVerify = old })
+
+	config.Conf.TDengine.SkipVerify = true
+	assert.Contains(t, buildRESTfulDSN("root", "taosdata", "http", "127.0.0.1", 6041, "log", ""), "skipVerify=true")
+
+	config.Conf.TDengine.SkipVerify = false
+	assert.Contains(t, buildRESTfulDSN("root", "taosdata", "http", "127.0.0.1", 6041, "log", ""), "skipVerify=false")
+}
+
+// The database name must reach the driver verbatim. The driver builds a
+// url.URL from the DSN path and escapes it once, so a name escaped here would
+// be escaped a second time — "metrics db" would arrive at the server as
+// "metrics%2520db" and every write would target a database that does not exist.
+func TestBuildRESTfulDSNPassesDbNameVerbatim(t *testing.T) {
+	old := config.Conf.TDengine.SkipVerify
+	t.Cleanup(func() { config.Conf.TDengine.SkipVerify = old })
+	config.Conf.TDengine.SkipVerify = false
+
+	dsn := buildRESTfulDSN("root", "taosdata", "http", "127.0.0.1", 6041, "log", "")
+	assert.Contains(t, dsn, "/log?skipVerify=false")
+
+	for _, name := range []string{"metrics db", "数据", "a%b"} {
+		dsn = buildRESTfulDSN("root", "taosdata", "http", "127.0.0.1", 6041, name, "")
+		assert.Contains(t, dsn, "/"+name+"?skipVerify=false", "the name must not be pre-escaped")
+	}
+}
+
+// A '?' cannot be allowed through in a database name: the driver takes
+// everything after the last '/' up to the first '?' as the name, so a '?' ends
+// the name early and turns the remainder into DSN parameters, dropping
+// skipVerify and the token along with it. Rejecting gives the caller a clear
+// error instead of a silently different connection.
+func TestValidateDBName(t *testing.T) {
+	assert.NoError(t, validateDBName(""))
+	assert.NoError(t, validateDBName("log"))
+	assert.NoError(t, validateDBName("metrics db"))
+	assert.NoError(t, validateDBName("数据"))
+
+	assert.Error(t, validateDBName("log?skipVerify=true"))
+	assert.Error(t, validateDBName("a?b"))
 }

@@ -388,12 +388,33 @@ func (r *Reporter) GetTotalRep() *atomic.Value {
 	return &r.totalRep
 }
 
+// reportSQLTags returns the sanitized values every builder below shares: the
+// cluster_id tag literal and the escaped timestamp.
+func reportSQLTags(clusterID, ts string) (safeClusterID, safeTs string) {
+	return util.EscapeTruncRunes(clusterID, ClusterIDChars), util.EscapeSQLString(ts)
+}
+
+// reportTbSuffix is the child-table suffix shared by the per-dnode tables.
+func reportTbSuffix(clusterID string, dnodeID int) string {
+	return util.ToValidTableName(clusterID + strconv.Itoa(dnodeID))
+}
+
+// reportDnodeTags additionally returns the child-table suffix and the escaped
+// dnode_ep tag literal used by the per-dnode builders.
+func reportDnodeTags(clusterID string, dnodeID int, dnodeEp, ts string) (tbSuffix, safeDnodeEp, safeClusterID, safeTs string) {
+	safeClusterID, safeTs = reportSQLTags(clusterID, ts)
+	tbSuffix = reportTbSuffix(clusterID, dnodeID)
+	safeDnodeEp = util.EscapeTruncRunes(dnodeEp, DnodeEpChars)
+	return
+}
+
 func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts string) []string {
 	var sqls []string
 	var dtotal, dalive, mtotal, malive int
+	safeClusterID, safeTs := reportSQLTags(ClusterID, ts)
 	for _, dnode := range info.Dnodes {
 		sqls = append(sqls, fmt.Sprintf("insert into d_info_%s using d_info tags (%d, '%s', '%s') values ('%s', '%s')",
-			ClusterID+strconv.Itoa(dnode.DnodeID), dnode.DnodeID, dnode.DnodeEp, ClusterID, ts, dnode.Status))
+			reportTbSuffix(ClusterID, dnode.DnodeID), dnode.DnodeID, util.EscapeTruncRunes(dnode.DnodeEp, DnodeEpChars), safeClusterID, safeTs, util.EscapeTrunc(dnode.Status, 10)))
 		dtotal++
 		if dnode.Status == "ready" {
 			dalive++
@@ -402,7 +423,7 @@ func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts s
 
 	for _, mnode := range info.Mnodes {
 		sqls = append(sqls, fmt.Sprintf("insert into m_info_%s using m_info tags (%d, '%s', '%s') values ('%s', '%s')",
-			ClusterID+strconv.Itoa(mnode.MnodeID), mnode.MnodeID, mnode.MnodeEp, ClusterID, ts, mnode.Role))
+			reportTbSuffix(ClusterID, mnode.MnodeID), mnode.MnodeID, util.EscapeTruncRunes(mnode.MnodeEp, DnodeEpChars), safeClusterID, safeTs, util.EscapeTrunc(mnode.Role, 10)))
 		mtotal++
 		// LEADER FOLLOWER CANDIDATE ERROR
 		if mnode.Role != "ERROR" {
@@ -416,16 +437,17 @@ func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts s
 			"mnodes_total, mnodes_alive, vgroups_total, vgroups_alive, vnodes_total, vnodes_alive, connections_total, "+
 			"topics_total, streams_total, protocol) values ('%s', '%s', %d, '%s', %f, %d, %d, %d, %d, %d, %d, %d, %d, "+
 			"%d, %d, %d, %d, %d, %d, %d, %d)",
-		ClusterID, ClusterID, ts, info.FirstEp, info.FirstEpDnodeID, info.Version, info.MasterUptime, info.MonitorInterval,
+		util.ToValidTableName(ClusterID), safeClusterID, safeTs, util.EscapeTrunc(info.FirstEp, 255), info.FirstEpDnodeID, util.EscapeTrunc(info.Version, 12), info.MasterUptime, info.MonitorInterval,
 		info.DbsTotal, info.TbsTotal, info.StbsTotal, dtotal, dalive, mtotal, malive, info.VgroupsTotal, info.VgroupsAlive,
 		info.VnodesTotal, info.VnodesAlive, info.ConnectionsTotal, info.TopicsTotal, info.StreamsTotal, protocol))
 	return sqls
 }
 
 func insertDnodeSql(info DnodeInfo, DnodeID int, DnodeEp string, ClusterID string, ts string) string {
+	tbSuffix, safeDnodeEp, safeClusterID, safeTs := reportDnodeTags(ClusterID, DnodeID, DnodeEp, ts)
 	return fmt.Sprintf("insert into dnode_info_%s using dnodes_info tags (%d, '%s', '%s') values ('%s', %f, %f, %f, %f, %d, %d, %d, %d, %d, %d, %f, %f, %f, %f, %f, %f, %d, %f, %d, %d, %f, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d)",
-		ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID,
-		ts, info.Uptime, info.CPUEngine, info.CPUSystem, info.CPUCores, info.MemEngine, info.MemSystem, info.MemTotal,
+		tbSuffix, DnodeID, safeDnodeEp, safeClusterID,
+		safeTs, info.Uptime, info.CPUEngine, info.CPUSystem, info.CPUCores, info.MemEngine, info.MemSystem, info.MemTotal,
 		info.DiskEngine, info.DiskUsed, info.DiskTotal, info.NetIn, info.NetOut, info.IoRead, info.IoWrite,
 		info.IoReadDisk, info.IoWriteDisk, info.ReqSelect, info.ReqSelectRate, info.ReqInsert, info.ReqInsertSuccess,
 		info.ReqInsertRate, info.ReqInsertBatch, info.ReqInsertBatchSuccess, info.ReqInsertBatchRate, info.Errors,
@@ -434,33 +456,35 @@ func insertDnodeSql(info DnodeInfo, DnodeID int, DnodeEp string, ClusterID strin
 
 func insertDataDirSql(disk DiskInfo, DnodeID int, DnodeEp string, ClusterID string, ts string) []string {
 	var sqls []string
+	tbSuffix, safeDnodeEp, safeClusterID, safeTs := reportDnodeTags(ClusterID, DnodeID, DnodeEp, ts)
 	for _, data := range disk.Datadir {
 		sqls = append(sqls,
 			fmt.Sprintf("insert into data_dir_%s using data_dir tags (%d, '%s', '%s') values ('%s', '%s', %d, %d, %d, %d)",
-				ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID,
-				ts, data.Name, data.Level, data.Avail.IntPart(), data.Used.IntPart(), data.Total.IntPart()),
+				tbSuffix, DnodeID, safeDnodeEp, safeClusterID,
+				safeTs, util.EscapeTruncRunes(data.Name, DirNameChars), data.Level, data.Avail.IntPart(), data.Used.IntPart(), data.Total.IntPart()),
 		)
 	}
 	sqls = append(sqls,
 		fmt.Sprintf("insert into log_dir_%s using log_dir tags (%d, '%s', '%s') values ('%s', '%s', %d, %d, %d)",
-			ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID,
-			ts, disk.Logdir.Name, disk.Logdir.Avail.IntPart(), disk.Logdir.Used.IntPart(), disk.Logdir.Total.IntPart()),
+			tbSuffix, DnodeID, safeDnodeEp, safeClusterID,
+			safeTs, util.EscapeTruncRunes(disk.Logdir.Name, DirNameChars), disk.Logdir.Avail.IntPart(), disk.Logdir.Used.IntPart(), disk.Logdir.Total.IntPart()),
 		fmt.Sprintf("insert into temp_dir_%s using temp_dir tags (%d, '%s', '%s') values ('%s', '%s', %d, %d, %d)",
-			ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID,
-			ts, disk.Tempdir.Name, disk.Tempdir.Avail.IntPart(), disk.Tempdir.Used.IntPart(), disk.Tempdir.Total.IntPart()),
+			tbSuffix, DnodeID, safeDnodeEp, safeClusterID,
+			safeTs, util.EscapeTruncRunes(disk.Tempdir.Name, DirNameChars), disk.Tempdir.Avail.IntPart(), disk.Tempdir.Used.IntPart(), disk.Tempdir.Total.IntPart()),
 	)
 	return sqls
 }
 
 func insertVgroupSql(g VgroupInfo, DnodeID int, DnodeEp string, ClusterID string, ts string) []string {
 	var sqls []string
+	tbSuffix, safeDnodeEp, safeClusterID, safeTs := reportDnodeTags(ClusterID, DnodeID, DnodeEp, ts)
 	sqls = append(sqls, fmt.Sprintf("insert into vgroups_info_%s using vgroups_info tags (%d, '%s', '%s') "+
 		"(ts, vgroup_id, database_name, tables_num, status, ) values ( '%s','%d', '%s', %d, '%s')",
-		ClusterID+strconv.Itoa(DnodeID)+strconv.Itoa(g.VgroupID), DnodeID, DnodeEp, ClusterID,
-		ts, g.VgroupID, g.DatabaseName, g.TablesNum, g.Status))
+		util.ToValidTableName(ClusterID+strconv.Itoa(DnodeID)+strconv.Itoa(g.VgroupID)), DnodeID, safeDnodeEp, safeClusterID,
+		safeTs, g.VgroupID, util.EscapeTrunc(g.DatabaseName, 33), g.TablesNum, util.EscapeTrunc(g.Status, 512)))
 	for _, v := range g.Vnodes {
 		sqls = append(sqls, fmt.Sprintf("insert into vnodes_role_%s using vnodes_role tags (%d, '%s', '%s') values ('%s', '%s')",
-			ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID, ts, v.VnodeRole))
+			tbSuffix, DnodeID, safeDnodeEp, safeClusterID, safeTs, util.EscapeTrunc(v.VnodeRole, 10)))
 	}
 	return sqls
 }
@@ -479,11 +503,13 @@ func insertLogSummary(log LogInfo, DnodeID int, DnodeEp string, ClusterID string
 			trace = s.Total
 		}
 	}
+	tbSuffix, safeDnodeEp, safeClusterID, safeTs := reportDnodeTags(ClusterID, DnodeID, DnodeEp, ts)
 	return fmt.Sprintf("insert into log_summary_%s using log_summary tags (%d, '%s', '%s') values ('%s', %d, %d, %d, %d)",
-		ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID, ts, e, info, debug, trace)
+		tbSuffix, DnodeID, safeDnodeEp, safeClusterID, safeTs, e, info, debug, trace)
 }
 
 func insertGrantSql(g GrantInfo, DnodeID int, ClusterID string, ts string) string {
+	safeClusterID, safeTs := reportSQLTags(ClusterID, ts)
 	return fmt.Sprintf("insert into grants_info_%s using grants_info tags ('%s') (ts, expire_time, "+
-		"timeseries_used, timeseries_total) values ('%s', %d, %d, %d)", ClusterID+strconv.Itoa(DnodeID), ClusterID, ts, g.ExpireTime, g.TimeseriesUsed, g.TimeseriesTotal)
+		"timeseries_used, timeseries_total) values ('%s', %d, %d, %d)", reportTbSuffix(ClusterID, DnodeID), safeClusterID, safeTs, g.ExpireTime, g.TimeseriesUsed, g.TimeseriesTotal)
 }

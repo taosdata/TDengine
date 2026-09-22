@@ -3511,8 +3511,21 @@ static int64_t fillChildTblNameByLimitOffset(SDataBase *database,
     int64_t   ret   = -1;
     TAOS_ROW  row   = NULL;
     if (code) {
+        // "child_table_exists": "yes" only promises that an *existing* stable is
+        // reused; the stable is allowed to be absent (the caller then skips this
+        // super table, e.g. json/insert-drop-exist-auto-N00-stmt.json expects
+        // zero tables for every NY* prefix).  Report "no child tables" instead of
+        // a failure so one missing stable does not turn into a fatal error.
+        //
+        // Note: the result of a *failed* query must not be passed to
+        // taos_free_result() here.  The client may already have reclaimed the
+        // request object before taos_free_result() runs (sync-query completion
+        // race), and freeing it again aborts the process -- that is the
+        // "free(): double free detected in tcache 2" crash of
+        // test_benchmark_stmt.
         printErrCmdCodeStr(cmd, code, res);
-        goto cleanup;
+        closeBenchConn(conn);
+        return 0;
     }
     while ((row = taos_fetch_row(res)) != NULL) {
         // the server must not return more rows than the array it was asked

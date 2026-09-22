@@ -47,7 +47,7 @@ func NewCommand(conf *config.Config) *Command {
 			ExpectContinueTimeout: 1 * time.Second,
 			DisableCompression:    true,
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: conf.TDengine.SkipVerify,
 			},
 		},
 	}
@@ -354,16 +354,20 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 
 			for _, row := range dataByCluster {
 				if len(buf.Bytes()) == 0 {
+					// Historical values may have been written before the report
+					// endpoint escaped them, so sanitize them the same way the
+					// current write path does before re-executing them as SQL.
+					clusterID := row[0].(string)
 					sql := fmt.Sprintf(
 						"insert into taosd_cluster_basic_%s using taosd_cluster_basic tags ('%s') values ",
-						row[0].(string), row[0].(string))
+						util.ToValidTableName(clusterID), util.EscapeTrunc(clusterID, 50))
 
 					buf.WriteString(sql)
 				}
 
 				sql := fmt.Sprintf(
 					"(%d, '%s', %d, '%s')",
-					row[4].(time.Time).UnixMilli(), row[1].(string), row[2].(int32), row[3].(string))
+					row[4].(time.Time).UnixMilli(), util.EscapeTrunc(row[1].(string), 255), row[2].(int32), util.EscapeTrunc(row[3].(string), 20))
 				buf.WriteString(sql)
 
 				if buf.Len() >= MAX_SQL_LEN {
