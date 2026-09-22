@@ -119,7 +119,12 @@ int32_t tDeserializeSSsMigrateObj(void *buf, int32_t bufLen, SSsMigrateObj *pObj
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->id));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->dbUid));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbname));
+  // dbname is a fixed-size buffer (char dbname[TSDB_TABLE_FNAME_LEN]) inside the sdb row object.
+  // tDecodeCStrTo() bounds the copy only by the bytes remaining in the message, never by the
+  // destination, so an over-long wire string would overflow the row object and the heap beyond it.
+  // Use the destination-bounded variant, which rejects a string that does not fit instead of
+  // writing past the buffer.
+  TAOS_CHECK_EXIT(tDecodeCStrToFixed(&decoder, pObj->dbname, TSDB_TABLE_FNAME_LEN));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->stateUpdateTime));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->vgIdx));
