@@ -71,9 +71,11 @@ class StreamMgmtLifecycleTest : public ::testing::Test {
     gid_ = STREAM_GID(kStreamId);
     savedTaskMap_ = gStreamMgmt.taskMap;
     savedGroup_ = gStreamMgmt.stmGrp[gid_];
+    savedSnodeEnabled_ = gStreamMgmt.snodeEnabled;
     gStreamMgmt.taskMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     ASSERT_NE(gStreamMgmt.taskMap, nullptr);
     gStreamMgmt.stmGrp[gid_] = nullptr;
+    gStreamMgmt.snodeEnabled = true;
 
     gDeployCalls = 0;
     gUndeployCalls = 0;
@@ -89,6 +91,7 @@ class StreamMgmtLifecycleTest : public ::testing::Test {
     taosHashCleanup(gStreamMgmt.stmGrp[gid_]);
     gStreamMgmt.taskMap = savedTaskMap_;
     gStreamMgmt.stmGrp[gid_] = savedGroup_;
+    gStreamMgmt.snodeEnabled = savedSnodeEnabled_;
   }
 
   void DeployTrigger() {
@@ -144,6 +147,7 @@ class StreamMgmtLifecycleTest : public ::testing::Test {
   int32_t   gid_ = 0;
   SHashObj *savedTaskMap_ = nullptr;
   SHashObj *savedGroup_ = nullptr;
+  bool      savedSnodeEnabled_ = false;
   Stub      stub_;
 };
 
