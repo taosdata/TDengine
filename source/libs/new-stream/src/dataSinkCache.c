@@ -41,12 +41,9 @@ void setUsedBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t usedSize) {
 
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (char*)pWindowData + sizeof(SSlidingWindowInMem); }
 
-static size_t getWindowDataSize(SSlidingWindowInMem* pWindowData) {
-  return pWindowData->dataLen == 0 ? sizeof(SSlidingWindowInMem) + sizeof(SMoveWindowInfo) : pWindowData->dataLen;
-}
-
-static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end,
-                                     SSDataBlock** ppBlock) {
+static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int64_t available, int32_t tsColSlotId,
+                                     TSKEY start, TSKEY end, SSDataBlock** ppBlock) {
+  if (available <= 0) return TSDB_CODE_INVALID_MSG;
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -55,7 +52,13 @@ static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int32_t t
   }
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = blockSpecialDecodeLaterPart(pBlock, getWindowDataBuf(pWindowData), tsColSlotId, start, end);
+  if (start == TSKEY_MIN && end == TSKEY_MAX) {
+    // Aligned windows are selected by their header; projected columns need no timestamp filtering.
+    code = blockDecodeBounded(pBlock, getWindowDataBuf(pWindowData), available, NULL);
+  } else {
+    code = blockSpecialDecodeLaterPartBounded(pBlock, getWindowDataBuf(pWindowData), available, tsColSlotId, start, end,
+                                              NULL);
+  }
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -99,8 +102,18 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
     while (pResult->winIndex < pBlockInfo->nWindow) {
+      if (pBlockInfo->dataLen < 0 || pBlockInfo->dataLen > pBlockInfo->capacity || pResult->offset < 0 ||
+          pResult->offset > pBlockInfo->dataLen ||
+          pBlockInfo->dataLen - pResult->offset < sizeof(SSlidingWindowInMem)) {
+        return TSDB_CODE_INVALID_MSG;
+      }
       SSlidingWindowInMem* pWindowData = (SSlidingWindowInMem*)((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
 
+      int64_t windowSize =
+          pWindowData->dataLen == 0 ? sizeof(SSlidingWindowInMem) + sizeof(SMoveWindowInfo) : pWindowData->dataLen;
+      if (windowSize < (int64_t)sizeof(SSlidingWindowInMem) || windowSize > pBlockInfo->dataLen - pResult->offset) {
+        return TSDB_CODE_INVALID_MSG;
+      }
       bool found = false;
       if (!pResult->exactWindow && pWindowData->startTime > pResult->reqEndTime) {
         *finished = true;
@@ -128,7 +141,8 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
         } else {
           TSKEY start = pResult->exactWindow ? pResult->reqStartTime : TSKEY_MIN;
           TSKEY end = pResult->exactWindow ? pResult->reqEndTime : TSKEY_MAX;
-          code = getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, start, end, ppBlock);
+          code = getRangeInWindowBlock(pWindowData, pWindowData->dataLen - (int64_t)sizeof(SSlidingWindowInMem),
+                                       pResult->tsColSlotId, start, end, ppBlock);
           if (code) {
             return code;
           }
@@ -138,7 +152,6 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
         }
       }
 
-      size_t windowSize = getWindowDataSize(pWindowData);
       if (++pResult->winIndex >= pBlockInfo->nWindow) {
         pResult->winIndex = 0;
         pResult->offset = 0;
@@ -236,8 +249,8 @@ static int32_t getSlidingDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock
       updateSlidingGrpUsedMemSize(pSlidingGrpMgr);
       return code;
     } else {
-      return getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, pResult->reqStartTime, pResult->reqEndTime,
-                                   ppBlock);
+      return getRangeInWindowBlock(pWindowData, pWindowData->dataLen, pResult->tsColSlotId, pResult->reqStartTime,
+                                   pResult->reqEndTime, ppBlock);
     }
   }
   *finished = true;

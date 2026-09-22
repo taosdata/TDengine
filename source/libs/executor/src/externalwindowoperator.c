@@ -1953,7 +1953,10 @@ static void extWinPrepareLegacySettlementBoundary(SOperatorInfo* pOperator, SExt
   pBlock->info.version = pOperator->pTaskInfo->version;
   pBlock->info.dataLoad = 1;
   extWinAssignBlockGrpId(pOperator, pExtW, &pBlock->info.id);
-  extWinDetachPublishedRuntimeAliases(pOperator->pTaskInfo, pExtW);
+  SStreamRuntimeFuncInfo* pStream = &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo;
+  // Keep the current group published until Runner consumes this boundary.
+  pStream->pStreamBlkWinIdx = NULL;
+  tClearStreamCurrentGroupRead(pStream);
   pExtW->boundaryReady = true;
 }
 
@@ -1980,6 +1983,7 @@ static int32_t extWinFinishLegacyOutputGroup(SOperatorInfo* pOperator, SExternal
   } else {
     *ppRes = pBlock->info.rows > 0 ? pBlock : NULL;
   }
+  pExtW->activeGroupPublished = false;
   return TSDB_CODE_SUCCESS;
 }
 

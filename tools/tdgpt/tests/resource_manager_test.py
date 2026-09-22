@@ -74,6 +74,7 @@ def _release_manifest(tmp_path, runtime, models):
 
 def test_import_runtime_and_model_atomically(tmp_path, mock_config, mocker):
     mock_config.data_dir = str(Path(tmp_path) / "data")
+    mock_config.resource_dir = str(Path(mock_config.data_dir) / "resource")
     mock_config.tsfm_venv = str(Path(mock_config.data_dir) / "model_venvs" / "tsfm")
     mock_config.tsfm_model_dir = str(Path(mock_config.data_dir) / "model" / "tsfm")
     runtime = Path(tmp_path) / "python-runtime" / "bin"
@@ -95,6 +96,17 @@ def test_import_runtime_and_model_atomically(tmp_path, mock_config, mocker):
 def test_import_rejects_bad_archive_hash(tmp_path, mock_config):
     with pytest.raises(ResourceImportError, match="SHA-256"):
         DynamicResourceManager(mock_config).import_packages([str(_model_archive(tmp_path))], "0" * 64)
+
+
+def test_resource_manager_uses_configured_resource_directory(tmp_path, mock_config):
+    mock_config.resource_dir = str(tmp_path / "windows-install" / "resource")
+
+    manager = DynamicResourceManager(mock_config)
+
+    assert manager.resource_root == Path(mock_config.resource_dir)
+    assert manager.state_root == Path(mock_config.resource_dir) / "state" / "models"
+    assert manager.task_root == Path(mock_config.resource_dir) / "state" / "tasks"
+    assert manager.cache_root == Path(mock_config.resource_dir) / "cache"
 
 
 def test_extract_reports_the_archive_total_when_one_member_is_skipped(
@@ -158,6 +170,7 @@ def test_runtime_name_is_canonicalised_for_legacy_releases(tmp_path, mock_config
     mocker.patch("resource_manifest.normalized_platform", return_value="linux")
     mocker.patch("resource_manifest.normalized_arch", return_value="x64")
     mock_config.data_dir = str(Path(tmp_path) / "data")
+    mock_config.resource_dir = str(Path(mock_config.data_dir) / "resource")
     mock_config.tsfm_venv = str(Path(mock_config.data_dir) / "model_venvs" / "tsfm")
     mock_config.tsfm_model_dir = str(Path(mock_config.data_dir) / "model" / "tsfm")
     runtime_python_dir = tmp_path / "python-runtime" / "bin"
@@ -198,6 +211,7 @@ def test_runtime_name_is_canonicalised_for_legacy_releases(tmp_path, mock_config
 
 def test_delete_model_and_runtime(tmp_path, mock_config):
     mock_config.data_dir = str(Path(tmp_path) / "data")
+    mock_config.resource_dir = str(Path(mock_config.data_dir) / "resource")
     mock_config.model_venvs_dir = str(Path(tmp_path) / "model_venvs")
     mock_config.tsfm_venv = str(Path(mock_config.model_venvs_dir) / "tsfm")
     mock_config.tsfm_model_dir = str(Path(mock_config.data_dir) / "model" / "tsfm")
@@ -247,6 +261,7 @@ def test_delete_rejects_symlink(tmp_path, mock_config):
 
 def test_import_replaces_empty_runtime_root_created_by_lite_installer(tmp_path, mock_config, mocker):
     mock_config.data_dir = str(Path(tmp_path) / "data")
+    mock_config.resource_dir = str(Path(mock_config.data_dir) / "resource")
     mock_config.tsfm_venv = str(Path(mock_config.data_dir) / "model_venvs" / "tsfm")
     runtime_python = Path(tmp_path) / "python-runtime" / "bin" / "python3"
     runtime_python.parent.mkdir(parents=True)
@@ -269,6 +284,7 @@ def test_import_replaces_empty_runtime_root_created_by_lite_installer(tmp_path, 
 
 def test_apply_release_reuses_runtime_and_cached_install(tmp_path, mock_config, mocker):
     mock_config.data_dir = str(Path(tmp_path) / "data")
+    mock_config.resource_dir = str(Path(mock_config.data_dir) / "resource")
     mock_config.tsfm_venv = str(Path(mock_config.data_dir) / "model_venvs" / "tsfm")
     mock_config.tsfm_model_dir = str(Path(mock_config.data_dir) / "model" / "tsfm")
     runtime_python = Path(tmp_path) / "python-runtime" / "bin" / "python3"
@@ -358,6 +374,7 @@ def test_apply_release_reuses_runtime_and_cached_install(tmp_path, mock_config, 
 
 def test_apply_release_rejects_wrong_archive_size(tmp_path, mock_config, mocker):
     mock_config.data_dir = str(Path(tmp_path) / "data")
+    mock_config.resource_dir = str(Path(mock_config.data_dir) / "resource")
     mock_config.tsfm_venv = str(Path(mock_config.data_dir) / "model_venvs" / "tsfm")
     mock_config.tsfm_model_dir = str(Path(mock_config.data_dir) / "model" / "tsfm")
     runtime_python = Path(tmp_path) / "python-runtime" / "bin" / "python3"
@@ -392,13 +409,22 @@ def test_resource_operation_rejects_concurrent_lock(mock_config):
 
 def test_lifecycle_lock_releases_after_failure(mock_config):
     with pytest.raises(ValueError):
-        with lifecycle_lock(mock_config.data_dir):
+        with lifecycle_lock(mock_config.resource_dir):
             with pytest.raises(ResourceImportError, match="another TDgpt resource operation"):
-                with lifecycle_lock(mock_config.data_dir):
+                with lifecycle_lock(mock_config.resource_dir):
                     pytest.fail("concurrent operation acquired lock")
             raise ValueError("operation failed")
-    with lifecycle_lock(mock_config.data_dir):
+    with lifecycle_lock(mock_config.resource_dir):
         pass
+
+
+def test_lifecycle_lock_uses_configured_resource_directory(tmp_path):
+    resource_dir = tmp_path / "windows-install" / "resource"
+
+    with lifecycle_lock(resource_dir):
+        assert (resource_dir / ".tdgpt-lifecycle.lock").is_file()
+
+    assert not (tmp_path / "data" / "resource").exists()
 
 
 def test_resource_lock_clears_state_when_enter_fails(mock_config, mocker):

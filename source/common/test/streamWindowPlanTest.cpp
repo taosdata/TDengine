@@ -12,12 +12,14 @@
 #include <vector>
 
 #include "nodes.h"
+#include "tdatablock.h"
 #include "streamMsg.h"
 #include "tencode.h"
 #include "tjson.h"
 #include "tmsg.h"
 
 extern "C" int32_t tEncodeSStmStreamDeploy(SEncoder* pEncoder, const SStmStreamDeploy* pStream);
+extern "C" int32_t tDecodeSStmStreamDeploy(SDecoder* pDecoder, SStmStreamDeploy* pStream);
 
 namespace {
 
@@ -1191,6 +1193,96 @@ TEST(StreamWindowPlanTest, tempTableExplicitAliasLegacyOmissionRemainsFalse) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(decoded, &cloned));
   std::unique_ptr<SNode, decltype(&nodesDestroyNode)> clonedGuard(cloned, nodesDestroyNode);
   EXPECT_EQ(legacy, encodeNodeJson(cloned));
+}
+
+TEST(StreamWindowPlanTest, streamDeployTaskTypesMatchSlots) {
+  const struct {
+    std::array<EStreamTaskType, 3> types;
+    bool                           succeeds;
+  } cases[] = {
+      {{STREAM_READER_TASK, STREAM_TRIGGER_TASK, STREAM_RUNNER_TASK}, true},
+      {{STREAM_TRIGGER_TASK, STREAM_TRIGGER_TASK, STREAM_RUNNER_TASK}, false},
+      {{STREAM_RUNNER_TASK, STREAM_TRIGGER_TASK, STREAM_RUNNER_TASK}, false},
+      {{STREAM_READER_TASK, STREAM_READER_TASK, STREAM_RUNNER_TASK}, false},
+      {{STREAM_READER_TASK, STREAM_RUNNER_TASK, STREAM_RUNNER_TASK}, false},
+      {{STREAM_READER_TASK, STREAM_TRIGGER_TASK, STREAM_READER_TASK}, false},
+      {{STREAM_READER_TASK, STREAM_TRIGGER_TASK, STREAM_TRIGGER_TASK}, false},
+  };
+
+  for (const auto& testCase : cases) {
+    SCOPED_TRACE(::testing::Message() << "reader=" << static_cast<int>(testCase.types[0])
+                                      << " trigger=" << static_cast<int>(testCase.types[1])
+                                      << " runner=" << static_cast<int>(testCase.types[2]));
+    SStmStreamDeploy                                                        source = {};
+    std::unique_ptr<SStmStreamDeploy, decltype(&tDeepFreeSStmStreamDeploy)> sourceGuard(&source,
+                                                                                        tDeepFreeSStmStreamDeploy);
+    source.streamId = 42;
+    source.readerTasks = taosArrayInit_s(sizeof(SStmTaskDeploy), 1);
+    source.triggerTask = static_cast<SStmTaskDeploy*>(taosMemoryCalloc(1, sizeof(SStmTaskDeploy)));
+    source.runnerTasks = taosArrayInit_s(sizeof(SStmTaskDeploy), 1);
+    ASSERT_NE(nullptr, source.readerTasks);
+    ASSERT_NE(nullptr, source.triggerTask);
+    ASSERT_NE(nullptr, source.runnerTasks);
+    const std::array<SStmTaskDeploy*, 3> tasks = {static_cast<SStmTaskDeploy*>(taosArrayGet(source.readerTasks, 0)),
+                                                  source.triggerTask,
+                                                  static_cast<SStmTaskDeploy*>(taosArrayGet(source.runnerTasks, 0))};
+    for (size_t i = 0; i < tasks.size(); ++i) {
+      SStmTaskDeploy* task = tasks[i];
+      task->task.type = testCase.types[i];
+      task->task.streamId = source.streamId;
+      task->task.taskId = i + 1;
+      switch (task->task.type) {
+        case STREAM_READER_TASK:
+          task->msg.reader.msg.calc.calcScanPlan = dupText("reader_plan");
+          break;
+        case STREAM_TRIGGER_TASK:
+          task->msg.trigger.triggerType = WINDOW_TYPE_COUNT;
+          task->msg.trigger.trigger.count.countVal = 2;
+          task->msg.trigger.trigger.count.sliding = 2;
+          task->msg.trigger.streamName = dupText("slot_stream");
+          break;
+        case STREAM_RUNNER_TASK:
+          task->msg.runner.streamName = dupText("slot_stream");
+          task->msg.runner.pPlan = dupText("runner_plan");
+          break;
+      }
+    }
+
+    SEncoder sizer = {};
+    tEncoderInit(&sizer, nullptr, 0);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSStmStreamDeploy(&sizer, &source));
+    std::vector<uint8_t> bytes(sizer.pos);
+    tEncoderClear(&sizer);
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, bytes.data(), bytes.size());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSStmStreamDeploy(&encoder, &source));
+    tEncoderClear(&encoder);
+
+    SStmStreamDeploy decoded = {};
+    // Both successful and partial decodes own the union selected by task.type.
+    std::unique_ptr<SStmStreamDeploy, decltype(&tDeepFreeSStmStreamDeploy)> decodedGuard(&decoded,
+                                                                                         tDeepFreeSStmStreamDeploy);
+    SDecoder                                                                decoder = {};
+    tDecoderInit(&decoder, bytes.data(), bytes.size());
+    const int32_t code = tDecodeSStmStreamDeploy(&decoder, &decoded);
+    tDecoderClear(&decoder);
+    EXPECT_EQ(testCase.succeeds, code == TSDB_CODE_SUCCESS);
+    if (testCase.succeeds) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+      EXPECT_EQ(42, decoded.streamId);
+      ASSERT_EQ(1, taosArrayGetSize(decoded.readerTasks));
+      ASSERT_NE(nullptr, decoded.triggerTask);
+      ASSERT_EQ(1, taosArrayGetSize(decoded.runnerTasks));
+      const auto* reader = static_cast<const SStmTaskDeploy*>(taosArrayGet(decoded.readerTasks, 0));
+      const auto* runner = static_cast<const SStmTaskDeploy*>(taosArrayGet(decoded.runnerTasks, 0));
+      EXPECT_EQ(STREAM_READER_TASK, reader->task.type);
+      EXPECT_EQ(STREAM_TRIGGER_TASK, decoded.triggerTask->task.type);
+      EXPECT_EQ(STREAM_RUNNER_TASK, runner->task.type);
+      EXPECT_STREQ("reader_plan", static_cast<const char*>(reader->msg.reader.msg.calc.calcScanPlan));
+      EXPECT_STREQ("slot_stream", decoded.triggerTask->msg.trigger.streamName);
+      EXPECT_STREQ("runner_plan", static_cast<const char*>(runner->msg.runner.pPlan));
+    }
+  }
 }
 
 SMStreamHbRspMsg makeHeartbeatWithNestedTrigger() {
@@ -4419,6 +4511,127 @@ TEST(StreamRunnerFetchFrameTest, DecoderReleasesPriorLineageBeforeSuccessAndFail
   tDestroySStreamRunnerFetchFrame(&decoded);
   tDestroySStreamRunnerFetchFrame(&secondSource);
   tDestroySStreamRunnerFetchFrame(&firstSource);
+}
+
+}  // namespace
+
+namespace {
+
+class StreamWalDataCodecTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&source_));
+    SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(source_, &column));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataEnsureCapacity(source_, 2));
+    auto* data = static_cast<SColumnInfoData*>(taosArrayGet(source_->pDataBlock, 0));
+    for (int64_t row = 0; row < 2; ++row) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(data, row, reinterpret_cast<const char*>(&row), false));
+    }
+    source_->info.rows = 2;
+    index_ = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(nullptr, index_);
+    slices_ = taosArrayInit(1, sizeof(int64_t) * 3);
+    ASSERT_NE(nullptr, slices_);
+    decoded_ = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
+    ASSERT_NE(nullptr, decoded_);
+  }
+
+  void TearDown() override {
+    blockDataDestroy(source_);
+    blockDataDestroy(decoded_);
+    tSimpleHashCleanup(index_);
+    taosArrayDestroy(slices_);
+  }
+
+  std::vector<char> encode(int32_t start = 0, int32_t rows = 2) {
+    SStreamWalDataSlice slice = {};
+    slice.uid = 1;
+    slice.gId = 2;
+    slice.startRowIdx = start;
+    slice.numRows = rows;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(index_, &slice.uid, sizeof(slice.uid), &slice, sizeof(slice)));
+    SSTriggerWalNewRsp response = {};
+    response.indexHash = index_;
+    response.dataBlock = source_;
+    response.ver = 3;
+    response.verTime = 4;
+    int32_t            len = tSerializeSStreamWalDataResponse(nullptr, 0, &response);
+    EXPECT_GT(len, 0);
+    if (len <= 0) return {};
+    std::vector<char> result(len);
+    EXPECT_EQ(len, tSerializeSStreamWalDataResponse(result.data(), len, &response));
+    return result;
+  }
+
+  int32_t decode(std::vector<char>& bytes, SArray* slices) {
+    SSTriggerWalNewRsp response = {};
+    response.dataBlock = decoded_;
+    return tDeserializeSStreamWalDataResponse(bytes.data(), bytes.size(), &response, slices);
+  }
+
+  SSDataBlock* source_ = nullptr;
+  SSDataBlock* decoded_ = nullptr;
+  SSHashObj*   index_ = nullptr;
+  SArray*      slices_ = nullptr;
+};
+
+TEST_F(StreamWalDataCodecTest, SliceRangesStayInsideDecodedRows) {
+  for (const auto& range : std::vector<std::pair<int32_t, int32_t>>{{-1, 1}, {0, -1}, {3, 0}, {1, 2}, {1, INT32_MAX}}) {
+    SCOPED_TRACE(::testing::Message() << range.first << "/" << range.second);
+    auto bytes = encode(range.first, range.second);
+    EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, slices_));
+  }
+  for (const auto& range : std::vector<std::pair<int32_t, int32_t>>{{0, 2}, {1, 1}, {2, 0}}) {
+    auto bytes = encode(range.first, range.second);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, decode(bytes, slices_));
+    ASSERT_EQ(1, taosArrayGetSize(slices_));
+    auto* slice = static_cast<int64_t*>(taosArrayGet(slices_, 0));
+    EXPECT_EQ(range.first, slice[2] >> 32);
+    EXPECT_EQ(range.first + range.second, static_cast<int32_t>(slice[2]));
+  }
+}
+
+TEST_F(StreamWalDataCodecTest, SliceCountIsBoundedBeforeAllocation) {
+  const size_t countOffset = sizeof(int32_t) + sizeof(int8_t) + blockGetEncodeSize(source_);
+  for (int32_t count : {-1, INT32_MAX, 2}) {
+    auto bytes = encode();
+    ASSERT_LT(countOffset + sizeof(count), bytes.size());
+    memcpy(bytes.data() + countOffset, &count, sizeof(count));
+    EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, slices_));
+  }
+}
+
+TEST_F(StreamWalDataCodecTest, DataRequiresSliceOutputContainer) {
+  auto bytes = encode();
+  EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, nullptr));
+}
+
+TEST_F(StreamWalDataCodecTest, TruncatedBlocksAndTailUseActualFrameLength) {
+  const auto complete = encode();
+  for (size_t len = sizeof(int32_t) + 1; len < complete.size(); ++len) {
+    SCOPED_TRACE(len);
+    std::vector<char> bytes(complete.begin(), complete.begin() + len);
+    const int32_t     frameLen = len - sizeof(int32_t);
+    memcpy(bytes.data(), &frameLen, sizeof(frameLen));
+    EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, slices_));
+  }
+  auto bytes = complete;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, decode(bytes, slices_));
+}
+
+TEST_F(StreamWalDataCodecTest, EmptyResponseDoesNotRequireSchemaOrSlices) {
+  SSTriggerWalNewRsp source = {};
+  source.ver = 3;
+  source.verTime = 4;
+  const int32_t      len = tSerializeSStreamWalDataResponse(nullptr, 0, &source);
+  ASSERT_GT(len, 0);
+  std::vector<char> bytes(len);
+  ASSERT_EQ(len, tSerializeSStreamWalDataResponse(bytes.data(), len, &source));
+  SSTriggerWalNewRsp response = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSStreamWalDataResponse(bytes.data(), len, &response, nullptr));
+  EXPECT_EQ(3, response.ver);
+  EXPECT_EQ(4, response.verTime);
 }
 
 }  // namespace

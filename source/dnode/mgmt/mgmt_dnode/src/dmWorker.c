@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
+#include "stream.h"
 #include "tgrant.h"
 #include "thttp.h"
 #include "streamMsg.h"
@@ -874,8 +875,15 @@ int32_t dmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, i
     *pWorkerIdx = 0;
     return TSDB_CODE_SUCCESS;
   }
-  SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
-  *pWorkerIdx = pHeader->streamGid % tsNumOfStreamMgmtThreads;
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SStreamMsgGrpHeader header;
+  memcpy(&header, pMsg->pCont, sizeof(header));
+  if (header.streamGid < 0 || header.streamGid >= STREAM_MAX_GROUP_NUM) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  *pWorkerIdx = header.streamGid % tsNumOfStreamMgmtThreads;
   return TSDB_CODE_SUCCESS;
 }
 

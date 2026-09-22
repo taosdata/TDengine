@@ -39,9 +39,17 @@ Lite 安装流程必须显式使用 `--model-source none`，只安装 TDgpt 程�
 
 Lite 升级可以替换程序文件、配置模板和主 venv，但不得删除或覆盖 `model/` 与 `model_venvs/`。卸载默认保留模型和模型 venv；只有用户显式选择删除数据和动态资源时才清理这些目录。
 
+Windows 动态资源运行数据统一保存在 `data/resource`。从已发布版本升级时，
+安装器保留其中的模型状态、任务状态和缓存，并将已有配置中的 `resource_dir`
+修正为该目录。早期版本错误写入安装目录 `resource` 的
+`foundation_models.db` 属于可重建的运行时索引，升级时删除并在
+`data/resource` 中重新生成。安装目录 `resource` 已废弃，新安装不再创建，
+从旧版本升级时删除整个目录。
+
 ## 3. 动态资源目录
 
-Linux 的动态资源根目录为 `/var/lib/taos/taosanode`，Windows 为 `C:\TDengine\taosanode`。动态资源在两个平台使用相同的相对路径：
+Linux 的动态资源根目录为 `/var/lib/taos/taosanode`，Windows 的模型和运行时
+根目录为 `C:\TDengine\taosanode`。模型目录结构如下：
 
 ```text
 .
@@ -58,6 +66,16 @@ Linux 的动态资源根目录为 `/var/lib/taos/taosanode`，Windows 为 `C:\TD
 ```
 
 完整历史包中的 `model/<model_name>` 与各模型独立 venv 仅作兼容读取，不能作为新增动态资源的目标目录。
+
+资源状态、任务、缓存、运行时数据库和并发锁统一位于资源目录：
+
+| 平台 | 资源目录 |
+| --- | --- |
+| Linux / Docker | `/var/lib/taos/taosanode/resource` |
+| Windows | `C:\TDengine\taosanode\data\resource` |
+
+`foundation_models.db`、`state/models/`、`state/tasks/`、`cache/` 以及资源操作
+锁必须使用同一个资源目录，不能分别写入安装目录和 `data` 目录。
 
 ## 4. 资源所有权
 
@@ -222,7 +240,7 @@ TDgpt Lite 安装或升级、taosanode 启动、机器或容器重启以及模�
 | 版本相同但 SHA-256 不同 | 视为同版本资源被重新发布，必须明确提示后再升级 |
 | `required_runtime` 不匹配 | 先升级共享 TSFM venv，再启动模型 |
 
-模型的安装状态保存在 `resource/state/models/<model_name>.json`，记录 `model_id`、`model_version`、资源版本、发布文件名、归档大小、SHA-256、目标路径、部署时间和备注；状态文件只在模型目录切换成功后原子写入。共享 venv 使用自身的 `.tdgpt-install-complete.json` 记录等价状态。
+模型的安装状态保存在 `<resource_dir>/state/models/<model_name>.json`，记录 `model_id`、`model_version`、资源版本、发布文件名、归档大小、SHA-256、目标路径、部署时间和备注；状态文件只在模型目录切换成功后原子写入。共享 venv 使用自身的 `.tdgpt-install-complete.json` 记录等价状态。
 
 #### 7.2.1 在线与离线发布清单发现（规划）
 

@@ -2531,6 +2531,9 @@ int32_t tDecodeSStmStreamDeploy(SDecoder* pDecoder, SStmStreamDeploy* pStream) {
   for (int32_t i = 0; i < readerNum; ++i) {
     SStmTaskDeploy* pTask = taosArrayGet(pStream->readerTasks, i);
     TAOS_CHECK_EXIT(tDecodeSStmTaskDeploy(pDecoder, pTask));
+    if (pTask->task.type != STREAM_READER_TASK) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
 
   int32_t triggerTask = 0;
@@ -2539,6 +2542,9 @@ int32_t tDecodeSStmStreamDeploy(SDecoder* pDecoder, SStmStreamDeploy* pStream) {
     pStream->triggerTask = taosMemoryCalloc(1, sizeof(SStmTaskDeploy));
     TSDB_CHECK_NULL(pStream->triggerTask, code, lino, _exit, terrno);
     TAOS_CHECK_EXIT(tDecodeSStmTaskDeploy(pDecoder, pStream->triggerTask));
+    if (pStream->triggerTask->task.type != STREAM_TRIGGER_TASK) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
   
   int32_t runnerNum = 0;
@@ -2550,6 +2556,9 @@ int32_t tDecodeSStmStreamDeploy(SDecoder* pDecoder, SStmStreamDeploy* pStream) {
   for (int32_t i = 0; i < runnerNum; ++i) {
     SStmTaskDeploy* pTask = taosArrayGet(pStream->runnerTasks, i);
     TAOS_CHECK_EXIT(tDecodeSStmTaskDeploy(pDecoder, pTask));
+    if (pTask->task.type != STREAM_RUNNER_TASK) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
 
 _exit:
@@ -7903,7 +7912,7 @@ _exit:
   return tlen;
 }
 
-static int32_t decodeBlock(SDecoder* decoder, void* pBlock) {
+static int32_t decodeBlock(SDecoder* decoder, SSDataBlock* pBlock) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   
@@ -7911,9 +7920,15 @@ static int32_t decodeBlock(SDecoder* decoder, void* pBlock) {
   TAOS_CHECK_EXIT(tDecodeI8(decoder, &hasData));
   if (hasData) {
     TAOS_CHECK_EXIT(pBlock != NULL ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA);
+    TAOS_CHECK_EXIT(decoder->pos <= decoder->size ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG);
+    // Metadata must expose this response's columns, without tails from a previous block.
+    int64_t version = pBlock->info.version;
+    blockDataFreeRes(pBlock);
+    pBlock->info.version = version;
     const char* pEndPos = NULL;
-    TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder->data + decoder->pos, &pEndPos));
-    decoder->pos = (uint8_t*)pEndPos - decoder->data;
+    TAOS_CHECK_EXIT(
+        blockDecodeBounded(pBlock, (char*)decoder->data + decoder->pos, decoder->size - decoder->pos, &pEndPos));
+    decoder->pos = (const uint8_t*)pEndPos - decoder->data;
   } else if (pBlock != NULL) {
     blockDataEmpty(pBlock);
   }
@@ -7928,6 +7943,7 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerW
   int32_t      lino = 0;
   SSDataBlock* pBlock = NULL;
 
+  TAOS_CHECK_EXIT(buf != NULL && bufLen > 0 && pRsp != NULL ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA);
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
@@ -7937,12 +7953,20 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerW
   pBlock = pRsp->dataBlock;
   if (hasData) {
     TAOS_CHECK_EXIT(pBlock != NULL ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA);
+    TAOS_CHECK_EXIT(pSlices != NULL ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA);
+    TAOS_CHECK_EXIT(decoder.pos <= decoder.size ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG);
     const char* pEndPos = NULL;
-    TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder.data + decoder.pos, &pEndPos));
-    decoder.pos = (uint8_t*)pEndPos - decoder.data;
+    TAOS_CHECK_EXIT(
+        blockDecodeBounded(pBlock, (char*)decoder.data + decoder.pos, decoder.size - decoder.pos, &pEndPos));
+    decoder.pos = (const uint8_t*)pEndPos - decoder.data;
 
     int32_t nSlices = 0;
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nSlices));
+    TAOS_CHECK_EXIT(nSlices >= 0 && decoder.pos <= decoder.size &&
+                            (uint32_t)nSlices <=
+                                (decoder.size - decoder.pos) / (2 * sizeof(int64_t) + 2 * sizeof(int32_t))
+                        ? TSDB_CODE_SUCCESS
+                        : TSDB_CODE_INVALID_MSG);
     TAOS_CHECK_EXIT(taosArrayEnsureCap(pSlices, nSlices));
     taosArrayClear(pSlices);
     int64_t  uid = 0;
@@ -7954,6 +7978,10 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerW
       TAOS_CHECK_EXIT(tDecodeU64(&decoder, &gid));
       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &startIdx));
       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numRows));
+      TAOS_CHECK_EXIT(startIdx >= 0 && numRows >= 0 && startIdx <= pBlock->info.rows &&
+                              numRows <= pBlock->info.rows - startIdx
+                          ? TSDB_CODE_SUCCESS
+                          : TSDB_CODE_INVALID_MSG);
       int32_t endIdx = startIdx + numRows;
       int64_t value[3] = {gid, uid, (int64_t)startIdx << 32 | endIdx};
       void*   px = taosArrayPush(pSlices, value);

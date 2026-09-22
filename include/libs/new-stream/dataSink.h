@@ -280,6 +280,7 @@ void setDataSinkMaxMemSize(int64_t maxMemSize);
 
 // ----------------- Internal DataSink APIs -----------------
 int32_t initDataSinkFileDir();
+int32_t createStreamDataSinkFile(char* fileName, size_t fileNameSize, TdFilePtr* ppFile);
 int32_t initStreamDataSink();
 int32_t checkAndMoveMemCache(bool forWrite);
 int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr);

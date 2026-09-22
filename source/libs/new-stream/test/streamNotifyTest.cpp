@@ -6,8 +6,12 @@
 #include <gtest/gtest.h>
 #include <netinet/in.h>
 #include <openssl/evp.h>
+#include <openssl/pem.h>
 #include <openssl/sha.h>
+#include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 #include <poll.h>
+#include <signal.h>
 #include <sys/resource.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -158,7 +162,8 @@ class LoopbackWebSocketServer {
     }
   }
 
-  bool Start() {
+  bool Start(SSL_CTX* tlsContext = nullptr) {
+    tlsContext_ = tlsContext;
     listenFd_ = socket(AF_INET, SOCK_STREAM, 0);
     if (listenFd_ < 0) {
       error_ = std::string("socket failed: ") + strerror(errno);
@@ -200,21 +205,23 @@ class LoopbackWebSocketServer {
     }
   }
 
-  std::string Url() const { return "ws://127.0.0.1:" + std::to_string(port_) + "/notify"; }
+  std::string Url() const {
+    return std::string(tlsContext_ == nullptr ? "ws://" : "wss://") + "127.0.0.1:" + std::to_string(port_) + "/notify";
+  }
 
   const std::string&                 Error() const { return error_; }
   const std::vector<WebSocketFrame>& Frames() const { return frames_; }
 
  private:
-  static bool SendAll(int fd, const void* data, size_t len, std::string* error) {
+  bool SendAll(int fd, const void* data, size_t len, std::string* error) {
     const char* pos = static_cast<const char*>(data);
     while (len > 0) {
 #ifdef MSG_NOSIGNAL
-      ssize_t n = send(fd, pos, len, MSG_NOSIGNAL);
+      ssize_t n = tls_ ? SSL_write(tls_.get(), pos, static_cast<int>(len)) : send(fd, pos, len, MSG_NOSIGNAL);
 #else
-      ssize_t n = send(fd, pos, len, 0);
+      ssize_t n = tls_ ? SSL_write(tls_.get(), pos, static_cast<int>(len)) : send(fd, pos, len, 0);
 #endif
-      if (n < 0 && errno == EINTR) {
+      if (!tls_ && n < 0 && errno == EINTR) {
         continue;
       }
       if (n <= 0) {
@@ -230,8 +237,8 @@ class LoopbackWebSocketServer {
   bool ReadExact(int fd, void* data, size_t len) {
     char* pos = static_cast<char*>(data);
     while (len > 0) {
-      ssize_t n = recv(fd, pos, len, 0);
-      if (n < 0 && errno == EINTR) {
+      ssize_t n = tls_ ? SSL_read(tls_.get(), pos, static_cast<int>(len)) : recv(fd, pos, len, 0);
+      if (!tls_ && n < 0 && errno == EINTR) {
         continue;
       }
       if (n <= 0) {
@@ -249,8 +256,8 @@ class LoopbackWebSocketServer {
   bool ReadHttpRequest(int fd, std::string* request) {
     char buffer[1024];
     while (request->find("\r\n\r\n") == std::string::npos) {
-      ssize_t n = recv(fd, buffer, sizeof(buffer), 0);
-      if (n < 0 && errno == EINTR) {
+      ssize_t n = tls_ ? SSL_read(tls_.get(), buffer, sizeof(buffer)) : recv(fd, buffer, sizeof(buffer), 0);
+      if (!tls_ && n < 0 && errno == EINTR) {
         continue;
       }
       if (n <= 0) {
@@ -372,6 +379,20 @@ class LoopbackWebSocketServer {
     setsockopt(clientFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     setsockopt(clientFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
+    if (tlsContext_ != nullptr) {
+      // A client rejecting the certificate can close while OpenSSL is still writing handshake data.
+      sigset_t signals;
+      sigemptyset(&signals);
+      sigaddset(&signals, SIGPIPE);
+      pthread_sigmask(SIG_BLOCK, &signals, nullptr);
+      tls_.reset(SSL_new(tlsContext_));
+      if (!tls_ || SSL_set_fd(tls_.get(), clientFd) != 1 || SSL_accept(tls_.get()) != 1) {
+        error_ = "TLS handshake failed";
+        close(clientFd);
+        return;
+      }
+    }
+
     std::string request;
     if (!ReadHttpRequest(clientFd, &request) || !SendHandshakeResponse(clientFd, request)) {
       close(clientFd);
@@ -409,7 +430,130 @@ class LoopbackWebSocketServer {
   std::thread                 thread_;
   std::string                 error_;
   std::vector<WebSocketFrame> frames_;
+  SSL_CTX*                                  tlsContext_ = nullptr;
+  std::unique_ptr<SSL, decltype(&SSL_free)> tls_{nullptr, SSL_free};
 };
+
+CURL* gTlsConnectionTemplate = nullptr;
+
+CURL* InitCurlWithTestTrust() { return curl_easy_duphandle(gTlsConnectionTemplate); }
+
+class TcurlTlsTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)> keyContext(EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr),
+                                                                           EVP_PKEY_CTX_free);
+    ASSERT_NE(keyContext, nullptr);
+    ASSERT_EQ(EVP_PKEY_keygen_init(keyContext.get()), 1);
+    ASSERT_EQ(EVP_PKEY_CTX_set_rsa_keygen_bits(keyContext.get(), 2048), 1);
+    EVP_PKEY* key = nullptr;
+    ASSERT_EQ(EVP_PKEY_keygen(keyContext.get(), &key), 1);
+    key_.reset(key);
+    certificate_.reset(X509_new());
+    ASSERT_NE(certificate_, nullptr);
+    ASSERT_EQ(X509_set_version(certificate_.get(), 2), 1);
+    ASSERT_EQ(ASN1_INTEGER_set(X509_get_serialNumber(certificate_.get()), 1), 1);
+    ASSERT_NE(X509_gmtime_adj(X509_getm_notBefore(certificate_.get()), -7200), nullptr);
+    ASSERT_EQ(X509_set_pubkey(certificate_.get(), key_.get()), 1);
+    X509_NAME* name = X509_get_subject_name(certificate_.get());
+    ASSERT_EQ(X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+                                         reinterpret_cast<const unsigned char*>("notification test"), -1, -1, 0),
+              1);
+    ASSERT_EQ(X509_set_issuer_name(certificate_.get(), name), 1);
+    context_.reset(SSL_CTX_new(TLS_server_method()));
+    ASSERT_NE(context_, nullptr);
+    connectionTemplate_.reset(curl_easy_init());
+    ASSERT_NE(connectionTemplate_, nullptr);
+    ASSERT_EQ(curl_easy_setopt(connectionTemplate_.get(), CURLOPT_NOPROXY, "*"), CURLE_OK);
+  }
+
+  void TearDown() override {
+    stub_.reset(curl_easy_init);
+    gTlsConnectionTemplate = nullptr;
+  }
+
+  void StartServer(const char* subjectAltName, bool trustCertificate, long expiresInSeconds = 3600) {
+    ASSERT_NE(X509_gmtime_adj(X509_getm_notAfter(certificate_.get()), expiresInSeconds), nullptr);
+    std::unique_ptr<X509_EXTENSION, decltype(&X509_EXTENSION_free)> extension(
+        X509V3_EXT_conf_nid(nullptr, nullptr, NID_subject_alt_name, const_cast<char*>(subjectAltName)),
+        X509_EXTENSION_free);
+    ASSERT_NE(extension, nullptr);
+    ASSERT_EQ(X509_add_ext(certificate_.get(), extension.get(), -1), 1);
+    ASSERT_GT(X509_sign(certificate_.get(), key_.get(), EVP_sha256()), 0);
+    ASSERT_EQ(SSL_CTX_use_certificate(context_.get(), certificate_.get()), 1);
+    ASSERT_EQ(SSL_CTX_use_PrivateKey(context_.get(), key_.get()), 1);
+
+    if (trustCertificate) {
+      std::unique_ptr<BIO, decltype(&BIO_free)> pem(BIO_new(BIO_s_mem()), BIO_free);
+      ASSERT_NE(pem, nullptr);
+      ASSERT_EQ(PEM_write_bio_X509(pem.get(), certificate_.get()), 1);
+      char* data = nullptr;
+      long  size = BIO_get_mem_data(pem.get(), &data);
+      ASSERT_GT(size, 0);
+      curl_blob ca = {data, static_cast<size_t>(size), CURL_BLOB_COPY};
+      ASSERT_EQ(curl_easy_setopt(connectionTemplate_.get(), CURLOPT_CAINFO_BLOB, &ca), CURLE_OK);
+    }
+    // Inject only a test-local trust anchor; tcurlConnect and the TLS/WebSocket handshake remain real.
+    gTlsConnectionTemplate = connectionTemplate_.get();
+    stub_.set(curl_easy_init, InitCurlWithTestTrust);
+    ASSERT_TRUE(server_.Start(context_.get())) << server_.Error();
+  }
+
+  void CheckConnection(bool expectedSuccess) {
+    const std::string url = server_.Url();
+    SCURL             connection = {};
+    connection.url = taosStrdup(url.c_str());
+    ASSERT_NE(connection.url, nullptr);
+    int32_t code = tcurlConnect(&connection.pConn, url.c_str());
+    EXPECT_EQ(code == TSDB_CODE_SUCCESS, expectedSuccess);
+    EXPECT_EQ(connection.pConn != nullptr, expectedSuccess);
+    if (code == TSDB_CODE_SUCCESS && connection.pConn != nullptr) {
+      const char payload[] = "notification";
+      size_t     sent = 0;
+      EXPECT_EQ(tcurlSend(&connection, payload, sizeof(payload) - 1, &sent, 0, CURLWS_TEXT, taosGetMonoTimestampMs()),
+                TSDB_CODE_SUCCESS);
+      EXPECT_EQ(sent, sizeof(payload) - 1);
+    }
+    tcurlClose(&connection);
+    server_.Wait();
+    if (expectedSuccess) {
+      EXPECT_TRUE(server_.Error().empty()) << server_.Error();
+      ASSERT_EQ(server_.Frames().size(), 1U);
+      EXPECT_EQ(server_.Frames()[0].payload, "notification");
+    } else {
+      EXPECT_TRUE(server_.Frames().empty());
+    }
+  }
+
+ private:
+  std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> key_{nullptr, EVP_PKEY_free};
+  std::unique_ptr<X509, decltype(&X509_free)>         certificate_{nullptr, X509_free};
+  std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)>   context_{nullptr, SSL_CTX_free};
+  std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> connectionTemplate_{nullptr, curl_easy_cleanup};
+  LoopbackWebSocketServer                             server_;
+  Stub                                                stub_;
+};
+
+// Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7120477311
+TEST_F(TcurlTlsTest, RejectsUntrustedCertificate) {
+  ASSERT_NO_FATAL_FAILURE(StartServer("IP:127.0.0.1", false));
+  CheckConnection(false);
+}
+
+TEST_F(TcurlTlsTest, RejectsTrustedCertificateWithWrongHost) {
+  ASSERT_NO_FATAL_FAILURE(StartServer("DNS:notification.invalid", true));
+  CheckConnection(false);
+}
+
+TEST_F(TcurlTlsTest, RejectsExpiredTrustedCertificate) {
+  ASSERT_NO_FATAL_FAILURE(StartServer("IP:127.0.0.1", true, -3600));
+  CheckConnection(false);
+}
+
+TEST_F(TcurlTlsTest, SendsNotificationWithTrustedMatchingCertificate) {
+  ASSERT_NO_FATAL_FAILURE(StartServer("IP:127.0.0.1", true));
+  CheckConnection(true);
+}
 
 struct ArrayDeleter {
   void operator()(SArray* array) const { taosArrayDestroy(array); }

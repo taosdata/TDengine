@@ -30,6 +30,48 @@ extern "C" {
 #include "vnodeInt.h"
 }
 
+extern "C" int32_t mmDispatchStreamHbMsg(SDispatchWorkerPool* pPool, void* pParam, int32_t* pWorkerIdx);
+
+TEST(MgmtMnodeStreamHbDispatchTest, RejectsMissingOrShortHeader) {
+  SRpcMsg             msg = {};
+  int32_t             workerIdx = -1;
+  SStreamMsgGrpHeader header = {};
+  msg.pCont = &header;
+  for (int32_t length : {0, 1, static_cast<int32_t>(sizeof(header)) - 1}) {
+    msg.contLen = length;
+    workerIdx = -1;
+    ASSERT_EQ(mmDispatchStreamHbMsg(nullptr, &msg, &workerIdx), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(workerIdx, -1);
+  }
+
+  msg.pCont = nullptr;
+  msg.contLen = 0;
+  workerIdx = -1;
+  EXPECT_EQ(mmDispatchStreamHbMsg(nullptr, &msg, &workerIdx), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(workerIdx, -1);
+}
+
+TEST(MgmtMnodeStreamHbDispatchTest, RejectsInvalidGroupAndAcceptsValidHeader) {
+  SStreamMsgGrpHeader header = {};
+  SRpcMsg             msg = {};
+  msg.pCont = &header;
+  msg.contLen = sizeof(header);
+  int32_t workerIdx = -1;
+
+  for (int32_t gid : {-1, STREAM_MAX_GROUP_NUM}) {
+    header.streamGid = gid;
+    workerIdx = -1;
+    EXPECT_EQ(mmDispatchStreamHbMsg(nullptr, &msg, &workerIdx), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(workerIdx, -1);
+  }
+
+  SDispatchWorkerPool pool = {};
+  pool.num = 3;
+  header.streamGid = STREAM_MAX_GROUP_NUM - 1;
+  EXPECT_EQ(mmDispatchStreamHbMsg(&pool, &msg, &workerIdx), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(workerIdx, header.streamGid % pool.num);
+}
+
 namespace {
 
 constexpr auto kWaitTimeout = std::chrono::seconds(5);

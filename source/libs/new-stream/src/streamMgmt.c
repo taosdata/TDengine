@@ -304,6 +304,12 @@ int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
   
   TAOS_CHECK_EXIT(streamAcquireTask(streamId, pStart->task.taskId, (SStreamTask**)&pTask, &taskAddr));
 
+  if (pTask->type != STREAM_TRIGGER_TASK || !gStreamMgmt.snodeEnabled || gStreamMgmt.getSynEpset == NULL ||
+      gStreamMgmt.msgCb.putToQueueFp == NULL) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
   pStart->startMsg.header.msgType = STREAM_MSG_START;
   STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask *)pTask, (SStreamMsg *)&pStart->startMsg));
 
@@ -805,12 +811,12 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
   TAOS_CHECK_EXIT(streamAcquireTask(streamId, pRsp->task.taskId, (SStreamTask**)&pTask, &taskAddr));
       
   switch (pRsp->header.msgType) {
-    case STREAM_MSG_ORIGTBL_READER_INFO: {
-      STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
-      break;
-    }
+    case STREAM_MSG_ORIGTBL_READER_INFO:
     case STREAM_MSG_UPDATE_RUNNER:
     case STREAM_MSG_USER_RECALC: {
+      if (pTask->type != STREAM_TRIGGER_TASK) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
       break;
     }
@@ -856,6 +862,10 @@ int32_t smHandleMgmtRsp(SStreamMgmtRsps* rsps) {
 }
 
 int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
+  if (!gStreamMgmt.snodeEnabled && (pDeploy->triggerTask != NULL || taosArrayGetSize(pDeploy->runnerTasks) != 0)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int64_t streamId = pDeploy->streamId;
   int32_t gid = STREAM_GID(streamId);
   int32_t code = TSDB_CODE_SUCCESS;
