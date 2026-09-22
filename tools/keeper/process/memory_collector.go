@@ -6,6 +6,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// rejectedEntriesDesc describes the rejection counter. It is a package-level
+// variable so every scrape reuses one consistent descriptor.
+var rejectedEntriesDesc = prometheus.NewDesc("taoskeeper_memory_store_rejected_total",
+	"Metric entries rejected by the memory store because it was full: either the entry count or the byte budget was reached, or a refreshed series no longer fit the byte budget",
+	nil, nil)
+
 // MemoryStoreCollector Prometheus Collector for memory store
 type MemoryStoreCollector struct {
 	store  *MemoryStore
@@ -49,5 +55,13 @@ func (m *MemoryStoreCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- metric
 			}
 		}
+	}
+
+	// Always expose the rejection counter, its zero value included. A counter
+	// that only appears once it is non-zero cannot be alerted on beforehand,
+	// and the series has no history to compute a rate from when it does.
+	metric, err := prometheus.NewConstMetric(rejectedEntriesDesc, prometheus.CounterValue, float64(m.store.RejectedTotal()))
+	if err == nil {
+		ch <- metric
 	}
 }

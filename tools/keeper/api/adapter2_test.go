@@ -184,6 +184,19 @@ func TestAdapter_tableName(t *testing.T) {
 	assert.NotEqual(t, gotRest, gotWS)
 }
 
+func TestAdapter_parseSql_EscapesEndpoint(t *testing.T) {
+	a := &Adapter{}
+	report := AdapterReport{
+		Timestamp: 1690000000,
+		Endpoint:  "ep', 0) values (now, 0) x using adapter_requests tags ('y",
+	}
+	sql := a.parseSql(report)
+	escaped := util.EscapeSQLString(report.Endpoint)
+	assert.NotEqual(t, report.Endpoint, escaped)
+	assert.Contains(t, sql, "tags ('"+escaped+"', 0)")
+	assert.Contains(t, sql, "tags ('"+escaped+"', 1)")
+}
+
 func TestAdapter_handleFunc_NoConnection_Returns500(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

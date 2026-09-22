@@ -61,6 +61,7 @@ Usage of taoskeeper:
       --tdengine.host string                         TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
       --tdengine.password string                     TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
       --tdengine.port int                            TDengine REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
+      --tdengine.skipVerify                          Skip TDengine server TLS certificate verification, default true for compatibility. Set false to verify the server certificate. Env "TAOS_KEEPER_TDENGINE_SKIPVERIFY" (default true)
       --tdengine.username string                     TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
       --tdengine.usessl                              TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
       --transfer string                              run taoskeeper in command mode, only support old_taosd_metric. transfer old metrics data to new tables and exit
@@ -96,6 +97,13 @@ port = 6041
 username = "root"
 password = "taosdata"
 usessl = false
+
+# 当 usessl 为 true 时，是否跳过对 TDengine 服务端 TLS 证书的校验。
+# 默认为 true 以保持兼容；设为 false 则校验服务端证书。
+# 设为 false 前，请确保签发服务端证书的 CA 已安装到系统信任库
+# （Linux 上也可以通过 SSL_CERT_FILE/SSL_CERT_DIR 指向 CA 文件），
+# 否则当服务端使用自签名或内部 CA 证书时，连接会因 x509 错误失败。
+skipVerify = true
 
 [metrics]
 # Metrics prefix in metrics names.
@@ -331,6 +339,16 @@ includeTables = []
 # Default: 300 (5 minutes), Minimum: 60 (1 minute)
 cacheTTL = 300
 ```
+
+#### 被拒绝条目指标
+
+v2 内存缓存同时受序列数和字节数两个上限约束，任一上限达到都会拒绝写入：新序列在任一上限达到后被拒绝；已缓存序列仍会被刷新，直到新的数据本身就超出字节预算，此时该次刷新会被拒绝、序列保留上一次的值。taoskeeper 在 `/metrics/v2` 中暴露计数指标：
+
+```text
+taoskeeper_memory_store_rejected_total
+```
+
+该指标统计被拒绝的条目总数。注意该指标名不随 `metrics.prefix` 配置变化。
 
 #### 使用示例
 

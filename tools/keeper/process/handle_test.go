@@ -23,14 +23,8 @@ func Test_i2string(t *testing.T) {
 	}
 }
 
-func Test_i2string_panic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Expected panic for unexpected type, but did not panic")
-		}
-	}()
-
-	i2string(12345)
+func Test_i2string_unexpected_type(t *testing.T) {
+	assert.Equal(t, "", i2string(12345))
 }
 
 func Test_i2float(t *testing.T) {
@@ -58,14 +52,8 @@ func Test_i2float(t *testing.T) {
 	}
 }
 
-func Test_i2float_panic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Expected panic for unexpected type, but did not panic")
-		}
-	}()
-
-	i2float("unexpected type")
+func Test_i2float_unexpected_type(t *testing.T) {
+	assert.Equal(t, 0.0, i2float("unexpected type"))
 }
 
 func Test_getRoleStr(t *testing.T) {
@@ -127,8 +115,14 @@ func Test_withDBName(t *testing.T) {
 	assert.Equal(t, res, "`db`.`test`")
 }
 
+// Deliberately fatal, unlike i2string/i2float which were changed to warn and
+// return a zero value: the type comes from the metrics database schema rather
+// than from a request, so an unmapped type means this build cannot export that
+// column, and guessing a metric type would be a silent data error.
 func Test_exchangeDBType_UnsupportedType_Panics(t *testing.T) {
-	assert.PanicsWithValue(t, "unsupported type", func() { _ = exchangeDBType("DECIMAL_UNSUPPORTED") })
+	assert.PanicsWithValue(t, "unsupported type: DECIMAL_UNSUPPORTED", func() {
+		_ = exchangeDBType("DECIMAL_UNSUPPORTED")
+	})
 }
 
 func TestProcessorGetMetric(t *testing.T) {

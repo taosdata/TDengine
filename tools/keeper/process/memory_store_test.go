@@ -139,8 +139,11 @@ func TestMemoryStore_GetStats(t *testing.T) {
 	lastUpdate, err := time.Parse(time.RFC3339, lastUpdateStr)
 	assert.NoError(t, err)
 
-	// The most recent data should be recent (within last second), not 1 hour ago
-	assert.True(t, time.Since(lastUpdate) < time.Second, "last_update should be recent, not the old timestamp")
+	// last_update must be the most recent entry, not the one an hour old. Assert
+	// the ordering rather than a wall-clock distance: GetStats formats with
+	// time.RFC3339, which drops sub-second precision, so the parsed value is up
+	// to a second behind the insertion and any "within a second" bound flakes.
+	assert.True(t, lastUpdate.After(specificTime), "last_update should be the newest timestamp, not the old one")
 }
 
 func TestMemoryStore_ConcurrentAccess(t *testing.T) {
@@ -173,7 +176,7 @@ func TestMemoryStore_TTLExpiration(t *testing.T) {
 	store, _ := NewMemoryStore(1 * time.Minute)
 	defer store.Close()
 
-	// Add test data with old timestamp (older than TTL)
+	// Add test data with old metric timestamp (older than TTL)
 	tags := map[string]string{"id": "test"}
 	metrics := map[string]float64{"value": 100.0}
 	oldTimestamp := time.Now().Add(-61 * time.Second)
@@ -183,12 +186,66 @@ func TestMemoryStore_TTLExpiration(t *testing.T) {
 	allData := store.GetAllFiltered(time.Unix(0, 0))
 	assert.Equal(t, 1, len(allData))
 
-	// Manually trigger cleanup to verify TTL logic works
+	// An old caller-supplied timestamp does not trigger eviction;
+	// eviction is based on how long the entry has been in the store
 	store.cleanup()
+	allData = store.GetAllFiltered(time.Unix(0, 0))
+	assert.Equal(t, 1, len(allData))
 
-	// Verify expired data has been cleaned up
+	// Age the entry past the TTL, then cleanup removes it
+	for _, d := range store.store {
+		d.ReceivedAt = time.Now().Add(-61 * time.Second)
+	}
+	store.cleanup()
 	allData = store.GetAllFiltered(time.Unix(0, 0))
 	assert.Equal(t, 0, len(allData), "Expired data should be automatically cleaned up")
+}
+
+func TestMemoryStore_FutureTimestampExpires(t *testing.T) {
+	// Entries stamped with a far-future caller timestamp must still age out
+	store, _ := NewMemoryStore(1 * time.Minute)
+	defer store.Close()
+
+	tags := map[string]string{"id": "future"}
+	metrics := map[string]float64{"value": 100.0}
+	futureTimestamp := time.UnixMilli(4102444800000) // year 2100
+	store.SetWithTimestamp("test_table", tags, metrics, futureTimestamp)
+
+	allData := store.GetAllFiltered(time.Unix(0, 0))
+	assert.Equal(t, 1, len(allData))
+
+	// fresh entry survives cleanup
+	store.cleanup()
+	assert.Equal(t, 1, len(store.GetAllFiltered(time.Unix(0, 0))))
+
+	// once the entry has lived longer than the TTL it is evicted,
+	// regardless of the future metric timestamp
+	for _, d := range store.store {
+		d.ReceivedAt = time.Now().Add(-61 * time.Second)
+	}
+	store.cleanup()
+	assert.Equal(t, 0, len(store.GetAllFiltered(time.Unix(0, 0))), "Future-dated entries must expire by insertion time")
+}
+
+func TestMemoryStore_TotalEntryCap(t *testing.T) {
+	store, _ := NewMemoryStore(5 * time.Minute)
+	defer store.Close()
+	store.maxTotalEntries = 3
+
+	for i := 0; i < 4; i++ {
+		tags := map[string]string{"id": fmt.Sprintf("%d", i)}
+		store.SetWithTimestamp("test_table", tags, map[string]float64{"value": float64(i)}, time.Now())
+	}
+	assert.Equal(t, 3, len(store.GetAllFiltered(time.Unix(0, 0))))
+	assert.Equal(t, uint64(1), store.GetStats()["rejected_metrics"])
+
+	// updating an existing key still works after the cap is reached
+	store.SetWithTimestamp("test_table", map[string]string{"id": "1"}, map[string]float64{"value": 42.0}, time.Now())
+	assert.Equal(t, 3, len(store.GetAllFiltered(time.Unix(0, 0))))
+	assert.Equal(t, uint64(1), store.GetStats()["rejected_metrics"])
+
+	stats := store.GetStats()
+	assert.Equal(t, uint64(1), stats["rejected_metrics"])
 }
 
 func TestMemoryStore_TTLWithMultipleEntries(t *testing.T) {
@@ -211,7 +268,12 @@ func TestMemoryStore_TTLWithMultipleEntries(t *testing.T) {
 	allData := store.GetAllFiltered(time.Unix(0, 0))
 	assert.Equal(t, 2, len(allData))
 
-	// Manually trigger cleanup - first batch should expire
+	// Age the first batch past the TTL, then cleanup removes only it
+	for _, d := range store.store {
+		if d.Tags["batch"] == "1" {
+			d.ReceivedAt = time.Now().Add(-66 * time.Second)
+		}
+	}
 	store.cleanup()
 
 	// Only second batch should remain

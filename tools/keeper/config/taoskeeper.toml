@@ -18,6 +18,13 @@ port = 6041
 username = "root"
 password = "taosdata"
 usessl = false
+# Skip TDengine server TLS certificate verification when usessl is true.
+# Default is true for compatibility; set to false to verify the server certificate.
+# Before setting this to false, make sure the CA that signed the server certificate
+# is installed in the system trust store (on Linux you may instead point
+# SSL_CERT_FILE/SSL_CERT_DIR to the CA file), otherwise connections will fail
+# with x509 errors when the server uses a self-signed or internal-CA certificate.
+skipVerify = true
 
 [metrics]
 # metrics prefix in metrics names.
