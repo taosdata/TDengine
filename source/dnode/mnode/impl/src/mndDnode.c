@@ -1819,7 +1819,12 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   if (pDnode == NULL) {
     int32_t err = terrno;
     char    ep[TSDB_EP_LEN + 1] = {0};
-    (void)snprintf(ep, sizeof(ep), dropReq.fqdn, dropReq.port);
+    // NOTE: dropReq.fqdn is request-supplied (decoded from the wire without any character filtering).
+    // It MUST NOT be used as the snprintf format string, otherwise it becomes a format-string
+    // injection (CWE-134, %n arbitrary write / %s %p read crashes). Build the endpoint with a
+    // constant format and pass fqdn as data, matching the "fqdn:port" endpoint expected by
+    // mndAcquireDnodeByEp.
+    (void)snprintf(ep, sizeof(ep), "%s:%d", dropReq.fqdn, dropReq.port);
     pDnode = mndAcquireDnodeByEp(pMnode, ep);
     if (pDnode == NULL) {
       code = err;
