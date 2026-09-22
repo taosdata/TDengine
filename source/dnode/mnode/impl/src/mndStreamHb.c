@@ -31,14 +31,25 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SDecoder     decoder = {0};
-  char*        msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
-  int32_t      len = pReq->contLen - sizeof(SStreamMsgGrpHeader);
+  char*        msg = NULL;
+  int32_t      len = 0;
   int64_t      currTs = taosGetTimestampMs();
   SRpcMsg      rspMsg = {0};
 
   mstDebug("start to process stream hb req msg");
 
   rsp.streamGId = req.streamGId;
+
+  // SECURITY: the stream hb frame is sent by any peer able to reach the mnode port and it is not
+  // routed through mndProcessRpcMsg, so nothing else validates it. Reject a frame that is too
+  // short to carry the SStreamMsgGrpHeader before the content pointer is shifted or read.
+  if (pReq->pCont == NULL || pReq->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    mstError("invalid stream hb msg, contLen:%d is too short to hold the grp header", pReq->contLen);
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+
+  msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
+  len = pReq->contLen - (int32_t)sizeof(SStreamMsgGrpHeader);
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     TAOS_CHECK_EXIT(msmHandleGrantExpired(pMnode, code));
@@ -48,6 +59,20 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   code = tDecodeStreamHbMsg(&decoder, &req);
   if (code < 0) {
     mstError("failed to decode stream hb msg, error:%s", tstrerror(terrno));
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+
+  // SECURITY: streamGId comes straight from the wire (tDecodeStreamHbMsg decodes an arbitrary
+  // int32) and msmHandleStreamHbMsg uses it to index tCtx[threadNum] and the per-thread
+  // grpCtx/deployStm/actionStm arrays, which hold only STREAM_MAX_GROUP_NUM entries. An
+  // out-of-range value would turn into an out-of-bounds heap write/dereference in the mnode,
+  // so reject it here, before any array is indexed. The body gid must also match the grp header
+  // gid, because the worker that runs this heartbeat is picked from the header gid alone
+  // (mmDispatchStreamHbMsg): a mismatch would let two workers share one group context.
+  int32_t hdrGid = ((SStreamMsgGrpHeader *)pReq->pCont)->streamGid;
+  if (req.streamGId != hdrGid || req.streamGId < 0 || req.streamGId >= STREAM_MAX_GROUP_NUM) {
+    mstError("invalid stream hb msg from dnode:%d, header gid:%d, body gid:%d, valid gid range:[0,%d)",
+             req.dnodeId, hdrGid, req.streamGId, STREAM_MAX_GROUP_NUM);
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
 
