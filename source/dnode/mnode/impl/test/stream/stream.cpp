@@ -82,6 +82,72 @@ constexpr int32_t kStreamHistoryProgressColumn = 14;
 constexpr int32_t kStreamTimezoneColumn = 15;
 constexpr int32_t kStreamFirstDayOfWeekColumn = 16;
 
+int32_t gStreamHbDecodeCalls = 0;
+int32_t gStreamHbResponseCode = 0;
+
+int32_t allowStreamHbGrant(EGrantType) { return TSDB_CODE_SUCCESS; }
+
+int32_t captureStreamHbDecode(SDecoder *, SStreamHbMsg *) {
+  ++gStreamHbDecodeCalls;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ignoreStreamHbBody(SMnode *, int64_t, SStreamHbMsg *, SRpcMsg *, SRpcMsg *) { return TSDB_CODE_SUCCESS; }
+
+void captureStreamHbResponse(SRpcMsg *pRsp) { gStreamHbResponseCode = pRsp->code; }
+
+class MndStreamHbInputTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    gStreamHbDecodeCalls = 0;
+    gStreamHbResponseCode = 0;
+    stub_.set(grantCheckExpire, allowStreamHbGrant);
+    stub_.set(tDecodeStreamHbMsg, captureStreamHbDecode);
+    stub_.set(msmHandleStreamHbMsg, ignoreStreamHbBody);
+    stub_.set(tmsgSendRsp, captureStreamHbResponse);
+  }
+
+  void TearDown() override {
+    stub_.reset(tmsgSendRsp);
+    stub_.reset(msmHandleStreamHbMsg);
+    stub_.reset(tDecodeStreamHbMsg);
+    stub_.reset(grantCheckExpire);
+  }
+
+  Stub stub_;
+};
+
+TEST_F(MndStreamHbInputTest, RejectsMissingOrShortHeaderBeforeDecode) {
+  SStreamMsgGrpHeader header = {};
+  SRpcMsg             msg = {};
+  msg.pCont = &header;
+
+  for (int32_t length : {0, 1, static_cast<int32_t>(sizeof(header)) - 1}) {
+    msg.contLen = length;
+    gStreamHbResponseCode = 0;
+    ASSERT_EQ(mndProcessStreamHb(&msg), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(gStreamHbDecodeCalls, 0);
+    EXPECT_EQ(gStreamHbResponseCode, TSDB_CODE_INVALID_MSG);
+  }
+
+  msg.pCont = nullptr;
+  msg.contLen = 0;
+  EXPECT_EQ(mndProcessStreamHb(&msg), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(gStreamHbDecodeCalls, 0);
+  EXPECT_EQ(gStreamHbResponseCode, TSDB_CODE_INVALID_MSG);
+}
+
+TEST_F(MndStreamHbInputTest, RejectsHeaderWithoutBody) {
+  stub_.reset(tDecodeStreamHbMsg);
+  SStreamMsgGrpHeader header = {};
+  SRpcMsg             msg = {};
+  msg.pCont = &header;
+  msg.contLen = sizeof(header);
+
+  EXPECT_EQ(mndProcessStreamHb(&msg), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(gStreamHbResponseCode, TSDB_CODE_INVALID_MSG);
+}
+
 struct CapturedStreamFailure {
   int32_t     calls = 0;
   int64_t     ts = 0;

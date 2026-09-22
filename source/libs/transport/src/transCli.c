@@ -736,6 +736,11 @@ void cliHandleResp(SCliConn* conn) {
   }
   code = cliGetReqBySeq(conn, seq, pHead->msgType, &pReq);
   if (code == TSDB_CODE_OUT_OF_RANGE) {
+    if (pHead->msgType == TDMT_MND_STREAM_HEARTBEAT_RSP) {
+      taosMemoryFree(pHead);
+      (void)cliMayRecycleConn(conn);
+      return;
+    }
     code = cliHandleState_mayCreateAhandle(conn, pHead, &resp);
     if (code == 0) {
       code = cliBuildRespFromCont(NULL, &resp, pHead);

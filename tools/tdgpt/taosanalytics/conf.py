@@ -76,7 +76,7 @@ class Configure:
             "model_dir": os.path.join(base_path, "model"),
             "dynamic_model_dir": os.path.join(base_path, "model", "dynamic"),
             "img_dir": os.path.join(base_path, "img"),
-            "resource_dir": os.path.join(base_path, "resource"),
+            "resource_dir": os.path.join(base_path, "data", "resource"),
             "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
             "log_level": logging.DEBUG,
             "draw_result": False,

@@ -766,8 +766,10 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
       continue;
     }
     if (!dest) continue;
-    const char *p = strchr(line, '=') + 1;
-    if (*p == '"') {
+    const char *eq = strchr(line, '=');
+    if (eq == NULL) continue;  // malformed line, no '='
+    const char *p = eq + 1;
+    if (*p == '"' && size >= 2) {
       p++;
       line[size - 2] = 0;
     }

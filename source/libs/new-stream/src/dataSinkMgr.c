@@ -174,7 +174,6 @@ static int32_t buildScopedCacheKey(const SStreamCacheScope* pScope, void** ppKey
   return TSDB_CODE_SUCCESS;
 }
 
-static int64_t gScopedCacheFileId = 0;
 
 static int64_t scopedCacheBlockPayloadSize(const SSDataBlock* pBlock) {
   int32_t size = blockGetEncodeSize(pBlock);
@@ -1081,17 +1080,7 @@ static int32_t createStagedScopedCacheEntry(int64_t gid, void* pKey, int32_t key
 
 static int32_t ensureScopedCacheFile(SScopedCacheStore* pStore) {
   if (pStore->pFile != NULL) return TSDB_CODE_SUCCESS;
-  int64_t fileId = atomic_add_fetch_64(&gScopedCacheFileId, 1);
-  int32_t written =
-      snprintf(pStore->fileName, sizeof(pStore->fileName), "%s/tdengine_stream_data/scoped_%" PRId64 "_%" PRId64,
-               tsTempDir, taosGetTimestampNs(), fileId);
-  if (written <= 0 || written >= sizeof(pStore->fileName)) return TSDB_CODE_INVALID_PARA;
-  pStore->pFile = taosOpenFile(pStore->fileName, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pStore->pFile == NULL) {
-    pStore->fileName[0] = '\0';
-    return terrno;
-  }
-  return TSDB_CODE_SUCCESS;
+  return createStreamDataSinkFile(pStore->fileName, sizeof(pStore->fileName), &pStore->pFile);
 }
 
 static SFileBlockInfo allocateScopedCacheFileBlock(SScopedCacheStore* pStore, int32_t size) {
@@ -1120,6 +1109,7 @@ static int32_t spillScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBloc
     taosMemoryFree(pBuffer);
     return dataLen < 0 ? dataLen : TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
+  bool    createdFile = pStore->pFile == NULL;
   int32_t code = ensureScopedCacheFile(pStore);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBuffer);
@@ -1129,8 +1119,13 @@ static int32_t spillScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBloc
   int64_t        written = taosPWriteFile(pStore->pFile, pBuffer, dataLen, fileBlock.offset);
   taosMemoryFree(pBuffer);
   if (written != dataLen) {
-    recycleScopedCacheFileRange(pStore, &fileBlock);
-    return written < 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    code = written < 0 && terrno != 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    if (createdFile) {
+      (void)closeScopedCacheFile(pStore);
+    } else {
+      recycleScopedCacheFileRange(pStore, &fileBlock);
+    }
+    return code;
   }
   pBlock->fileBlock = fileBlock;
   pBlock->fileDataLen = dataLen;
@@ -1174,12 +1169,13 @@ static int32_t restoreScopedCacheSchema(const SScopedCacheEntry* pEntry, SSDataB
 static int32_t loadScopedCacheBlock(SScopedCacheStore* pStore, const SScopedCacheEntry* pEntry,
                                     const SScopedCacheBlock* pStored, SSDataBlock** ppBlock) {
   if (pStored->pBlock != NULL) return createOneDataBlock(pStored->pBlock, true, ppBlock);
+  if (pStored->fileDataLen <= 0 || pStored->fileDataLen > pStored->fileBlock.size) return TSDB_CODE_INVALID_MSG;
   char* pBuffer = taosMemoryMalloc(pStored->fileDataLen);
   if (pBuffer == NULL) return terrno;
   int64_t readLen = taosPReadFile(pStore->pFile, pBuffer, pStored->fileDataLen, pStored->fileBlock.offset);
   if (readLen != pStored->fileDataLen) {
     taosMemoryFree(pBuffer);
-    return readLen < 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    return readLen < 0 && terrno != 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(*pBlock));
   if (pBlock == NULL) {
@@ -1187,7 +1183,7 @@ static int32_t loadScopedCacheBlock(SScopedCacheStore* pStore, const SScopedCach
     return terrno;
   }
   const char* pEnd = NULL;
-  int32_t     code = blockDecode(pBlock, pBuffer, &pEnd);
+  int32_t     code = blockDecodeBounded(pBlock, pBuffer, pStored->fileDataLen, &pEnd);
   if (code == TSDB_CODE_SUCCESS && pEnd != pBuffer + pStored->fileDataLen) code = TSDB_CODE_INVALID_MSG;
   if (code == TSDB_CODE_SUCCESS) code = restoreScopedCacheSchema(pEntry, pBlock);
   if (code == TSDB_CODE_SUCCESS) restoreScopedCacheBlockInfo(&pStored->info, pBlock);

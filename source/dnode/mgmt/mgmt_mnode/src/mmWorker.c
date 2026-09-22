@@ -290,25 +290,17 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   return code;
 }
 
-int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx) {
-  SRpcMsg* pMsg = (SRpcMsg*)pParam;
-  const STraceId *trace = &pMsg->info.traceId;
-
-  // SECURITY: the grp header gid is supplied by the peer. A frame that is too short to hold the
-  // header is handed to worker 0, where mndProcessStreamHb rejects it.
+int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
+  SRpcMsg *pMsg = (SRpcMsg *)pParam;
   if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
-    dGError("msg:%p, invalid stream hb msg, contLen:%d is too short to hold the grp header, dispatch to the 0th worker",
-            pMsg, pMsg->contLen);
-    *pWorkerIdx = 0;
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_INVALID_MSG;
   }
-
-  // C's % keeps the sign of the dividend, so a negative gid would index before pPool->pWorkers.
-  // Normalize it into [0, pPool->num) before the pool is indexed.
+  SStreamMsgGrpHeader *pHeader = (SStreamMsgGrpHeader *)pMsg->pCont;
+  if (pHeader->streamGid < 0 || pHeader->streamGid >= STREAM_MAX_GROUP_NUM) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t workerNum = pPool->num > 0 ? pPool->num : 1;
-  int32_t idx = ((SStreamMsgGrpHeader*)pMsg->pCont)->streamGid % workerNum;
-  if (idx < 0) idx += workerNum;
-  *pWorkerIdx = idx;
+  *pWorkerIdx = pHeader->streamGid % workerNum;
   return TSDB_CODE_SUCCESS;
 }
 

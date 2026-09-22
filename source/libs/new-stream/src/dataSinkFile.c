@@ -20,6 +20,7 @@
 #include "osAtomic.h"
 #include "osFile.h"
 #include "osMemory.h"
+#include "osSysinfo.h"
 #include "osTime.h"
 #include "stream.h"
 #include "taoserror.h"
@@ -35,14 +36,12 @@ const int gFileGroupBlockMaxSize = 64 * 1024;  // 64K
 int32_t initDataSinkFileDir() {
   int32_t code = 0;
   int     ret = snprintf(gDataSinkFilePath, sizeof(gDataSinkFilePath), "%s/tdengine_stream_data/", tsTempDir);
-  if (ret < 0) {
+  if (ret < 0 || ret >= sizeof(gDataSinkFilePath)) {
     stError("failed to get stream data sink path ret:%d", ret);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
-  if (!taosIsDir(gDataSinkFilePath)) {
-    code = taosMulMkDir(gDataSinkFilePath);
-  }
+  code = taosEnsurePrivateDir(gDataSinkFilePath);
   if (code != 0) {
     return code;
   }
@@ -50,14 +49,50 @@ int32_t initDataSinkFileDir() {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createStreamDataSinkFileMgr(int64_t streamId, SDataSinkFileMgr** ppDaSinkFileMgr) {
+int32_t createStreamDataSinkFile(char* fileName, size_t fileNameSize, TdFilePtr* ppFile) {
+  if (fileName == NULL || fileNameSize == 0 || ppFile == NULL || *ppFile != NULL) return TSDB_CODE_INVALID_PARA;
+  fileName[0] = '\0';
+  int32_t code = taosEnsurePrivateDir(gDataSinkFilePath);
+  if (code != 0) return code;
+  char uuid[37] = {0};
+  code = taosGetSystemUUIDLimit36(uuid, sizeof(uuid));
+  if (code != 0) return code;
+  for (int32_t attempt = 0; attempt < 32; ++attempt) {
+    char temporary[PATH_MAX] = {0};
+    char candidate[PATH_MAX] = {0};
+    // The helper formats its directory argument; generate the basename using a literal directory.
+    taosGetTmpfilePath(".", "stream", temporary);
+    int32_t length = snprintf(candidate, sizeof(candidate), "%s/%s-%s", gDataSinkFilePath, temporary + 2, uuid);
+    if (length < 0 || length >= sizeof(candidate) || length >= fileNameSize) return TSDB_CODE_INVALID_PARA;
+    TdFilePtr file = taosOpenPrivateFile(candidate, TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_READ | TD_FILE_WRITE);
+    if (file != NULL) {
+      memcpy(fileName, candidate, length + 1);
+      *ppFile = file;
+      return TSDB_CODE_SUCCESS;
+    }
+    code = terrno;
+#ifdef WINDOWS
+    if (code != TAOS_SYSTEM_WINAPI_ERROR(ERROR_FILE_EXISTS) && code != TAOS_SYSTEM_WINAPI_ERROR(ERROR_ALREADY_EXISTS)) {
+      return code;
+    }
+#else
+    if (code != TAOS_SYSTEM_ERROR(EEXIST)) return code;
+#endif
+  }
+  return code;
+}
+
+static int32_t createStreamDataSinkFileMgr(SDataSinkFileMgr** ppDaSinkFileMgr) {
   SDataSinkFileMgr* pFileMgr = NULL;
   pFileMgr = (SDataSinkFileMgr*)taosMemoryCalloc(1, sizeof(SDataSinkFileMgr));
   if (pFileMgr == NULL) {
     return terrno;
   }
-  int32_t now = taosGetTimestampSec();
-  snprintf(pFileMgr->fileName, FILENAME_MAX, "%s//%s_%d_%" PRId64, gDataSinkFilePath, "stream", now, streamId);
+  int32_t code = createStreamDataSinkFile(pFileMgr->fileName, sizeof(pFileMgr->fileName), &pFileMgr->writeFilePtr);
+  if (code != 0) {
+    taosMemoryFree(pFileMgr);
+    return code;
+  }
 
   pFileMgr->fileBlockCount = 0;
   pFileMgr->fileBlockUsedCount = 0;
@@ -65,7 +100,6 @@ static int32_t createStreamDataSinkFileMgr(int64_t streamId, SDataSinkFileMgr** 
   tRBTreeCreate(&pFileMgr->pFreeFileBlockList, compareFreeBlock);
   pFileMgr->writingGroupId = -1;
   pFileMgr->readingGroupId = -1;
-  pFileMgr->writeFilePtr = NULL;
   pFileMgr->readFilePtr = NULL;
 
   *ppDaSinkFileMgr = pFileMgr;
@@ -104,27 +138,7 @@ void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr) {
 
 static int32_t initStreamDataSinkFile(SSlidingTaskDSMgr* pStreamDataSink) {
   if (pStreamDataSink->pFileMgr == NULL) {
-    return createStreamDataSinkFileMgr(pStreamDataSink->streamId, &pStreamDataSink->pFileMgr);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t openFileForWrite(SDataSinkFileMgr* pFileMgr) {
-  void* existing = atomic_load_ptr(&pFileMgr->writeFilePtr);
-  if (existing == NULL) {
-    void* newPtr = taosOpenFile(pFileMgr->fileName, TD_FILE_CREATE | TD_FILE_WRITE);
-    if (newPtr == NULL) {
-      stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);
-      return terrno;
-    }
-
-    void* oldPtr = atomic_val_compare_exchange_ptr(&pFileMgr->writeFilePtr, NULL, newPtr);
-    if (oldPtr != NULL) {
-      TdFilePtr fileToClose = (TdFilePtr)newPtr;
-      if(taosCloseFile(&fileToClose) != 0) {
-        stError("failed to close file %s, lineno:%d", pFileMgr->fileName, __LINE__);
-      }
-    }
+    return createStreamDataSinkFileMgr(&pStreamDataSink->pFileMgr);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -133,10 +147,19 @@ static int32_t openFileForRead(SDataSinkFileMgr* pFileMgr) {
   void* existing = atomic_load_ptr(&pFileMgr->readFilePtr);
 
   if (existing == NULL) {
-    void* newPtr  = taosOpenFile(pFileMgr->fileName, TD_FILE_CREATE | TD_FILE_READ);
+    TdFilePtr newPtr = taosOpenPrivateFile(pFileMgr->fileName, TD_FILE_READ);
     if (newPtr == NULL) {
       stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);
       return terrno;
+    }
+
+    int64_t writeDev = 0, writeIno = 0, readDev = 0, readIno = 0;
+    int32_t code = taosDevInoFile(pFileMgr->writeFilePtr, &writeDev, &writeIno);
+    if (code == 0) code = taosDevInoFile(newPtr, &readDev, &readIno);
+    if (code == 0 && (writeDev != readDev || writeIno != readIno)) code = TSDB_CODE_INVALID_MSG;
+    if (code != 0) {
+      (void)taosCloseFile(&newPtr);
+      return code;
     }
 
     void* oldPtr = atomic_val_compare_exchange_ptr(&pFileMgr->readFilePtr, NULL, newPtr);
@@ -217,46 +240,53 @@ static int32_t readFileDataToSlidingWindows(SResultIter* pResult, SSlidingGrpMgr
                                             SBlocksInfoFile* pBlockInfo, bool* finished) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-
-  char* buf = taosMemoryCalloc(1, pBlockInfo->dataLen);
+  char*        buf = NULL;
+  SSDataBlock* pBlock = NULL;
+  if (pBlockInfo->dataLen <= 0 || pBlockInfo->dataLen > DS_FILE_BLOCK_SIZE ||
+      pBlockInfo->dataLen > pBlockInfo->capacity || pBlockInfo->groupOffset < 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  buf = taosMemoryMalloc(pBlockInfo->dataLen);
   if (buf == NULL) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _exit);
   }
-
-  if (!pResult->pFileMgr->readFilePtr) {
-    code = openFileForRead(pResult->pFileMgr);
-    if (code != 0) {
-      stError("failed to open file for read, err: %s", terrMsg);
-      return code;
-    }
-  }
-
+  code = openFileForRead(pResult->pFileMgr);
+  QUERY_CHECK_CODE(code, lino, _exit);
   int64_t readLen = taosPReadFile(pResult->pFileMgr->readFilePtr, buf, pBlockInfo->dataLen, pBlockInfo->groupOffset);
-  if (readLen < 0 || readLen != pBlockInfo->dataLen) {
-    code = terrno;
+  if (readLen != pBlockInfo->dataLen) {
+    code = readLen < 0 && terrno != 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
     QUERY_CHECK_CODE(code, lino, _exit);
   }
 
   *finished = false;
-  char* start = buf;
-  while (true) {
-    SSlidingWindowInMem* pWindowData = (SSlidingWindowInMem*)start;
-
-    if (pWindowData->startTime > pResult->reqEndTime) {
+  const char* cursor = buf;
+  size_t      remaining = pBlockInfo->dataLen;
+  while (remaining > 0) {
+    SSlidingWindowInMem window;
+    if (remaining < sizeof(window)) {
+      code = TSDB_CODE_INVALID_MSG;
+      QUERY_CHECK_CODE(code, lino, _exit);
+    }
+    memcpy(&window, cursor, sizeof(window));
+    cursor += sizeof(window);
+    remaining -= sizeof(window);
+    if (window.dataLen < 0 || (uint64_t)window.dataLen > remaining) {
+      code = TSDB_CODE_INVALID_MSG;
+      QUERY_CHECK_CODE(code, lino, _exit);
+    }
+    if (window.startTime > pResult->reqEndTime) {
       *finished = true;
       break;
-    } else if (pWindowData->endTime < pResult->reqStartTime) {
-      // do nothing
-    } else {
-      *finished = false;
-      SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    }
+    if (window.endTime >= pResult->reqStartTime) {
+      pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
       if (pBlock == NULL) {
-        return terrno;
+        code = terrno;
+        QUERY_CHECK_CODE(code, lino, _exit);
       }
-      QUERY_CHECK_CODE(code, lino, _exit);
-      code = blockSpecialDecodeLaterPart(pBlock, getWindowDataBuf(pWindowData), tsColSlotId, pResult->reqStartTime,
-                                         pResult->reqEndTime);
+      code = blockSpecialDecodeLaterPartBounded(pBlock, cursor, window.dataLen, tsColSlotId, pResult->reqStartTime,
+                                                pResult->reqEndTime, NULL);
       QUERY_CHECK_CODE(code, lino, _exit);
       if (pBlock->info.rows == 0) {
         blockDataDestroy(pBlock);
@@ -264,27 +294,20 @@ static int32_t readFileDataToSlidingWindows(SResultIter* pResult, SSlidingGrpMgr
         code = appendTmpSBlocksInMem(pResult, pBlock);
         QUERY_CHECK_CODE(code, lino, _exit);
       }
+      pBlock = NULL;
     }
-    start += sizeof(SSlidingWindowInMem) + pWindowData->dataLen;
-    if (start >= buf + pBlockInfo->dataLen) {
-      break;  // end of current data buffer
-    }
+    cursor += window.dataLen;
+    remaining -= window.dataLen;
   }
 _exit:
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to read data from file, err: %s, lineno:%d", terrMsg, lino);
-    if (buf) {
-      taosMemoryFreeClear(buf);
-    }
-    if (pResult->tmpBlocksInMem != NULL) {
-      taosArrayDestroy(pResult->tmpBlocksInMem);
-      pResult->tmpBlocksInMem = NULL;
-    }
-    return code;
-  }
-
+  blockDataDestroy(pBlock);
   taosMemoryFree(buf);
-  return TSDB_CODE_SUCCESS;
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to read data from file, err: %s, lineno:%d", tstrerror(code), lino);
+    taosArrayDestroyP(pResult->tmpBlocksInMem, (FDelete)blockDataDestroy);
+    pResult->tmpBlocksInMem = NULL;
+  }
+  return code;
 }
 
 int32_t readSlidingDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId) {
@@ -351,69 +374,62 @@ int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t ts
 }
 
 int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMgr* pSlidingGrp) {
-  if (pSlidingGrp->winDataInMem == NULL || pSlidingGrp->winDataInMem->size == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-  int32_t    code = 0;
-  int32_t    lino = 0;
+  if (pSlidingGrp->winDataInMem == NULL || pSlidingGrp->winDataInMem->size == 0) return TSDB_CODE_SUCCESS;
+  int32_t           code = 0;
+  int32_t           lino = 0;
   TaosIOVec* iov = NULL;
-
-  if (!pSlidingTaskMgr->pFileMgr) {
-    code = initStreamDataSinkFile(pSlidingTaskMgr);
-    if (code != 0) {
-      stError("failed to init stream data sink file, err: %s", terrMsg);
-    }
-    code = openFileForWrite(pSlidingTaskMgr->pFileMgr);
-    if (code != 0) {
-      destroyStreamDataSinkFile(&pSlidingTaskMgr->pFileMgr);
-    }
-  }
-  SDataSinkFileMgr* pFileMgr = pSlidingTaskMgr->pFileMgr;
+  SDataSinkFileMgr* pFileMgr = NULL;
+  SFileBlockInfo    groupBlockOffset = {0};
+  bool              acquiredRange = false;
+  bool              createdFile = pSlidingTaskMgr->pFileMgr == NULL;
+  code = initStreamDataSinkFile(pSlidingTaskMgr);
+  QUERY_CHECK_CODE(code, lino, _exit);
+  pFileMgr = pSlidingTaskMgr->pFileMgr;
 
   int32_t nWin = taosArrayGetSize(pSlidingGrp->winDataInMem);
-  iov = taosMemCalloc(nWin, sizeof(TaosIOVec));
+  iov = taosMemoryCalloc(nWin, sizeof(TaosIOVec));
   if (iov == NULL) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _exit);
   }
   int32_t moveWinCount = 0;
   int32_t needSize = 0;
-  for (int i = 0; i < nWin; ++i) {
+  for (int32_t i = 0; i < nWin; ++i) {
     SSlidingWindowInMem* pSlidingWin = *(SSlidingWindowInMem**)taosArrayGet(pSlidingGrp->winDataInMem, i);
-    if (pSlidingWin == NULL || pSlidingWin->dataLen < 0) {
-      stError("sliding window in mem is NULL or dataLen < 0, i:%d, pSlidingWin:%p", i, pSlidingWin);
+    if (pSlidingWin == NULL || pSlidingWin->dataLen <= 0) {
       code = TSDB_CODE_STREAM_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _exit);
     }
-    if (pSlidingWin->dataLen == 0) {
-      // todo
-    }
-    if (needSize + pSlidingWin->dataLen + sizeof(SSlidingWindowInMem) > DS_FILE_BLOCK_SIZE) {
+    int64_t remaining = (int64_t)DS_FILE_BLOCK_SIZE - needSize;
+    if (remaining < (int64_t)sizeof(SSlidingWindowInMem) ||
+        pSlidingWin->dataLen > remaining - (int64_t)sizeof(SSlidingWindowInMem))
       break;
-    }
-    ++moveWinCount;
     iov[i].iov_base = pSlidingWin;
     iov[i].iov_len = pSlidingWin->dataLen + sizeof(SSlidingWindowInMem);
-    needSize += pSlidingWin->dataLen + sizeof(SSlidingWindowInMem);
+    needSize += iov[i].iov_len;
+    ++moveWinCount;
   }
-
+  if (moveWinCount == 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _exit);
+  }
   if (pSlidingGrp->blocksInFile == NULL) {
-    pSlidingGrp->blocksInFile = taosArrayInit(0, sizeof(SBlocksInfoFile));
+    pSlidingGrp->blocksInFile = taosArrayInit(1, sizeof(SBlocksInfoFile));
     if (pSlidingGrp->blocksInFile == NULL) {
       code = terrno;
       QUERY_CHECK_CODE(code, lino, _exit);
     }
   }
-  SBlocksInfoFile fileBlockInfo = {0};
-  SFileBlockInfo  groupBlockOffset = {0};
+  code = taosArrayEnsureCap(pSlidingGrp->blocksInFile, taosArrayGetSize(pSlidingGrp->blocksInFile) + 1);
+  QUERY_CHECK_CODE(code, lino, _exit);
   getFreeBlock(pFileMgr, needSize, &groupBlockOffset);
+  acquiredRange = true;
+  SBlocksInfoFile fileBlockInfo = {
+      .groupOffset = groupBlockOffset.offset, .dataLen = needSize, .capacity = groupBlockOffset.size};
   int64_t groupOffset;  // offset in file
   int64_t dataStartOffset;
   int64_t dataLen;
   int64_t capacity;  // size in file
-  fileBlockInfo.groupOffset = groupBlockOffset.offset;
-  fileBlockInfo.capacity = groupBlockOffset.size;
-  fileBlockInfo.dataLen = needSize;
   stDebug("move sliding group memory cache, groupId:%" PRId64
           ", moveWinCount:%d, needSize:%d, "
           "groupOffset:%" PRId64 ", capacity:%" PRId64 ", dataLen:%" PRId64,
@@ -423,32 +439,30 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
   if (false) {  // append path may skip taosLSeekFile (todo)
 
   } else {  // first write
-    int64_t ret = taosLSeekFile(pFileMgr->writeFilePtr, fileBlockInfo.groupOffset, SEEK_SET);
-    if (ret < 0) {
-      code = terrno;
+    if (taosLSeekFile(pFileMgr->writeFilePtr, fileBlockInfo.groupOffset, SEEK_SET) < 0) {
+      code = terrno != 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _exit);
     }
-
     int64_t writeLen = taosWritevFile(pFileMgr->writeFilePtr, iov, moveWinCount);
     if (writeLen != needSize) {
-      code = terrno;
+      code = writeLen < 0 && terrno != 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _exit);
     }
-    QUERY_CHECK_CODE(code, lino, _exit);
   }
-
-  taosArrayRemoveBatch(pSlidingGrp->winDataInMem, 0, moveWinCount, destroySlidingWindowInMemPP);
-
-  void* pBlocksInFile = taosArrayPush(pSlidingGrp->blocksInFile, &fileBlockInfo);
-  if (pBlocksInFile == NULL) {
+  if (taosArrayPush(pSlidingGrp->blocksInFile, &fileBlockInfo) == NULL) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _exit);
   }
-
+  // Only the published file index transfers ownership away from the memory windows.
+  taosArrayRemoveBatch(pSlidingGrp->winDataInMem, 0, moveWinCount, destroySlidingWindowInMemPP);
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
-    (void)addToFreeBlock(pFileMgr, &groupBlockOffset);
+    if (createdFile) {
+      destroyStreamDataSinkFile(&pSlidingTaskMgr->pFileMgr);
+    } else if (acquiredRange) {
+      (void)addToFreeBlock(pFileMgr, &groupBlockOffset);
+    }
   }
   taosMemoryFree(iov);
   return code;

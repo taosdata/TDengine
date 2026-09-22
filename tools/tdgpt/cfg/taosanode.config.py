@@ -85,7 +85,7 @@ dynamic_model_dir = _os.path.join(model_dir, 'dynamic')
 
 img_dir = _os.path.join(base_dir, 'img', '') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'img', '')
 
-resource_dir = _os.path.join(base_dir, 'resource', '') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'resource', '')
+resource_dir = _os.path.join(data_dir, 'resource', '')
 
 # Dynamically installed TSFM models and their shared Python runtime.
 tsfm_model_dir = _os.path.join(model_dir, 'tsfm')

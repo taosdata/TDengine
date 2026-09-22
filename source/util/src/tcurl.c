@@ -511,9 +511,9 @@ int32_t tcurlConnect(CURL** ppConn, const char* url) {
   res = curl_easy_setopt(pConn, CURLOPT_URL, url);
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
-  res = curl_easy_setopt(pConn, CURLOPT_SSL_VERIFYPEER, 0L);
+  res = curl_easy_setopt(pConn, CURLOPT_SSL_VERIFYPEER, 1L);
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(pConn, CURLOPT_SSL_VERIFYHOST, 0L);
+  res = curl_easy_setopt(pConn, CURLOPT_SSL_VERIFYHOST, 2L);
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
   res = curl_easy_setopt(pConn, CURLOPT_TIMEOUT, NOTIFICATION_SEND_TIMEOUT_SECONDS);

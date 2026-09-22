@@ -48,11 +48,7 @@ column_name = val, _c0
 
 1. 准备数据
 
-在 TDgpt 安装目录下的 `resource` 文件夹中准备了样例数据 `sample-fc.sql`, 执行以下命令即可将示例数据写入数据库，用于执行评估
-
-```shell
-taos -f sample-fc.sql
-```
+准备需要评估的时序数据，并在 `analytics.ini` 中配置对应的数据库、表、列和时间范围。
 
 2. 设置参数
 
@@ -113,11 +109,7 @@ python3 ./analytics_compare.py forecast
 
 1. 准备数据
 
-在 TDgpt 安装目录下的 `resource` 文件夹中准备了样例数据 `sample-ad.sql`, 执行以下命令即可将示例数据写入数据库
-
-```shell
-taos -f sample-ad.sql
-```
+准备需要评估的时序数据，并在 `analytics.ini` 中配置对应的数据库、表、列和时间范围。
 
 2. 设置参数
 
