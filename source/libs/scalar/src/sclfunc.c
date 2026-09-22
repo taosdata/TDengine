@@ -2379,6 +2379,8 @@ int32_t crc32Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
       SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)input, 0, pOutputBuf, bufLen, pInput->tz));
       out[i] = crc32(pOutputBuf, strlen(pOutputBuf));
       taosArrayDestroy(formats);
+    } else if (IS_STR_DATA_BLOB(inputType)) {
+      out[i] = crc32(blobDataVal(input), blobDataLen(input));
     } else {
       out[i] = crc32(varDataVal(input), varDataLen(input));
     }
