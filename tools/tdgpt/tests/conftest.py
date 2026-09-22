@@ -81,6 +81,7 @@ def mock_config(temp_dir):
     config.tsfm_model_dir = os.path.join(config.model_dir, "tsfm")
     config.model_venvs_dir = os.path.join(config.data_dir, "model_venvs")
     config.tsfm_venv = os.path.join(config.model_venvs_dir, "tsfm")
+    config.resource_dir = os.path.join(config.data_dir, "resource")
     config.venv_dir = os.path.join(temp_dir, "venvs", "venv")
     config.timesfm_venv = config.venv_dir
     config.moirai_venv = config.venv_dir

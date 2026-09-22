@@ -11,6 +11,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Dict, Optional
 
+from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
 
 
@@ -24,8 +25,8 @@ class AsyncTaskStore:
             db_path: Path to SQLite database file. Defaults to resource directory.
         """
         if db_path is None:
-            # Default to resource directory (same level as scripts)
-            resource_dir = Path(__file__).resolve().parent.parent.parent / "resource"
+            config = Configure.get_instance()
+            resource_dir = Path(config._conf["resource_dir"])
             resource_dir.mkdir(parents=True, exist_ok=True)
             db_path = resource_dir / "async_tasks.db"
 

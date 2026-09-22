@@ -280,6 +280,7 @@ class WindowsUninstaller:
             ("venvs", self.venvs_dir),
             ("data", self.install_dir / "data"),
             ("model", self.install_dir / "model"),
+            ("model_venvs", self.install_dir / "model_venvs"),
         ):
             if path.exists():
                 lines.append(f"  [OK] {name}")
