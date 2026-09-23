@@ -30,7 +30,7 @@ int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSink
   pSinkManager->pAPI = pAPI;
 
   *ppSinkManager = pSinkManager;
-  return TSDB_CODE_SUCCESS;  // to avoid compiler eror
+  return TSDB_CODE_SUCCESS;  // to avoid compiler error
 }
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {

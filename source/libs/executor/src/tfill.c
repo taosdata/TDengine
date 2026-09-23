@@ -840,7 +840,7 @@ static int32_t tFillFromHeadForCol(struct SFillInfo* pFillInfo, TSKEY ts,
   SColumnFillProgress* pColProgress =
     taosArrayGet(pFillInfo->pColFillProgress, colIdx);
   if (!pColProgress) {
-    qError("%s falied at %d, failed to get col progress for col %d, size: %lu",
+    qError("%s failed at %d, failed to get col progress for col %d, size: %lu",
            __func__, __LINE__, colIdx,
            taosArrayGetSize(pFillInfo->pColFillProgress));
     return TSDB_CODE_INTERNAL_ERROR;

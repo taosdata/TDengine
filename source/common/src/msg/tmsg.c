@@ -19781,7 +19781,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   if (hasBlob) {
     TAOS_CHECK_EXIT(tEncodeBlobSet(pCoder, pSubmitTbData->pBlobSet));
     if (tBlobSetSize(pSubmitTbData->pBlobSet) != count) {
-      uError("blob set size %d not match row size %d", tBlobSetSize(pSubmitTbData->pBlobSet), count);
+      uError("blob set size %d does not match row size %d", tBlobSetSize(pSubmitTbData->pBlobSet), count);
       return TSDB_CODE_INVALID_MSG;
     }
   }

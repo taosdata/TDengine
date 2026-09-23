@@ -99,7 +99,7 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session, bool 
     QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
   }
   
-  QW_TASK_DLOG("task session destoryed, session:%p, job:%p, remainSessions:%d, thread:%" PRId64, session, pJobInfo,
+  QW_TASK_DLOG("task session destroyed, session:%p, job:%p, remainSessions:%d, thread:%" PRId64, session, pJobInfo,
                remainSessions, taosGetSelfPthreadId());
 
   if (0 == remainSessions) {

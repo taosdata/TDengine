@@ -144,7 +144,7 @@ int32_t qwAcquireTaskStatus(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus *sch, S
   *task = taosHashGet(sch->tasksHash, id, sizeof(id));
   if (NULL == (*task)) {
     QW_UNLOCK(rwType, &sch->tasksLock);
-    QW_TASK_ELOG_E("task status not exists");
+    QW_TASK_ELOG_E("task status does not exist");
     QW_ERR_RET(TSDB_CODE_QRY_TASK_NOT_EXIST);
   }
 
@@ -215,7 +215,7 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
 
   *ctx = taosHashAcquire(mgmt->ctxHash, id, sizeof(id));
   if (NULL == (*ctx)) {
-    QW_TASK_DLOG_E("acquired task ctx not exist, may be dropped");
+    QW_TASK_DLOG_E("acquired task ctx does not exist, may be dropped");
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
@@ -228,7 +228,7 @@ int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
 
   *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
   if (NULL == (*ctx)) {
-    QW_TASK_DLOG_E("get task ctx not exist, may be dropped");
+    QW_TASK_DLOG_E("get task ctx does not exist, may be dropped");
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
@@ -420,7 +420,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
   if (NULL == ctx) {
-    QW_TASK_DLOG_E("drop task ctx not exist, may be dropped");
+    QW_TASK_DLOG_E("drop task ctx does not exist, may be dropped");
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
@@ -521,7 +521,7 @@ int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
 
   SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
   if (NULL == ctx) {
-    QW_TASK_DLOG_E("task ctx not exist, may be dropped");
+    QW_TASK_DLOG_E("task ctx does not exist, may be dropped");
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
@@ -636,7 +636,7 @@ void qwDestroyImpl(void *pMgmt) {
   qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
 
   if (taosTmrStop(mgmt->hbTimer)) {
-    qTrace("stop qworker hb timer may failed");
+    qTrace("stop qworker hb timer may have failed");
   }
 
   mgmt->hbTimer = NULL;

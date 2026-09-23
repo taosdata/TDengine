@@ -572,7 +572,7 @@ class TestShowBasic:
 
     def checkShowTags(self):
         # verification for TD-29904
-        tdSql.error("show tags from t100000", expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error("show tags from t100000", expectErrInfo='Failed to get table info, error: Table does not exist')
 
         sql = "show tags from child1"
         tdSql.query(sql)
@@ -599,8 +599,8 @@ class TestShowBasic:
             tdSql.execute("create view v100 as select * from t100")
             tdSql.execute("create view v200 as select * from ct1")
 
-            tdSql.error("show tags from v100", expectErrInfo="Tags can only applied to super table and child table")
-            tdSql.error("show tags from v200", expectErrInfo="Tags can only applied to super table and child table")
+            tdSql.error("show tags from v100", expectErrInfo="Tags can only be applied to super tables and child tables")
+            tdSql.error("show tags from v200", expectErrInfo="Tags can only be applied to super tables and child tables")
 
         tdSql.execute("create table t200 (ts timestamp, pk varchar(20) primary key, c1 varchar(100))")
 
@@ -756,17 +756,17 @@ class TestShowBasic:
         tdSql.error(f'show tags from `db`.`stb` from db')
         tdSql.error(f'show tags from db.ctb1 from db')
         tdSql.error(f'show tags from `db`.`ctb1` from db')
-        tdSql.error(f'show tags from tb_undef from db', expectErrInfo='Fail to get table info, error: Table does not exist')
-        tdSql.error(f'show tags from db.tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
-        tdSql.error(f'show tags from tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error(f'show tags from tb_undef from db', expectErrInfo='Failed to get table info, error: Table does not exist')
+        tdSql.error(f'show tags from db.tb_undef', expectErrInfo='Failed to get table info, error: Table does not exist')
+        tdSql.error(f'show tags from tb_undef', expectErrInfo='Failed to get table info, error: Table does not exist')
         # SHOW TAGS is allowed on normal tables and returns 0 rows
         tdSql.query(f'show tags from ntb')
         tdSql.checkRows(0)
         if has_views:
-            tdSql.error(f'show tags from vtb', expectErrInfo='Tags can only applied to super table and child table')
-            tdSql.error(f'show tags from vtb1', expectErrInfo='Tags can only applied to super table and child table')
-            tdSql.error(f'show tags from vtb2', expectErrInfo='Tags can only applied to super table and child table')
-            tdSql.error(f'show tags from vtbn', expectErrInfo='Tags can only applied to super table and child table')
+            tdSql.error(f'show tags from vtb', expectErrInfo='Tags can only be applied to super tables and child tables')
+            tdSql.error(f'show tags from vtb1', expectErrInfo='Tags can only be applied to super tables and child tables')
+            tdSql.error(f'show tags from vtb2', expectErrInfo='Tags can only be applied to super tables and child tables')
+            tdSql.error(f'show tags from vtbn', expectErrInfo='Tags can only be applied to super tables and child tables')
 
         # show table tags
         tdSql.query(f'show table tags from stb')
@@ -802,12 +802,12 @@ class TestShowBasic:
         tdSql.error(f'show table tags from tb_undef from db', expectErrInfo='Table does not exist')
         tdSql.error(f'show table tags from db.tb_undef', expectErrInfo='Table does not exist')
         tdSql.error(f'show table tags from tb_undef', expectErrInfo='Table does not exist')
-        tdSql.error(f'show table tags from ntb', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show table tags from ntb', expectErrInfo='Tags can only be applied to super tables and child tables')
         if has_views:
-            tdSql.error(f'show table tags from vtb', expectErrInfo='Tags can only applied to super table and child table')
-            tdSql.error(f'show table tags from vtb1', expectErrInfo='Tags can only applied to super table and child table')
-            tdSql.error(f'show table tags from vtb2', expectErrInfo='Tags can only applied to super table and child table')
-            tdSql.error(f'show table tags from vtbn', expectErrInfo='Tags can only applied to super table and child table')
+            tdSql.error(f'show table tags from vtb', expectErrInfo='Tags can only be applied to super tables and child tables')
+            tdSql.error(f'show table tags from vtb1', expectErrInfo='Tags can only be applied to super tables and child tables')
+            tdSql.error(f'show table tags from vtb2', expectErrInfo='Tags can only be applied to super tables and child tables')
+            tdSql.error(f'show table tags from vtbn', expectErrInfo='Tags can only be applied to super tables and child tables')
 
         # show indexes
         tdSql.execute(f'create index idx1 on stb (t1)')
@@ -844,9 +844,9 @@ class TestShowBasic:
         tdSql.error(f'show indexes from `db`.`ctb1` from db')
 
         # check error information
-        tdSql.error(f'create index idx1 on db2.stb (t1);', expectErrInfo='Database not exist')
-        tdSql.error(f'use db2;', expectErrInfo='Database not exist')
-        tdSql.error(f' alter stable db2.stb add column c2 int;', expectErrInfo='Database not exist')
+        tdSql.error(f'create index idx1 on db2.stb (t1);', expectErrInfo='Database does not exist')
+        tdSql.error(f'use db2;', expectErrInfo='Database does not exist')
+        tdSql.error(f' alter stable db2.stb add column c2 int;', expectErrInfo='Database does not exist')
 
         print("do show tag index ..................... [passed]")
 

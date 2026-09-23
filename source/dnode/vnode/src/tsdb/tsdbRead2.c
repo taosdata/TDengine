@@ -914,7 +914,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   TSDB_CHECK_CODE(code, lino, _end);
 
   if (pReader->suppInfo.colId[0] != PRIMARYKEY_TIMESTAMP_COL_ID) {
-    tsdbError("the first column isn't primary timestamp, %d, %s", pReader->suppInfo.colId[0], pReader->idStr);
+    tsdbError("the first column is not primary timestamp, %d, %s", pReader->suppInfo.colId[0], pReader->idStr);
     TSDB_CHECK_CONDITION(pReader->suppInfo.colId[0] == PRIMARYKEY_TIMESTAMP_COL_ID, code, lino, _end,
                          TSDB_CODE_INVALID_PARA);
   }
@@ -924,7 +924,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
 
   int32_t type = pReader->status.pPrimaryTsCol->info.type;
   if (type != TSDB_DATA_TYPE_TIMESTAMP) {
-    tsdbError("the first column isn't primary timestamp in result block, actual: %s, %s", tDataTypes[type].name,
+    tsdbError("the first column is not primary timestamp in result block, actual: %s, %s", tDataTypes[type].name,
               pReader->idStr);
     TSDB_CHECK_CONDITION(type == TSDB_DATA_TYPE_TIMESTAMP, code, lino, _end, TSDB_CODE_INVALID_PARA);
   }
@@ -3902,7 +3902,7 @@ static void prepareDurationForNextFileSet(STsdbReader* pReader) {
       STsdReaderNotifyInfo info = {0};
       info.duration.filesetId = fid;
       pReader->notifyFn(TSD_READER_NOTIFY_DURATION_START, &info, pReader->notifyParam);
-      tsdbDebug("new duration %d start notification when no buffer preceeding fileset, %s", fid, pReader->idStr);
+      tsdbDebug("new duration %d start notification when no buffer preceding fileset, %s", fid, pReader->idStr);
     }
   }
 
@@ -4407,7 +4407,7 @@ static int32_t buildBlockFromBufferSeqForPreFileset(STsdbReader* pReader, int64_
 
   pStatus = &pReader->status;
 
-  tsdbDebug("seq load data blocks from cache that preceeds fileset %d, %s", pReader->status.pCurrentFileset->fid,
+  tsdbDebug("seq load data blocks from cache that precedes fileset %d, %s", pReader->status.pCurrentFileset->fid,
             pReader->idStr);
 
   while (1) {
@@ -6126,7 +6126,7 @@ void tsdbReaderClose2(void* ptr) {
 
   code = tsem_destroy(&pReader->resumeAfterSuspend);
   if (code != 0) {
-    tsdbWarn("faild to destroy tsem"); 
+    tsdbWarn("failed to destroy tsem");
   }
   (void)tsdbReleaseReader(pReader);
   (void)tsdbUninitReaderLock(pReader);

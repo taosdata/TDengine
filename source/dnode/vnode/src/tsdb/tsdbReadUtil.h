@@ -126,7 +126,7 @@ typedef struct STableBlockScanInfo {
   int32_t      sttBlockDelIndex;  // delete index for last block
   bool         iterInit;          // whether to initialize the in-memory skip list iterator or not
   bool         cleanSttBlocks;    // stt block is clean in current fileset
-  bool         sttBlockReturned;  // result block returned alreay
+  bool         sttBlockReturned;  // result block returned already
   int64_t      numOfRowsInStt;
   SSttKeyRange sttRange;
   STimeWindow  filesetWindow;  // timestamp window for current file set

@@ -204,17 +204,17 @@ class TestCase:
         tdSql.execute("revoke subscribe on d0.topic1 from u_consumer")
         tdSql.query(f"select * from information_schema.ins_user_privileges where priv_scope='TOPIC'")
         tdSql.checkRows(0)
-        tdSql.error(f"grant subscribe on topic db_none.topic_none to u_consumer", expectErrInfo="Database not exist", fullMatched=False)
-        tdSql.error(f"grant subscribe on db_none.topic_none to u_consumer", expectErrInfo="Database not exist", fullMatched=False)
-        tdSql.error(f"grant subscribe on topic d0.topic_none to u_consumer", expectErrInfo="Topic not exist", fullMatched=False)
-        tdSql.error(f"grant subscribe on d0.topic_none to u_consumer", expectErrInfo="Topic not exist", fullMatched=False)
-        tdSql.error(f"grant all on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
-        tdSql.error(f"grant read on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
-        tdSql.error(f"grant write on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
-        tdSql.error(f"grant read,write,show,show create on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on topic db_none.topic_none to u_consumer", expectErrInfo="Database does not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on db_none.topic_none to u_consumer", expectErrInfo="Database does not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on topic d0.topic_none to u_consumer", expectErrInfo="Topic does not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on d0.topic_none to u_consumer", expectErrInfo="Topic does not exist", fullMatched=False)
+        tdSql.error(f"grant all on d0.topic_none to u_consumer", expectErrInfo="Grant object does not exist", fullMatched=False)
+        tdSql.error(f"grant read on d0.topic_none to u_consumer", expectErrInfo="Grant object does not exist", fullMatched=False)
+        tdSql.error(f"grant write on d0.topic_none to u_consumer", expectErrInfo="Grant object does not exist", fullMatched=False)
+        tdSql.error(f"grant read,write,show,show create on d0.topic_none to u_consumer", expectErrInfo="Grant object does not exist", fullMatched=False)
         tdSql.error(f"grant all,read,write,show,show create on d0.topic_none to u_consumer", expectErrInfo="Cannot mix ALL PRIVILEGES with other privileges", fullMatched=False)
-        tdSql.error(f"grant show on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
-        tdSql.error(f"grant show create on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant show on d0.topic_none to u_consumer", expectErrInfo="Grant object does not exist", fullMatched=False)
+        tdSql.error(f"grant show create on d0.topic_none to u_consumer", expectErrInfo="Grant object does not exist", fullMatched=False)
         tdSql.error(f"grant alter on d0.topic_none to u_consumer", expectErrInfo="Conflict between privilege type and target", fullMatched=False)
         tdSql.error(f"grant create user on d0.topic_none to u_consumer", expectErrInfo="System privileges should not have target", fullMatched=False)
         tdSql.error(f"grant create user,select on d0.topic_none to u_consumer", expectErrInfo="System privileges and object privileges cannot be mixed", fullMatched=False)
@@ -256,8 +256,8 @@ class TestCase:
         tdSql.execute("revoke drop on table d1.* from u3")
         tdSql.connect("u3", self.test_pass)
         time.sleep(5)  # wait for privileges to take effect
-        tdSql.error("drop table if exists d1.not_exist_table", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("drop table if exists d1.not_exist_table", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
         tdSql.connect("root", "taosdata")
         tdSql.execute("grant create database to u3")
         tdSql.connect("u3", self.test_pass)
@@ -332,12 +332,12 @@ class TestCase:
         tdSql.error("insert into d_7002_owner.not_exist_tb values(now(), 1)", expectErrInfo="Table does not exist", fullMatched=False)
         tdSql.error("show create table d_7002_owner.not_exist_tb", expectErrInfo="Table does not exist", fullMatched=False)
 
-        # u_7002_noperm (use only, no table privilege): non-existent table → "Permission denied or target object not exist"
+        # u_7002_noperm (use only, no table privilege): non-existent table → "Permission denied or the target object does not exist"
         tdSql.connect("u_7002_noperm", self.test_pass)
         time.sleep(5)  # wait for privilege changes to take effect
-        tdSql.error("select * from d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("insert into d_7002.not_exist_tb values(now(), 1)", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("show create table d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("select * from d_7002.not_exist_tb", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("insert into d_7002.not_exist_tb values(now(), 1)", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("show create table d_7002.not_exist_tb", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
 
         # Revoke db.* privileges from u_7002_db, verify error changes
         tdSql.connect("root", "taosdata")
@@ -346,9 +346,9 @@ class TestCase:
         tdSql.execute("revoke show create table on table d_7002.* from u_7002_db")
         tdSql.connect("u_7002_db", self.test_pass)
         time.sleep(5)  # wait for privilege changes to take effect
-        tdSql.error("select * from d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("insert into d_7002.not_exist_tb values(now(), 1)", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("show create table d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("select * from d_7002.not_exist_tb", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("insert into d_7002.not_exist_tb values(now(), 1)", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("show create table d_7002.not_exist_tb", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
 
         # Cleanup
         tdSql.connect("root", "taosdata")
@@ -646,19 +646,19 @@ class TestCase:
         tdSql.error(
             "grant select(ts, c0, mask(c1)) "
             "on table d_mask.ntb_mask_unsupported to u_mask",
-            expectErrInfo="Not support mask for data type",
+            expectErrInfo="mask is not supported for data type",
             fullMatched=False,
         )
         tdSql.error(
             "grant select(ts, c0, mask(c2)) "
             "on table d_mask.ntb_mask_unsupported to u_mask",
-            expectErrInfo="Not support mask for data type",
+            expectErrInfo="mask is not supported for data type",
             fullMatched=False,
         )
         tdSql.error(
             "grant select(ts, c0, mask(jtag)) "
             "on table d_mask.stb_json to u_mask",
-            expectErrInfo="Not support mask for data type",
+            expectErrInfo="mask is not supported for data type",
             fullMatched=False,
         )
 

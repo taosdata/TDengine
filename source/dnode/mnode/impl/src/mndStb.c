@@ -5553,7 +5553,7 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   // When the STB is about to be dropped in the same COMMIT trans (PRE_CREATE_DROP or
   // PRE_DROP), skip vnode-alter-stb redo actions. Sending vnode-alter-stb concurrently
   // with vnode-drop-stb causes a race: VNode uses separate queues for different message
-  // types, so DROP can be processed before ALTER, leaving ALTER with "Stable not exists"
+  // types, so DROP can be processed before ALTER, leaving ALTER with "Stable does not exist"
   // (TSDB_CODE_TDB_STB_NOT_EXIST). Since the DROP redo action will clean up the VNode
   // state anyway, the ALTER redo action is both unnecessary and harmful.
   bool skipVnodeAlter = (oldTxnStatus == META_TXN_PRE_CREATE_DROP || oldTxnStatus == META_TXN_PRE_DROP);
@@ -5615,7 +5615,7 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   pStb = mndAcquireStb(pMnode, dropReq.name);
   if (pStb == NULL) {
     if (dropReq.igNotExists) {
-      mInfo("stb:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("stb:%s, does not exist, ignore-not-exist is set", dropReq.name);
       code = 0;
       goto _OVER;
     } else {

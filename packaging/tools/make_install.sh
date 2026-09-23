@@ -709,7 +709,7 @@ function install_connector() {
   if find ${source_dir}/src/connector/go -mindepth 1 -maxdepth 1 | read; then
     ${csudo}cp -r ${source_dir}/src/connector/go ${install_main_dir}/connector || :
   else
-    echo "WARNING: go connector not found, please check if want to use it!"
+    echo "WARNING: go connector not found, skipping it!"
   fi
   ${csudo}cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector || :
   ${csudo}cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &>/dev/null && ${csudo}chmod 777 ${install_main_dir}/connector/*.jar || echo &>/dev/null || :

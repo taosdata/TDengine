@@ -2037,7 +2037,7 @@ static SArray* getTableListForAlterSuperTable(SStreamTriggerReaderInfo* sStreamR
     code = checkAlter(sStreamReaderInfo, pTable->tbName, pReq->action, &uid);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || uid == 0) {
       code = 0;
-      ST_TASK_WLOG("stream reader scan alter ctable table %s not exist, %s %"PRIu64, pTable->tbName, __func__, uid);
+      ST_TASK_WLOG("stream reader scan alter ctable table %s does not exist, %s %"PRIu64, pTable->tbName, __func__, uid);
       continue;
     }
     STREAM_CHECK_RET_GOTO(code);
@@ -2120,7 +2120,7 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
     STREAM_CHECK_CONDITION_GOTO(!sStreamReaderInfo->isVtableStream, TDB_CODE_SUCCESS);
     code = checkAlter(sStreamReaderInfo, req.tbName, req.action, &uid);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || uid == 0) {
-      ST_TASK_WLOG("stream reader scan alter ref table %s not exist, %s uid:%" PRIu64, req.tbName, __func__, uid);
+      ST_TASK_WLOG("stream reader scan alter ref table %s does not exist, %s uid:%" PRIu64, req.tbName, __func__, uid);
       code = 0;
       goto end;
     }
@@ -2132,7 +2132,7 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   } else if (req.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
     code = checkAlter(sStreamReaderInfo, req.tbName, req.action, &uid);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || uid == 0) {
-      ST_TASK_WLOG("stream reader scan alter suid table %s not exist, %s uid:%" PRIu64, req.tbName, __func__, uid);
+      ST_TASK_WLOG("stream reader scan alter suid table %s does not exist, %s uid:%" PRIu64, req.tbName, __func__, uid);
       code = 0;
       goto end;
     }

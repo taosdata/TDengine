@@ -764,28 +764,28 @@ taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and b.f1 <= (s
 
 taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and a.f1 != (select 0 from st1 limit 1) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and a.f1 != (select 1 from st1 limit 1) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and a.f1 != (select 2 from st1 limit 1) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and a.f1 != (select f1 from db2.tba) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and b.f1 <= (select 0 from st1 limit 1) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and b.f1 <= (select 1 from st1 limit 1) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and b.f1 <= (select 2 from st1 limit 1) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and b.f1 <= (select f1 from db2.tba) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit (select 0 from st1 limit 1) order by 1;
 
 DB error: syntax error near "(select 0 from st1 limit 1) order by 1;" [0x80002600] 
@@ -812,28 +812,28 @@ taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit (select
 DB error: syntax error near "(select f1 from db2.tba) order by 1;" [0x80002600] 
 taos> select b.ts from st1 a left window join st1 b on a.f1 = (select 0 from st1 limit 1) window_offset(-1d, 1d) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select b.ts from st1 a left window join st1 b on a.f1 = (select 1 from st1 limit 1) window_offset(-1d, 1d) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select b.ts from st1 a left window join st1 b on a.f1 = (select 2 from st1 limit 1) window_offset(-1d, 1d) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select b.ts from st1 a left window join st1 b on a.f1 = (select f1 from db2.tba) window_offset(-1d, 1d) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select a.ts from st1 a right window join st1 b on b.f1 = (select 0 from st1 limit 1) window_offset(-1d, 1d) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select a.ts from st1 a right window join st1 b on b.f1 = (select 1 from st1 limit 1) window_offset(-1d, 1d) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select a.ts from st1 a right window join st1 b on b.f1 = (select 2 from st1 limit 1) window_offset(-1d, 1d) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select a.ts from st1 a right window join st1 b on b.f1 = (select f1 from db2.tba) window_offset(-1d, 1d) order by 1;
 
-DB error: Not supported join on condition [0x80000733] 
+DB error: join condition is not supported [0x80000733] 
 taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit (select 0 from st1 limit 1) order by 1;
 
 DB error: syntax error near "(select 0 from st1 limit 1) order by 1;" [0x80002600] 

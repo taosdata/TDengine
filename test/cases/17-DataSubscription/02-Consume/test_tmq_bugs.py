@@ -39,11 +39,11 @@ class TestTmqBugs:
         tdSql.query("select * from st")
         tdSql.checkRows(8)
         
-        tdSql.error(f'create topic t1 with meta as database d2', expectErrInfo="Database not exist")
-        tdSql.error(f'create topic t1 as database d2', expectErrInfo="Database not exist")
+        tdSql.error(f'create topic t1 with meta as database d2', expectErrInfo="Database does not exist")
+        tdSql.error(f'create topic t1 as database d2', expectErrInfo="Database does not exist")
         tdSql.error(f'create topic t2 as select * from st2', expectErrInfo="Table does not exist")
-        tdSql.error(f'create topic t3 as stable st2', expectErrInfo="STable not exist")
-        tdSql.error(f'create topic t3 with meta as stable st2', expectErrInfo="STable not exist")
+        tdSql.error(f'create topic t3 as stable st2', expectErrInfo="STable does not exist")
+        tdSql.error(f'create topic t3 with meta as stable st2', expectErrInfo="STable does not exist")
 
         tdSql.execute(f'create topic t1 with meta as database d1')
         
@@ -1093,9 +1093,11 @@ class TestTmqBugs:
          - Test tmq consumption with meta topic created on stable with where clause.
         19. Jira TS-4674:
          - Test tmq consumption behavior during vgroup leader rebalance in multi-replica environment.
+
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+        
         Jira: None
 
         History:

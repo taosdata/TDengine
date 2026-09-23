@@ -318,7 +318,7 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     if (id > 0) {                                                                        \
       SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
       if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
-        tDebug("handle not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        tDebug("handle does not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
         code = TSDB_CODE_INVALID_MSG;                                                    \
         goto _return1;                                                                   \
       }                                                                                  \
@@ -593,7 +593,7 @@ bool transUtilCheckDualIp(SIpRange* range, SIpRange* ip);
     if (id > 0) {                                                                        \
       SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
       if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
-        tDebug("handle not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        tDebug("handle does not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
         code = TSDB_CODE_INVALID_MSG;                                                    \
         goto _return1;                                                                   \
       }                                                                                  \

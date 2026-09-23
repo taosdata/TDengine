@@ -181,6 +181,7 @@ class TestTaosShell:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -441,7 +442,7 @@ class TestTaosShell:
         if len(taosVersion) == 0:
             print ("return version: [%s]"%retVal)
             print ("dict version: [%s]"%version)
-            tdLog.exit("taos -V version not match")
+            tdLog.exit("taos -V version does not match")
 
         tdLog.printNoPrefix("================================ parameter: -d")
         newDbName="dbd"

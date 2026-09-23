@@ -1322,7 +1322,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     if (pRequest->killed) {
-      tscInfo("query has been killed, can not fetch more row.");
+      tscInfo("query has been killed, cannot fetch more rows.");
       pRequest->code = TSDB_CODE_TSC_QUERY_KILLED;
       CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
       return NULL;
@@ -1337,7 +1337,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     }
 
     if (pRequest->inCallback) {
-      tscError("can not call taos_fetch_row before query callback ends.");
+      tscError("cannot call taos_fetch_row before query callback ends.");
       terrno = TSDB_CODE_TSC_INVALID_OPERATION;
       return NULL;
     }

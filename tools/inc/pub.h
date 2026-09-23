@@ -49,7 +49,7 @@ extern "C" {
 #define DSN_DESC       "The dsn to connect the cloud service."
 #define OLD_DSN_DESC   "Alias for the -X/--dsn option."
 
-#define DSN_NATIVE_CONFLICT "DSN option not support in native connection mode.\n"
+#define DSN_NATIVE_CONFLICT "DSN option is not supported in native connection mode.\n"
 
 // connect mode type define
 #define CONN_MODE_INVALID   -1

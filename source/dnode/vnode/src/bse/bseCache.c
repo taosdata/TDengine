@@ -114,7 +114,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   if (ppItem != NULL && *ppItem != NULL) {
     SCacheItem *pItem = (SCacheItem *)*ppItem;
     if ((tdListPopNode(pCache->lruList, pItem->pNode)) == NULL) {
-      bseWarn("node not exist in lru list");
+      bseWarn("node does not exist in lru list");
     }
 
     bseCacheRefItem(pItem);
@@ -176,7 +176,7 @@ int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen) 
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (tdListPopNode(pCache->lruList, pItem->pNode) == NULL) {
-    bseWarn("node not exist in lru list");
+    bseWarn("node does not exist in lru list");
   }
 
   bseCacheUnrefItem(pItem);

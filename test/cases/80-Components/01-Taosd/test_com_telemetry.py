@@ -68,7 +68,7 @@ def telemetryInfoCheck(infoDict=''):
         tdLog.exit("gitInfo is null!")
 
     if "email" not in infoDict:
-        tdLog.exit("email is not exists!")
+        tdLog.exit("email does not exist!")
 
     if "numOfDnode" not in infoDict or infoDict["numOfDnode"] < 1:
         tdLog.exit("numOfDnode is null!")
@@ -186,6 +186,7 @@ class TestTelemetry:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

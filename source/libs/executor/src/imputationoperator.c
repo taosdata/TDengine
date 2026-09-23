@@ -450,7 +450,7 @@ static int32_t finishBuildRequest(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp
   // let's check existed rows for imputation
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     if (pSupp->numOfRows < ANALY_IMPUTATION_INPUT_MIN_ROWS) {
-      qError("%s input rows for imputation aren't enough, min required:%d, current:%d", id, ANALY_IMPUTATION_INPUT_MIN_ROWS,
+      qError("%s input rows for imputation are not enough, min required:%d, current:%d", id, ANALY_IMPUTATION_INPUT_MIN_ROWS,
              pSupp->numOfRows);
       return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
     }

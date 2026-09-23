@@ -4642,7 +4642,7 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   if(*rows <= endIndex) {
-    uError("Invalid endIdex %d, there is %d rows in block", endIndex, *rows);
+    uError("Invalid endIndex %d, there are %d rows in block", endIndex, *rows);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   int32_t realRows = endIndex - startIndex + 1;

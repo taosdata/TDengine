@@ -78,7 +78,7 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("mnode file:%s not exist, reason:%s", file, tstrerror(terrno));
+    dInfo("mnode file:%s does not exist, reason:%s", file, tstrerror(terrno));
     return 0;
   }
 

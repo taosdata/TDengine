@@ -440,7 +440,7 @@ static int32_t shellCheckArgs() {
       // check cfg dir exist
       /*
       if(!taosIsDir(configDirShell)) {
-        (void)printf("folder not exist. cfgdir:%s  expand:%s\r\n", pArgs->cfgdir, configDirShell);
+        (void)printf("folder does not exist. cfgdir:%s, expand:%s\r\n", pArgs->cfgdir, configDirShell);
         configDirShell[0] = 0;
         return -1;
       }*/

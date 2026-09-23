@@ -236,7 +236,7 @@ class CompatibilityBase:
         
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
-            tdLog.info(f"{packageName} is not exists")
+            tdLog.info(f"{packageName} does not exist")
             tdLog.info(f"cd {packagePath} && wget {download_url}")
             os.system(f"cd {packagePath} && wget {download_url}")
         else: 

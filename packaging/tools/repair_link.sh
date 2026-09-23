@@ -8,7 +8,7 @@ read -p "Please enter link directory such as /var/lib/taos/tsdb: " linkDir
 
 while true; do
     if [ ! -d $linkDir ]; then
-        read -p "Path not exists, please enter the correct link path:" linkDir
+        read -p "Path does not exist, please enter the correct link path:" linkDir
         continue
     fi
     break

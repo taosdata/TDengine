@@ -278,7 +278,7 @@ int restoreMain() {
         // table's source columns — can live in a different database, and the
         // restore order here comes from raw readdir(), which is filesystem-
         // dependent.  Without this two-pass split, a cross-database stream
-        // fails with "Database not exist" whenever the referencing database is
+        // fails with "Database does not exist" whenever the referencing database is
         // restored before the referenced one.
         if (extMetaOnly) {
             for (int i = 0; backDB[i] != NULL && code == TSDB_CODE_SUCCESS; i++) {

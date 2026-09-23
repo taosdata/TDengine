@@ -756,7 +756,7 @@ static void mndSnodeAddLeaderId(SSnodeObj *pObj, int32_t leaderId) {
     return;
   }
 
-  mError("snode %d can't add new leaderId %d since already has two leaders:%d, %d", pObj->id, leaderId, pObj->leadersId[0], pObj->leadersId[1]);
+  mError("snode %d cannot add new leaderId %d since already has two leaders:%d, %d", pObj->id, leaderId, pObj->leadersId[0], pObj->leadersId[1]);
 }
 
 int32_t mndDropSnodeImpl(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj, STrans *pTrans, bool force) {

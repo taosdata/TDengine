@@ -36,6 +36,7 @@ class TestViewMgmt:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -180,7 +181,7 @@ class TestViewMgmt:
 
         # grant/revoke to or from root is allowed since 3.4.0.0
         tdSql.error(f"grant all on view1 to root;", expectErrInfo="Insufficient privilege for operation")
-        tdSql.error(f"grant all on view1 to u1;", expectErrInfo="Grant object not exist")
+        tdSql.error(f"grant all on view1 to u1;", expectErrInfo="Grant object does not exist")
         tdSql.execute(f"revoke all on view1 from u1;") # revoke doesn't check the existence of view1
 
         tdSql.error(f"grant select on view1 to u1;", expectErrInfo="Table name cannot be empty for non-database level privileges")

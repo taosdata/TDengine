@@ -133,16 +133,16 @@ class TestCase:
         tdSql.error("alter user root enable 1", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
         # revoke role from user restricted in SoD mandatory mode
         tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="No enabled non-root user with SYSDBA role found to satisfy SoD policy", fullMatched=False)
-        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="No enabled non-root user with SYSSEC role found to satisfy SoD policy", fullMatched=False)
-        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
         tdSql.connect(user="u3", password=self.test_pass)
         tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="No enabled non-root user with SYSAUDIT role found to satisfy SoD policy", fullMatched=False)
-        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
 
 
         tdSql.connect(user="u1", password=self.test_pass)

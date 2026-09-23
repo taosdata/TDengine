@@ -908,7 +908,7 @@ class ClusterCase(TDCase):
         '''
         [(1, 'dnode_1:6030', 1, 24, 'ready', 'any', datetime.datetime(2022, 3, 30, 14, 38, 50, 264000), ''),
          (2, 'dnode_2:6030', 2, 24, 'ready', 'any', datetime.datetime(2022, 3, 30, 14, 39, 11, 665000), ''),
-         (3, 'dnode_3:6030', 1, 24, 'offline', 'any', datetime.datetime(2022, 3, 30, 14, 39, 23, 60000), 'status msg timeout')]
+         (3, 'dnode_3:6030', 1, 24, 'offline', 'any', datetime.datetime(2022, 3, 30, 14, 39, 23, 60000), 'status message timeout')]
         '''
         status_match = False
         max_retry_time = 10

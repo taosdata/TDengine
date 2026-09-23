@@ -406,19 +406,19 @@ class TestStateWindowMultiCol:
         tdSql.execute("insert into ntb_err values('2025-10-01 10:00:00', 1.1, 2.2, 1)")
         tdSql.error(
             "select count(*) from ntb_err state_window(c_float)",
-            expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
+            expectErrInfo="STATE_WINDOW is only supported on integer/bool/varchar columns",
             show=True,
         )
         tdSql.error(
             "select count(*) from ntb_err state_window(c_double)",
-            expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
+            expectErrInfo="STATE_WINDOW is only supported on integer/bool/varchar columns",
             show=True,
         )
 
         # ERR-2: timestamp type should error
         tdSql.error(
             "select count(*) from ntb_err state_window(ts)",
-            expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
+            expectErrInfo="STATE_WINDOW is only supported on integer/bool/varchar columns",
             show=True,
         )
 

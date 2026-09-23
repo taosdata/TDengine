@@ -40,7 +40,7 @@ int32_t schedulerInit() {
 
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
   if (schMgmt.jobRef < 0) {
-    qError("init schduler jobRef failed, num:%u", schMgmt.cfg.maxJobNum);
+    qError("init scheduler jobRef failed, num:%u", schMgmt.cfg.maxJobNum);
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 

@@ -3339,49 +3339,49 @@ taos> select (select f1 from tbb) + 1, avg((select f1 from tbb) + 2) from tb1 a 
 DB error: Column is ambiguous: f1 [0x80002604] 
 taos> select f1 from tb1 where sum(f1) IN (select f1 from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where sum(f1) IN (select f1 from tb1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where sum(f1) IN (select null from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where sum(f1) IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where sum(f1) IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (select f1 from tb1) from tb1 where f1 > 0 and sum(f1) IN (select f1 from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (select f1 from tb1 limit 0) from tb1 where f1 > 0 and sum(f1) IN (select f1 from tb1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (select null from tb1) from tb1 where f1 > 0 and sum(f1) IN (select null from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (1, null) from tb1 where f1 > 0 and sum(f1) IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (select f1 from tbb) from tb1 where f1 > 0 and sum(f1) IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) IN (select f1 from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) IN (select f1 from tb1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) IN (select null from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 partition by f1 having(sum(f1) IN (select f1 from tb1)) order by f1;
      f1      |
 ==============
@@ -6889,49 +6889,49 @@ taos> select (select f1 from tbb) + 1, avg((select f1 from tbb) + 2) from tb1 a 
 DB error: Column is ambiguous: f1 [0x80002604] 
 taos> select f1 from tb1 where sum(f1) NOT IN (select f1 from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where sum(f1) NOT IN (select f1 from tb1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where sum(f1) NOT IN (select null from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where sum(f1) NOT IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where sum(f1) NOT IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (select f1 from tb1) from tb1 where f1 > 0 and sum(f1) NOT IN (select f1 from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (select f1 from tb1 limit 0) from tb1 where f1 > 0 and sum(f1) NOT IN (select f1 from tb1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (select null from tb1) from tb1 where f1 > 0 and sum(f1) NOT IN (select null from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (1, null) from tb1 where f1 > 0 and sum(f1) NOT IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (select f1 from tbb) from tb1 where f1 > 0 and sum(f1) NOT IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) NOT IN (select f1 from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) NOT IN (select f1 from tb1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) NOT IN (select null from tb1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) NOT IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 where f1 > 0 or sum(f1) NOT IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from tb1 partition by f1 having(sum(f1) NOT IN (select f1 from tb1)) order by f1;
 
 taos> select f1 from tb1 partition by f1 having(sum(f1) NOT IN (select f1 from tb1 limit 0)) order by f1;
@@ -12434,49 +12434,49 @@ taos> select (select f1 from tbb) + 1, avg((select f1 from tbb) + 2) from st1 a 
 DB error: Column is ambiguous: f1 [0x80002604] 
 taos> select f1 from st1 where sum(f1) IN (select f1 from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where sum(f1) IN (select f1 from st1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where sum(f1) IN (select null from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where sum(f1) IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where sum(f1) IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (select f1 from st1) from st1 where f1 > 0 and sum(f1) IN (select f1 from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (select f1 from st1 limit 0) from st1 where f1 > 0 and sum(f1) IN (select f1 from st1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (select null from st1) from st1 where f1 > 0 and sum(f1) IN (select null from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (1, null) from st1 where f1 > 0 and sum(f1) IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) IN (select f1 from tbb) from st1 where f1 > 0 and sum(f1) IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) IN (select f1 from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) IN (select f1 from st1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) IN (select null from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 partition by f1 having(sum(f1) IN (select f1 from st1)) order by f1;
      f1      |
 ==============
@@ -18154,49 +18154,49 @@ taos> select (select f1 from tbb) + 1, avg((select f1 from tbb) + 2) from st1 a 
 DB error: Column is ambiguous: f1 [0x80002604] 
 taos> select f1 from st1 where sum(f1) NOT IN (select f1 from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where sum(f1) NOT IN (select f1 from st1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where sum(f1) NOT IN (select null from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where sum(f1) NOT IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where sum(f1) NOT IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (select f1 from st1) from st1 where f1 > 0 and sum(f1) NOT IN (select f1 from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (select f1 from st1 limit 0) from st1 where f1 > 0 and sum(f1) NOT IN (select f1 from st1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (select null from st1) from st1 where f1 > 0 and sum(f1) NOT IN (select null from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (1, null) from st1 where f1 > 0 and sum(f1) NOT IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1, sum(f1) NOT IN (select f1 from tbb) from st1 where f1 > 0 and sum(f1) NOT IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) NOT IN (select f1 from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) NOT IN (select f1 from st1 limit 0) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) NOT IN (select null from st1) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) NOT IN (1, null) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 where f1 > 0 or sum(f1) NOT IN (select f1 from tbb) order by f1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select f1 from st1 partition by f1 having(sum(f1) NOT IN (select f1 from st1)) order by f1;
 
 taos> select f1 from st1 partition by f1 having(sum(f1) NOT IN (select f1 from st1 limit 0)) order by f1;

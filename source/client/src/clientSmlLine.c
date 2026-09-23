@@ -558,7 +558,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 
   elements->colsLen = sql - elements->cols;
   if (unlikely(elements->colsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "SML line cols is empty", NULL);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML line cols are empty", NULL);
     return TSDB_CODE_SML_INVALID_DATA;
   }
 

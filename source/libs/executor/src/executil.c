@@ -5250,7 +5250,7 @@ int32_t setRowHasNullFromResBlock(STaskSubJobCtx* ctx, bool* hasNull, SSDataBloc
   
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 1);
   if (colDataIsNull_s(pCol, 0)) {
-    qError("%s invalid has_null res since it's null", ctx->idStr);
+    qError("%s invalid has_null res since it is null", ctx->idStr);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   } else {
     *hasNull = *(bool*)colDataGetData(pCol, 0);

@@ -34,6 +34,7 @@ class TestVtableAuthSelect:
         Since: v3.3.6.0
 
         Labels: auth,select,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -88,9 +89,9 @@ class TestVtableAuthSelect:
                         testSql.query("select int_col_2 from test_vtable_auth_vtb_0;")
                         testSql.checkRows(0)
                     else:
-                        testSql.error("select * from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
-                        testSql.error("select int_col_1 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
-                        testSql.error("select int_col_2 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
+                        testSql.error("select * from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or the target object does not exist")
+                        testSql.error("select int_col_1 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or the target object does not exist")
+                        testSql.error("select int_col_2 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or the target object does not exist")
 
                 tdSql.execute(f"revoke {priv_db} on test_vtable_auth_select.* from test_vtable_user_select;")
                 if (priv_vtb != "none"):
@@ -110,6 +111,7 @@ class TestVtableAuthSelect:
         Since: v3.3.6.0
 
         Labels: auth,select,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -162,9 +164,9 @@ class TestVtableAuthSelect:
                         testSql.query("select int_col_2 from test_vctable_auth_vtb_0;")
                         testSql.checkRows(0)
                     else:
-                        testSql.error("select * from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
-                        testSql.error("select int_col_1 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
-                        testSql.error("select int_col_2 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
+                        testSql.error("select * from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or the target object does not exist")
+                        testSql.error("select int_col_1 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or the target object does not exist")
+                        testSql.error("select int_col_2 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or the target object does not exist")
 
                 tdSql.execute(f"revoke {priv_db} on test_vctable_auth_select.* from test_vct_user_select;")
                 if (priv_vtb != "none"):

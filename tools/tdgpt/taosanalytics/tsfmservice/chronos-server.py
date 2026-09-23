@@ -155,7 +155,7 @@ def main():
 
         if not os.path.exists(model_folder):
             print(
-                f"the specified folder: {model_folder} not exists, start to create it"
+                f"the specified folder: {model_folder} does not exist, creating it"
             )
 
         model_file = os.path.join(model_folder, "model.safetensors")

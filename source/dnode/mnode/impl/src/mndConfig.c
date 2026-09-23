@@ -480,7 +480,7 @@ static int32_t mndFindConfigsToAdd(SMnode *pMnode, SArray *addArray) {
     SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
     SConfigObj  *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
     if (obj == NULL) {
-      mInfo("config:%s, not exist in sdb, will add it", item->name);
+      mInfo("config:%s, does not exist in sdb, will add it", item->name);
       SConfigObj newObj;
       if ((code = mndInitConfigObj(item, &newObj)) != 0) {
         TAOS_RETURN(code);
@@ -530,7 +530,7 @@ static int32_t mndFindConfigsToDelete(SMnode *pMnode, SArray *deleteArray) {
     }
 
     if (!existsInGlobal) {
-      mInfo("config:%s, not exist in global config, will delete it from sdb", obj->name);
+      mInfo("config:%s, does not exist in global config, will delete it from sdb", obj->name);
       SConfigObj deleteObj = {0};
       tstrncpy(deleteObj.name, obj->name, CFG_NAME_MAX_LEN);
       deleteObj.dtype = obj->dtype;

@@ -1245,7 +1245,7 @@ static int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs
   if (!tsTtlChangeOnWrite) return 0;
 
   if (changeTimeMs <= 0) {
-    metaWarn("Skip to change ttl deletetion time on write, uid: %" PRId64, uid);
+    metaWarn("Skip to change ttl deletion time on write, uid: %" PRId64, uid);
     return TSDB_CODE_VERSION_NOT_COMPATIBLE;
   }
 

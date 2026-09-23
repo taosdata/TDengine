@@ -216,7 +216,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
+      dGInfo("dnode:%d, set to dropped since it does not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
       if (dmWriteEps(pMgmt->pData) != 0) {
@@ -416,7 +416,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dGInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->pData->dnodeId);
+      dGInfo("dnode:%d, set to dropped since it does not exist in mnode", pMgmt->pData->dnodeId);
       pMgmt->pData->dropped = 1;
       if (dmWriteEps(pMgmt->pData) != 0) {
         dError("failed to write dnode file");

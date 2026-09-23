@@ -127,7 +127,7 @@ static void verify_query(TAOS* taos) {
 
   code = taos_validate_sql(taos, "select * from nonexisttable");
   if (code == 0) {
-    printf("\033[31mimpossible, the table does not exists\033[0m\n");
+    printf("\033[31mimpossible, the table does not exist\033[0m\n");
   }
 
   code = taos_validate_sql(taos, "select * from meters");

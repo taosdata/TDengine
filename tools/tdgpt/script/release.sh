@@ -102,7 +102,7 @@ if [ ! -f "${version_file}" ] && [ -f "${lib_install_dir}/${initFile}" ]; then
 fi
 
 if [ ! -f "${version_file}" ]; then
-  echo "Error: $initFile not found, failed set the version. Please check the existance of __init__.py" >&2; exit 1
+  echo "Error: $initFile not found, failed to set the version. Please check whether __init__.py exists" >&2; exit 1
 else
   # replace the version number
   sed -i.bak "s/^__version__ = .*/__version__ = '${version}'/" "${version_file}"
@@ -142,7 +142,7 @@ cd ${install_dir} && tar -zcv -f ${tarName} ./lib/* || :
 
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
-  echo "tar ${tarName} error !!!"
+  echo "failed to pack ${tarName} !!!"
   exit $exitcode
 fi
 
@@ -176,7 +176,7 @@ fi
 
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
-  echo "tar ${pkg_name}.tar.gz error !!!"
+  echo "failed to pack ${pkg_name}.tar.gz !!!"
   exit $exitcode
 fi
 

@@ -45,7 +45,7 @@
 #define ENV_JSON_FALSE_CHECK(c)                     \
   do {                                              \
     if (!c) {                                       \
-      tscError("faild to add item to JSON object"); \
+      tscError("failed to add item to JSON object"); \
       code = TSDB_CODE_TSC_FAIL_GENERATE_JSON;      \
       goto _end;                                    \
     }                                               \
@@ -1164,7 +1164,7 @@ void taos_init_imp(void) {
   const char *logName = CUS_PROMPT "log";
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
   if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
+    (void)printf(" WARNING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
     SET_ERROR_MSG("Create %s failed:%s. configDir=%s", logName, strerror(ERRNO), configDir);
     tscInitRes = terrno;
     return;

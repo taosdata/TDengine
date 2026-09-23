@@ -1319,7 +1319,7 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%x, failed to kill queryId:%" PRIx64 ", conn not exist", connId, queryId);
+    mError("connId:%x, failed to kill queryId:%" PRIx64 ", connection does not exist", connId, queryId);
     code = TSDB_CODE_MND_INVALID_CONN_ID;
     TAOS_RETURN(code);
   } else {
@@ -1342,7 +1342,7 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &killReq.connId, sizeof(uint32_t));
   if (pConn == NULL) {
-    mError("connId:%u, failed to kill connection, conn not exist", killReq.connId);
+    mError("connId:%u, failed to kill connection, connection does not exist", killReq.connId);
     code = TSDB_CODE_MND_INVALID_CONN_ID;
     TAOS_RETURN(code);
   } else {

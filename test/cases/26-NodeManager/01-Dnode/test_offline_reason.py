@@ -18,6 +18,7 @@ class TestOfflineReason:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -53,7 +54,7 @@ class TestOfflineReason:
         clusterComCheck.checkDnodes(1)
 
         sql = "select * from information_schema.ins_dnodes"
-        tdSql.checkDataLoop(1, 7, "status msg timeout", sql, loopCount = 20)
+        tdSql.checkDataLoop(1, 7, "status message timeout", sql, loopCount = 20)
 
         tdLog.info(f"========== step4")
         tdSql.execute(f"drop dnode 2 force")

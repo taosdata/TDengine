@@ -499,7 +499,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   pFunc = mndAcquireFunc(pMnode, dropReq.name);
   if (pFunc == NULL) {
     if (dropReq.igNotExists) {
-      mInfo("func:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("func:%s, does not exist, ignore-not-exist is set", dropReq.name);
       code = 0;
       goto _OVER;
     } else {

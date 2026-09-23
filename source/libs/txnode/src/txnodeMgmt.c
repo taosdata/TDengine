@@ -277,7 +277,7 @@ void killPreXnoded() {
   TdFilePtr pFile = NULL;
   pFile = taosOpenFile(buf, TD_FILE_READ);
   if (pFile == NULL) {
-    xndWarn("xnode failed to open xnoded pid file:%s, file may not exist", buf);
+    xndWarn("xnode failed to open xnoded pid file:%s, the file may not exist", buf);
     return;
   }
   int64_t readSize = taosReadFile(pFile, buf, sizeof(buf));
@@ -332,7 +332,7 @@ static void locateXnodedExecFile(char *path) {
     if (taosCheckExistFile(path)) {
       goto _ok;
     }
-    xndDebug("can't find xnoded exec file:%s", path);
+    xndDebug("cannot find xnoded exec file:%s", path);
     path[0] = '\0';
   }
 
@@ -341,7 +341,7 @@ static void locateXnodedExecFile(char *path) {
   if (taosCheckExistFile(path)) {
     goto _ok;
   }
-  xndDebug("can't find xnoded exec file:%s", path);
+  xndDebug("cannot find xnoded exec file:%s", path);
   path[0] = '\0';
 
   TAOS_STRCAT(path, XNODED_DEFAULT_PATH_2);
@@ -349,7 +349,7 @@ static void locateXnodedExecFile(char *path) {
   if (taosCheckExistFile(path)) {
     goto _ok;
   }
-  xndDebug("can't find xnoded exec file:%s", path);
+  xndDebug("cannot find xnoded exec file:%s", path);
   path[0] = '\0';
 
   path[0] = '.';
@@ -358,11 +358,11 @@ static void locateXnodedExecFile(char *path) {
   if (taosCheckExistFile(path)) {
     goto _ok;
   }
-  xndDebug("can't find xnoded exec file:%s", path);
+  xndDebug("cannot find xnoded exec file:%s", path);
   path[0] = '\0';
 
   TAOS_STRNCPY(path, XNODED_DEFAULT_EXEC_NAME, PATH_MAX);
-  xndInfo("can't find xnoded exec file, use default: %s", path);
+  xndInfo("cannot find xnoded exec file, use default: %s", path);
   return;
 
 _ok:
@@ -473,7 +473,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
   if (err != 0) {
-    xndError("can not spawn xnoded. path: %s, error: %s", path, uv_strerror(err));
+    xndError("cannot spawn xnoded. path: %s, error: %s", path, uv_strerror(err));
   } else {
     xndInfo("xnoded is initialized, xnoded pid: %d", pData->process.pid);
     saveXnodedPid(pData->process.pid);

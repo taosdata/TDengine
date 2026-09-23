@@ -579,7 +579,7 @@ if __name__ == "__main__":
             print("\t-v, --verbose                     Print verbose output")
             print("\t-g, --debug                       Print debug output")
             print(
-                "\t-y, --skipPrompt                  Skip read key for continous test, default is not skip"
+                "\t-y, --skipPrompt                  Skip read key for continuous test, default is not skip"
             )
             print("")
             sys.exit(0)
@@ -677,7 +677,7 @@ if __name__ == "__main__":
             deleteMethod = int(value)
             if (deleteMethod < 0) or (deleteMethod > 3):
                 print(
-                    "inputed delete method is %d, valid value is 0~3, set to default 0"
+                    "inputted delete method is %d, valid value is 0~3, set to default 0"
                     % deleteMethod
                 )
                 deleteMethod = 0

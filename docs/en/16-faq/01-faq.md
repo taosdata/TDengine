@@ -151,7 +151,7 @@ For container deployments, see [Custom Passwords, Upgrades, and Health Checks](.
 
 `TAOS_ROOT_PASSWORD` is supported from `v3.3.6.6`; `v3.3.8.8` and later support `TAOS_ROOT_PASSWORD_FILE` and can be upgraded directly; `v3.4.1.0` and later support `taos-check startup` and `taos-check service`.
 
-### 2.7 What should I do if I encounter "some vnode/qnode/mnode(s) out of service"?
+### 2.7 What should I do if I encounter "Some vnode/qnode/mnode(s) are out of service"?
 
 The client has not configured FQDN resolution for all server nodes. For example, if the server has 3 nodes, the client may have configured FQDN resolution for only 1 node. For FQDN configuration, see [Understanding TDengine FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html).
 

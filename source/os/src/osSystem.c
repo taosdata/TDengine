@@ -168,7 +168,7 @@ int32_t taosSetTerminalMode() {
 
   if (-1 == tcsetattr(0, TCSANOW, &newtio)) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
-    (void)fprintf(stderr, "Fail to set terminal properties!\n");
+    (void)fprintf(stderr, "Failed to set terminal properties!\n");
     return terrno;
   }
 
@@ -202,7 +202,7 @@ int32_t taosResetTerminalMode() {
 #else
   if (-1 == tcsetattr(0, TCSANOW, &oldtio)) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
-    (void)fprintf(stderr, "Fail to reset the terminal properties!\n");
+    (void)fprintf(stderr, "Failed to reset the terminal properties!\n");
     return terrno;
   }
 #endif

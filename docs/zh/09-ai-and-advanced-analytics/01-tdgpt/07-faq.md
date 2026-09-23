@@ -23,7 +23,7 @@ python3.10 /usr/local/taos/taosanode/lib/taosanalytics/app.py
 ```bash
 taos> create anode '127.0.0.1:6035';
 
-DB error: Analysis service can't access[0x80000441] (0.117446s)
+DB error: Analysis service is not accessible[0x80000441] (0.117446s)
 ```
 
 请务必使用 `curl` 命令检查 anode 服务是否正常。执行 `curl '127.0.0.1:6035'` 后，正常的 anode 服务会返回以下结果。
@@ -47,7 +47,7 @@ curl: (7) Failed to connect to 127.0.0.1 port 6035: Connection refused
 ```bash
 taos> select _frowts,forecast(current, 'algo=arima, conf=0.95, wncheck=0, rows=20') from d1 where ts<='2017-07-14 10:40:09.999';
 
-DB error: Analysis service can't access[0x80000441] (60.195613s)
+DB error: Analysis service is not accessible[0x80000441] (60.195613s)
 ```
 
 常见原因是分析过程超过默认最长等待时间。可在 SQL 中通过 `timeout` 参数延长单次请求等待时间；`timeout` 最大值为 `1200`（秒），即单次请求最长约 20 分钟。

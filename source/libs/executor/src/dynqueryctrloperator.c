@@ -5428,7 +5428,7 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
           code = evaluateTagRefFilter(pVtbScan, pTags, &passes);
           QUERY_CHECK_CODE(code, line, _return);
           if (!passes) {
-            qDebug("tag-ref filter pushdown: child idx=%d skipped (filter not matched)", pVtbScan->curTableIdx);
+            qDebug("tag-ref filter pushdown: child idx=%d skipped (filter does not match)", pVtbScan->curTableIdx);
             freeOperatorParam(pVtbScan->vtbScanParam, OP_GET_PARAM);
             pVtbScan->vtbScanParam = NULL;
             pVtbScan->curTableIdx++;

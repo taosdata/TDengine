@@ -205,7 +205,7 @@ int64_t tmq_position(tmq_t* tmq, const char* pTopicName, int32_t vgId) {
       return code;
     }
   } else {
-    tqErrorC("consumer:0x%" PRIx64 " offset type:%d can not be reach here", tmq->consumerId, type);
+    tqErrorC("consumer:0x%" PRIx64 " offset type:%d cannot be reached here", tmq->consumerId, type);
     return TSDB_CODE_INTERNAL_ERROR;
   }
 

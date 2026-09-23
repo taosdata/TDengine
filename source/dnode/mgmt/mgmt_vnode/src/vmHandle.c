@@ -706,7 +706,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
              pInfo->config.syncCfg.replicaNum);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_REPLICA);
     } else if (pInfo->config.vgId != pCfg->vgId) {
-      dError("mount:%s, vnode path:%s, vgId:%d not match:%d", pReq->mountName, pCfg->path, pInfo->config.vgId,
+      dError("mount:%s, vnode path:%s, vgId:%d does not match:%d", pReq->mountName, pCfg->path, pInfo->config.vgId,
              pCfg->vgId);
       TAOS_CHECK_EXIT(TSDB_CODE_FILE_CORRUPTED);
     } else if (pInfo->config.tdbEncryptData.encryptAlgrName[0] != '\0' ||
@@ -728,7 +728,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   int32_t nVgCfg = taosArrayGetSize(pVgCfgs);
   int32_t nDiskPrimary = taosArrayGetSize(pDiskPrimarys);
   if (nVgCfg != nDiskPrimary) {
-    dError("mount:%s, nVgCfg:%d not match nDiskPrimary:%d", pReq->mountName, nVgCfg, nDiskPrimary);
+    dError("mount:%s, nVgCfg:%d does not match nDiskPrimary:%d", pReq->mountName, nVgCfg, nDiskPrimary);
     TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
   }
   if (nVgCfg > 1) {
@@ -741,7 +741,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   for (int32_t i = 0; i < nVgCfg; ++i) {
     SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, i);
     if (clusterId != pInfo->config.syncCfg.nodeInfo->clusterId) {
-      dError("mount:%s, clusterId:%" PRId64 " not match:%" PRId64, pReq->mountName, clusterId,
+      dError("mount:%s, clusterId:%" PRId64 " does not match:%" PRId64, pReq->mountName, clusterId,
              pInfo->config.syncCfg.nodeInfo->clusterId);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_CLUSTER_ID);
     }
@@ -938,7 +938,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
           }
           if (mr.me.uid != suid || mr.me.type != TSDB_SUPER_TABLE ||
               mr.me.colCmpr.nCols != mr.me.stbEntry.schemaRow.nCols) {
-            dError("mount:%s, vnode:%d, db:%" PRId64 ", stb info not match, suid:%" PRIu64 " expected:%" PRIu64
+            dError("mount:%s, vnode:%d, db:%" PRId64 ", stb info does not match, suid:%" PRIu64 " expected:%" PRIu64
                    ", type:%" PRIi8 " expected:%d, nCmprCols:%d nCols:%d on dnode:%d",
                    pReq->mountName, pVgInfo->vgId, pVgInfo->dbId, mr.me.uid, suid, mr.me.type, TSDB_SUPER_TABLE,
                    mr.me.colCmpr.nCols, mr.me.stbEntry.schemaRow.nCols, pReq->dnodeId);
@@ -1200,7 +1200,7 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
     if (oldInfo.config.dbId != info.config.dbId) {
       code = TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH;
       vError("vgId:%d, mount:%s, vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
-             ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
+             ", newDbId:%" PRId64 "(%s) at cluster:%" PRId64 ", code:%s",
              oldInfo.config.vgId, req->mountName, hostDir, oldInfo.config.dbId, oldInfo.config.dbname,
              oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
              info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
@@ -1273,7 +1273,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       strcmp(pReplica->fqdn, tsLocalFqdn) != 0) {
     (void)tFreeSMountVnodeReq(&req);
     code = TSDB_CODE_INVALID_MSG;
-    dError("mount:%s, vgId:%d, dnodeId:%d ep:%s:%u not matched with local dnode, reason:%s", req.mountName,
+    dError("mount:%s, vgId:%d, dnodeId:%d ep:%s:%u does not match the local dnode, reason:%s", req.mountName,
            pCreateReq->vgId, pReplica->id, pReplica->fqdn, pReplica->port, tstrerror(code));
     return code;
   }
@@ -1378,7 +1378,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pMgmt->name);
+  dInfo("node:%s, caught up leader, continue to process alter-node-type-request", pMgmt->name);
 
   int32_t vgId = req.vgId;
   dInfo("vgId:%d, start to alter vnode type replica:%d selfIndex:%d strict:%d changeVersion:%d", vgId, req.replica,
@@ -1498,7 +1498,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pMgmt->name);
+  dInfo("node:%s, caught up leader, continue to process alter-node-type-request", pMgmt->name);
 
   vmReleaseVnode(pMgmt, pVnode);
 
@@ -1698,7 +1698,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (pReplica->id != pMgmt->pData->dnodeId || pReplica->port != tsServerPort ||
       strcmp(pReplica->fqdn, tsLocalFqdn) != 0) {
     terrno = TSDB_CODE_DNODE_NOT_MATCH_WITH_LOCAL;
-    dError("vgId:%d, dnodeId:%d ep:%s:%u in request, ep:%s:%u in lcoal, %s", vgId, pReplica->id, pReplica->fqdn,
+    dError("vgId:%d, dnodeId:%d ep:%s:%u in request, ep:%s:%u in local, %s", vgId, pReplica->id, pReplica->fqdn,
            pReplica->port, tsLocalFqdn, tsServerPort, tstrerror(terrno));
     return -1;
   }

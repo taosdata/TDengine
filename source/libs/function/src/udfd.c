@@ -97,7 +97,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   }
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s, %s", udf->path, uv_strerror(err), udfCtx->lib.errmsg);
+    fnError("cannot load library %s. error: %s, %s", udf->path, uv_strerror(err), udfCtx->lib.errmsg);
     taosMemoryFree(udfCtx);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
@@ -105,7 +105,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
 
   err = udfdCPluginUdfInitLoadInitDestoryFuncs(udfCtx, udfName);
   if (err != 0) {
-    fnError("can not load init/destroy functions. error: %d", err);
+    fnError("cannot load init/destroy functions. error: %d", err);
     err = TSDB_CODE_UDF_LOAD_UDF_FAILURE;
     goto _exit;
   }
@@ -114,14 +114,14 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     snprintf(processFuncName, sizeof(processFuncName), "%s", udfName);
     if (uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->scalarProcFunc)) != 0) {
-      fnError("can not load library function %s. error: %s", processFuncName, uv_strerror(err));
+      fnError("cannot load library function %s. error: %s", processFuncName, uv_strerror(err));
       err = TSDB_CODE_UDF_LOAD_UDF_FAILURE;
       goto _exit;
     }
   } else if (udf->funcType == UDF_FUNC_TYPE_AGG) {
     err = udfdCPluginUdfInitLoadAggFuncs(udfCtx, udfName);
     if (err != 0) {
-      fnError("can not load aggregation functions. error: %d", err);
+      fnError("cannot load aggregation functions. error: %d", err);
       err = TSDB_CODE_UDF_LOAD_UDF_FAILURE;
       goto _exit;
     }
@@ -392,7 +392,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
 
   int err = uv_dlopen(libPath, pLib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s, %s", libPath, uv_strerror(err), pLib->errmsg);
+    fnError("cannot load library %s. error: %s, %s", libPath, uv_strerror(err), pLib->errmsg);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
 
@@ -845,7 +845,7 @@ static int32_t udfdInitUdf(char *udfName, SUdf *udf) {
   fnDebug("udf init begin. name=%s", udfName);
   err = udfdFillUdfInfoFromMNode(global.clientRpc, udfName, udf);
   if (err != 0) {
-    fnError("can not retrieve udf from mnode. udf name %s", udfName);
+    fnError("cannot retrieve udf from mnode. udf name %s", udfName);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
     fnDebug("udf init metadata. name=%s version=%d created=%" PRIx64 " scriptType=%d funcType=%d path=%s outType=%d outLen=%d bufSize=%d",
@@ -1657,7 +1657,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf;
       buf->len = ctx->inputCap;
     } else {
-      fnError("udfd can not allocate enough memory") buf->base = NULL;
+      fnError("udfd cannot allocate enough memory") buf->base = NULL;
       buf->len = 0;
     }
   } else if (ctx->inputTotal == -1 && ctx->inputLen < msgHeadSize) {
@@ -1671,7 +1671,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf + ctx->inputLen;
       buf->len = ctx->inputCap - ctx->inputLen;
     } else {
-      fnError("udfd can not allocate enough memory") buf->base = NULL;
+      fnError("udfd cannot allocate enough memory") buf->base = NULL;
       buf->len = 0;
     }
   }
@@ -2043,7 +2043,7 @@ int32_t udfdCreateUdfSourceDir() {
 }
 
 void udfdDestroyUdfSourceDir() {
-  fnInfo("destory udf source directory %s", global.udfDataDir);
+  fnInfo("destroy udf source directory %s", global.udfDataDir);
   taosRemoveDir(global.udfDataDir);
 }
 

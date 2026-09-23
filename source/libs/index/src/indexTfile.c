@@ -267,7 +267,7 @@ static int32_t tfSearchTerm(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
     ret = tfileReaderLoadTableIds((TFileReader*)reader, (int32_t)offset, tr->total);
     if (ret != 0) {
       fstSliceDestroy(&key);
-      indexError("faile to search since %s", tstrerror(ret));
+      indexError("failed to search: %s", tstrerror(ret));
       return ret;
     }
     cost = taosGetTimestampUs() - et;

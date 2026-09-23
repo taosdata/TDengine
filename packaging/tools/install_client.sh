@@ -380,7 +380,7 @@ function install_TDengine() {
 # Install or updata client and client
 # if server is already install, don't install client
 if [ -e ${bin_dir}/${serverName} ]; then
-    echo -e "\033[44;32;1mThere are already installed ${productName2} server, so don't need install client!${NC}"
+    echo -e "\033[44;32;1m${productName2} server is already installed, so the client does not need to be installed!${NC}"
     exit 0
 fi
 
