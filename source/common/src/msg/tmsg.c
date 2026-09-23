@@ -17419,6 +17419,12 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
     TAOS_CHECK_EXIT(tEncodeBool(&encoder, true));
     tEndEncodeStreamTailFrame(&encoder);
   }
+  if (pReq->phase2Rescan) {
+    TAOS_CHECK_EXIT(tStartEncodeStreamTailFrame(&encoder, STREAM_TWO_PASS_RESCAN_FRAME_MAGIC,
+                                                STREAM_TWO_PASS_RESCAN_FRAME_VERSION, 0));
+    TAOS_CHECK_EXIT(tEncodeBool(&encoder, true));
+    tEndEncodeStreamTailFrame(&encoder);
+  }
 
   tEndEncode(&encoder);
 
@@ -17501,6 +17507,7 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
   bool policySeen = false;
   bool ancestorSeen = false;
   bool resetModeSeen = false;
+  bool twoPassSeen = false;
   while (!tDecodeIsEnd(&decoder)) {
     SStreamTailFrameDecoder frame = {0};
     TAOS_CHECK_EXIT(tDecodeNextStreamTailFrame(&decoder, &frame));
@@ -17543,6 +17550,23 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
       resetModeSeen = true;
       code = tDecodeBool(&frame.payloadDecoder, &pReq->reuseReader);
       if (code == TSDB_CODE_SUCCESS && pReq->reuseReader)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else {
+        if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+      }
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
+    if (frame.magic == STREAM_TWO_PASS_RESCAN_FRAME_MAGIC) {
+      if (twoPassSeen || frame.version != STREAM_TWO_PASS_RESCAN_FRAME_VERSION || frame.flags != 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      twoPassSeen = true;
+      code = tDecodeBool(&frame.payloadDecoder, &pReq->phase2Rescan);
+      if (code == TSDB_CODE_SUCCESS && pReq->phase2Rescan)
         code = tFinishDecodeStreamTailFrame(&frame, true);
       else {
         if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INVALID_MSG;

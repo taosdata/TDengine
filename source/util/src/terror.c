@@ -694,6 +694,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_NOT_FOUND,           "Subquery context not 
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_EXEC_ERROR,          "Subquery exec error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_VSTB_SLOTID_NOT_FOUND,    "VSTB slotId not found for column")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_WINDOW_STATE_NOT_EXIST,   "Window state not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TWO_PASS_RESCAN_STALLED,  "Virtual table two-pass rescan stalled")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -981,6 +982,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED,     "Permission den
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_INSERT_PERMISSION_DENIED,     "Permission denied to insert into table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED,     "Permission denied to select from table or view")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED, "Permission denied to create stream")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SUPPORT_VTABLE_TWO_PASS,     "Virtual table two-pass scan is not supported for this query")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")

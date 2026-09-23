@@ -799,6 +799,8 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo) { return ((SExecTaskInfo*)tinfo)->dynamicTask; }
 
+bool qIsNoQuickFreeTask(qTaskInfo_t tinfo) { return ((SExecTaskInfo*)tinfo)->noQuickFree; }
+
 void qDestroyOperatorParam(SOperatorParam* pParam) {
   if (NULL == pParam) {
     return;
@@ -828,6 +830,17 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
 
   pTask->pOpParam = pNewParam;
   pTask->paramSet = false;
+}
+
+void qRemoveOperatorParam(qTaskInfo_t tinfo, void* pParam) {
+  SExecTaskInfo* pTask = (SExecTaskInfo*)tinfo;
+  // Only remove when the task still holds exactly this param as pending (unconsumed):
+  // a consumed param is owned by the operator chain, and a mismatch in
+  // qUpdateOperatorParam already destroyed the new one — both must not be touched here.
+  if (NULL != pParam && pTask->pOpParam == pParam && !pTask->paramSet) {
+    pTask->pOpParam = NULL;
+    qDestroyOperatorParam((SOperatorParam*)pParam);
+  }
 }
 
 int32_t qExecutorInit(void) {

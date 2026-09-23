@@ -5575,6 +5575,7 @@ typedef enum {
   DYN_TYPE_VSTB_SINGLE_SCAN,
   DYN_TYPE_VSTB_BATCH_SCAN,
   DYN_TYPE_VSTB_WIN_SCAN,
+  DYN_TYPE_TWO_PASS_RESCAN,  // coord-driven vtable two-pass phase-2 rescan
 } ETableScanDynType;
 
 typedef enum {
@@ -5719,6 +5720,7 @@ typedef struct {
   bool                           reset;
   bool                           dynTbname;
   bool                           forceFetchCompleted;
+  bool                           phase2Rescan;  // vtable two-pass: remote origin reuses reader and rescans
   bool                           reuseReader;
   // used for new-stream
 } SResFetchReq;

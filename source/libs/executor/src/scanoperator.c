@@ -3206,11 +3206,22 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       ((STableScanOperatorParam*)pGetParam->value)->dynType :
       DYN_TYPE_VSTB_BATCH_SCAN;
 
-    code = doDynamicTableScanNext(pOperator, type, ppRes);
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (type == DYN_TYPE_TWO_PASS_RESCAN) {
+      // vtable two-pass phase-2 rescan: reuse the phase-1 reader (tsdReaderResetStatus keeps
+      // pReadSnap/verRange — version-stable), rewind cursor, then rescan via the normal path below.
+      pInfo->scanTimes = 0;
+      code = pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pOperator->status = OP_OPENED;
+      freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+      pOperator->pOperatorGetParam = NULL;
+    } else {
+      code = doDynamicTableScanNext(pOperator, type, ppRes);
+      QUERY_CHECK_CODE(code, lino, _end);
 
-    if (*ppRes != NULL || (type != DYN_TYPE_STB_JOIN && type != DYN_TYPE_VSTB_WIN_SCAN)) {
-      return code;
+      if (*ppRes != NULL || (type != DYN_TYPE_STB_JOIN && type != DYN_TYPE_VSTB_WIN_SCAN)) {
+        return code;
+      }
     }
   }
 
@@ -3648,6 +3659,10 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   initLimitInfo(pScanNode->node.pLimit, pScanNode->node.pSlimit, &pInfo->base.limitInfo);
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle, true);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  if (pTableScanNode->twoPassRescanSource) {
+    pTaskInfo->noQuickFree = true;  // bootstrap: qworker keeps origin reader alive for phase-2 rescan
+  }
 
   if (pScanNode->pScanPseudoCols != NULL) {
     SExprSupp* pSup = &pInfo->base.pseudoSup;

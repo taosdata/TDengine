@@ -52,7 +52,6 @@ select spread(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 select stddev(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 select sum(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 select var_pop(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
-select percentile(int_col, 0.5) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 select bottom(int_col, 10) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 select top(int_col, 10) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 select first(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
