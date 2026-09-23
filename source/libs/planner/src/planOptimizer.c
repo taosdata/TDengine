@@ -115,6 +115,7 @@ static void fqDiagDumpExprList(const char* pTag, const SNodeList* pExprs) {
     ++idx;
   }
 }
+static int32_t vtableTwoPassOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
 
 typedef struct SOptimizePKCtx {
   SNodeList* pList;
@@ -11413,7 +11414,10 @@ static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   SNode*          pAggFunc = NULL;
   FOREACH(pAggFunc, pAgg->pAggFuncs) {
     SFunctionNode *pFunc = (SFunctionNode *)pAggFunc;
-    if (fmIsSelectFunc(pFunc->funcId) || fmIsGroupKeyFunc(pFunc->funcId)) {
+    // REPEAT_SCAN_FUNC (exact PERCENTILE) is single-table two-pass only: it has no
+    // partial/merge func pair, so PushDownAgg must not distribute it per origin scan.
+    // Leave the AGG -> VirtualScan shape to the VtableTwoPass rule instead.
+    if (fmIsSelectFunc(pFunc->funcId) || fmIsGroupKeyFunc(pFunc->funcId) || fmIsRepeatScanFunc(pFunc->funcId)) {
       return false;
     }
     if (hasExternalChild &&
@@ -15808,6 +15812,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "VStableWindowSort",          .optimizeFunc = vstableWindowSortOptimize},
   {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
   {.pName = "VStableAgg",                 .optimizeFunc = vstableAggOptimize},
+  {.pName = "VtableTwoPass",              .optimizeFunc = vtableTwoPassOptimize},
 };
 // clang-format on
 
@@ -18639,26 +18644,160 @@ static int32_t fqAppendPartitionKeysToIntervalAgg(SAggLogicNode* pAgg, const SPa
   return TSDB_CODE_SUCCESS;
 }
 
-// Harvest aggregation nodes (AGG) detached by aggOptimize and push them
-// into the remote plan for remote-side aggregation.
+// Check if a function list contains any REPEAT_SCAN_FUNC (e.g. PERCENTILE).
+static bool funcListHasRepeatScanFunc(const SNodeList* pFuncs) {
+  const SNode* pFunc = NULL;
+  FOREACH(pFunc, pFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pFunc) && fmIsRepeatScanFunc(((const SFunctionNode*)pFunc)->funcId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Check if a logic node (expected: AGG) contains any REPEAT_SCAN_FUNC (e.g. PERCENTILE).
 static bool fqNodeHasRepeatScanFunc(const SLogicNode* pNode) {
   if (NULL == pNode || nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_AGG) {
     return false;
   }
-  const SAggLogicNode* pAgg = (const SAggLogicNode*)pNode;
-  int32_t cnt = pAgg->pAggFuncs ? (int32_t)LIST_LENGTH(pAgg->pAggFuncs) : 0;
-  const SNode* pFunc = NULL;
-  FOREACH(pFunc, pAgg->pAggFuncs) {
-    if (QUERY_NODE_FUNCTION == nodeType(pFunc)) {
-      int32_t funcId   = ((const SFunctionNode*)pFunc)->funcId;
-      bool    isRepeat = fmIsRepeatScanFunc(funcId);
-      if (isRepeat) {
-        return true;
-      }
+  return funcListHasRepeatScanFunc(((const SAggLogicNode*)pNode)->pAggFuncs);
+}
+
+// Late pass for PERCENTILE / REPEAT_SCAN_FUNC on a (non-eliminated) VirtualScan.
+// When a column-value WHERE prevents EliminateVirtualScan from collapsing the
+// VirtualScan into a direct table scan, the plan is:
+//     AGG(REPEAT_SCAN_FUNC) -> VirtualScan -> Exchange -> TableScan(org0)
+// PERCENTILE needs two passes (PRE_SCAN for min/max/count, MAIN_SCAN to fill the
+// tMemBucket), but scanFlag cannot reach the AGG through VirtualScan's sort-merge
+// (block-level scanFlag can't distinguish PRE/MAIN rows after TS re-order). So the
+// VirtualScan itself drives two passes and stamps each output block's scanFlag.
+// The underlying origin scans are forced to single pass (scanSeq[0]=1): the
+// VirtualScan coordinator owns the two passes; leaving scanSeq[0]=2 would 2x the
+// data per phase. Must run AFTER EliminateVirtualScan so the plain single-child
+// no-WHERE case (VirtualScan already eliminated, uses normal scanSeq[0]=2 two-pass)
+// is left untouched.
+//
+// Walk down the single-child chain below an AGG/WINDOW to find the (non-eliminated)
+// VirtualScan feeding it. WINDOW (interval/session/state) and FILL nodes may sit
+// between the AGG and the VirtualScan (e.g. `percentile(c,50) ... where c>1
+// interval(1h)`); window/fill operators pass block scanFlag through unchanged, so
+// the VirtualScan-driven two passes still reach the AGG. Anything else in the
+// chain (JOIN, SORT, PARTITION, ...) means the shape is unsupported — return NULL.
+static SVirtualScanLogicNode* vtableTwoPassFindVScan(SLogicNode* pNode) {
+  while (NULL != pNode && 1 == LIST_LENGTH(pNode->pChildren)) {
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pChild)) {
+      return (SVirtualScanLogicNode*)pChild;
+    }
+    if (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pChild) && QUERY_NODE_LOGIC_PLAN_FILL != nodeType(pChild)) {
+      return NULL;
+    }
+    pNode = pChild;
+  }
+  return NULL;
+}
+
+// Subtree search for a (non-eliminated) VirtualScan below a REPEAT_SCAN_FUNC AGG/WINDOW.
+// Unlike vtableTwoPassFindVScan this descends through EVERY child, so shapes where the
+// VirtualScan is reachable only through an unsupported multi-child node (JOIN, set-op, ...)
+// are still found — and then rejected by vtableTwoPassOptimize instead of silently running
+// single-pass (the merge restamps every block MAIN_SCAN and PERCENTILE would finalize on an
+// uninitialized tMemBucket).
+static bool vtableTwoPassSubtreeHasVScan(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+  if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode)) {
+    return true;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (vtableTwoPassSubtreeHasVScan((SLogicNode*)pChild)) {
+      return true;
     }
   }
   return false;
+}
+
+static bool vtableTwoPassMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+    if (!funcListHasRepeatScanFunc(((SAggLogicNode*)pNode)->pAggFuncs)) {
+      return false;
+    }
+  } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode)) {
+    // Window queries (interval/session/state) carry the aggregate functions on the
+    // WINDOW node itself — there is no separate AGG node above the VirtualScan:
+    //     Interval(percentile) -> VirtualScan -> Exchange -> TableScan(org)
+    if (!funcListHasRepeatScanFunc(((SWindowLogicNode*)pNode)->pFuncs)) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+  SVirtualScanLogicNode* pVScan = vtableTwoPassFindVScan(pNode);
+  if (NULL != pVScan) {
+    // already converted in a previous round — skip so the optimize loop terminates
+    return !pVScan->twoPassMode;
+  }
+  // Non-eliminated VirtualScan anywhere below but not through a supported single-child
+  // chain (PROJECT/JOIN/set-op/... between) — matched here so vtableTwoPassOptimize can
+  // reject it instead of silently running single-pass.
+  return vtableTwoPassSubtreeHasVScan(pNode);
+}
+
+static int32_t vtableTwoPassOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SLogicNode* pRoot = optFindPossibleNode(pLogicSubplan->pNode, vtableTwoPassMayBeOptimized, NULL);
+  if (NULL == pRoot) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SVirtualScanLogicNode* pVScan = vtableTwoPassFindVScan(pRoot);
+  if (NULL == pVScan) {
+    // REPEAT_SCAN_FUNC above a non-eliminated VirtualScan with an unsupported chain
+    // (JOIN/SORT/PARTITION/... between). Without the two-pass driver the merge restamps
+    // every block MAIN_SCAN and PERCENTILE finalizes on an uninitialized tMemBucket —
+    // silent wrong results. Reject explicitly.
+    planError("VtableTwoPass: PERCENTILE on virtual table only supports AGG/WINDOW directly above the virtual scan "
+              "(PROJECT/JOIN/SORT/PARTITION in between is not supported), got unsupported plan shape");
+    return TSDB_CODE_PAR_NOT_SUPPORT_VTABLE_TWO_PASS;
+  }
+  if (nodeHasExternalScan((SLogicNode*)pVScan)) {
+    // External (federated) origins rely on their own fed-scan two-pass machinery; forcing
+    // scanSeq[0]=1 on them would silently break PERCENTILE. Reject explicitly instead.
+    planError("VtableTwoPass: REPEAT_SCAN_FUNC (PERCENTILE) on virtual table with external origin is not supported");
+    return TSDB_CODE_PAR_NOT_SUPPORT_VTABLE_TWO_PASS;
+  }
+  // Origin scans: single pass each — the VirtualScan coordinator drives both passes.
+  // Only SCAN children are supported: their tasks stay alive past phase-1 EOF
+  // (twoPassRescanSource -> noQuickFree) so the phase-2 rescan fetch can re-run them.
+  // A TagRefSource child's remote task has no keep-alive and ends at phase-1 EOF, so
+  // the restart's re-fetch of its 1-row tag block deterministically fails — reject at
+  // plan time instead of erroring out after a full wasted phase-1 pass. Any other
+  // non-SCAN child would leave its origin on scanSeq[0]=2 while twoPassMode
+  // double-drives the scan — reject instead of silently skewing results.
+  //
+  // Validate the whole child set before any mutation: a mid-loop rejection must not
+  // leave a half-converted plan (some origins already on scanSeq[0]=1 /
+  // twoPassRescanSource, VirtualScan flagged twoPassMode). applyOptimizeRule aborts
+  // planning on error so the half state is not consumed today — this keeps it that
+  // way even if the error handling is ever relaxed.
+  SNode* pChild = NULL;
+  FOREACH(pChild, pVScan->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType((SLogicNode*)pChild)) {
+      planError("VtableTwoPass: PERCENTILE on virtual table does not support child node type %d under the virtual scan",
+                (int)nodeType((SLogicNode*)pChild));
+      return TSDB_CODE_PAR_NOT_SUPPORT_VTABLE_TWO_PASS;
+    }
+  }
+  pVScan->twoPassMode = true;
+  FOREACH(pChild, pVScan->node.pChildren) {
+    ((SScanLogicNode*)pChild)->scanSeq[0] = 1;
+    ((SScanLogicNode*)pChild)->twoPassRescanSource = true;  // bootstrap: qworker keeps origin reader alive for phase-2 rescan
+  }
+  // Report the change so optimizeLogicPlan re-runs the rule set and converts further
+  // branches (e.g. the second UNION ALL branch) instead of only the first match.
+  pCxt->optimized = true;
+  planDebug("%s", "VtableTwoPass: enabled VirtualScan twoPassMode for REPEAT_SCAN_FUNC (PERCENTILE)");
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool fqAggFuncNeedsOrderedInput(const SFunctionNode* pFunc) {

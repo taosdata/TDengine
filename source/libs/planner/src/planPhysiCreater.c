@@ -1743,6 +1743,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   }
 
   memcpy(pTableScan->scanSeq, pScanLogicNode->scanSeq, sizeof(pScanLogicNode->scanSeq));
+  pTableScan->twoPassRescanSource = pScanLogicNode->twoPassRescanSource;
   pTableScan->scanRange = pScanLogicNode->scanRange;
   TSWAP(pTableScan->pExtScanRange, pScanLogicNode->pExtScanRange);
   pTableScan->interpMode = pScanLogicNode->interpMode;
@@ -4852,6 +4853,8 @@ static int32_t createVirtualTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan
   if (NULL == pVirtualScan) {
     return terrno;
   }
+
+  pVirtualScan->twoPassMode = pScanLogicNode->twoPassMode;
 
   if (pScanLogicNode->pVgroupList) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);

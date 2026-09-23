@@ -3037,6 +3037,9 @@ enum {
   PHY_VIRTUAL_TABLE_SCAN_CODE_CONST_REF_TAGS,
   PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_CONST_REF_TAG,
   PHY_VIRTUAL_TABLE_SCAN_CODE_MGMT_EP_SET,
+  // Appended after the 3.0 const-ref codes: those wire values shipped with the tag-ref
+  // feature, so TWO_PASS_MODE must take the next free value (never reuse 16).
+  PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE,
 };
 
 static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3102,6 +3105,9 @@ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEn
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_MGMT_EP_SET, epSetToMsg, &pNode->mgmtEpSet);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE, pNode->twoPassMode);
+  }
 
   return code;
 }
@@ -3166,6 +3172,9 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
         break;
       case PHY_VIRTUAL_TABLE_SCAN_CODE_MGMT_EP_SET:
         code = tlvDecodeObjFromTlv(pTlv, msgToEpSet, &pNode->mgmtEpSet);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE:
+        code = tlvDecodeBool(pTlv, &pNode->twoPassMode);
         break;
       default:
         break;
@@ -3701,6 +3710,9 @@ enum {
   PHY_TABLE_SCAN_CODE_PRIM_COND_EXPR,
   PHY_TABLE_SCAN_CODE_TIMEZONE_NAME,
   PHY_TABLE_SCAN_CODE_INTERP_MODE,
+  // Append-only: new TLV codes go at the end so mixed-version clusters never
+  // reinterpret an existing code (INTERP_MODE must stay at its released value).
+  PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3819,6 +3831,9 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI8(pEncoder, PHY_TABLE_SCAN_CODE_INTERP_MODE,
                        pNode->interpMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE, pNode->twoPassRescanSource);
   }
 
   return code;
@@ -3959,6 +3974,9 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
                                                 &pNode->timezone,
                                                 &pNode->ownsTimezone);
         }
+        break;
+      case PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE:
+        code = tlvDecodeBool(pTlv, &pNode->twoPassRescanSource);
         break;
       case PHY_TABLE_SCAN_CODE_INTERP_MODE:
         code = tlvDecodeI8(pTlv, &pNode->interpMode);
