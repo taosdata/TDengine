@@ -634,7 +634,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         bool twoPassRetry = (pExchangeInfo->twoPassExchange && !pRsp->completed);
         if (twoPassRetry || (NULL != pDataInfo->pSrcUidList && !isVstbScan(pDataInfo))) {
           // two-pass exchange: phase-2 remote re-runs cquery async, the first fetch may return
-          // empty before cquery fills the sink — retry until data or completion. For other
+          // empty before cquery fills the sink -- retry until data or completion. For other
           // exchanges, keep the original semantics (empty rsp exhausts the source).
           if (twoPassRetry) {
             // A killed/cancelled query must not sleep a whole backoff interval first.
@@ -693,7 +693,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       }
 
       TAOS_CHECK_EXIT(doExtractResultBlocks(pExchangeInfo, pDataInfo, pTaskInfo->pStreamRuntimeInfo));
-      pExchangeInfo->twoPassRetryMs = 0;  // data arrived — two-pass empty-rsp backoff restarts
+      pExchangeInfo->twoPassRetryMs = 0;  // data arrived -- two-pass empty-rsp backoff restarts
       pExchangeInfo->twoPassRetries = 0;
 
       SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
@@ -1925,7 +1925,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   if (pSource->localExec) {
     // vtable two-pass phase-2 runs over the RPC fetch path only: the rescan directive
     // (DYN_TYPE_TWO_PASS_RESCAN) rides the fetch request msg, and the local-fetch entry
-    // has no such channel — it would re-read the drained sink and report the source
+    // has no such channel -- it would re-read the drained sink and report the source
     // exhausted (silently wrong PERCENTILE). Structurally unreachable today (two-pass
     // origins are SCAN subplans, SCH_IS_LOCAL_EXEC_TASK excludes them), so fail loudly
     // if that invariant is ever broken instead of returning wrong results.

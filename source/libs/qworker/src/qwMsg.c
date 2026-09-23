@@ -785,20 +785,20 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
       QW_TASK_WLOG("phase2Rescan fetch failed to acquire task ctx since %s, drop the op param",
                    TSDB_CODE_SUCCESS == rcode ? "ctx is null" : tstrerror(rcode));
       // tDestroySResFetchReq does not free pOpParam and qwProcessFetch skips the destroy
-      // once msg is NULL — free it here or it leaks (same convention as the
+      // once msg is NULL -- free it here or it leaks (same convention as the
       // not-consumed paths in qwStartTwoPassRescanExec).
       qDestroyOperatorParam(qwMsg.msg);
       qwMsg.msg = NULL;
     } else {
       // Only two-pass origin tasks (kept alive past phase-1 EOF via noQuickFree) may be
-      // re-armed. Anything else: drop the op param explicitly — passing it through would
+      // re-armed. Anything else: drop the op param explicitly -- passing it through would
       // let qwProcessFetch's generic STEP_DONE branch (qwUpdateTaskOperatorParamFromMsg)
       // apply the two-pass rescan TableScan params to a non-two-pass task.
       if (NULL == qwMsg.msg) {
         // The coordinator always builds the flag and the rescan param together; a
         // param-less phase2Rescan fetch is an invalid combination. Arming the pending
         // flag here would misroute a later param-carrying fetch on this task into
-        // qwStartTwoPassRescanExec — leave it disarmed; the fetch falls through to the
+        // qwStartTwoPassRescanExec -- leave it disarmed; the fetch falls through to the
         // normal path.
         QW_TASK_WLOG_E("phase2Rescan fetch without operator param, not arming the rescan");
       } else if (atomic_load_8(&ctx->noQuickFree)) {

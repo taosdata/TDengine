@@ -838,7 +838,7 @@ void qRemoveOperatorParam(qTaskInfo_t tinfo, void* pParam) {
   SExecTaskInfo* pTask = (SExecTaskInfo*)tinfo;
   // Only remove when the task still holds exactly this param as pending (unconsumed):
   // a consumed param is owned by the operator chain, and a mismatch in
-  // qUpdateOperatorParam already destroyed the new one — both must not be touched here.
+  // qUpdateOperatorParam already destroyed the new one -- both must not be touched here.
   if (NULL != pParam && pTask->pOpParam == pParam && !pTask->paramSet) {
     pTask->pOpParam = NULL;
     qDestroyOperatorParam((SOperatorParam*)pParam);

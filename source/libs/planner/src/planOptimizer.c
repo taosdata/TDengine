@@ -18684,7 +18684,7 @@ static bool fqNodeHasRepeatScanFunc(const SLogicNode* pNode) {
 // between the AGG and the VirtualScan (e.g. `percentile(c,50) ... where c>1
 // interval(1h)`); window/fill operators pass block scanFlag through unchanged, so
 // the VirtualScan-driven two passes still reach the AGG. Anything else in the
-// chain (JOIN, SORT, PARTITION, ...) means the shape is unsupported — return NULL.
+// chain (JOIN, SORT, PARTITION, ...) means the shape is unsupported -- return NULL.
 static SVirtualScanLogicNode* vtableTwoPassFindVScan(SLogicNode* pNode) {
   while (NULL != pNode && 1 == LIST_LENGTH(pNode->pChildren)) {
     SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
@@ -18702,7 +18702,7 @@ static SVirtualScanLogicNode* vtableTwoPassFindVScan(SLogicNode* pNode) {
 // Subtree search for a (non-eliminated) VirtualScan below a REPEAT_SCAN_FUNC AGG/WINDOW.
 // Unlike vtableTwoPassFindVScan this descends through EVERY child, so shapes where the
 // VirtualScan is reachable only through an unsupported multi-child node (JOIN, set-op, ...)
-// are still found — and then rejected by vtableTwoPassOptimize instead of silently running
+// are still found -- and then rejected by vtableTwoPassOptimize instead of silently running
 // single-pass (the merge restamps every block MAIN_SCAN and PERCENTILE would finalize on an
 // uninitialized tMemBucket).
 static bool vtableTwoPassSubtreeHasVScan(SLogicNode* pNode) {
@@ -18728,7 +18728,7 @@ static bool vtableTwoPassMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     }
   } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode)) {
     // Window queries (interval/session/state) carry the aggregate functions on the
-    // WINDOW node itself — there is no separate AGG node above the VirtualScan:
+    // WINDOW node itself -- there is no separate AGG node above the VirtualScan:
     //     Interval(percentile) -> VirtualScan -> Exchange -> TableScan(org)
     if (!funcListHasRepeatScanFunc(((SWindowLogicNode*)pNode)->pFuncs)) {
       return false;
@@ -18738,11 +18738,11 @@ static bool vtableTwoPassMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
   SVirtualScanLogicNode* pVScan = vtableTwoPassFindVScan(pNode);
   if (NULL != pVScan) {
-    // already converted in a previous round — skip so the optimize loop terminates
+    // already converted in a previous round -- skip so the optimize loop terminates
     return !pVScan->twoPassMode;
   }
   // Non-eliminated VirtualScan anywhere below but not through a supported single-child
-  // chain (PROJECT/JOIN/set-op/... between) — matched here so vtableTwoPassOptimize can
+  // chain (PROJECT/JOIN/set-op/... between) -- matched here so vtableTwoPassOptimize can
   // reject it instead of silently running single-pass.
   return vtableTwoPassSubtreeHasVScan(pNode);
 }
@@ -18756,7 +18756,7 @@ static int32_t vtableTwoPassOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   if (NULL == pVScan) {
     // REPEAT_SCAN_FUNC above a non-eliminated VirtualScan with an unsupported chain
     // (JOIN/SORT/PARTITION/... between). Without the two-pass driver the merge restamps
-    // every block MAIN_SCAN and PERCENTILE finalizes on an uninitialized tMemBucket —
+    // every block MAIN_SCAN and PERCENTILE finalizes on an uninitialized tMemBucket --
     // silent wrong results. Reject explicitly.
     planError("VtableTwoPass: PERCENTILE on virtual table only supports AGG/WINDOW directly above the virtual scan "
               "(PROJECT/JOIN/SORT/PARTITION in between is not supported), got unsupported plan shape");
@@ -18768,19 +18768,19 @@ static int32_t vtableTwoPassOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
     planError("VtableTwoPass: REPEAT_SCAN_FUNC (PERCENTILE) on virtual table with external origin is not supported");
     return TSDB_CODE_PAR_NOT_SUPPORT_VTABLE_TWO_PASS;
   }
-  // Origin scans: single pass each — the VirtualScan coordinator drives both passes.
+  // Origin scans: single pass each -- the VirtualScan coordinator drives both passes.
   // Only SCAN children are supported: their tasks stay alive past phase-1 EOF
   // (twoPassRescanSource -> noQuickFree) so the phase-2 rescan fetch can re-run them.
   // A TagRefSource child's remote task has no keep-alive and ends at phase-1 EOF, so
-  // the restart's re-fetch of its 1-row tag block deterministically fails — reject at
+  // the restart's re-fetch of its 1-row tag block deterministically fails -- reject at
   // plan time instead of erroring out after a full wasted phase-1 pass. Any other
   // non-SCAN child would leave its origin on scanSeq[0]=2 while twoPassMode
-  // double-drives the scan — reject instead of silently skewing results.
+  // double-drives the scan -- reject instead of silently skewing results.
   //
   // Validate the whole child set before any mutation: a mid-loop rejection must not
   // leave a half-converted plan (some origins already on scanSeq[0]=1 /
   // twoPassRescanSource, VirtualScan flagged twoPassMode). applyOptimizeRule aborts
-  // planning on error so the half state is not consumed today — this keeps it that
+  // planning on error so the half state is not consumed today -- this keeps it that
   // way even if the error handling is ever relaxed.
   SNode* pChild = NULL;
   FOREACH(pChild, pVScan->node.pChildren) {
