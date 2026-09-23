@@ -1,6 +1,18 @@
-// Package random provides a deterministic splitmix64 random number generator with serializable state.
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 //
-// Package random 提供一个状态可序列化的确定性 splitmix64 随机数生成器。
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package random
 
 import (

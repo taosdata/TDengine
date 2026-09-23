@@ -1,23 +1,19 @@
 #!/bin/bash
-# run_upgrade_compat.sh
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Host-side entry script for cold/hot upgrade compatibility tests.
-# Runs as a GitLab CI job script (test-compat-upgrade), directly on the
-# worker host shell — not itself inside a container.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Steps:
-#   1. Download required green versions from HTTP server to local cache (skipped if already cached)
-#   2. Run cold/hot upgrade compatibility tests inside an isolated Docker container
-#   3. Print test result logs
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# Usage:
-#   ./run_upgrade_compat.sh -w WORKDIR [-r REPO_DIR] [-l LOG_DIR] [-h]
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-# Options:
-#   -w WORKDIR   Working directory (must contain debugNoSan/, e.g. produced by pull-artifacts.sh)
-#   -r REPO_DIR  taos-community source directory (default: ${CI_PROJECT_DIR}/source/taos-community)
-#   -l LOG_DIR   Log output directory (default: WORKDIR/upgrade_compat_logs)
-#   -h           Show help
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 function usage() {
     echo "Usage: $0 -w WORKDIR [-r REPO_DIR] [-l LOG_DIR] [-h]"

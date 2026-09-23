@@ -1,3 +1,18 @@
+-- Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+--
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+--
+-- This program is free software: you can use, redistribute, and/or modify
+-- it under the terms of the GNU Affero General Public License, version 3
+-- or later ("AGPL"), as published by the Free Software Foundation.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+-- FITNESS FOR A PARTICULAR PURPOSE.
+--
+-- You should have received a copy of the GNU Affero General Public License
+-- along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 CREATE VTABLE `idmp`.`vt_带式输送机_f1w1a_belt_conveyor_01`(`电机信号` FROM `idmp_sample_tobacco`.`f1w1a_belt_conveyor_01`.`motor_signal`,`设备状态` FROM `idmp_sample_tobacco`.`f1w1a_belt_conveyor_01`.`equipment_status`) USING `idmp`.`vst_带式输送机_178289`(`卷烟制丝场景`) TAGS("卷烟一厂.制丝车间.A线.掺配段.掺配.带式输送机");
 CREATE VTABLE `idmp`.`vt_带式输送机_f1w1a_belt_conveyor_02`(`电机信号` FROM `idmp_sample_tobacco`.`f1w1a_belt_conveyor_02`.`motor_signal`,`设备状态` FROM `idmp_sample_tobacco`.`f1w1a_belt_conveyor_02`.`equipment_status`) USING `idmp`.`vst_带式输送机_178289`(`卷烟制丝场景`) TAGS("卷烟一厂.制丝车间.A线.掺配段.掺配.带式输送机(双向)");
 CREATE VTABLE `idmp`.`vt_带式输送机_f1w1a_belt_conveyor_03`(`电机信号` FROM `idmp_sample_tobacco`.`f1w1a_belt_conveyor_03`.`motor_signal`,`设备状态` FROM `idmp_sample_tobacco`.`f1w1a_belt_conveyor_03`.`equipment_status`) USING `idmp`.`vst_带式输送机_178289`(`卷烟制丝场景`) TAGS("卷烟一厂.制丝车间.A线.超回松散段.超回松散.带式输送机");

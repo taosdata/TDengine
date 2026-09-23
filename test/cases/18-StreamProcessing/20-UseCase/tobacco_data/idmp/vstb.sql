@@ -1,3 +1,18 @@
+-- Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+--
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+--
+-- This program is free software: you can use, redistribute, and/or modify
+-- it under the terms of the GNU Affero General Public License, version 3
+-- or later ("AGPL"), as published by the Free Software Foundation.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+-- FITNESS FOR A PARTICULAR PURPOSE.
+--
+-- You should have received a copy of the GNU Affero General Public License
+-- along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 CREATE STABLE `vst_喷射式真空回潮机_714985` (`ts` TIMESTAMP, `PID控制器` FLOAT, `电机信号` FLOAT, `阀门信号` FLOAT, `故障报警` BOOL, `控制设定值` FLOAT, `配方参数` VARCHAR(512), `设备状态` BOOL, `生产信息` VARCHAR(512), `测量值` FLOAT) TAGS (`_ignore_path` VARCHAR(20), `卷烟制丝场景` VARCHAR(256), `工艺段` VARCHAR(32), `工序` VARCHAR(32), `设备类型` VARCHAR(32), `path1` VARCHAR(512)) SMA(`ts`,`PID控制器`) VIRTUAL 1;
 CREATE STABLE `vst_翻箱喂料机构_620571` (`ts` TIMESTAMP, `电机信号` FLOAT, `故障报警` BOOL, `控制设定值` FLOAT, `设备状态` BOOL, `生产信息` VARCHAR(512), `测量值` FLOAT) TAGS (`_ignore_path` VARCHAR(20), `卷烟制丝场景` VARCHAR(256), `工艺段` VARCHAR(32), `工序` VARCHAR(32), `设备类型` VARCHAR(32), `path1` VARCHAR(512)) SMA(`ts`,`电机信号`) VIRTUAL 1;
 CREATE STABLE `vst_烘丝公共点_937284` (`ts` TIMESTAMP, `阀门信号` FLOAT, `故障报警` BOOL, `控制设定值` FLOAT, `配方参数` VARCHAR(512), `设备状态` BOOL, `生产信息` VARCHAR(512), `测量值` FLOAT) TAGS (`_ignore_path` VARCHAR(20), `卷烟制丝场景` VARCHAR(256), `工艺段` VARCHAR(32), `工序` VARCHAR(32), `设备类型` VARCHAR(32), `path1` VARCHAR(512)) SMA(`ts`,`阀门信号`) VIRTUAL 1;

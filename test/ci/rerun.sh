@@ -1,32 +1,19 @@
 #!/bin/bash
-# ======================================================================
-# rerun.sh — 在本机或 runner 上运行 / 复现测试用例
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# 使用场景：
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-#   1. 本地有编译产物，直接运行指定用例：
-#      ./rerun.sh "pytest cases/11-Functions/06-System/test_fun_sys_info.py"
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-#   2. 指定 MR 号，从 Nexus 下载构建产物并运行指定用例：
-#      ./rerun.sh --mr 42 "pytest cases/11-Functions/06-System/test_fun_sys_info.py"
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-#   3. 在 runner 机器上复现 CI 失败用例（读 fail-logs）：
-#      ./rerun.sh --case n4-11-Functions_06-System_test_fun_sys_info
-#
-#   4. 用指定 MR 的构建复现 CI 失败用例：
-#      ./rerun.sh --mr 42 --case n4-11-Functions_06-System_test_fun_sys_info
-#
-# 选项：
-#   --mr  <N>       MR 号，从 Nexus 下载该 MR 的构建产物
-#   --case <name>   从 fail-logs 读取 CI 失败用例信息（runner 机器）
-#   -d <DIR>        手动指定 debug/debugNoSan 目录（覆盖自动检测）
-#   -r <DIR>        手动指定 taos-community 目录（覆盖自动检测）
-#   -s              使用 sanitizer 构建（默认 non-sanitizer）
-#   --user <U>      Nexus 用户名（也可用环境变量 NEXUS_USERNAME）
-#   --pass <P>      Nexus 密码（也可用环境变量 NEXUS_PASSWORD）
-#
-# 注：MR 产物缓存到 /tmp/tdci-mr-<N>/，二次运行无需重新下载。
-# ======================================================================
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -euo pipefail
 

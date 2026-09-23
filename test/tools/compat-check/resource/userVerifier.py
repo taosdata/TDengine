@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/resource/userVerifier.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Verifies that test_user and its privilege set are preserved unchanged
-# across the rolling upgrade.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Usage pattern
-# -------------
-#   # Phase 2 (baseline, via ResourceManager.create_test_user):
-#   priv_before = rm.create_test_user()          # frozenset of tuples
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-#   # Phase 5 (after upgrade):
-#   uv = UserVerifier(fqdn, cfg_dir)
-#   auth_ok,   auth_msg   = uv.verify_auth()
-#   priv_ok,   priv_msg   = uv.verify_privileges(priv_before)
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-# Each verify_* method returns (bool, human_readable_detail_string).
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys
