@@ -486,7 +486,7 @@ static int32_t processRemovedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash
   }
 
   if (numOfRemoved != actualRemoved) {
-    mError("tmq rebalance sub:%s mq rebalance removedNum:%d not matched with actual:%d", pOutput->pSub->key,
+    mError("tmq rebalance sub:%s mq rebalance removedNum:%d does not match the actual:%d", pOutput->pSub->key,
            numOfRemoved, actualRemoved);
   } else {
     mInfo("tmq rebalance sub:%s removed %d consumers", pOutput->pSub->key, numOfRemoved);
@@ -1029,7 +1029,7 @@ static void checkOneTopic(SMnode *pMnode, SMqConsumerObj *pConsumer, SHashObj *r
       if (code != 0) {
         mError("failed to mndGetOrCreateRebSub vgroup:%d, error:%s", *pVgId, tstrerror(code));
       } else {
-        mInfo("vnode splitted, vgId:%d rebalance will be triggered", *pVgId);
+        mInfo("vnode split, vgId:%d rebalance will be triggered", *pVgId);
       }
       continue;
     }
@@ -1403,7 +1403,7 @@ static int32_t doNormalRebalanceOne(SMnode *pMnode, SRpcMsg *pMsg, SMqRebInfo *p
 
   code = mndPersistRebResult(pMnode, pMsg, &rebOutput);
   if (code != 0) {
-    mError("mq rebalance persist output error, possibly vnode splitted or dropped,msg:%s", tstrerror(code));
+    mError("mq rebalance persist output error, possibly vnode split or dropped,msg:%s", tstrerror(code));
   }
 
 END:
@@ -1703,7 +1703,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
   if (code != 0) {
     if (dropReq.igNotExists) {
-      mInfo("cgroup:%s on topic:%s, not exist, ignore not exist is set", dropReq.cgroup, dropReq.topic);
+      mInfo("cgroup:%s on topic:%s, does not exist, the ignore-not-exist flag is set", dropReq.cgroup, dropReq.topic);
       mndReleaseSubscribe(pMnode, pSub);
       return 0;
     } else {

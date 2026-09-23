@@ -2928,7 +2928,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
   SMetaEntry *pEntry = NULL;
   code = metaFetchEntryByUid(pVnode->pMeta, pSubmitTbData->suid, &pEntry);
   if (code) {
-    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+    vError("vgId:%d, table uid:%" PRId64 " does not exist, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   if (pEntry->type != TSDB_SUPER_TABLE) {
@@ -2987,7 +2987,7 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, int64_t uid, STableMetaR
   SMetaEntry *pEntry = NULL;
   code = metaFetchEntryByUid(pVnode->pMeta, uid, &pEntry);
   if (code) {
-    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), uid, __LINE__);
+    vError("vgId:%d, table uid:%" PRId64 " does not exist, line:%d", TD_VID(pVnode), uid, __LINE__);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   if (pEntry->type != TSDB_NORMAL_TABLE) {
@@ -3034,7 +3034,7 @@ static int32_t buildExistTableInStreamRsp(SVnode *pVnode, SSubmitTbData *pSubmit
   if (pSubmitTbData->pCreateTbReq->flags & TD_CREATE_NORMAL_TB_IN_STREAM) {
     code = buildExistNormalTalbeRsp(pVnode, pSubmitTbData->uid, &pCreateTbRsp->pMeta);
     if (code) {
-      vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+      vError("vgId:%d, table uid:%" PRId64 " does not exist, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
       return code;
     }
     pCreateTbRsp->code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
@@ -3163,7 +3163,7 @@ static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSub
   if (pTbData->suid == 0) {
     code = buildExistNormalTalbeRsp(pVnode, pTbData->uid, &pCreateTbRsp->pMeta);
     if (code) {
-      vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pTbData->uid, __LINE__);
+      vError("vgId:%d, table uid:%" PRId64 " does not exist, line:%d", TD_VID(pVnode), pTbData->uid, __LINE__);
     }
   } else {
     code = buildExistSubTalbeRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
@@ -3775,7 +3775,7 @@ static SArray *vnodePrepareSubmitTb(SVnode *pVnode, SAuditRecord *record, STSche
     tbData.uid = merTb.me.uid;
     metaReaderClear(&merTb);
   } else if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-    vTrace("vgId:%d, %s table not exist", TD_VID(pVnode), tbName);
+    vTrace("vgId:%d, %s table does not exist", TD_VID(pVnode), tbName);
 
     tbData.uid = tGenIdPI64();
     tbData.flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
@@ -4219,7 +4219,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
              pVnode->config.szCache, req.pages, tstrerror(terrno));
       return terrno;
     } else {
-      vInfo("vgId:%d, vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
+      vInfo("vgId:%d, vnode pages are changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
       pVnode->config.szCache = req.pages;
     }
   }
@@ -4621,7 +4621,7 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
   pRsp->contLen = contLen;
 
   vInfo(
-      "vgId:%d, suceed to process vnode-arb-check-sync req rsp.code:%s, arbToken:%s, member0Token:%s, "
+      "vgId:%d, successfully processed vnode-arb-check-sync req rsp.code:%s, arbToken:%s, member0Token:%s, "
       "member1Token:%s",
       TD_VID(pVnode), tstrerror(syncRsp.errCode), syncRsp.arbToken, syncRsp.member0Token, syncRsp.member1Token);
 

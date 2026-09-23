@@ -727,7 +727,7 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
   code = filterNotSupportForecast(pSupp);
   if (code) {
-    qError("%s not support forecast model, %s", id, pSupp->algoName);
+    qError("%s does not support forecast model, %s", id, pSupp->algoName);
     TSDB_CHECK_CODE(code, lino, _end);
   }
 

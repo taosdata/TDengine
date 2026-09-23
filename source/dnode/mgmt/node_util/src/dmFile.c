@@ -64,7 +64,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("file:%s not exist", file);
+    dInfo("file:%s does not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -88,7 +88,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   }
 
   code = 0;
-  dInfo("succceed to read mnode file %s", file);
+  dInfo("successfully read mnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -113,7 +113,7 @@ int32_t dmReadFileJsonWithEncrypted(const char *path, const char *name, SJson **
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("file:%s not exist", file);
+    dInfo("file:%s does not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -721,7 +721,7 @@ int32_t dmGetEncryptKey() {
 
   if (!taosCheckExistFile(encryptFile)) {
     code = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
-    dInfo("encryption key file not exist, checkCode file:%s", encryptFile);
+    dInfo("encryption key file does not exist, checkCode file:%s", encryptFile);
     return 0;
   }
 

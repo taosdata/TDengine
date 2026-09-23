@@ -1086,7 +1086,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeBatchImp(J
 
   int32_t code = taos_stmt_execute(pStmt);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("excute batch jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
+    jniError("execute batch jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
     return code;
   }
 

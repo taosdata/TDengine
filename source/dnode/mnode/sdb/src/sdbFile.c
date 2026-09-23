@@ -1064,7 +1064,7 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
     pSdb->commitIndex = index;
   }
 
-  mInfo("sdbiter:%p, success applyed to sdb", pIter);
+  mInfo("sdbiter:%p, successfully applied to sdb", pIter);
   code = 0;
 
 _OVER:

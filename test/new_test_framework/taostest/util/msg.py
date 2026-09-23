@@ -66,7 +66,7 @@ class TaosBenchmark:
         return json_info
 
     def confirm_res(self, result_file):
-        error_msg_list = ["Unable to establish connection", "Unable to resolve FQDN", "Port already in use", "Conn is broken", "Conn read timeout", "some vnode/qnode/mnode(s) out of service", "rpc open too many session", "No enough disk space"]
+        error_msg_list = ["Unable to establish connection", "Unable to resolve FQDN", "Port already in use", "Conn is broken", "Conn read timeout", "Some vnode/qnode/mnode(s) are out of service", "rpc open too many session", "No enough disk space"]
         with open(result_file, "r") as f:
             files = f.read()
             pat = r"insert delay,.*|Spent.*insert.*"

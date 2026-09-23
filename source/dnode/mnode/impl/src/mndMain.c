@@ -1273,7 +1273,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
   mndReleaseRpc(pMnode);
 
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
-    mGTrace("msg:%p, won't response immediately since in progress", pMsg);
+    mGTrace("msg:%p, will not respond immediately since in progress", pMsg);
   } else if (code == 0) {
     mGTrace("msg:%p, successfully processed", pMsg);
   } else {

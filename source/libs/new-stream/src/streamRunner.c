@@ -2516,7 +2516,7 @@ _cleanup:
     pReq->pOutBlock = NULL;
     tDestroySStreamRunnerFetchFrame(&pReq->outFrame);
     pReq->outFinished = true;
-    ST_TASK_ELOG("[runner calc]faild gid:%" PRId64 ", lino:%d code:%s", pReq->gid, lino, tstrerror(code));
+    ST_TASK_ELOG("[runner calc]failed, gid:%" PRId64 ", lino:%d code:%s", pReq->gid, lino, tstrerror(code));
     if (code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
       return TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
     }

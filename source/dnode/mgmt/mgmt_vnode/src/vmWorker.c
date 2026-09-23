@@ -431,7 +431,7 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
   }
   if (pVnode) vmReleaseVnode(pMgmt, pVnode);
   if (size < 0) {
-    dTrace("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
+    dTrace("vgId:%d, cannot get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
     size = 0;
   }
   return size;
@@ -498,17 +498,17 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  dInfo("vgId:%d, write-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteW.queue,
+  dInfo("vgId:%d, write-queue:%p is allocated, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteW.queue,
         taosQueueGetThreadId(pVnode->pWriteW.queue));
-  dInfo("vgId:%d, sync-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncW.queue,
+  dInfo("vgId:%d, sync-queue:%p is allocated, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncW.queue,
         taosQueueGetThreadId(pVnode->pSyncW.queue));
-  dInfo("vgId:%d, sync-rd-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncRdW.queue,
+  dInfo("vgId:%d, sync-rd-queue:%p is allocated, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncRdW.queue,
         taosQueueGetThreadId(pVnode->pSyncRdW.queue));
-  dInfo("vgId:%d, apply-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
+  dInfo("vgId:%d, apply-queue:%p is allocated, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
         taosQueueGetThreadId(pVnode->pApplyW.queue));
-  dInfo("vgId:%d, query-queue:%p is alloced", pVnode->vgId, pVnode->pQueryQ);
-  dInfo("vgId:%d, stream-reader-queue:%p is alloced", pVnode->vgId, pVnode->pStreamReaderQ);
-  dInfo("vgId:%d, fetch-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
+  dInfo("vgId:%d, query-queue:%p is allocated", pVnode->vgId, pVnode->pQueryQ);
+  dInfo("vgId:%d, stream-reader-queue:%p is allocated", pVnode->vgId, pVnode->pStreamReaderQ);
+  dInfo("vgId:%d, fetch-queue:%p is allocated, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
         taosQueueGetThreadId(pVnode->pFetchQ));
   return 0;
 }

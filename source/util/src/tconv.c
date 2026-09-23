@@ -57,7 +57,7 @@ void* taosConvInit(const char* charset) {
 
   for (int i = 1; atomic_val_compare_exchange_32(&lock_c, 0, 1) != 0; ++i) {
     if (i % 1000 == 0) {
-      uInfo("haven't acquire lock after spin %d times.", i);
+      uInfo("have not acquired the lock after spinning %d times.", i);
       (void)sched_yield();
     }
   }

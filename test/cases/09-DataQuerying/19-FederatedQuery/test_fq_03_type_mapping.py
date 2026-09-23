@@ -930,7 +930,7 @@ _CASES = [
         _expect_error(
             f"select doc->'$.k' from {_SRC_M}.json_op_test",
             TSDB_CODE_PAR_INVALID_COL_JSON,
-            "Only tag can be json type",
+            "Only tags can be of the JSON type",
         ),
 
         _clear_source_step(),
@@ -1088,12 +1088,12 @@ _CASES = [
         _expect_error(
             f"select doc_json->'k' from {_SRC_P}.public.json_op_test",
             TSDB_CODE_PAR_INVALID_COL_JSON,
-            "Only tag can be json type",
+            "Only tags can be of the JSON type",
         ),
         _expect_error(
             f"select doc_jsonb->'k' from {_SRC_P}.public.json_op_test",
             TSDB_CODE_PAR_INVALID_COL_JSON,
-            "Only tag can be json type",
+            "Only tags can be of the JSON type",
         ),
 
         _clear_source_step(),
@@ -1573,6 +1573,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
     def test_fq_type_mapping_framework(self):
         """FQ-TYPE-001~060 + S01~S32: complete type mapping coverage.
+
+        Data-driven framework that validates the type mapping between external
+        sources and TDengine columns/tags for all FQ-TYPE cases and the
+        supplementary S cases.
 
         Catalog: - Query:FederatedTypeMapping
 

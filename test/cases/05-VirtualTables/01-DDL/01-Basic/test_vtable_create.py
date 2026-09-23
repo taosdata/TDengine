@@ -1148,7 +1148,7 @@ class TestVtableCreate:
         with 0x0100 and this test skips itself — same as the 21-MetaData
         test_meta_batch_txn_* suite, which also only passes on enterprise CI.
 
-        Virtual tables are read-only projections ("Virtual table can not be
+        Virtual tables are read-only projections ("Virtual table cannot be
         written", 0x80000200), so the row each vtable is expected to expose is
         inserted into a backing normal table and mapped in via FROM; the first
         column (primary ts) must NOT carry a FROM ref (0x6202).

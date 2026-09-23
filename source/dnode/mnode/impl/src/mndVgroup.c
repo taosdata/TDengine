@@ -1048,7 +1048,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup
 
   int32_t size = taosArrayGetSize(pArray);
   if (size < pVgroup->replica) {
-    mError("db:%s, vgId:%d, no enough online dnodes:%d to alloc %d replica", pVgroup->dbName, pVgroup->vgId, size,
+    mError("db:%s, vgId:%d, not enough online dnodes:%d to alloc %d replica", pVgroup->dbName, pVgroup->vgId, size,
            pVgroup->replica);
     TAOS_RETURN(TSDB_CODE_MND_NO_ENOUGH_DNODES);
   }
@@ -1065,7 +1065,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup
 
     int64_t vgMem = mndGetVgroupMemory(pMnode, pDb, pVgroup);
     if (pDnode->memAvail - vgMem - pDnode->memUsed <= 0) {
-      mError("db:%s, vgId:%d, no enough memory:%" PRId64 " in dnode:%d, avail:%" PRId64 " used:%" PRId64,
+      mError("db:%s, vgId:%d, not enough memory:%" PRId64 " in dnode:%d, avail:%" PRId64 " used:%" PRId64,
              pVgroup->dbName, pVgroup->vgId, vgMem, pDnode->id, pDnode->memAvail, pDnode->memUsed);
       TAOS_RETURN(TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE);
     } else {
@@ -1079,7 +1079,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup
       pVgid->syncState = TAOS_SYNC_STATE_FOLLOWER;
     }
 
-    mInfo("db:%s, vgId:%d, vn:%d is alloced, memory:%" PRId64 ", dnode:%d avail:%" PRId64 " used:%" PRId64,
+    mInfo("db:%s, vgId:%d, vn:%d is allocated, memory:%" PRId64 ", dnode:%d avail:%" PRId64 " used:%" PRId64,
           pVgroup->dbName, pVgroup->vgId, v, vgMem, pVgid->dnodeId, pDnode->memAvail, pDnode->memUsed);
     pDnode->numOfVnodes++;
   }
@@ -1111,7 +1111,7 @@ int32_t mndAllocSmaVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup) {
   if (mndGetAvailableDnode(pMnode, pDb, pVgroup, pArray) != 0) return -1;
   taosArrayDestroy(pArray);
 
-  mInfo("db:%s, sma vgId:%d is alloced", pDb->name, pVgroup->vgId);
+  mInfo("db:%s, sma vgId:%d is allocated", pDb->name, pVgroup->vgId);
   return 0;
 }
 
@@ -1173,7 +1173,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups, SArray *
   *ppVgroups = pVgroups;
   code = 0;
 
-  mInfo("db:%s, total %d vgroups is alloced, replica:%d", pDb->name, pDb->cfg.numOfVgroups, pDb->cfg.replications);
+  mInfo("db:%s, total %d vgroups are allocated, replica:%d", pDb->name, pDb->cfg.numOfVgroups, pDb->cfg.replications);
 
 _OVER:
   if (code != 0) taosMemoryFree(pVgroups);
@@ -1668,7 +1668,7 @@ static int32_t mndAddVnodeToVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *pVgro
 
     int64_t vgMem = mndGetVgroupMemory(pMnode, NULL, pVgroup);
     if (pDnode->memAvail - vgMem - pDnode->memUsed <= 0) {
-      mError("trans:%d, db:%s, vgId:%d, no enough memory:%" PRId64 " in dnode:%d avail:%" PRId64 " used:%" PRId64,
+      mError("trans:%d, db:%s, vgId:%d, not enough memory:%" PRId64 " in dnode:%d avail:%" PRId64 " used:%" PRId64,
              pTrans->id, pVgroup->dbName, pVgroup->vgId, vgMem, pDnode->id, pDnode->memAvail, pDnode->memUsed);
       TAOS_RETURN(TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE);
     } else {
@@ -2569,7 +2569,7 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
   if (pNew1 != NULL && pOld1 != NULL) {
     int32_t numOfVnodes = mndGetVnodesNum(pMnode, pNew1->id);
     if (numOfVnodes >= pNew1->numOfSupportVnodes) {
-      mError("vgId:%d, no enough vnodes in dnode:%d, numOfVnodes:%d support:%d", newVg.vgId, pNew1->id, numOfVnodes,
+      mError("vgId:%d, not enough vnodes in dnode:%d, numOfVnodes:%d support:%d", newVg.vgId, pNew1->id, numOfVnodes,
              pNew1->numOfSupportVnodes);
       code = TSDB_CODE_MND_NO_ENOUGH_VNODES;
       goto _OVER;
@@ -2577,7 +2577,7 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
 
     int64_t vgMem = mndGetVgroupMemory(pMnode, NULL, pVgroup);
     if (pNew1->memAvail - vgMem - pNew1->memUsed <= 0) {
-      mError("db:%s, vgId:%d, no enough memory:%" PRId64 " in dnode:%d avail:%" PRId64 " used:%" PRId64,
+      mError("db:%s, vgId:%d, not enough memory:%" PRId64 " in dnode:%d avail:%" PRId64 " used:%" PRId64,
              pVgroup->dbName, pVgroup->vgId, vgMem, pNew1->id, pNew1->memAvail, pNew1->memUsed);
       code = TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE;
       goto _OVER;
@@ -2592,14 +2592,14 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
   if (pNew2 != NULL && pOld2 != NULL) {
     int32_t numOfVnodes = mndGetVnodesNum(pMnode, pNew2->id);
     if (numOfVnodes >= pNew2->numOfSupportVnodes) {
-      mError("vgId:%d, no enough vnodes in dnode:%d, numOfVnodes:%d support:%d", newVg.vgId, pNew2->id, numOfVnodes,
+      mError("vgId:%d, not enough vnodes in dnode:%d, numOfVnodes:%d support:%d", newVg.vgId, pNew2->id, numOfVnodes,
              pNew2->numOfSupportVnodes);
       code = TSDB_CODE_MND_NO_ENOUGH_VNODES;
       goto _OVER;
     }
     int64_t vgMem = mndGetVgroupMemory(pMnode, NULL, pVgroup);
     if (pNew2->memAvail - vgMem - pNew2->memUsed <= 0) {
-      mError("db:%s, vgId:%d, no enough memory:%" PRId64 " in dnode:%d avail:%" PRId64 " used:%" PRId64,
+      mError("db:%s, vgId:%d, not enough memory:%" PRId64 " in dnode:%d avail:%" PRId64 " used:%" PRId64,
              pVgroup->dbName, pVgroup->vgId, vgMem, pNew2->id, pNew2->memAvail, pNew2->memUsed);
       code = TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE;
       goto _OVER;
@@ -2613,14 +2613,14 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
   if (pNew3 != NULL && pOld3 != NULL) {
     int32_t numOfVnodes = mndGetVnodesNum(pMnode, pNew3->id);
     if (numOfVnodes >= pNew3->numOfSupportVnodes) {
-      mError("vgId:%d, no enough vnodes in dnode:%d, numOfVnodes:%d support:%d", newVg.vgId, pNew3->id, numOfVnodes,
+      mError("vgId:%d, not enough vnodes in dnode:%d, numOfVnodes:%d support:%d", newVg.vgId, pNew3->id, numOfVnodes,
              pNew3->numOfSupportVnodes);
       code = TSDB_CODE_MND_NO_ENOUGH_VNODES;
       goto _OVER;
     }
     int64_t vgMem = mndGetVgroupMemory(pMnode, NULL, pVgroup);
     if (pNew3->memAvail - vgMem - pNew3->memUsed <= 0) {
-      mError("db:%s, vgId:%d, no enough memory:%" PRId64 " in dnode:%d avail:%" PRId64 " used:%" PRId64,
+      mError("db:%s, vgId:%d, not enough memory:%" PRId64 " in dnode:%d avail:%" PRId64 " used:%" PRId64,
              pVgroup->dbName, pVgroup->vgId, vgMem, pNew3->id, pNew3->memAvail, pNew3->memUsed);
       code = TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE;
       goto _OVER;
@@ -3203,13 +3203,13 @@ int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTra
     if (pDb == NULL) {
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
-      mError("trans:%d, vgid:%d failed to be balanced to dnode:%d, because db not exist", pTrans->id, vgid, dnodeId);
+      mError("trans:%d, vgid:%d failed to be balanced to dnode:%d, because db does not exist", pTrans->id, vgid, dnodeId);
       TAOS_RETURN(code);
     }
 
     mndReleaseDb(pMnode, pDb);
   } else {
-    mInfo("trans:%d, vgid:%d cant be balanced to dnode:%d, exist:%d, online:%d", pTrans->id, vgid, dnodeId, exist,
+    mInfo("trans:%d, vgid:%d cannot be balanced to dnode:%d, exist:%d, online:%d", pTrans->id, vgid, dnodeId, exist,
           online);
   }
 
@@ -3253,7 +3253,7 @@ static int32_t mndCheckDnodeMemory(SMnode *pMnode, SDbObj *pOldDb, SDbObj *pNewD
 
     pDnode->memUsed = pDnode->memUsed - oldMemUsed + newMemUsed;
     if (pDnode->memAvail - pDnode->memUsed <= 0) {
-      mError("db:%s, vgId:%d, no enough memory in dnode:%d, avail:%" PRId64 " used:%" PRId64, pNewVgroup->dbName,
+      mError("db:%s, vgId:%d, not enough memory in dnode:%d, avail:%" PRId64 " used:%" PRId64, pNewVgroup->dbName,
              pNewVgroup->vgId, pDnode->id, pDnode->memAvail, pDnode->memUsed);
       TAOS_RETURN(TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE);
     } else if (inVgroup) {
@@ -3926,7 +3926,7 @@ static int32_t mndBalanceVgroupBetweenDnode(SMnode *pMnode, STrans *pTrans, SDno
     if (pDb == NULL) {
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
-      mError("vgId:%d, balance vgroup can't find db obj dbName:%s", pVgroup->vgId, pVgroup->dbName);
+      mError("vgId:%d, balance vgroup cannot find db obj dbName:%s", pVgroup->vgId, pVgroup->dbName);
       goto _OUT;
     }
 
@@ -4224,7 +4224,7 @@ static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq) {
   pVgroup = mndAcquireVgroup(pMnode, req.vgId);
   if (pVgroup == NULL) {
     code = TSDB_CODE_MND_VGROUP_NOT_EXIST;
-    mError("vgId:%d not exist, failed to set keep version", req.vgId);
+    mError("vgId:%d does not exist, failed to set keep version", req.vgId);
     goto _OVER;
   }
 

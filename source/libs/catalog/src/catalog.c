@@ -779,7 +779,7 @@ static void ctgResetCacheTimerImpl(void) {
   }
 
   if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-    qError("reset catalog cache monitor timer error, timer stoppped");
+    qError("reset catalog cache monitor timer error, timer stopped");
   }
 }
 
@@ -1649,14 +1649,14 @@ _return:
 
   if (pJob) {
     int32_t code2 = taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
-    if (TSDB_CODE_SUCCESS) {
-      qError("release catalog job refId:%" PRId64 " falied, error:%s", pJob->refId, tstrerror(code2));
+    if (code2 != TSDB_CODE_SUCCESS) {
+      qError("release catalog job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code2));
     }
 
     if (code) {
       code2 = taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
-      if (TSDB_CODE_SUCCESS) {
-        qError("remove catalog job refId:%" PRId64 " falied, error:%s", pJob->refId, tstrerror(code2));
+      if (code2 != TSDB_CODE_SUCCESS) {
+        qError("remove catalog job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code2));
       }
     }
   }

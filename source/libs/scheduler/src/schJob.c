@@ -470,7 +470,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   }
 
   if (!SCH_JOB_GOT_SUB_JOBS(pJob) && totalTaskNum != pDag->numOfSubplans) {
-    SCH_JOB_ELOG("totalTaskNum %d mis-match with numOfSubplans %d", totalTaskNum, pDag->numOfSubplans);
+    SCH_JOB_ELOG("totalTaskNum %d mismatch with numOfSubplans %d", totalTaskNum, pDag->numOfSubplans);
     SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -620,7 +620,7 @@ void schPostJobRes(SSchJob *pJob, SCH_OP_TYPE op) {
   }
 
   if (SCH_OP_NULL != op && pJob->opStatus.op != op) {
-    SCH_JOB_ELOG("job in operation %s mis-match with expected %s", schGetOpStr(pJob->opStatus.op), schGetOpStr(op));
+    SCH_JOB_ELOG("job in operation %s mismatch with expected %s", schGetOpStr(pJob->opStatus.op), schGetOpStr(op));
     goto _return;
   }
 
@@ -1493,7 +1493,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
   if (sjId >= 0) {
     pJob = taosArrayGetP(pJob->subJobs, sjId);
     if (NULL == pJob) {
-      qWarn("QID:0x%" PRIx64 ", TID:0x%" PRIx64 " SJID:%d sub job doesn't exist, jobId:0x%" PRIx64, qId, tId, sjId, rId);
+      qWarn("QID:0x%" PRIx64 ", TID:0x%" PRIx64 " SJID:%d sub job does not exist, jobId:0x%" PRIx64, qId, tId, sjId, rId);
       SCH_ERR_JRET(TSDB_CODE_QRY_JOB_NOT_EXIST);
     }
 

@@ -1344,7 +1344,7 @@ int mainWindows(int argc, char **argv) {
   if (global.generateCode) {
     bool toLogFile = false;
     if ((code = taosReadDataFolder(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs)) != 0) {
-      encryptError("failed to generate encrypt code since dataDir can not be set from cfg file,reason:%s",
+      encryptError("failed to generate encrypt code since dataDir cannot be set from the config file, reason:%s",
                    tstrerror(code));
       return code;
     };

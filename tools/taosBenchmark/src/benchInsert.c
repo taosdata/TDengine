@@ -768,7 +768,7 @@ int createDatabaseTaosc(SDataBase* database) {
         vgroups = getVgroupsNative(conn, database);
         if (vgroups <= 0) {
             closeBenchConn(conn);
-            errorPrint("Database %s's vgroups is %d\n",
+            errorPrint("Database %s's vgroups are %d\n",
                         database->dbName, vgroups);
             return -1;
         }
@@ -1022,7 +1022,7 @@ static void *createTable(void *sarg) {
         uint64_t currentPrintTime = toolsGetTimestampMs();
         if (currentPrintTime - lastPrintTime > PRINT_STAT_INTERVAL) {
             float speed = (pThreadInfo->tables_created - lastTotalCreate) * 1000 / (currentPrintTime - lastPrintTime);
-            infoPrint("thread[%d] already created %" PRId64 " tables, peroid speed: %.0f tables/s\n",
+            infoPrint("thread[%d] already created %" PRId64 " tables, period speed: %.0f tables/s\n",
                        pThreadInfo->threadID, pThreadInfo->tables_created, speed);
             lastPrintTime   = currentPrintTime;
             lastTotalCreate = pThreadInfo->tables_created;
@@ -1793,7 +1793,7 @@ int32_t submitStmt2(threadInfo * pThreadInfo, TAOS_STMT2_BINDV *bindv, int64_t *
                 if (i > 0) {
                     (void)snprintf(tip, sizeof(tip), " after retry %d", i);
                 }
-                errorPrint("finally faild execute submitStmt2()%s\n", tip);
+                errorPrint("finally failed to execute submitStmt2()%s\n", tip);
                 return -1;
             }
 
@@ -1803,8 +1803,8 @@ int32_t submitStmt2(threadInfo * pThreadInfo, TAOS_STMT2_BINDV *bindv, int64_t *
             infoPrint("stmt2 start retry submit i=%d  after sleep %d ms...\n", i++, stbInfo->trying_interval);
             code = reConnectStmt2(pThreadInfo, w);
             if (code != 0) {
-                // faild and try again
-                errorPrint("faild reConnectStmt2 and retry again for next i=%d \n", i);
+                // failed and try again
+                errorPrint("failed to reconnect Stmt2 and retry again for next i=%d \n", i);
                 connected = false;
             } else {
                 // succ
@@ -2350,7 +2350,7 @@ static void *syncWriteInterlace(void *sarg) {
         if (currentPrintTime - lastPrintTime > 30 * 1000) {
             infoPrint(
                     "thread[%d] has currently inserted rows: %" PRIu64
-                    ", peroid insert rate: %.3f rows/s \n",
+                    ", period insert rate: %.3f rows/s \n",
                     pThreadInfo->threadID, pThreadInfo->totalInsertRows,
                     (double)(pThreadInfo->totalInsertRows - lastTotalInsertRows) * 1000.0/(currentPrintTime - lastPrintTime));
             lastPrintTime = currentPrintTime;
@@ -3117,7 +3117,7 @@ void *syncWriteProgressive(void *sarg) {
             if (currentPrintTime - lastPrintTime > 30 * 1000) {
                 infoPrint(
                         "thread[%d] has currently inserted rows: "
-                        "%" PRId64 ", peroid insert rate: %.3f rows/s \n",
+                        "%" PRId64 ", period insert rate: %.3f rows/s \n",
                         pThreadInfo->threadID, pThreadInfo->totalInsertRows,
                         (double)(pThreadInfo->totalInsertRows - lastTotalInsertRows) * 1000.0/(currentPrintTime - lastPrintTime));
                 lastPrintTime = currentPrintTime;
@@ -4488,7 +4488,7 @@ static int startMultiThreadInsertData(SDataBase* database, SSuperTable* stbInfo)
         }
     } else {
         if(nthreads == 0) {
-            errorPrint("argument thread_count can not be zero. %s.%s\n", database->dbName, stbInfo->stbName);
+            errorPrint("argument thread_count cannot be zero. %s.%s\n", database->dbName, stbInfo->stbName);
             return -1;
         }
         div = ntables / nthreads;

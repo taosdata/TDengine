@@ -361,7 +361,7 @@ class TestTaosBackupEdge:
 
         # Case A: missing database
         rlist = etool.taosdump(f"-D nonexistdb -o {tmpdir}", checkRun=False)
-        self.checkListString(rlist, "0x80000388 Database not exist")
+        self.checkListString(rlist, "0x80000388 Database does not exist")
 
         tdLog.info("do_error_cases ................................ [passed]")
 

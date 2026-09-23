@@ -151,7 +151,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 其中，`v3.3.6.6` 起支持 `TAOS_ROOT_PASSWORD`，`v3.3.8.8` 及以上支持 `TAOS_ROOT_PASSWORD_FILE` 并可直接升级，`v3.4.1.0` 及以上支持 `taos-check startup` 和 `taos-check service`。
 
-### 2.7 遇到报错 "some vnode/qnode/mnode(s) out of service" 怎么办？
+### 2.7 遇到报错 "Some vnode/qnode/mnode(s) are out of service" 怎么办？
 
 客户端未配置所有服务端的 FQDN 解析。比如服务端有 3 个节点，客户端只配置了 1 个节点的 FQDN 解析。FQDN 配置参考：[一篇文章说清楚 TDengine 的 FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)
 

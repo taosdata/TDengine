@@ -32,6 +32,7 @@ class TestVtableAuthAlterDropChild:
         Since: v3.3.6.0
 
         Labels: alter,auth,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -83,9 +84,9 @@ class TestVtableAuthAlterDropChild:
                             testSql.execute(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 SET NULL;")
                             testSql.execute(f"alter vtable test_vctable_auth_vtb_{i} set tag int_tag = 2;")
                         else:
-                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 set test_vtable_auth_org_table_2.int_col;", expectErrInfo="Permission denied or target object not exist")
-                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 SET NULL;", expectErrInfo="Permission denied or target object not exist")
-                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} set tag int_tag = 2;", expectErrInfo="Permission denied or target object not exist")
+                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 set test_vtable_auth_org_table_2.int_col;", expectErrInfo="Permission denied or the target object does not exist")
+                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 SET NULL;", expectErrInfo="Permission denied or the target object does not exist")
+                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} set tag int_tag = 2;", expectErrInfo="Permission denied or the target object does not exist")
                     elif (priv_db == "all"):
                         testSql.execute(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 set test_vtable_auth_org_table_2.int_col;")
                         testSql.execute(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 SET NULL;")
@@ -105,7 +106,7 @@ class TestVtableAuthAlterDropChild:
                         if (priv_vtb == "alter" or priv_vtb == "all"):
                             testSql.execute(f"drop vtable test_vctable_auth_vtb_{i};")
                         else:
-                            testSql.error(f"drop vtable test_vctable_auth_vtb_{i};", expectErrInfo="Permission denied or target object not exist")
+                            testSql.error(f"drop vtable test_vctable_auth_vtb_{i};", expectErrInfo="Permission denied or the target object does not exist")
                     elif (priv_db == "all"):
                         testSql.execute(f"drop vtable test_vctable_auth_vtb_{i};")
                     else:

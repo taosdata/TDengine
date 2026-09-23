@@ -1983,11 +1983,11 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   code = mndAcquireStream(pMnode, pauseReq.name, &pStream);
   if (pStream == NULL || code != 0) {
     if (pauseReq.igNotExists) {
-      mInfo("stream:%s, not exist, not stop stream", pauseReq.name);
+      mInfo("stream:%s, does not exist, not stopping stream", pauseReq.name);
       taosMemoryFree(pauseReq.name);
       return 0;
     } else {
-      mError("stream:%s not exist, failed to stop stream", pauseReq.name);
+      mError("stream:%s does not exist, failed to stop stream", pauseReq.name);
       taosMemoryFree(pauseReq.name);
       TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
     }
@@ -2092,12 +2092,12 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   code = mndAcquireStream(pMnode, resumeReq.name, &pStream);
   if (pStream == NULL || code != 0) {
     if (resumeReq.igNotExists) {
-      mInfo("stream:%s not exist, not start stream", resumeReq.name);
+      mInfo("stream:%s does not exist, not starting stream", resumeReq.name);
       taosMemoryFree(resumeReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
-      mError("stream:%s not exist, failed to start stream", resumeReq.name);
+      mError("stream:%s does not exist, failed to start stream", resumeReq.name);
       taosMemoryFree(resumeReq.name);
       TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
     }
@@ -2221,7 +2221,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (!dropReq.igNotExists) {
     for (int32_t i = 0; i < dropReq.count; i++) {
       if (!sdbCheckExists(pMnode->pSdb, SDB_STREAM, dropReq.name[i])) {
-        mError("stream:%s not exist failed to drop it", dropReq.name[i]);
+        mError("stream:%s does not exist, failed to drop it", dropReq.name[i]);
         mndReleaseUser(pMnode, pOperUser);
         tFreeMDropStreamReq(&dropReq);
         TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
@@ -2250,7 +2250,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
     code = mndAcquireStream(pMnode, streamName, &pStream);
     if (pStream == NULL || code != 0) {
-      mWarn("stream:%s not exist, ignore not exist is set, drop stream exec done with success", streamName);
+      mWarn("stream:%s does not exist, the ignore-not-exist flag is set, drop stream exec done with success", streamName);
       sdbRelease(pMnode->pSdb, pStream);
       pStream = NULL;
       notExistNum++;
@@ -2755,7 +2755,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
   code = mndAcquireStream(pMnode, recalcReq.name, &pStream);
   if (pStream == NULL || code != 0) {
-    mError("stream:%s not exist, failed to recalc stream", recalcReq.name);
+    mError("stream:%s does not exist, failed to recalc stream", recalcReq.name);
     tFreeMRecalcStreamReq(&recalcReq);
     TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
   }

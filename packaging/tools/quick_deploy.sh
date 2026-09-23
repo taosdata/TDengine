@@ -67,7 +67,7 @@ echo "#########install suggest package and disable firewall"
 os=$(cat /etc/os-release| grep PRETTY_NAME | awk '{print $1}'|awk -F '=' '{print $2}' | sed 's/"//g')
 if [ $os = 'Ubuntu' ]
 then
-    echo "This is Ununtu!"
+    echo "This is Ubuntu!"
 	#apt install screen tmux gdb fio iperf3 sysstat net-tools ntp tree wget 
 	ufw status
 	ufw stop

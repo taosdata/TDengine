@@ -72,7 +72,7 @@ class TestCompatibilityCoverage:
         packageTPath = packageName.split("-Linux-")[0]
         my_file = Path(f"{packagePath}/{packageName}")
         if not  my_file.exists():
-            print(f"{packageName} is not exists")
+            print(f"{packageName} does not exist")
             tdLog.info(f"cd {packagePath} &&  wget https://www.tdengine.com/assets-download/3.0/{packageName}")
             os.system(f"cd {packagePath} &&  wget https://www.tdengine.com/assets-download/3.0/{packageName}")
         else: 
@@ -100,6 +100,7 @@ class TestCompatibilityCoverage:
         Since: xxx
 
         Labels: common,ci,integration,functional,compatibility
+
         Jira: xxx
 
         Catalog:

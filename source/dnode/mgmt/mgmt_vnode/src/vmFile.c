@@ -201,7 +201,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     code = terrno;
-    dInfo("vnode file:%s not exist, reason:%s", file, tstrerror(code));
+    dInfo("vnode file:%s does not exist, reason:%s", file, tstrerror(code));
     code = 0;
     return code;
   }
@@ -225,7 +225,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
   }
 
   code = 0;
-  dInfo("succceed to read vnode file %s", file);
+  dInfo("successfully read vnode file %s", file);
 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
@@ -390,7 +390,7 @@ int32_t vmGetMountListFromFile(SVnodeMgmt *pMgmt, SMountCfg **ppCfgs, int32_t *n
   pData[size] = '\0';
   TSDB_CHECK_NULL((pJson = tjsonParse(pData)), code, lino, _exit, TSDB_CODE_INVALID_JSON_FORMAT);
   TAOS_CHECK_EXIT(vmDecodeMountList(pJson, pMgmt, ppCfgs, numOfMounts));
-  dInfo("succceed to read mounts file %s", file);
+  dInfo("successfully read mounts file %s", file);
 _exit:
   if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);

@@ -456,7 +456,7 @@ static OldFileKeeper *taosOpenNewFile() {
   tsLogObj.lines = 0;
   OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
   if (oldFileKeeper == NULL) {
-    uError("create old log keep info faild! mem is not enough.");
+    uError("failed to create old log keep info! Memory is not enough.");
     return NULL;
   }
   oldFileKeeper->pOldFile = pOldFile;

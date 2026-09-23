@@ -195,8 +195,8 @@ class TestUdfCreate:
 
     def basic_udf_query(self):
         # create tsma of  udf 
-        tdSql.error("create tsma tsma_udf on db.tb  function(udf1(num1)) interval(10m);") # DB error: Not buildin function (0.001656s)
-        tdSql.error("create tsma tsma_udf on db.stb1  function(udf1(c1)) interval(10m);") # DB error: Not buildin function (0.001656s)
+        tdSql.error("create tsma tsma_udf on db.tb  function(udf1(num1)) interval(10m);") # DB error: Not a built-in function (0.001656s)
+        tdSql.error("create tsma tsma_udf on db.stb1  function(udf1(c1)) interval(10m);") # DB error: Not a built-in function (0.001656s)
         # scalar functions
 
         # udf1_dup
@@ -610,6 +610,7 @@ class TestUdfCreate:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

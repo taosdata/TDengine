@@ -33,7 +33,8 @@ function active_venv() {
   echo -e "active Python3 virtual env: ${env}"
 
   if [ ! -d "${env}/bin/" ]; then
-    echo "warning：venv ${env}/bin does not exist, quit"
+    echo "warning: venv ${env}/bin does not exist, quitting"
+    exit 1
   fi
 
   # active the venv

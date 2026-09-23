@@ -36,7 +36,7 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP:
       if (lastMsgType != reqMsgType) {
-        SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
+        SCH_TASK_ELOG("rsp msg type mismatch, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                       TMSG_INFO(msgType));
         SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
       }
@@ -64,7 +64,7 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
   }
 
   if (lastMsgType != reqMsgType) {
-    SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
+    SCH_TASK_ELOG("rsp msg type mismatch, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                   TMSG_INFO(msgType));
     SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
   }
@@ -711,7 +711,7 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
     SCH_ERR_JRET(taosGetSystemUUIDU64(&msgSendInfo->requestId));
   }
 
-  qDebug("ahandle %p alloced, QID:0x%" PRIx64, msgSendInfo, msgSendInfo->requestId);
+  qDebug("ahandle %p allocated, QID:0x%" PRIx64, msgSendInfo, msgSendInfo->requestId);
 
   if (TDMT_SCH_LINK_BROKEN != msgType) {
     msgSendInfo->msgInfo.pData = msg;

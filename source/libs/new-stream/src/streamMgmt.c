@@ -25,7 +25,7 @@
 void smRemoveReaderFromVgMap(SStreamTask* pTask) {
   SStreamVgReaderTasks* pVg = taosHashAcquire(gStreamMgmt.vgroupMap, &pTask->nodeId, sizeof(pTask->nodeId));
   if (NULL == pVg) {
-    ST_TASK_WLOG("vgroup not exists, tidx:%d", pTask->taskIdx);
+    ST_TASK_WLOG("vgroup does not exist, tidx:%d", pTask->taskIdx);
     return;
   }
 
@@ -463,7 +463,7 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
   
   SStreamTask** ppTask = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == ppTask) {
-    ST_TASK_WLOG("task already not exists in taskMap while try to undeploy it, tidx:%d", pTask->taskIdx);
+    ST_TASK_WLOG("task no longer exists in taskMap while trying to undeploy it, tidx:%d", pTask->taskIdx);
     return code;
   }
 

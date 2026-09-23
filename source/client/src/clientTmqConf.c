@@ -104,7 +104,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
 
   if (strcasecmp(key, "group.id") == 0) {
     if (strchr(value, TMQ_SEPARATOR_CHAR) != NULL) {
-      tqErrorC("invalid group.id:%s, can not contains ':'", value);
+      tqErrorC("invalid group.id:%s, cannot contain ':'", value);
       return TMQ_CONF_INVALID;
     }
     tstrncpy(conf->groupId, value, TSDB_CGROUP_LEN);
