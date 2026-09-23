@@ -3210,7 +3210,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     if (type == DYN_TYPE_TWO_PASS_RESCAN) {
       // vtable two-pass phase-2 rescan: reuse the phase-1 reader (tsdReaderResetStatus keeps
-      // pReadSnap/verRange — version-stable), rewind cursor, then rescan via the normal path below.
+      // pReadSnap/verRange -- version-stable), rewind cursor, then rescan via the normal path below.
       pInfo->scanTimes = 0;
       code = pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
       QUERY_CHECK_CODE(code, lino, _end);

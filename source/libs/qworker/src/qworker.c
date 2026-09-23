@@ -607,7 +607,7 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
 // Two-pass rescan (vtable PERCENTILE phase-2): task/sink/reader were kept alive past
 // phase-1 EOF (see noQuickFree gate in qwHandleTaskComplete). Reset for phase-2: reuse
 // the same reader (qUpdateOperatorParam carries DYN_TYPE_TWO_PASS_RESCAN so the origin
-// TableScan calls tsdReaderResetStatus — version-stable), reset sink, re-run cquery.
+// TableScan calls tsdReaderResetStatus -- version-stable), reset sink, re-run cquery.
 int32_t qwStartTwoPassRescanExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg, bool *pRspSent) {
   int32_t code = 0;
   *pRspSent = false;
@@ -615,7 +615,7 @@ int32_t qwStartTwoPassRescanExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg,
   // The idempotency guard, the pOpParam swap (mirrors qwUpdateTaskOperatorParamFromMsg),
   // the cquery re-queue and the keep-alive disarm all run in one write-lock critical
   // section, and noQuickFree/phase2RescanPending are only disarmed after the phase-2
-  // cquery is actually queued — a concurrent reader (qwKeepTaskAlive/qwExecTask/
+  // cquery is actually queued -- a concurrent reader (qwKeepTaskAlive/qwExecTask/
   // qwHandleTaskComplete) never observes a disarmed task whose rescan never launched.
   QW_LOCK(QW_WRITE, &ctx->lock);
 
@@ -623,12 +623,12 @@ int32_t qwStartTwoPassRescanExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg,
   // retransmitted/duplicated phase-2 fetch would re-run dsReset + reader reset while
   // the first phase-2 cquery is filling the sink.
   if (!atomic_val_compare_exchange_8((int8_t*)&ctx->queryEnd, 1, 0)) {
-    // The duplicate's fetch pre-processing (qwMsg.c) re-armed phase2RescanPending —
+    // The duplicate's fetch pre-processing (qwMsg.c) re-armed phase2RescanPending --
     // disarm it again so a later param-carrying fetch is not misrouted here.
     atomic_store_8(&ctx->phase2RescanPending, false);
     // The CAS also fails when the phase-2 cquery already started (queryEnd==0) and then
     // FAILED. Answering those fetches with an empty non-completed rsp would spin the
-    // client retry loop forever — one fresh pOpParam burned per round, no explicit
+    // client retry loop forever -- one fresh pOpParam burned per round, no explicit
     // failure until the exchange-side retry cap. Surface the sticky job error instead
     // (same failure check as qwGetQueryResFromSink).
     if (ctx->pJobInfo &&
@@ -640,14 +640,14 @@ int32_t qwStartTwoPassRescanExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg,
       QW_UNLOCK(QW_WRITE, &ctx->lock);
       QW_TASK_ELOG("two-pass rescan on failed job, queryEnd:%d execDone:%d, error:%s",
                    atomic_load_8((int8_t*)&ctx->queryEnd), ctx->queryExecDone, tstrerror(jobErr));
-      qDestroyOperatorParam(qwMsg->msg);  // not consumed on this path — avoid the leak
+      qDestroyOperatorParam(qwMsg->msg);  // not consumed on this path -- avoid the leak
       qwMsg->msg = NULL;                     // ownership gone: never leave a dangling pointer on qwMsg
       QW_ERR_RET(jobErr);
     }
     QW_UNLOCK(QW_WRITE, &ctx->lock);
     QW_TASK_WLOG("two-pass rescan skipped, queryEnd:%d execDone:%d (duplicate phase-2 fetch?)",
                  atomic_load_8((int8_t*)&ctx->queryEnd), ctx->queryExecDone);
-    // the rescan operator param is not consumed on this path — destroy it (the caller
+    // the rescan operator param is not consumed on this path -- destroy it (the caller
     // unconditionally clears qwMsg->msg after we return, so it would otherwise leak)
     qDestroyOperatorParam(qwMsg->msg);
     qwMsg->msg = NULL;  // ownership gone; the send-failure return below must not see a dangling pointer
@@ -661,7 +661,7 @@ int32_t qwStartTwoPassRescanExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg,
       QW_TASK_ELOG("two-pass rescan duplicate fetch rsp send fail, code:%x - %s", code, tstrerror(code));
       return code;
     }
-    // The duplicate fetch is fully answered here — tell the caller so its common
+    // The duplicate fetch is fully answered here -- tell the caller so its common
     // response path (post-phase error rsp) does not send a SECOND rsp to the client.
     *pRspSent = true;
     // Same event contract as the normal rescan path below: the client is waiting for
@@ -670,14 +670,14 @@ int32_t qwStartTwoPassRescanExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg,
     return TSDB_CODE_SUCCESS;
   }
   if (NULL == ctx->taskHandle || NULL == ctx->sinkHandle) {
-    // task/sink were freed by an error/DROP racing the phase-2 fetch — refuse instead
+    // task/sink were freed by an error/DROP racing the phase-2 fetch -- refuse instead
     // of dereferencing NULL in qUpdateOperatorParam/dsReset.
     // Roll the CAS back and disarm the pending flag (same critical section): leaving
     // queryEnd==0 with the flag armed would misroute a retried phase-2 fetch into the
     // duplicate branch above (empty non-completed rsp -> client retry spin) instead of
-    // reaching this same explicit refusal — each retry must fail fast with NOT_EXIST.
+    // reaching this same explicit refusal -- each retry must fail fast with NOT_EXIST.
     // noQuickFree must be cleared too: the PRE_FETCH not-exist gate is
-    // `queryEnd && !qwKeepTaskAlive(ctx)` — an armed noQuickFree keeps the task
+    // `queryEnd && !qwKeepTaskAlive(ctx)` -- an armed noQuickFree keeps the task
     // "kept alive" and the gate never fires, so the refusal above would not be
     // reproducible on retry (there is no handle left to protect anyway).
     atomic_store_8(&ctx->phase2RescanPending, false);
@@ -686,18 +686,18 @@ int32_t qwStartTwoPassRescanExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg,
     QW_UNLOCK(QW_WRITE, &ctx->lock);
     QW_TASK_ELOG("two-pass rescan on task without handle, taskHandle:%p sinkHandle:%p", ctx->taskHandle,
                  ctx->sinkHandle);
-    qDestroyOperatorParam(qwMsg->msg);  // not consumed on this path either — avoid the leak
+    qDestroyOperatorParam(qwMsg->msg);  // not consumed on this path either -- avoid the leak
     qwMsg->msg = NULL;                   // ownership gone: never leave a dangling pointer on qwMsg
     QW_ERR_RET(TSDB_CODE_QRY_TASK_NOT_EXIST);
   }
 
   // dsReset vs. a concurrently running cquery executor is safe by construction:
   // 1) The CAS above requires queryEnd==1, which is only stored after a fetch observed
-  //    qComplete = (sink drained && sink query-side end) — and that end flag is set by
+  //    qComplete = (sink drained && sink query-side end) -- and that end flag is set by
   //    dsEndPut, the executor's LAST sink operation of phase-1. So while queryEnd==1 no
   //    executor thread can still be writing this sink. (The one queryEnd==true-with-live-
   //    exec shape, dynamicTask, is routed to qwStartDynamicTaskNewExec before we can be
-  //    reached — see the dispatch order in qwProcessFetch.)
+  //    reached -- see the dispatch order in qwProcessFetch.)
   // 2) A cquery thread between loop iterations re-checks queryEnd under this same ctx
   //    write lock (qwProcessCQuery loop tail): it either exited before our CAS, or
   //    observes queryEnd==0 + queryContinue armed once we release and re-execs into the
@@ -722,13 +722,13 @@ int32_t qwStartTwoPassRescanExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg,
     if (TSDB_CODE_SUCCESS != code) {
       // The rescan cquery was never queued: roll the whole re-arm back inside the same
       // critical section. The caller answers this fetch with an error rsp, so the query
-      // is being torn down — the keep-alive has nothing left to protect. Disarm it too
+      // is being torn down -- the keep-alive has nothing left to protect. Disarm it too
       // (the no-handle branch above does the same for phase2RescanPending): an armed
       // noQuickFree with no rescan ever launching would only delay the completion-path
       // free until the DROP cascade, and any late fetch now fails fast at the PRE_FETCH
       // "query already end" gate instead of re-entering this function.
       qRemoveOperatorParam(ctx->taskHandle, qwMsg->msg);
-      qwMsg->msg = NULL;  // freed above, or owned by the operator chain — gone either way
+      qwMsg->msg = NULL;  // freed above, or owned by the operator chain -- gone either way
       ctx->queryExecDone = true;
       atomic_store_8((int8_t *)&ctx->queryInQueue, 0);
       atomic_store_8((int8_t *)&ctx->queryEnd, 1);
@@ -1199,7 +1199,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   ctx->delayFreeTask = plan->delayFreeTask;
   ctx->dynamicTask = qIsDynamicExecTask(pTaskInfo);
   atomic_store_8(&ctx->noQuickFree, qIsNoQuickFreeTask(pTaskInfo));
-  // A (re-)created task instance starts with no pending two-pass rescan — the flag
+  // A (re-)created task instance starts with no pending two-pass rescan -- the flag
   // belongs to the previous instance's phase-2 fetch only (ctx is keyed by
   // sId/qId/cId/tId/eId and new tasks get a fresh zeroed ctx; this clears any
   // stale flag a same-key re-dispatch could theoretically observe).
@@ -1369,7 +1369,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   SQWPhaseInput input = {0};
   bool toFetch = false;
   // Set when a dispatched sub-handler already answered this fetch inside (e.g. the
-  // two-pass duplicate-fetch path) — the common response path below must stay silent.
+  // two-pass duplicate-fetch path) -- the common response path below must stay silent.
   bool fetchRspSent = false;
 
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_FETCH, &input, NULL));

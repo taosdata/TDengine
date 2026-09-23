@@ -222,7 +222,7 @@ void qDestroyOperatorParam(SOperatorParam* pParam);
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
 
 /**
-  @brief Take back a param installed by qUpdateOperatorParam and destroy it — but only
+  @brief Take back a param installed by qUpdateOperatorParam and destroy it -- but only
          when it is still the pending (not yet consumed) one. For error rollbacks where
          the exec that would have consumed the param never ran.
 */

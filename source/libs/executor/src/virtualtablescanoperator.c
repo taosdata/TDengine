@@ -1837,7 +1837,7 @@ static void vtableTwoPassDestroySortState(SVirtualScanMergeOperatorInfo* pInfo) 
   pInfo->pSavedTuple = NULL;
 
   // Mirror resetVirtualTableMergeOperState: createSortHandle rebuilds the tag-ref state
-  // only when it is NULL, so drop it here — otherwise a phase-1 -> phase-2 restart
+  // only when it is NULL, so drop it here -- otherwise a phase-1 -> phase-2 restart
   // appends duplicate resultDataBlockId entries and keeps stale saved tag blocks alive.
   // tagDownStreamId is likewise re-derived by createSortHandle (its -1 fallback
   // classification only fires while still -1), so reset it like the sibling teardowns.
@@ -1854,7 +1854,7 @@ static void vtableTwoPassDestroySortState(SVirtualScanMergeOperatorInfo* pInfo) 
 // Fetch the 1-row tag block from every ref-tag source downstream and stash copies keyed
 // by resultDataBlockId. Shared by the first pass (virtualTableGetNext entry) and the
 // two-pass restart: after vtableTwoPassDestroySortState + createSortHandle the block ids
-// are new, and phase-2 re-enters via doVirtualTableMerge — it never passes the
+// are new, and phase-2 re-enters via doVirtualTableMerge -- it never passes the
 // virtualTableGetNext entry point, so without an explicit rebuild here the saved blocks
 // stay NULL and doSetTagColumnData NULL-fills every ref-tag column in MAIN_SCAN.
 static int32_t buildSavedTagRefBlocks(SOperatorInfo* pOperator) {
@@ -1934,7 +1934,7 @@ static int32_t vtableTwoPassRestart(SOperatorInfo* pOperator) {
   code = createSortHandle(pOperator);
   if (TSDB_CODE_SUCCESS == code) {
     // Defensive: twoPassMode plans currently have no TAG_REF_SOURCE children (the
-    // planner's vtableTwoPassOptimize rejects them — the remote tag-ref task cannot be
+    // planner's vtableTwoPassOptimize rejects them -- the remote tag-ref task cannot be
     // kept alive for a phase-2 re-fetch), so pTagRefSourceBlockIds is NULL here and this
     // early-returns. If tag-ref support is added later, this rebuilds the saved ref-tag
     // blocks against the rebuilt downstream map, or phase-2 (re-entered via
@@ -1948,7 +1948,7 @@ static int32_t vtableTwoPassRestart(SOperatorInfo* pOperator) {
   // Sticky failure: pSortHandle stays NULL, and doVirtualTableMerge must surface this
   // error on retry instead of reporting a silent EOF (empty PERCENTILE result).
   pInfo->twoPassErr = code;
-  // createSortHandle may have partially built the new handle/ctx list before failing —
+  // createSortHandle may have partially built the new handle/ctx list before failing --
   // free it so the operator is not left in a half-rebuilt state until a later reset.
   vtableTwoPassDestroySortState(pInfo);
 
@@ -1984,7 +1984,7 @@ int32_t doVirtualTableMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   *pResBlock = NULL;
 
   if (pHandle == NULL) {
-    // A failed two-pass restart left pSortHandle NULL — surface the sticky error instead
+    // A failed two-pass restart left pSortHandle NULL -- surface the sticky error instead
     // of silently reporting EOF (which would read as an empty PERCENTILE result).
     VTS_ERR_RET(pInfo->twoPassErr);
     return TSDB_CODE_SUCCESS;
@@ -2011,12 +2011,12 @@ _restart_merge:
 
   // Single pass-EOF detection point: either the sort handed out no block at all (already
   // exhausted on entry, e.g. an empty phase-1), or the merge helper produced zero rows
-  // (tsortNextTuple returned NULL inside the helpers — pIntermediateBlock stays non-NULL
+  // (tsortNextTuple returned NULL inside the helpers -- pIntermediateBlock stays non-NULL
   // between calls, so the NULL check above alone cannot see that case).
   if (p == NULL || p->info.rows == 0) {
     // The planner only sets twoPassMode on static-path scans of virtual child/normal
     // tables (REPEAT_SCAN_FUNC is parser-rejected on virtual super tables), and the
-    // DynQueryCtrl param path is single-pass — so pOperatorGetParam and twoPassMode are
+    // DynQueryCtrl param path is single-pass -- so pOperatorGetParam and twoPassMode are
     // mutually exclusive by construction. The NULL check is a defensive guard keeping
     // vtableTwoPassRestart strictly on the static path its comment documents.
     if (pInfo->twoPassMode && !pInfo->phase1Done && NULL == pOperator->pOperatorGetParam) {
@@ -2026,7 +2026,7 @@ _restart_merge:
       pHandle = pVirtualScanInfo->pSortHandle;  // re-read the rebuilt handle
       goto _restart_merge;
     }
-    return TSDB_CODE_SUCCESS;  // pass EOF — *pResBlock stays NULL
+    return TSDB_CODE_SUCCESS;  // pass EOF -- *pResBlock stays NULL
   }
 
   VTS_ERR_RET(copyDataBlock(pDataBlock, p));
