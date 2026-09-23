@@ -39,6 +39,7 @@ class TestVtableAuthCreate:
         Since: v3.3.6.0
 
         Labels: auth,create,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -81,7 +82,7 @@ class TestVtableAuthCreate:
                         testSql.error(f"create vtable test_vtable_auth_vtb_{i}("
                                       "ts timestamp, "
                                       "int_col_1 int from test_vtable_auth_org_table_1.int_col, "
-                                      "int_col_2 int from test_vtable_auth_org_table_2.int_col);", expectErrInfo="Permission denied or target object not exist")
+                                      "int_col_2 int from test_vtable_auth_org_table_2.int_col);", expectErrInfo="Permission denied or the target object does not exist")
                     elif (priv_db == "all"):
                         testSql.execute(f"create vtable test_vtable_auth_vtb_{i}("
                                         "ts timestamp, "
@@ -123,6 +124,7 @@ class TestVtableAuthCreate:
         Since: v3.3.6.0
 
         Labels: auth,create,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -166,7 +168,7 @@ class TestVtableAuthCreate:
                                       "test_vtable_auth_org_table_1.int_col, "
                                       "test_vtable_auth_org_table_2.int_col) "
                                       "USING test_vtable_auth_stb_1 "
-                                      "TAGS (1);", expectErrInfo="Permission denied or target object not exist")
+                                      "TAGS (1);", expectErrInfo="Permission denied or the target object does not exist")
                     elif (priv_db == "all"):
                         testSql.execute(f"create vtable test_vctable_auth_vtb_{i}("
                                         "test_vtable_auth_org_table_1.int_col, "

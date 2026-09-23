@@ -19,7 +19,7 @@ taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a left j
 
 taos> select b.*, a.ats from (select ts ats, unique(f) from test1.sst) as a left join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(cast(1768465717000 as timestamp)+1a, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a    
 
-DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
+DB error: join is not supported for 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
 taos> select b.*, a.ats from (select ts ats, unique(f) from test1.sst) as a left join test1.sst b on timetruncate(cast(1768465717000 as timestamp)+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
            ts            |           ts2           |      f      |      t      |           ats           |
 ==========================================================================================================

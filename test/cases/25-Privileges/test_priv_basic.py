@@ -65,7 +65,7 @@ class TestPrivBasic:
         testSql = TDSql()
         testSql.init(cursor)
         # create db privilege
-        testSql.error("create database db1;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        testSql.error("create database db1;", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
         # modify db、super table、child table、reguler table privilege
         testSql.error("alter database db buffer 512;")
         testSql.error("alter stable db.stb add column col4 float;")
@@ -95,7 +95,7 @@ class TestPrivBasic:
         testSql.query("select * from information_schema.ins_users;")
         testSql.checkRows(2)
         # drop db privilege
-        testSql.error("drop database db;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        testSql.error("drop database db;", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
         # delete user
         self.delete_user("test")
         # drop db
@@ -159,7 +159,7 @@ class TestPrivBasic:
         test1Sql.init(cursor1)
         # check user 'test' doesn't privilege to grant create db privilege to another user
         testSql.error("alter user test1 createdb 1;", expectErrInfo="Permission denied to set user basic info", fullMatched=False)
-        testSql.error("grant select on db1.stb1 to test1;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        testSql.error("grant select on db1.stb1 to test1;", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
 
         # grant read、write privilege to user 'test' and check user 'test' privileges
         tdSql.execute("grant use,create table on database db to test;")
@@ -976,6 +976,7 @@ class TestPrivBasic:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional,security
+
         Jira: None
 
         History:

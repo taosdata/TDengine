@@ -1407,13 +1407,13 @@ class Task():
             # TDengine 3.0 Error Codes:
             0x0333,  # Object is creating # TODO: this really is NOT an acceptable error
             0x0369,  # Tag already exists
-            0x0388,  # Database not exist
+            0x0388,  # Database does not exist
             0x03A0,  # STable already exists
             0x03A1,  # STable [does] not exist
             0x03AA,  # Tag already exists
             0x0603,  # Table already exists
             0x2603,  # Table does not exist, replaced by 2662 below
-            0x260d,  # Tags number not matched
+            0x260d,  # Tag count does not match
             0x2662,  # Table does not exist #TODO: what about 2603 above?
             0x2600,  # database not specified, SQL: show stables , database droped , and show tables
             0x032C,  # Object is creating
@@ -1441,7 +1441,7 @@ class Task():
         elif errno == 0x200:  # invalid SQL, we need to div in a bit more
             if msg.find("invalid column name") != -1:
                 return True
-            elif msg.find("tags number not matched") != -1:  # mismatched tags after modification
+            elif msg.find("tag count does not match") != -1:  # mismatched tags after modification
                 return True
             elif msg.find("duplicated column names") != -1:  # also alter table tag issues
                 return True

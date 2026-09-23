@@ -638,7 +638,7 @@ static SyncIndex vnodeSyncAppliedIndex(const SSyncFSM *pFSM) {
 static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   vGDebug(&pMsg->info.traceId,
-          "vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
+          "vgId:%d, rollback-cb is executed, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
           pVnode->config.vgId, pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state, syncStr(pMeta->state),
           TMSG_INFO(pMsg->msgType));
 }
@@ -939,7 +939,7 @@ void vnodeSyncCheckTimeout(SVnode *pVnode) {
       if (syncSendTimeoutRsp(pVnode->sync, pVnode->blockSeq) != 0) {
 #if 0
         SRpcMsg rpcMsg = {.code = TSDB_CODE_SYN_TIMEOUT, .info = pVnode->blockInfo};
-        vError("send timeout response since its applyed, seq:%" PRId64 " handle:%p ahandle:%p", pVnode->blockSeq,
+        vError("send timeout response since its applied, seq:%" PRId64 " handle:%p ahandle:%p", pVnode->blockSeq,
               rpcMsg.info.handle, rpcMsg.info.ahandle);
         rpcSendResponse(&rpcMsg);
 #endif

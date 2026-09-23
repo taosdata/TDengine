@@ -131,7 +131,7 @@ int32_t dmReadEps(SDnodeData *pData) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("dnode file:%s not exist", file);
+    dInfo("dnode file:%s does not exist", file);
 
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
     if (strlen(tsEncryptAlgorithm) > 0) {
@@ -230,7 +230,7 @@ int32_t dmReadEps(SDnodeData *pData) {
   }
 
   code = 0;
-  dInfo("succceed to read dnode file %s", file);
+  dInfo("successfully read dnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -595,7 +595,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     code = terrno;
-    dDebug("dnode file:%s not exist, reason:%s", file, tstrerror(code));
+    dDebug("dnode file:%s does not exist, reason:%s", file, tstrerror(code));
     code = 0;
     goto _OVER;
   }
@@ -629,7 +629,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   }
 
   code = 0;
-  dInfo("succceed to read dnode file %s", file);
+  dInfo("successfully read dnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -659,7 +659,7 @@ _OVER:
       SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
       if (pDnodeEp->id != pair->id &&
           (strcmp(pDnodeEp->ep.fqdn, pair->newFqdn) == 0 && pDnodeEp->ep.port == pair->newPort)) {
-        dError("dnode:%d, can't update ep:%s:%u to %s:%u since already exists as dnode:%d", pair->id, pair->oldFqdn,
+        dError("dnode:%d, cannot update ep:%s:%u to %s:%u since already exists as dnode:%d", pair->id, pair->oldFqdn,
                pair->oldPort, pair->newFqdn, pair->newPort, pDnodeEp->id);
         taosArrayDestroy(pData->oldDnodeEps);
         pData->oldDnodeEps = NULL;

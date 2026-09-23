@@ -260,7 +260,7 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
     cp -r ${connector_dir}/go ${install_dir}/connector
   else
-    echo "WARNING: go connector not found, please check if want to use it!"
+    echo "WARNING: go connector not found, skipping it!"
   fi
   cp -r ${connector_dir}/python ${install_dir}/connector || :
   cp -r ${connector_dir}/nodejs ${install_dir}/connector || :

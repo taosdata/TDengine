@@ -315,7 +315,7 @@ class RestoreBasic:
         # path exist
         qfile = f"{del_dir}/qnode.json"
         if os.path.exists(qfile) == False:
-            tdLog.exit(f"qnode restore failed. qnode.json is not exist. {qfile}")
+            tdLog.exit(f"qnode restore failed. qnode.json does not exist. {qfile}")
         else:
             tdLog.info(f"check qnode.json restore ok. {qfile}")
     

@@ -250,7 +250,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     if (taosFqdnEnvItem != NULL) {
       tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", len);
       TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, subLen);
-      fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
+      fnInfo("[UDFD]Succeeded in setting TAOS_FQDN:%s", taosFqdn);
     } else {
       fnError("[UDFD]Failed to allocate memory for TAOS_FQDN");
       err = terrno;
@@ -379,7 +379,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 #endif
 
   if (err != 0) {
-    fnError("can not spawn udfd. path: %s, error: %s", path, uv_strerror(err));
+    fnError("cannot spawn udfd. path: %s, error: %s", path, uv_strerror(err));
   } else {
     fnInfo("udfd is initialized");
   }

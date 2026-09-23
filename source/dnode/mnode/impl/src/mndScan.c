@@ -1050,7 +1050,7 @@ static int32_t mndSetScanDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
       SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
 
       if (pVgroup == NULL) {
-        mError("db:%s, vgroup:%" PRId64 " not exist", pDb->name, vgId);
+        mError("db:%s, vgroup:%" PRId64 " does not exist", pDb->name, vgId);
         TAOS_RETURN(TSDB_CODE_MND_VGROUP_NOT_EXIST);
       } else if (pVgroup->dbUid != pDb->uid) {
         mError("db:%s, vgroup:%" PRId64 " not belong to db:%s", pDb->name, vgId, pDb->name);

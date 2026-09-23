@@ -624,7 +624,7 @@ static int32_t removeList(SHashObj* idMap, SStreamTableKeyInfo* table, uint64_t 
   int32_t lino = 0;
   SStreamTableList* list = taosHashGet(idMap, &key, LONG_BYTES);
   if (list == NULL) {
-    stError("stream reader remove table list failed, groupId not exist, key:%"PRIu64, key);
+    stError("stream reader remove table list failed, groupId does not exist, key:%"PRIu64, key);
     code = TSDB_CODE_NOT_FOUND;
     goto end;
   } 

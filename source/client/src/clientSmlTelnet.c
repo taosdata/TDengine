@@ -37,7 +37,7 @@ int64_t smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len) {
   uint8_t toPrecision = info->currSTableMeta ? info->currSTableMeta->tableInfo.precision : TSDB_TIME_PRECISION_NANO;
 
   if (unlikely(!data)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "timestamp can not be null", NULL);
+    smlBuildInvalidDataMsg(&info->msgBuf, "timestamp cannot be null", NULL);
     return -1;
   }
   if (unlikely(len == 1 && data[0] == '0')) {

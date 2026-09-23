@@ -34,7 +34,7 @@ from crash_gen_paths import (
 # valgrind mode ?
 valgrind_mode =  False
 
-msg_dict = {0: "success", 1: "failed", 2: "other errors", 3: "crash occured", 4: "Invalid read/write", 5: "memory leak", 6: "dead locked"}
+msg_dict = {0: "success", 1: "failed", 2: "other errors", 3: "crash occurred", 4: "Invalid read/write", 5: "memory leak", 6: "dead locked"}
 
 # formal
 hostname = socket.gethostname()
@@ -296,7 +296,7 @@ def main():
     if os.path.exists(crash_gen_path+"crash_gen.sh"):
         print(" make sure crash_gen.sh is ready")
     else:
-        print( " crash_gen.sh is not exists ")
+        print( "crash_gen.sh does not exist")
         sys.exit(1)
 
     git_commit = subprocess.Popen("cd %s && git log | head -n1"%crash_gen_path, shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")[7:16]

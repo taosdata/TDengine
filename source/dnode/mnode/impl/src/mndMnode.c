@@ -822,7 +822,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   if (totalMnodes == 2) {
     if (force) {
-      mError("cant't force drop dnode, since a mnode on it and replica is 2");
+      mError("cannot force drop dnode, since a mnode is on it and replica is 2");
       code = TSDB_CODE_MNODE_ONLY_TWO_MNODE;
       TAOS_RETURN(code);
     }

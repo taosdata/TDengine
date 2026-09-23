@@ -28,7 +28,7 @@ bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
 
   /* Compile regular expression */
   if (regcomp(&regex, reg, cflags) != 0) {
-    fprintf(stderr, "Fail to compile regex");
+    fprintf(stderr, "Failed to compile regex");
     shellExit();
   }
 

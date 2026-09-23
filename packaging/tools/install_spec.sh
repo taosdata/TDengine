@@ -523,7 +523,7 @@ function set_ipAsFqdn() {
   echo -e -n "${GREEN}$iplist${NC}"
   echo
   echo
-  echo -e -n "${GREEN}Notes: if IP is used as the node name, data can NOT be migrated to other machine directly${NC}:"
+  echo -e -n "${GREEN}Notes: if IP is used as the node name, data cannot be migrated to another machine directly${NC}:"
   read localFqdn
   while true; do
     if [ ! -z "$localFqdn" ]; then

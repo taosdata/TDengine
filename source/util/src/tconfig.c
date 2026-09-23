@@ -369,7 +369,7 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
 
 static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   if (stype == CFG_STYPE_ALTER_SERVER_CMD || stype == CFG_STYPE_ALTER_CLIENT_CMD) {
-    uError("failed to config charset, not support");
+    uError("failed to config charset, is not supported");
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
 
@@ -395,7 +395,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
 
 static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
-    uError("failed to config locale, not support");
+    uError("failed to config locale, is not supported");
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
 
@@ -780,7 +780,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
   TAOS_CHECK_EXIT(checkItemDyn(pItem, isServer));
 
   if ((pItem->category == CFG_CATEGORY_GLOBAL) && alterType == CFG_ALTER_DNODE) {
-    uError("failed to config:%s, not support update global config on only one dnode", name);
+    uError("failed to config:%s, updating global config on only one dnode is not supported", name);
     code = TSDB_CODE_INVALID_CFG;
     goto _exit;
   }

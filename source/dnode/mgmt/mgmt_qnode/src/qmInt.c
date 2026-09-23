@@ -66,7 +66,7 @@ static int32_t qmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   tmsgReportStartup("qnode-impl", "initialized");
 
   if ((code = udfcOpen()) != 0) {
-    dError("qnode can not open udfc");
+    dError("qnode cannot open udfc");
     qmClose(pMgmt);
     return code;
   }

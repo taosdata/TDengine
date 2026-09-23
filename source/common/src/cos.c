@@ -1203,7 +1203,7 @@ static SArray *getListByPrefixByEp(const char *prefix, int8_t epIndex) {
   list_bucket_callback_data    data = {0};
   data.objectArray = taosArrayInit(32, sizeof(void *));
   if (!data.objectArray) {
-    uError("%s: %s", __func__, "out of memoty");
+    uError("%s: %s", __func__, "out of memory");
     return NULL;
   }
   /*if (marker) {

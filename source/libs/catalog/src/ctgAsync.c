@@ -4635,7 +4635,7 @@ _return:
       if (TSDB_CODE_MND_SMA_NOT_EXIST == code) {
         code = TSDB_CODE_SUCCESS;
       } else {
-        ctgTaskError("get tsma for %d.%s.%s faield with err:%s", pTbName->acctId, pTbName->dbname, pTbName->tname,
+        ctgTaskError("get tsma for %d.%s.%s failed with err:%s", pTbName->acctId, pTbName->dbname, pTbName->tname,
                      tstrerror(code));
       }
     }

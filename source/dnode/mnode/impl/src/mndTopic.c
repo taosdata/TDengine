@@ -602,7 +602,7 @@ static int32_t reloadTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
   code = mndAcquireTopic(pMnode, createTopicReq->name, &pTopic);
   if (code != 0) {
     if (createTopicReq->igExists) {
-      mInfo("topic:%s, not exist, ignore not exist is set", createTopicReq->name);
+      mInfo("topic:%s, does not exist, ignore-not-exist is set", createTopicReq->name);
       code = 0;
       goto END;
     } else {
@@ -796,7 +796,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   code = mndAcquireTopic(pMnode, dropReq.name, &pTopic);
   if (code != 0) {
     if (dropReq.igNotExists) {
-      mInfo("topic:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("topic:%s, does not exist, the ignore-not-exist flag is set", dropReq.name);
       code = 0;
     }
     goto END;

@@ -2765,17 +2765,17 @@ static int32_t taosCheckGlobalCfg() {
   uInfo("check global fqdn:%s and port:%u", tsLocalFqdn, tsServerPort);
   int32_t code = taosGetIpFromFqdn(tsEnableIpv6, tsLocalFqdn, &addr);
   if (code) {
-    uError("failed to get ip from fqdn:%s since %s, can not be initialized", tsLocalFqdn, tstrerror(code));
+    uError("failed to get ip from fqdn:%s since %s, cannot be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
   if (tsServerPort <= 0) {
-    uError("invalid server port:%u, can not be initialized", tsServerPort);
+    uError("invalid server port:%u, cannot be initialized", tsServerPort);
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
   if (tsMqttPort <= 0 || tsMqttPort == tsServerPort) {
-    uError("invalid mqtt port:%u, can not be initialized", tsMqttPort);
+    uError("invalid mqtt port:%u, cannot be initialized", tsMqttPort);
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
@@ -3270,7 +3270,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
           TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_DB_NAME_LEN));
           tstrncpy(tsSlowLogExceptDb, pItem->str, TSDB_DB_NAME_LEN);
         } else {
-          uError("not support string type for %s", optName);
+          uError("string type is not supported for %s", optName);
           code = TSDB_CODE_INVALID_CFG;
           break;
         }
@@ -3308,7 +3308,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope == CFG_DYN_CLIENT)) {
-    uError("failed to config:%s, not support", name);
+    uError("failed to config:%s, is not supported", name);
     code = TSDB_CODE_INVALID_CFG;
     goto _exit;
   }
@@ -3619,7 +3619,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if ((pItem == NULL) || pItem->dynScope == CFG_DYN_SERVER) {
-    uError("failed to config:%s, not support", name);
+    uError("failed to config:%s, is not supported", name);
     code = TSDB_CODE_INVALID_CFG;
     goto _out;
   }

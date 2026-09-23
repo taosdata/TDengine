@@ -58,6 +58,7 @@ class Test_ThreeGorges:
         Since: v3.3.3.7
 
         Labels: common,ci,skip,integration,functional
+
         Jira: None
 
         History:
@@ -104,7 +105,7 @@ class Test_ThreeGorges:
         try:
             tdSql.execute(stream1,queryTimes=2)
         except Exception as e:
-            if "_WSTART, _WEND" in str(e) and "can only be used in window query" in str(e):
+            if "_WSTART, _WEND" in str(e) and "can only be used in a window query" in str(e):
                 tdLog.info(f"create stream error: {e}")
             else:
                 raise

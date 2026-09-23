@@ -42,7 +42,7 @@ static void vmFreeVnodeObj(SVnodeObj **ppVnode) {
 
   int32_t refCount = atomic_load_32(&pVnode->refCount);
   while (refCount > 0) {
-    dWarn("vgId:%d, vnode is refenced, retry to free in 200ms, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
+    dWarn("vgId:%d, vnode is referenced, retry to free in 200ms, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
     taosMsleep(200);
     refCount = atomic_load_32(&pVnode->refCount);
   }
@@ -509,7 +509,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal,
   dInfo("vgId:%d, wait for vnode stream reader queue:%p is empty", pVnode->vgId, pVnode->pStreamReaderQ);
   while (!taosQueueEmpty(pVnode->pStreamReaderQ)) taosMsleep(10);
 
-  dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
+  dInfo("vgId:%d, all vnode queues are empty", pVnode->vgId);
 
   dInfo("vgId:%d, post close", pVnode->vgId);
   vnodePostClose(pVnode->pImpl);

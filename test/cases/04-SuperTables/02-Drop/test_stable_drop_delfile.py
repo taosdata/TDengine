@@ -43,7 +43,7 @@ class TestDeleteCheck:
         tdSql.execute(f"compact database {self.dbname}", show=True)
         waitSeconds = 600
         if self.waitCompacts(waitSeconds) == False:
-            tdLog.exit(f"compacts can not finish after wait {waitSeconds} seconds")
+            tdLog.exit(f"compaction cannot finish after waiting {waitSeconds} seconds")
             return          
 
     # check tsdb folder empty
@@ -129,6 +129,7 @@ class TestDeleteCheck:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

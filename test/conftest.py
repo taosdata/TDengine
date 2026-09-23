@@ -962,7 +962,7 @@ def add_common_methods(request):
         for x in rlist:
             print(f"{i} {x}")
             i += 1
-        tdLog.exit(f'faild, not found "{s}" on above')
+        tdLog.exit(f'failed, not found "{s}" on above')
 
     request.cls.checkListString = checkListString
 

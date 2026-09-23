@@ -347,7 +347,7 @@ int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
     TSDB_CHECK_CODE(code, lino, _error);
 
     if (pBse->commitInfo.fmtVer != BSE_FMT_VER) {
-      bseError("vgId:%d, current meta file version %d not match with %d", BSE_VGID(pBse), pBse->commitInfo.fmtVer,
+      bseError("vgId:%d, current meta file version %d does not match with %d", BSE_VGID(pBse), pBse->commitInfo.fmtVer,
                BSE_FMT_VER);
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _error;

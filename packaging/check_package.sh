@@ -102,7 +102,7 @@ function kill_process() {
 function check_file() {
     #check file whether exists
     if [ ! -e $1/$2 ];then
-        echo -e "$1/$2 \033[31mnot exists\033[0m!quit"
+        echo -e "$1/$2 \033[31mdoes not exist\033[0m! quit"
         fin_result=$fin_result"\033[31m$temp_version\033[0m test failed!\n"
         echo -e $fin_result
         exit 8
@@ -128,7 +128,7 @@ function check_link() {
             exit 8
         fi
     else
-        echo -e "$1 \033[31mnot exists\033[0m!quit"
+        echo -e "$1 \033[31mdoes not exist\033[0m! quit"
         fin_result=$fin_result"\033[31m$temp_version\033[0m test failed!\n"
         echo -e $fin_result
         exit 8

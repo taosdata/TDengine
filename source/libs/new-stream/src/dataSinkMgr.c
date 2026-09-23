@@ -1961,7 +1961,7 @@ int32_t cleanStreamDataCache(void* pCache, int64_t groupId) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
-    stError("cleanStreamDataCache not support immediate mode");
+    stError("cleanStreamDataCache is not supported in immediate mode");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
 
   } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {

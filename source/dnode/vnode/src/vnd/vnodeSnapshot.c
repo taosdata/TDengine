@@ -455,7 +455,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbMEDIUMDone) {
     if (pReader->pTsdbMEDIUMReader == NULL) {
       vError(
-          "vgId:%d, tsdb snap medium reader is expected to be opened via SNAP_DATA_MEDIUM TLV, but it's not. abort "
+          "vgId:%d, tsdb snap medium reader is expected to be opened via SNAP_DATA_MEDIUM TLV, but it is not. abort "
           "reading medium snap data",
           vgId);
       code = -1;

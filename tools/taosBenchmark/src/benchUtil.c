@@ -1827,7 +1827,7 @@ int postProcessSql(char *sqlstr, char* dbName, int precision, int iface,
                                 rest_port,
                                 tcp, sockfd, filePath, responseBuf,
                                 response_length);
-    debugPrint("sqls:%s db:%s iface:%d protocal:%d rest_port:%d tcp:%d sockfd:%d response=%s\n",
+    debugPrint("sqls:%s db:%s iface:%d protocol:%d rest_port:%d tcp:%d sockfd:%d response=%s\n",
            sqlstr, dbName, iface, protocol, rest_port, tcp, sockfd, responseBuf);
 
     if (NULL != strstr(responseBuf, resHttpOk) && iface == REST_IFACE) {

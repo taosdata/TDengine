@@ -81,7 +81,7 @@ class TestAlterDatabase:
         tdSql.checkEqual("Encryption is not allowed to be changed after database is created", tdSql.error('alter database db encrypt_algorithm \'sM4-CBC\''))
         tdSql.execute('alter database db encrypt_algorithm \'noNe\'')
         tdSql.checkEqual("Invalid option encrypt_algorithm", tdSql.error('alter database db encrypt_algorithm \'\''))
-        tdSql.checkEqual("Encrypt algorithm not exists in list", tdSql.error('alter database db encrypt_algorithm \'none \''))
+        tdSql.checkEqual("Encryption algorithm does not exist in the list", tdSql.error('alter database db encrypt_algorithm \'none \''))
         tdSql.execute('drop database db')
 
     def alter_same_options(self):
@@ -168,6 +168,7 @@ class TestAlterDatabase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

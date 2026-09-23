@@ -5,7 +5,7 @@ RESULT
 ---
 ### 002
 SQL: select count(*) from fq05_en_m.push_t
-ERROR -0x7ffffc78: Database not exist
+ERROR -0x7ffffc78: Database does not exist
 ---
 ### 003
 SQL: create external source fq05_en2_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database=fq05_enable

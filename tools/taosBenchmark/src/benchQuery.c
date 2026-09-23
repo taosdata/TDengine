@@ -883,7 +883,7 @@ static int specQueryMix(uint16_t iface, char* dbName) {
     int start_sql     = 0;
     int a             = total_sql_num / nConcurrent;
     if (a < 1) {
-        warnPrint("sqls num:%d < concurent:%d, so set concurrent to %d\n", total_sql_num, nConcurrent, nConcurrent);
+        warnPrint("sqls num:%d < concurrent:%d, so set concurrent to %d\n", total_sql_num, nConcurrent, nConcurrent);
         nConcurrent = total_sql_num;
         a = 1;
     }
@@ -1031,7 +1031,7 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     int start_sql     = 0;
     int a             = total_sql_num / nConcurrent;
     if (a < 1) {
-        warnPrint("sqls num:%d < concurent:%d, set concurrent %d\n", total_sql_num, nConcurrent, nConcurrent);
+        warnPrint("sqls num:%d < concurrent:%d, set concurrent %d\n", total_sql_num, nConcurrent, nConcurrent);
         nConcurrent = total_sql_num;
         a = 1;
     }
@@ -1264,7 +1264,7 @@ int queryTestProcess() {
         }
     } else {
         // nothing
-        errorPrint("%s\n", "Both 'specified_table_query' and 'super_table_query' sqls is empty.");
+        errorPrint("%s\n", "Both 'specified_table_query' and 'super_table_query' sqls are empty.");
         return -1;
     }
 

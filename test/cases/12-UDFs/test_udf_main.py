@@ -400,7 +400,7 @@ class TestUdfpyMain:
                    tdLog.info(f" child table={i} rows={j} insert data.")
                    values = ""
 
-        # partial columns upate
+        # partial columns update
         sql = f'insert into {tbname}0(ts, col1, col9, col11) values(now, 100, 200, 0)'
         tdSql.execute(sql)
         sql = f'insert into {tbname}0(ts, col2, col5, col8) values(now, 100, 200, 300)'
@@ -456,6 +456,7 @@ class TestUdfpyMain:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

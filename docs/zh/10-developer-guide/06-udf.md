@@ -745,8 +745,8 @@ tail -10 /var/log/taos/taosudf.log
 发现以下错误信息。
 
 ```text
-05/24 22:46:28.733545 01665799 UDF ERROR can not load library libtaospyudf.so. error: operation not permitted
-05/24 22:46:28.733561 01665799 UDF ERROR can not load python plugin. lib path libtaospyudf.so
+05/24 22:46:28.733545 01665799 UDF ERROR cannot load library libtaospyudf.so. error: operation not permitted
+05/24 22:46:28.733561 01665799 UDF ERROR cannot load python plugin. lib path libtaospyudf.so
 ```
 
 错误很明确：没有加载到 Python 插件 libtaospyudf.so。从 `v3.4.1.12` 起，该插件随 TDengine 安装包内置。如果遇到此错误，请确认 TDengine 已正确安装，并执行 `ldconfig` 刷新动态链接库缓存。对于 v3.4.1.12 之前的版本，请通过 `pip3 install taospyudf` 手动安装。
