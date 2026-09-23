@@ -135,6 +135,17 @@ void    mndXnodeSixStarMergeOutputFree(SXnodeSixStarMergeOutput *pOutput);
 
 #define TSDB_XNODE_VER_NUMBER   1
 
+/* Desired state of an XNode task/job persisted in mnode and exposed via
+ * SHOW ... desired_state. Only STOPPED and RUNNING are valid storage values;
+ * UNKNOWN is only used as an in-memory fallback when decoding rows written by
+ * older versions, and must never be written back to sdb raw.
+ */
+typedef enum {
+  XNODE_TASK_DESIRED_STATE_UNKNOWN = 0,
+  XNODE_TASK_DESIRED_STATE_STOPPED = 1,
+  XNODE_TASK_DESIRED_STATE_RUNNING = 2,
+} EXnodeTaskDesiredState;
+
 int32_t mndInitXnode(SMnode* pMnode);
 void    mndCleanupXnode(SMnode* pMnode);
 void    mndRetrieveTasks(SMnode* pMnode, SArray* pFc, SArray* pAd);
