@@ -885,6 +885,7 @@
 
 # 12-UDFs
 ,,n,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_c.py
+,,n,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_c_examples.py
 ,,n,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_py.py
 ,,n,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_with_const.py
 ,,n,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_restart_taosd.py

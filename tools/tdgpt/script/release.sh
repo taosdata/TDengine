@@ -1,6 +1,19 @@
 #!/bin/bash
 
-# Generate install package for Linux Platform
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 all_models=0
@@ -102,7 +115,7 @@ if [ ! -f "${version_file}" ] && [ -f "${lib_install_dir}/${initFile}" ]; then
 fi
 
 if [ ! -f "${version_file}" ]; then
-  echo "Error: $initFile not found, failed set the version. Please check the existance of __init__.py" >&2; exit 1
+  echo "Error: $initFile not found, failed to set the version. Please check whether __init__.py exists" >&2; exit 1
 else
   # replace the version number
   sed -i.bak "s/^__version__ = .*/__version__ = '${version}'/" "${version_file}"
@@ -142,7 +155,7 @@ cd ${install_dir} && tar -zcv -f ${tarName} ./lib/* || :
 
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
-  echo "tar ${tarName} error !!!"
+  echo "failed to pack ${tarName} !!!"
   exit $exitcode
 fi
 
@@ -176,7 +189,7 @@ fi
 
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
-  echo "tar ${pkg_name}.tar.gz error !!!"
+  echo "failed to pack ${pkg_name}.tar.gz !!!"
   exit $exitcode
 fi
 

@@ -1,6 +1,18 @@
-// Package serve implements an HTTP server that exposes fuzz run reports through a JSON API and serves the embedded web frontend.
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 //
-// Package serve 实现一个 HTTP 服务器，通过 JSON API 暴露 fuzz 运行报告，并提供内嵌的 Web 前端。
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package serve
 
 import (

@@ -7721,7 +7721,7 @@ ERROR: [0x6407]: External source not found
 ### DIM-13[MYS] STEP-004.047 EXEC
 SQL: use nonexist_source_xyz
 RESULT:
-ERROR: [0x0388]: Database not exist
+ERROR: [0x0388]: Database does not exist
 ---
 ### DIM-13[MYS] STEP-004.048 EXEC
 SQL: use nonexist_source_xyz.some_ns
@@ -7987,7 +7987,7 @@ ERROR: [0x6407]: External source not found
 ### DIM-13[POS] STEP-004.047 EXEC
 SQL: use nonexist_source_xyz
 RESULT:
-ERROR: [0x0388]: Database not exist
+ERROR: [0x0388]: Database does not exist
 ---
 ### DIM-13[POS] STEP-004.048 EXEC
 SQL: use nonexist_source_xyz.some_ns
@@ -8253,7 +8253,7 @@ ERROR: [0x6407]: External source not found
 ### DIM-13[INF] STEP-004.047 EXEC
 SQL: use nonexist_source_xyz
 RESULT:
-ERROR: [0x0388]: Database not exist
+ERROR: [0x0388]: Database does not exist
 ---
 ### DIM-13[INF] STEP-004.048 EXEC
 SQL: use nonexist_source_xyz.some_ns
@@ -8396,7 +8396,7 @@ ERROR: [0x2600]: syntax error near ".more.deep"
 ### DIM-14[MYS] STEP-004.018 EXEC
 SQL: use nonexist_source_xyz
 RESULT:
-ERROR: [0x0388]: Database not exist
+ERROR: [0x0388]: Database does not exist
 ---
 ### DIM-14[MYS] STEP-004.019 COMMENT
 -- USE non-existent source.ns → should fail
@@ -8653,7 +8653,7 @@ ERROR: [0x2600]: syntax error near ".more.deep"
 ### DIM-14[POS] STEP-004.018 EXEC
 SQL: use nonexist_source_xyz
 RESULT:
-ERROR: [0x0388]: Database not exist
+ERROR: [0x0388]: Database does not exist
 ---
 ### DIM-14[POS] STEP-004.019 COMMENT
 -- USE non-existent source.ns → should fail
@@ -8910,7 +8910,7 @@ ERROR: [0x2600]: syntax error near ".more.deep"
 ### DIM-14[INF] STEP-004.018 EXEC
 SQL: use nonexist_source_xyz
 RESULT:
-ERROR: [0x0388]: Database not exist
+ERROR: [0x0388]: Database does not exist
 ---
 ### DIM-14[INF] STEP-004.019 COMMENT
 -- USE non-existent source.ns → should fail
@@ -10137,7 +10137,7 @@ ERROR: [0x6407]: External source not found
 ### DIM-17[MYS] STEP-003.011 EXEC
 SQL: use fq02_dim17
 RESULT:
-ERROR: [0x0388]: Database not exist
+ERROR: [0x0388]: Database does not exist
 ---
 ### DIM-17[MYS] STEP-004 CLEANUP
 SQL: drop external source if exists fq02_dim17
@@ -10206,7 +10206,7 @@ ERROR: [0x6407]: External source not found
 ### DIM-17[POS] STEP-003.011 EXEC
 SQL: use fq02_dim17
 RESULT:
-ERROR: [0x0388]: Database not exist
+ERROR: [0x0388]: Database does not exist
 ---
 ### DIM-17[POS] STEP-004 CLEANUP
 SQL: drop external source if exists fq02_dim17
@@ -10275,7 +10275,7 @@ ERROR: [0x6407]: External source not found
 ### DIM-17[INF] STEP-003.011 EXEC
 SQL: use fq02_dim17
 RESULT:
-ERROR: [0x0388]: Database not exist
+ERROR: [0x0388]: Database does not exist
 ---
 ### DIM-17[INF] STEP-004 CLEANUP
 SQL: drop external source if exists fq02_dim17

@@ -1,6 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Generate tar.gz package for all os system
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 # set -x
@@ -275,7 +288,7 @@ fi
 cd ${release_dir}
 rm -f "${tarName}"
 if ! tar -zcv -f "${tarName}" -C "${install_dir}" --exclude="./${tarName}" .; then
-  echo "tar ${tarName} error !!!"
+  echo "failed to pack ${tarName} !!!"
   exit 1
 fi
 find "${install_dir}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
@@ -446,7 +459,7 @@ fi
 final_pkg_name="$(basename "${pkg_name}").tar.gz"
 rm -f "${final_pkg_name}"
 if ! tar -zcv -f "${final_pkg_name}" "$(basename "${install_dir}")"; then
-  echo "tar ${final_pkg_name} error !!!"
+  echo "failed to pack ${final_pkg_name} !!!"
   exit 1
 fi
 [ -n "${install_dir}" ] && [ "${install_dir}" != "/" ] && rm -rf "${install_dir}"

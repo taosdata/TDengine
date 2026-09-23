@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 #
 # Isolate the gnulib symbols that GNU SASL (libgsasl) statically bundles, so they
 # do not collide with TDengine's own implementations when libgsasl.a is linked into
@@ -14,6 +30,7 @@
 # definition and any intra-archive references, so libgsasl's internal linkage is preserved.
 #
 # Usage: isolate_gsasl_syms.sh <path-to-libgsasl.a> [nm] [objcopy]
+
 set -euo pipefail
 
 LIB="${1:?usage: isolate_gsasl_syms.sh <libgsasl.a> [nm] [objcopy]}"

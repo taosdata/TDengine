@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1216,7 +1218,7 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
     if (cacheCode == 0) {
       int32_t removeCode = taosHashRemove(pVnode->pTxnMetaCache, &pEntry->txnId, sizeof(int64_t));
       if(removeCode != 0) {
-        vWarn("vgId:%d, failed to remove from finilize hash for txnId:%" PRId64 " since %s", TD_VID(pVnode),
+        vWarn("vgId:%d, failed to remove from finalize hash for txnId:%" PRId64 " since %s", TD_VID(pVnode),
               pEntry->txnId, tstrerror(code));
       }
       atomic_fetch_sub_32(&pVnode->txnPendingCount, 1);

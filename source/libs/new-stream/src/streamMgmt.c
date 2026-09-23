@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,7 +27,7 @@
 void smRemoveReaderFromVgMap(SStreamTask* pTask) {
   SStreamVgReaderTasks* pVg = taosHashAcquire(gStreamMgmt.vgroupMap, &pTask->nodeId, sizeof(pTask->nodeId));
   if (NULL == pVg) {
-    ST_TASK_WLOG("vgroup not exists, tidx:%d", pTask->taskIdx);
+    ST_TASK_WLOG("vgroup does not exist, tidx:%d", pTask->taskIdx);
     return;
   }
 
@@ -471,7 +473,7 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
   
   SStreamTask** ppTask = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == ppTask) {
-    ST_TASK_WLOG("task already not exists in taskMap while try to undeploy it, tidx:%d", pTask->taskIdx);
+    ST_TASK_WLOG("task no longer exists in taskMap while trying to undeploy it, tidx:%d", pTask->taskIdx);
     return code;
   }
 

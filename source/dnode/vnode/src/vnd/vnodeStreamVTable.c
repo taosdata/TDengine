@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -846,7 +848,7 @@ static int32_t vnodeResolveTableGroup(SVnode *pVnode, const char *dbName, const 
 
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK, 0);
   if (metaGetTableEntryByName(&mr, tableName) != 0) {
-    vDebug("vgId:%d %s ref table not exist: %s", TD_VID(pVnode), __func__, tableName);
+    vDebug("vgId:%d %s ref table does not exist: %s", TD_VID(pVnode), __func__, tableName);
     // Fill all columns with table-not-exist error
     for (int32_t i = 0; i < nCols; ++i) {
       SVTableRefResolveRspItem r = {0};
@@ -923,7 +925,7 @@ static int32_t vnodeResolveOneHop(SVnode *pVnode, const SVTableRefResolveItem *q
 
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK, 0);
   if (metaGetTableEntryByName(&mr, q->refTableName) != 0) {
-    vDebug("vgId:%d %s ref table not exist: %s", TD_VID(pVnode), __func__, q->refTableName);
+    vDebug("vgId:%d %s ref table does not exist: %s", TD_VID(pVnode), __func__, q->refTableName);
     r->code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
     metaReaderClear(&mr);
     return 0;

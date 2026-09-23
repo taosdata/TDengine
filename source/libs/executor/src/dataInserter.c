@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -203,7 +205,7 @@ static int32_t checkResAndResetTableInfo(const SSubmitRes* pSubmitRes, SInsertTa
     return pCreateTbRsp->code;
   }
   if (!pCreateTbRsp->pMeta || pCreateTbRsp->pMeta->tuid == 0) {
-    stError("create table can not get tuid");
+    stError("cannot get tuid when creating table");
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
 
@@ -1030,7 +1032,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {
           if (pColInfoData->info.type != tSchema->type) {
-            qError("tag:%d type:%d in block dismatch with schema tag:%d type:%d", colIdx, pColInfoData->info.type, i,
+            qError("tag:%d type:%d in block mismatch with schema tag:%d type:%d", colIdx, pColInfoData->info.type, i,
                    tSchema->type);
             terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
             taosArrayDestroy(TagNames);
@@ -1137,7 +1139,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {
           if (pColInfoData->info.type != pCol->type) {
-            qError("column:%d type:%d in block dismatch with schema col:%d type:%d", colIdx, pColInfoData->info.type, k,
+            qError("column:%d type:%d in block mismatch with schema col:%d type:%d", colIdx, pColInfoData->info.type, k,
                    pCol->type);
             terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
             tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
@@ -1365,7 +1367,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           case TSDB_DATA_TYPE_VARBINARY:
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
             if (pColInfoData->info.type != tSchema->type) {
-              qError("tag:%d type:%d in block dismatch with schema tag:%d type:%d", colIdx, pColInfoData->info.type, i,
+              qError("tag:%d type:%d in block mismatch with schema tag:%d type:%d", colIdx, pColInfoData->info.type, i,
                      tSchema->type);
               terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
               goto _end;
@@ -1462,7 +1464,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
           if (pColInfoData->info.type != pCol->type) {
-            qError("column:%d type:%d in block dismatch with schema col:%d type:%d", colIdx, pColInfoData->info.type, k,
+            qError("column:%d type:%d in block mismatch with schema col:%d type:%d", colIdx, pColInfoData->info.type, k,
                    pCol->type);
             terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
             goto _end;
@@ -2028,7 +2030,7 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
           if (pColInfoData->info.type != pCol->type) {
-            qError("tb:%s column:%d type:%d in block dismatch with schema col:%d type:%d", pInsertParam->tbname, k,
+            qError("tb:%s column:%d type:%d in block mismatch with schema col:%d type:%d", pInsertParam->tbname, k,
                    pColInfoData->info.type, k, pCol->type);
             code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
             QUERY_CHECK_CODE(code, lino, _end);

@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/resource/resourceManager.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Creates and validates all test resources needed for the rolling-upgrade test:
-#   - Database (3-replica)
-#   - Super table + 1 000 subtables
-#   - Initial data (100 000 rows per subtable) via parallel batch inserts
-#   - TMQ topic
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys

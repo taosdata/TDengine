@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -660,7 +662,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   pMgmt->errCode = 0;
 
   if (pMgmt->transId != 0) {
-    mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
+    mError("trans:%d, cannot be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     (void)taosThreadMutexUnlock(&pMgmt->lock);
     rpcFreeCont(req.pCont);
     TAOS_RETURN(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED);

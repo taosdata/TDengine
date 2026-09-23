@@ -1,23 +1,16 @@
 #!/usr/bin/env bash
-# ensure_ext_env.sh  ─ FederatedQuery integration-test external-source setup
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# COMPATIBILITY TARGETS
-#   OS     : Linux (Ubuntu/Debian, RHEL/CentOS/Rocky/AlmaLinux, Alpine, Arch)
-#            macOS 12+ (Homebrew required for some engines)
-#   Arch   : x86_64, aarch64 (arm64 on macOS)
-#   Bash   : 4.0+  (associative arrays, pipefail)
-#            macOS ships bash 3.2; run via /usr/local/bin/bash from Homebrew.
-#   User   : root or non-root (engines run as invoking user; mysqld allows root
-#            only with explicit --user=root)
-#   Shell  : Must be invoked as `bash ensure_ext_env.sh`; not POSIX sh / zsh
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# WINDOWS : Use ensure_ext_env.ps1 (PowerShell 5.1+).  Not supported here.
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# WHAT IT DOES (idempotent per-engine-version)
-#   1. Port open?           → reset test DBs (already running)
-#   2. Installed, stopped?  → start; if still failing re-init data dir
-#   3. Not installed?       → download → install → init → start → configure
-#   4. First start:         → copy TLS certs, apply config, reset test DBs
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
 # ENVIRONMENT VARIABLES (all optional, defaults match federated_query_common.py)
 #   FQ_BASE_DIR            install/data root      default /opt/taostest/fq
@@ -55,6 +48,8 @@
 # EXIT CODES
 #   0 = all requested engines ready
 #   1 = one or more engines failed
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 0.  Bootstrap checks – must run before set -euo pipefail

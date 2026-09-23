@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -36,7 +38,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_TABLE_NOT_EXIST:
       return "Table does not exist: %s";
     case TSDB_CODE_PAR_GET_META_ERROR:
-      return "Fail to get table info, error: %s";
+      return "Failed to get table info, error: %s";
     case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
       return "Column is ambiguous: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
@@ -44,7 +46,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_VARBINARY:
       return "Invalid varbinary value: %s";
     case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
-      return "There mustn't be aggregation";
+      return "Aggregation is not allowed here";
     case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:
       return "ORDER BY / GROUP BY item must be the number of a SELECT-list expression";
     case TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION:
@@ -54,21 +56,21 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
       return "Not a single-group group function, '%s' is used incorrectly";
     case TSDB_CODE_PAR_TAGS_NOT_MATCHED:
-      return "Tags number not matched";
+      return "Tag count does not match";
     case TSDB_CODE_PAR_INVALID_TAG_NAME:
       return "Invalid tag name: %s";
     case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
       return "Name or password too long";
     case TSDB_CODE_PAR_ALGR_ID_TOO_LONG:
-      return "Algorithm ID too long, max lenght is 63 character";
+      return "Algorithm ID too long, max length is 63 characters";
     case TSDB_CODE_PAR_ALGR_NAME_TOO_LONG:
-      return "Algorithm name too long, max lenght is 63 character";
+      return "Algorithm name too long, max length is 63 characters";
     case TSDB_CODE_PAR_ALGR_DESC_TOO_LONG:
-      return "Algorithm description too long, max lenght is 127 character";
+      return "Algorithm description too long, max length is 127 characters";
     case TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG:
-      return "Algorithm type too long, max lenght is 63 character";
+      return "Algorithm type too long, max length is 63 characters";
     case TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG:
-      return "Algorithm OpenSSL name too long, max lenght is 63 character";
+      return "Algorithm OpenSSL name too long, max length is 63 characters";
     case TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY:
       return "Password too short or empty";
     case TSDB_CODE_PAR_INVALID_PORT:
@@ -88,21 +90,21 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR:
       return "Corresponding super table not in this db";
     case TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST:
-      return "GROUP BY and WINDOW-clause can't be used together";
+      return "GROUP BY and WINDOW-clause cannot be used together";
     case TSDB_CODE_PAR_AGG_FUNC_NESTING:
       return "Aggregate functions do not support nesting";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE:
-      return "Only support STATE_WINDOW on integer/bool/varchar column";
+      return "STATE_WINDOW is only supported on integer/bool/varchar columns";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_COL:
       return "Invalid STATE_WINDOW column specification";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:
-      return "STATE_WINDOW not support for super table query";
+      return "STATE_WINDOW is not supported for super table queries";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND:
       return "Invalid state window extend option";
     case TSDB_CODE_PAR_INTER_SESSION_GAP:
       return "SESSION gap should be fixed time window, and greater than 0";
     case TSDB_CODE_PAR_INTER_SESSION_COL:
-      return "Only support SESSION on primary timestamp column";
+      return "SESSION is only supported on the primary timestamp column";
     case TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE:
       return "Interval offset cannot be negative";
     case TSDB_CODE_PAR_INTER_OFFSET_UNIT:
@@ -110,11 +112,13 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG:
       return "Interval offset should be shorter than interval";
     case TSDB_CODE_PAR_INTER_SLIDING_UNIT:
-      return "Does not support sliding when interval is natural month/year";
+      return "Sliding is not supported when the interval is a natural month/year";
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG:
-      return "sliding value no larger than the interval value";
+      return "sliding value must not be larger than the interval value";
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL:
-      return "sliding value can not less than 1%% of interval value";
+      /* This text is used as the format string of vsnprintf() in generateSyntaxErrMsg(),
+       * so a literal '%' has to be escaped as '%%'. */
+      return "sliding value cannot be less than 1%% of interval value";
     case TSDB_CODE_PAR_ONLY_ONE_JSON_TAG:
       return "Only one tag if there is a json tag";
     case TSDB_CODE_PAR_INCORRECT_NUM_OF_COL:
@@ -122,9 +126,9 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL:
       return "Incorrect TIMESTAMP value: %s";
     case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
-      return "soffset/offset can not be less than 0";
+      return "soffset/offset cannot be less than 0";
     case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY:
-      return "slimit/soffset only available for PARTITION/GROUP BY query";
+      return "slimit/soffset are only available for PARTITION/GROUP BY query";
     case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:
       return "Invalid topic query";
     case TSDB_CODE_PAR_INVALID_DROP_STABLE:
@@ -172,23 +176,23 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Some functions are allowed only in the SELECT list of a query. "
              "And, cannot be mixed with other non scalar functions or columns.";
     case TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY:
-      return "Window query not supported, since not valid primary timestamp column as input";
+      return "Window query is not supported because the primary timestamp column is not valid";
     case TSDB_CODE_PAR_INVALID_DROP_COL:
       return "No columns can be dropped";
     case TSDB_CODE_PAR_INVALID_COL_JSON:
-      return "Only tag can be json type";
+      return "Only tags can be of the JSON type";
     case TSDB_CODE_PAR_VALUE_TOO_LONG:
       return "Value too long for column/tag: %s";
     case TSDB_CODE_PAR_INVALID_DELETE_WHERE:
       return "The DELETE statement must only have a definite time window range";
     case TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG:
-      return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
+      return "The REDISTRIBUTE VGROUP statement only supports 1 to 3 dnodes";
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
       return "%s function is not supported in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
-      return "_WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query";
+      return "_WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query";
     case TSDB_CODE_PAR_INVALID_TAGS_PC:
-      return "Tags can only applied to super table and child table";
+      return "Tags can only be applied to super tables and child tables";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
       return "%s function is not supported in time window query";
     case TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC:
@@ -208,15 +212,15 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_OPTR_USAGE:
       return "Invalid usage of expr: %s";
     case TSDB_CODE_PAR_INVALID_IP_RANGE:
-      return "invalid ip range";
+      return "Invalid IP range";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     case TSDB_CODE_PAR_ORDERBY_AMBIGUOUS:
       return "ORDER BY \"%s\" is ambiguous";
     case TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT:
-      return "Operator not supported multi result: %s";
+      return "Operator does not support multiple results: %s";
     case TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR:
-      return "Not supported window join having expr";
+      return "HAVING expression is not supported in window join";
     case TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT:
       return "Invalid WINDOW_OFFSET unit \"%c\"";
     case TSDB_CODE_PAR_INVALID_PERIOD_UNIT:
@@ -226,21 +230,21 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_WIN_FUNC:
       return "Column exists for window join with aggregation functions";
     case TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY:
-      return "tag %s can not be composite primary key";
+      return "tag %s cannot be composite primary key";
     case TSDB_CODE_PAR_SECOND_COL_PK:
       return "composite primary key column must be second column";
     case TSDB_CODE_PAR_COL_PK_TYPE:
       return "composite primary key column must be of type timestamp, int, uint, bigint, ubigint, and varchar";
     case TSDB_CODE_PAR_INVALID_PK_OP:
-      return "composite primary key column can not be added, modified, and dropped";
+      return "composite primary key column cannot be added, modified, or dropped";
     case TSDB_CODE_TSMA_NAME_TOO_LONG:
       return "Tsma name too long";
     case TSDB_CODE_PAR_TBNAME_ERROR:
       return "Pseudo tag tbname not set";
     case TSDB_CODE_PAR_TBNAME_DUPLICATED:
-      return "Table name:%s duplicated";
+      return "Duplicate table name: %s";
     case TSDB_CODE_PAR_TAG_NAME_DUPLICATED:
-      return "Tag name:%s duplicated";
+      return "Duplicate tag name: %s";
     case TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC:
       return "Some functions cannot appear in the select list at the same time";
     case TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR:
@@ -262,7 +266,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE:
       return "Invalid virtual table's ref column type";
     case TSDB_CODE_PAR_MISMATCH_STABLE_TYPE:
-      return "Create child table using virtual super table";
+      return "Cannot create a child table using a virtual super table";
     case TSDB_CODE_STREAM_INVALID_TIME_UNIT:
       return "Invalid time unit in create stream clause";
     case TSDB_CODE_STREAM_INVALID_SYNTAX:
@@ -276,7 +280,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_STREAM_INVALID_OUT_TABLE:
       return "Invalid out table clause in create stream clause";
     case TSDB_CODE_STREAM_NO_TRIGGER_TABLE:
-      return "trigger table not specified in create stream clause";
+      return "Trigger table not specified in create stream clause";
     case TSDB_CODE_STREAM_INVALID_PRE_FILTER:
       return "Invalid pre-filter in create stream clause";
     case TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT:
@@ -294,15 +298,15 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR:
       return "Invalid expr in order by clause: %s";
     case TSDB_CODE_PAR_OPTION_DUPLICATED:
-      return "Option:%s duplicated";
+      return "Duplicate option: %s";
     case TSDB_CODE_PAR_INVALID_OPTION_VALUE:
-      return "Option:%s invalid value";
+      return "Invalid value for option: %s";
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG:
       return "Option:%s value too long, should be less than %d";
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT:
       return "Option:%s value too short, should be %d or longer";
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG:
-      return "Option:%s value too big, should be less than %d";
+      return "Option:%s value is too large, should be less than %d";
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL:
       return "Option:%s value too small, should be %d or greater";
     case TSDB_CODE_PAR_ORDERBY_INVALID_EXPR:
@@ -606,7 +610,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
 
   size = cJSON_GetArraySize(root);
   if (!cJSON_IsObject(root)) {
-    retCode = buildSyntaxErrMsg(pMsgBuf, "json error invalide value", json);
+    retCode = buildSyntaxErrMsg(pMsgBuf, "json error: invalid value", json);
     goto end;
   }
 
@@ -1648,7 +1652,7 @@ int32_t getDbTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pNam
   if (pVg) {
     memcpy(pVgroup, pVg, sizeof(SVgroupInfo));
   } else {
-    parserError("%s failed, can't find vgroup for table:%s", __func__, fullName);
+    parserError("%s failed, cannot find vgroup for table:%s", __func__, fullName);
     PAR_ERR_JRET(TSDB_CODE_PAR_INTERNAL_ERROR);
   }
 

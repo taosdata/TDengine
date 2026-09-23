@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -848,7 +850,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
         pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage), pNew->createdTime);
 
   if (pOld->createdTime != pNew->createdTime) {
-    mError("trans:%d, failed to perform update action since createTime not match, old row:%p stage:%s create:%" PRId64
+    mError("trans:%d, failed to perform update action since createTime does not match, old row:%p stage:%s create:%" PRId64
            ", new row:%p stage:%s create:%" PRId64,
            pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
            pNew->createdTime);
@@ -1254,7 +1256,7 @@ static bool mndCheckStbConflict(const char *conflict, STrans *pTrans) {
 
 static void mndTransLogConflict(STrans *pNew, STrans *pTrans, bool conflict, bool *globalConflict) {
   if (conflict) {
-    mError("trans:%d, opername:%s db:%s stb:%s type:%d, can't execute since conflict with trans:%d, opername:%s db:%s "
+    mError("trans:%d, opername:%s db:%s stb:%s type:%d, cannot execute since conflict with trans:%d, opername:%s db:%s "
       "stb:%s type:%d", 
       pNew->id, pNew->opername, pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->opername, 
       pTrans->dbname, pTrans->stbname, pTrans->conflict);
@@ -1371,7 +1373,7 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
     }
 
     if (thisConflict) {
-      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with compact:%d db:%s", pTrans->id,
+      mError("trans:%d, db:%s stb:%s type:%d, cannot execute since conflict with compact:%d db:%s", pTrans->id,
              pTrans->dbname, pTrans->stbname, pTrans->conflict, pCompact->compactId, pCompact->dbname);
       conflict = true;
     } else {
@@ -1408,7 +1410,7 @@ int32_t mndTransCheckConflictWithRetention(SMnode *pMnode, STrans *pTrans) {
     }
 
     if (conflict) {
-      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with retention:%d db:%s", pTrans->id,
+      mError("trans:%d, db:%s stb:%s type:%d, cannot execute since conflict with retention:%d db:%s", pTrans->id,
              pTrans->dbname, pTrans->stbname, pTrans->conflict, pRetention->id, pRetention->dbname);
       sdbRelease(pSdb, pRetention);
       sdbCancelFetch(pSdb, pIter);
@@ -2229,7 +2231,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
 
     if (notSend && !pAction->msgSent) {
       mInfo(
-          "trans:%d, %s:%d (%d/%d at group %d) skip to execute, curent state(actionType(1:msg,2:log):%d, "
+          "trans:%d, %s:%d (%d/%d at group %d) skip to execute, current state(actionType(1:msg,2:log):%d, "
           "msgSent:%d, msgReceived:%d), transaction(action pos:%d)",
           pTrans->id, mndTransStr(pTrans->stage), pAction->id, action, numOfActions, groupId, pAction->actionType,
           pAction->msgSent, pAction->msgReceived, pTrans->actionPos);
@@ -2238,7 +2240,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
     }
 
     mInfo(
-        "trans:%d, %s:%d (%d/%d at group %d) begin to execute, curent state(actionType(1:msg,2:log):%d, "
+        "trans:%d, %s:%d (%d/%d at group %d) begin to execute, current state(actionType(1:msg,2:log):%d, "
         "msgSent:%d, msgReceived:%d), transaction(action pos:%d)",
         pTrans->id, mndTransStr(pTrans->stage), pAction->id, action, numOfActions, groupId, pAction->actionType,
         pAction->msgSent, pAction->msgReceived, pTrans->actionPos);
@@ -2251,7 +2253,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
             code = pAction->errCode;
             mndTransResetAction(pMnode, pTrans, pAction);
           } else {
-            mInfo("trans:%d, %s:%d (%d/%d at group %d) suceed to exeute", pTrans->id, mndTransStr(pAction->stage),
+            mInfo("trans:%d, %s:%d (%d/%d at group %d) successfully executed", pTrans->id, mndTransStr(pAction->stage),
                   pAction->id, action, numOfActions, groupId);
           }
         } else {
@@ -2499,7 +2501,7 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
   if (successCount == groupCount) {
     total_code = 0;
   } else {
-    mInfo("trans:%d, redo action group is executed, %d of %d groups is executed", pTrans->id, successCount, groupCount);
+    mInfo("trans:%d, redo action group is executed, %d of %d groups are executed", pTrans->id, successCount, groupCount);
   }
 
   return total_code;
@@ -2932,7 +2934,7 @@ void mndTransPullup(SMnode *pMnode) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
     if (pIter == NULL) break;
     if (taosArrayPush(pArray, &pTrans->id) == NULL) {
-      mError("failed to put trans into array, trans:%d, but pull up will continute", pTrans->id);
+      mError("failed to put trans into array, trans:%d, but pull up will continue", pTrans->id);
     }
     sdbRelease(pSdb, pTrans);
   }

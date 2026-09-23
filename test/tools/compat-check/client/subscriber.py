@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/client/subscriber.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Background TMQ subscriber process.
-# Records time gaps between consecutive received message batches.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Retry policy: on any consumer error reconnect and keep running (no fatal exit).
-# Pass/fail criterion is checked in main.py:
-#   if no data received for SUBSCRIBE_NO_DATA_TIMEOUT_S seconds → not ok.
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import collections
 import os

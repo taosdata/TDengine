@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -943,7 +945,7 @@ static int32_t appendJsonTagValue(char* buf, int32_t bufSize, int32_t* len, STag
   // guard the write space up front: once *len exceeds the bound, the size argument of the
   // snprintf below would go negative and be read as SIZE_MAX, overflowing buf
   if (*len >= bufSize - VARSTR_HEADER_SIZE) {
-    qError("no enough space to store json tag value, len:%d", *len);
+    qError("not enough space to store json tag value, len:%d", *len);
     return TSDB_CODE_APP_ERROR;
   }
   char* pJson = NULL;
@@ -995,7 +997,7 @@ static int32_t appendTagValues(char* buf, int32_t bufSize, int32_t* len, STableC
     // guard the write space up front: once *len exceeds the bound, the size argument of the
     // snprintf calls below would go negative and be read as SIZE_MAX, overflowing buf
     if (*len >= bufSize - VARSTR_HEADER_SIZE) {
-      qError("no enough space to store tag value, len:%d", *len);
+      qError("not enough space to store tag value, len:%d", *len);
       code = TSDB_CODE_APP_ERROR;
       TAOS_CHECK_ERRNO(code);
     }
@@ -1046,7 +1048,7 @@ static int32_t appendTagValues(char* buf, int32_t bufSize, int32_t* len, STableC
 
       int64_t leftSize = bufSize - (VARSTR_HEADER_SIZE + *len);
       if (leftSize <= 0) {
-        qError("no enough space to store tag value, leftSize:%" PRId64, leftSize);
+        qError("not enough space to store tag value, leftSize:%" PRId64, leftSize);
         code = TSDB_CODE_APP_ERROR;
         TAOS_CHECK_ERRNO(code);
       }
@@ -1094,7 +1096,7 @@ static int32_t appendInlineTagFields(char* buf, int32_t bufSize, int32_t* len, S
     // guard the write space up front: once *len exceeds the bound, the size argument of the
     // snprintf calls below would go negative and be read as SIZE_MAX, overflowing buf
     if (*len >= bufSize - VARSTR_HEADER_SIZE) {
-      qError("no enough space to build inline tags clause, len:%d", *len);
+      qError("not enough space to build inline tags clause, len:%d", *len);
       code = TSDB_CODE_APP_ERROR;
       TAOS_CHECK_ERRNO(code);
     }

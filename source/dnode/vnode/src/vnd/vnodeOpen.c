@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -90,7 +92,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
       vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
     } else {
       vError("vgId:%d, vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
-             ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
+             ", newDbId:%" PRId64 "(%s) at cluster:%" PRId64 ", code:%s",
              oldInfo.config.vgId, dir, oldInfo.config.dbId, oldInfo.config.dbname,
              oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
              info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));

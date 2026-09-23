@@ -1,13 +1,18 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software
- * Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <bench.h>
@@ -878,7 +883,7 @@ static int specQueryMix(uint16_t iface, char* dbName) {
     int start_sql     = 0;
     int a             = total_sql_num / nConcurrent;
     if (a < 1) {
-        warnPrint("sqls num:%d < concurent:%d, so set concurrent to %d\n", total_sql_num, nConcurrent, nConcurrent);
+        warnPrint("sqls num:%d < concurrent:%d, so set concurrent to %d\n", total_sql_num, nConcurrent, nConcurrent);
         nConcurrent = total_sql_num;
         a = 1;
     }
@@ -1026,7 +1031,7 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     int start_sql     = 0;
     int a             = total_sql_num / nConcurrent;
     if (a < 1) {
-        warnPrint("sqls num:%d < concurent:%d, set concurrent %d\n", total_sql_num, nConcurrent, nConcurrent);
+        warnPrint("sqls num:%d < concurrent:%d, set concurrent %d\n", total_sql_num, nConcurrent, nConcurrent);
         nConcurrent = total_sql_num;
         a = 1;
     }
@@ -1259,7 +1264,7 @@ int queryTestProcess() {
         }
     } else {
         // nothing
-        errorPrint("%s\n", "Both 'specified_table_query' and 'super_table_query' sqls is empty.");
+        errorPrint("%s\n", "Both 'specified_table_query' and 'super_table_query' sqls are empty.");
         return -1;
     }
 

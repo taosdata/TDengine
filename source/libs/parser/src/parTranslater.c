@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -3212,7 +3214,7 @@ int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SNodeList* pTags, S
       SColumnDefNode* pTag = (SColumnDefNode*)pNode;
       if (strcasecmp(pTag->colName, "tbname") == 0) {
         int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME,
-                                               "tbname can not used for tags in BI mode");
+                                               "tbname cannot be used for tags in BI mode");
         return code;
       }
     }
@@ -3223,7 +3225,7 @@ int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SNodeList* pTags, S
       SColumnDefNode* pCol = (SColumnDefNode*)pNode;
       if (strcasecmp(pCol->colName, "tbname") == 0) {
         int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
-                                               "tbname can not used for columns in BI mode");
+                                               "tbname cannot be used for columns in BI mode");
         return code;
       }
     }
@@ -3980,12 +3982,12 @@ static int32_t getNodeDataType(SNode* pNode) {
 
 static bool isValidSubQCompDataType(int32_t leftType, int32_t rightType, EOperatorType opType) {
   if (-1 == leftType || -1 == rightType) {
-    parserError("not supported compare types:%d, %d for op:%s", leftType, rightType, operatorTypeStr(opType));
+    parserError("unsupported compare types: %d, %d for op:%s", leftType, rightType, operatorTypeStr(opType));
     return false;
   }
 
   if (TSDB_DATA_TYPE_JSON == rightType || TSDB_DATA_TYPE_JSON == leftType) {
-    parserError("not supported quantified compare types:%d, %d for op:%s", leftType, rightType,
+    parserError("unsupported quantified compare types: %d, %d for op:%s", leftType, rightType,
                 operatorTypeStr(opType));
     return false;
   }
@@ -3993,7 +3995,7 @@ static bool isValidSubQCompDataType(int32_t leftType, int32_t rightType, EOperat
   if ((opType >= OP_TYPE_GREATER_THAN && opType <= OP_TYPE_LOWER_EQUAL) &&
       (TSDB_DATA_TYPE_BLOB == rightType || TSDB_DATA_TYPE_MEDIUMBLOB == rightType ||
        TSDB_DATA_TYPE_GEOMETRY == rightType)) {
-    parserError("not supported quantified compare types:%d, %d for op:%s", leftType, rightType,
+    parserError("unsupported quantified compare types: %d, %d for op:%s", leftType, rightType,
                 operatorTypeStr(opType));
     return false;
   }
@@ -6313,7 +6315,7 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** 
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC);
   }
   if (((SSelectStmt*)pCxt->pCurrStmt)->pWindow && beforeWindow(pCxt->currClause)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC, "There mustn't be %s",
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC, "There must not be %s",
                                    pFunc->functionName);
   }
   if (NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
@@ -6474,7 +6476,7 @@ static int32_t rewriteClientPseudoColumnFunc(STranslateContext* pCxt, SNode** pN
   }
   if (inStreamCalcClause(pCxt)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC,
-                                   "%s is not support in stream calc query", ((SFunctionNode*)*pNode)->functionName);
+                                   "%s is not supported in stream calc query", ((SFunctionNode*)*pNode)->functionName);
   }
   switch (((SFunctionNode*)*pNode)->funcType) {
     case FUNCTION_TYPE_QSTART:
@@ -8917,7 +8919,7 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
   if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {
     if (QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pLeft) || QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pRight)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "Only support ASOF/WINDOW join between tables");
+                                     "only ASOF/WINDOW join between tables is supported");
     }
 
     SRealTableNode* pLeft = (SRealTableNode*)pJoinTable->pLeft;
@@ -8940,7 +8942,7 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
       uint8_t rightPrec = pRight->pMeta ? pRight->pMeta->tableInfo.precision : pRight->table.precision;
       if (leftPrec != rightPrec && !isFederated) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                       "Only support WINDOW join between tables with same precision");
+                                       "only WINDOW join between tables with the same precision is supported");
       }
 
       uint8_t winPrec = isFederated ? TMAX(leftPrec, rightPrec) : leftPrec;
@@ -9032,13 +9034,13 @@ static int32_t translateJoinTableImpl(STranslateContext* pCxt, SJoinTableNode* p
     case JOIN_TYPE_INNER:
       if (*pSType == JOIN_STYPE_OUTER || *pSType == JOIN_STYPE_SEMI || *pSType == JOIN_STYPE_ANTI ||
           *pSType == JOIN_STYPE_ASOF || *pSType == JOIN_STYPE_WIN) {
-        return buildInvalidOperationMsg(&pCxt->msgBuf, "not supported join type");
+        return buildInvalidOperationMsg(&pCxt->msgBuf, "unsupported join type");
       }
       break;
     case JOIN_TYPE_FULL:
       if (*pSType == JOIN_STYPE_SEMI || *pSType == JOIN_STYPE_ANTI || *pSType == JOIN_STYPE_ASOF ||
           *pSType == JOIN_STYPE_WIN) {
-        return buildInvalidOperationMsg(&pCxt->msgBuf, "not supported join type");
+        return buildInvalidOperationMsg(&pCxt->msgBuf, "unsupported join type");
       }
     // fall down
     default:
@@ -15569,7 +15571,7 @@ static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCoun
 
   if (pCountWin->windowSliding > pCountWin->windowCount && !streamTrigger) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                        "sliding value no larger than the count value."));
+                                        "sliding value must not be larger than the count value"));
   }
 
   if (pCountWin->windowCount >= INT32_MAX) {
@@ -15633,7 +15635,7 @@ static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNodeList* pNodeList) {
 
     if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,
-                                     "ANOMALY_WINDOW not support on tag column");
+                                     "ANOMALY_WINDOW is not supported on tag column");
     }
   }
 
@@ -16617,7 +16619,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pSelect->pWhere && inStreamCalcClause(pCxt) && nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
       ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                        "%%%%trows can not be used with WHERE clause."));
+                                        "%%%%trows cannot be used with WHERE clause."));
   }
   PAR_ERR_RET(translateExpr(pCxt, &pSelect->pWhere));
   if (pCxt->pParseCxt->stmtBindVersion == 2) {
@@ -18291,7 +18293,7 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
   if (inStreamCalcClause(pCxt) && hasTrows) {
     if (BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS)) {
       PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
-                                          "%%%%trows can not appear multi times in union query"));
+                                          "%%%%trows cannot appear multiple times in a union query"));
     } else {
       BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
     }
@@ -23179,7 +23181,7 @@ static int32_t checkCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt
     SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
     if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TOPIC_QUERY,
-                                     "External window query can not be used in topic query");
+                                     "External window query cannot be used in a topic query");
     }
   }
 
@@ -23966,7 +23968,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
   int32_t                code = TSDB_CODE_SUCCESS;
 
   if (pLeafWindow == NULL) {
-    PAR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_PARA, "Trigger window can not be null"));
+    PAR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_PARA, "Trigger window cannot be null"));
   }
 
   if (NULL != strchr(pStmt->streamName, '.')) {
@@ -23983,7 +23985,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
     if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SUBTABLE,
-                                           "External window query can not be used in stream query"));
+                                           "External window query cannot be used in a stream query"));
     }
   }
 
@@ -26859,7 +26861,7 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
     if (hasIdleResumeEvent) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(
           &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-          "_tcurrent_ts/_tprev_ts/_tnext_ts can not be used when event type includes IDLE or RESUME"));
+          "_tcurrent_ts/_tprev_ts/_tnext_ts cannot be used when event type includes IDLE or RESUME"));
     }
   }
 
@@ -26870,13 +26872,13 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
     if (pReq->triggerType == WINDOW_TYPE_PERIOD ||
         (pReq->triggerType == WINDOW_TYPE_INTERVAL && pReq->trigger.sliding.interval == 0)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "_twstart/_twend/_twduration/_twrownum can not be used in period window and "
+                                           "_twstart/_twend/_twduration/_twrownum cannot be used in period window and "
                                            "sliding window without interval"));
     }
     if (hasIdleResumeEvent) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(
           &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-          "_twstart/_twend/_twduration/_twrownum can not be used when event type includes IDLE or RESUME"));
+          "_twstart/_twend/_twduration/_twrownum cannot be used when event type includes IDLE or RESUME"));
     }
   }
 
@@ -26889,7 +26891,7 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
     if (hasIdleResumeEvent) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(
           &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-          "_tprev_localtime/_tnext_localtime can not be used when event type includes IDLE or RESUME"));
+          "_tprev_localtime/_tnext_localtime cannot be used when event type includes IDLE or RESUME"));
     }
   }
 
@@ -27713,7 +27715,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
         ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(
           &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
-          "Not support pre_filter when trigger table is virtual table and using %%trows in stream query."));
+          "pre_filter is not supported when the trigger table is a virtual table and %%trows is used in the stream query"));
     }
   }
 
@@ -29158,22 +29160,22 @@ _tagCond:
     if (PRIV_HAS(privSet, PRIV_CM_DROP)) {
       nodesDestroyNode((SNode*)pTable);
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Not support with clause for table privilege:%s", privInfoGetName(PRIV_CM_DROP));
+                                     "WITH clause is not supported for table privilege: %s", privInfoGetName(PRIV_CM_DROP));
     }
     if (PRIV_HAS(privSet, PRIV_CM_ALTER)) {
       nodesDestroyNode((SNode*)pTable);
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Not support with clause for table privilege:%s", privInfoGetName(PRIV_CM_ALTER));
+                                     "WITH clause is not supported for table privilege: %s", privInfoGetName(PRIV_CM_ALTER));
     }
     if (PRIV_HAS(privSet, PRIV_CM_SHOW)) {
       nodesDestroyNode((SNode*)pTable);
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Not support with clause for table privilege:%s", privInfoGetName(PRIV_CM_SHOW));
+                                     "WITH clause is not supported for table privilege: %s", privInfoGetName(PRIV_CM_SHOW));
     }
     if (PRIV_HAS(privSet, PRIV_CM_SHOW_CREATE)) {
       nodesDestroyNode((SNode*)pTable);
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Not support with clause for table privilege:%s",
+                                     "WITH clause is not supported for table privilege: %s",
                                      privInfoGetName(PRIV_CM_SHOW_CREATE));
     }
   }
@@ -29230,7 +29232,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
 
     if (!pSchema) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
-                                     "Invalid privilege param since column not exist: %s", pCol->colName);
+                                     "Invalid privilege param since column does not exist: %s", pCol->colName);
     }
     pCol->colId = pSchema->colId;
     pCol->node.resType.type = pSchema->type;
@@ -29255,7 +29257,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
       /* Only VARCHAR/NCHAR are supported for mask(col) currently. */
       if (!(colType == TSDB_DATA_TYPE_VARCHAR || colType == TSDB_DATA_TYPE_NCHAR)) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "Not support mask for data type:%" PRIu8, colType);
+                                       "mask is not supported for data type: %" PRIu8, colType);
       }
       COL_SET_MASK_ON(&colNameFlag);
     }
@@ -30930,7 +30932,7 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SNodeList** ppFuncs, in
 
     if (!pSchema) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
-                                     "Invalid func param for rsma since column not exist: %s(%s)", pFunc->functionName,
+                                     "Invalid func param for rsma since column does not exist: %s(%s)", pFunc->functionName,
                                      pCol->colName);
     }
     if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -36309,7 +36311,7 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
       break;
     }
     if (!isdigit(pStmt->tableName[i])) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "STable not exist: `%s`.`%s`",
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "STable does not exist: `%s`.`%s`",
                                      pStmt->dbName, pStmt->tableName);
     }
   }
@@ -36321,7 +36323,7 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
   if (TSDB_CODE_SUCCESS != code) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`",
                                    (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)
-                                       ? "STable not exist"
+                                       ? "STable does not exist"
                                        : tstrerror(code),
                                    pStmt->dbName, pStmt->tableName);
   }
@@ -36578,7 +36580,7 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* pSrcDbName, cons
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-        "virtual table's column:\"%s\"'s reference can not from table with composite key", colName));
+        "virtual table's column:\"%s\"'s reference cannot be from a table with a composite primary key", colName));
   }
 
   if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE &&
@@ -36590,7 +36592,7 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* pSrcDbName, cons
   int32_t refColIndex = getNormalColSchemaIndex(pRefTableMeta, pRefColName);
   if (-1 == refColIndex) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column:\"%s\"'s reference column:\"%s\" not exist", colName,
+                                         "virtual table's column:\"%s\"'s reference column:\"%s\" does not exist", colName,
                                          pRefColName));}
 
   const SSchema* pRefCol = pRefTableMeta->schema + refColIndex;
@@ -36604,7 +36606,7 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* pSrcDbName, cons
   if (!isSameRefDataType(&type, &refType)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-        "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
+        "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type do not match", colName, pRefColName));
   }
 
   if (pRefTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE || pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
@@ -36879,7 +36881,7 @@ static int32_t checkTagRef(STranslateContext* pCxt, const char* pSrcDbName, cons
 
   if (!isSameRefDataType(&type, &refType)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-                                         "virtual table's tag:\"%s\"'s type and reference tag:\"%s\"'s type not match",
+                                         "virtual table's tag:\"%s\"'s type and reference tag:\"%s\"'s type do not match",
                                          tagName, pRefColName));
   }
 
@@ -37997,7 +37999,7 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
 
     if (isVirtual && !isVirtualTable(pTableMeta) && !isVirtualSTable(pTableMeta)) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
-                                     "can not alter non-virtual table using ALTER VTABLE");
+                                     "cannot alter a non-virtual table using ALTER VTABLE");
       goto _error;
     }
 
@@ -38501,7 +38503,7 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   if (isVirtual) {
     if (!isVirtualTable(pTableMeta) && !isVirtualSTable(pTableMeta)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
-                                     "can not alter non-virtual table using ALTER VTABLE");
+                                     "cannot alter a non-virtual table using ALTER VTABLE");
     }
   }
 
@@ -38675,7 +38677,7 @@ static int32_t checkInfluxSeriesDecl(STranslateContext* pCxt, SSeriesDeclNode* p
   PAR_ERR_JRET(getExternalSourceInfo(pCxt, pSeries->sourceName, &pInfo));
   if (!pInfo || pInfo->type != EXT_SOURCE_INFLUXDB) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SOURCE_NOT_FOUND,
-                                         "Can not find external influxdb source %s ", pSeries->sourceName));
+                                         "Cannot find external influxdb source %s ", pSeries->sourceName));
   }
   PAR_ERR_JRET(getExternalTableMeta(pCxt, pInfo, pSeries->sourceName, pSeries->dbName, NULL,
                                     pSeries->dbName, pInfo->schema_name, pSeries->measurementName,

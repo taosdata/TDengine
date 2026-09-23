@@ -1,5 +1,20 @@
 # -*- coding: utf-8 -*-
 
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 from new_test_framework.utils.sqlset import TDSetSql
 from decimal import Decimal
@@ -84,7 +99,7 @@ class TestCase:
         tdSql.execute("create rsma rsma1 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),last(c5)) interval(1m,5m)")
         
         tdSql.error("alter rsma rsma1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c5))")
-        tdSql.error("alter rsma rsma1_ function(min(c0))", expectErrInfo=f"Rsma not exist", fullMatched=False)
+        tdSql.error("alter rsma rsma1_ function(min(c0))", expectErrInfo=f"RSMA does not exist", fullMatched=False)
         tdSql.error("alter rsma rsma1 function(max(c0))", expectErrInfo=f"Rsma func already specified for column: c0", fullMatched=False)
 
         tdSql.execute("alter rsma rsma1 function(first(c4))")
@@ -104,8 +119,8 @@ class TestCase:
         tdSql.execute("create rsma rsma7 on d0.stb1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c5),first(c6)) interval(1m,5m)")
 
         tdSql.error("create rsma rsma8 on d0.stb0 function(min(c0+1), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma, only one non-primary key column allowed: min", fullMatched=False)
-        tdSql.error("create rsma rsma9 on d0.stb0 function(min(c100), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma since column not exist: min(c100)", fullMatched=False)
-        tdSql.error("create rsma rsma10 on d0.stb0 function(count(c100), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma since column not exist: count(c100)", fullMatched=False)
+        tdSql.error("create rsma rsma9 on d0.stb0 function(min(c100), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma since column does not exist: min(c100)", fullMatched=False)
+        tdSql.error("create rsma rsma10 on d0.stb0 function(count(c100), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma since column does not exist: count(c100)", fullMatched=False)
         tdSql.error("create rsma rsma11 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c0)) interval(1m,5m)", expectErrInfo=f"Duplicated column not allowed for rsma: c0", fullMatched=False)
         tdSql.error("create rsma rsma12 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c0)) interval(1m,1m)", expectErrInfo=f"Second interval value for rsma should be greater than first interval: 60000,60000", fullMatched=False)
         tdSql.error("create rsma rsma13 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c0)) interval(1m,1a)", expectErrInfo=f"Second interval value for rsma should be greater than first interval: 60000,1", fullMatched=False)
@@ -132,7 +147,7 @@ class TestCase:
         tdSql.checkRows(2)
         tdSql.query("select * from information_schema.ins_rsmas where db_name='d0'")
         tdSql.checkRows(2)
-        tdSql.error("show create rsma d0.rsma_not_exist", expectErrInfo=f"Rsma not exist", fullMatched=False)
+        tdSql.error("show create rsma d0.rsma_not_exist", expectErrInfo=f"RSMA does not exist", fullMatched=False)
         tdSql.query("show create rsma d0.rsma1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '`rsma1`')
@@ -428,9 +443,9 @@ class TestCase:
         tdSql.execute("flush database d0")
         # rollup again by vgroups
         time.sleep(5) # ensure commit is done00) 
-        tdSql.error("rollup d0.vgroups in (1000)", expectErrInfo=f"Vgroup does not exist or not in db", fullMatched=False)
-        tdSql.error("rollup vgroups in (2000,3000)", expectErrInfo=f"Vgroup does not exist or not in db", fullMatched=False)
-        tdSql.error("rollup vgroups in (2000,3000) start with '2025-12-30 10:00:00.000'", expectErrInfo=f"Vgroup does not exist or not in db", fullMatched=False)
+        tdSql.error("rollup d0.vgroups in (1000)", expectErrInfo=f"Vgroup does not exist or is not in the database", fullMatched=False)
+        tdSql.error("rollup vgroups in (2000,3000)", expectErrInfo=f"Vgroup does not exist or is not in the database", fullMatched=False)
+        tdSql.error("rollup vgroups in (2000,3000) start with '2025-12-30 10:00:00.000'", expectErrInfo=f"Vgroup does not exist or is not in the database", fullMatched=False)
         tdSql.query("show d0.vgroups")
         tdSql.checkRows(2)
         tdSql.execute(f"rollup d0.vgroups in (%d,%d) start with '2025-12-30 10:00:00.000'" % (tdSql.queryResult[0][0], tdSql.queryResult[1][0]))
@@ -548,7 +563,7 @@ class TestCase:
         tdSql.error("alter rsma rsma1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c5))", expectErrInfo=f"Invalid func count for rsma, should be in range [1, 5]", fullMatched=False)
         tdSql.error("alter rsma rsma1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4))", expectErrInfo=f"Invalid func param for rsma since composite key column can only be first/last: min(c0)", fullMatched=False)
         tdSql.error("alter rsma rsma1 function(last(c0)) interval(1m,5m)", expectErrInfo=f"syntax error near", fullMatched=False)
-        tdSql.error("alter rsma rsma1_ function(last(c0))", expectErrInfo=f"Rsma not exist", fullMatched=False)
+        tdSql.error("alter rsma rsma1_ function(last(c0))", expectErrInfo=f"RSMA does not exist", fullMatched=False)
         tdSql.error("alter rsma rsma1 function(last(c0))", expectErrInfo=f"Rsma func already specified for column: c0", fullMatched=False)
         tdSql.error("create rsma rsma1 on d0.stb0 function(avg(c3)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: avg(c3)", fullMatched=False)
         tdSql.error("create rsma rsma1 on d0.stb0 function(sum(c3)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: sum(c3)", fullMatched=False)

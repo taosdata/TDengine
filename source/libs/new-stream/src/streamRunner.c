@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "streamRunner.h"
 #include "cmdnodes.h"
 #include "dataSink.h"
@@ -2531,7 +2548,7 @@ _cleanup:
     pReq->pOutBlock = NULL;
     tDestroySStreamRunnerFetchFrame(&pReq->outFrame);
     pReq->outFinished = true;
-    ST_TASK_ELOG("[runner calc]faild gid:%" PRId64 ", lino:%d code:%s", pReq->gid, lino, tstrerror(code));
+    ST_TASK_ELOG("[runner calc]failed, gid:%" PRId64 ", lino:%d code:%s", pReq->gid, lino, tstrerror(code));
     if (code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
       return TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
     }

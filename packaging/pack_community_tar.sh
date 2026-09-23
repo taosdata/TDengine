@@ -1,19 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# pack_community_tar.sh — Generate community edition tar.gz packages (server + client)
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Usage:
-#   ./pack_community_tar.sh -c <compile_dir> -n <version> [-m <compat_version>] [-V <verType>]
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# Parameters:
-#   -c  Compile directory (cmake build output, e.g. debug/)
-#   -n  Version number (e.g. 3.3.6.0)
-#   -m  Compatible version number (default: 3.0.0.0)
-#   -V  Version type: stable | beta (default: stable)
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-# Output:
-#   <community_dir>/release/TDengine-server-<ver>-Linux-<arch>.tar.gz
-#   <community_dir>/release/TDengine-client-<ver>-Linux-<arch>.tar.gz
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 

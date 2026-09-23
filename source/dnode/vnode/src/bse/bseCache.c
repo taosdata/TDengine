@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -114,7 +116,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   if (ppItem != NULL && *ppItem != NULL) {
     SCacheItem *pItem = (SCacheItem *)*ppItem;
     if ((tdListPopNode(pCache->lruList, pItem->pNode)) == NULL) {
-      bseWarn("node not exist in lru list");
+      bseWarn("node does not exist in lru list");
     }
 
     bseCacheRefItem(pItem);
@@ -176,7 +178,7 @@ int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen) 
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (tdListPopNode(pCache->lruList, pItem->pNode) == NULL) {
-    bseWarn("node not exist in lru list");
+    bseWarn("node does not exist in lru list");
   }
 
   bseCacheUnrefItem(pItem);

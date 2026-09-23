@@ -1,3 +1,18 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, etool, TDSql, TDSetSql
 from itertools import product
 
@@ -50,7 +65,7 @@ class TestPrivBasic:
         testSql = TDSql()
         testSql.init(cursor)
         # create db privilege
-        testSql.error("create database db1;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        testSql.error("create database db1;", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
         # modify db、super table、child table、reguler table privilege
         testSql.error("alter database db buffer 512;")
         testSql.error("alter stable db.stb add column col4 float;")
@@ -80,7 +95,7 @@ class TestPrivBasic:
         testSql.query("select * from information_schema.ins_users;")
         testSql.checkRows(2)
         # drop db privilege
-        testSql.error("drop database db;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        testSql.error("drop database db;", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
         # delete user
         self.delete_user("test")
         # drop db
@@ -144,7 +159,7 @@ class TestPrivBasic:
         test1Sql.init(cursor1)
         # check user 'test' doesn't privilege to grant create db privilege to another user
         testSql.error("alter user test1 createdb 1;", expectErrInfo="Permission denied to set user basic info", fullMatched=False)
-        testSql.error("grant select on db1.stb1 to test1;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        testSql.error("grant select on db1.stb1 to test1;", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
 
         # grant read、write privilege to user 'test' and check user 'test' privileges
         tdSql.execute("grant use,create table on database db to test;")
@@ -961,6 +976,7 @@ class TestPrivBasic:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional,security
+
         Jira: None
 
         History:

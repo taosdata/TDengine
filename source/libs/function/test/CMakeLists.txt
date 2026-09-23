@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 include_directories("${TD_SOURCE_DIR}/include/libs/function")
 include_directories("${TD_SOURCE_DIR}/include/util")
 include_directories("${TD_SOURCE_DIR}/include/common")
@@ -57,7 +72,9 @@ target_link_libraries(udf1_dup PUBLIC os)
 add_library(udf2_dup STATIC MODULE udf2_dup.c)
 target_link_libraries(udf2_dup PUBLIC os)
 
-# example UDFs from docs/examples/udf/  (used by test_udf_c.py)
+# example UDFs from docs/examples/udf/  (used by test_udf_c.py and
+# test_udf_c_examples.py; the sources are inlined into the developer guide,
+# so they must keep working)
 set(_UDF_EXAMPLES_DIR "${TD_SOURCE_DIR}/docs/examples/udf")
 add_library(bitand STATIC MODULE "${_UDF_EXAMPLES_DIR}/bit_and.c")
 target_link_libraries(bitand PUBLIC os util)
@@ -70,6 +87,19 @@ endif()
 
 add_library(gpd STATIC MODULE "${_UDF_EXAMPLES_DIR}/gpd.c")
 target_link_libraries(gpd PUBLIC os util)
+
+# remaining aggregate examples of the developer guide, covered by
+# test_udf_c_examples.py (max_vol: string result, extract_avg: string parsing)
+add_library(max_vol STATIC MODULE "${_UDF_EXAMPLES_DIR}/max_vol.c")
+target_link_libraries(max_vol PUBLIC os util)
+
+add_library(extract_avg STATIC MODULE "${_UDF_EXAMPLES_DIR}/extract_avg.c")
+target_link_libraries(extract_avg PUBLIC os util)
+if(TD_WINDOWS)
+    # extract_avg.c uses POSIX strtok_r() just as shown in the docs; map it to
+    # the MSVC equivalent so the example is built on Windows as well.
+    target_compile_definitions(extract_avg PRIVATE strtok_r=strtok_s)
+endif()
 
 set(TARGET_NAMES
     change_udf_normal

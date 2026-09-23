@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -218,7 +220,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
     }
 
     if (!pData || !nData) {
-      metaError("meta/snap: invalide nData: %" PRId32 " meta snap read failed.", nData);
+      metaError("meta/snap: invalid nData: %" PRId32 " meta snap read failed.", nData);
       code = TSDB_CODE_INVALID_DATA_FMT;
       goto _exit;
     }
@@ -791,7 +793,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     if (ret == 0) {
       break;
     }
-    metaDebug("tmqsnap get meta not exist uid:%" PRIi64 " version:%" PRIi64, *uid, idInfo->version);
+    metaDebug("tmqsnap get meta does not exist uid:%" PRIi64 " version:%" PRIi64, *uid, idInfo->version);
   }
 
   ret = tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
@@ -948,7 +950,7 @@ int32_t getMetaTableInfoFromSnapshot(SSnapContext* ctx, SMetaTableInfo* result) 
     TSDB_CHECK_NULL(idInfo, code, lino, END, terrno);
 
     if (MoveToPosition(ctx, idInfo->version, *uidTmp) != 0) {
-      metaDebug("tmqsnap getMetaTableInfoFromSnapshot not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp,
+      metaDebug("tmqsnap getMetaTableInfoFromSnapshot does not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp,
                 idInfo->version);
       continue;
     }

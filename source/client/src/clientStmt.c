@@ -1,4 +1,21 @@
 
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "clientInt.h"
 #include "clientLog.h"
 #include "tdef.h"
@@ -719,7 +736,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   pStmt->stat.ctgGetTbMetaNum++;
 
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-    tscDebug("tb %s not exist", pStmt->bInfo.tbFName);
+    tscDebug("tb %s does not exist", pStmt->bInfo.tbFName);
     STMT_ERR_RET(stmtCleanBindInfo(pStmt));
 
     STMT_ERR_RET(code);
@@ -1212,7 +1229,7 @@ int stmtFetchTagFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    tscError("invalid operation to get query tag fileds");
+    tscError("invalid operation to get query tag fields");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
@@ -1234,7 +1251,7 @@ int stmtFetchColFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    tscError("invalid operation to get query column fileds");
+    tscError("invalid operation to get query column fields");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 

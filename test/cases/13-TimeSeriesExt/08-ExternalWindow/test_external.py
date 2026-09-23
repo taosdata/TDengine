@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 
 import taos
@@ -1451,7 +1466,7 @@ class TestExternal:
             "as (select _wstart as ws, first(v) as fv, last(v) as lv from ext_cx_src partition "
             "by t1 external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws);",
             fullMatched=False,
-            expectErrInfo="External window query can not be used in stream query"
+            expectErrInfo="External window query cannot be used in a stream query"
         )
 
         tdSql.error(
@@ -1459,7 +1474,7 @@ class TestExternal:
             "as (select cast(_wstart as bigint) as ws, first(v) as fv, last(v) as lv from ext_cx_src partition "
             "by t1 external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws)",
             fullMatched=False,
-            expectErrInfo="External window query can not be used in stream query"
+            expectErrInfo="External window query cannot be used in a stream query"
         )
         
         tdSql.error(
@@ -1467,7 +1482,7 @@ class TestExternal:
             "as ws, first(v) as fv, last(v) as lv from ext_cx_src partition by t1 "
             "external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws)",
             fullMatched=False,
-            expectErrInfo="External window query can not be used in topic query"
+            expectErrInfo="External window query cannot be used in a topic query"
         )
 
         tdSql.error(

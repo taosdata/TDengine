@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -573,7 +575,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
 
   *pCode = 0;
   if (!flocal) {
-    tsdbInfo("vgId:%d, fid:%d, migration cancelled, local data file not exist", vid, pLocalFset->fid);
+    tsdbInfo("vgId:%d, fid:%d, migration cancelled, local data file does not exist", vid, pLocalFset->fid);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false;
   }
@@ -625,7 +627,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   // be skipped, so we also check 'mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact', note
   // this is not an acurate condition, but is simple and good enough.
   if (mtime >= rtner->tw.ekey - tsSsUploadDelaySec && (mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact)) {
-    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is active writting, modified at %" PRId64, vid, pLocalFset->fid, mtime);
+    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is being actively written, modified at %" PRId64, vid, pLocalFset->fid, mtime);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false; // still active writing, postpone migration
   }

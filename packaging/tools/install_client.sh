@@ -1,7 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install TDengine client on linux systems. The operating system
-# is required to use systemd to manage services at boot
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 #set -x
@@ -380,7 +392,7 @@ function install_TDengine() {
 # Install or updata client and client
 # if server is already install, don't install client
 if [ -e ${bin_dir}/${serverName} ]; then
-    echo -e "\033[44;32;1mThere are already installed ${productName2} server, so don't need install client!${NC}"
+    echo -e "\033[44;32;1m${productName2} server is already installed, so the client does not need to be installed!${NC}"
     exit 0
 fi
 

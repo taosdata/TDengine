@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -6110,7 +6112,7 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
   getXnodedPipeName(socketPath, sizeof(socketPath));
   #ifndef WINDOWS
   if (!taosCheckExistFile(socketPath)) {
-    uError("xnode failed to send request, socket path:%s not exist", socketPath);
+    uError("xnode failed to send request, socket path:%s does not exist", socketPath);
     terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _EXIT;
   }

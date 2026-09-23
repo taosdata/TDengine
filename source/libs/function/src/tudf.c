@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifdef USE_UDF
 #include "uv.h"
 
@@ -247,7 +250,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     if (taosFqdnEnvItem != NULL) {
       tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", len);
       TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, subLen);
-      fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
+      fnInfo("[UDFD]Succeeded in setting TAOS_FQDN:%s", taosFqdn);
     } else {
       fnError("[UDFD]Failed to allocate memory for TAOS_FQDN");
       err = terrno;
@@ -376,7 +379,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 #endif
 
   if (err != 0) {
-    fnError("can not spawn udfd. path: %s, error: %s", path, uv_strerror(err));
+    fnError("cannot spawn udfd. path: %s, error: %s", path, uv_strerror(err));
   } else {
     fnInfo("udfd is initialized");
   }

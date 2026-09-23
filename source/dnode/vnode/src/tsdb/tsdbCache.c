@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "functionMgt.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
@@ -1186,6 +1189,29 @@ static int32_t tsdbCacheGetValuesFromRocks(STsdb *pTsdb, size_t numKeys, const c
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+// If the last cache entry for `pKey` is currently resident in the LRU and dirty, queue it into
+// pTsdb->rCache.writebatch and clear its dirty flag. Only a single O(1) point lookup; does not
+// touch any other cache entry and does not commit the writebatch (caller does that once, in bulk).
+static void tsdbCacheFlushKeyIfDirty(STsdb *pTsdb, const SLastKey *pKey) {
+  SLRUCache *pCache = pTsdb->lruCache;
+  LRUHandle *h = taosLRUCacheLookup(pCache, pKey, ROCKS_KEY_LEN);
+  if (h) {
+    SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
+    if (pLastCol->dirty) {
+      (void)tsdbCacheFlushDirty(pKey, ROCKS_KEY_LEN, pLastCol, pTsdb);
+    }
+    tsdbLRUCacheRelease(pCache, h, false);
+  }
+}
+
+// Same as above, for both the LAST and LAST_ROW keys of one (uid, cid) column.
+static void tsdbCacheFlushTableColumnIfDirty(STsdb *pTsdb, int64_t uid, int16_t cid) {
+  SLastKey key = {.lflag = LFLAG_LAST, .uid = uid, .cid = cid};
+  tsdbCacheFlushKeyIfDirty(pTsdb, &key);
+  key.lflag = LFLAG_LAST_ROW;
+  tsdbCacheFlushKeyIfDirty(pTsdb, &key);
+}
+
 static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, bool hasPrimaryKey) {
   int32_t code = 0;
 
@@ -1340,21 +1366,23 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
-  code = tsdbCacheCommitNoLock(pTsdb);
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-              tstrerror(code));
-  }
-
   if (pSchemaRow != NULL) {
     bool hasPrimayKey = false;
     int  nCols = pSchemaRow->nCols;
     if (nCols >= 2) {
       hasPrimayKey = (pSchemaRow->pSchema[1].flags & COL_IS_KEY) ? true : false;
     }
+
+    // Phase 1: queue this table's own dirty last cache entries (O(1) point lookup per key,
+    // does not touch any other table's cache entries); Phase 2: commit whatever got queued
+    // once, so the multi_get in Phase 3 observes accurate state.
+    for (int i = 0; i < nCols; ++i) {
+      tsdbCacheFlushTableColumnIfDirty(pTsdb, uid, pSchemaRow->pSchema[i].colId);
+    }
+    rocksMayWrite(pTsdb, true);
+
     for (int i = 0; i < nCols; ++i) {
       int16_t cid = pSchemaRow->pSchema[i].colId;
-      int8_t  col_type = pSchemaRow->pSchema[i].type;
 
       code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1376,9 +1404,14 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
     if (nCols >= 2) {
       hasPrimayKey = (pTSchema->columns[1].flags & COL_IS_KEY) ? true : false;
     }
+
+    for (int i = 0; i < nCols; ++i) {
+      tsdbCacheFlushTableColumnIfDirty(pTsdb, uid, pTSchema->columns[i].colId);
+    }
+    rocksMayWrite(pTsdb, true);
+
     for (int i = 0; i < nCols; ++i) {
       int16_t cid = pTSchema->columns[i].colId;
-      int8_t  col_type = pTSchema->columns[i].type;
 
       code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1402,12 +1435,6 @@ int32_t tsdbCacheDropSubTables(STsdb *pTsdb, SArray *uids, tb_uid_t suid) {
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
-  code = tsdbCacheCommitNoLock(pTsdb);
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-              tstrerror(code));
-  }
-
   STSchema *pTSchema = NULL;
   code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, suid, -1, &pTSchema);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1416,18 +1443,28 @@ int32_t tsdbCacheDropSubTables(STsdb *pTsdb, SArray *uids, tb_uid_t suid) {
     TAOS_RETURN(code);
   }
 
+  bool hasPrimayKey = false;
+  int  nCols = pTSchema->numOfCols;
+  if (nCols >= 2) {
+    hasPrimayKey = (pTSchema->columns[1].flags & COL_IS_KEY) ? true : false;
+  }
+
+  // Phase 1: queue dirty last cache entries for every (uid, cid) in this whole batch (still
+  // O(batch size), not O(vnode cache size)); Phase 2: commit the queued batch exactly once,
+  // matching the existing "one commit per batch, not per child table" intent.
+  for (int i = 0; i < TARRAY_SIZE(uids); ++i) {
+    int64_t uid = ((tb_uid_t *)TARRAY_DATA(uids))[i];
+    for (int j = 0; j < nCols; ++j) {
+      tsdbCacheFlushTableColumnIfDirty(pTsdb, uid, pTSchema->columns[j].colId);
+    }
+  }
+  rocksMayWrite(pTsdb, true);
+
   for (int i = 0; i < TARRAY_SIZE(uids); ++i) {
     int64_t uid = ((tb_uid_t *)TARRAY_DATA(uids))[i];
 
-    bool hasPrimayKey = false;
-    int  nCols = pTSchema->numOfCols;
-    if (nCols >= 2) {
-      hasPrimayKey = (pTSchema->columns[1].flags & COL_IS_KEY) ? true : false;
-    }
-
-    for (int i = 0; i < nCols; ++i) {
-      int16_t cid = pTSchema->columns[i].colId;
-      int8_t  col_type = pTSchema->columns[i].type;
+    for (int j = 0; j < nCols; ++j) {
+      int16_t cid = pTSchema->columns[j].colId;
 
       code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
       if (code != TSDB_CODE_SUCCESS) {

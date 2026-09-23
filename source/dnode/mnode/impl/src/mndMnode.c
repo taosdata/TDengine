@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -820,7 +822,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   if (totalMnodes == 2) {
     if (force) {
-      mError("cant't force drop dnode, since a mnode on it and replica is 2");
+      mError("cannot force drop dnode, since a mnode is on it and replica is 2");
       code = TSDB_CODE_MNODE_ONLY_TWO_MNODE;
       TAOS_RETURN(code);
     }

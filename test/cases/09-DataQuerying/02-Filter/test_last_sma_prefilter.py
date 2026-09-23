@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
@@ -96,9 +111,14 @@ class TestLastSmaPrefilter:
     def test_last_sma_prefilter(self):
         """Last SMA hidden not-null prefilter full matrix and regressions.
 
+        Runs the full matrix of query shapes, filter modes and target types that
+        exercise the hidden not-null prefilter of last() on SMA, plus the
+        regressions tracked for it.
+
         Since: v3.4.1.13
 
         Labels: ci,integration,functional,tsma,last
+
         Jira: None
 
         History:
@@ -545,7 +565,7 @@ class TestLastSmaPrefilter:
                 f"and s.ts >= {TIME_RANGE_START} and s.ts <= {TIME_RANGE_END} "
                 "and s.grp_num = d.grp_num and d.note = 'join_hit'"
             )
-            expect_err = "Not supported join since"
+            expect_err = "join is not supported for"
             tdSql.error(join_sql, expectErrInfo=expect_err, fullMatched=False)
             tdSql.error(f"explain verbose true {join_sql}", expectErrInfo=expect_err, fullMatched=False)
             tdSql.error(f"explain analyze verbose true {join_sql}", expectErrInfo=expect_err, fullMatched=False)

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1333,7 +1335,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   int32_t        code = 0;
 
   if (!(pRSmaRef = taosHashGet(smaMgmt.refHash, &param, POINTER_BYTES))) {
-    smaDebug("rsma fetch task not start since rsma info item:%p not exist in refHash:%p, rsetId:%d", param,
+    smaDebug("rsma fetch task not started since rsma info item:%p does not exist in refHash:%p, rsetId:%d", param,
              smaMgmt.refHash, smaMgmt.rsetId);
     return;
   }
@@ -1348,7 +1350,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   pSma = pStat->pSma;
 
   if ((code = tdAcquireRSmaInfoBySuid(pSma, pRSmaRef->suid, &pRSmaInfo)) != 0) {
-    smaDebug("rsma fetch task not start since rsma info not exist, rsetId:%d refId:%" PRIi64 ")", smaMgmt.rsetId,
+    smaDebug("rsma fetch task not started since rsma info does not exist, rsetId:%d refId:%" PRIi64, smaMgmt.rsetId,
              pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
     TAOS_UNUSED(tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId));
     TAOS_UNUSED(taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES));

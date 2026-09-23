@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "qworker.h"
 
 #include "dataSinkMgt.h"
@@ -1685,7 +1702,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   if (schNum <= 0) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
     if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
-      qError("reset qworker hb timer error, timer stoppped");
+      qError("reset qworker hb timer error, timer stopped");
     }
     (void)qwRelease(refId);  // ignore error
     return;
@@ -1699,7 +1716,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     taosArrayDestroy(pExpiredSch);
     QW_ELOG("calloc %d SQWHbInfo failed, code:%x", schNum, terrno);
     if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
-      qError("reset qworker hb timer error, timer stoppped");
+      qError("reset qworker hb timer error, timer stopped");
     }
     (void)qwRelease(refId);  // ignore error
     return;
@@ -1757,7 +1774,7 @@ _return:
   taosArrayDestroy(pExpiredSch);
 
   if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
-    qError("reset qworker hb timer error, timer stoppped");
+    qError("reset qworker hb timer error, timer stopped");
   }
 
   (void)qwRelease(refId);  // ignore error

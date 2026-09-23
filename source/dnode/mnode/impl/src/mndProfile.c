@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1319,7 +1321,7 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%x, failed to kill queryId:%" PRIx64 ", conn not exist", connId, queryId);
+    mError("connId:%x, failed to kill queryId:%" PRIx64 ", connection does not exist", connId, queryId);
     code = TSDB_CODE_MND_INVALID_CONN_ID;
     TAOS_RETURN(code);
   } else {
@@ -1342,7 +1344,7 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &killReq.connId, sizeof(uint32_t));
   if (pConn == NULL) {
-    mError("connId:%u, failed to kill connection, conn not exist", killReq.connId);
+    mError("connId:%u, failed to kill connection, connection does not exist", killReq.connId);
     code = TSDB_CODE_MND_INVALID_CONN_ID;
     TAOS_RETURN(code);
   } else {

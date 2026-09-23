@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -72,7 +74,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
   }
 
   if (taskNum != msgNum && 0 != msgNum) {
-    ctgError("taskNum %d mis-match msgNum %d", taskNum, msgNum);
+    ctgError("taskNum %d mismatch msgNum %d", taskNum, msgNum);
     msgNum = 0;
   }
 
@@ -108,7 +110,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
       pRsp = taosArrayGet(batchRsp.pRsps, i);
 
       if (pRsp->msgIdx != *msgIdx) {
-        ctgError("rsp msgIdx %d mis-match msgIdx %d", pRsp->msgIdx, *msgIdx);
+        ctgError("rsp msgIdx %d mismatch msgIdx %d", pRsp->msgIdx, *msgIdx);
 
         pRsp = &rsp;
         pRsp->msgIdx = *msgIdx;
@@ -288,7 +290,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (CTG_TABLE_NOT_EXIST(rspCode)) {
           SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
-          qDebug("tb:%s, stablemeta not exist in mnode", target);
+          qDebug("tb:%s, stablemeta does not exist in mnode", target);
           return TSDB_CODE_SUCCESS;
         }
 
@@ -309,7 +311,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (CTG_TABLE_NOT_EXIST(rspCode)) {
           SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
-          qDebug("tb:%s, tablemeta not exist in vnode", target);
+          qDebug("tb:%s, tablemeta does not exist in vnode", target);
           return TSDB_CODE_SUCCESS;
         }
 
@@ -330,7 +332,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (CTG_TABLE_NOT_EXIST(rspCode)) {
           SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
-          qDebug("tb:%s, tablemeta not exist in vnode", target);
+          qDebug("tb:%s, tablemeta does not exist in vnode", target);
           return TSDB_CODE_SUCCESS;
         }
 

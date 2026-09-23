@@ -1,17 +1,18 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
- * L2 compression layer micro-benchmark.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Measures per-block compress and decompress latency + throughput for each
- * codec in the TDengine L2 dispatch table.  Supports multiple iterations,
- * warmup rounds, and outputs p50/p95/stdev so stock vs. accelerated backends
- * can be compared side-by-side.
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
- * Manual test for the L2 compression dispatch table (see
- * util/test/CMakeLists.txt; built with BUILD_TEST=ON on Linux, not registered
- * with add_test and therefore not run by ctest / CI).
- * Run:   compressBench --help
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 // Standalone bench: it does not participate in the TDengine memory/file/clock

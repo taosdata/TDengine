@@ -1,3 +1,18 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from enum import Enum
 
 from new_test_framework.utils import tdLog, tdSql
@@ -430,7 +445,7 @@ class TestCompositePrimaryKeyInsert:
             conn.schemaless_insert(lines, SmlProtocol.LINE_PROTOCOL, SmlPrecision.MICRO_SECONDS)
             tdSql.checkEqual(False, True)
         except SchemalessError as errMsg:
-            tdSql.checkEqual(errMsg.msg == 'Can not insert data into table with primary key', True)
+            tdSql.checkEqual(errMsg.msg == 'Cannot insert data into table with primary key', True)
 
         # 5.2.insert into values via OpenTSDB
         lines = ["meters.current 1648432611249 10i32 location=California.SanFrancisco groupid=2",
@@ -453,7 +468,7 @@ class TestCompositePrimaryKeyInsert:
             conn.schemaless_insert(lines, SmlProtocol.TELNET_PROTOCOL, SmlPrecision.NOT_CONFIGURED)
             tdSql.checkEqual(False, True)
         except SchemalessError as errMsg:
-            tdSql.checkEqual(errMsg.msg == 'Can not insert data into table with primary key', True)
+            tdSql.checkEqual(errMsg.msg == 'Cannot insert data into table with primary key', True)
 
         # 5.3.insert into values via OpenTSDB Json
         lines = [{"metric": "meters.current", "timestamp": 1648432611249, "value": "a32", "tags": {"location": "California.SanFrancisco", "groupid": 2}}]
@@ -470,7 +485,7 @@ class TestCompositePrimaryKeyInsert:
             conn.schemaless_insert([lines], SmlProtocol.JSON_PROTOCOL, SmlPrecision.NOT_CONFIGURED)
             tdSql.checkEqual(False, True)
         except SchemalessError as errMsg:
-            tdSql.checkEqual(errMsg.msg == 'Can not insert data into table with primary key', True)
+            tdSql.checkEqual(errMsg.msg == 'Cannot insert data into table with primary key', True)
 
         tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
 
@@ -1160,6 +1175,7 @@ class TestCompositePrimaryKeyInsert:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

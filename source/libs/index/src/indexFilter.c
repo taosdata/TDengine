@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -457,7 +459,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
   int32_t code = 0;
   int32_t nParam = sifGetOperParamNum(node->opType);
   if (NULL == node->pLeft || (nParam == 2 && NULL == node->pRight)) {
-    indexError("invalid operation node, left: %p, rigth: %p", node->pLeft, node->pRight);
+    indexError("invalid operation node, left: %p, right: %p", node->pLeft, node->pRight);
     SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -542,7 +544,7 @@ _return:
   SIF_RET(code);
 }
 static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *output) {
-  indexDebug("index-filter not support buildin function");
+  indexDebug("index-filter does not support built-in functions");
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 

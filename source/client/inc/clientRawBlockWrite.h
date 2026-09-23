@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -65,7 +67,7 @@ extern "C" {
 
 #define PROCESS_TABLE_NOT_EXIST(code, tbName) \
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) { \
-    uWarn(LOG_ID_TAG " %s not exists, skip", LOG_ID_VALUE, tbName); \
+    uWarn(LOG_ID_TAG " %s does not exist, skipping", LOG_ID_VALUE, tbName); \
     code = TSDB_CODE_SUCCESS; \
     continue; \
   } \

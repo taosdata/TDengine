@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -744,7 +746,7 @@ int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_
   }
   int8_t type = (int8_t)vectorGetConvertType(typeLeft, typeRight);
   if (type < 0) {
-    sclError("not supported convertion between %d and %d", typeLeft, typeRight);
+    sclError("unsupported conversion between %d and %d", typeLeft, typeRight);
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
 
@@ -855,7 +857,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
       }
     }
   } else {
-    sclError("not supported input type:%d", pCtx->inType);
+    sclError("unsupported input type: %d", pCtx->inType);
     return TSDB_CODE_APP_ERROR;
   }
 

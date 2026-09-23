@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -563,7 +565,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
   }
 
   if (bind->buffer_type != pColSchema->type) {
-    return buildInvalidOperationMsgExt(&pBuf, "column type:%d mis-match with buffer type:%d", pColSchema->type,
+    return buildInvalidOperationMsgExt(&pBuf, "column type:%d mismatch with buffer type:%d", pColSchema->type,
                                        bind->buffer_type);
   }
 
@@ -905,7 +907,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
 
     if ((!(rowNum == 1 && bindData.is_null && *bindData.is_null)) &&
         bindData.buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
-      code = buildInvalidOperationMsgExt(&pBuf, "bind[%d] column type:%d mis-match with buffer type:%d", bindIdx,
+      code = buildInvalidOperationMsgExt(&pBuf, "bind[%d] column type:%d mismatch with buffer type:%d", bindIdx,
                                          pColSchema->type, bindData.buffer_type);
       goto _return;
     }
@@ -1173,7 +1175,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
 
     if ((!(rowNum == 1 && bindData.is_null && *bindData.is_null)) &&
         bindData.buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
-      code = buildInvalidOperationMsgExt(&pBuf, "bind[%d] column type:%d mis-match with buffer type:%d", bindIdx,
+      code = buildInvalidOperationMsgExt(&pBuf, "bind[%d] column type:%d mismatch with buffer type:%d", bindIdx,
                                          pColSchema->type, bindData.buffer_type);
       goto _return;
     }
@@ -1262,7 +1264,7 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   }
 
   if (bind->buffer_type != pColSchema->type) {
-    return buildInvalidOperationMsgExt(&pBuf, "column type:%d mis-match with buffer type:%d", pColSchema->type,
+    return buildInvalidOperationMsgExt(&pBuf, "column type:%d mismatch with buffer type:%d", pColSchema->type,
                                        bind->buffer_type);
   }
 
@@ -1365,7 +1367,7 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
 
     if ((!(rowNum == 1 && bind[c].is_null && *bind[c].is_null)) &&
         bind[c].buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
-      code = buildInvalidOperationMsgExt(&pBuf, "bind[%d] column type:%d mis-match with buffer type:%d", c,
+      code = buildInvalidOperationMsgExt(&pBuf, "bind[%d] column type:%d mismatch with buffer type:%d", c,
                                          pColSchema->type, bind[c].buffer_type);
       goto _return;
     }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include <tlog.h>
 #include "decimal.h"
 #include "nodes.h"
@@ -567,7 +570,7 @@ static FORCE_INLINE int32_t filterNewRange(SFilterRangeCtx *ctx, SFilterRange *r
 int32_t filterInitRangeCtx(int32_t type, int32_t options, SFilterRangeCtx **ctx) {
   if (type > TSDB_DATA_TYPE_UBIGINT || type < TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_BINARY ||
       type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
-    qError("not supported range type:%d", type);
+    qError("unsupported range type: %d", type);
     return TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE;
   }
 
@@ -4082,7 +4085,7 @@ int32_t fltSclCompareWithFloat64(SFltSclDatum *val1, SFltSclDatum *val2) {
       return compareDoubleVal(&d, &val2->d);
     }
     default:
-      qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
+      qError("unsupported comparison, kind1:%d, kind2:%d", val1->kind, val2->kind);
       return (val1->kind - val2->kind);
   }
 }
@@ -4100,7 +4103,7 @@ int32_t fltSclCompareWithInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
       return compareDoubleInt64(&val1->d, &val2->i);
     }
     default:
-      qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
+      qError("unsupported comparison, kind1:%d, kind2:%d", val1->kind, val2->kind);
       return (val1->kind - val2->kind);
   }
 }
@@ -4118,7 +4121,7 @@ int32_t fltSclCompareWithUInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
       return compareDoubleUint64(&val1->d, &val2->u);
     }
     default:
-      qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
+      qError("unsupported comparison, kind1:%d, kind2:%d", val1->kind, val2->kind);
       return (val1->kind - val2->kind);
   }
 }
@@ -4167,7 +4170,7 @@ int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
       return fltSclCompareWithDecimal(pData1, &val1->type, &val2->dec, &val2->type);
     }
     default:
-      qError("not supported kind when compare datum. kind2 : %d", val2->kind);
+      qError("unsupported kind when comparing datums, kind2: %d", val2->kind);
       return 0;
       break;
   }
@@ -4362,7 +4365,7 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum *datum, SColumn
         datum->dec = *(Decimal *)valNode->datum.p;
         FLT_RET(0);
       default:
-        qError("not supported type %d when build decimal datum from value node", valNode->node.resType.type);
+        qError("unsupported type %d when building decimal datum from value node", valNode->node.resType.type);
         return TSDB_CODE_INVALID_PARA;
     }
 
@@ -4435,7 +4438,7 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SColumnNode *pColNode
         break;
       }
       default: {
-        qDebug("not supported type %d when build datum from value node", valNode->node.resType.type);
+        qDebug("unsupported type %d when building datum from value node", valNode->node.resType.type);
         break;
       }
     }
@@ -4489,7 +4492,7 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, voi
     }
     default: {
       datum->kind = FLT_SCL_DATUM_KIND_NULL;
-      qDebug("not supported type %d when build datum from block sma value", type);
+      qDebug("unsupported type %d when building datum from block sma value", type);
       break;
     }
   }
@@ -4878,7 +4881,7 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
       d->i = v;
     }
   } else {
-    qError("not supported type %d when get datum from point", d->type.type);
+    qError("unsupported type %d when getting datum from point", d->type.type);
     return TSDB_CODE_FAILED;
   }
   return TSDB_CODE_SUCCESS;
@@ -5394,7 +5397,7 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       break;
     }
     default: {
-      qError("not supported operator type : %d when build range points", oper->type);
+      qError("unsupported operator type: %d when building range points", oper->type);
       break;
     }
   }

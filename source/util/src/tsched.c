@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -34,7 +36,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
   if (NULL == pSched) {
     pSched = (SSchedQueue *)taosMemoryCalloc(sizeof(SSchedQueue), 1);
     if (pSched == NULL) {
-      uError("%s: no enough memory for pSched", label);
+      uError("%s: not enough memory for pSched", label);
       return NULL;
     }
 
@@ -43,7 +45,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
 
   pSched->queue = (SSchedMsg *)taosMemoryCalloc(sizeof(SSchedMsg), queueSize);
   if (pSched->queue == NULL) {
-    uError("%s: no enough memory for queue", label);
+    uError("%s: not enough memory for queue", label);
     taosCleanUpScheduler(pSched);
     if (schedMalloced) {
       taosMemoryFree(pSched);
@@ -53,7 +55,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
 
   pSched->qthread = taosMemoryCalloc(sizeof(TdThread), numOfThreads);
   if (pSched->qthread == NULL) {
-    uError("%s: no enough memory for qthread", label);
+    uError("%s: not enough memory for qthread", label);
     taosCleanUpScheduler(pSched);
     if (schedMalloced) {
       taosMemoryFree(pSched);

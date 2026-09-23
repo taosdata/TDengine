@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_03_type_mapping.py
 
@@ -932,7 +947,7 @@ _CASES = [
         _expect_error(
             f"select doc->'$.k' from {_SRC_M}.json_op_test",
             TSDB_CODE_PAR_INVALID_COL_JSON,
-            "Only tag can be json type",
+            "Only tags can be of the JSON type",
         ),
 
         _clear_source_step(),
@@ -1090,12 +1105,12 @@ _CASES = [
         _expect_error(
             f"select doc_json->'k' from {_SRC_P}.public.json_op_test",
             TSDB_CODE_PAR_INVALID_COL_JSON,
-            "Only tag can be json type",
+            "Only tags can be of the JSON type",
         ),
         _expect_error(
             f"select doc_jsonb->'k' from {_SRC_P}.public.json_op_test",
             TSDB_CODE_PAR_INVALID_COL_JSON,
-            "Only tag can be json type",
+            "Only tags can be of the JSON type",
         ),
 
         _clear_source_step(),
@@ -1598,6 +1613,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
     def test_fq_type_mapping_framework(self):
         """FQ-TYPE-001~060 + S01~S32: complete type mapping coverage.
+
+        Data-driven framework that validates the type mapping between external
+        sources and TDengine columns/tags for all FQ-TYPE cases and the
+        supplementary S cases.
 
         Catalog: - Query:FederatedTypeMapping
 
