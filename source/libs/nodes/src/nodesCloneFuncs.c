@@ -999,6 +999,7 @@ static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModi
   COPY_OBJECT_FIELD(deleteTimeRange, sizeof(STimeWindow));
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(pInsertCols);
+  COPY_SCALAR_FIELD(deleteRangeMode);
   return TSDB_CODE_SUCCESS;
 }
 

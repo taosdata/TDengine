@@ -2434,6 +2434,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pFirstFunc);
       nodesDestroyNode(pStmt->pLastFunc);
       nodesDestroyNode(pStmt->pTagCond);
+      nodesDestroyNode(pStmt->pColumnFilter);
       break;
     }
     case QUERY_NODE_INSERT_STMT: {

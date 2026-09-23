@@ -948,7 +948,8 @@ typedef struct SDeleteStmt {
   SNode*      pCountFunc;  // count the number of rows affected
   SNode*      pFirstFunc;  // the start timestamp when the data was actually deleted
   SNode*      pLastFunc;   // the end timestamp when the data was actually deleted
-  SNode*      pTagCond;    // pWhere divided into pTagCond and timeRange
+  SNode*      pTagCond;       // pWhere divided into pTagCond, pColumnFilter and timeRange
+  SNode*      pColumnFilter;  // ordinary(non-pk, non-tag) column filter, NULL if not used
   STimeWindow timeRange;
   uint8_t     precision;
   bool        deleteZeroRows;

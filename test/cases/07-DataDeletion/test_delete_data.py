@@ -240,14 +240,21 @@ class TestDeleteData:
                 tdSql.checkRows(row_num)
             elif tb_type == 'stb':
                 tdSql.checkRows(tb_num*row_num)
+    def column_filter_predicate(self,column_name,column_type,base_data):
+        if 'binary' in column_type.lower():
+            return f'''{column_name} ="{base_data['binary']}"'''
+        elif 'nchar' in column_type.lower():
+            return f'''{column_name} ="{base_data['nchar']}"'''
+        else:
+            return f'{column_name} = {base_data[column_type]}'
+
     def delete_error(self,tbname,column_name,column_type,base_data):
-        for error_list in ['',f'ts = {self.ts} and',f'ts = {self.ts} or']:
-            if 'binary' in column_type.lower():
-                tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['binary']}"''')
-            elif 'nchar' in column_type.lower():
-                tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['nchar']}"''')
-            else:
-                tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
+        predicate = self.column_filter_predicate(column_name,column_type,base_data)
+        # An ordinary column filter is supported on its own and combined with the time range using
+        # AND, but OR across the two categories is still rejected.
+        tdSql.error(f'delete from {tbname} where ts = {self.ts} or {predicate}')
+        # Only simple comparisons against a constant are accepted.
+        tdSql.error(f'delete from {tbname} where {column_name} = {column_name}')
         
         tdSql.error(f'delete from {tbname} where _c0 > forecast(_c0)')
 
@@ -331,6 +338,7 @@ class TestDeleteData:
         Since: v3.0.0.0
 
         Labels: common,ci,skip,integration,functional
+
         Jira: None
 
         History:
