@@ -184,14 +184,21 @@ class TestDeleteNormaltable:
             tdSql.execute(f'delete from {tbname} where ts between {self.ts+i+1} and {self.ts}')
             tdSql.query(f'select {col_name} from {tbname}')
             tdSql.checkRows(row_num)
+    def column_filter_predicate(self,column_name,column_type,base_data):
+        if 'binary' in column_type.lower():
+            return f'''{column_name} ="{base_data['binary']}"'''
+        elif 'nchar' in column_type.lower():
+            return f'''{column_name} ="{base_data['nchar']}"'''
+        else:
+            return f'{column_name} = {base_data[column_type]}'
+
     def delete_error(self,tbname,column_name,column_type,base_data):
-        for error_list in ['',f'ts = {self.ts} and',f'ts = {self.ts} or']:
-            if 'binary' in column_type.lower():
-                tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['binary']}"''')
-            elif 'nchar' in column_type.lower():
-                tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['nchar']}"''')
-            else:
-                tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
+        predicate = self.column_filter_predicate(column_name,column_type,base_data)
+        # An ordinary column filter is supported on its own and combined with the time range using
+        # AND, but OR across the two categories is still rejected.
+        tdSql.error(f'delete from {tbname} where ts = {self.ts} or {predicate}')
+        # Only simple comparisons against a constant are accepted.
+        tdSql.error(f'delete from {tbname} where {column_name} = {column_name}')
 
     def delete_data_ntb(self):
         tdSql.execute(f'create database if not exists {self.dbname}')
@@ -219,6 +226,7 @@ class TestDeleteNormaltable:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

@@ -5966,7 +5966,9 @@ enum {
   PHY_DELETER_CODE_DELETE_TIME_RANGE,
   PHY_DELETER_CODE_AFFECTED_ROWS,
   PHY_DELETER_CODE_START_TS,
-  PHY_DELETER_CODE_END_TS
+  PHY_DELETER_CODE_END_TS,
+  PHY_DELETER_CODE_RANGE_MODE,
+  PHY_DELETER_CODE_TS_SLOT_ID
 };
 
 static int32_t physiDeleteNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5996,6 +5998,12 @@ static int32_t physiDeleteNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_DELETER_CODE_END_TS, nodeToMsg, pNode->pEndTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_DELETER_CODE_RANGE_MODE, pNode->rangeMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_DELETER_CODE_TS_SLOT_ID, pNode->tsSlotId);
   }
 
   return code;
@@ -6034,6 +6042,12 @@ static int32_t msgToPhysiDeleteNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DELETER_CODE_END_TS:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEndTs);
+        break;
+      case PHY_DELETER_CODE_RANGE_MODE:
+        code = tlvDecodeBool(pTlv, &pNode->rangeMode);
+        break;
+      case PHY_DELETER_CODE_TS_SLOT_ID:
+        code = tlvDecodeI32(pTlv, &pNode->tsSlotId);
         break;
       default:
         break;

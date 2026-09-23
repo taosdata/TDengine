@@ -451,6 +451,66 @@ _exit:
   return code;
 }
 
+// Encodes a single-point old-shape SDeleteRes (one uid, skey==ekey) and proposes it as an
+// independent write, with no client response attached (info.noResp). Used by
+// vnodePreProcessDeleteMsg to fan a column-filter DELETE's N matched rows out into N
+// independent Raft-committed point-deletes, so every consumer of the WAL -- apply, the stream
+// engine's WAL reader, TMQ, taosX raw replay -- only ever sees exact single-point delete ranges,
+// with no protocol extension and no changes required in any of them.
+static int32_t vnodeProposeSplitDeletePoint(SVnode *pVnode, const SDeleteRes *pBase, uint64_t uid, int64_t skey,
+                                            int64_t ekey, int64_t affectedRows) {
+  int32_t    code = 0;
+  int32_t    size, ret;
+  SEncoder   coder = {0};
+  SDeleteRes sub = *pBase;
+  sub.pSplitPoints = NULL;
+  sub.skey = skey;
+  sub.ekey = ekey;
+  sub.affectedRows = affectedRows;
+
+  SArray *oneUid = taosArrayInit(1, sizeof(uint64_t));
+  if (NULL == oneUid) return terrno;
+  if (NULL == taosArrayPush(oneUid, &uid)) {
+    code = terrno;
+    taosArrayDestroy(oneUid);
+    return code;
+  }
+  sub.uidList = oneUid;
+
+  tEncodeSize(tEncodeDeleteRes, &sub, size, ret);
+  uint8_t *pCont = rpcMallocCont(size + sizeof(SMsgHead));
+  if (NULL == pCont) {
+    taosArrayDestroy(oneUid);
+    return terrno;
+  }
+  ((SMsgHead *)pCont)->contLen = size + sizeof(SMsgHead);
+  ((SMsgHead *)pCont)->vgId = TD_VID(pVnode);
+
+  tEncoderInit(&coder, pCont + sizeof(SMsgHead), size);
+  if (tEncodeDeleteRes(&coder, &sub) != 0) {
+    vError("vgId:%d %s failed to encode split delete point uid:%" PRIu64, TD_VID(pVnode), __func__, uid);
+    tEncoderClear(&coder);
+    taosArrayDestroy(oneUid);
+    rpcFreeCont(pCont);
+    return terrno != 0 ? terrno : TSDB_CODE_INTERNAL_ERROR;
+  }
+  tEncoderClear(&coder);
+  taosArrayDestroy(oneUid);
+
+  SRpcMsg subMsg = {0};
+  subMsg.msgType = TDMT_VND_DELETE;
+  subMsg.contLen = size + sizeof(SMsgHead);
+  subMsg.pCont = pCont;
+  subMsg.info.noResp = 1;
+
+  bool isWeak = false;
+  if (vnodeProposeMsg(pVnode, &subMsg, isWeak) < 0) {
+    code = (terrno != 0) ? terrno : TSDB_CODE_INTERNAL_ERROR;
+  }
+  rpcFreeCont(subMsg.pCont);
+  return code;
+}
+
 static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
@@ -470,6 +530,46 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   if (code) goto _exit;
 
   res.ctimeMs = taosGetTimestampMs();
+
+  // A DELETE with an ordinary column filter arrives here as N matched-row points
+  // (res.pSplitPoints), computed once by the scan above. Split it into N independent, old-shape
+  // SDeleteRes proposals -- one Raft-committed point-delete per matched row -- instead of bundling
+  // all N into one message. The first N-1 points are proposed here directly (best-effort: log and
+  // move on if one fails, partial completion is accepted); the last point rides through the
+  // existing single-proposal path below. affectedRows on that final message is the count of points
+  // actually proposed successfully (including the last one itself), not the naive total, so a
+  // partial failure is reflected in what the client sees rather than silently overreported.
+  int32_t numSplitPoints = taosArrayGetSize(res.pSplitPoints);
+  if (numSplitPoints > 0) {
+    int64_t succeededPoints = 1;  // the last point always rides through below; count it up front
+    for (int32_t i = 0; i < numSplitPoints - 1; i++) {
+      SDeleteInterval *pPt = (SDeleteInterval *)taosArrayGet(res.pSplitPoints, i);
+      int32_t subCode = vnodeProposeSplitDeletePoint(pVnode, &res, pPt->uid, pPt->skey, pPt->ekey, 1);
+      if (subCode) {
+        vError("vgId:%d %s failed to propose split delete point %d/%d uid:%" PRIu64 " skey:%" PRId64
+               " ekey:%" PRId64 " since %s",
+               TD_VID(pVnode), __func__, i + 1, numSplitPoints, pPt->uid, pPt->skey, pPt->ekey, tstrerror(subCode));
+      } else {
+        succeededPoints++;
+      }
+    }
+
+    SDeleteInterval *pLast = (SDeleteInterval *)taosArrayGetLast(res.pSplitPoints);
+    SArray          *lastUid = taosArrayInit(1, sizeof(uint64_t));
+    if (NULL == lastUid || NULL == taosArrayPush(lastUid, &pLast->uid)) {
+      code = terrno;
+      taosArrayDestroy(lastUid);
+      taosArrayDestroy(res.uidList);
+      taosArrayDestroy(res.pSplitPoints);
+      goto _exit;
+    }
+    taosArrayDestroy(res.uidList);
+    res.uidList = lastUid;
+    res.skey = pLast->skey;
+    res.ekey = pLast->ekey;
+    res.affectedRows = succeededPoints;
+  }
+
   // malloc and encode
   tEncodeSize(tEncodeDeleteRes, &res, size, ret);
   pCont = rpcMallocCont(size + sizeof(SMsgHead));
@@ -488,6 +588,7 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   pMsg->contLen = size + sizeof(SMsgHead);
 
   taosArrayDestroy(res.uidList);
+  taosArrayDestroy(res.pSplitPoints);
 
 _exit:
   return code;
@@ -4420,7 +4521,9 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
   }
 
   tDecoderClear(pCoder);
+  // Null the pointer: the _err path below frees it too, and tEncodeSVDeleteRsp can still jump there.
   taosArrayDestroy(pRes->uidList);
+  pRes->uidList = NULL;
 
   SVDeleteRsp rsp = {.affectedRows = pRes->affectedRows};
   int32_t     ret = 0;
@@ -4448,6 +4551,14 @@ _err:
     taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
   }
   */
+
+  // vnodeHandleWriteMsg's single-replica fast path builds the client-facing response from the
+  // global terrno, not from this function's return value (see vnodeProcessBatchDeleteReq's
+  // "terrno = code" convention just above in this file for the same reason). Without this, any
+  // failure here -- a txn conflict, a storage error -- silently turns into a success response
+  // whenever the write completes synchronously instead of through the async commit callback.
+  terrno = code;
+  taosArrayDestroy(pRes->uidList);
 
   return code;
 }

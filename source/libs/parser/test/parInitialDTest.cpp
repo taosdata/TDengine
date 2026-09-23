@@ -48,10 +48,44 @@ TEST_F(ParserInitialDTest, delete) {
   run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
 }
 
+// ordinary(non-pk, non-tag) column filters in the WHERE clause
+TEST_F(ParserInitialDTest, deleteColumnFilter) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1 WHERE c1 > 10");
+
+  run("DELETE FROM t1 WHERE ts > now - 2d AND ts < now - 1d AND c1 > 10");
+
+  run("DELETE FROM st1 WHERE tag1 = 10 AND c1 > 10");
+
+  run("DELETE FROM st1 WHERE ts > now - 2d AND tag1 = 10 AND c1 > 10");
+
+  run("DELETE FROM t1 WHERE c1 IS NULL");
+
+  run("DELETE FROM t1 WHERE c1 IN (1, 2, 3)");
+
+  run("DELETE FROM t1 WHERE c1 BETWEEN 1 AND 10");
+
+  // OR between ordinary columns only is allowed
+  run("DELETE FROM t1 WHERE c1 > 10 OR c1 < 0");
+}
+
 TEST_F(ParserInitialDTest, deleteSemanticCheck) {
   useDb("root", "test");
 
-  run("DELETE FROM t1 WHERE c1 > 10", TSDB_CODE_PAR_INVALID_DELETE_WHERE, PARSER_STAGE_TRANSLATE);
+  // a ts condition that cannot be reduced to a definite window is still rejected
+  run("DELETE FROM t1 WHERE ts != now", TSDB_CODE_PAR_INVALID_DELETE_WHERE, PARSER_STAGE_TRANSLATE);
+
+  // cross-category OR between the time range and an ordinary column
+  run("DELETE FROM t1 WHERE ts > now - 1d OR c1 > 10", TSDB_CODE_PAR_DELETE_WHERE_OR_NOT_SUPPORT,
+      PARSER_STAGE_TRANSLATE);
+
+  // functions, cross-column comparison and non-constant operands are not supported
+  run("DELETE FROM t1 WHERE abs(c1) > 10", TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR, PARSER_STAGE_TRANSLATE);
+
+  run("DELETE FROM t1 WHERE c1 > c2", TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR, PARSER_STAGE_TRANSLATE);
+
+  run("DELETE FROM t1 WHERE c1 + 1 > 10", TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR, PARSER_STAGE_TRANSLATE);
 }
 
 TEST_F(ParserInitialDTest, deleteSecureDelete) {

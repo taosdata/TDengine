@@ -2683,6 +2683,7 @@ TEST(td_msg_test, stream_rollup_group_leaf_extracts_last_nchar_segment) {
 }
 
 #include "SClientHbBatchReq.cpp"
+#include "SDeleteRes.cpp"
 // Verify the encode/decode roundtrip of each vnode's per-target snapshot progress array pSnapProgress in a status req.
 // Build 2 SVnodeSnapProgress entries, serialize then deserialize, and assert the group count and each field match.
 TEST(td_msg_test, status_req_snap_progress_roundtrip) {
