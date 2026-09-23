@@ -51,6 +51,10 @@ SSdbRow* mndXnodeJobActionDecode(SSdbRaw* pRaw);
 
 SSdbRaw* mndXnodeUserPassActionEncode(SXnodeUserPassObj* pObj);
 SSdbRow* mndXnodeUserPassActionDecode(SSdbRaw* pRaw);
+
+int32_t mndXnodeMergeUpdateTaskSixStar(const SXnodeTaskObj* pOld, const SMUpdateXnodeTaskReq* pUpdate,
+                                       char** ppMergedSource, int32_t* pMergedSourceLen, char** ppMergedSink,
+                                       int32_t* pMergedSinkLen);
 }
 
 typedef struct {
@@ -254,6 +258,7 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealEncodeDecode_Complete) {
   obj.sinkType = 2;
   obj.ownerId = 987654321;
   obj.acctId = 42;
+  obj.desiredState = XNODE_TASK_DESIRED_STATE_RUNNING;
 
   obj.nameLen = 10;
   obj.name = (char*)taosMemoryCalloc(obj.nameLen, 1);
@@ -310,6 +315,7 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealEncodeDecode_Complete) {
   EXPECT_EQ(pDecoded->updateTime, obj.updateTime);
   EXPECT_EQ(pDecoded->ownerId, obj.ownerId);
   EXPECT_EQ(pDecoded->acctId, obj.acctId);
+  EXPECT_EQ(pDecoded->desiredState, obj.desiredState);
 
   // Cleanup
   freeXnodeTaskObj(&obj);
@@ -321,20 +327,28 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealEncodeDecode_Complete) {
 TEST_F(XnodeProductionTest, XnodeTaskObj_RealDecode_LegacyAllocatedData) {
   SXnodeTaskObj obj = {0};
   obj.id = 102;
+  const char* status = "running";
+  obj.statusLen = strlen(status) + 1;
+  obj.status = (char*)taosMemoryCalloc(obj.statusLen, 1);
+  ASSERT_NE(obj.status, nullptr);
+  strcpy(obj.status, status);
 
   SSdbRaw* pEncoded = mndXnodeTaskActionEncode(&obj);
   ASSERT_NE(pEncoded, nullptr);
 
-  const int32_t tailLen = sizeof(int64_t) + sizeof(int32_t);
+  const int32_t tailLen = sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t);
   const int32_t legacyPayloadLen = pEncoded->dataLen - tailLen;
-  const int32_t legacyRawDataLen = sizeof(SLegacyXnodeTaskObjLayout) + kLegacyXnodeReserveSize;
+  ASSERT_GT(legacyPayloadLen, 0);
+  const int32_t legacyRawDataLen =
+      sizeof(SXnodeTaskObj) + kLegacyXnodeReserveSize + obj.nameLen + obj.sourceDsnLen + obj.sinkDsnLen +
+      obj.parserLen + obj.reasonLen + obj.statusLen + obj.createdByLen + obj.labelsLen;
   ASSERT_GE(legacyRawDataLen, legacyPayloadLen + tailLen);
 
   SSdbRaw* pLegacyRaw = sdbAllocRaw(SDB_XNODE_TASK, TSDB_XNODE_VER_NUMBER, legacyRawDataLen);
   ASSERT_NE(pLegacyRaw, nullptr);
   memcpy(pLegacyRaw->pData, pEncoded->pData, legacyPayloadLen);
 
-  const char zeroTail[sizeof(int64_t) + sizeof(int32_t)] = {0};
+  const char zeroTail[sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t)] = {0};
   ASSERT_EQ(memcmp(pLegacyRaw->pData + legacyPayloadLen, zeroTail, sizeof(zeroTail)), 0);
 
   SSdbRow* pRow = mndXnodeTaskActionDecode(pLegacyRaw);
@@ -343,11 +357,48 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealDecode_LegacyAllocatedData) {
   ASSERT_NE(pDecoded, nullptr);
   EXPECT_EQ(pDecoded->ownerId, 0);
   EXPECT_EQ(pDecoded->acctId, 0);
+  EXPECT_EQ(pDecoded->desiredState, XNODE_TASK_DESIRED_STATE_RUNNING);
 
   freeXnodeTaskObj(pDecoded);
   taosMemoryFree(pRow);
   sdbFreeRaw(pLegacyRaw);
   sdbFreeRaw(pEncoded);
+  freeXnodeTaskObj(&obj);
+}
+
+TEST_F(XnodeProductionTest, XnodeTaskObj_RealDecode_LegacyTruncatedData) {
+  SXnodeTaskObj obj = {0};
+  obj.id = 103;
+  const char* status = "running";
+  obj.statusLen = strlen(status) + 1;
+  obj.status = (char*)taosMemoryCalloc(obj.statusLen, 1);
+  ASSERT_NE(obj.status, nullptr);
+  strcpy(obj.status, status);
+
+  SSdbRaw* pEncoded = mndXnodeTaskActionEncode(&obj);
+  ASSERT_NE(pEncoded, nullptr);
+
+  const int32_t tailLen = sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t);
+  const int32_t legacyPayloadLen = pEncoded->dataLen - tailLen;
+  ASSERT_GT(legacyPayloadLen, 0);
+
+  SSdbRaw* pLegacyRaw = sdbAllocRaw(SDB_XNODE_TASK, TSDB_XNODE_VER_NUMBER, legacyPayloadLen);
+  ASSERT_NE(pLegacyRaw, nullptr);
+  memcpy(pLegacyRaw->pData, pEncoded->pData, legacyPayloadLen);
+
+  SSdbRow* pRow = mndXnodeTaskActionDecode(pLegacyRaw);
+  ASSERT_NE(pRow, nullptr);
+  SXnodeTaskObj* pDecoded = (SXnodeTaskObj*)sdbGetRowObj(pRow);
+  ASSERT_NE(pDecoded, nullptr);
+  EXPECT_EQ(pDecoded->ownerId, 0);
+  EXPECT_EQ(pDecoded->acctId, 0);
+  EXPECT_EQ(pDecoded->desiredState, XNODE_TASK_DESIRED_STATE_RUNNING);
+
+  freeXnodeTaskObj(pDecoded);
+  taosMemoryFree(pRow);
+  sdbFreeRaw(pLegacyRaw);
+  sdbFreeRaw(pEncoded);
+  freeXnodeTaskObj(&obj);
 }
 
 TEST_F(XnodeProductionTest, XnodeTaskObj_RealEncodeDecode_WithReason) {
@@ -435,6 +486,7 @@ TEST_F(XnodeProductionTest, XnodeJobObj_RealEncodeDecode_Complete) {
   obj.xnodeId = 10;
   obj.createTime = 3333333;
   obj.updateTime = 4444444;
+  obj.desiredState = XNODE_TASK_DESIRED_STATE_RUNNING;
 
   obj.configLen = 30;
   obj.config = (char*)taosMemoryCalloc(obj.configLen, 1);
@@ -470,11 +522,53 @@ TEST_F(XnodeProductionTest, XnodeJobObj_RealEncodeDecode_Complete) {
   EXPECT_STREQ(pDecoded->status, obj.status);
   EXPECT_EQ(pDecoded->createTime, obj.createTime);
   EXPECT_EQ(pDecoded->updateTime, obj.updateTime);
+  EXPECT_EQ(pDecoded->desiredState, obj.desiredState);
 
   freeXnodeJobObj(&obj);
   freeXnodeJobObj(pDecoded);
   taosMemoryFree(pRow);
   sdbFreeRaw(pRaw);
+}
+
+TEST_F(XnodeProductionTest, XnodeJobObj_RealDecode_LegacyAllocatedData) {
+  SXnodeJobObj obj = {0};
+  obj.id = 203;
+  obj.taskId = 103;
+  const char* status = "running";
+  obj.statusLen = strlen(status) + 1;
+  obj.status = (char*)taosMemoryCalloc(obj.statusLen, 1);
+  ASSERT_NE(obj.status, nullptr);
+  strcpy(obj.status, status);
+
+  SSdbRaw* pEncoded = mndXnodeJobActionEncode(&obj);
+  ASSERT_NE(pEncoded, nullptr);
+
+  const int32_t tailLen = sizeof(int8_t);
+  const int32_t legacyPayloadLen = pEncoded->dataLen - tailLen;
+  ASSERT_GT(legacyPayloadLen, 0);
+  // Base-version job encoding allocated sizeof(SXnodeJobObj) + reserve + string
+  // lengths without SDB_SET_DATALEN. Recreate that zero-filled slack so this
+  // test exercises the real legacy decode path instead of the exact-truncate
+  // branch.
+  const int32_t legacyReserveSize = kLegacyXnodeReserveSize;
+  const int32_t legacyRawDataLen =
+      sizeof(SXnodeJobObj) + legacyReserveSize + obj.configLen + obj.reasonLen + obj.statusLen;
+  ASSERT_GE(legacyRawDataLen, legacyPayloadLen + tailLen);
+  SSdbRaw* pLegacyRaw = sdbAllocRaw(SDB_XNODE_JOB, TSDB_XNODE_VER_NUMBER, legacyRawDataLen);
+  ASSERT_NE(pLegacyRaw, nullptr);
+  memcpy(pLegacyRaw->pData, pEncoded->pData, legacyPayloadLen);
+
+  SSdbRow* pRow = mndXnodeJobActionDecode(pLegacyRaw);
+  ASSERT_NE(pRow, nullptr);
+  SXnodeJobObj* pDecoded = (SXnodeJobObj*)sdbGetRowObj(pRow);
+  ASSERT_NE(pDecoded, nullptr);
+  EXPECT_EQ(pDecoded->desiredState, XNODE_TASK_DESIRED_STATE_RUNNING);
+
+  freeXnodeJobObj(pDecoded);
+  taosMemoryFree(pRow);
+  sdbFreeRaw(pLegacyRaw);
+  sdbFreeRaw(pEncoded);
+  freeXnodeJobObj(&obj);
 }
 
 TEST_F(XnodeProductionTest, XnodeJobObj_RealEncodeDecode_WithReason) {
@@ -686,6 +780,34 @@ TEST_F(XnodeProductionTest, XnodeUserPassObj_RealEncodeDecode_LongCredentials) {
 }
 
 // ========== Edge Cases and Error Handling ==========
+
+TEST_F(XnodeProductionTest, TaskUpdateDesiredStateOnlyKeepsOtherFields) {
+  SXnodeTaskObj oldObj = {0};
+  oldObj.id = 42;
+  oldObj.name = (char*)"legacy-task";
+  oldObj.nameLen = (int32_t)strlen(oldObj.name) + 1;
+  oldObj.sourceDsn = (char*)"taos://localhost/db";
+  oldObj.sourceDsnLen = (int32_t)strlen(oldObj.sourceDsn) + 1;
+  oldObj.sinkDsn = (char*)"taos://localhost/out";
+  oldObj.sinkDsnLen = (int32_t)strlen(oldObj.sinkDsn) + 1;
+
+  SMUpdateXnodeTaskReq updateReq = {0};
+  updateReq.tid = 42;
+
+  char* mergedSource = nullptr;
+  char* mergedSink = nullptr;
+  int32_t mergedSourceLen = 0;
+  int32_t mergedSinkLen = 0;
+
+  int32_t code = mndXnodeMergeUpdateTaskSixStar(&oldObj, &updateReq, &mergedSource, &mergedSourceLen, &mergedSink,
+                                                &mergedSinkLen);
+
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mergedSource, nullptr);
+  EXPECT_EQ(mergedSink, nullptr);
+  EXPECT_EQ(mergedSourceLen, 0);
+  EXPECT_EQ(mergedSinkLen, 0);
+}
 
 TEST_F(XnodeProductionTest, AllObjects_NullEncodeInput) {
   // Test that encode functions handle nullptr gracefully

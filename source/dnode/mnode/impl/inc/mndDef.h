@@ -472,6 +472,7 @@ typedef struct {
   int64_t  ownerId;
   // Account domain used when matching explicit XNode task privileges.
   int32_t  acctId;
+  int8_t   desiredState;
   SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;
@@ -490,6 +491,7 @@ typedef struct {
   char*    reason;
   int64_t  createTime;
   int64_t  updateTime;
+  int8_t   desiredState;
   SRWLatch lock;
 } SXnodeJobObj;
 

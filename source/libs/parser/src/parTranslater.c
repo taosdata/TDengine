@@ -21262,6 +21262,15 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
       tFreeSMCreateXnodeTaskReq(&createReq);
       return code;
     }
+    const char* desiredState = getXnodeTaskOptionByName(pStmt->options, "desired_state");
+    if (desiredState != NULL) {
+      if (strlen(desiredState) > TSDB_XNODE_STATUS_LEN) {
+        tFreeSMCreateXnodeTaskReq(&createReq);
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                       "Invalid option: desired_state too long");
+      }
+      createReq.desiredState = xCreateCowStr(strlen(desiredState), desiredState, false);
+    }
   }
 
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_TASK, (FSerializeFunc)tSerializeSMCreateXnodeTaskReq, &createReq);
@@ -21341,6 +21350,15 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     if (reason != NULL) {
       updateReq.reason = xCreateCowStr(strlen(reason), reason, false);
     }
+    const char* desiredState = getXnodeTaskOptionByName(pStmt->options, "desired_state");
+    if (desiredState != NULL) {
+      if (strlen(desiredState) > TSDB_XNODE_STATUS_LEN) {
+        tFreeSMUpdateXnodeTaskReq(&updateReq);
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                       "Invalid option: desired_state too long");
+      }
+      updateReq.desiredState = xCreateCowStr(strlen(desiredState), desiredState, false);
+    }
     const char* labels = getXnodeTaskOptionByName(pStmt->options, "labels");
     if (labels != NULL) {
       updateReq.labels = xCreateCowStr(strlen(labels), labels, false);
@@ -21355,13 +21373,17 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
 
 static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobStmt* pStmt) {
   SMCreateXnodeJobReq createReq = {0};
+  int32_t             code = TSDB_CODE_SUCCESS;
   const char*         config = getXnodeTaskOptionByName(pStmt->options, "config");
   if (config == NULL) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: config");
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: config");
+    goto _exit;
   }
   if (strlen(config) > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG,
-                                   "Option config must be string with length <= %d", TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN);
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG,
+                                   "Option config must be string with length <= %d",
+                                   TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN);
+    goto _exit;
   }
   createReq.tid = pStmt->tid;
   createReq.via = pStmt->options->via;
@@ -21374,30 +21396,44 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
   const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
   if (status != NULL) {
     if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
                                      "Invalid option: status too long");
+      goto _exit;
     }
     createReq.status = xCreateCowStr(strlen(status), status, false);
   }
 
+  const char* desiredState = getXnodeTaskOptionByName(pStmt->options, "desired_state");
+  if (desiredState != NULL) {
+    if (strlen(desiredState) > TSDB_XNODE_STATUS_LEN) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                     "Invalid option: desired_state too long");
+      goto _exit;
+    }
+    createReq.desiredState = xCreateCowStr(strlen(desiredState), desiredState, false);
+  }
+
   createReq.config = xCreateCowStr(strlen(config), config, false);
   if (createReq.config.len > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) {
-    return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
+    code = TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
+    goto _exit;
   }
 
   const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
   if (reason != NULL) {
-    createReq.reason = xCreateCowStr(strlen(status), status, false);
+    createReq.reason = xCreateCowStr(strlen(reason), reason, false);
   }
 
-  int32_t code =
-      buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_JOB, (FSerializeFunc)tSerializeSMCreateXnodeJobReq, &createReq);
+  code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_JOB, (FSerializeFunc)tSerializeSMCreateXnodeJobReq, &createReq);
+
+_exit:
   tFreeSMCreateXnodeJobReq(&createReq);
   return code;
 }
 
 static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStmt* pStmt) {
   SMUpdateXnodeJobReq updateReq = {0};
+  int32_t             code = TSDB_CODE_SUCCESS;
   updateReq.jid = pStmt->jid;
   updateReq.via = pStmt->options->via;
 
@@ -21409,8 +21445,9 @@ static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStm
   const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
   if (status != NULL) {
     if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
                                      "Invalid option: status too long");
+      goto _exit;
     }
     updateReq.status = xCreateCowStr(strlen(status), status, false);
   }
@@ -21419,30 +21456,45 @@ static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStm
   if (NULL != config) {
     updateReq.configLen = strlen(config);
     if (updateReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) {
-      return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
+      code = TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
+      goto _exit;
     }
     updateReq.config = taosMemoryCalloc(1, updateReq.configLen + 1);
     if (updateReq.config == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
     }
     (void)memcpy(updateReq.config, config, updateReq.configLen);
+  }
+
+  const char* desiredState = getXnodeTaskOptionByName(pStmt->options, "desired_state");
+  if (desiredState != NULL) {
+    if (strlen(desiredState) > TSDB_XNODE_STATUS_LEN) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                     "Invalid option: desired_state too long");
+      goto _exit;
+    }
+    updateReq.desiredState = xCreateCowStr(strlen(desiredState), desiredState, false);
   }
 
   const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
   if (reason != NULL) {
     updateReq.reasonLen = strlen(reason);
     if (updateReq.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
-      return TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
+      code = TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
+      goto _exit;
     }
     updateReq.reason = taosMemoryCalloc(1, updateReq.reasonLen + 1);
     if (updateReq.reason == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
     }
     (void)memcpy(updateReq.reason, reason, updateReq.reasonLen);
   }
 
-  int32_t code =
-      buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_JOB, (FSerializeFunc)tSerializeSMUpdateXnodeJobReq, &updateReq);
+  code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_JOB, (FSerializeFunc)tSerializeSMUpdateXnodeJobReq, &updateReq);
+
+_exit:
   tFreeSMUpdateXnodeJobReq(&updateReq);
   return code;
 }

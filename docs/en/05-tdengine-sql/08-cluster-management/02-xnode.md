@@ -7,6 +7,8 @@ toc_max_heading_level: 3
 
 Xnode is a distributed execution node in the TDengine data ingestion service. It runs data synchronization tasks and writes data from external data sources into TDengine in real time or in batches. This document describes the SQL commands used to manage data ingestion, including Xnode nodes, data ingestion tasks, Job shards, and Agents.
 
+Task auto-resume is controlled by the `xnoded` daemon and can be configured via `--auto-resume` or the `XNODED_AUTO_RESUME` environment variable; it is enabled by default.
+
 ## Xnode Management
 
 Xnodes are the basic execution units of the data synchronization service, responsible for specific data transmission tasks.
