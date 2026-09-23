@@ -59,7 +59,9 @@ target_link_libraries(udf1_dup PUBLIC os)
 add_library(udf2_dup STATIC MODULE udf2_dup.c)
 target_link_libraries(udf2_dup PUBLIC os)
 
-# example UDFs from docs/examples/udf/  (used by test_udf_c.py)
+# example UDFs from docs/examples/udf/  (used by test_udf_c.py and
+# test_udf_c_examples.py; the sources are inlined into the developer guide,
+# so they must keep working)
 set(_UDF_EXAMPLES_DIR "${TD_SOURCE_DIR}/docs/examples/udf")
 add_library(bitand STATIC MODULE "${_UDF_EXAMPLES_DIR}/bit_and.c")
 target_link_libraries(bitand PUBLIC os util)
@@ -72,6 +74,19 @@ endif()
 
 add_library(gpd STATIC MODULE "${_UDF_EXAMPLES_DIR}/gpd.c")
 target_link_libraries(gpd PUBLIC os util)
+
+# remaining aggregate examples of the developer guide, covered by
+# test_udf_c_examples.py (max_vol: string result, extract_avg: string parsing)
+add_library(max_vol STATIC MODULE "${_UDF_EXAMPLES_DIR}/max_vol.c")
+target_link_libraries(max_vol PUBLIC os util)
+
+add_library(extract_avg STATIC MODULE "${_UDF_EXAMPLES_DIR}/extract_avg.c")
+target_link_libraries(extract_avg PUBLIC os util)
+if(TD_WINDOWS)
+    # extract_avg.c uses POSIX strtok_r() just as shown in the docs; map it to
+    # the MSVC equivalent so the example is built on Windows as well.
+    target_compile_definitions(extract_avg PRIVATE strtok_r=strtok_s)
+endif()
 
 set(TARGET_NAMES
     change_udf_normal
