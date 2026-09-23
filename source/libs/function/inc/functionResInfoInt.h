@@ -414,6 +414,18 @@ typedef struct SValueChangesInfo {
   char          prevData[];  // previous compared value (fixed value or varData)
 } SValueChangesInfo;
 
+typedef struct SBitChangesInfo {
+  int64_t  count;       // output slot (BIGINT), must be first
+  int64_t  numOfElems;  // rows seen (including NULL), distinguishes empty input
+  uint64_t mask;
+  int8_t   flag;
+  int8_t   inputType;
+  bool     hasPrev;
+  uint64_t prevMasked;
+  TSKEY    prevTs;
+  bool     hasPrevTs;
+} SBitChangesInfo;
+
 // Time-weighted sum: raw time-integral (INT v dt) accumulated in native ticks. The output
 // unit divisor is derived from the params at finalize (see twsumResolveTimeUnit), not stored.
 typedef struct STwsumInfo {

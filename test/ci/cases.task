@@ -849,6 +849,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_top.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_bottom.py
 ## 04-Timeseries
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_bit_changes.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_csum.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_diff.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_interp.py
