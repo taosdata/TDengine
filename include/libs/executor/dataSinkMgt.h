@@ -47,6 +47,13 @@ typedef struct SDeleterRes {
   char     tableName[TSDB_TABLE_NAME_LEN];
   char     tsColName[TSDB_COL_NAME_LEN];
   int8_t   secureDelete;
+  // SArray<SDeleteInterval>, set only when a column filter drives the delete. In-process only:
+  // never encoded onto the wire (mirrors SDeleteRes.pSplitPoints in tmsg.h, which this field is
+  // copied into by qwGetDeleteResFromSink). Ownership: the producer (dataDeleter.c's
+  // putRangeDeleteRes) transfers ownership into pIntervals and nulls its own copy of the pointer,
+  // so every SDeleterRes instance must be zero-initialized before use -- an uninitialized
+  // pIntervals here would otherwise be read/freed as a garbage pointer by whoever destroys it.
+  SArray*  pIntervals;
 } SDeleterRes;
 
 typedef struct SDeleterParam {

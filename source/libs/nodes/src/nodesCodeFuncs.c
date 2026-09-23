@@ -5626,6 +5626,8 @@ static const char* jkDeletePhysiPlanAffectedRows = "AffectedRows";
 static const char* jkDeletePhysiPlanStartTs = "StartTs";
 static const char* jkDeletePhysiPlanEndTs = "EndTs";
 static const char* jkDeletePhysiPlanSecureDelete = "SecureDelete";
+static const char* jkDeletePhysiPlanRangeMode = "RangeMode";
+static const char* jkDeletePhysiPlanTsSlotId = "TsSlotId";
 
 static int32_t physiDeleteNodeToJson(const void* pObj, SJson* pJson) {
   const SDataDeleterNode* pNode = (const SDataDeleterNode*)pObj;
@@ -5660,6 +5662,12 @@ static int32_t physiDeleteNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDeletePhysiPlanSecureDelete, pNode->secureDelete);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkDeletePhysiPlanRangeMode, pNode->rangeMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDeletePhysiPlanTsSlotId, pNode->tsSlotId);
   }
 
   return code;
@@ -5698,6 +5706,12 @@ static int32_t jsonToPhysiDeleteNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkDeletePhysiPlanSecureDelete, &pNode->secureDelete);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkDeletePhysiPlanRangeMode, &pNode->rangeMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkDeletePhysiPlanTsSlotId, &pNode->tsSlotId);
   }
 
   return code;
@@ -12182,6 +12196,7 @@ static const char* jkDeleteStmtFromTable = "FromTable";
 static const char* jkDeleteStmtWhere = "Where";
 static const char* jkDeleteStmtCountFunc = "CountFunc";
 static const char* jkDeleteStmtTagIndexCond = "TagIndexCond";
+static const char* jkDeleteStmtColumnFilter = "ColumnFilter";
 static const char* jkDeleteStmtTimeRangeStartKey = "TimeRangeStartKey";
 static const char* jkDeleteStmtTimeRangeEndKey = "TimeRangeEndKey";
 static const char* jkDeleteStmtPrecision = "Precision";
@@ -12199,6 +12214,9 @@ static int32_t deleteStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkDeleteStmtTagIndexCond, nodeToJson, pNode->pTagCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkDeleteStmtColumnFilter, nodeToJson, pNode->pColumnFilter);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDeleteStmtTimeRangeStartKey, pNode->timeRange.skey);
@@ -12228,6 +12246,9 @@ static int32_t jsonToDeleteStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkDeleteStmtTagIndexCond, &pNode->pTagCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkDeleteStmtColumnFilter, &pNode->pColumnFilter);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkDeleteStmtTimeRangeStartKey, &pNode->timeRange.skey);
