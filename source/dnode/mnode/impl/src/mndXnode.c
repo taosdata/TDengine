@@ -51,6 +51,34 @@
 #endif
 
 #define TSDB_XNODE_RESERVE_SIZE 64
+
+static int8_t mndXnodeDesiredStateFromStatus(const char *status) {
+  if (status != NULL &&
+      (strcasecmp(status, "queued") == 0 || strcasecmp(status, "running") == 0 ||
+       strcasecmp(status, "tick") == 0)) {
+    return XNODE_TASK_DESIRED_STATE_RUNNING;
+  }
+  return XNODE_TASK_DESIRED_STATE_STOPPED;
+}
+
+static const char *mndXnodeDesiredStateName(int8_t desiredState) {
+  return desiredState == XNODE_TASK_DESIRED_STATE_RUNNING ? "running" : "stopped";
+}
+
+static int32_t mndXnodeParseDesiredState(const CowStr *value, int8_t *desiredState) {
+  // NOTE: callers guarantee value->ptr != NULL before calling. Returning SUCCESS without touching
+  // *desiredState means "not provided"; the caller-supplied default remains intact.
+  if (value == NULL || value->ptr == NULL) return TSDB_CODE_SUCCESS;
+  if (value->len == strlen("running") && strncasecmp(value->ptr, "running", value->len) == 0) {
+    *desiredState = XNODE_TASK_DESIRED_STATE_RUNNING;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (value->len == strlen("stopped") && strncasecmp(value->ptr, "stopped", value->len) == 0) {
+    *desiredState = XNODE_TASK_DESIRED_STATE_STOPPED;
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR;
+}
 #ifdef WINDOWS
 #define XNODED_PIPE_SOCKET_URL "http://localhost:6051"
 #else
@@ -102,9 +130,11 @@ static void    mndCancelGetNextXnodeTask(SMnode *pMnode, void *pIter);
 
 static int32_t mndXnodeCheckCreateTaskSixStar(const SMCreateXnodeTaskReq *pCreate);
 static int32_t mndXnodeCheckCreateJobSixStar(const SMCreateXnodeJobReq *pCreate);
-static int32_t mndXnodeMergeUpdateTaskSixStar(const SXnodeTaskObj *pOld, const SMUpdateXnodeTaskReq *pUpdate,
-                                              char **ppMergedSource, int32_t *pMergedSourceLen, char **ppMergedSink,
-                                              int32_t *pMergedSinkLen);
+int32_t mndXnodeMergeUpdateTaskSixStar(const SXnodeTaskObj *pOld, const SMUpdateXnodeTaskReq *pUpdate,
+                                          char **ppMergedSource, int32_t *pMergedSourceLen, char **ppMergedSink,
+                                          int32_t *pMergedSinkLen);
+static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTaskObj *pOld,
+                                  SMUpdateXnodeTaskReq *pUpdate);
 static int32_t mndXnodeMergeUpdateJobSixStar(const SXnodeJobObj *pOld, const SMUpdateXnodeJobReq *pUpdate,
                                              char **ppMergedConfig, int32_t *pMergedConfigLen);
 
@@ -1320,7 +1350,7 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   int32_t totalStrLen = pObj->nameLen + pObj->sourceDsnLen + pObj->sinkDsnLen + pObj->parserLen + pObj->reasonLen +
                         pObj->statusLen + pObj->createdByLen + pObj->labelsLen;
   int32_t rawDataLen = sizeof(SXnodeTaskObj) + TSDB_XNODE_RESERVE_SIZE + totalStrLen +
-                       sizeof(int64_t) + sizeof(int32_t);
+                       sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t);
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_TASK, TSDB_XNODE_VER_NUMBER, rawDataLen);
   if (pRaw == NULL) goto _OVER;
@@ -1353,6 +1383,7 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->ownerId, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->acctId, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pObj->desiredState, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -1465,6 +1496,14 @@ SSdbRow *mndXnodeTaskActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT64(pRaw, dataPos, &pObj->ownerId, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &pObj->acctId, _OVER)
   }
+  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pObj->desiredState, _OVER)
+  } else {
+    pObj->desiredState = mndXnodeDesiredStateFromStatus(pObj->status);
+  }
+  if (pObj->desiredState == XNODE_TASK_DESIRED_STATE_UNKNOWN) {
+    pObj->desiredState = mndXnodeDesiredStateFromStatus(pObj->status);
+  }
 
   terrno = 0;
 
@@ -1504,6 +1543,7 @@ int32_t mndXnodeTaskActionUpdate(SSdb *pSdb, SXnodeTaskObj *pOld, SXnodeTaskObj 
   taosWLockLatch(&pOld->lock);
   pOld->via = pNew->via;
   pOld->xnodeId = pNew->xnodeId;
+  pOld->desiredState = pNew->desiredState;
   swapFields(&pNew->statusLen, &pNew->status, &pOld->statusLen, &pOld->status);
   swapFields(&pNew->nameLen, &pNew->name, &pOld->nameLen, &pOld->name);
   swapFields(&pNew->sourceDsnLen, &pNew->sourceDsn, &pOld->sourceDsnLen, &pOld->sourceDsn);
@@ -1590,6 +1630,11 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   xnodeObj.xnodeId = pCreate->xnodeId;
   xnodeObj.ownerId = pOperUser->uid;
   xnodeObj.acctId = pOperUser->acctId;
+  xnodeObj.desiredState = XNODE_TASK_DESIRED_STATE_STOPPED;
+  if (pCreate->desiredState.ptr != NULL) {
+    code = mndXnodeParseDesiredState(&pCreate->desiredState, &xnodeObj.desiredState);
+    if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  }
 
   xnodeObj.nameLen = pCreate->name.len + 1;
   xnodeObj.name = taosMemoryCalloc(1, xnodeObj.nameLen);
@@ -1625,6 +1670,9 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
     xnodeObj.status = taosMemoryCalloc(1, xnodeObj.statusLen);
     if (xnodeObj.status == NULL) goto _OVER;
     (void)memcpy(xnodeObj.status, status, xnodeObj.statusLen - 1);
+    if (pCreate->desiredState.ptr == NULL) {
+      xnodeObj.desiredState = mndXnodeDesiredStateFromStatus(status);
+    }
   }
 
   xnodeObj.createdByLen = strlen(pReq->info.conn.user) + 1;
@@ -1895,6 +1943,17 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndUpdateXnodeTaskDesiredState(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTaskObj *pObj,
+                                             int8_t desiredState) {
+  SMUpdateXnodeTaskReq updateReq = {0};
+  updateReq.tid = pObj->id;
+  const char *desiredStateName = mndXnodeDesiredStateName(desiredState);
+  updateReq.desiredState = xCreateCowStr((int32_t)strlen(desiredStateName), desiredStateName, false);
+  int32_t code = mndUpdateXnodeTask(pMnode, pReq, pObj, &updateReq);
+  tFreeSMUpdateXnodeTaskReq(&updateReq);
+  return code;
+}
+
 static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
   SMnode             *pMnode = pReq->info.node;
   int32_t             code = 0;
@@ -1929,6 +1988,8 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
     mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
+  code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pObj, XNODE_TASK_DESIRED_STATE_RUNNING);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
   (void)httpStartXnodeTask(pObj);
 
 _OVER:
@@ -1980,6 +2041,8 @@ static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
     mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
+  code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pObj, XNODE_TASK_DESIRED_STATE_STOPPED);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
 
   // send request
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
@@ -2038,6 +2101,10 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     }
     (void)memcpy(taskObj.status, pUpdate->status.ptr, pUpdate->status.len);
     isChange.status = true;
+  }
+  if (pUpdate->desiredState.ptr != NULL) {
+    code = mndXnodeParseDesiredState(&pUpdate->desiredState, &taskObj.desiredState);
+    if (code != TSDB_CODE_SUCCESS) goto _OVER;
   }
   if (pUpdate->updateName.ptr != NULL) {
     taskObj.nameLen = pUpdate->updateName.len + 1;
@@ -4014,9 +4081,9 @@ static int32_t mndXnodeCheckCreateJobSixStar(const SMCreateXnodeJobReq *pCreate)
 // *ppMergedSource/*ppMergedSink take over the final DSN for each field the
 // candidate carries (NULL when the field is not updated); the caller adopts the
 // buffers into the new object version.
-static int32_t mndXnodeMergeUpdateTaskSixStar(const SXnodeTaskObj *pOld, const SMUpdateXnodeTaskReq *pUpdate,
-                                              char **ppMergedSource, int32_t *pMergedSourceLen, char **ppMergedSink,
-                                              int32_t *pMergedSinkLen) {
+int32_t mndXnodeMergeUpdateTaskSixStar(const SXnodeTaskObj *pOld, const SMUpdateXnodeTaskReq *pUpdate,
+                                          char **ppMergedSource, int32_t *pMergedSourceLen, char **ppMergedSink,
+                                          int32_t *pMergedSinkLen) {
   if (ppMergedSource == NULL || pMergedSourceLen == NULL || ppMergedSink == NULL || pMergedSinkLen == NULL) {
     return mndXnodeProtectionError();
   }
@@ -4270,6 +4337,14 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->updateTime, false);
     if (code != 0) goto _end;
 
+    // desired_state
+    buf[0] = 0;
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, mndXnodeDesiredStateName(pObj->desiredState),
+                               pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+    if (code != 0) goto _end;
+
     numOfRows++;
     sdbRelease(pSdb, pObj);
   }
@@ -4388,8 +4463,8 @@ SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
 
   mDebug("xnode tid:%d, jid:%d, start to encode to raw, row:%p", pObj->taskId, pObj->id, pObj);
 
-  int32_t rawDataLen =
-      sizeof(SXnodeJobObj) + TSDB_XNODE_RESERVE_SIZE + pObj->configLen + pObj->reasonLen + pObj->statusLen;
+  int32_t rawDataLen = sizeof(SXnodeJobObj) + TSDB_XNODE_RESERVE_SIZE + pObj->configLen + pObj->reasonLen +
+                       pObj->statusLen + sizeof(int8_t);
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_JOB, TSDB_XNODE_VER_NUMBER, rawDataLen);
   if (pRaw == NULL) goto _OVER;
@@ -4409,6 +4484,8 @@ SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
   SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pObj->desiredState, _OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
 
@@ -4481,6 +4558,14 @@ SSdbRow *mndXnodeJobActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
+  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pObj->desiredState, _OVER)
+  } else {
+    pObj->desiredState = mndXnodeDesiredStateFromStatus(pObj->status);
+  }
+  if (pObj->desiredState == XNODE_TASK_DESIRED_STATE_UNKNOWN) {
+    pObj->desiredState = mndXnodeDesiredStateFromStatus(pObj->status);
+  }
 
   terrno = 0;
 
@@ -4518,6 +4603,7 @@ int32_t mndXnodeJobActionUpdate(SSdb *pSdb, SXnodeJobObj *pOld, SXnodeJobObj *pN
   taosWLockLatch(&pOld->lock);
   pOld->via = pNew->via;
   pOld->xnodeId = pNew->xnodeId;
+  pOld->desiredState = pNew->desiredState;
   swapFields(&pNew->statusLen, &pNew->status, &pOld->statusLen, &pOld->status);
   swapFields(&pNew->configLen, &pNew->config, &pOld->configLen, &pOld->config);
   swapFields(&pNew->reasonLen, &pNew->reason, &pOld->reasonLen, &pOld->reason);
@@ -4729,6 +4815,11 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
   STrans *pTrans = NULL;
 
   SXnodeJobObj jobObj = {0};
+  jobObj.desiredState = XNODE_TASK_DESIRED_STATE_STOPPED;
+  if (pCreate->desiredState.ptr != NULL) {
+    code = mndXnodeParseDesiredState(&pCreate->desiredState, &jobObj.desiredState);
+    if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  }
 
   // The cheap length gate runs before the six-star scan so an oversized config
   // is rejected without paying for the full protection scan.
@@ -4756,9 +4847,12 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
     jobObj.status = taosMemoryCalloc(1, jobObj.statusLen);
     if (jobObj.status == NULL) goto _OVER;
     (void)memmove(jobObj.status, pCreate->status.ptr, pCreate->status.len);
+    if (pCreate->desiredState.ptr == NULL) {
+      jobObj.desiredState = mndXnodeDesiredStateFromStatus(jobObj.status);
+    }
   }
 
-  if (jobObj.reason != NULL) {
+  if (pCreate->reason.ptr != NULL) {
     jobObj.reasonLen = pCreate->reason.len + 1;
     if (jobObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN + 1) {
       code = TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
@@ -4825,6 +4919,10 @@ static int32_t mndUpdateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pO
     if (jobObj.status == NULL) goto _OVER;
     (void)memcpy(jobObj.status, pUpdate->status.ptr, pUpdate->status.len);
     isChange.status = true;
+  }
+  if (pUpdate->desiredState.ptr != NULL) {
+    code = mndXnodeParseDesiredState(&pUpdate->desiredState, &jobObj.desiredState);
+    if (code != TSDB_CODE_SUCCESS) goto _OVER;
   }
 
   // The cheap length gate runs before the six-star merge so an oversized
@@ -5231,6 +5329,17 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
     reason.nd.isNull = true;
     code = taosHashPut(pMap, "reason", strlen("reason") + 1, &reason, sizeof(SXndRefValueNode));
   }
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
+  }
+  // desired_state
+  SXndRefValueNode desiredState = {0};
+  desiredState.nd.node.type = QUERY_NODE_VALUE;
+  desiredState.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
+  desiredState.nd.datum.p = (void *)mndXnodeDesiredStateName(pJob->desiredState);
+  code = taosHashPut(pMap, "desired_state", strlen("desired_state") + 1, &desiredState,
+                     sizeof(SXndRefValueNode));
   if (code != 0) {
     taosHashCleanup(pMap);
     return NULL;
@@ -5889,6 +5998,14 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     // update_time
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->updateTime, false);
+    if (code != 0) goto _end;
+
+    // desired_state
+    buf[0] = 0;
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, mndXnodeDesiredStateName(pObj->desiredState),
+                               pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
     if (code != 0) goto _end;
 
     numOfRows++;

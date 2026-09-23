@@ -4988,6 +4988,7 @@ typedef struct {
   xTaskSource  source;
   xTaskSink    sink;
   xTaskOptions options;
+  CowStr       desiredState;
 } SMCreateXnodeTaskReq;
 int32_t tSerializeSMCreateXnodeTaskReq(void* buf, int32_t bufLen, SMCreateXnodeTaskReq* pReq);
 int32_t tDeserializeSMCreateXnodeTaskReq(void* buf, int32_t bufLen, SMCreateXnodeTaskReq* pReq);
@@ -5003,6 +5004,7 @@ typedef struct {
   xTaskSink   sink;
   CowStr      parser;
   CowStr      reason;
+  CowStr      desiredState;
   CowStr      updateName;
   CowStr      labels;
   int32_t     sqlLen;
@@ -5042,6 +5044,7 @@ typedef struct {
   int32_t via;
   int32_t xnodeId;
   CowStr  status;
+  CowStr  desiredState;
   CowStr  config;
   CowStr  reason;
   int32_t sqlLen;
@@ -5056,6 +5059,7 @@ typedef struct {
   int32_t via;
   int32_t xnodeId;
   CowStr  status;
+  CowStr  desiredState;
   int32_t configLen;
   int32_t reasonLen;
   int32_t sqlLen;
