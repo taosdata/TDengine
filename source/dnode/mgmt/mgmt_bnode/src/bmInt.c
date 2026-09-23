@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -102,7 +104,7 @@ static int32_t bmReadFile(const char *path, const char *name, int32_t *proto) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("file:%s not exist", file);
+    dInfo("file:%s does not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -147,7 +149,7 @@ static int32_t bmReadFile(const char *path, const char *name, int32_t *proto) {
   }
 
   code = 0;
-  dInfo("succceed to read bnode file %s", file);
+  dInfo("successfully read bnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);

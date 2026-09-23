@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -64,7 +66,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("file:%s not exist", file);
+    dInfo("file:%s does not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -88,7 +90,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   }
 
   code = 0;
-  dInfo("succceed to read mnode file %s", file);
+  dInfo("successfully read mnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -113,7 +115,7 @@ int32_t dmReadFileJsonWithEncrypted(const char *path, const char *name, SJson **
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("file:%s not exist", file);
+    dInfo("file:%s does not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -721,7 +723,7 @@ int32_t dmGetEncryptKey() {
 
   if (!taosCheckExistFile(encryptFile)) {
     code = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
-    dInfo("encryption key file not exist, checkCode file:%s", encryptFile);
+    dInfo("encryption key file does not exist, checkCode file:%s", encryptFile);
     return 0;
   }
 

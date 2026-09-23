@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -840,7 +842,7 @@ static int32_t tFillFromHeadForCol(struct SFillInfo* pFillInfo, TSKEY ts,
   SColumnFillProgress* pColProgress =
     taosArrayGet(pFillInfo->pColFillProgress, colIdx);
   if (!pColProgress) {
-    qError("%s falied at %d, failed to get col progress for col %d, size: %lu",
+    qError("%s failed at %d, failed to get col progress for col %d, size: %lu",
            __func__, __LINE__, colIdx,
            taosArrayGetSize(pFillInfo->pColFillProgress));
     return TSDB_CODE_INTERNAL_ERROR;

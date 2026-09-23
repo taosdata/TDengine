@@ -1,4 +1,18 @@
-# encoding:UTF-8
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from taos import *
 
 from ctypes import *
@@ -403,6 +417,7 @@ class TestStmtError:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -423,22 +438,24 @@ class TestStmtError:
 
         try:
             self.check_stmt_insert_vtb_error(self.get_connect())
-            raise AssertionError("expected '[0x6205]: Virtual table not support' but no error occurred")
+            raise AssertionError("expected '[0x6205]: Virtual table is not supported in STMT query and STMT insert'"
+                                 " but no error occurred")
         except AssertionError:
             raise
         except Exception as error:
-            if "[0x6205]: Virtual table not support in STMT query and STMT insert" in str(error):
+            if "[0x6205]: Virtual table is not supported in STMT query and STMT insert" in str(error):
                 tdLog.info("stmt error correctly occurred for virtual table insert: %s" % error)
             else:
                 raise AssertionError("unexpected error for virtual table STMT insert: %s" % str(error)) from error
 
         try:
             self.check_stmt_insert_vstb_error(self.get_connect())
-            raise AssertionError("expected '[0x6205]: Virtual table not support' but no error occurred")
+            raise AssertionError("expected '[0x6205]: Virtual table is not supported in STMT query and STMT insert'"
+                                 " but no error occurred")
         except AssertionError:
             raise
         except Exception as error:
-            if "[0x6205]: Virtual table not support in STMT query and STMT insert" in str(error):
+            if "[0x6205]: Virtual table is not supported in STMT query and STMT insert" in str(error):
                 tdLog.info("stmt error correctly occurred for virtual super table insert: %s" % error)
             else:
                 raise AssertionError("unexpected error for virtual super table STMT insert: %s" % str(error)) from error

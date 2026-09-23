@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "mndTrans.h"
 
 uint32_t seed = 0;
@@ -41,8 +58,8 @@ void streamTransRandomErrorGen(STransAction *pAction, STrans *pTrans, int64_t si
             "not started***");
       } else {  // pAction->msgType == TDMT_VND_STREAM_CHECK_POINT_SOURCE
         mError(
-            "***sleep 5s and core dump, following tasks will not recv checkpoint-source info, so the tasks will "
-            "started after restart***");
+            "***sleep 5s and core dump, following tasks will not receive checkpoint-source info, so the tasks will "
+            "start after restart***");
         exit(-1);
       }
     } else if (choseItem == 1) {

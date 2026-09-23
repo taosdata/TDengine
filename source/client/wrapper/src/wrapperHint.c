@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,7 +24,7 @@ void tdengineErrorHint(uint32_t errCode) {
       printf("Hint: Please make sure you have installed TDengine client or try re-install TDengine client.\n");
       break;
     case TSDB_CODE_DLL_FUNC_NOT_LOAD:
-      printf("Hint: TDengine client libraries not matched, try re-install TDengine client.\n");
+      printf("Hint: TDengine client libraries do not match, try re-installing the TDengine client.\n");
       break;
     default:
       break;

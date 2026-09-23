@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -466,7 +468,7 @@ static int32_t msmSTAddToSnodeMapImpl(int64_t streamId, SStmTaskStatus* pStatus,
 
   SStmSnodeStatus* pSnode = taosHashGet(mStreamMgmt.snodeMap, &pStatus->id.nodeId, sizeof(pStatus->id.nodeId));
   if (NULL == pSnode) {
-    mstsWarn("snode %d not exists in snodeMap anymore, may be dropped", pStatus->id.nodeId);
+    mstsWarn("snode %d no longer exists in snodeMap, may be dropped", pStatus->id.nodeId);
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
   } else {
     if (NULL == pSnode->streamTasks) {
@@ -799,7 +801,7 @@ int32_t msmUpdateSnodeUpTs(SStmGrpCtx* pCtx) {
     pStatus = taosHashGet(mStreamMgmt.snodeMap, &pCtx->pReq->snodeId, sizeof(pCtx->pReq->snodeId));
     if (NULL == pStatus) {
       if (noExists) {
-        mstWarn("snode %d not exists in snodeMap, may be dropped, ignore it", pCtx->pReq->snodeId);
+        mstWarn("snode %d does not exist in snodeMap, may be dropped, ignore it", pCtx->pReq->snodeId);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NODE_NOT_EXISTS);
       }
 
@@ -842,7 +844,7 @@ void msmUpdateVgroupUpTs(SStmGrpCtx* pCtx, int32_t vgId) {
   int32_t  lino = 0;
   SStmVgroupStatus* pStatus = taosHashGet(mStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
   if (NULL == pStatus) {
-    mstDebug("vgroup %d not exists in vgroupMap, ignore update upTs", vgId);
+    mstDebug("vgroup %d does not exist in vgroupMap, ignore update upTs", vgId);
     return;
   }
 
@@ -1240,7 +1242,7 @@ int32_t msmIsSnodeAlive(SMnode* pMnode, int32_t snodeId, int64_t streamId, bool*
     pStatus = taosHashGet(mStreamMgmt.snodeMap, &snodeId, sizeof(snodeId));
     if (NULL == pStatus) {
       if (noExists) {
-        mstsError("snode %d not exists in snodeMap", snodeId);
+        mstsError("snode %d does not exist in snodeMap", snodeId);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       }
 
@@ -2107,7 +2109,7 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
 
     SArray** ppRes = taosHashGet(mStreamMgmt.toUpdateScanMap, key, sizeof(key));
     if (NULL == ppRes) {
-      msttError("lowest runner subplan ID:%d,%d can't get its child ID:%" PRId64 " addr", pPlan->id.groupId, pPlan->id.subplanId, key[1]);
+      msttError("lowest runner subplan ID:%d,%d cannot get its child ID:%" PRId64 " addr", pPlan->id.groupId, pPlan->id.subplanId, key[1]);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
 
@@ -2354,7 +2356,7 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
     }
 
     if (totalTaskNum != pDag->numOfSubplans) {
-      mstsError("totalTaskNum %d mis-match with numOfSubplans %d", totalTaskNum, pDag->numOfSubplans);
+      mstsError("totalTaskNum %d mismatch with numOfSubplans %d", totalTaskNum, pDag->numOfSubplans);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
 
@@ -3736,7 +3738,7 @@ int32_t msmUpdateStreamLastActTs(int64_t streamId, int64_t currTs) {
   int32_t lino = 0;
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
-    mstsWarn("stream already not exists in streamMap, mapSize:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    mstsWarn("stream no longer exists in streamMap, mapSize:%d", taosHashGetSize(mStreamMgmt.streamMap));
     return TSDB_CODE_SUCCESS;
   }
   
@@ -4629,7 +4631,7 @@ _exit:
   if (code) {
     msttError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    msttDebug("new task recored to taskMap/streamMap, task status:%s", gStreamStatusStr[pTask->status]);
+    msttDebug("new task recorded to taskMap/streamMap, task status:%s", gStreamStatusStr[pTask->status]);
   }
 
   return code;
@@ -4737,7 +4739,7 @@ void msmRspAddTriggerUpdate(SMnode * pMnode, int64_t streamId, SStmGrpCtx* pCtx,
 
   SStmStatus* pStream = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStream) {
-    mstsDebug("stream already not exists in streamMap, ignore trigger update, streamRemain:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    mstsDebug("stream no longer exists in streamMap, ignore trigger update, streamRemain:%d", taosHashGetSize(mStreamMgmt.streamMap));
     return;
   }
 
@@ -4786,7 +4788,7 @@ void msmRspAddUserRecalc(SMnode * pMnode, int64_t streamId, SStmGrpCtx* pCtx, SS
 
   SStmStatus* pStream = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStream) {
-    mstsDebug("stream already not exists in streamMap, ignore trigger update, streamRemain:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    mstsDebug("stream no longer exists in streamMap, ignore trigger update, streamRemain:%d", taosHashGetSize(mStreamMgmt.streamMap));
     return;
   }
 
@@ -4938,14 +4940,14 @@ void msmWatchCheckStreamMap(SStmGrpCtx* pCtx) {
     
     trigReaderNum = taosArrayGetSize(pStatus->trigReaders);
     if (pStatus->trigReaderNum != trigReaderNum) {
-      mstsWarn("trigReaderNum %d mis-match with expected %d", trigReaderNum, pStatus->trigReaderNum);
+      mstsWarn("trigReaderNum %d mismatch with expected %d", trigReaderNum, pStatus->trigReaderNum);
       msmStopStreamByError(streamId, pStatus, TSDB_CODE_MND_STREAM_TASK_LOST, pCtx->currTs);
       continue;
     }
 
     calcReaderNum = MST_LIST_SIZE(pStatus->calcReaders);
     if (pStatus->calcReaderNum != calcReaderNum) {
-      mstsWarn("calcReaderNum %d mis-match with expected %d", calcReaderNum, pStatus->calcReaderNum);
+      mstsWarn("calcReaderNum %d mismatch with expected %d", calcReaderNum, pStatus->calcReaderNum);
       msmStopStreamByError(streamId, pStatus, TSDB_CODE_MND_STREAM_TASK_LOST, pCtx->currTs);
       continue;
     }
@@ -4959,7 +4961,7 @@ void msmWatchCheckStreamMap(SStmGrpCtx* pCtx) {
     for (int32_t i = 0; i < pStatus->runnerDeploys; ++i) {
       runnerNum = taosArrayGetSize(pStatus->runners[i]);
       if (runnerNum != pStatus->runnerNum) {
-        mstsWarn("runner deploy %d runnerNum %d mis-match with expected %d", i, runnerNum, pStatus->runnerNum);
+        mstsWarn("runner deploy %d runnerNum %d mismatch with expected %d", i, runnerNum, pStatus->runnerNum);
         msmStopStreamByError(streamId, pStatus, TSDB_CODE_MND_STREAM_TASK_LOST, pCtx->currTs);
         continue;
       }
@@ -4985,7 +4987,7 @@ int32_t msmWatchHandleEnding(SStmGrpCtx* pCtx, bool watchError) {
     taosHashClear(mStreamMgmt.snodeMap);
     taosHashClear(mStreamMgmt.taskMap);
     taosHashClear(mStreamMgmt.streamMap);
-    mstInfo("watch error happends, clear all maps");
+    mstInfo("watch error happens, clear all maps");
     goto _exit;
   }
 
@@ -5877,7 +5879,7 @@ void msmCheckLoopStreamMap(SMnode *pMnode) {
     }
 
     if (!sdbCheckExists(pMnode->pSdb, SDB_STREAM, pStatus->streamName)) {
-      mstsDebug("stream already not exists, deployTimes:%" PRId64, pStatus->deployTimes);
+      mstsDebug("stream no longer exists, deployTimes:%" PRId64, pStatus->deployTimes);
       (void)msmRemoveStreamFromMaps(pMnode, *(int64_t*)taosHashGetKey(pIter, NULL));
       continue;
     }
@@ -6297,7 +6299,7 @@ int32_t msmGetTriggerTaskAddr(SMnode *pMnode, int64_t streamId, SStreamTaskAddr*
   
   SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
-    mstsError("stream not exists in streamMap, streamRemains:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    mstsError("stream does not exist in streamMap, streamRemains:%d", taosHashGetSize(mStreamMgmt.streamMap));
     code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
     goto _exit;
   }

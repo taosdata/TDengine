@@ -1,45 +1,19 @@
 #!/usr/bin/env bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# run.sh -- loop rdbwrite/rdbread to find out whether this machine can write and
-# read a rocksdb database reliably.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# The point is to reproduce, without taosd, the sequence that failed in
-# production: write last values in batches, flush to SST, read them back. If the
-# read path on this host is unreliable, enough iterations will surface it as a
-# block checksum mismatch -- the same error taosd reported.
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# Each iteration by default uses a fresh database, so a failure is attributable
-# to that iteration rather than to damage left behind by an earlier one. With
-# --keep-db the database is written once and only re-read, which isolates the
-# read path from the write path.
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-# On failure the database is preserved and its path reported, so the file can be
-# examined with rdbsst afterwards. That distinction is the useful one:
-#
-#   file still fails rdbsst later  -> the bytes on disk are wrong
-#                                     (media, controller, or a bad write)
-#   file passes rdbsst later       -> the bytes on disk are fine and the failing
-#                                     read was transient
-#                                     (RAM, CPU cache, HBA, cable, RAID cache)
-#
-# usage:
-#   ./run.sh [options]
-#
-#   -d DIR       working directory for databases (default ./rdbselftest-work)
-#   -i N         iterations, 0 = until Ctrl-C (default 20)
-#   -n N         records per database (default 200000)
-#   -v N         value size in bytes (default 96)
-#   -r N         read rounds per iteration; >1 also checks read repeatability
-#                (default 1)
-#   -t SECONDS   stop after this long
-#   -j N         run N iterations concurrently, to add memory and I/O pressure
-#                (default 1)
-#   --keep-db    write once, then only re-read each iteration
-#   --drop-cache drop the page cache before each read, forcing reads to reach
-#                the device (needs root)
-#   -h           this help
-#
-# exit: 0 no failure observed, 1 at least one iteration failed, 2 setup error.
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -u
 

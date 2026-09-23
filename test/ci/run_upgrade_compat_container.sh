@@ -1,20 +1,19 @@
 #!/bin/bash
-# run_upgrade_compat_container.sh
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Container-side script for cold/hot upgrade compatibility tests.
-# Invoked by run_upgrade_compat.sh via docker run.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Steps:
-#   1. Install Python dependencies (taospy / pyyaml)
-#   2. Cold upgrade tests: 3.3.6.0 / 3.3.8.0 / 3.4.0.0 → current version (sequential)
-#   3. Hot (rolling) upgrade test: auto-match base version by version prefix
-#   4. Print overall PASS / FAIL summary
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# Volume mounts (guaranteed by run_upgrade_compat.sh):
-#   /home/TDinternal/community — source repo (read-only, mounted from source/taos-community)
-#   /home/TDinternal/debug     — current build artifacts debugNoSan (read-only)
-#   /green_versions            — worker-shared green version cache (read-only)
-#   /upgrade_logs              — log output directory (writable)
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 

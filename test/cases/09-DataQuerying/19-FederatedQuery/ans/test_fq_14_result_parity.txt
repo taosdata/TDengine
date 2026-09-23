@@ -245,11 +245,11 @@ RESULT
 ---
 ### whr-39 NEG
 SQL: SELECT id FROM {tbl} WHERE label->'key' = 'val' ORDER BY time
-ERROR -0x7fffd9ae: Only tag can be json type
+ERROR -0x7fffd9ae: Only tags can be of the JSON type
 ---
 ### whr-40 NEG
 SQL: SELECT id FROM {tbl} WHERE label CONTAINS 'north'
-ERROR -0x7fffd9ae: Only tag can be json type
+ERROR -0x7fffd9ae: Only tags can be of the JSON type
 ---
 ### whr-41 POS
 SQL: SELECT a.id, a.val FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time WHERE a.val > 20 ORDER BY a.id
@@ -2008,19 +2008,19 @@ RESULT
 ---
 ### join-01 NEG
 SQL: SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-02 NEG
 SQL: SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.id = b.id AND b.val > 30 ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-03 NEG
 SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.id = b.id AND a.val < 30 ORDER BY b.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-04 NEG
 SQL: SELECT a.id AS aid, b.id AS bid FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.id = b.id + 3 ORDER BY a.id, b.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-05 NEG
 SQL: SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {tbl} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {tbl} WHERE id >= 4) b ORDER BY a.id, b.id
@@ -2028,27 +2028,27 @@ ERROR -0x7fffda00: syntax error near "cross join (select id from fq_parity_local
 ---
 ### join-06 NEG
 SQL: SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id GROUP BY a.label ORDER BY a.label
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-07 NEG
 SQL: SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id INNER JOIN {tbl} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-08 NEG
 SQL: SELECT a.id, a.val FROM {tbl} a LEFT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-09 NEG
 SQL: SELECT a.id, a.val FROM {tbl} a LEFT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-10 NEG
 SQL: SELECT b.id, b.val FROM {tbl} a RIGHT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY b.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-11 NEG
 SQL: SELECT b.id, b.val FROM {tbl} a RIGHT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY b.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
 ---
 ### join-12 POS
 SQL: SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time ORDER BY a.id
@@ -3572,11 +3572,11 @@ RESULT
 ---
 ### json-01 NEG
 SQL: SELECT label->'k' FROM {tbl} WHERE id = 1
-ERROR -0x7fffd9ae: Only tag can be json type
+ERROR -0x7fffd9ae: Only tags can be of the JSON type
 ---
 ### json-02 NEG
 SQL: SELECT id FROM {tbl} WHERE label CONTAINS 'num'
-ERROR -0x7fffd9ae: Only tag can be json type
+ERROR -0x7fffd9ae: Only tags can be of the JSON type
 ---
 ### json-03 POS
 SQL: SELECT id FROM {tbl} WHERE label LIKE '%orth%' ORDER BY time

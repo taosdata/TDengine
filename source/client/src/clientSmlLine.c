@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -558,7 +560,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 
   elements->colsLen = sql - elements->cols;
   if (unlikely(elements->colsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "SML line cols is empty", NULL);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML line cols are empty", NULL);
     return TSDB_CODE_SML_INVALID_DATA;
   }
 

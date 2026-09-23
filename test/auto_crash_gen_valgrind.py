@@ -1,5 +1,19 @@
 #!/usr/bin/python3
 
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
 import os
@@ -22,7 +36,7 @@ from crash_gen_paths import (
 # valgrind mode ?
 valgrind_mode =  True
 
-msg_dict = {0: "success", 1: "failed", 2: "other errors", 3: "crash occured", 4: "Invalid read/write", 5: "memory leak", 6: "dead locked"}
+msg_dict = {0: "success", 1: "failed", 2: "other errors", 3: "crash occurred", 4: "Invalid read/write", 5: "memory leak", 6: "dead locked"}
 
 # formal
 hostname = socket.gethostname()
@@ -312,7 +326,7 @@ def main():
     if os.path.exists(crash_gen_path+"crash_gen.sh"):
         print(" make sure crash_gen.sh is ready")
     else:
-        print( " crash_gen.sh is not exists ")
+        print( "crash_gen.sh does not exist")
         sys.exit(1)
 
     git_commit = subprocess.Popen("cd %s && git log | head -n1"%crash_gen_path, shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")[7:16]

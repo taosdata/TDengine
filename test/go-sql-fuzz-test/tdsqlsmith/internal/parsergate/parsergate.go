@@ -1,6 +1,18 @@
-// Package parsergate is a gate that parses SQL via sqlparser to validate it before execution.
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 //
-// Package parsergate 是一个门控，通过 sqlparser 解析 SQL，在执行前对其进行校验。
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package parsergate
 
 import (

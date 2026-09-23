@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -781,7 +783,7 @@ static void ctgResetCacheTimerImpl(void) {
   }
 
   if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-    qError("reset catalog cache monitor timer error, timer stoppped");
+    qError("reset catalog cache monitor timer error, timer stopped");
   }
 }
 
@@ -1651,14 +1653,14 @@ _return:
 
   if (pJob) {
     int32_t code2 = taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
-    if (TSDB_CODE_SUCCESS) {
-      qError("release catalog job refId:%" PRId64 " falied, error:%s", pJob->refId, tstrerror(code2));
+    if (code2 != TSDB_CODE_SUCCESS) {
+      qError("release catalog job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code2));
     }
 
     if (code) {
       code2 = taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
-      if (TSDB_CODE_SUCCESS) {
-        qError("remove catalog job refId:%" PRId64 " falied, error:%s", pJob->refId, tstrerror(code2));
+      if (code2 != TSDB_CODE_SUCCESS) {
+        qError("remove catalog job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code2));
       }
     }
   }

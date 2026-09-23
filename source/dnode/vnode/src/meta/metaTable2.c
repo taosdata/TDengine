@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -223,7 +225,7 @@ static int32_t metaCheckDropSuperTableReq(SMeta *pMeta, int64_t version, SVDropS
     metaULock(pMeta);
 
     if (uid != pReq->suid) {
-      metaError("vgId:%d, %s failed at %s:%d since table %s uid:%" PRId64 " not match, version:%" PRId64,
+      metaError("vgId:%d, %s failed at %s:%d since table %s uid:%" PRId64 " does not match, version:%" PRId64,
                 TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->suid, version);
       return TSDB_CODE_TDB_STB_NOT_EXIST;
     }

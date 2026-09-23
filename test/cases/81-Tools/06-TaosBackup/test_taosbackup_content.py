@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -219,7 +223,7 @@ class TestTaosbackupContent:
     def do_reverse_order_restore(self, tmpdir):
         """Core regression: restore DB_V before DB_P and expect success.
 
-        Before the two-stage split this failed with "Database not exist" while
+        Before the two-stage split this failed with "Database does not exist" while
         executing DB_V's CREATE VTABLE, and aborted the whole restore so DB_P
         was never restored either.
         """
@@ -331,7 +335,7 @@ class TestTaosbackupContent:
         # Deterministic ordering guard: restore again with an explicit -D list
         # that puts the referencing database (DB_P, whose stream targets DB_V)
         # FIRST.  This is the exact order that previously failed with
-        # "Database not exist" — the two-pass split must create every database
+        # "Database does not exist" — the two-pass split must create every database
         # (Prepare) before applying any DDL (Apply), so it must succeed no
         # matter which order raw readdir() (used by -i discovery) produces.
         tdSql.execute(f"drop topic if exists {self.TOPIC}")

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "mndSsMigrate.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -1093,7 +1096,7 @@ static void mndUpdateSsMigrateProgress(SMnode* pMnode, SSsMigrateObj* pSsMigrate
 
   if (pSsMigrate->vgState == SSMIGRATE_VGSTATE_WAITING_FSET_LIST) {
     if (taosGetTimestampSec() - pSsMigrate->stateUpdateTime > 30) {
-      mWarn("ssmigrate:%d, vgId:%d, haven't receive file set list in 30 seconds, skip", pSsMigrate->id, vgId);
+      mWarn("ssmigrate:%d, vgId:%d, have not received file set list in 30 seconds, skip", pSsMigrate->id, vgId);
       pSsMigrate->vgIdx++;
       pSsMigrate->vgState = SSMIGRATE_VGSTATE_INIT;
       pSsMigrate->stateUpdateTime = taosGetTimestampSec();
@@ -1111,7 +1114,7 @@ static void mndUpdateSsMigrateProgress(SMnode* pMnode, SSsMigrateObj* pSsMigrate
     // if timeout, we skip the current vgroup instead of the current file set, because timeout
     // of a file set often means the vgroup is not available.
     if (taosGetTimestampSec() - pSsMigrate->stateUpdateTime > 30) {
-      mWarn("ssmigrate:%d, vgId:%d, fid:%d, haven't receive response in 30 seconds, skip", pSsMigrate->id, vgId, pSsMigrate->currFset.fid);
+      mWarn("ssmigrate:%d, vgId:%d, fid:%d, have not received response in 30 seconds, skip", pSsMigrate->id, vgId, pSsMigrate->currFset.fid);
       pSsMigrate->vgIdx++;
       pSsMigrate->vgState = SSMIGRATE_VGSTATE_INIT;
       pSsMigrate->stateUpdateTime = taosGetTimestampSec();
@@ -1134,7 +1137,7 @@ static void mndUpdateSsMigrateProgress(SMnode* pMnode, SSsMigrateObj* pSsMigrate
 
   if (pSsMigrate->currFset.state == SSMIGRATE_FILESET_STATE_IN_PROGRESS) {
     if (taosGetTimestampSec() - pSsMigrate->stateUpdateTime > 30) {
-      mWarn("ssmigrate:%d, vgId:%d, fid:%d, haven't receive state in 30 seconds, skip", pSsMigrate->id, vgId, pSsMigrate->currFset.fid);
+      mWarn("ssmigrate:%d, vgId:%d, fid:%d, have not received state in 30 seconds, skip", pSsMigrate->id, vgId, pSsMigrate->currFset.fid);
       pSsMigrate->vgIdx++;
       pSsMigrate->vgState = SSMIGRATE_VGSTATE_INIT;
       pSsMigrate->stateUpdateTime = taosGetTimestampSec();

@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/config_lib.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Native library configuration.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Root cause: glibc parses LD_LIBRARY_PATH ONCE at process startup.
-# os.environ changes within the same process do NOT retroactively affect
-# subsequent dlopen() calls for bare library names like "libtaos.so".
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# Fix: if LD_LIBRARY_PATH does not already point at version_dir, set it
-# and then os.execv() to re-launch the same Python script with the
-# correct LD_LIBRARY_PATH set from process start.  The re-launched process
-# detects the env is already correct and skips the re-exec.
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys

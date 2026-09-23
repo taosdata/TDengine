@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1388,7 +1390,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
 #if 0
   if (isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
-      return buildSyntaxErrMsg(pMsgBuf, "Primary timestamp column can not be null", pToken->z);
+      return buildSyntaxErrMsg(pMsgBuf, "Primary timestamp column cannot be null", pToken->z);
     }
 
     return TSDB_CODE_SUCCESS;
@@ -3013,14 +3015,14 @@ int32_t parseTbnameToken(SMsgBuf* pMsgBuf, char* tname, SToken* pToken, bool* pF
   *pFoundCtbName = false;
 
   if (isNullValue(TSDB_DATA_TYPE_BINARY, pToken)) {
-    return buildInvalidOperationMsg(pMsgBuf, "tbname can not be null value");
+    return buildInvalidOperationMsg(pMsgBuf, "tbname cannot be null");
   }
 
   if (pToken->n > 0) {
     if (pToken->n <= TSDB_TABLE_NAME_LEN - 1) {
       for (int i = 0; i < pToken->n; ++i) {
         if (pToken->z[i] == '.') {
-          return buildInvalidOperationMsg(pMsgBuf, "tbname can not contain '.'");
+          return buildInvalidOperationMsg(pMsgBuf, "tbname cannot contain '.'");
         } else {
           tname[i] = pToken->z[i];
         }
@@ -3031,7 +3033,7 @@ int32_t parseTbnameToken(SMsgBuf* pMsgBuf, char* tname, SToken* pToken, bool* pF
       return buildInvalidOperationMsg(pMsgBuf, "tbname is too long");
     }
   } else {
-    return buildInvalidOperationMsg(pMsgBuf, "tbname can not be empty");
+    return buildInvalidOperationMsg(pMsgBuf, "tbname cannot be empty");
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4386,7 +4388,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
         (((pStmt->pTableMeta->virtualStb == 1) && (pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE)) ||
          (pStmt->pTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
           pStmt->pTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE))) {
-      code = buildInvalidOperationMsg(&pCxt->msg, "Virtual table can not be written");
+      code = buildInvalidOperationMsg(&pCxt->msg, "Virtual table cannot be written");
     }
   }
 

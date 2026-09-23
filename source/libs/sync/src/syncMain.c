@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1821,7 +1823,7 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
   (void)atomic_add_fetch_64(&pSyncNode->pingTimerLogicClockUser, 1);
   bool stop = taosTmrStop(pSyncNode->pPingTimer);
   if (!stop) {
-    sWarn("vgId:%d, failed to stop ping timer, maybe it's already stopped, stop:%d", pSyncNode->vgId, stop);
+    sWarn("vgId:%d, failed to stop ping timer, maybe it is already stopped, stop:%d", pSyncNode->vgId, stop);
   } else {
     sDebug("vgId:%d, stop ping timer, stop:%d", pSyncNode->vgId, stop);
   }
@@ -2200,7 +2202,7 @@ int32_t syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncI
           int32_t oldreplicaIndex = pSyncNode->senders[i]->replicaIndex;
           pSyncNode->senders[i]->replicaIndex = i;
 
-          sNTrace(pSyncNode, "snapshot sender udpate replicaIndex from %d to %d, dnode:%d, %p, reset:%d",
+          sNTrace(pSyncNode, "snapshot sender update replicaIndex from %d to %d, dnode:%d, %p, reset:%d",
                   oldreplicaIndex, i, DID(&pSyncNode->replicasId[i]), pSyncNode->senders[i], reset);
 
           break;

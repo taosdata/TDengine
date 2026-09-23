@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/resource/priv_compat.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Version-aware privilege helpers shared by resourceManager.py and userVerifier.py.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Schema differences between TDengine versions:
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-#   3.3.x.y  ins_user_privileges columns: user_name | privilege | db_name | table_name | ...
-#            GRANT syntax: GRANT READ/WRITE ON db.stable TO user
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-#   3.4.0.0+ ins_user_privileges columns: user_name | priv_type | priv_scope | db_name | table_name | ...
-#            GRANT syntax: GRANT SELECT/INSERT ON db.stable TO user
-#            Also auto-assigns SYSINFO_1 role to every new user (must be revoked
-#            before adding OBJECT-scope grants to avoid "mixed types" error).
-#
-# Normalization:
-#   Both 'select' (3.4+) and 'read' (3.3) are stored as 'read' in snapshots.
-#   Both 'insert' (3.4+) and 'write' (3.3) are stored as 'write' in snapshots.
-#   This allows cross-version comparison (3.3 baseline → 3.4 post-upgrade) to pass.
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # Canonical mapping: normalize privilege keywords to 3.3-style 'read'/'write'
 _PRIV_NORM = {

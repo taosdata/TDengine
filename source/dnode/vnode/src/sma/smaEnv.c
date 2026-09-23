@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #if 0
 #include "sma.h"
 
@@ -228,11 +231,11 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       int64_t refId = taosAddRef(smaMgmt.rsetId, pRSmaStat);
       if (refId < 0) {
         code = terrno;
-        smaError("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId rsetId:%d max:%d failed since:%s", SMA_VID(pSma),
+        smaError("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId:%d max:%d failed since:%s", SMA_VID(pSma),
                  refId, smaMgmt.rsetId, SMA_MGMT_REF_NUM, tstrerror(code));
         TAOS_CHECK_GOTO(code, &lino, _exit);
       } else {
-        smaDebug("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId rsetId:%d max:%d succeed", SMA_VID(pSma), refId,
+        smaDebug("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId:%d max:%d succeed", SMA_VID(pSma), refId,
                  smaMgmt.rsetId, SMA_MGMT_REF_NUM);
       }
       pRSmaStat->refId = refId;

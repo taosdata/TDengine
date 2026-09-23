@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -3757,7 +3759,7 @@ static int32_t createTagScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   *pLogicNode = (SLogicNode*)pScan;
   return code;
 _return:
-  planError("%s faild since %d", __func__ , code);
+  planError("%s failed, code:%d", __func__, code);
   nodesDestroyNode((SNode*)pScan);
   return code;
 }
@@ -6624,7 +6626,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   PLAN_ERR_JRET(nodesCloneNode(pSelect->pTimeRange, &pWindow->pTimeRange));
 
   if (NULL == pExternal->pCol) {
-    planError("%s failed, External window can not find pk column", __func__);
+    planError("%s failed, external window cannot find the primary key column", __func__);
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
@@ -6713,7 +6715,7 @@ static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SE
   }
 
   if (pWindow->pTspk == NULL) {
-    planError("External window can not find pk column, listSize:%d", pCxt->pCurrRoot->pTargets->length);
+    planError("external window cannot find the primary key column, listSize:%d", pCxt->pCurrRoot->pTargets->length);
     code = TSDB_CODE_PLAN_INTERNAL_ERROR;
     goto _return;
   }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -456,7 +458,7 @@ static OldFileKeeper *taosOpenNewFile() {
   tsLogObj.lines = 0;
   OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
   if (oldFileKeeper == NULL) {
-    uError("create old log keep info faild! mem is not enough.");
+    uError("failed to create old log keep info! Memory is not enough.");
     return NULL;
   }
   oldFileKeeper->pOldFile = pOldFile;

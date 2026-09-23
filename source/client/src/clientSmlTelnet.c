@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -35,7 +37,7 @@ int64_t smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len) {
   uint8_t toPrecision = info->currSTableMeta ? info->currSTableMeta->tableInfo.precision : TSDB_TIME_PRECISION_NANO;
 
   if (unlikely(!data)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "timestamp can not be null", NULL);
+    smlBuildInvalidDataMsg(&info->msgBuf, "timestamp cannot be null", NULL);
     return -1;
   }
   if (unlikely(len == 1 && data[0] == '0')) {

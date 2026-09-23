@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #define _DEFAULT_SOURCE
 
 #include "dmMgmt.h"
@@ -1562,7 +1565,7 @@ int mainWindows(int argc, char **argv) {
   if (global.generateCode) {
     bool toLogFile = false;
     if ((code = taosReadDataFolder(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs)) != 0) {
-      encryptError("failed to generate encrypt code since dataDir can not be set from cfg file,reason:%s",
+      encryptError("failed to generate encrypt code since dataDir cannot be set from the config file, reason:%s",
                    tstrerror(code));
       return code;
     };

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -589,7 +591,7 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           break;
         }
         if (TSDB_CODE_SUCCESS != hbProcessUserAuthInfoRsp(kv->value, kv->valueLen, pCatalog, pAppHbMgr)) {
-          tscError("process user auth info response faild, len:%d, value:%p", kv->valueLen, kv->value);
+          tscError("process user auth info response failed, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
         break;
@@ -600,7 +602,7 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           break;
         }
         if (TSDB_CODE_SUCCESS != hbProcessDBInfoRsp(kv->value, kv->valueLen, pCatalog)) {
-          tscError("process db info response faild, len:%d, value:%p", kv->valueLen, kv->value);
+          tscError("process db info response failed, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
         break;
@@ -611,7 +613,7 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           break;
         }
         if (TSDB_CODE_SUCCESS != hbProcessStbInfoRsp(kv->value, kv->valueLen, pCatalog)) {
-          tscError("process stb info response faild, len:%d, value:%p", kv->valueLen, kv->value);
+          tscError("process stb info response failed, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
         break;
@@ -680,7 +682,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   if (pRsp->query) {
     STscObj *pTscObj = (STscObj *)acquireTscObj(pRsp->connKey.tscRid);
     if (NULL == pTscObj) {
-      tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
+      tscDebug("tscObj rid %" PRIx64 " does not exist", pRsp->connKey.tscRid);
     } else {
       if (pRsp->query->totalDnodes > 1) {
         SEpSet  originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
@@ -706,7 +708,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
         tscDebug("QID:0x%" PRIx64 ", need to be killed now", pRsp->query->killRid);
         SRequestObj *pRequest = acquireRequest(pRsp->query->killRid);
         if (NULL == pRequest) {
-          tscDebug("QID:0x%" PRIx64 ", not exist to kill", pRsp->query->killRid);
+          tscDebug("QID:0x%" PRIx64 ", does not exist, nothing to kill", pRsp->query->killRid);
         } else {
           taos_stop_query((TAOS_RES *)pRequest);
           (void)releaseRequest(pRsp->query->killRid);
@@ -852,7 +854,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, idx);
   if (pAppHbMgr == NULL) {
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
-    tscError("appHbMgr not exist, idx:%d", idx);
+    tscError("appHbMgr does not exist, idx:%d", idx);
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     tFreeClientHbBatchRsp(&pRsp);
@@ -980,7 +982,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
 int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
   STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
   if (NULL == pTscObj) {
-    tscWarn("tscObj rid 0x%" PRIx64 " not exist", connKey->tscRid);
+    tscWarn("tscObj rid 0x%" PRIx64 " does not exist", connKey->tscRid);
     return terrno;
   }
 
@@ -1028,7 +1030,7 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
 static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClientHbReq *req) {
   STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
   if (!pTscObj) {
-    tscWarn("tscObj rid 0x%" PRIx64 " not exist", connKey->tscRid);
+    tscWarn("tscObj rid 0x%" PRIx64 " does not exist", connKey->tscRid);
     return terrno;
   }
 

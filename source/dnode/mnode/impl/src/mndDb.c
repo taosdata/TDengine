@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1028,7 +1030,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     if (strncasecmp(pCreate->encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
       if (pCreate->isAudit == 1) {
         code = TSDB_CODE_AUDIT_MUST_ENCRYPT;
-        mError("db:%s, failed to create, encrypt algorithm not match for audit db, %s", pCreate->db,
+        mError("db:%s, failed to create, encrypt algorithm does not match for audit db, %s", pCreate->db,
                pCreate->encryptAlgrName);
         TAOS_RETURN(code);
       }
@@ -1038,14 +1040,14 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       if (pEncryptAlgr != NULL) {
         if (pEncryptAlgr->type != ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS) {
           code = TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH;
-          mError("db:%s, failed to create, encrypt algorithm not match, %s, expect type %d", pCreate->db,
+          mError("db:%s, failed to create, encrypt algorithm does not match, %s, expect type %d", pCreate->db,
                  pCreate->encryptAlgrName, ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS);
           TAOS_RETURN(code);
         }
         dbObj.cfg.encryptAlgorithm = pEncryptAlgr->id;
       } else {
         code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
-        mError("db:%s, failed to create, encrypt algorithm not exist, %s", pCreate->db, pCreate->encryptAlgrName);
+        mError("db:%s, failed to create, encrypt algorithm does not exist, %s", pCreate->db, pCreate->encryptAlgrName);
         TAOS_RETURN(code);
       }
       if (tsDataKey[0] == '\0') {
@@ -1057,7 +1059,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   } else {
     if (pCreate->isAudit == 1) {
       code = TSDB_CODE_AUDIT_MUST_ENCRYPT;
-      mError("db:%s, failed to create, encrypt algorithm not match for audit db, %s", pCreate->db,
+      mError("db:%s, failed to create, encrypt algorithm does not match for audit db, %s", pCreate->db,
              pCreate->encryptAlgrName);
       TAOS_RETURN(code);
     }
@@ -1068,12 +1070,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   if (pCreate->isAudit == 1) {
     if (dbObj.cfg.daysToKeep2 < 2628000) {
       code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
-      mError("db:%s, failed to create, keep not match for audit db, %d", pCreate->db, dbObj.cfg.daysToKeep2);
+      mError("db:%s, failed to create, keep does not match for audit db, %d", pCreate->db, dbObj.cfg.daysToKeep2);
       TAOS_RETURN(code);
     }
     if (dbObj.cfg.walLevel != 2) {
       code = TSDB_CODE_AUDIT_MUST_WALFORCE;
-      mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
+      mError("db:%s, failed to create, walLevel does not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
       TAOS_RETURN(code);
     }
   }
@@ -1266,7 +1268,7 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
         (online = mndIsDnodeOnline(pDnode, curMs))) {
       code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
       mError("db:%s, failed to check encryption key:%" PRIi8
-             "-%u in dnode:%d since it's inconsitent with mnode leader:%" PRIi8 "-%u",
+             "-%u in dnode:%d since it is inconsistent with mnode leader:%" PRIi8 "-%u",
              pReq->db, pDnode->encryptionKeyStat, pDnode->encryptionKeyChksum, pDnode->id, tsEncryptionKeyStat,
              tsEncryptionKeyChksum);
       sdbCancelFetch(pSdb, pIter);
@@ -1829,12 +1831,12 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   if (pDb->cfg.isAudit == 1) {
     if (alterReq.daysToKeep2 > -1 && alterReq.daysToKeep2 < 2628000) {
       code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
-      mError("db:%s, failed to alter, keep not match for audit db, %d", alterReq.db, alterReq.daysToKeep2);
+      mError("db:%s, failed to alter, keep does not match for audit db, %d", alterReq.db, alterReq.daysToKeep2);
       goto _OVER;
     }
     if (alterReq.walLevel > -1 && alterReq.walLevel != 2) {
       code = TSDB_CODE_AUDIT_MUST_WALFORCE;
-      mError("db:%s, failed to alter, walLevel not match for audit db, %d", alterReq.db, alterReq.walLevel);
+      mError("db:%s, failed to alter, walLevel does not match for audit db, %d", alterReq.db, alterReq.walLevel);
       goto _OVER;
     }
     if (alterReq.isAudit == 0) {
@@ -1850,7 +1852,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   if (strlen(alterReq.encryptAlgrName) > 0) {
-    mInfo("db:%s, check encryt algr:%s", alterReq.db, alterReq.encryptAlgrName);
+    mInfo("db:%s, check encrypt algorithm:%s", alterReq.db, alterReq.encryptAlgrName);
 
     if (strncasecmp(alterReq.encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
       if (pDb->cfg.encryptAlgorithm != 0) {
@@ -1863,7 +1865,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
       if (pEncryptAlgr != NULL) {
         if (pEncryptAlgr->type != ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS) {
           code = TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH;
-          mError("db:%s, failed to alter, encrypt algorithm not match, %s, expect type %d", alterReq.db,
+          mError("db:%s, failed to alter, encrypt algorithm does not match, %s, expect type %d", alterReq.db,
                  alterReq.encryptAlgrName, ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS);
           goto _OVER;
         }
@@ -1874,7 +1876,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
         }
       } else {
         code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
-        mError("db:%s, failed to alter, encrypt algorithm not exist, %s", alterReq.db, alterReq.encryptAlgrName);
+        mError("db:%s, failed to alter, encrypt algorithm does not exist, %s", alterReq.db, alterReq.encryptAlgrName);
         goto _OVER;
       }
     }
@@ -2751,7 +2753,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
       SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
 
       if (pVgroup == NULL) {
-        mError("db:%s, vgroup:%" PRId64 " not exist", pDb->name, vgId);
+        mError("db:%s, vgroup:%" PRId64 " does not exist", pDb->name, vgId);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_VGROUP_NOT_EXIST);
       } else if (pVgroup->dbUid != pDb->uid) {
         mError("db:%s, vgroup:%" PRId64 " not belong to db:%s", pDb->name, vgId, pDb->name);

@@ -1,16 +1,19 @@
 #!/usr/bin/python3
-#  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
-#  *
-#  * This program is free software: you can use, redistribute, and/or modify
-#  * it under the terms of the GNU Affero General Public License, version 3
-#  * or later ("AGPL"), as published by the Free Software Foundation.
-#  *
-#  * This program is distributed in the hope that it will be useful, but WITHOUT
-#  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-#  * FITNESS FOR A PARTICULAR PURPOSE.
-#  *
-#  * You should have received a copy of the GNU Affero General Public License
-#  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -579,7 +582,7 @@ if __name__ == "__main__":
             print("\t-v, --verbose                     Print verbose output")
             print("\t-g, --debug                       Print debug output")
             print(
-                "\t-y, --skipPrompt                  Skip read key for continous test, default is not skip"
+                "\t-y, --skipPrompt                  Skip read key for continuous test, default is not skip"
             )
             print("")
             sys.exit(0)
@@ -677,7 +680,7 @@ if __name__ == "__main__":
             deleteMethod = int(value)
             if (deleteMethod < 0) or (deleteMethod > 3):
                 print(
-                    "inputed delete method is %d, valid value is 0~3, set to default 0"
+                    "inputted delete method is %d, valid value is 0~3, set to default 0"
                     % deleteMethod
                 )
                 deleteMethod = 0

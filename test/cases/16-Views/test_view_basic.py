@@ -1,3 +1,18 @@
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdCom, TDSetSql, TDSql, tmqCom
 import taos
 import os
@@ -184,7 +199,7 @@ class TestViewBasic:
         tdSql.execute(f"create view v1 as select * from {self.stbname};")
         self.check_view_num(1)
         tdSql.error(f'create view v1 as select * from {self.stbname};', expectErrInfo='view already exists in db')
-        tdSql.error(f'create view db2.v2 as select * from {self.stbname};', expectErrInfo='Database not exist')
+        tdSql.error(f'create view db2.v2 as select * from {self.stbname};', expectErrInfo='Database does not exist')
         tdSql.error(f'create view v2 as select c2 from {self.stbname};', expectErrInfo='Invalid column name: c2')
         tdSql.error(f'create view v2 as select ts, col1 from tt1;', expectErrInfo='Table does not exist')
 
@@ -276,11 +291,11 @@ class TestViewBasic:
         tdSql.query("select * from information_schema.ins_views;")
         res = tdSql.queryResult
         assert(res[0][0] == 'v1' and res[0][1] == 'view_db' and res[0][2] == 'root' and res[0][4] == 'NORMAL' and res[0][5] == 'select * from ct1;')
-        tdSql.error("show db3.views;", expectErrInfo='Database not exist')
+        tdSql.error("show db3.views;", expectErrInfo='Database does not exist')
         tdSql.error("desc viewx;", expectErrInfo='Table does not exist')
-        tdSql.error(f"show create view {self.dbname}.viewx;", expectErrInfo='view not exists in db')
+        tdSql.error(f"show create view {self.dbname}.viewx;", expectErrInfo='View does not exist in the database')
         tdSql.execute(f"drop database {self.dbname}")
-        tdSql.error("show views;", expectErrInfo='Database not exist')
+        tdSql.error("show views;", expectErrInfo='Database does not exist')
         tdLog.info("Finish test case 'test_show_view'")
 
     def run_drop_view(self):
@@ -296,7 +311,7 @@ class TestViewBasic:
         # delete view with database name
         tdSql.execute("drop view view_db.v1;")
         # delete non exist view
-        tdSql.error("drop view view_db.v11;", expectErrInfo='view not exists in db')
+        tdSql.error("drop view view_db.v11;", expectErrInfo='View does not exist in the database')
         tdSql.execute("drop database view_db")
         tdSql.execute("drop database view_db2;")
         self.dbname = "view_db"
@@ -395,12 +410,12 @@ class TestViewBasic:
         try:
             testSql.execute("create view v2 as select * from v1;")
         except Exception as ex:
-            assert("[0x2644]: Permission denied or target object not exist" in str(ex))
+            assert("[0x2644]: Permission denied or the target object does not exist" in str(ex))
         # query from view permission error
         try:
             testSql.query("select * from v1;")
         except Exception as ex:
-            assert("[0x2644]: Permission denied or target object not exist" in str(ex))
+            assert("[0x2644]: Permission denied or the target object does not exist" in str(ex))
         # view query permission
         testSql.query("show views;")
         testSql.checkRows(2)
@@ -460,7 +475,7 @@ class TestViewBasic:
         try:
             testSql.execute("drop view v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
         tdSql.execute("revoke select on view view_db.v1 from view_test;")
         tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
@@ -487,7 +502,7 @@ class TestViewBasic:
             testSql.execute(f"use {self.dbname};")
             testSql.execute("select * from v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
         testSql.execute("drop view v1;")
         tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
@@ -514,7 +529,7 @@ class TestViewBasic:
             testSql.execute(f"use {self.dbname};")
             testSql.execute("create view v2 as select * from v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
         testSql.query("select * from v1;")
         testSql.checkRows(20)
         testSql.execute("drop view v1;")
@@ -543,7 +558,7 @@ class TestViewBasic:
             testSql.execute(f"use {self.dbname};")
             testSql.execute("select * from v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
             
         testSql.execute("drop view v1;")
         tdSql.execute("revoke select on view_db.* from view_test;")
@@ -573,7 +588,7 @@ class TestViewBasic:
         try:
             testSql.execute("drop view v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
         tdSql.execute("revoke select on view_db.* from view_test;")
         tdSql.execute("revoke select on view view_db.v1 from view_test;")
         tdSql.execute(f"drop database {self.dbname}")

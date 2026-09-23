@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -355,7 +357,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   STableMeta* pTableMeta = NULL;
   code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-    uInfo(LOG_ID_TAG " stable %s not exist, ignore drop", LOG_ID_VALUE, req.name);
+    uInfo(LOG_ID_TAG " stable %s does not exist, ignore drop", LOG_ID_VALUE, req.name);
     code = TSDB_CODE_SUCCESS;
     taosMemoryFreeClear(pTableMeta);
     goto end;
@@ -457,7 +459,7 @@ static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precis
   // org table cannot has composite primary key
   if (pTableMeta->tableInfo.numOfColumns > 1 && pTableMeta->schema[1].flags & COL_IS_KEY) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    uError("virtual table's column:\"%s\"'s reference can not from table with composite key", colName);
+    uError("virtual table's column:\"%s\"'s reference cannot be from a table with a composite primary key", colName);
     goto end;
   }
 
@@ -471,7 +473,7 @@ static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precis
   const SSchema* pRefCol = getNormalColSchema(pTableMeta, colName);
   if (NULL == pRefCol) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    uError("virtual table's column:\"%s\"'s reference column:\"%s\" not exist", pSchemaName, colName);
+    uError("virtual table's column:\"%s\"'s reference column:\"%s\" does not exist", pSchemaName, colName);
     goto end;
   }
 
@@ -485,7 +487,7 @@ static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precis
 
   if (!isSameRefDataType(pType, &refType)) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
-    uError("virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match, %d %d %d %d",
+    uError("virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type do not match, %d %d %d %d",
             pSchemaName, colName, pType->type, pType->bytes, refType.type, refType.bytes);
     goto end;
   }
@@ -547,7 +549,7 @@ static int32_t checkColRefForAlter(SCatalog* pCatalog, SRequestConnInfo* conn, i
   const SSchema* pSchema = getNormalColSchema(pTableMetaSrc, colNameSrc);
   if (NULL == pSchema) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    uError("virtual table's column:\"%s\" not exist", colNameSrc);
+    uError("virtual table's column:\"%s\" does not exist", colNameSrc);
     goto end;
   }
 
@@ -703,7 +705,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
       toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.stbName, &sName);
       code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
       if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-        uInfo(LOG_ID_TAG " super table %s not exist, ignore create child table %s", LOG_ID_VALUE,
+        uInfo(LOG_ID_TAG " super table %s does not exist, ignore create child table %s", LOG_ID_VALUE,
               pCreateReq->ctb.stbName, pCreateReq->name);
         code = TSDB_CODE_SUCCESS;
         taosMemoryFreeClear(pTableMeta);
@@ -861,7 +863,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       code = TSDB_CODE_SUCCESS;
-      uInfo(LOG_ID_TAG " table %s not exist, ignore drop", LOG_ID_VALUE, pDropReq->name);
+      uInfo(LOG_ID_TAG " table %s does not exist, ignore drop", LOG_ID_VALUE, pDropReq->name);
       taosMemoryFreeClear(pTableMeta);
       continue;
     }
@@ -2034,7 +2036,7 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
     rspObj->dataRsp.rawData = NULL;
     raw->raw_len = rspObj->dataRsp.len;
     raw->raw_type = rspObj->resType;
-    uDebug("tmq get raw raw:%p", raw);
+    uDebug("tmq get raw:%p", raw);
   } else {
     uError("tmq get raw error type:%d", *(int8_t*)res);
     code = TSDB_CODE_TMQ_INVALID_MSG;

@@ -1,10 +1,12 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
- *f
+ *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
@@ -600,7 +602,7 @@ static int32_t reloadTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
   code = mndAcquireTopic(pMnode, createTopicReq->name, &pTopic);
   if (code != 0) {
     if (createTopicReq->igExists) {
-      mInfo("topic:%s, not exist, ignore not exist is set", createTopicReq->name);
+      mInfo("topic:%s, does not exist, ignore-not-exist is set", createTopicReq->name);
       code = 0;
       goto END;
     } else {
@@ -794,7 +796,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   code = mndAcquireTopic(pMnode, dropReq.name, &pTopic);
   if (code != 0) {
     if (dropReq.igNotExists) {
-      mInfo("topic:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("topic:%s, does not exist, the ignore-not-exist flag is set", dropReq.name);
       code = 0;
     }
     goto END;

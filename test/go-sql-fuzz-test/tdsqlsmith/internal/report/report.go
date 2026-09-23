@@ -1,8 +1,18 @@
-// Package report builds and normalizes run reports, including JSON output,
-// statistics, error counts, and crash/coredump incident summaries.
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 //
-// report 包构建并规范化运行报告，包括 JSON 输出、统计数据、错误计数
-// 以及崩溃/core dump 事件摘要。
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package report
 
 import (

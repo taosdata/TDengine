@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -2260,7 +2262,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
       if (stbName) {
         uint64_t metaSize = strlen(stbName) + 1 + sizeof(orig->suid);
         if (taosHashRemove(dbCache->stbCache, &orig->suid, sizeof(orig->suid))) {
-          ctgError("stb not exist in stbCache, db:%s, stb:%s, suid:0x%" PRIx64, dbFName, tbName, orig->suid);
+          ctgError("stb does not exist in stbCache, db:%s, stb:%s, suid:0x%" PRIx64, dbFName, tbName, orig->suid);
         } else {
           ctgDebug("stb removed from stbCache, db:%s, stb:%s, suid:0x%" PRIx64, dbFName, tbName, orig->suid);
           (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, metaSize);
@@ -3002,7 +3004,7 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
 
     uint64_t metaSize = strlen(stbName) + 1 + sizeof(msg->suid);
     if (taosHashRemove(dbCache->stbCache, &msg->suid, sizeof(msg->suid))) {
-      ctgDebug("stb:%s, stb not exist in stbCache, may be removed, db:%s, suid:0x%" PRIx64, stbName, msg->dbFName,
+      ctgDebug("stb:%s, stb does not exist in stbCache, may be removed, db:%s, suid:0x%" PRIx64, stbName, msg->dbFName,
                msg->suid);
     } else {
       (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, metaSize);
@@ -3024,7 +3026,7 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
   ctgFreeTbCacheImpl(pTbCache, true);
 
   if (taosHashRemove(dbCache->tbCache, msg->stbName, strlen(msg->stbName))) {
-    ctgError("stb:%s, stb not exist in cache, db:%s, suid:0x%" PRIx64, msg->stbName, msg->dbFName, msg->suid);
+    ctgError("stb:%s, stb does not exist in cache, db:%s, suid:0x%" PRIx64, msg->stbName, msg->dbFName, msg->suid);
   } else {
     CTG_META_NUM_DEC(tblType);
     (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(*pTbCache) + strlen(msg->stbName));
@@ -3060,7 +3062,7 @@ int32_t ctgOpDropTbMeta(SCtgCacheOperation *operation) {
   }
 
   if ((0 != msg->dbId) && (dbCache->dbId != msg->dbId)) {
-    ctgDebug("tb:%s, dbId:0x%" PRIx64 " not match with curId:0x%" PRIx64 ", db:%s", msg->tbName, msg->dbId,
+    ctgDebug("tb:%s, dbId:0x%" PRIx64 " does not match with curId:0x%" PRIx64 ", db:%s", msg->tbName, msg->dbId,
              dbCache->dbId, msg->dbFName);
     goto _return;
   }
@@ -3077,7 +3079,7 @@ int32_t ctgOpDropTbMeta(SCtgCacheOperation *operation) {
   ctgFreeTbCacheImpl(pTbCache, true);
 
   if (taosHashRemove(dbCache->tbCache, msg->tbName, strlen(msg->tbName))) {
-    ctgError("tb:%s, not exist in cache, db:%s", msg->tbName, msg->dbFName);
+    ctgError("tb:%s, does not exist in cache, db:%s", msg->tbName, msg->dbFName);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   } else {
     (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(*pTbCache) + strlen(msg->tbName));
@@ -3169,7 +3171,7 @@ int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation) {
 
   CTG_ERR_JRET(ctgGetDBCache(pCtg, msg->dbFName, &dbCache));
   if (NULL == dbCache) {
-    ctgDebug("db %s not exist, ignore epset update", msg->dbFName);
+    ctgDebug("db %s does not exist, ignore epset update", msg->dbFName);
     goto _return;
   }
 
@@ -3335,7 +3337,7 @@ int32_t ctgOpDropViewMeta(SCtgCacheOperation *operation) {
   }
 
   if ((0 != msg->dbId) && (dbCache->dbId != msg->dbId)) {
-    ctgDebug("view:%s, dbId:0x%" PRIx64 " not match with curId:0x%" PRIx64 ", db:%s", msg->viewName, msg->dbId,
+    ctgDebug("view:%s, dbId:0x%" PRIx64 " does not match with curId:0x%" PRIx64 ", db:%s", msg->viewName, msg->dbId,
              dbCache->dbId, msg->dbFName);
     goto _return;
   }
@@ -3348,7 +3350,7 @@ int32_t ctgOpDropViewMeta(SCtgCacheOperation *operation) {
 
   int64_t viewId = pViewCache->pMeta->viewId;
   if (0 != msg->viewId && viewId != msg->viewId) {
-    ctgDebug("view:%s, viewId:0x%" PRIx64 " not match with curId:0x%" PRIx64, msg->viewName, msg->viewId, viewId);
+    ctgDebug("view:%s, viewId:0x%" PRIx64 " does not match with curId:0x%" PRIx64, msg->viewName, msg->viewId, viewId);
     goto _return;
   }
 
@@ -3356,7 +3358,7 @@ int32_t ctgOpDropViewMeta(SCtgCacheOperation *operation) {
   ctgFreeViewCacheImpl(pViewCache, true);
 
   if (taosHashRemove(dbCache->viewCache, msg->viewName, strlen(msg->viewName))) {
-    ctgError("view:%s, not exist in cache, db:%s", msg->viewName, msg->dbFName);
+    ctgError("view:%s, does not exist in cache, db:%s", msg->viewName, msg->dbFName);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   } else {
     (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(SCtgViewCache) + strlen(msg->viewName));

@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
- * Verifies the runtime loading of an external (dlopen'ed) L2 compression
- * library: when TAOS_COMPRESS_ACCEL_ZLIB points at an external shared object,
- * tsCompressInit() must dlopen it, rebind compressL2Dict[L2_ZLIB] away from
- * the stock implementation, and the accelerated path must round-trip data and
- * interoperate with the stock implementation.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * The external library is not vendored. Instead the test asks the dynamic
- * loader itself for the system zlib (dlopen("libz.so.1") + dlinfo to recover
- * its real path), so it works on any Linux CI image that has zlib -- which is
- * essentially all of them, since the glibc ecosystem depends on it. If the
- * system libz cannot be found the test is skipped rather than failed, so a
- * minimal image never breaks CI.
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef _GNU_SOURCE

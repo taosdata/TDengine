@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,7 +32,7 @@ int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSink
   pSinkManager->pAPI = pAPI;
 
   *ppSinkManager = pSinkManager;
-  return TSDB_CODE_SUCCESS;  // to avoid compiler eror
+  return TSDB_CODE_SUCCESS;  // to avoid compiler error
 }
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {

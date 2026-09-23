@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -45,24 +47,24 @@
 
 static const char *offlineReason[] = {
     "",
-    "status msg timeout",
+    "status message timeout",
     "status not received",
-    "version not match",
-    "dnodeId not match",
-    "clusterId not match",
-    "statusInterval not match",
-    "timezone not match",
-    "locale not match",
-    "charset not match",
-    "ttlChangeOnWrite not match",
-    "enableWhiteList not match",
-    "encryptionKey not match",
-    "monitor not match",
-    "monitor switch not match",
-    "monitor interval not match",
-    "monitor slow log threshold not match",
-    "monitor slow log sql max len not match",
-    "monitor slow log scope not match",
+    "version does not match",
+    "dnodeId does not match",
+    "clusterId does not match",
+    "statusInterval does not match",
+    "timezone does not match",
+    "locale does not match",
+    "charset does not match",
+    "ttlChangeOnWrite does not match",
+    "enableWhiteList does not match",
+    "encryptionKey does not match",
+    "monitor does not match",
+    "monitor switch does not match",
+    "monitor interval does not match",
+    "monitor slow log threshold does not match",
+    "monitor slow log sql max len does not match",
+    "monitor slow log scope does not match",
     "unknown",
 };
 
@@ -1009,7 +1011,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
 
-      mWarn("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
+      mWarn("dnode:%d, %s does not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
       if (err == TSDB_CODE_MND_DNODE_NOT_EXIST) {
         code = err;
         TAOS_CHECK_GOTO(code, &lino, _OVER);
@@ -1298,7 +1300,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       if (pDnode != NULL) {
         pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
-      mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
+      mError("dnode:%d, status msg version:%d does not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
       code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
@@ -1310,7 +1312,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         if (pDnode != NULL) {
           pDnode->offlineReason = DND_REASON_CLUSTER_ID_NOT_MATCH;
         }
-        mError("dnode:%d, clusterId %" PRId64 " not match exist %" PRId64, pDnode->id, statusReq.clusterId,
+        mError("dnode:%d, clusterId %" PRId64 " does not match the existing %" PRId64, pDnode->id, statusReq.clusterId,
                pMnode->clusterId);
         code = TSDB_CODE_MND_INVALID_CLUSTER_ID;
         TAOS_CHECK_GOTO(code, &lino, _OVER);
@@ -1975,7 +1977,7 @@ static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId,
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
     if (pIter == NULL) break;
     if (pDnode->offlineReason != DND_REASON_ONLINE) {
-      mGWarn("msg:%p, don't send create encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
+      mGWarn("msg:%p, do not send create encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
              offlineReason[pDnode->offlineReason]);
       sdbRelease(pSdb, pDnode);
       continue;
@@ -2543,7 +2545,7 @@ static int32_t mndProcessAlterEncryptKeyReqImpl(SRpcMsg *pReq, SMAlterEncryptKey
     if (pIter == NULL) break;
 
     if (pDnode->offlineReason != DND_REASON_ONLINE) {
-      mGWarn("msg:%p, don't send alter encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
+      mGWarn("msg:%p, do not send alter encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
              offlineReason[pDnode->offlineReason]);
       sdbRelease(pSdb, pDnode);
       continue;
@@ -2661,7 +2663,7 @@ static int32_t mndProcessAlterKeyExpirationReqImpl(SRpcMsg *pReq, SMAlterKeyExpi
     if (pIter == NULL) break;
 
     if (pDnode->offlineReason != DND_REASON_ONLINE) {
-      mGWarn("msg:%p, don't send alter key_expiration req since dnode:%d in offline state:%s", pReq, pDnode->id,
+      mGWarn("msg:%p, do not send alter key_expiration req since dnode:%d in offline state:%s", pReq, pDnode->id,
              offlineReason[pDnode->offlineReason]);
       sdbRelease(pSdb, pDnode);
       continue;

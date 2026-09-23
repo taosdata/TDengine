@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -5516,7 +5518,7 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
       if (!pWsNode) {
         nodesDestroyList(pCols);
         code = TSDB_CODE_APP_ERROR;
-        qError("create sma cols failed since %s(_wstart not exist)", tstrerror(code));
+        qError("create sma cols failed since %s(_wstart does not exist)", tstrerror(code));
         return code;
       }
       SExprNode exprNode;
@@ -8339,7 +8341,7 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   }
 
   if (NULL == pSplitAggFuncList) {
-    planError("empty agg func list while splite projections, funcNum:%d", pAgg->pAggFuncs->length);
+    planError("empty agg func list while splitting projections, funcNum:%d", pAgg->pAggFuncs->length);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
@@ -8377,7 +8379,7 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   }
 
   if (NULL == pTargets) {
-    planError("empty target func list while splite projections, targetsNum:%d", pAgg->node.pTargets->length);
+    planError("empty target func list while splitting projections, targetsNum:%d", pAgg->node.pTargets->length);
     nodesDestroyList(pSplitAggFuncList);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }

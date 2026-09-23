@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 import pytest
@@ -22,7 +26,7 @@ class TestBalanceVgroupLeaderDbName:
     COPY_STRING_FORM_ID_TOKEN (which preserves backticks) instead of calling
     checkDbName first (which strips them via trimEscape).  This caused the
     server-side strcmp(req.db, name.dbname) to always fail when the SQL used
-    backtick-quoted identifiers, returning "No VGroup's leader need to be
+    backtick-quoted identifiers, returning "No VGroup leader needs to be
     balanced" even though the database existed.
     """
 
@@ -58,6 +62,7 @@ class TestBalanceVgroupLeaderDbName:
         Since: v3.3.7.0
 
         Labels: ci,cluster,integration,functional
+
         Jira: None
 
         History:

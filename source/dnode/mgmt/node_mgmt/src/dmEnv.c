@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -388,7 +390,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
-    dError("fail to process alter node type since node not exist");
+    dError("failed to process alter node type since the node does not exist");
     return TSDB_CODE_INVALID_MSG;
   }
   dmReleaseWrapper(pWrapper);
@@ -415,7 +417,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     }
   }
 
-  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pWrapper->name);
+  dInfo("node:%s, caught up leader, continue to process alter-node-type-request", pWrapper->name);
 
   (void)taosThreadMutexLock(&pDnode->mutex);
 

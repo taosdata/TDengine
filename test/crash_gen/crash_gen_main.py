@@ -1,14 +1,17 @@
-# -----!/usr/bin/python3.7
-###################################################################
-#           Copyright (c) 2016-2021 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 # For type hinting before definition, ref:
@@ -1404,13 +1407,13 @@ class Task():
             # TDengine 3.0 Error Codes:
             0x0333,  # Object is creating # TODO: this really is NOT an acceptable error
             0x0369,  # Tag already exists
-            0x0388,  # Database not exist
+            0x0388,  # Database does not exist
             0x03A0,  # STable already exists
             0x03A1,  # STable [does] not exist
             0x03AA,  # Tag already exists
             0x0603,  # Table already exists
             0x2603,  # Table does not exist, replaced by 2662 below
-            0x260d,  # Tags number not matched
+            0x260d,  # Tag count does not match
             0x2662,  # Table does not exist #TODO: what about 2603 above?
             0x2600,  # database not specified, SQL: show stables , database droped , and show tables
             0x032C,  # Object is creating
@@ -1438,7 +1441,7 @@ class Task():
         elif errno == 0x200:  # invalid SQL, we need to div in a bit more
             if msg.find("invalid column name") != -1:
                 return True
-            elif msg.find("tags number not matched") != -1:  # mismatched tags after modification
+            elif msg.find("tag count does not match") != -1:  # mismatched tags after modification
                 return True
             elif msg.find("duplicated column names") != -1:  # also alter table tag issues
                 return True

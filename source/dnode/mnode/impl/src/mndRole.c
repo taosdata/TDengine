@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -822,7 +824,7 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   }
 
   if (alterUser) {
-    mInfo("role:%s, not exist, will alter user instead", alterReq.principal);
+    mInfo("role:%s, does not exist, will alter user instead", alterReq.principal);
     TAOS_CHECK_EXIT(mndAlterUserFromRole(pReq, pOperUser, &alterReq));
   } else if (mndIsRoleChanged(pObj, &alterReq)) {
     TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));

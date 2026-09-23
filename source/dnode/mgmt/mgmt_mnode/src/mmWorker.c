@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -557,7 +559,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->syncWorker, &sCfg)) != 0) {
-    dError("failed to start mnode mnode-sync worker since %s", tstrerror(code));
+    dError("failed to start mnode-sync worker since %s", tstrerror(code));
     return code;
   }
   taosQueueSetFreeFp(pMgmt->syncWorker.queue, mmFreeRpcQitem);
@@ -570,7 +572,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->syncRdWorker, &scCfg)) != 0) {
-    dError("failed to start mnode mnode-sync-rd worker since %s", tstrerror(code));
+    dError("failed to start mnode-sync-rd worker since %s", tstrerror(code));
     return code;
   }
   taosQueueSetFreeFp(pMgmt->syncRdWorker.queue, mmFreeRpcQitem);
@@ -583,7 +585,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->arbWorker, &arbCfg)) != 0) {
-    dError("failed to start mnode mnode-arb worker since %s", tstrerror(code));
+    dError("failed to start mnode-arb worker since %s", tstrerror(code));
     return code;
   }
   taosQueueSetFreeFp(pMgmt->arbWorker.queue, mmFreeRpcQitem);
@@ -596,7 +598,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->auditWorker, &auditCfg)) != 0) {
-    dError("failed to start mnode mnode-audit worker since %s", tstrerror(code));
+    dError("failed to start mnode-audit worker since %s", tstrerror(code));
     return code;
   }
 

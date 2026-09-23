@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -396,7 +398,7 @@ void mqttdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) 
       buf->base = ctx->inputBuf;
       buf->len = ctx->inputCap;
     } else {
-      bndError("mqttd can not allocate enough memory");
+      bndError("mqttd cannot allocate enough memory");
       buf->base = NULL;
       buf->len = 0;
     }
@@ -411,7 +413,7 @@ void mqttdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) 
       buf->base = ctx->inputBuf + ctx->inputLen;
       buf->len = ctx->inputCap - ctx->inputLen;
     } else {
-      bndError("mqttd can not allocate enough memory");
+      bndError("mqttd cannot allocate enough memory");
       buf->base = NULL;
       buf->len = 0;
     }
@@ -696,7 +698,7 @@ int32_t mqttdCreateMqttSourceDir() {
 }
 
 void mqttdDestroyMqttSourceDir() {
-  bndInfo("destory mqtt source directory %s", global.mqttDataDir);
+  bndInfo("destroy mqtt source directory %s", global.mqttDataDir);
   taosRemoveDir(global.mqttDataDir);
 }
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -395,7 +397,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
 
   while (1) {
     if (pExchangeInfo->current < 0) {
-      qDebug("current %d and all sources complted, totalSources:%d", pExchangeInfo->current, totalSources);
+      qDebug("current %d and all sources completed, totalSources:%d", pExchangeInfo->current, totalSources);
       setAllSourcesCompleted(pOperator);
       return;
     }
@@ -408,7 +410,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
         T_LONG_JMP(pTaskInfo->env, code);
       }
       if (completed == totalSources) {
-        qDebug("stop to load since all sources complted, completed:%d, totalSources:%d", completed, totalSources);
+        qDebug("stop to load since all sources completed, completed:%d, totalSources:%d", completed, totalSources);
         setAllSourcesCompleted(pOperator);
         return;
       }
@@ -2122,10 +2124,10 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
             QUERY_CHECK_CODE(code, lino, _end);
           } else {
             /**
-              Currently don't support use the same param for multiple times!
+              Reusing the same param multiple times is not supported!
             */
-            qError("%s, %s failed, currently don't support use the same param "
-                   "for multiple times!", GET_TASKID(pTaskInfo), __func__);
+            qError("%s, %s failed, reusing the same param multiple times is not supported",
+                   GET_TASKID(pTaskInfo), __func__);
             pTaskInfo->code = TSDB_CODE_INVALID_PARA;
             taosMemoryFree(pWrapper);
             return pTaskInfo->code;

@@ -1,5 +1,20 @@
 # -*- coding: utf-8 -*-
 
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 from new_test_framework.utils.sqlset import TDSetSql
 import os
@@ -153,10 +168,10 @@ class TestMountBasic:
         tdSql.error(f"create mount d0 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Database with identical name already exists", fullMatched=False)
         self.refact_mount_dataDir()
         self.corruptMntClusterId()
-        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'", expectErrInfo="Cluster id not match", fullMatched=False)
+        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'", expectErrInfo="Cluster id does not match", fullMatched=False)
         self.recoverMntClusterId()
-        tdSql.error(f"drop mount mnt_not_exist", expectErrInfo="Mount not exist", fullMatched=False)
-        tdSql.error(f"drop mount d0", expectErrInfo="Mount not exist", fullMatched=False)
+        tdSql.error(f"drop mount mnt_not_exist", expectErrInfo="Mount does not exist", fullMatched=False)
+        tdSql.error(f"drop mount d0", expectErrInfo="Mount does not exist", fullMatched=False)
 
     def check_mount_query(self):
         tdSql.query("show create database `mnt1_db0`")

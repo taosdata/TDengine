@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -168,7 +170,7 @@ int32_t schUpdateTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int3
 
   SSchNodeInfo *nodeInfo = taosHashGet(pTask->execNodes, &execId, sizeof(execId));
   if (NULL == nodeInfo) {  // ignore it
-    SCH_TASK_DLOG("handle not updated since execId %d already not exist, current execId %d, waitRetry %d", execId,
+    SCH_TASK_DLOG("handle not updated since execId %d no longer exists, current execId %d, waitRetry %d", execId,
                   pTask->execId, pTask->waitRetry);
     return TSDB_CODE_SUCCESS;
   }
@@ -189,7 +191,7 @@ int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, v
 
   if ((seriesId != pTask->seriesId || seriesId <= pTask->failedSeriesId) || 
       (execId != pTask->execId || execId <= pTask->failedExecId) || pTask->waitRetry) {  // ignore it
-    SCH_TASK_DLOG("handle not updated since seriesId:0x%" PRIx64 " or execId:%d is not lastest,"
+    SCH_TASK_DLOG("handle not updated since seriesId:0x%" PRIx64 " or execId:%d is not latest,"
                   "current seriesId:0x%" PRIx64 " execId %d, failedSeriesId:0x%" PRIx64 " failedExecId:%d, waitRetry %d", 
                   seriesId, execId, pTask->seriesId, pTask->execId, pTask->failedSeriesId, pTask->failedExecId, pTask->waitRetry);
     SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
@@ -812,7 +814,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
 
   pTask->candidateAddrs = taosArrayInit(SCHEDULE_DEFAULT_MAX_NODE_NUM, sizeof(SQueryNodeAddr));
   if (NULL == pTask->candidateAddrs) {
-    SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCHEDULE_DEFAULT_MAX_NODE_NUM);
+    SCH_TASK_ELOG("taosArrayInit %d candidate addrs failed", SCHEDULE_DEFAULT_MAX_NODE_NUM);
     SCH_ERR_RET(terrno);
   }
 
@@ -828,7 +830,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
-    SCH_TASK_ELOG("no execNode specifed for data src task, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
+    SCH_TASK_ELOG("no execNode specified for data src task, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
@@ -999,7 +1001,7 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
 
     if (pStatus->execId != pTask->execId) {
       // TODO
-      SCH_TASK_DLOG("execId %d mis-match current execId %d", pStatus->execId, pTask->execId);
+      SCH_TASK_DLOG("execId %d mismatch current execId %d", pStatus->execId, pTask->execId);
       schProcessOnCbEnd(pJob, pTask, 0);
       continue;
     }
@@ -1185,7 +1187,7 @@ int32_t schLaunchTaskImpl(void *param) {
 
   (void)schAcquireJob(pCtx->jobRid, &pParent);
   if (NULL == pParent) {
-    qDebug("job refId 0x%" PRIx64 " already not exist", pCtx->jobRid);
+    qDebug("job refId 0x%" PRIx64 " no longer exists", pCtx->jobRid);
     taosMemoryFree(param);
     SCH_RET(TSDB_CODE_SCH_JOB_IS_DROPPING);
   }

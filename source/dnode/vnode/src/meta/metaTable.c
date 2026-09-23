@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1265,7 +1267,7 @@ static int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs
   if (!tsTtlChangeOnWrite) return 0;
 
   if (changeTimeMs <= 0) {
-    metaWarn("Skip to change ttl deletetion time on write, uid: %" PRId64, uid);
+    metaWarn("Skip to change ttl deletion time on write, uid: %" PRId64, uid);
     return TSDB_CODE_VERSION_NOT_COMPATIBLE;
   }
 

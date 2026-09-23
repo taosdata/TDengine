@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -141,7 +143,7 @@ typedef struct STableBlockScanInfo {
   int32_t      sttBlockDelIndex;  // delete index for last block
   bool         iterInit;          // whether to initialize the in-memory skip list iterator or not
   bool         cleanSttBlocks;    // stt block is clean in current fileset
-  bool         sttBlockReturned;  // result block returned alreay
+  bool         sttBlockReturned;  // result block returned already
   int64_t      numOfRowsInStt;
   SSttKeyRange sttRange;
   STimeWindow  filesetWindow;  // timestamp window for current file set

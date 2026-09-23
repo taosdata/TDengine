@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -40,7 +42,7 @@ static void vmFreeVnodeObj(SVnodeObj **ppVnode) {
 
   int32_t refCount = atomic_load_32(&pVnode->refCount);
   while (refCount > 0) {
-    dWarn("vgId:%d, vnode is refenced, retry to free in 200ms, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
+    dWarn("vgId:%d, vnode is referenced, retry to free in 200ms, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
     taosMsleep(200);
     refCount = atomic_load_32(&pVnode->refCount);
   }
@@ -511,7 +513,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal,
   dInfo("vgId:%d, wait for vnode stream reader queue:%p is empty", pVnode->vgId, pVnode->pStreamReaderQ);
   while (!taosQueueEmpty(pVnode->pStreamReaderQ)) taosMsleep(10);
 
-  dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
+  dInfo("vgId:%d, all vnode queues are empty", pVnode->vgId);
 
   dInfo("vgId:%d, post close", pVnode->vgId);
   vnodePostClose(pVnode->pImpl);

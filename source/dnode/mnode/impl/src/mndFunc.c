@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -499,7 +501,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   pFunc = mndAcquireFunc(pMnode, dropReq.name);
   if (pFunc == NULL) {
     if (dropReq.igNotExists) {
-      mInfo("func:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("func:%s, does not exist, ignore-not-exist is set", dropReq.name);
       code = 0;
       goto _OVER;
     } else {

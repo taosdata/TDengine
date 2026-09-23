@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -731,7 +733,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     } else if (pME->type == TSDB_TSMA_TABLE) {
       TAOS_CHECK_RETURN(tEncodeTSma(pCoder, pME->smaEntry.tsma));
     } else {
-      metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
+      metaError("meta/entry: invalid table type: %" PRId8 " encode failed.", pME->type);
       return TSDB_CODE_INVALID_PARA;
     }
     if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
@@ -875,7 +877,7 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
       }
       TAOS_CHECK_RETURN(tDecodeTSma(pCoder, pME->smaEntry.tsma, true));
     } else {
-      metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
+      metaError("meta/entry: invalid table type: %" PRId8 " decode failed.", pME->type);
       return TSDB_CODE_INVALID_PARA;
     }
     if (pME->type == TSDB_SUPER_TABLE) {
