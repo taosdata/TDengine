@@ -1,72 +1,19 @@
 #!/usr/bin/env bash
-# ensure_ext_env.sh  ─ FederatedQuery integration-test external-source setup
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# COMPATIBILITY TARGETS
-#   OS     : Linux (Ubuntu/Debian, RHEL/CentOS/Rocky/AlmaLinux, Alpine, Arch)
-#            macOS 12+ (Homebrew required for some engines)
-#   Arch   : x86_64, aarch64 (arm64 on macOS)
-#   Bash   : 4.0+  (associative arrays, pipefail)
-#            macOS ships bash 3.2; run via /usr/local/bin/bash from Homebrew.
-#   User   : root or non-root (engines run as invoking user; mysqld allows root
-#            only with explicit --user=root)
-#   Shell  : Must be invoked as `bash ensure_ext_env.sh`; not POSIX sh / zsh
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# WINDOWS : Use ensure_ext_env.ps1 (PowerShell 5.1+).  Not supported here.
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# WHAT IT DOES (idempotent per-engine-version)
-#   1. Port open?           → reset test DBs (already running)
-#   2. Installed, stopped?  → start; if still failing re-init data dir
-#   3. Not installed?       → download → install → init → start → configure
-#   4. First start:         → copy TLS certs, apply config, reset test DBs
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-# ENVIRONMENT VARIABLES (all optional, defaults match federated_query_common.py)
-#   FQ_BASE_DIR            install/data root      default /opt/taostest/fq
-#                                                   (macOS: ~/taostest/fq)
-#   FQ_MYSQL_VERSIONS      comma list             default "8.0"
-#   FQ_PG_VERSIONS         comma list             default "16"
-#   FQ_INFLUX_VERSIONS     comma list             default "3.0"
-#   FQ_MYSQL_MIRROR        base URL for MySQL tarballs
-#   FQ_PG_TARBALL_<VV>     full URL for PG prebuilt tarball (fallback if no pkg)
-#   FQ_INFLUX_MIRROR       base URL for InfluxDB releases
-#   FQ_TARBALL_CACHE_DIR   tarball/deb cache dir              auto-detect:
-#                          /usr/local/src or /data0/compat-packages when
-#                          MySQL/Influx tarballs are staged; else /tmp
-#   FQ_USE_NEXUS_APT       force Nexus apt on/off             unset=auto-detect;
-#                          Ubuntu/macOS always use public apt for PG;
-#                          only pure Debian CI (tdengine-ci) uses Nexus apt
-#   FQ_APT_MIRROR_BASE     Nexus apt proxy base               default https://nexus.tdengine.net/repository
-#   FQ_APT_PG_MIRROR       PGDG apt proxy URL                 default ${FQ_APT_MIRROR_BASE}/apt-postgresql-org
-#   FQ_LIBAIO_DEB_URL      direct libaio .deb URL override    default derived from Nexus Debian mirror
-#   FQ_LIBNUMA_DEB_URL     direct libnuma .deb URL override   default derived from Nexus Debian mirror
-#   FQ_MYSQL_TARBALL_<VV>  full URL override per MySQL version (VV = 57/80/84)
-#   FQ_INFLUX_TARBALL_<VV> full URL override per InfluxDB version (VV = 30/35)
-#   FQ_CERT_DIR            cert source dir        default <script_dir>/certs
-#   FQ_MYSQL_USER/PASS     credentials            default root / taosdata
-#   FQ_MYSQL_INIT_TIMEOUT_S mysqld --initialize timeout default 300
-#   FQ_PG_USER/PASS        credentials            default postgres / taosdata
-#   FQ_PG_TIMEZONE         PostgreSQL server timezone default Asia/Shanghai
-#   FQ_INFLUX_TOKEN/ORG    credentials            default test-token / test-org
-#   FQ_POOL_TEST_USER      pool-exhaustion test MySQL user   default fq_pool_test
-#   FQ_POOL_TEST_PASS      pool-exhaustion test user password default taosdata
-#   FQ_POOL_TEST_MAX_CONN  MAX_USER_CONNECTIONS for pool test user  default 1
-#
-# SERVICE-SELECTION VARIABLES (for in-test restarts; do NOT export in CI setup)
-#   FQ_SERVICES_TO_RESET   space-separated subset of "mysql pg influx"
-#                          When set, only the listed services are touched.
-#                          Default: all three services.
-#   FQ_PG_QUICK_RESTART    Set to "1" to skip data-dir wipe and re-init when
-#                          resetting PG.  Only starts an already-initialised
-#                          instance.  Used by start_pg_instance() so that PG
-#                          data survives stop/start test cycles.
-#   FQ_INFLUX_QUICK_RESTART Set to "1" to skip the IOx data-dir wipe and
-#                          restart InfluxDB in-place (preserving existing data).
-#                          Used by start_influx_instance() so that InfluxDB
-#                          data survives stop/start test cycles without the
-#                          double-restart caused by ensure_influx's hard reset.
-#
-# EXIT CODES
-#   0 = all requested engines ready
-#   1 = one or more engines failed
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 0.  Bootstrap checks – must run before set -euo pipefail

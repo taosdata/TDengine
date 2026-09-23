@@ -1,26 +1,19 @@
 #!/bin/bash
 
-# This is the script for us to try to cause the TDengine server or client to crash
-#    
-# PREPARATION
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# 1. Build an compile the TDengine source code that comes with this script, in the same directory tree
-# 2. Please follow the direction in our README.md, and build TDengine in the build/ directory
-# 3. Adjust the configuration file if needed under build/test/cfg/taos.cfg
-# 4. Run the TDengine server instance: cd build; ./build/bin/taosd -c test/cfg
-# 5. Make sure you have a working Python3 environment: run /usr/bin/python3 --version, and you should get 3.6 or above
-# 6. Make sure you have the proper Python packages: # sudo apt install python3-setuptools python3-pip python3-distutils
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# RUNNING THIS SCRIPT
-# 
-# This script assumes the source code directory is intact, and that the binaries has been built in the
-# build/ directory, as such, will will load the Python libraries in the directory tree, and also load
-# the TDengine client shared library (so) file, in the build/directory, as evidenced in the env
-# variables below.
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# Running the script is simple, no parameter is needed (for now, but will change in the future).
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-# Happy Crashing...
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
 # Due to the heavy path name assumptions/usage, let us require that the user be in the current directory

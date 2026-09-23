@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# filepath: /Users/kuanjunduan/Documents/createCluster.py
-#
+
 # Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # This program is free software: you can use, redistribute, and/or modify
 # it under the terms of the GNU Affero General Public License, version 3
@@ -13,7 +14,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-#
 
 """
 TDengine Standalone Cluster Setup Module
