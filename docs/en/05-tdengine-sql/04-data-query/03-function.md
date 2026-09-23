@@ -3859,6 +3859,68 @@ taos> select value_changes(current, 0) from meters;
                          4 |
 ```
 
+### BIT_CHANGES
+
+```sql
+BIT_CHANGES(expr [, mask [, flag]])
+
+mask: a non-negative integer constant from 0 to INT64_MAX; default is 1
+
+flag: {
+    0
+  | 1
+  | 2
+}
+```
+
+**Function Classification**: Aggregate function.
+
+**Version**: ver-3.4.3.0
+
+**Function Description**: Counts changes in selected bits of an integer measurement. For each row, the function first computes `expr & mask`, compares the masked value with the previous participating row, and counts the transition according to `flag`. The first row has no predecessor and is not counted.
+
+**Parameters**:
+
+- `expr`: Required. Supports `TINYINT`, `SMALLINT`, `INT`, `BIGINT`, the corresponding unsigned integer types, and `BOOL`.
+- `mask`: Optional integer constant. Defaults to `1`, which checks the least significant bit. When `mask=0`, every masked value is zero and the result is 0.
+- `flag`: Optional constant `0`, `1`, or `2`. Defaults to `0`.
+  - `0`: Count transitions from `0` to non-zero.
+  - `1`: Count transitions from non-zero to `0`.
+  - `2`: Count transitions in both directions.
+
+**Return Data Type**: BIGINT.
+
+**Applicable to**: Tables, supertables, window queries, and stream computations. Supported windows include `INTERVAL`, `STATE_WINDOW`, `SESSION`, `EVENT_WINDOW`, and `COUNT_WINDOW`.
+
+**Usage Instructions**:
+
+- NULL/None rows are skipped. They do not participate in comparison and do not reset the previous participating value. For example, `1, NULL, 0` produces one change with `flag=2`.
+- The first row is not counted, so `n` rows produce at most `n-1` comparisons. Empty input produces no result row; a single row or all-NULL input returns 0.
+- With `PARTITION BY` or `GROUP BY`, each group is counted independently and no comparison crosses groups.
+- With a window clause, each window is counted independently; the first row of a window is not compared with the last row of the previous window.
+- `mask` and `flag` must be constants. Column references, strings, and floating-point expressions are invalid.
+- Non-integer `expr`, invalid `mask`/`flag`, and system-table input are rejected.
+
+**Examples**:
+
+Assume that `status_bits` contains `0, 1, 3, 2, 0` in timestamp order:
+
+```sql
+-- Check the least significant bit and count 0 -> non-zero transitions
+taos> select bit_changes(status_bits) from device_status;
+
+-- Check the low four bits and count both directions
+taos> select bit_changes(status_bits, 15, 2) from device_status;
+
+-- Count alarm-bit clears independently for each subtable
+taos> select tbname, bit_changes(status_bits, 4, 1)
+      from meters partition by tbname;
+
+-- Count both directions independently in each 10-minute window
+taos> select _wstart, bit_changes(status_bits, 1, 2)
+      from device_status interval(10m);
+```
+
 ## Interpolation Functions
 
 Interpolation functions are used to return interpolated values at specified time slices.
