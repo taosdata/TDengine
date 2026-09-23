@@ -7,6 +7,8 @@ toc_max_heading_level: 3
 
 Xnode 是 TDengine 数据接入服务的分布式执行节点，负责运行数据同步任务，将外部数据源的数据实时或批量写入 TDengine。本文介绍管理数据接入功能的 SQL 命令，包括 Xnode 节点、数据接入任务、Job 分片以及 Agent。
 
+任务自动恢复由守护进程 `xnoded` 控制，可通过命令行参数 `--auto-resume` 或环境变量 `XNODED_AUTO_RESUME` 配置，默认开启。
+
 ## Xnode 节点管理
 
 Xnode 节点是数据同步服务的基本执行单元，负责具体的数据传输工作。

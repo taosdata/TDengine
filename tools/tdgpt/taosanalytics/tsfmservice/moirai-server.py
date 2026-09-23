@@ -20,6 +20,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "misc"))
 
 import numpy as np
+import pandas as pd
 import torch
 from einops import rearrange
 from flask import Flask, jsonify, request
@@ -28,7 +29,6 @@ from gluonts.dataset.split import split
 from hf_download import snapshot_download_with_fallback
 from tqdm import tqdm
 from uni2ts.model.moirai_moe import MoiraiMoEForecast, MoiraiMoEModule
-import pandas as pd
 
 app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
