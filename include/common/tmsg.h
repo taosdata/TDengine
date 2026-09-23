@@ -7609,6 +7609,19 @@ typedef struct {
 int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq);
 int32_t tDecodeSVDeleteRsp(SDecoder* pCoder, SVDeleteRsp* pReq);
 
+// One matched point produced by a DELETE carrying an ordinary column filter, for the subtable
+// `uid`. The deleter (dataDeleter.c) only ever emits the degenerate form skey == ekey == the
+// matched row's ts -- it never widens [skey, ekey] into a true multi-row range, and consecutive
+// duplicate timestamps for the same uid collapse into one entry. Do not read this as "every row
+// inside [skey, ekey] matches the filter" for a non-degenerate range: that invariant has never
+// been established here, and treating a wider range as safe to bulk-delete would delete rows the
+// filter never matched.
+typedef struct SDeleteInterval {
+  uint64_t uid;
+  int64_t  skey;
+  int64_t  ekey;
+} SDeleteInterval;
+
 typedef struct SDeleteRes {
   uint64_t suid;
   SArray*  uidList;
@@ -7620,6 +7633,16 @@ typedef struct SDeleteRes {
   int64_t  ctimeMs;  // fill by vnode
   int8_t   source;
   int8_t   secureDelete;  // force physical overwrite
+  // SArray<SDeleteInterval>. In-process scratch only, and NOT one entry per matched row: the
+  // deleter (dataDeleter.c) collapses consecutive duplicate timestamps for the same uid into a
+  // single degenerate entry, so this list can be shorter than affectedRows. It is populated by
+  // qwGetDeleteResFromSink (copied from SDeleterRes.pIntervals, which the deleter itself fills
+  // in), and read exactly once by vnodePreProcessDeleteMsg on the leader to fan the statement out
+  // into N independent old-shape SDeleteRes proposals before Raft ever sees anything.
+  // tEncodeDeleteRes/tDecodeDeleteRes never touch this field -- it must never appear on the wire,
+  // and every SDeleteRes must be zero-initialized before use so an unset pointer here is never
+  // mistaken for a live one.
+  SArray*  pSplitPoints;
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);

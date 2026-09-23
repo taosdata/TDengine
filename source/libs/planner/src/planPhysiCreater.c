@@ -7148,15 +7148,31 @@ static int32_t createDataDeleter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode*
   tstrncpy(pDeleter->tsColName, pModify->tsColName, TSDB_COL_NAME_LEN);
   pDeleter->deleteTimeRange = pModify->deleteTimeRange;
   pDeleter->secureDelete = pModify->secureDelete;
+  pDeleter->rangeMode = pModify->deleteRangeMode;
+  pDeleter->tsSlotId = -1;
 
-  code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pAffectedRows,
-                       &pDeleter->pAffectedRows);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (pDeleter->rangeMode) {
+    // pStartTs carries the ts column here, not first(ts); resolve it against the scan output so the
+    // deleter can read the timestamps out of every incoming block.
     code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pStartTs, &pDeleter->pStartTs);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (QUERY_NODE_COLUMN != nodeType(pDeleter->pStartTs)) {
+        nodesDestroyNode((SNode*)pDeleter);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+      pDeleter->tsSlotId = ((SColumnNode*)pDeleter->pStartTs)->slotId;
+    }
+  } else {
+    code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pAffectedRows,
+                         &pDeleter->pAffectedRows);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pStartTs, &pDeleter->pStartTs);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pEndTs, &pDeleter->pEndTs);
+    }
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pEndTs, &pDeleter->pEndTs);
-  }
+
   if (TSDB_CODE_SUCCESS == code) {
     pDeleter->sink.pInputDataBlockDesc = NULL;
     code = nodesCloneNode((SNode*)pRoot->pOutputDataBlockDesc, (SNode**)&pDeleter->sink.pInputDataBlockDesc);
@@ -7168,7 +7184,7 @@ static int32_t createDataDeleter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode*
     nodesDestroyNode((SNode*)pDeleter);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t buildDeleteSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, SSubplan* pSubplan) {
