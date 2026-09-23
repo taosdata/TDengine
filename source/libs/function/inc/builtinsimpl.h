@@ -344,6 +344,11 @@ int32_t valueChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRe
 int32_t valueChangesFunction(SqlFunctionCtx* pCtx);
 int32_t valueChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+bool    getBitChangesFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t bitChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t bitChangesFunction(SqlFunctionCtx* pCtx);
+int32_t bitChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool getHasNullFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
