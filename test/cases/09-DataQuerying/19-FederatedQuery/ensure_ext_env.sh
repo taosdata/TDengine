@@ -12,6 +12,9 @@
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 # FITNESS FOR A PARTICULAR PURPOSE.
 #
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 # ENVIRONMENT VARIABLES (all optional, defaults match federated_query_common.py)
 #   FQ_BASE_DIR            install/data root      default /opt/taostest/fq
 #   FQ_MYSQL_VERSIONS      comma list             default "8.0"
@@ -48,8 +51,6 @@
 # EXIT CODES
 #   0 = all requested engines ready
 #   1 = one or more engines failed
-# You should have received a copy of the GNU Affero General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 0.  Bootstrap checks – must run before set -euo pipefail

@@ -1,7 +1,9 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
- * This program is free software: you can redistribute it and/or modify
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
