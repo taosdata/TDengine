@@ -94,6 +94,12 @@ struct SExecTaskInfo {
   SRWLatch              lock;  // secure the access of STableListInfo
   SStorageAPI           storageAPI;
   int8_t                dynamicTask;
+  // vtable two-pass: phase-1 EOF keeps task/sink/reader alive for phase-2 rescan.
+  // Mutability contract (same as dynamicTask): written ONLY during plan/operator
+  // init, before the task is published to the qworker thread; read-only afterwards
+  // (qworker reads it cross-thread via qIsNoQuickFreeTask without synchronization).
+  // Never flip mid-execution -- a dynamic write here would need atomic access.
+  bool                  noQuickFree;
   SOperatorParam*       pOpParam;
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;

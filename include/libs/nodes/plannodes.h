@@ -197,6 +197,7 @@ typedef struct SScanLogicNode {
   // query pushdown. Physical planning moves them into the remote leaf's pConditions
   // before serialization; they must never become local scan conditions.
   SNode*      pPushedConditions;
+  bool               twoPassRescanSource;  // vtable two-pass: origin keeps reader alive for phase-2 rescan
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -262,6 +263,7 @@ typedef struct SVirtualScanLogicNode {
   // Flags
   bool          hasTagRef;        // true if has tag references
   bool          hasLocalTag;      // true if has local tags
+  bool          twoPassMode;      // PERCENTILE/repeat-scan: drive two passes (PRE_SCAN then MAIN_SCAN)
   bool          hasFilterCond;    // saved external filters require virtual-row merging before agg/window
   bool          hasConstRefTag;   // true if has const-ref tags (vntb/ntb source)
 } SVirtualScanLogicNode;
@@ -774,6 +776,7 @@ typedef struct SVirtualScanPhysiNode {
                                    // array (tmsg.h), so every copy/clone/decode is a complete value with
                                    // no shared pointer; ALL-ZERO means "not set" (remote hops unavailable
                                    // in const-ref resolution); each vscan node owns its own copy
+  bool           twoPassMode;      // PERCENTILE/repeat-scan: drive two passes (PRE_SCAN then MAIN_SCAN)
 }SVirtualScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
@@ -854,6 +857,7 @@ typedef struct STableScanPhysiNode {
   bool           needCountEmptyTable;
   bool           paraTablesSort;
   bool           smallDataTsSort;
+  bool           twoPassRescanSource;  // vtable two-pass: qworker keeps task/sink/reader alive for phase-2 rescan
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

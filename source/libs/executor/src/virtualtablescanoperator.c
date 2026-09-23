@@ -70,6 +70,9 @@ typedef struct SVirtualScanMergeOperatorInfo {
   uint64_t              groupId;
   STupleHandle*         pSavedTuple;
   SSDataBlock*          pSavedTagBlock;
+  bool                  twoPassMode;   // PERCENTILE/repeat-scan: drive two passes
+  bool                  phase1Done;    // twoPassMode: false=phase-1 (PRE_SCAN), true=phase-2 (MAIN_SCAN)
+  int32_t               twoPassErr;    // twoPassMode: sticky phase-2 restart failure (0 = none)
 } SVirtualScanMergeOperatorInfo;
 
 typedef struct SLoadNextCtx {
@@ -1685,7 +1688,7 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
 _return:
   p->info.rows = rowNums + 1;
   p->info.dataLoad = 1;
-  p->info.scanFlag = MAIN_SCAN;
+  p->info.scanFlag = (pInfo->twoPassMode && !pInfo->phase1Done) ? PRE_SCAN : MAIN_SCAN;
   return code;
 }
 
@@ -1805,7 +1808,161 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
 _return:
   p->info.rows = rowNums + 1;
   p->info.dataLoad = 1;
-  p->info.scanFlag = MAIN_SCAN;
+  p->info.scanFlag = (pInfo->twoPassMode && !pInfo->phase1Done) ? PRE_SCAN : MAIN_SCAN;
+  return code;
+}
+
+// Tear down the current sort state (pSortInfo is kept for rebuild). Used by
+// vtableTwoPassRestart both before rebuilding and to drop a partially-built phase-2
+// sort state when the rebuild fails midway.
+static void vtableTwoPassDestroySortState(SVirtualScanMergeOperatorInfo* pInfo) {
+  SVirtualTableScanInfo* pVirtualScanInfo = &pInfo->virtualScanInfo;
+
+  if (pVirtualScanInfo->pSortHandle != NULL) {
+    tsortDestroySortHandle(pVirtualScanInfo->pSortHandle);
+    pVirtualScanInfo->pSortHandle = NULL;
+  }
+  if (pVirtualScanInfo->pSortCtxList != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pVirtualScanInfo->pSortCtxList); i++) {
+      SLoadNextCtx* pCtx = *(SLoadNextCtx**)taosArrayGet(pVirtualScanInfo->pSortCtxList, i);
+      cleanupLoadNextCtx(pCtx);
+    }
+    taosArrayDestroy(pVirtualScanInfo->pSortCtxList);
+    pVirtualScanInfo->pSortCtxList = NULL;
+  }
+  blockDataDestroy(pVirtualScanInfo->pIntermediateBlock);
+  pVirtualScanInfo->pIntermediateBlock = NULL;
+  pInfo->pSavedTuple = NULL;
+
+  // Mirror resetVirtualTableMergeOperState: createSortHandle rebuilds the tag-ref state
+  // only when it is NULL, so drop it here — otherwise a phase-1 -> phase-2 restart
+  // appends duplicate resultDataBlockId entries and keeps stale saved tag blocks alive.
+  // tagDownStreamId is likewise re-derived by createSortHandle (its -1 fallback
+  // classification only fires while still -1), so reset it like the sibling teardowns.
+  pVirtualScanInfo->tagDownStreamId = -1;
+  blockDataDestroy(pInfo->pSavedTagBlock);
+  pInfo->pSavedTagBlock = NULL;
+  taosArrayDestroy(pVirtualScanInfo->pTagRefSourceBlockIds);
+  pVirtualScanInfo->pTagRefSourceBlockIds = NULL;
+  cleanupSavedTagRefBlocks(pVirtualScanInfo);
+  tSimpleHashCleanup(pVirtualScanInfo->pTagRefDownstreamMap);
+  pVirtualScanInfo->pTagRefDownstreamMap = NULL;
+}
+
+// Fetch the 1-row tag block from every ref-tag source downstream and stash copies keyed
+// by resultDataBlockId. Shared by the first pass (virtualTableGetNext entry) and the
+// two-pass restart: after vtableTwoPassDestroySortState + createSortHandle the block ids
+// are new, and phase-2 re-enters via doVirtualTableMerge — it never passes the
+// virtualTableGetNext entry point, so without an explicit rebuild here the saved blocks
+// stay NULL and doSetTagColumnData NULL-fills every ref-tag column in MAIN_SCAN.
+static int32_t buildSavedTagRefBlocks(SOperatorInfo* pOperator) {
+  int32_t                        code = 0;
+  int32_t                        lino = 0;
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  SVirtualTableScanInfo*         pVirtualScanInfo = &pInfo->virtualScanInfo;
+
+  if (pVirtualScanInfo->pTagRefSourceBlockIds == NULL || pVirtualScanInfo->pSavedTagRefBlocks != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pVirtualScanInfo->pSavedTagRefBlocks =
+      taosArrayInit(taosArrayGetSize(pVirtualScanInfo->pTagRefSourceBlockIds), sizeof(STagRefSavedBlock));
+  QUERY_CHECK_NULL(pVirtualScanInfo->pSavedTagRefBlocks, code, lino, _return, terrno)
+
+  for (int32_t i = 0; i < taosArrayGetSize(pVirtualScanInfo->pTagRefSourceBlockIds); ++i) {
+    int64_t* pBlockId = taosArrayGet(pVirtualScanInfo->pTagRefSourceBlockIds, i);
+    QUERY_CHECK_NULL(pBlockId, code, lino, _return, terrno)
+    STagRefDownstreamInfo* pDownstreamInfo =
+        tSimpleHashGet(pVirtualScanInfo->pTagRefDownstreamMap, pBlockId, sizeof(*pBlockId));
+    QUERY_CHECK_NULL(pDownstreamInfo, code, lino, _return, TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR)
+
+    SSDataBlock*   pTagRefBlock = NULL;
+    SSDataBlock*   pSavedBlock = NULL;
+    SOperatorInfo* pTagRefOp = pOperator->pDownstream[pDownstreamInfo->downstreamId];
+    VTS_ERR_JRET(pTagRefOp->fpSet.getNextFn(pTagRefOp, &pTagRefBlock));
+    QUERY_CHECK_NULL(pTagRefBlock, code, lino, _return, TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR)
+    if (pTagRefBlock->info.rows != 1) {
+      VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+    }
+    VTS_ERR_JRET(createOneDataBlock(pTagRefBlock, true, &pSavedBlock));
+
+    STagRefSavedBlock savedBlock = {.blockId = *pBlockId, .pBlock = pSavedBlock};
+    if (NULL == taosArrayPush(pVirtualScanInfo->pSavedTagRefBlocks, &savedBlock)) {
+      blockDataDestroy(pSavedBlock);
+      pSavedBlock = NULL;
+      code = terrno;
+      lino = __LINE__;
+      goto _return;
+    }
+  }
+
+_return:
+  return code;
+}
+
+// twoPassMode phase-1 EOF: tear down the consumed sort state (keep pSortInfo for rebuild),
+// reset the Exchange downstreams so the remote origin subplans re-execute, then rebuild the
+// sort handle for phase-2. Mirrors FedScan two-pass restart (federatedscanoperator.c). Only
+// used on the static path (no operator param); the DynQueryCtrl path is single-pass.
+static int32_t vtableTwoPassRestart(SOperatorInfo* pOperator) {
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  int32_t                        code = 0;
+
+  vtableTwoPassDestroySortState(pInfo);
+
+  // Reset Exchange downstreams so createSortHandle re-opens them and the remote re-scans.
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream != NULL && pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE
+        && pDownstream->fpSet.resetStateFn != NULL) {
+      code = pDownstream->fpSet.resetStateFn(pDownstream);
+      if (code != TSDB_CODE_SUCCESS) {
+        // Sticky failure, same contract as the rebuild-failure path below: the sort
+        // state is already torn down (pSortHandle NULL), so a doVirtualTableMerge retry
+        // must surface this error instead of silently reporting EOF. The phase-2 flags
+        // armed on earlier iterations are disarmed by the shared rollback tail.
+        pInfo->twoPassErr = code;
+        goto _rollback_flags;
+      }
+      pDownstream->status = OP_NOT_OPENED;
+      ((SExchangeInfo*)pDownstream->info)->phase2Rescan = true;    // next fetch = phase-2 rescan
+      ((SExchangeInfo*)pDownstream->info)->twoPassExchange = true; // empty !completed rsp = retry
+    }
+  }
+
+  code = createSortHandle(pOperator);
+  if (TSDB_CODE_SUCCESS == code) {
+    // Defensive: twoPassMode plans currently have no TAG_REF_SOURCE children (the
+    // planner's vtableTwoPassOptimize rejects them — the remote tag-ref task cannot be
+    // kept alive for a phase-2 re-fetch), so pTagRefSourceBlockIds is NULL here and this
+    // early-returns. If tag-ref support is added later, this rebuilds the saved ref-tag
+    // blocks against the rebuilt downstream map, or phase-2 (re-entered via
+    // doVirtualTableMerge, not virtualTableGetNext) NULL-fills the ref-tag columns.
+    code = buildSavedTagRefBlocks(pOperator);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // Sticky failure: pSortHandle stays NULL, and doVirtualTableMerge must surface this
+  // error on retry instead of reporting a silent EOF (empty PERCENTILE result).
+  pInfo->twoPassErr = code;
+  // createSortHandle may have partially built the new handle/ctx list before failing —
+  // free it so the operator is not left in a half-rebuilt state until a later reset.
+  vtableTwoPassDestroySortState(pInfo);
+
+_rollback_flags:
+  // Both failure paths converge here: disarm the phase-2 flags on every Exchange
+  // downstream (the reset loop may already have armed some of them), so a later operator
+  // reset/retry observes a consistent phase-1 state (the recursive
+  // clearStatesForOperator -> resetExchangeOperState would clear them anyway, but do not
+  // rely on that ordering).
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream != NULL && pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+      ((SExchangeInfo*)pDownstream->info)->phase2Rescan = false;
+      ((SExchangeInfo*)pDownstream->info)->twoPassExchange = false;
+    }
+  }
   return code;
 }
 
@@ -1820,27 +1977,54 @@ int32_t doVirtualTableMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   qDebug("start to merge final sorted rows, %s", GET_TASKID(pTaskInfo));
   blockDataCleanup(pDataBlock);
+  // Default to "no output": virtualTableGetNext loops on *pResBlock and can re-enter with a
+  // stale non-NULL block (post-filter re-loop), so every EOF return below must leave it NULL.
+  *pResBlock = NULL;
 
   if (pHandle == NULL) {
+    // A failed two-pass restart left pSortHandle NULL — surface the sticky error instead
+    // of silently reporting EOF (which would read as an empty PERCENTILE result).
+    VTS_ERR_RET(pInfo->twoPassErr);
     return TSDB_CODE_SUCCESS;
   }
 
+_restart_merge:
   if (pVirtualScanInfo->pIntermediateBlock == NULL) {
     VTS_ERR_RET(tsortGetSortedDataBlock(pHandle, &pVirtualScanInfo->pIntermediateBlock));
-    if (pVirtualScanInfo->pIntermediateBlock == NULL) {
-      return TSDB_CODE_SUCCESS;
+    if (pVirtualScanInfo->pIntermediateBlock != NULL) {
+      VTS_ERR_RET(blockDataEnsureCapacity(pVirtualScanInfo->pIntermediateBlock, capacity));
     }
-
-    VTS_ERR_RET(blockDataEnsureCapacity(pVirtualScanInfo->pIntermediateBlock, capacity));
   } else {
     blockDataCleanup(pVirtualScanInfo->pIntermediateBlock);
   }
 
   SSDataBlock* p = pVirtualScanInfo->pIntermediateBlock;
-  if (pOperator->pOperatorGetParam) {
-    VTS_ERR_RET(doGetVStableMergedBlockData(pInfo, pHandle, capacity, p));
-  } else {
-    VTS_ERR_RET(doGetVtableMergedBlockData(pInfo, pHandle, capacity, p));
+  if (p != NULL) {
+    if (pOperator->pOperatorGetParam) {
+      VTS_ERR_RET(doGetVStableMergedBlockData(pInfo, pHandle, capacity, p));
+    } else {
+      VTS_ERR_RET(doGetVtableMergedBlockData(pInfo, pHandle, capacity, p));
+    }
+  }
+
+  // Single pass-EOF detection point: either the sort handed out no block at all (already
+  // exhausted on entry, e.g. an empty phase-1), or the merge helper produced zero rows
+  // (tsortNextTuple returned NULL inside the helpers — pIntermediateBlock stays non-NULL
+  // between calls, so the NULL check above alone cannot see that case).
+  if (p == NULL || p->info.rows == 0) {
+    // The planner only sets twoPassMode on static-path scans of virtual child/normal
+    // tables (REPEAT_SCAN_FUNC is parser-rejected on virtual super tables), and the
+    // DynQueryCtrl param path is single-pass — so pOperatorGetParam and twoPassMode are
+    // mutually exclusive by construction. The NULL check is a defensive guard keeping
+    // vtableTwoPassRestart strictly on the static path its comment documents.
+    if (pInfo->twoPassMode && !pInfo->phase1Done && NULL == pOperator->pOperatorGetParam) {
+      // phase-1 done: reset Exchange + rebuild sort handle, re-merge for phase-2 (MAIN_SCAN)
+      VTS_ERR_RET(vtableTwoPassRestart(pOperator));
+      pInfo->phase1Done = true;
+      pHandle = pVirtualScanInfo->pSortHandle;  // re-read the rebuilt handle
+      goto _restart_merge;
+    }
+    return TSDB_CODE_SUCCESS;  // pass EOF — *pResBlock stays NULL
   }
 
   VTS_ERR_RET(copyDataBlock(pDataBlock, p));
@@ -2173,38 +2357,7 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   VTS_ERR_JRET(pOperator->fpSet._openFn(pOperator));
 
-  if (pVirtualScanInfo->pTagRefSourceBlockIds != NULL && pVirtualScanInfo->pSavedTagRefBlocks == NULL) {
-    pVirtualScanInfo->pSavedTagRefBlocks =
-        taosArrayInit(taosArrayGetSize(pVirtualScanInfo->pTagRefSourceBlockIds), sizeof(STagRefSavedBlock));
-    QUERY_CHECK_NULL(pVirtualScanInfo->pSavedTagRefBlocks, code, lino, _return, terrno)
-
-    for (int32_t i = 0; i < taosArrayGetSize(pVirtualScanInfo->pTagRefSourceBlockIds); ++i) {
-      int64_t* pBlockId = taosArrayGet(pVirtualScanInfo->pTagRefSourceBlockIds, i);
-      QUERY_CHECK_NULL(pBlockId, code, lino, _return, terrno)
-      STagRefDownstreamInfo* pDownstreamInfo =
-          tSimpleHashGet(pVirtualScanInfo->pTagRefDownstreamMap, pBlockId, sizeof(*pBlockId));
-      QUERY_CHECK_NULL(pDownstreamInfo, code, lino, _return, TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR)
-
-      SSDataBlock*   pTagRefBlock = NULL;
-      SSDataBlock*   pSavedBlock = NULL;
-      SOperatorInfo* pTagRefOp = pOperator->pDownstream[pDownstreamInfo->downstreamId];
-      VTS_ERR_JRET(pTagRefOp->fpSet.getNextFn(pTagRefOp, &pTagRefBlock));
-      QUERY_CHECK_NULL(pTagRefBlock, code, lino, _return, TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR)
-      if (pTagRefBlock->info.rows != 1) {
-        VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
-      }
-      VTS_ERR_JRET(createOneDataBlock(pTagRefBlock, true, &pSavedBlock));
-
-      STagRefSavedBlock savedBlock = {.blockId = *pBlockId, .pBlock = pSavedBlock};
-      if (NULL == taosArrayPush(pVirtualScanInfo->pSavedTagRefBlocks, &savedBlock)) {
-        blockDataDestroy(pSavedBlock);
-        pSavedBlock = NULL;
-        code = terrno;
-        lino = __LINE__;
-        goto _return;
-      }
-    }
-  }
+  VTS_ERR_JRET(buildSavedTagRefBlocks(pOperator));
 
   // Dynamic VSTB keeps the original table-scan path unchanged; when metadata is projected,
   // fetch the real 1-row tag block from the extra tag-scan child and use it only for fill.
@@ -2435,6 +2588,8 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
 
   pOper->status = OP_NOT_OPENED;
   resetBasicOperatorState(&pMergeInfo->binfo);
+  pMergeInfo->phase1Done = false;  // twoPassMode: restart from phase-1 on operator reset/retry
+  pMergeInfo->twoPassErr = 0;
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
@@ -2510,6 +2665,14 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pVirtualScanInfo->pTargets = pVirtualScanPhyNode->pTargets;
   pVirtualScanInfo->pScanPseudoCols = pVirtualScanPhyNode->scan.pScanPseudoCols;
   pVirtualScanInfo->pRefTagCols = pVirtualScanPhyNode->pRefTagCols;
+  pInfo->twoPassMode = pVirtualScanPhyNode->twoPassMode;
+  if (pInfo->twoPassMode && pVirtualScanPhyNode->scan.node.dynamicOp) {
+    // Planner invariant: twoPassMode (static path) never co-occurs with the DynQueryCtrl
+    // dynamic-op path. Surface a violation immediately instead of silently degrading to
+    // single-pass and returning wrong PERCENTILE results.
+    qError("invalid two-pass mode on dynamicOp virtual scan, vtable:%s", pVirtualScanInfo->vtableName);
+    VTS_ERR_JRET(TSDB_CODE_APP_ERROR);
+  }
   normalizeRefTagTargets(pVirtualScanInfo);
   if (pVirtualScanPhyNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* pSup = &pVirtualScanInfo->base.pseudoSup;

@@ -403,6 +403,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000073E | Duplicate timestamp not allowed in count/event/state window                  | 窗口输入主键列有重复时间戳。对状态窗口、事件窗口、计数窗口做超级表查询时，所有子表数据会按照时间戳进行排序后合并为一条时间线进行计算，因此子表合并后的时间戳可能会出现重复，导致某些计算没有意义而报错。 | 如果需要对超级表查询并且使用这些窗口时，确保子表中不存在重复时间戳数据。                                                                                    |
 | 0x80000741 | VSTB slotId not found for column                                            | 查询执行时未能将源列映射到虚拟表的 slotId                                                                   | 保留现场和日志，github 上报 issue                                                                                                 |
 | 0x80000742 | Window state not found                                                      | 查询执行时未能按窗口键找到对应的窗口状态，通常表示执行器内部窗口状态管理出现异常。                                              | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x80000743 | Virtual table two-pass rescan stalled                                       | 虚拟表两阶段查询（如 PERCENTILE）的第二阶段重扫长时间未产生数据，通常表示远端重扫任务卡死或异常退出。                            | 保留现场和日志，github 上报 issue                                                                                                 |
 
 #### grant
 
@@ -615,6 +616,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026BA | Invalid window frame bound                                                                             | 帧起点或终点无效                                        | 修正为合法的 PRECEDING/FOLLOWING 边界                      |
 | 0x800026BB | Invalid window function argument                                                                       | 窗口函数参数非法或超出范围                              | 修正函数参数个数、类型或取值                                |
 | 0x800026BC | Invalid window function argument                                                                       | 窗口函数参数非法或超出范围                              | 修正函数参数个数、类型或取值                                |
+| 0x800026E8 | Virtual table two-pass scan is not supported for this query                                            | 虚拟表上的重扫函数（如 PERCENTILE）查询形状不支持：聚合/窗口未直接位于虚拟扫描之上（中间存在 PROJECT/JOIN/SORT/PARTITION），或源表为外部（联邦）表 | 改写查询，使聚合/窗口直接作用于虚拟表                        |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |

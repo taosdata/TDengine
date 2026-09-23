@@ -189,6 +189,8 @@ typedef struct SQWTaskCtx {
   int8_t        needFetch;
   int8_t        localExec;
   int8_t        dynamicTask;
+  volatile int8_t noQuickFree;          // vtable two-pass: phase-1 EOF keeps task/sink/reader alive
+  volatile int8_t phase2RescanPending;  // set on phase-2 fetch msg; triggers qwStartTwoPassRescanExec
   int8_t        subQuery;
   ESubQueryType subQType;
   int32_t       queryMsgType;
@@ -225,6 +227,33 @@ typedef struct SQWTaskCtx {
   SQWJobInfo *pJobInfo;
   SQWSubQRes  subQRes;
 } SQWTaskCtx;
+
+// Task must outlive a phase boundary: dynamic tasks re-exec per fetch msg; vtable two-pass
+// origin tasks (noQuickFree) keep task/sink/reader alive past phase-1 EOF for the phase-2
+// rescan. The quick-free / status-SUCC gates on the completion and fetch-finish paths in
+// qworker.c must consult this predicate — freeing on a task that only looks "done" would
+// yank the reader mid-two-pass.
+//
+// Scope: ctx->delayFreeTask (plan->delayFreeTask, 3.0) is deliberately NOT part of this
+// predicate. It gates only the task-handle free in qwHandleTaskComplete
+// (`!qwKeepTaskAlive(ctx) && !ctx->delayFreeTask`), which matches the 3.0 baseline
+// (`!dynamicTask && !delayFreeTask`); the sink-free and JOB_TASK_STATUS_SUCC gates were
+// never delayFreeTask-gated on 3.0, so folding it in here would change their semantics.
+//
+// The two-pass rescan rollback in qwStartTwoPassRescanExec deliberately bypasses this
+// predicate (stores noQuickFree=false and queryExecDone=true directly): it only runs
+// after the rescan cquery failed to queue, when the fetch is being answered with an
+// error and the query is being torn down — there is no phase boundary left to protect.
+// dynamicTask and noQuickFree are mutually exclusive by plan construction (dynamicTask
+// is set for DynQueryCtrl-rooted subplans, noQuickFree only for twoPassRescanSource
+// TableScan roots, and the VtableTwoPass rule rejects non-SCAN roots), so clearing
+// noQuickFree there can never leave a dynamicTask still relying on it.
+//
+// Note: takes a mutable ctx on purpose — atomic_load_8 expects `int8_t volatile*`, and
+// a const pointer would force a qualifier-discarding cast at every load site.
+static FORCE_INLINE bool qwKeepTaskAlive(SQWTaskCtx* ctx) {
+  return ctx->dynamicTask || atomic_load_8(&ctx->noQuickFree);
+}
 
 typedef struct SQWSchStatus {
   int64_t        hbBrokenTs;  // timestamp in msecond
