@@ -1898,7 +1898,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     TAOS_CHECK_GOTO(terrno, &lino, _exception1);
   }
 
-  tTrace("%s conn:%p, fd %d openend", pInst->label, conn, fd);
+  tTrace("%s conn:%p, fd %d opened", pInst->label, conn, fd);
 
   int ret = uv_tcp_open((uv_tcp_t*)conn->stream, fd);
   if (ret != 0) {
@@ -2120,7 +2120,7 @@ static void cliHandleReloadTlsConfig(SCliThrd* pThrd, SCliReq* pReq) {
   if (result == 0) {
     tInfo("%s successfully reloaded TLS config", transLabel(pInst));
   } else {
-    tDebug("%s not ready to  to reload TLS config", transLabel(pInst));
+    tDebug("%s not ready to reload TLS config", transLabel(pInst));
   }
 
   taosMemoryFree(pReq);

@@ -26,7 +26,7 @@ class TestBalanceVgroupLeaderDbName:
     COPY_STRING_FORM_ID_TOKEN (which preserves backticks) instead of calling
     checkDbName first (which strips them via trimEscape).  This caused the
     server-side strcmp(req.db, name.dbname) to always fail when the SQL used
-    backtick-quoted identifiers, returning "No VGroup's leader need to be
+    backtick-quoted identifiers, returning "No VGroup leader needs to be
     balanced" even though the database existed.
     """
 
@@ -62,6 +62,7 @@ class TestBalanceVgroupLeaderDbName:
         Since: v3.3.7.0
 
         Labels: ci,cluster,integration,functional
+
         Jira: None
 
         History:

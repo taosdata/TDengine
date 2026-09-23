@@ -95,7 +95,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
-    sNError(pSyncNode, "not candidate, can not elect");
+    sNError(pSyncNode, "not candidate, cannot elect");
     return TSDB_CODE_SYN_WRONG_SYNC_STATE;
   }
 

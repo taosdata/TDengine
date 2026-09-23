@@ -24,7 +24,7 @@ void tdengineErrorHint(uint32_t errCode) {
       printf("Hint: Please make sure you have installed TDengine client or try re-install TDengine client.\n");
       break;
     case TSDB_CODE_DLL_FUNC_NOT_LOAD:
-      printf("Hint: TDengine client libraries not matched, try re-install TDengine client.\n");
+      printf("Hint: TDengine client libraries do not match, try re-installing the TDengine client.\n");
       break;
     default:
       break;

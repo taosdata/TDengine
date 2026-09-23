@@ -104,7 +104,7 @@ static int32_t bmReadFile(const char *path, const char *name, int32_t *proto) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("file:%s not exist", file);
+    dInfo("file:%s does not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -149,7 +149,7 @@ static int32_t bmReadFile(const char *path, const char *name, int32_t *proto) {
   }
 
   code = 0;
-  dInfo("succceed to read bnode file %s", file);
+  dInfo("successfully read bnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);

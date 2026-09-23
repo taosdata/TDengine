@@ -736,7 +736,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   pStmt->stat.ctgGetTbMetaNum++;
 
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-    tscDebug("tb %s not exist", pStmt->bInfo.tbFName);
+    tscDebug("tb %s does not exist", pStmt->bInfo.tbFName);
     STMT_ERR_RET(stmtCleanBindInfo(pStmt));
 
     STMT_ERR_RET(code);
@@ -1229,7 +1229,7 @@ int stmtFetchTagFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    tscError("invalid operation to get query tag fileds");
+    tscError("invalid operation to get query tag fields");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
@@ -1251,7 +1251,7 @@ int stmtFetchColFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    tscError("invalid operation to get query column fileds");
+    tscError("invalid operation to get query column fields");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 

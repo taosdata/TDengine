@@ -192,7 +192,7 @@ class TestMultilevel:
             else:
                 flag = flag & False
                 break
-        if not flag : tdLog.exit("%s failed, expect  not occured" % (sys.argv[0]))
+        if not flag : tdLog.exit("%s failed, expected but did not occur" % (sys.argv[0]))
     
     def three_level_basic(self):
         tdLog.info("============== three_level_basic test ===============")
@@ -404,6 +404,7 @@ class TestMultilevel:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

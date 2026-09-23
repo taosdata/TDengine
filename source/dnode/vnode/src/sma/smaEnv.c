@@ -231,11 +231,11 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       int64_t refId = taosAddRef(smaMgmt.rsetId, pRSmaStat);
       if (refId < 0) {
         code = terrno;
-        smaError("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId rsetId:%d max:%d failed since:%s", SMA_VID(pSma),
+        smaError("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId:%d max:%d failed since:%s", SMA_VID(pSma),
                  refId, smaMgmt.rsetId, SMA_MGMT_REF_NUM, tstrerror(code));
         TAOS_CHECK_GOTO(code, &lino, _exit);
       } else {
-        smaDebug("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId rsetId:%d max:%d succeed", SMA_VID(pSma), refId,
+        smaDebug("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId:%d max:%d succeed", SMA_VID(pSma), refId,
                  smaMgmt.rsetId, SMA_MGMT_REF_NUM);
       }
       pRSmaStat->refId = refId;

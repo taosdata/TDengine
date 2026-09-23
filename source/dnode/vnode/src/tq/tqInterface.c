@@ -291,7 +291,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   if (req.useSnapshot == true) {
-    tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);
+    tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot does not support WAL info", consumerId, vgId, req.subKey);
     code = TSDB_CODE_INVALID_PARA;
     goto END;
   }

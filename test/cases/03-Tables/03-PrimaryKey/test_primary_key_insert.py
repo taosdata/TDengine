@@ -445,7 +445,7 @@ class TestCompositePrimaryKeyInsert:
             conn.schemaless_insert(lines, SmlProtocol.LINE_PROTOCOL, SmlPrecision.MICRO_SECONDS)
             tdSql.checkEqual(False, True)
         except SchemalessError as errMsg:
-            tdSql.checkEqual(errMsg.msg == 'Can not insert data into table with primary key', True)
+            tdSql.checkEqual(errMsg.msg == 'Cannot insert data into table with primary key', True)
 
         # 5.2.insert into values via OpenTSDB
         lines = ["meters.current 1648432611249 10i32 location=California.SanFrancisco groupid=2",
@@ -468,7 +468,7 @@ class TestCompositePrimaryKeyInsert:
             conn.schemaless_insert(lines, SmlProtocol.TELNET_PROTOCOL, SmlPrecision.NOT_CONFIGURED)
             tdSql.checkEqual(False, True)
         except SchemalessError as errMsg:
-            tdSql.checkEqual(errMsg.msg == 'Can not insert data into table with primary key', True)
+            tdSql.checkEqual(errMsg.msg == 'Cannot insert data into table with primary key', True)
 
         # 5.3.insert into values via OpenTSDB Json
         lines = [{"metric": "meters.current", "timestamp": 1648432611249, "value": "a32", "tags": {"location": "California.SanFrancisco", "groupid": 2}}]
@@ -485,7 +485,7 @@ class TestCompositePrimaryKeyInsert:
             conn.schemaless_insert([lines], SmlProtocol.JSON_PROTOCOL, SmlPrecision.NOT_CONFIGURED)
             tdSql.checkEqual(False, True)
         except SchemalessError as errMsg:
-            tdSql.checkEqual(errMsg.msg == 'Can not insert data into table with primary key', True)
+            tdSql.checkEqual(errMsg.msg == 'Cannot insert data into table with primary key', True)
 
         tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
 
@@ -931,6 +931,7 @@ class TestCompositePrimaryKeyInsert:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

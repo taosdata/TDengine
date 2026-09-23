@@ -390,7 +390,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
-    dError("fail to process alter node type since node not exist");
+    dError("failed to process alter node type since the node does not exist");
     return TSDB_CODE_INVALID_MSG;
   }
   dmReleaseWrapper(pWrapper);
@@ -417,7 +417,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     }
   }
 
-  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pWrapper->name);
+  dInfo("node:%s, caught up leader, continue to process alter-node-type-request", pWrapper->name);
 
   (void)taosThreadMutexLock(&pDnode->mutex);
 

@@ -782,7 +782,7 @@ install_python() {
     if echo "$INSTALLED_VERSION" | grep -q "$MAJOR_MINOR_VERSION"; then
         echo -e "${GREEN}Python $MAJOR_MINOR_VERSION installed successfully.${NO_COLOR}"
     else
-        echo -e "${YELLOW}Python version not match.${NO_COLOR}"
+        echo -e "${YELLOW}Python version does not match.${NO_COLOR}"
         exit 1
     fi
 }
@@ -973,7 +973,7 @@ install_java() {
         echo -e "${GREEN}Java installed successfully.${NO_COLOR}"
         SOURCE_RESULTS+="source /root/.bashrc  # For openjdk\n"
     else
-        echo -e "${YELLOW}Java version not match.${NO_COLOR}"
+        echo -e "${YELLOW}Java version does not match.${NO_COLOR}"
         exit 1
     fi
 }

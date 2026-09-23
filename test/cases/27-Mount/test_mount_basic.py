@@ -168,10 +168,10 @@ class TestMountBasic:
         tdSql.error(f"create mount d0 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Database with identical name already exists", fullMatched=False)
         self.refact_mount_dataDir()
         self.corruptMntClusterId()
-        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'", expectErrInfo="Cluster id not match", fullMatched=False)
+        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'", expectErrInfo="Cluster id does not match", fullMatched=False)
         self.recoverMntClusterId()
-        tdSql.error(f"drop mount mnt_not_exist", expectErrInfo="Mount not exist", fullMatched=False)
-        tdSql.error(f"drop mount d0", expectErrInfo="Mount not exist", fullMatched=False)
+        tdSql.error(f"drop mount mnt_not_exist", expectErrInfo="Mount does not exist", fullMatched=False)
+        tdSql.error(f"drop mount d0", expectErrInfo="Mount does not exist", fullMatched=False)
 
     def check_mount_query(self):
         tdSql.query("show create database `mnt1_db0`")

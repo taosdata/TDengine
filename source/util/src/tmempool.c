@@ -528,7 +528,7 @@ void mpPrintPosRemainStat(SMPStatPos* pStat) {
       goto _return;
     }
 
-    uInfo("REMAINING: %" PRId64 " bytes alloced by %s:%d in %" PRId64 " times", pAlloc->allocBytes, pFileName, pId->line, pAlloc->allocTimes);
+    uInfo("REMAINING: %" PRId64 " bytes allocated by %s:%d in %" PRId64 " times", pAlloc->allocBytes, pFileName, pId->line, pAlloc->allocTimes);
     
     pIter = taosHashIterate(pAllocHash, pIter);
   }
@@ -1708,7 +1708,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
   }
 
   if (tsTotalMemoryKB <= 0) {
-    uInfo("memory pool disabled since no enough system total memory, size: %" PRId64 "KB", tsTotalMemoryKB);
+    uInfo("memory pool disabled since not enough system total memory, size: %" PRId64 "KB", tsTotalMemoryKB);
     return code;
   }
 
@@ -1723,7 +1723,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
   
   code = taosGetSysAvailMemory(&sysAvailSize);
   if (code || sysAvailSize < MP_MIN_MEM_POOL_SIZE) {
-    uInfo("memory pool disabled since no enough system available memory, size: %" PRId64, sysAvailSize);
+    uInfo("memory pool disabled since not enough system available memory, size: %" PRId64, sysAvailSize);
     code = TSDB_CODE_SUCCESS;
     return code;
   }
@@ -1732,7 +1732,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
 
   int64_t freeSizeAfterRes = sysAvailSize - tsMinReservedMemorySize * 1048576UL;
   if (freeSizeAfterRes < MP_MIN_FREE_SIZE_AFTER_RESERVE) {
-    uInfo("memory pool disabled since no enough system available memory after reservied, size: %" PRId64, freeSizeAfterRes);
+    uInfo("memory pool disabled since not enough system available memory after reserved, size: %" PRId64, freeSizeAfterRes);
     return code;
   }
 
@@ -1773,13 +1773,13 @@ static int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB) 
   int64_t sysAvailSize = 0;
   code = taosGetSysAvailMemory(&sysAvailSize);
   if (code || sysAvailSize < MP_MIN_MEM_POOL_SIZE) {
-    uInfo("failed to update reserved size since no enough system available memory, size: %" PRId64, sysAvailSize);
+    uInfo("failed to update reserved size since not enough system available memory, size: %" PRId64, sysAvailSize);
     MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
   }
 
   int64_t freeSizeAfterRes = sysAvailSize - newReservedSizeMB * 1048576UL;
   if (freeSizeAfterRes < MP_MIN_FREE_SIZE_AFTER_RESERVE) {
-    uInfo("failed to update reserved size since no enough system available memory after reservied, size: %" PRId64,
+    uInfo("failed to update reserved size since not enough system available memory after reserved, size: %" PRId64,
           freeSizeAfterRes);
     MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
   }

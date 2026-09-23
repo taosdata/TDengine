@@ -70,7 +70,7 @@ class TestStreamDrop:
         4. Test [Error Handling] for Drop Operations
             4.1 Test error messages for invalid drop operations
                 4.1.1 "Table does not exist" for invalid table drop
-                4.1.2 "STable not exist" for invalid stable drop
+                4.1.2 "STable does not exist" for invalid stable drop
                 4.1.3 "Cannot drop super table in batch" for batch stable drop
             4.2 Repeat error tests multiple times
                 4.2.1 Execute each error scenario 5 times
@@ -84,6 +84,7 @@ class TestStreamDrop:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -277,9 +278,9 @@ class TestStreamDrop:
                     tdLog.info(dropTableWithSpace[:-1])
                     tdSql.error(dropTableWithSpace[:-1], expectErrInfo="Table does not exist", fullMatched=False)
                     tdLog.info(dropStableWithSpace[:-1])
-                    tdSql.error(dropStableWithSpace[:-1], expectErrInfo="STable not exist", fullMatched=False)
+                    tdSql.error(dropStableWithSpace[:-1], expectErrInfo="STable does not exist", fullMatched=False)
                     tdLog.info(dropStableNotExist[:-1])
-                    tdSql.error(dropStableWithSpace[:-1], expectErrInfo="STable not exist", fullMatched=False)
+                    tdSql.error(dropStableNotExist[:-1], expectErrInfo="STable does not exist", fullMatched=False)
             else:
                 dropTable += f'`{stb_result[1]}`.`{stb_result[10]}`,'
                 dropStable += f'`{stb_result[1]}`.`{stb_result[10]}`,'

@@ -589,7 +589,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
   }
   if (pSma == NULL) {
     if (dropReq.igNotExists) {
-      mInfo("sma:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("sma:%s, does not exist, ignore-not-exist is set", dropReq.name);
       code = 0;
       goto _OVER;
     } else {
@@ -1166,7 +1166,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
   if (createReq.normSourceTbUid == 0) {
     pStb = mndAcquireStb(pMnode, createReq.stb);
     if (!pStb && !createReq.recursiveTsma) {
-      mError("tsma:%s, failed to create since stb:%s not exist", createReq.name, createReq.stb);
+      mError("tsma:%s, failed to create since stb:%s does not exist", createReq.name, createReq.stb);
       code = TSDB_CODE_MND_STB_NOT_EXIST;
       goto _OVER;
     }
@@ -1176,7 +1176,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
   char streamTargetStbFullName[TSDB_TABLE_FNAME_LEN] = {0};
   code = mndTSMAGenerateOutputName(createReq.name, streamName, streamTargetStbFullName);
   if (TSDB_CODE_SUCCESS != code) {
-    mInfo("tsma:%s, faield to generate name", createReq.name);
+    mInfo("tsma:%s, failed to generate name", createReq.name);
     goto _OVER;
   }
 

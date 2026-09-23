@@ -51,7 +51,7 @@ int restoreDatabaseMeta(const char *dbName);
 //
 // Split into a "prepare" phase and an "apply" phase so restoreMain() can
 // create EVERY database (prepare) before applying ANY DDL (apply).  Applying
-// DDL per-database in discovery order fails with "Database not exist" whenever
+// DDL per-database in discovery order fails with "Database does not exist" whenever
 // a cross-database stream/virtual table is restored before the database it
 // references — and the discovery order comes from raw readdir() and is
 // filesystem-dependent.

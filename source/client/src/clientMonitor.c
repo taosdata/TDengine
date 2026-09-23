@@ -534,7 +534,7 @@ static int32_t processFile(SlowLogClient* pClient) {
   code = taosStatFile(pClient->path, &pClient->size, NULL, NULL);
   if (code < 0 && ERRNO == ENOENT) {
     processFileRemoved(pClient);
-    tscError("%s monitor rebuild file:%s because of file not exist", __func__, pClient->path);
+    tscError("%s monitor rebuild file:%s because the file does not exist", __func__, pClient->path);
     code = 0;
   }
   return code;

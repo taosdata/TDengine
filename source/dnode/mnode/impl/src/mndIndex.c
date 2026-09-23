@@ -499,7 +499,7 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
 
   pStb = mndAcquireStb(pMnode, createReq.stbName);
   if (pStb == NULL) {
-    mError("idx:%s, failed to create since stb:%s not exist", createReq.idxName, createReq.stbName);
+    mError("idx:%s, failed to create since stb:%s does not exist", createReq.idxName, createReq.stbName);
     code = TSDB_CODE_MND_DB_NOT_EXIST;
     if (terrno != 0) code = terrno;
     goto _OVER;
@@ -923,7 +923,7 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
   }
   if (pIdx == NULL) {
     if (req.igNotExists) {
-      mInfo("idx:%s, not exist, ignore not exist is set", req.name);
+      mInfo("idx:%s, does not exist, ignore-not-exist is set", req.name);
       code = 0;
       goto _OVER;
     } else {

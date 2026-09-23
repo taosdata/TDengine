@@ -2753,7 +2753,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       break;
     }
     default:
-      qError("not supported physical node type %d", pNode->type);
+      qError("unsupported physical node type %d", pNode->type);
       return TSDB_CODE_APP_ERROR;
   }
 

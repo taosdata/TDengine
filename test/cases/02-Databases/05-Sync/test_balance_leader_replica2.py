@@ -25,7 +25,7 @@ class TestBalanceLeaderReplica2:
         """balance leader with replica 2
 
         1. Verify that balance vgroup leader works correctly for replica-2 databases.
-           Previously this failed with "No VGroup's leader need to be balanced" because
+           Previously this failed with "No VGroup leader needs to be balanced" because
            the election baseline loop hardcoded i < 3 instead of i < replica, causing
            an invalid dnode-0 lookup for the non-existent third vnodeGid slot.
 
@@ -35,6 +35,7 @@ class TestBalanceLeaderReplica2:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional
+
         Jira: TS-6480
 
         History:

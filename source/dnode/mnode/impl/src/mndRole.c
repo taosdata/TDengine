@@ -824,7 +824,7 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   }
 
   if (alterUser) {
-    mInfo("role:%s, not exist, will alter user instead", alterReq.principal);
+    mInfo("role:%s, does not exist, will alter user instead", alterReq.principal);
     TAOS_CHECK_EXIT(mndAlterUserFromRole(pReq, pOperUser, &alterReq));
   } else if (mndIsRoleChanged(pObj, &alterReq)) {
     TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));

@@ -6112,7 +6112,7 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
   getXnodedPipeName(socketPath, sizeof(socketPath));
   #ifndef WINDOWS
   if (!taosCheckExistFile(socketPath)) {
-    uError("xnode failed to send request, socket path:%s not exist", socketPath);
+    uError("xnode failed to send request, socket path:%s does not exist", socketPath);
     terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _EXIT;
   }

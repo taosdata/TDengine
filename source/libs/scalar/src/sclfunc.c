@@ -7093,7 +7093,7 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   // the caller has allocated `rowNum` slots in the output column.
   for (int32_t i = 0; i < dataInputNum; i++) {
     if (numOfRows != 0 && numOfRows != pInput[i].numOfRows && pInput[i].numOfRows != 1 && numOfRows != 1) {
-      qError("input rows not match, func:%s, rows:%d, %d", __FUNCTION__, numOfRows, pInput[i].numOfRows);
+      qError("input rows do not match, func:%s, rows:%d, %d", __FUNCTION__, numOfRows, pInput[i].numOfRows);
       code = TSDB_CODE_TSC_INTERNAL_ERROR;
       goto _return;
     }

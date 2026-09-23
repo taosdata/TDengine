@@ -1713,7 +1713,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     }
 
     if (peername.ss_family != AF_INET && peername.ss_family != AF_INET6) {
-      tError("conn:%p, failed to get peer info since not support other protocol except ipv4", pConn);
+      tError("conn:%p, failed to get peer info since only IPv4 and IPv6 are supported", pConn);
       transUnrefSrvHandle(pConn);
       return;
     }
@@ -1726,7 +1726,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
     if (sockname.ss_family != AF_INET && peername.ss_family != AF_INET6) {
-      tError("conn:%p, failed to get sock info since not support other protocol except ipv4", pConn);
+      tError("conn:%p, failed to get sock info since only IPv4 and IPv6 are supported", pConn);
       transUnrefSrvHandle(pConn);
       return;
     }

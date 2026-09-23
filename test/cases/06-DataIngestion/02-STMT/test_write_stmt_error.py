@@ -417,6 +417,7 @@ class TestStmtError:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -437,22 +438,24 @@ class TestStmtError:
 
         try:
             self.check_stmt_insert_vtb_error(self.get_connect())
-            raise AssertionError("expected '[0x6205]: Virtual table not support' but no error occurred")
+            raise AssertionError("expected '[0x6205]: Virtual table is not supported in STMT query and STMT insert'"
+                                 " but no error occurred")
         except AssertionError:
             raise
         except Exception as error:
-            if "[0x6205]: Virtual table not support in STMT query and STMT insert" in str(error):
+            if "[0x6205]: Virtual table is not supported in STMT query and STMT insert" in str(error):
                 tdLog.info("stmt error correctly occurred for virtual table insert: %s" % error)
             else:
                 raise AssertionError("unexpected error for virtual table STMT insert: %s" % str(error)) from error
 
         try:
             self.check_stmt_insert_vstb_error(self.get_connect())
-            raise AssertionError("expected '[0x6205]: Virtual table not support' but no error occurred")
+            raise AssertionError("expected '[0x6205]: Virtual table is not supported in STMT query and STMT insert'"
+                                 " but no error occurred")
         except AssertionError:
             raise
         except Exception as error:
-            if "[0x6205]: Virtual table not support in STMT query and STMT insert" in str(error):
+            if "[0x6205]: Virtual table is not supported in STMT query and STMT insert" in str(error):
                 tdLog.info("stmt error correctly occurred for virtual super table insert: %s" % error)
             else:
                 raise AssertionError("unexpected error for virtual super table STMT insert: %s" % str(error)) from error

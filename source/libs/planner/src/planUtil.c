@@ -25,11 +25,11 @@ static char* getUsageErrFormat(int32_t errCode) {
     case TSDB_CODE_PLAN_EXPECTED_TS_EQUAL:
       return "primary timestamp equal condition is expected in join conditions";
     case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
-      return "not support cross join";
+      return "cross join is not supported";
     case TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND:
-      return "Not supported join conditions";
+      return "unsupported join conditions";
     case TSDB_CODE_PAR_NOT_SUPPORT_JOIN:
-      return "Not supported join since '%s'";
+      return "join is not supported for '%s'";
     case TSDB_CODE_PLAN_SLOT_NOT_FOUND:
       return "not found slot id by slot key";
     case TSDB_CODE_PLAN_INVALID_TABLE_TYPE:

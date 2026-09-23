@@ -874,7 +874,7 @@ static int32_t appendJsonTagValue(char* buf, int32_t* len, STag* pTag, void* cha
   // guard the write space up front: once *len exceeds the bound, the size argument of the
   // snprintf below would go negative and be read as SIZE_MAX, overflowing buf
   if (*len >= SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE) {
-    qError("no enough space to store json tag value, len:%d", *len);
+    qError("not enough space to store json tag value, len:%d", *len);
     return TSDB_CODE_APP_ERROR;
   }
   char* pJson = NULL;
@@ -927,7 +927,7 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
     // guard the write space up front: once *len exceeds the bound, the size argument of the
     // snprintf calls below would go negative and be read as SIZE_MAX, overflowing buf
     if (*len >= SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE) {
-      qError("no enough space to store tag value, len:%d", *len);
+      qError("not enough space to store tag value, len:%d", *len);
       code = TSDB_CODE_APP_ERROR;
       TAOS_CHECK_ERRNO(code);
     }
@@ -983,7 +983,7 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
 
       int64_t leftSize = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len);
       if (leftSize <= 0) {
-        qError("no enough space to store tag value, leftSize:%" PRId64, leftSize);
+        qError("not enough space to store tag value, leftSize:%" PRId64, leftSize);
         code = TSDB_CODE_APP_ERROR;
         TAOS_CHECK_ERRNO(code);
       }
@@ -1032,7 +1032,7 @@ static int32_t appendInlineTagFields(char* buf, int32_t* len, STableCfg* pCfg, v
     // guard the write space up front: once *len exceeds the bound, the size argument of the
     // snprintf calls below would go negative and be read as SIZE_MAX, overflowing buf
     if (*len >= SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE) {
-      qError("no enough space to build inline tags clause, len:%d", *len);
+      qError("not enough space to build inline tags clause, len:%d", *len);
       code = TSDB_CODE_APP_ERROR;
       TAOS_CHECK_ERRNO(code);
     }

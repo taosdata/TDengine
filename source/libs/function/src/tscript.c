@@ -411,7 +411,7 @@ bool hasBaseFuncDefinedInScript(lua_State *lua, const char *funcPrefix, int32_t 
     memcpy(funcName + len, base[i], strlen(base[i])); 
     memset(funcName + len + strlen(base[i]), 0, MAX_FUNC_NAME - len - strlen(base[i]));
     lua_getglobal(lua, funcName);   
-    ret = lua_isfunction(lua, -1); // exsit function or not 
+    ret = lua_isfunction(lua, -1); // check whether the function exists
     lua_pop(lua, 1);
   }
   return ret;

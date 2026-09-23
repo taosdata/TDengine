@@ -17,7 +17,7 @@ Since `v3.4.1.0`, Linux uses Gunicorn and Windows uses Waitress, so uWSGI is no 
 ```bash
 taos> create anode '127.0.0.1:6035';
 
-DB error: Analysis service can't access[0x80000441] (0.117446s)
+DB error: Analysis service is not accessible[0x80000441] (0.117446s)
 ```
 
 First, use curl to check whether the anode is providing services: The output of `curl '127.0.0.1:6035'` should be as follows:
@@ -41,7 +41,7 @@ Do not rely only on `systemctl status taosanoded`; use `curl` and the applicatio
 ```bash
 taos> select _frowts,forecast(current, 'algo=arima, conf=0.95, wncheck=0, rows=20') from d1 where ts<='2017-07-14 10:40:09.999';
 
-DB error: Analysis service can't access[0x80000441] (60.195613s)
+DB error: Analysis service is not accessible[0x80000441] (60.195613s)
 ```
 
 The request may have exceeded its timeout. The SQL `timeout` parameter accepts up to `1200` seconds. Since `v3.4.1.0`, Gunicorn `timeout` and `keepalive` settings are in `/etc/taos/taosanode.config.py` and default to `1200`. Ensure that SQL and Gunicorn or Waitress timeouts are consistent, that `bind` matches the URL registered by `CREATE ANODE`, and that logs do not report worker timeouts, out-of-memory errors, or model-load failures.

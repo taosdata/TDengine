@@ -223,7 +223,7 @@ class TestTaosbackupContent:
     def do_reverse_order_restore(self, tmpdir):
         """Core regression: restore DB_V before DB_P and expect success.
 
-        Before the two-stage split this failed with "Database not exist" while
+        Before the two-stage split this failed with "Database does not exist" while
         executing DB_V's CREATE VTABLE, and aborted the whole restore so DB_P
         was never restored either.
         """
@@ -335,7 +335,7 @@ class TestTaosbackupContent:
         # Deterministic ordering guard: restore again with an explicit -D list
         # that puts the referencing database (DB_P, whose stream targets DB_V)
         # FIRST.  This is the exact order that previously failed with
-        # "Database not exist" — the two-pass split must create every database
+        # "Database does not exist" — the two-pass split must create every database
         # (Prepare) before applying any DDL (Apply), so it must succeed no
         # matter which order raw readdir() (used by -i discovery) produces.
         tdSql.execute(f"drop topic if exists {self.TOPIC}")

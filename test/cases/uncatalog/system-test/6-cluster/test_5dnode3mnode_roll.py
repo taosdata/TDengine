@@ -84,7 +84,7 @@ class Test5dnode3mnodeRoll:
         packageTPath = packageName.split("-Linux-")[0]
         my_file = Path(f"{packagePath}/{packageName}")
         if not  my_file.exists():
-            print(f"{packageName} is not exists")
+            print(f"{packageName} does not exist")
             tdLog.info(f"cd {packagePath} &&  wget https://www.tdengine.com/assets-download/3.0/{packageName}")
             os.system(f"cd {packagePath} &&  wget https://www.tdengine.com/assets-download/3.0/{packageName}")
         else: 
@@ -344,6 +344,7 @@ class Test5dnode3mnodeRoll:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:

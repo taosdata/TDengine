@@ -185,7 +185,7 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
   if (err != 0) {
-    bndError("can not spawn taosmqtt. path: %s, error: %s", path, uv_strerror(err));
+    bndError("cannot spawn taosmqtt. path: %s, error: %s", path, uv_strerror(err));
   } else {
     bndInfo("taosmqtt is initialized");
   }

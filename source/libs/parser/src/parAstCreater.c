@@ -4558,12 +4558,12 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
         pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION;
       } else {
         // pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-        //                                         "not support alter column with option except compress");
+        //                                         "alter column with options other than compress is not supported");
         // return NULL;
       }
     } else {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                              "not support alter column with option except compress");
+                                              "alter column with options other than compress is not supported");
       CHECK_PARSER_STATUS(pCxt);
     }
   }
@@ -7099,7 +7099,7 @@ SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType
   CHECK_PARSER_STATUS(pCxt);
   if (resourceType != XNODE_TASK) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "Only support stop task, invalid resource type: %d", resourceType);
+                                            "only stop task is supported, invalid resource type: %d", resourceType);
     goto _err;
   }
   if (pIdOrName != NULL && pIdOrName->type != TK_NK_INTEGER && pIdOrName->type != TK_NK_STRING) {

@@ -226,6 +226,7 @@ class TestStateWindow:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:
@@ -305,7 +306,7 @@ class TestStateWindow:
     def check_multi_column_state_window_invalid(self):
         tdSql.error(
             "select count(*) from ntb state_window(s1, ts)",
-            expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
+            expectErrInfo="STATE_WINDOW is only supported on integer/bool/varchar columns",
             show=True,
         )
         tdSql.query(
@@ -332,7 +333,7 @@ class TestStateWindow:
         )
         tdSql.error(
             "select count(*) from ntb state_window(s1, case when s1 > 0 then v else v end)",
-            expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
+            expectErrInfo="STATE_WINDOW is only supported on integer/bool/varchar columns",
             show=True,
         )
 
@@ -426,6 +427,7 @@ class TestStateWindow:
         Since: v3.3.8.2
 
         Labels: state window,integration,functional
+
         Jira: TD-38341
 
         Catalog:
@@ -701,6 +703,7 @@ class TestStateWindow:
         Since: v3.4.0.0
 
         Labels: state window,integration,functional
+
         Catalog:
             - Function:aggregation
 

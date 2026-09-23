@@ -301,7 +301,7 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
     // check valid
     if (g_arguments->prepared_rand < g_arguments->reqPerReq) {
         infoPrint(
-                  "in stmt mode, batch size(%u) can not larger than prepared "
+                  "in stmt mode, batch size(%u) cannot be larger than prepared "
                   "sample data size(%" PRId64
                   "), restart with larger prepared_rand or batch size will be "
                   "auto set to %" PRId64 "\n",

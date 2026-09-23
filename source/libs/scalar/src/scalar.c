@@ -556,7 +556,7 @@ int32_t scalarBuildRemoteListHash(char* idStr, SRemoteValueListNode* pRemote, SC
   int32_t  code = 0;
   int32_t  type = (pRemote->targetType != pRemote->node.resType.type) ? vectorGetConvertType(pRemote->targetType, pRemote->node.resType.type) : pRemote->targetType;
   if (type < 0) {
-    sclError("%s %s not supported convertion between %d and %d", idStr, __func__, pRemote->targetType, pRemote->node.resType.type);
+    sclError("%s %s: conversion between %d and %d is not supported", idStr, __func__, pRemote->targetType, pRemote->node.resType.type);
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
   STypeMod typeMod = 0;
@@ -646,7 +646,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SValueNode *valueNode = (SValueNode *)nodeItem;
         int32_t     tmp = vectorGetConvertType(type, valueNode->node.resType.type);
         if (tmp < 0) {
-          sclError("%s not supported convertion between %d and %d", __func__, type, valueNode->node.resType.type);
+          sclError("%s: conversion between %d and %d is not supported", __func__, type, valueNode->node.resType.type);
           return TSDB_CODE_SCALAR_CONVERT_ERROR;
         }
         
@@ -2807,7 +2807,7 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, index);
 
   if (target->slotId >= taosArrayGetSize(block->pDataBlock)) {
-    sclError("target slot not exist, dataBlockId:%" PRId64 ", slotId:%d, dataBlockNum:%d", target->dataBlockId, target->slotId,
+    sclError("target slot does not exist, dataBlockId:%" PRId64 ", slotId:%d, dataBlockNum:%d", target->dataBlockId, target->slotId,
              (int32_t)taosArrayGetSize(block->pDataBlock));
     ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
     return DEAL_RES_ERROR;

@@ -58,8 +58,8 @@ void streamTransRandomErrorGen(STransAction *pAction, STrans *pTrans, int64_t si
             "not started***");
       } else {  // pAction->msgType == TDMT_VND_STREAM_CHECK_POINT_SOURCE
         mError(
-            "***sleep 5s and core dump, following tasks will not recv checkpoint-source info, so the tasks will "
-            "started after restart***");
+            "***sleep 5s and core dump, following tasks will not receive checkpoint-source info, so the tasks will "
+            "start after restart***");
         exit(-1);
       }
     } else if (choseItem == 1) {

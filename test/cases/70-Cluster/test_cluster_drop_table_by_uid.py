@@ -230,7 +230,7 @@ class TestClusterDropTableByUid:
         tdSql.execute(f"create database {db_name};")
         tdSql.execute(f"use {db_name};")
         # drop table with non-exist uid
-        tdSql.error(f"drop stable with if exists `1234567890`;", expectErrInfo="STable not exist:", fullMatched=False)
+        tdSql.error(f"drop stable with if exists `1234567890`;", expectErrInfo="STable does not exist:", fullMatched=False)
         tdSql.error(f"drop table with `1234567890`;", expectErrInfo="Table does not exist:", fullMatched=False)
         tdSql.execute(f"drop database {db_name};")
         tdLog.info("Finish test case: test_abnormal_non_exist_uid")
@@ -254,8 +254,8 @@ class TestClusterDropTableByUid:
             uid_ct = self.get_uid_by_db_table_name(db_name, "ct", self.TableType.CHILD_TABLE)
             uid_t = self.get_uid_by_db_table_name(db_name, "t", self.TableType.REGULAR_TABLE)
             # drop table with incorrect sql
-            tdSql.error(f"drop stable with `{uid_ct[0]}`;", expectErrInfo="STable not exist", fullMatched=False)
-            tdSql.error(f"drop stable with `{uid_t[0]}`;", expectErrInfo="STable not exist", fullMatched=False)
+            tdSql.error(f"drop stable with `{uid_ct[0]}`;", expectErrInfo="STable does not exist", fullMatched=False)
+            tdSql.error(f"drop stable with `{uid_t[0]}`;", expectErrInfo="STable does not exist", fullMatched=False)
             tdLog.info("Finish test case: test_abnormal_incorrect_table_type")
         except Exception as e:
             tdLog.exit("Failed to run test case test_abnormal_incorrect_table_type with msg: %s" % str(e))
@@ -324,19 +324,19 @@ class TestClusterDropTableByUid:
             try:
                 cursor.execute(f"drop stable with `{uid_st[0]}`;")
             except Exception as e:
-                assert "Permission denied or target object not exist" in str(e)
+                assert "Permission denied or the target object does not exist" in str(e)
                 tdLog.info("Drop stable with non-root user failed as expected")
             # drop child table with sql by non-root user
             try:
                 cursor.execute(f"drop table with `{uid_ct[0]}`;")
             except Exception as e:
-                assert "Permission denied or target object not exist" in str(e)
+                assert "Permission denied or the target object does not exist" in str(e)
                 tdLog.info("Drop child table with non-root user failed as expected")
             # drop regular table with sql by non-root user
             try:
                 cursor.execute(f"drop table with `{uid_t[0]}`;")
             except Exception as e:
-                assert "Permission denied or target object not exist" in str(e)
+                assert "Permission denied or the target object does not exist" in str(e)
                 tdLog.info("Drop regular table with non-root user failed as expected")
             tdLog.info("Finish test case: test_abnormal_drop_table_with_non_root_user")
         except Exception as e:
@@ -358,6 +358,7 @@ class TestClusterDropTableByUid:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

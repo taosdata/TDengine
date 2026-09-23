@@ -642,7 +642,7 @@ void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SAr
   int32_t          candidateIndex = member0IsTimeout ? 1 : 0;
   SArbGroupMember *pMember = &pArbGroup->members[candidateIndex];
 
-  // has assigned leader and dnodeId not match => skip
+  // has assigned leader and dnodeId does not match => skip
   if (currentAssignedDnodeId != 0 && currentAssignedDnodeId != pMember->info.dnodeId) {
     mInfo("arbgroup:%d, arb skip to set assigned leader to dnodeId:%d, assigned leader has been set to dnodeId:%d",
           vgId, pMember->info.dnodeId, currentAssignedDnodeId);
@@ -1237,7 +1237,7 @@ static int32_t mndProcessArbHbRsp(SRpcMsg *pRsp) {
   }
 
   if (mndArbCheckToken(arbToken, arbHbRsp.arbToken) != 0) {
-    mInfo("arbgroup:0, arb hearbeat skip update for dnodeId:%d, arb token mismatch, local:[%s] msg:[%s]",
+    mInfo("arbgroup:0, arb heartbeat skip update for dnodeId:%d, arb token mismatch, local:[%s] msg:[%s]",
           arbHbRsp.dnodeId, arbToken, arbHbRsp.arbToken);
     code = TSDB_CODE_MND_ARB_TOKEN_MISMATCH;
     goto _OVER;
