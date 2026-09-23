@@ -8499,6 +8499,130 @@ int32_t valueChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return functionFinalize(pCtx, pBlock);
 }
 
+bool getBitChangesFuncEnv(struct SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SBitChangesInfo);
+  return true;
+}
+
+int32_t bitChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+
+  SBitChangesInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  pInfo->count = 0;
+  pInfo->numOfElems = 0;
+  pInfo->mask = 1;
+  pInfo->flag = 0;
+  pInfo->inputType = 0;
+  pInfo->hasPrev = false;
+  pInfo->prevMasked = 0;
+  pInfo->prevTs = 0;
+  pInfo->hasPrevTs = false;
+
+  // The implicit timestamp parameter is appended after user parameters, so only
+  // VALUE parameters at slots 1 and 2 represent mask and flag.
+  if (pCtx->numOfParams > 1 && pCtx->param[1].type == FUNC_PARAM_TYPE_VALUE) {
+    pInfo->mask = (uint64_t)pCtx->param[1].param.i;
+  }
+  if (pCtx->numOfParams > 2 && pCtx->param[2].type == FUNC_PARAM_TYPE_VALUE) {
+    pInfo->flag = (int8_t)pCtx->param[2].param.i;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool bitChangesMatches(uint64_t previous, uint64_t current, int8_t flag) {
+  uint64_t rising = (~previous) & current;
+  uint64_t falling = previous & (~current);
+  if (flag == 0) {
+    return rising != 0;
+  }
+  if (flag == 1) {
+    return falling != 0;
+  }
+  return (rising | falling) != 0;
+}
+
+static int32_t bitChangesProcessRow(SqlFunctionCtx* pCtx, SBitChangesInfo* pInfo, SColumnInfoData* pCol,
+                                    const SFuncInputRow* pRow) {
+  if (pInfo->hasPrevTs && pInfo->prevTs == pRow->ts) {
+    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+  }
+  pInfo->prevTs = pRow->ts;
+  pInfo->hasPrevTs = true;
+  pInfo->numOfElems++;
+
+  if (pRow->isDataNull) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint64_t value = 0;
+  GET_TYPED_DATA(value, uint64_t, pInfo->inputType, pRow->pData,
+                 typeGetTypeModFromColInfo(&pCol->info));
+  uint64_t masked = value & pInfo->mask;
+  if (pInfo->hasPrev) {
+    uint64_t previous = pInfo->prevMasked;
+    uint64_t current = masked;
+    if (pCtx->order == TSDB_ORDER_DESC) {
+      previous = masked;
+      current = pInfo->prevMasked;
+    }
+    if (bitChangesMatches(previous, current, pInfo->flag)) {
+      pInfo->count++;
+    }
+  }
+  pInfo->prevMasked = masked;
+  pInfo->hasPrev = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t bitChangesFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SBitChangesInfo*     pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (pInfo->inputType == 0) {
+    pInfo->inputType = pCol->info.type;
+    if (!(IS_INTEGER_TYPE(pInfo->inputType) || pInfo->inputType == TSDB_DATA_TYPE_BOOL)) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+  }
+
+  funcInputUpdate(pCtx);
+  SFuncInputRow row = {0};
+  bool          result = false;
+  while (1) {
+    int32_t code = funcInputGetNextRow(pCtx, &row, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (!result) {
+      break;
+    }
+    if (pInput->pPTS != NULL && pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+      return TSDB_CODE_FUNC_INVALID_TIMELINE;
+    }
+    code = bitChangesProcessRow(pCtx, pInfo, pCol, &row);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  SET_VAL(pResInfo, pInfo->numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t bitChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SBitChangesInfo*     pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pResInfo->numOfRes = (pInfo->numOfElems == 0) ? 0 : 1;
+  return functionFinalize(pCtx, pBlock);
+}
+
 // Generic time-weighted accumulation core, factored from twaFunction. Accumulates the
 // time-integral INT v dt into *pOutput (using linear trapezoid or locf rectangle per `locf`),
 // and, when wantSq is true, INT v^2 dt into *pd2Output. All timeline/dedup/order checks and
