@@ -3468,6 +3468,80 @@ TEST(StreamFetchResetModeTest, RejectsDuplicateVersionFlagsFalsePayloadAndReuseW
   tDestroySResFetchReq(&decoded);
 }
 
+TEST(StreamTwoPassRescanTest, AbsentFlagKeepsLegacyBytesAndDefaultsFresh) {
+  SResFetchReq source = {};
+  source.header.vgId = 7;
+  source.queryId = 11;
+  source.taskId = 22;
+  source.reset = true;
+  source.dynTbname = true;
+  source.forceFetchCompleted = true;
+
+  const auto bytes = serializeFetchRequest(source, false, false);
+  EXPECT_EQ(frameOffset(bytes, STREAM_TWO_PASS_RESCAN_FRAME_MAGIC), bytes.size());
+
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(const_cast<uint8_t*>(bytes.data()), bytes.size(), &decoded));
+  EXPECT_FALSE(decoded.phase2Rescan);
+  tDestroySResFetchReq(&decoded);
+}
+
+TEST(StreamTwoPassRescanTest, RoundTripsTwoPassRescanTailFrame) {
+  SResFetchReq source = {};
+  source.reset = true;
+  source.phase2Rescan = true;
+
+  const auto bytes = serializeFetchRequest(source, false, false);
+  const size_t offset = frameOffset(bytes, STREAM_TWO_PASS_RESCAN_FRAME_MAGIC);
+  ASSERT_LT(offset, bytes.size());
+
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(const_cast<uint8_t*>(bytes.data()), bytes.size(), &decoded));
+  EXPECT_TRUE(decoded.reset);
+  EXPECT_TRUE(decoded.phase2Rescan);
+  tDestroySResFetchReq(&decoded);
+}
+
+TEST(StreamTwoPassRescanTest, RejectsDuplicateVersionFlagsFalsePayload) {
+  SResFetchReq source = {};
+  source.reset = true;
+  source.phase2Rescan = true;
+  const auto   original = serializeFetchRequest(source, false, false);
+  const size_t offset = frameOffset(original, STREAM_TWO_PASS_RESCAN_FRAME_MAGIC);
+  ASSERT_LT(offset, original.size());
+
+  auto duplicate = original;
+  duplicate.insert(duplicate.end(), original.begin() + offset, original.end());
+  rewriteFetchRequestLengths(&duplicate);
+  expectFetchDecodeFailure(duplicate);
+
+  auto badVersion = original;
+  writeU16(&badVersion, offset + sizeof(uint32_t), STREAM_TWO_PASS_RESCAN_FRAME_VERSION + 1);
+  expectFetchDecodeFailure(badVersion);
+
+  auto badFlags = original;
+  writeU16(&badFlags, offset + sizeof(uint32_t) + sizeof(uint16_t), 1);
+  expectFetchDecodeFailure(badFlags);
+
+  auto falsePayload = original;
+  falsePayload.back() = 0;
+  expectFetchDecodeFailure(falsePayload);
+
+  auto truncated = original;
+  truncated.pop_back();
+  rewriteFetchRequestLengths(&truncated);
+  expectFetchDecodeFailure(truncated);
+
+  // An old decoder that does not know the magic skips the frame and keeps
+  // serving the classic fetch semantics.
+  auto unknown = original;
+  writeU32(&unknown, offset, UINT32_C(0x4e575858));
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(unknown.data(), unknown.size(), &decoded));
+  EXPECT_FALSE(decoded.phase2Rescan);
+  tDestroySResFetchReq(&decoded);
+}
+
 TEST(StreamAncestorContextTest, FetchRejectsFrameWithoutRuntimeInfo) {
   SStreamRuntimeFuncInfo runtime = makeSingleGroupFetchRuntime();
   SResFetchReq           source = {};

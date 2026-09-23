@@ -982,6 +982,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   COPY_SCALAR_FIELD(scanType);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
+  COPY_SCALAR_FIELD(twoPassRescanSource);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
   CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
   COPY_SCALAR_FIELD(interpMode);
@@ -1062,6 +1063,7 @@ static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtual
   CLONE_NODE_FIELD(pTagFilterCond);
   COPY_SCALAR_FIELD(hasTagRef);
   COPY_SCALAR_FIELD(hasLocalTag);
+  COPY_SCALAR_FIELD(twoPassMode);
   COPY_SCALAR_FIELD(hasConstRefTag);
   return TSDB_CODE_SUCCESS;
 }
@@ -1471,6 +1473,7 @@ static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVir
   CLONE_NODE_FIELD(pTagFilterCond);
   COPY_SCALAR_FIELD(hasTagRef);
   COPY_SCALAR_FIELD(hasLocalTag);
+  COPY_SCALAR_FIELD(twoPassMode);
   COPY_SCALAR_FIELD(hasConstRefTag);
   COPY_OBJECT_FIELD(mgmtEpSet, sizeof(SEpSet));
   return TSDB_CODE_SUCCESS;
@@ -1624,6 +1627,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(needCountEmptyTable);
   COPY_SCALAR_FIELD(paraTablesSort);
   COPY_SCALAR_FIELD(smallDataTsSort);
+  COPY_SCALAR_FIELD(twoPassRescanSource);
   COPY_SCALAR_FIELD(firstDayOfWeek);
   CLONE_TIMEZONE_FIELD();
   return TSDB_CODE_SUCCESS;

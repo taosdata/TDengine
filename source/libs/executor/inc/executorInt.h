@@ -267,6 +267,11 @@ typedef struct SExchangeInfo {
   SArray*             pFetchRpcHandles;
   bool                notifyToSend;  // need to send notify STEP DONE message
   TSKEY               notifyTs;      // notify timestamp
+  bool                phase2Rescan;  // vtable two-pass: next fetch is phase-2 rescan (reuse reader)
+  bool                twoPassExchange;  // vtable two-pass: this exchange re-executes its source, so an
+                                        // empty-but-not-completed fetch rsp means "retry", not "exhausted"
+  int32_t             twoPassRetryMs;   // vtable two-pass: backoff between empty-rsp retries (0 = none yet)
+  int32_t             twoPassRetries;   // vtable two-pass: empty-rsp retry rounds so far (capped, then error)
   int32_t             notifySrcOpType;
   uint64_t            notifyGroupId;
   int8_t              notifyPhase;

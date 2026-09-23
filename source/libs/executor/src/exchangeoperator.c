@@ -31,6 +31,11 @@ typedef struct SFetchRspHandleWrapper {
   int64_t  seqId;
 } SFetchRspHandleWrapper;
 
+// vtable two-pass: cap the empty-rsp retry rounds so a wedged phase-2 rescan (remote
+// cquery stuck, sink never filled, never completed) fails with a clear error instead of
+// retrying forever. At the 50ms backoff cap this bounds the wait to ~30s.
+#define EX_TWO_PASS_MAX_RETRY_ROUNDS 600
+
 typedef struct SSourceDataInfo {
   int32_t             index;
   int64_t             seqId;
@@ -624,8 +629,51 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
       }
       if (pRsp->numOfRows == 0) {
-        if (NULL != pDataInfo->pSrcUidList && !isVstbScan(pDataInfo)) {
+        bool twoPassRetry = (pExchangeInfo->twoPassExchange && !pRsp->completed);
+        if (twoPassRetry || (NULL != pDataInfo->pSrcUidList && !isVstbScan(pDataInfo))) {
+          // two-pass exchange: phase-2 remote re-runs cquery async, the first fetch may return
+          // empty before cquery fills the sink — retry until data or completion. For other
+          // exchanges, keep the original semantics (empty rsp exhausts the source).
+          if (twoPassRetry) {
+            // A killed/cancelled query must not sleep a whole backoff interval first.
+            if (isTaskKilled(pTaskInfo)) {
+              T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+            }
+            // Cap the retry rounds: a phase-2 rescan that never yields data and never
+            // completes must fail the query instead of holding it open forever.
+            if (++pExchangeInfo->twoPassRetries > EX_TWO_PASS_MAX_RETRY_ROUNDS) {
+              qError("two-pass exchange %p phase-2 retry exceeded %d rounds without data, give up, %s",
+                     pExchangeInfo, EX_TWO_PASS_MAX_RETRY_ROUNDS, GET_TASKID(pTaskInfo));
+              // Distinct errno, not a transport timeout: the remote phase-2 rescan wedged.
+              code = TSDB_CODE_QRY_TWO_PASS_RESCAN_STALLED;
+              TAOS_CHECK_EXIT(code);
+            }
+            // Back off exponentially (1ms -> 50ms cap) so a slow phase-2 rescan cannot turn the
+            // retry into an RPC storm at round-trip speed; reset when data arrives. Yield the
+            // pooled worker thread for the sleep (mirrors exchangeWait) so the backoff neither
+            // holds a worker hostage nor delays a query kill/cancel.
+            if (pExchangeInfo->twoPassRetryMs > 0) {
+              if (pTaskInfo->pWorkerCb) {
+                code = pTaskInfo->pWorkerCb->beforeBlocking(pTaskInfo->pWorkerCb->pPool);
+                TAOS_CHECK_EXIT(code);
+              }
+              taosMsleep(pExchangeInfo->twoPassRetryMs);
+              if (pTaskInfo->pWorkerCb) {
+                code = pTaskInfo->pWorkerCb->afterRecoverFromBlocking(pTaskInfo->pWorkerCb->pPool);
+                TAOS_CHECK_EXIT(code);
+              }
+              if (isTaskKilled(pTaskInfo)) {
+                T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+              }
+            }
+            pExchangeInfo->twoPassRetryMs = (0 == pExchangeInfo->twoPassRetryMs)
+                                                ? 1
+                                                : TMIN(pExchangeInfo->twoPassRetryMs * 2, 50);
+          }
           pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
+          // Free the consumed empty rsp before resending: loadRemoteDataCallback overwrites
+          // pDataInfo->pRsp without freeing the old one, so every retry round would leak it.
+          taosMemoryFreeClear(pDataInfo->pRsp);
           code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
           if (code != TSDB_CODE_SUCCESS) {
             clearSourceResponse(pDataInfo);
@@ -643,6 +691,8 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       }
 
       TAOS_CHECK_EXIT(doExtractResultBlocks(pExchangeInfo, pDataInfo, pTaskInfo->pStreamRuntimeInfo));
+      pExchangeInfo->twoPassRetryMs = 0;  // data arrived — two-pass empty-rsp backoff restarts
+      pExchangeInfo->twoPassRetries = 0;
 
       SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
       updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, pDataInfo->startTime, pOperator);
@@ -981,6 +1031,10 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
   pInfo->loadInfo.totalElapsed = 0;
   pInfo->loadInfo.totalRows = 0;
   pInfo->loadInfo.totalSize = 0;
+  pInfo->phase2Rescan = false;    // clear stale vtable two-pass state; the coordinator re-arms
+  pInfo->twoPassExchange = false; // it after reset when a phase-2 restart is actually wanted
+  pInfo->twoPassRetryMs = 0;
+  pInfo->twoPassRetries = 0;
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSourceDataInfo); ++i) {
     SSourceDataInfo* pDataInfo = taosArrayGet(pInfo->pSourceDataInfo, i);
     taosWLockLatch(&pDataInfo->lock);
@@ -1867,6 +1921,18 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   pWrapper->seqId = pExchangeInfo->seqId;
 
   if (pSource->localExec) {
+    // vtable two-pass phase-2 runs over the RPC fetch path only: the rescan directive
+    // (DYN_TYPE_TWO_PASS_RESCAN) rides the fetch request msg, and the local-fetch entry
+    // has no such channel — it would re-read the drained sink and report the source
+    // exhausted (silently wrong PERCENTILE). Structurally unreachable today (two-pass
+    // origins are SCAN subplans, SCH_IS_LOCAL_EXEC_TASK excludes them), so fail loudly
+    // if that invariant is ever broken instead of returning wrong results.
+    if (pExchangeInfo->phase2Rescan || pExchangeInfo->twoPassExchange) {
+      qError("%s vtable two-pass rescan hit a localExec source, sourceIndex:%d, taskId:0x%" PRIx64,
+             GET_TASKID(pTaskInfo), sourceIndex, pSource->taskId);
+      code = TSDB_CODE_PAR_NOT_SUPPORT_VTABLE_TWO_PASS;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     SDataBuf pBuf = {0};
     code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, pTaskInfo->id.queryId,
                                        pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
@@ -1947,6 +2013,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       setStreamFetchResetMode(&req, &pDataInfo->fetchSent, pTaskInfo->pStreamRuntimeInfo);
     }
 
+    req.phase2Rescan = pExchangeInfo->phase2Rescan;
+
     switch (pDataInfo->type) {
       case EX_SRC_TYPE_VSTB_SCAN: {
         code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType,
@@ -2023,6 +2091,16 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       }
       case EX_SRC_TYPE_STB_JOIN_SCAN:
       default: {
+        if (pExchangeInfo->phase2Rescan) {
+          // vtable two-pass phase-2 rescan: tell the remote origin TableScan to reuse its
+          // reader (tsdReaderResetStatus, version-stable) and rescan from the beginning.
+          STimeWindow zeroWin = {.skey = INT64_MAX, .ekey = INT64_MIN};
+          code = buildTableScanOperatorParamEx(&req.pOpParam, NULL, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, NULL, false,
+                                                &zeroWin, false, DYN_TYPE_TWO_PASS_RESCAN);
+          QUERY_CHECK_CODE(code, lino, _end);
+          pExchangeInfo->phase2Rescan = false;  // one-shot: only the first fetch after phase-2 restart carries it
+          break;
+        }
         if (pDataInfo->pSrcUidList) {
           code = buildTableScanOperatorParam(&req.pOpParam,
                                              pDataInfo->pSrcUidList,

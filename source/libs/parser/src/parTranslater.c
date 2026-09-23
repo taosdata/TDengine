@@ -5895,7 +5895,10 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   SNode*       pTable = pSelect->pFromTable;
-  // select percentile() without from clause is also valid
+  // select percentile() without from clause is also valid.
+  // REPEAT_SCAN_FUNC is single-table only. Virtual CHILD/NORMAL tables each resolve to a single
+  // underlying table, so they are allowed; virtual SUPER tables (and real super tables) are
+  // multi-table and NOT supported.
   if (NULL != pTable) {
     bool singleTable = false;
     if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
@@ -5904,6 +5907,9 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
       // when tag-aware translation marks them as TSDB_SUPER_TABLE.
       singleTable = TSDB_CHILD_TABLE == pRealTable->pMeta->tableType ||
                     TSDB_NORMAL_TABLE == pRealTable->pMeta->tableType || NULL != pRealTable->pExtTableNode;
+    } else if (QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+      int8_t tableType = ((SVirtualTableNode*)pTable)->pMeta->tableType;
+      singleTable = TSDB_VIRTUAL_CHILD_TABLE == tableType || TSDB_VIRTUAL_NORMAL_TABLE == tableType;
     }
     if (!singleTable) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
