@@ -7879,6 +7879,41 @@ static int32_t createDeleteRootLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
   return createRootLogicNode(pCxt, pDelete, pDelete->precision, (FCreateLogicNode)func, pRoot);
 }
 
+typedef struct SDeleteFilterColsCxt {
+  SNodeList** pCols;
+  int32_t     code;
+} SDeleteFilterColsCxt;
+
+static EDealRes collectDeleteFilterCol(SNode* pNode, void* pContext) {
+  SDeleteFilterColsCxt* pCxt = (SDeleteFilterColsCxt*)pContext;
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SColumnNode* pTarget = (SColumnNode*)pNode;
+  SNode*       pCol = NULL;
+  FOREACH(pCol, *pCxt->pCols) {
+    if (pTarget->colId == ((SColumnNode*)pCol)->colId) {
+      return DEAL_RES_CONTINUE;
+    }
+  }
+
+  SNode* pNew = NULL;
+  pCxt->code = nodesCloneNode(pNode, &pNew);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    pCxt->code = nodesListMakeStrictAppend(pCxt->pCols, pNew);
+  }
+  return (TSDB_CODE_SUCCESS == pCxt->code) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+}
+
+// The scan must read every column the filter references, on top of the ts column count() already
+// pulls in.
+static int32_t addDeleteFilterRefCols(SNode* pFilter, SNodeList** pCols) {
+  SDeleteFilterColsCxt cxt = {.pCols = pCols, .code = TSDB_CODE_SUCCESS};
+  nodesWalkExpr(pFilter, collectDeleteFilterCol, &cxt);
+  return cxt.code;
+}
+
 static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDelete, SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
   int32_t         code = makeScanLogicNode(pCxt, (SRealTableNode*)pDelete->pFromTable, false, (SLogicNode**)&pScan);
@@ -7898,6 +7933,15 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
 
   if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagCond) {
     code = nodesCloneNode(pDelete->pTagCond, &pScan->pTagCond);
+  }
+
+  // The ordinary column filter rides on the generic scan condition, the very field a SELECT uses, so
+  // the scan operator applies it through the existing doFilter() path with no executor change.
+  if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pColumnFilter) {
+    code = nodesCloneNode(pDelete->pColumnFilter, &pScan->node.pConditions);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addDeleteFilterRefCols(pDelete->pColumnFilter, &pScan->pScanCols);
+    }
   }
 
   // set output
@@ -7982,6 +8026,25 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
   // merge: statement-level SECURE_DELETE keyword OR super table/db secureDelete metadata
   pModify->secureDelete = pDelete->secureDelete | pRealTable->pMeta->secureDelete;
   pModify->pAffectedRows = NULL;
+  pModify->deleteRangeMode = (NULL != pDelete->pColumnFilter);
+
+  if (pModify->deleteRangeMode) {
+    // No aggregation runs in this mode, so the deleter needs the ts column itself: it turns the
+    // scanned timestamps into precise ranges and counts the affected rows while doing so.
+    SNode* pTsCol = nodesListGetNode(((SFunctionNode*)pDelete->pCountFunc)->pParameterList, 0);
+    if (NULL == pTsCol) {
+      nodesDestroyNode((SNode*)pModify);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+    code = nodesCloneNode(pTsCol, &pModify->pStartTs);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pModify);
+      return code;
+    }
+    *pLogicNode = (SLogicNode*)pModify;
+    return TSDB_CODE_SUCCESS;
+  }
+
   code = nodesCloneNode(pDelete->pCountFunc, &pModify->pAffectedRows);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pModify);
@@ -8005,7 +8068,9 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
 static int32_t createDeleteLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDelete, SLogicNode** pLogicNode) {
   SLogicNode* pRoot = NULL;
   int32_t     code = createDeleteScanLogicNode(pCxt, pDelete, &pRoot);
-  if (TSDB_CODE_SUCCESS == code) {
+  // With a column filter the deleter consumes the scanned rows directly; aggregating them into a
+  // single [first(ts), last(ts)] range would delete everything in between, matched or not.
+  if (TSDB_CODE_SUCCESS == code && NULL == pDelete->pColumnFilter) {
     code = createDeleteRootLogicNode(pCxt, pDelete, createDeleteAggLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {

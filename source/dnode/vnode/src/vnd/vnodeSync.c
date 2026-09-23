@@ -209,7 +209,10 @@ static int32_t tEncodeSubSubmitAndUpdate(SVnode *pVnode, SEncoder *pEncoder, SSu
 _exit:
   return code;
 }
-static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
+// Exposed (declared in vnode.h) so vnodeSvr.c's vnodePreProcessDeleteMsg can propose the N-1 extra
+// point-delete sub-messages a column-filter DELETE splits into, in addition to the one pMsg this
+// same write-queue iteration already proposes via the call below.
+int32_t vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
   int32_t code = 0;
   int64_t seq = 0;
 

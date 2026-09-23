@@ -469,6 +469,11 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   pRes->ctimeMs = taosGetTimestampMs();
   pRes->skey = pDelRes->skey;
   pRes->ekey = pDelRes->ekey;
+  // pSplitPoints never reaches the wire (tEncodeDeleteRes/tDecodeDeleteRes don't touch it), so
+  // there is no old-peer compatibility concern here: pass the real row count straight through.
+  // vnodePreProcessDeleteMsg is the only reader, and it fans pSplitPoints out into N independent
+  // old-shape delete proposals before anything gets proposed to Raft.
+  pRes->pSplitPoints = pDelRes->pIntervals;
   pRes->affectedRows = pDelRes->affectedRows;
   TAOS_STRCPY(pRes->tableFName, pDelRes->tableName);
   TAOS_STRCPY(pRes->tsColName, pDelRes->tsColName);
@@ -1660,7 +1665,9 @@ _return:
 
   qwFreeTaskCtx(QW_FPARAMS(), &ctx);
 
-  QW_RET(TSDB_CODE_SUCCESS);
+  // Propagate the failure: returning success here leaves pRes zeroed, so the caller encodes an empty
+  // delete and the statement reports "0 row(s) affected" even though execution actually failed.
+  QW_RET(code);
 }
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const SMsgCb *pMsgCb) {

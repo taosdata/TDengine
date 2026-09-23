@@ -19343,6 +19343,12 @@ int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
     pRes->secureDelete = 0;
   }
 
+  // pSplitPoints is in-process scratch, never encoded onto the wire (see tmsg.h), so it is never
+  // populated here. Explicitly NULL it rather than leaving it to caller convention: every real
+  // caller already decodes into a zero-initialized SDeleteRes, but a future caller that doesn't
+  // would otherwise inherit an indeterminate pointer that looks live enough to free.
+  pRes->pSplitPoints = NULL;
+
 _exit:
   return code;
 }

@@ -17311,6 +17311,133 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
   return code;
 }
 
+typedef struct SDeleteFilterColCxt {
+  bool hasNonOrdinaryCol;
+} SDeleteFilterColCxt;
+
+// Only ordinary columns may appear in the delete column filter. A ts/tag/tbname reference can only
+// reach pOtherCond through a structure that filterPartitionCond cannot split by AND, i.e. a
+// cross-category OR, so its presence is reported as such.
+static EDealRes checkDeleteFilterColumn(SNode* pNode, void* pContext) {
+  SDeleteFilterColCxt* pCxt = (SDeleteFilterColCxt*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (COLUMN_TYPE_TAG == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType ||
+        PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+      pCxt->hasNonOrdinaryCol = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool isSupportedDeleteFilterOp(EOperatorType opType) {
+  switch (opType) {
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_IN:
+    case OP_TYPE_NOT_IN:
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+    case OP_TYPE_IS_NULL:
+    case OP_TYPE_IS_NOT_NULL:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static bool isDeleteFilterConstOperand(SNode* pNode) {
+  if (QUERY_NODE_VALUE == nodeType(pNode)) {
+    return true;
+  }
+  if (QUERY_NODE_NODE_LIST == nodeType(pNode)) {
+    SNode* pItem = NULL;
+    FOREACH(pItem, ((SNodeListNode*)pNode)->pNodeList) {
+      if (QUERY_NODE_VALUE != nodeType(pItem)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+// Each leaf predicate must be `<single ordinary column> <op> <constant>`; AND/OR may combine them.
+static int32_t checkDeleteFilterExpr(STranslateContext* pCxt, SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pNode;
+      if (LOGIC_COND_TYPE_AND != pLogicCond->condType && LOGIC_COND_TYPE_OR != pLogicCond->condType) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR);
+      }
+      SNode* pParam = NULL;
+      FOREACH(pParam, pLogicCond->pParameterList) {
+        int32_t code = checkDeleteFilterExpr(pCxt, pParam);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)pNode;
+      if (!isSupportedDeleteFilterOp(pOp->opType)) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR);
+      }
+      if (NULL == pOp->pLeft || QUERY_NODE_COLUMN != nodeType(pOp->pLeft)) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR);
+      }
+      // unary predicates such as IS NULL carry no right operand
+      if (NULL != pOp->pRight && !isDeleteFilterConstOperand(pOp->pRight)) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR);
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    default:
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR);
+  }
+}
+
+static int32_t validateDeleteColumnFilter(STranslateContext* pCxt, SDeleteStmt* pDelete, SNode* pFilter) {
+  SDeleteFilterColCxt cxt = {.hasNonOrdinaryCol = false};
+  nodesWalkExpr(pFilter, checkDeleteFilterColumn, &cxt);
+  if (cxt.hasNonOrdinaryCol) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DELETE_WHERE_OR_NOT_SUPPORT);
+  }
+
+  // Predicate-shape validation is purely syntactic and independent of the table's schema or the
+  // statement's other clauses, so it takes priority over the schema/statement-level checks below:
+  // a malformed predicate should be reported as such even when SECURE_DELETE or a composite PK
+  // would also make the statement invalid for an unrelated reason.
+  int32_t code = checkDeleteFilterExpr(pCxt, pFilter);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (0 != pDelete->secureDelete) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR,
+                                   "SECURE_DELETE is not supported together with column filter condition");
+  }
+
+  // A composite primary key allows several rows to share one timestamp, but a tombstone can only
+  // address a time range, so the unmatched siblings at the same ts would be deleted as well.
+  if (QUERY_NODE_REAL_TABLE == nodeType(pDelete->pFromTable)) {
+    STableMeta* pMeta = ((SRealTableNode*)pDelete->pFromTable)->pMeta;
+    if (NULL != pMeta && hasPkInTable(pMeta)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DELETE_FILTER_PK_NOT_SUPPORT);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   if (NULL == pDelete->pWhere) {
     TAOS_SET_OBJ_ALIGNED(&pDelete->timeRange, TSWINDOW_INITIALIZER);
@@ -17320,7 +17447,11 @@ static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
   SNode*  pOtherCond = NULL;
   int32_t code = filterPartitionCond(&pDelete->pWhere, &pPrimaryKeyCond, NULL, &pDelete->pTagCond, &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pOtherCond) {
-    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+    code = validateDeleteColumnFilter(pCxt, pDelete, pOtherCond);
+    if (TSDB_CODE_SUCCESS == code) {
+      pDelete->pColumnFilter = pOtherCond;
+      pOtherCond = NULL;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     bool isStrict = false;
