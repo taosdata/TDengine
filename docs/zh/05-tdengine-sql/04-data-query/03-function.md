@@ -3893,6 +3893,68 @@ taos> select value_changes(current, 0) from meters;
                          4 |
 ```
 
+### BIT_CHANGES
+
+```sql
+BIT_CHANGES(expr [, mask [, flag]])
+
+mask: 非负整型常量，范围为 0 至 INT64_MAX，默认值为 1
+
+flag: {
+    0
+  | 1
+  | 2
+}
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：统计整型测点指定二进制位的变化次数。函数先对每行的 `expr` 执行 `expr & mask`，再将当前掩码值与前一个有效行的掩码值比较，并按照 `flag` 统计变化方向。第一行没有前值，不计入结果。
+
+**参数说明**：
+
+- `expr`：必选，支持 `TINYINT`、`SMALLINT`、`INT`、`BIGINT`、对应无符号整型以及 `BOOL`。
+- `mask`：可选，必须是整型常量，默认值为 `1`，表示只检查最低位。`mask=0` 时所有掩码结果均为 0，函数返回 0。
+- `flag`：可选，必须是常量 `0`、`1` 或 `2`，默认值为 `0`。
+  - `0`：统计掩码值从 `0` 变为非 `0` 的变化（0→非 0）。
+  - `1`：统计掩码值从非 `0` 变为 `0` 的变化（非 0→0）。
+  - `2`：两个方向的变化都统计。
+
+**返回数据类型**：BIGINT。
+
+**适用于**：表、超级表和窗口查询；支持 `INTERVAL`、`STATE_WINDOW`、`SESSION`、`EVENT_WINDOW`、`COUNT_WINDOW` 以及流计算。
+
+**使用说明**：
+
+- NULL/None 行会被跳过，不参与比较，也不会重置前一个有效值。例如 `1, NULL, 0` 在 `flag=2` 下只统计一次变化。
+- `n` 行最多产生 `n-1` 次比较；空表不返回结果行，单行或全 NULL 输入返回 0。
+- 与 `PARTITION BY` 或 `GROUP BY` 一起使用时，每个分组独立计数，不跨分组比较。
+- 与窗口一起使用时，每个窗口独立计数，窗口首行不与上一窗口末行比较。
+- `mask` 和 `flag` 必须是常量，不能使用列引用、字符串或浮点表达式。
+- 非整型 `expr`、非法 `mask`/`flag` 或系统表输入会报错。
+
+**举例**：
+
+假设 `status_bits` 的值依次为 `0, 1, 3, 2, 0`：
+
+```sql
+-- 默认检查最低位，统计 0 -> 非 0
+taos> select bit_changes(status_bits) from device_status;
+
+-- 检查低 4 位，两个方向都统计
+taos> select bit_changes(status_bits, 15, 2) from device_status;
+
+-- 按子表独立统计告警位清除次数
+taos> select tbname, bit_changes(status_bits, 4, 1)
+      from meters partition by tbname;
+
+-- 每个 10 分钟窗口独立统计
+taos> select _wstart, bit_changes(status_bits, 1, 2)
+      from device_status interval(10m);
+```
+
 ## 插值函数
 
 ### INTERP
