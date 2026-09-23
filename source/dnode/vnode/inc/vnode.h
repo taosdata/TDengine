@@ -120,6 +120,9 @@ int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
+// Lets a preprocess hook (e.g. vnodeSvr.c's vnodePreProcessDeleteMsg) propose additional,
+// independent write messages beyond the one write-queue item it was called for.
+int32_t vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak);
 
 int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);

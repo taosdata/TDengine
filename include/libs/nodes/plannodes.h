@@ -443,6 +443,9 @@ typedef struct SVnodeModifyLogicNode {
   SVgroupsInfo*    pVgroupList;
   SNodeList*       pInsertCols;
   int8_t           secureDelete;
+  // DELETE with an ordinary column filter: the deleter derives precise ranges from the scanned ts
+  // values, so count()/first()/last() are not computed and pStartTs carries the ts column instead.
+  bool             deleteRangeMode;
 } SVnodeModifyLogicNode;
 
 typedef struct SExchangeLogicNode {
@@ -1381,6 +1384,10 @@ typedef struct SDataDeleterNode {
   SNode*        pStartTs;       // usless
   SNode*        pEndTs;         // usless
   int8_t        secureDelete;
+  // Column-filter driven delete: the child is the scan itself (no aggregation), and the sink derives
+  // the precise ranges from the ts column at tsSlotId instead of from first()/last().
+  bool          rangeMode;
+  int32_t       tsSlotId;
 } SDataDeleterNode;
 
 typedef struct SSubplan {
