@@ -37,8 +37,13 @@
 # link fails or, worse, some archive satisfies it silently.
 #
 # -lm: dropping the engine archives also drops their usage requirements, and a
-# few tools (tmq_sim, ...) call ceil()/floor() directly.
-set(TD_TEST_C_LIBS ${TAOS_LIB} ${TAOS_NATIVE_LIB} m)
+# few tools (tmq_sim, ...) call ceil()/floor() directly.  "m" is a POSIX-only
+# library name -- on Windows MSVC resolves it to m.lib and every one of these
+# targets fails to link (LNK1181), so it must only be added off-Windows.
+set(TD_TEST_C_LIBS ${TAOS_LIB} ${TAOS_NATIVE_LIB})
+if(NOT TD_WINDOWS)
+    list(APPEND TD_TEST_C_LIBS m)
+endif()
 
 add_executable(tmq_demo tmqDemo.c)
 add_dependencies(tmq_demo ${TAOS_NATIVE_LIB})
