@@ -10200,4 +10200,204 @@ TEST(stmt2Case, same_stmt_recovers_after_restart) {
   ASSERT_EQ(executeSql(taos, "drop database if exists stmt2_vnode_stop_recovery", &error), TSDB_CODE_SUCCESS) << error;
 }
 
+TEST(stmt2Case, select_decimal) {
+  const char* portText = getenv("TAOS_STMT2_TEST_PORT");
+  int         port = portText == nullptr ? 0 : atoi(portText);
+  ASSERT_GE(port, 0);
+  ASSERT_LE(port, UINT16_MAX);
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, (uint16_t)port);
+  ASSERT_NE(taos, nullptr) << taos_errstr(NULL);
+  std::unique_ptr<TAOS, decltype(&taos_close)> taosGuard(taos, taos_close);
+
+  do_query(taos, "drop database if exists stmt2_testdb_select_decimal");
+  do_query(taos, "create database stmt2_testdb_select_decimal precision 'ms'");
+  do_query(taos, "use stmt2_testdb_select_decimal");
+  do_query(taos,
+           "create stable t (ts_column timestamp, indvalue decimal(20,6), indvalue64 decimal(16,6)) "
+           "tags(company varchar(32), station varchar(32), device varchar(32), indicator_type varchar(32))");
+  do_query(taos, "create table d1 using t tags('company_a', 'station_1', 'device_1', 'voltage')");
+  do_query(taos, "create table d2 using t tags('company_b', 'station_1', 'device_2', 'voltage')");
+  do_query(taos, "create table d3 using t tags('company_a', 'station_2', 'device_3', 'voltage')");
+  do_query(taos,
+           "insert into d1 values "
+           "(1700000000000, 12345678901234.123456, 1234567890.123456) "
+           "(1700000001000, 12345678901234.123456, 1234567890.123456) "
+           "(1700000002000, 12345678901234.123457, 1234567890.123457) "
+           "(1700000003000, 12345678901234.123456, 1234567890.123456) "
+           "(1700000005000, 12345678901234.123456, 1234567890.123456) "
+           "(1700000006000, 12345678901234.123456, 1234567890.123456)");
+  do_query(taos, "insert into d2 values (1700000002000, 12345678901234.123456, 1234567890.123456)");
+  do_query(taos, "insert into d3 values (1700000003000, 12345678901234.123456, 1234567890.123456)");
+
+  const char* querySql =
+      "select * from t where (indvalue = 12345678901234.123456 and indvalue64 = 1234567890.123456 "
+      "and ts_column >= 1700000001000 and ts_column <= 1700000005000 "
+      "and station in ('station_1') and indicator_type = 'voltage') "
+      "order by ts_column, device";
+  Stmt2ResultSnapshot taosQueryResult = {0};
+  ASSERT_TRUE(snapshotTaosQuery(taos, querySql, &taosQueryResult));
+
+  TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmtGuard(stmt, taos_stmt2_close);
+
+  const char* stmtSql =
+      "select * from t where (indvalue = ? and indvalue64 = ? and ts_column >= ? and ts_column <= ? "
+      "and station in (?) and indicator_type = ?) order by ts_column, device";
+  ASSERT_EQ(taos_stmt2_prepare(stmt, stmtSql, 0), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+
+  char             decimal[] = "12345678901234.123456";
+  char             decimal64[] = "1234567890.123456";
+  int64_t          start = 1700000001000;
+  int64_t          end = 1700000005000;
+  char             station[] = "station_1";
+  char             indicatorType[] = "voltage";
+  int32_t          lengths[6] = {(int32_t)strlen(decimal), (int32_t)strlen(decimal64),    sizeof(start), sizeof(end),
+                                 (int32_t)strlen(station), (int32_t)strlen(indicatorType)};
+  TAOS_STMT2_BIND  params[6] = {{TSDB_DATA_TYPE_DECIMAL, decimal, &lengths[0], NULL, 1},
+                                {TSDB_DATA_TYPE_DECIMAL64, decimal64, &lengths[1], NULL, 1},
+                                {TSDB_DATA_TYPE_TIMESTAMP, &start, &lengths[2], NULL, 1},
+                                {TSDB_DATA_TYPE_TIMESTAMP, &end, &lengths[3], NULL, 1},
+                                {TSDB_DATA_TYPE_VARCHAR, station, &lengths[4], NULL, 1},
+                                {TSDB_DATA_TYPE_VARCHAR, indicatorType, &lengths[5], NULL, 1}};
+  TAOS_STMT2_BIND* bindCols = params;
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &bindCols};
+
+  Stmt2ResultSnapshot stmtResult = {0};
+  ASSERT_TRUE(snapshotStmt2Query(stmt, &bindv, &stmtResult));
+  expectSnapshotsEqual(taosQueryResult, stmtResult, "taos_query and STMT2 results differ");
+
+  ASSERT_EQ(taos_stmt2_close(stmtGuard.release()), TSDB_CODE_SUCCESS);
+  do_query(taos, "drop database stmt2_testdb_select_decimal");
+}
+
+TEST(stmt2Case, select_decimal_rebind_error_close) {
+  const char* portText = getenv("TAOS_STMT2_TEST_PORT");
+  int         port = portText == nullptr ? 0 : atoi(portText);
+  ASSERT_GE(port, 0);
+  ASSERT_LE(port, UINT16_MAX);
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, (uint16_t)port);
+  ASSERT_NE(taos, nullptr) << taos_errstr(NULL);
+  std::unique_ptr<TAOS, decltype(&taos_close)> taosGuard(taos, taos_close);
+
+  do_query(taos, "drop database if exists stmt2_decimal_rebind");
+  do_query(taos, "create database stmt2_decimal_rebind precision 'ms'");
+  do_query(taos, "use stmt2_decimal_rebind");
+  do_query(taos, "create table t (ts timestamp, v bigint)");
+  do_query(taos, "insert into t values (1700000001000, 42)");
+
+  for (bool prepareAfterError : {false, true}) {
+    SCOPED_TRACE(prepareAfterError);
+    TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmtGuard(stmt, taos_stmt2_close);
+    ASSERT_EQ(taos_stmt2_prepare(stmt, "select ts from t where v = ?", 0), TSDB_CODE_SUCCESS)
+        << taos_stmt2_error(stmt);
+
+    int64_t          value = 42;
+    int32_t          length = sizeof(value);
+    TAOS_STMT2_BIND  param = {TSDB_DATA_TYPE_BIGINT, &value, &length, NULL, 1};
+    TAOS_STMT2_BIND* cols = &param;
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &cols};
+    Stmt2ResultSnapshot result = {0};
+    ASSERT_TRUE(snapshotStmt2Query(stmt, &bindv, &result));
+    ASSERT_EQ(result.rows, 1);
+
+    char overflow[] = "123456789012345678901234567890123456789";
+    length = strlen(overflow);
+    param.buffer_type = TSDB_DATA_TYPE_DECIMAL;
+    param.buffer = overflow;
+    ASSERT_EQ(taos_stmt2_bind_param(stmt, &bindv, -1), TSDB_CODE_DECIMAL_OVERFLOW);
+
+    if (prepareAfterError) {
+      // A failed statement must be prepared again before binding new values.
+      ASSERT_EQ(taos_stmt2_prepare(stmt, "select ts from t where v = ?", 0), TSDB_CODE_SUCCESS)
+          << taos_stmt2_error(stmt);
+      char valid[] = "42.0";
+      length = strlen(valid);
+      param.buffer = valid;
+      ASSERT_TRUE(snapshotStmt2Query(stmt, &bindv, &result));
+      ASSERT_EQ(result.rows, 1);
+    }
+    // Both close and reprepare must safely clean the failed DECIMAL value.
+    ASSERT_EQ(taos_stmt2_close(stmtGuard.release()), TSDB_CODE_SUCCESS);
+  }
+  do_query(taos, "drop database stmt2_decimal_rebind");
+}
+
+TEST(stmt2Case, select_decimal_trailing_zeros) {
+  const char* portText = getenv("TAOS_STMT2_TEST_PORT");
+  int         port = portText == nullptr ? 0 : atoi(portText);
+  ASSERT_GE(port, 0);
+  ASSERT_LE(port, UINT16_MAX);
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, (uint16_t)port);
+  ASSERT_NE(taos, nullptr) << taos_errstr(NULL);
+  std::unique_ptr<TAOS, decltype(&taos_close)> taosGuard(taos, taos_close);
+
+  do_query(taos, "drop database if exists stmt2_decimal_zeros");
+  do_query(taos, "create database stmt2_decimal_zeros precision 'ms'");
+  do_query(taos, "use stmt2_decimal_zeros");
+  do_query(taos, "create table t (ts timestamp, d64 decimal(18,0), d128 decimal(38,0), f decimal(18,6))");
+  do_query(taos, "insert into t values "
+                 "(1700000001000, 123456789012345678, 12345678901234567890123456789012345678, 0.123456) "
+                 "(1700000002000, 1, 1, 0.1) "
+                 "(1700000003000, -123456789012345678, -12345678901234567890123456789012345678, -0.123456) "
+                 "(1700000004000, 0, 0, 0)");
+
+  const struct {
+    int         type;
+    const char* column;
+    const char* value;
+    int64_t     timestamp;
+  } cases[] = {
+      {TSDB_DATA_TYPE_DECIMAL64, "d64", "123456789012345678.0", 1700000001000},
+      {TSDB_DATA_TYPE_DECIMAL64, "d64", "-123456789012345678.000", 1700000003000},
+      {TSDB_DATA_TYPE_DECIMAL64, "d64", "1.000000000000000000", 1700000002000},
+      {TSDB_DATA_TYPE_DECIMAL64, "d64", "123456789012345678.000e0", 1700000001000},
+      {TSDB_DATA_TYPE_DECIMAL64, "d64", "12345678901234567.800e+1", 1700000001000},
+      {TSDB_DATA_TYPE_DECIMAL64, "d64", "0.0000000000000000000", 1700000004000},
+      {TSDB_DATA_TYPE_DECIMAL64, "f", "0.123456000000000000", 1700000001000},
+      {TSDB_DATA_TYPE_DECIMAL64, "f", "1.000000000000000000e-1", 1700000002000},
+      {TSDB_DATA_TYPE_DECIMAL64, "f", "100e-3", 1700000002000},
+      {TSDB_DATA_TYPE_DECIMAL64, "f", "-1.23456000E-1", 1700000003000},
+      {TSDB_DATA_TYPE_DECIMAL, "d128", "12345678901234567890123456789012345678.0", 1700000001000},
+      {TSDB_DATA_TYPE_DECIMAL, "d128", "-12345678901234567890123456789012345678.000", 1700000003000},
+      {TSDB_DATA_TYPE_DECIMAL, "d128", "1.00000000000000000000000000000000000000", 1700000002000},
+      {TSDB_DATA_TYPE_DECIMAL, "d128", "12345678901234567890123456789012345678.000e0", 1700000001000},
+      {TSDB_DATA_TYPE_DECIMAL, "d128", "1234567890123456789012345678901234567.800e+1", 1700000001000},
+      {TSDB_DATA_TYPE_DECIMAL, "d128", "0.000000000000000000000000000000000000000", 1700000004000},
+      {TSDB_DATA_TYPE_DECIMAL, "f", "0.12345600000000000000000000000000000000", 1700000001000},
+      {TSDB_DATA_TYPE_DECIMAL, "f", "1.00000000000000000000000000000000000000e-1", 1700000002000},
+      {TSDB_DATA_TYPE_DECIMAL, "f", "100e-3", 1700000002000},
+      {TSDB_DATA_TYPE_DECIMAL, "f", "-1.23456000E-1", 1700000003000},
+  };
+
+  for (const auto& testCase : cases) {
+    SCOPED_TRACE(testCase.value);
+    TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmtGuard(stmt, taos_stmt2_close);
+    std::string sql = std::string("select ts from t where ") + testCase.column + " = ?";
+    ASSERT_EQ(taos_stmt2_prepare(stmt, sql.c_str(), 0), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+
+    int32_t          length = strlen(testCase.value);
+    TAOS_STMT2_BIND  param = {testCase.type, const_cast<char*>(testCase.value), &length, NULL, 1};
+    TAOS_STMT2_BIND* cols = &param;
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &cols};
+    Stmt2ResultSnapshot result = {0};
+    ASSERT_TRUE(snapshotStmt2Query(stmt, &bindv, &result));
+    ASSERT_EQ(result.rows, 1);
+    ASSERT_EQ(result.cols, 1);
+    ASSERT_FALSE(result.cells[0][0].isNull);
+    ASSERT_EQ(result.cells[0][0].length, sizeof(int64_t));
+    int64_t timestamp = 0;
+    memcpy(&timestamp, result.cells[0][0].data, sizeof(timestamp));
+    ASSERT_EQ(timestamp, testCase.timestamp);
+  }
+  do_query(taos, "drop database stmt2_decimal_zeros");
+}
+
 #pragma GCC diagnostic pop

@@ -1283,6 +1283,47 @@ TEST(decimal_all, test_decimal_compare) {
   ASSERT_TRUE(dec128 == dec64_2);
 }
 
+TEST(decimal_all, decimal64_compare_promoted_scales) {
+  const struct {
+    const char* left;
+    uint8_t     leftScale;
+    const char* right;
+    uint8_t     rightScale;
+    int         comparison;
+  } cases[] = {
+      {"0.100000", 6, "0.1", 1, 0},
+      {"-0.100000", 6, "-0.1", 1, 0},
+      {"0.100001", 6, "0.1", 1, 1},
+      {"-0.100001", 6, "-0.1", 1, -1},
+      {"999999999999999999", 0, "0.999999999999999999", 18, 1},
+      {"-999999999999999999", 0, "-0.999999999999999999", 18, -1},
+      {"0", 0, "0.1", 1, -1},
+      {"1", 0, "0", 18, 1},
+  };
+
+  for (const auto& testCase : cases) {
+    SCOPED_TRACE(testCase.left);
+    SCOPED_TRACE(testCase.right);
+    Decimal64 left = {0}, right = {0};
+    ASSERT_EQ(decimal64FromStr(testCase.left, strlen(testCase.left), 18, testCase.leftScale, &left), 0);
+    ASSERT_EQ(decimal64FromStr(testCase.right, strlen(testCase.right), 18, testCase.rightScale, &right), 0);
+    SDecimalCompareCtx leftCtx = {&left, TSDB_DATA_TYPE_DECIMAL64, decimalCalcTypeMod(18, testCase.leftScale)};
+    SDecimalCompareCtx rightCtx = {&right, TSDB_DATA_TYPE_DECIMAL64, decimalCalcTypeMod(18, testCase.rightScale)};
+    for (bool reverse : {false, true}) {
+      SCOPED_TRACE(reverse);
+      const auto* lhs = reverse ? &rightCtx : &leftCtx;
+      const auto* rhs = reverse ? &leftCtx : &rightCtx;
+      int comparison = reverse ? -testCase.comparison : testCase.comparison;
+      EXPECT_EQ(decimalCompare(OP_TYPE_EQUAL, lhs, rhs), comparison == 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_NOT_EQUAL, lhs, rhs), comparison != 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_LOWER_THAN, lhs, rhs), comparison < 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_LOWER_EQUAL, lhs, rhs), comparison <= 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_GREATER_THAN, lhs, rhs), comparison > 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_GREATER_EQUAL, lhs, rhs), comparison >= 0);
+    }
+  }
+}
+
 TEST(decimal_all, ret_type_for_non_decimal_types) {
   std::vector<DecimalRetTypeCheckContent> non_decimal_types;
   SDataType                               decimal_type = {TSDB_DATA_TYPE_DECIMAL64, 10, 2, 8};
