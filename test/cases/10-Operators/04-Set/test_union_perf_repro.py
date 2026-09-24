@@ -228,6 +228,13 @@ INTERVAL({interval}) FILL(NONE)
         )
         print("union traversal cases ......................... [ passed ]")
 
+    def do_nested_union_result_materialization(self, nested_union_sql, expected_rows):
+        rows = tdSql.query(nested_union_sql, queryTimes=1)
+        tdSql.checkRows(expected_rows)
+        tdSql.checkData(0, 8, "3天")
+        tdLog.info(f"[union perf] nested union materialized rows={rows}")
+        print("nested union result materialization ........... [ passed ]")
+
     def test_union_perf_repro(self):
         """union all empty branch pruning
 
@@ -246,6 +253,7 @@ INTERVAL({interval}) FILL(NONE)
 
         History:
             - 2026-09-03 Codex add field-shaped UNION ALL empty-branch regression
+            - 2026-09-20 Codex add nested UNION result materialization regression
         """
 
         case_dir = Path(__file__).resolve().parent
@@ -287,6 +295,7 @@ INTERVAL({interval}) FILL(NONE)
                 f"nested scans={nested_scan_count}"
             )
         self._check_non_from_subquery_pruning()
+        self.do_nested_union_result_materialization(nested_union_sql, branch_row_total)
         self.do_traversal_cases(case_dir)
         self.sqlFile = str(case_dir / "t" / "union_perf_nested.sql")
         self.ansFile = str(case_dir / "r" / "union_perf_nested.result")
