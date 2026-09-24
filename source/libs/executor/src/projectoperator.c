@@ -69,7 +69,8 @@ static int32_t      projectApplyFunctionsWithLineage(SExprInfo* pExpr, SSDataBlo
                                                      SExecTaskInfo* pTaskInfo, const SArray* pInputWinIdx,
                                                      SArray* pOutputWinIdx, SProjectOperatorInfo* pProjectInfo);
 int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
-                             int64_t* numOfRows, bool createNewColModel, const void* pExtraParams);
+                             int64_t* numOfRows, bool createNewColModel, const void* pExtraParams,
+                             const SScalarExtraInfo* pScalarExtra);
 
 static bool isMainFirstScanOperator(const SOperatorInfo* pOperator) {
   if (pOperator == NULL || pOperator->pPhyNode == NULL) {
@@ -1293,7 +1294,8 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         filterSetExecContext(pOperator->exprSupp.pFilterInfo, pOperator->pTaskInfo, isTaskKilled);
       }
       int32_t rowsBeforeFilter = pFinalRes->info.rows;
-      code = doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL, multiGroupProject ? &pFilterRes : NULL);
+      code = doFilterWithTaskCorrelation(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL,
+                                         multiGroupProject ? &pFilterRes : NULL, pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
       if (multiGroupProject && pFinalRes->info.rows < rowsBeforeFilter) {
         if (pFilterRes == NULL) {
@@ -1352,7 +1354,8 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       // do apply filter
       if (pRes->info.rows > 0) {
         int32_t rowsBeforeFilter = pRes->info.rows;
-        code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, multiGroupProject ? &pFilterRes : NULL);
+        code = doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL,
+                                           multiGroupProject ? &pFilterRes : NULL, pOperator->pTaskInfo);
         QUERY_CHECK_CODE(code, lino, _end);
         if (multiGroupProject && pRes->info.rows < rowsBeforeFilter) {
           if (pFilterRes == NULL) {
@@ -1656,7 +1659,8 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
       }
     }
 
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    code = doFilterWithTaskCorrelation(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                       pOperator->pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     size_t rows = pInfo->pRes->info.rows;
@@ -1760,6 +1764,9 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pProjectInfo->binfo.pRes;
   SExprInfo*   pExpr = pSup->pExprInfo;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SCorrelationEvalContext correlation = {0};
+  SCorrelationWaitHooks wait = {0};
+  const SCorrelationEvalContext* pCorrelation = initTaskCorrelationEvalContext(pTaskInfo, &correlation, &wait);
 
   int32_t code = blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   if (code) {
@@ -1795,7 +1802,15 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
           return terrno;
         }
 
-        void* px = taosArrayPush(pBlockList, &pRes);
+        SNode* pFunction = (SNode*)pExpr[k].pExpr->_function.pFunctNode;
+        bool hasCorrelation = NULL != pCorrelation && nodesExprHasCorrelation(pFunction);
+        SSDataBlock virtualInput = {0};
+        SSDataBlock* pInput = pRes;
+        if (hasCorrelation) {
+          virtualInput.info.rows = 1;
+          pInput = &virtualInput;
+        }
+        void* px = taosArrayPush(pBlockList, &pInput);
         if (px == NULL) {
           return terrno;
         }
@@ -1812,7 +1827,10 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         gTaskScalarExtra.pStreamRange = NULL;
         gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
         gTaskScalarExtra.isTaskKilled = isTaskKilled;
-        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra);
+        SScalarExtraInfo scalarExtra = gTaskScalarExtra;
+        scalarExtra.pCorrelation = pCorrelation;
+        code = scalarCalculate(pFunction, pBlockList, &dest,
+                               hasCorrelation ? &scalarExtra : &gTaskScalarExtra);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           return code;
@@ -1835,7 +1853,10 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         return TSDB_CODE_OPS_NOT_SUPPORT;
       }
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
-      TAOS_CHECK_RETURN(projectApplyOperator(&pExpr[k], pRes, NULL, outputSlotId, NULL, false, &gTaskScalarExtra));
+      SScalarExtraInfo scalarExtra = gTaskScalarExtra;
+      scalarExtra.pCorrelation = pCorrelation;
+      TAOS_CHECK_RETURN(projectApplyOperator(&pExpr[k], pRes, NULL, outputSlotId, NULL, false,
+                                             &gTaskScalarExtra, NULL == pCorrelation ? NULL : &scalarExtra));
     } else {
       qError("%s: unsupported expression node type at line %d, since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
       return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -1843,7 +1864,7 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = 1;
-  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  code = doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL, pTaskInfo);
   if (code) {
     pTaskInfo->code = code;
     return code;
@@ -1948,7 +1969,8 @@ _exit:
 
 
 int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
-                             int64_t* numOfRows, bool createNewColModel, const void* pExtraParams) {
+                             int64_t* numOfRows, bool createNewColModel, const void* pExtraParams,
+                             const SScalarExtraInfo* pScalarExtra) {
   int32_t     code = 0, lino = 0;
   SSDataBlock scalarBlock = {0};
   SArray*     pBlockList = taosArrayInit(4, POINTER_BYTES);
@@ -1969,9 +1991,11 @@ int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock
 
   SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
   SScalarParam dest = {.columnData = &idata};
-  gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
-  gTaskScalarExtra.pStreamRange = NULL;
-  TAOS_CHECK_EXIT(scalarCalculate(pExpr->pExpr->_optrRoot.pRootNode, pBlockList, &dest, &gTaskScalarExtra));
+  SScalarExtraInfo extra = pScalarExtra ? *pScalarExtra : gTaskScalarExtra;
+  SScalarExtraInfo* pExtra = pScalarExtra ? &extra : &gTaskScalarExtra;
+  pExtra->pStreamInfo = (void*)pExtraParams;
+  pExtra->pStreamRange = NULL;
+  TAOS_CHECK_EXIT(scalarCalculate(pExpr->pExpr->_optrRoot.pRootNode, pBlockList, &dest, pExtra));
 
   if (pResult->info.rows > 0 && !createNewColModel) {
     code = colDataMergeCol(pResColData, pResult->info.rows, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
@@ -2001,7 +2025,7 @@ static int32_t projectApplyFunctionWithLineage(SqlFunctionCtx* pCtx, SqlFunction
                                                SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
                                                int64_t* numOfRows, bool createNewColModel, const void* pExtraParams,
                                                SArray* pPseudoList, SArray** processByRowFunctionCtx, bool doSelectFunc,
-                                               const SArray* pInputWinIdx) {
+                                               const SArray* pInputWinIdx, const SScalarExtraInfo* pScalarExtra) {
   int32_t code = 0, lino = 0;
   SArray* pBlockList = NULL;
   SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
@@ -2034,9 +2058,11 @@ static int32_t projectApplyFunctionWithLineage(SqlFunctionCtx* pCtx, SqlFunction
 
     SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
     SScalarParam dest = {.columnData = &idata};
-    gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
-    gTaskScalarExtra.pStreamRange = NULL;
-    TAOS_CHECK_EXIT(scalarCalculate((SNode*)pExpr->pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra));
+    SScalarExtraInfo extra = pScalarExtra ? *pScalarExtra : gTaskScalarExtra;
+    SScalarExtraInfo* pExtra = pScalarExtra ? &extra : &gTaskScalarExtra;
+    pExtra->pStreamInfo = (void*)pExtraParams;
+    pExtra->pStreamRange = NULL;
+    TAOS_CHECK_EXIT(scalarCalculate((SNode*)pExpr->pExpr->_function.pFunctNode, pBlockList, &dest, pExtra));
 
     if (pResult->info.rows > 0 && !createNewColModel) {
       code = colDataMergeCol(pResColData, pResult->info.rows, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
@@ -2157,7 +2183,7 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
                              bool doSelectFunc) {
   return projectApplyFunctionWithLineage(pCtx, pfCtx, pExpr, pResult, pSrcBlock, outputSlotId, numOfRows,
                                          createNewColModel, pExtraParams, pPseudoList, processByRowFunctionCtx,
-                                         doSelectFunc, NULL);
+                                         doSelectFunc, NULL, NULL);
 }
 
 static int32_t projectApplyFunctionsWithLineage(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
@@ -2175,6 +2201,12 @@ static int32_t projectApplyFunctionsWithLineage(SExprInfo* pExpr, SSDataBlock* p
     gTaskScalarExtra.pTaskInfo    = pTaskInfo;
     gTaskScalarExtra.isTaskKilled = isTaskKilled;
   }
+
+  SCorrelationEvalContext correlation = {0};
+  SCorrelationWaitHooks wait = {0};
+  const SCorrelationEvalContext* pCorrelation = initTaskCorrelationEvalContext(pTaskInfo, &correlation, &wait);
+  SScalarExtraInfo scalarExtra = gTaskScalarExtra;
+  scalarExtra.pCorrelation = pCorrelation;
 
   if (hasIndefRowsFunc) {
     setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
@@ -2239,13 +2271,21 @@ static int32_t projectApplyFunctionsWithLineage(SExprInfo* pExpr, SSDataBlock* p
         break;
       } 
       case QUERY_NODE_OPERATOR: {
-        TAOS_CHECK_EXIT(projectApplyOperator(&pExpr[k], pResult, pSrcBlock, outputSlotId, &numOfRows, createNewColModel, pExtraParams));
+        SNode* pRoot = pExpr[k].pExpr->_optrRoot.pRootNode;
+        const SScalarExtraInfo* pScalarExtra =
+            NULL != pCorrelation && nodesExprHasCorrelation(pRoot) ? &scalarExtra : NULL;
+        TAOS_CHECK_EXIT(projectApplyOperator(&pExpr[k], pResult, pSrcBlock, outputSlotId, &numOfRows,
+                                             createNewColModel, pExtraParams, pScalarExtra));
         break;
       } 
       case QUERY_NODE_FUNCTION: {
+        SNode* pFunction = (SNode*)pExpr[k].pExpr->_function.pFunctNode;
+        const SScalarExtraInfo* pScalarExtra =
+            NULL != pCorrelation && nodesExprHasCorrelation(pFunction) ? &scalarExtra : NULL;
         TAOS_CHECK_EXIT(projectApplyFunctionWithLineage(pCtx, pfCtx, &pExpr[k], pResult, pSrcBlock, outputSlotId,
                                                         &numOfRows, createNewColModel, pExtraParams, pPseudoList,
-                                                        &processByRowFunctionCtx, doSelectFunc, pInputWinIdx));
+                                                        &processByRowFunctionCtx, doSelectFunc, pInputWinIdx,
+                                                        pScalarExtra));
         break;
       }
       default: {

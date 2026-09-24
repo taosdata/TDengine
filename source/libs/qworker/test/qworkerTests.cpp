@@ -99,6 +99,8 @@ SRWLatch qwtTestSinkLock = 0;
 int32_t  qwtTestSinkLastLen = 0;
 int32_t  qwtTestDestroyTaskCount = 0;
 int32_t  qwtTestPutDataBlockCount = 0;
+int32_t  qwtCorrelationCloseCount = 0;
+int32_t  qwtCorrelationCloseCode = TSDB_CODE_SUCCESS;
 
 SSubQueryMsg       qwtqueryMsg = {0};
 SRpcMsg            qwtfetchRpc = {0};
@@ -1114,6 +1116,63 @@ TEST(qwTaskLifecycleTest, delayFreeTaskReleasesHandleAfterSinkError) {
   ASSERT_EQ(nullptr, ctx.taskHandle);
   ASSERT_EQ(1, qwtTestDestroyTaskCount);
   ASSERT_EQ(1, qwtTestPutDataBlockCount);
+}
+
+TEST(qwTaskLifecycleTest, noFetchTimeoutClosesCorrelationSession) {
+  SQWorker mgmt = {0};
+  SCorrelationRuntimeOps ops = {0};
+  SCorrelationTaskSession* session = reinterpret_cast<SCorrelationTaskSession*>(0x1);
+  qwtCorrelationCloseCount = 0;
+  qwtCorrelationCloseCode = TSDB_CODE_SUCCESS;
+  ops.closeTaskSession = [](SCorrelationTaskSession*, int32_t code) {
+    ++qwtCorrelationCloseCount;
+    qwtCorrelationCloseCode = code;
+  };
+  mgmt.msgCb.pCorrelationOps = &ops;
+  mgmt.ctxHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, mgmt.ctxHash);
+
+  uint64_t qId = 1, cId = 2, tId = 3;
+  int32_t eId = 4;
+  char key[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(key, qId, cId, tId, eId);
+  SQWTaskCtx ctx = {0};
+  ctx.inFetch = 1;
+  ctx.lastAckTs = 1;
+  ctx.pCorrelationSession = session;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(mgmt.ctxHash, key, sizeof(key), &ctx, sizeof(ctx)));
+
+  qwChkDropTimeoutQuery(&mgmt, 1 + tsQueryNoFetchTimeoutSec - 1);
+  EXPECT_EQ(0, qwtCorrelationCloseCount);
+  qwChkDropTimeoutQuery(&mgmt, 1 + tsQueryNoFetchTimeoutSec);
+  EXPECT_EQ(1, qwtCorrelationCloseCount);
+  EXPECT_EQ(TSDB_CODE_QRY_NO_FETCH_TIMEOUT, qwtCorrelationCloseCode);
+  auto* stored = static_cast<SQWTaskCtx*>(taosHashGet(mgmt.ctxHash, key, sizeof(key)));
+  ASSERT_NE(nullptr, stored);
+  EXPECT_EQ(TSDB_CODE_QRY_NO_FETCH_TIMEOUT, stored->rspCode);
+  EXPECT_TRUE(QW_EVENT_RECEIVED(stored, QW_EVENT_DROP));
+  taosHashCleanup(mgmt.ctxHash);
+}
+
+TEST(qwTaskLifecycleTest, activeCorrelationTaskTimeoutClosesSession) {
+  SQWorker mgmt = {0};
+  SCorrelationRuntimeOps ops = {0};
+  qwtCorrelationCloseCount = 0;
+  qwtCorrelationCloseCode = TSDB_CODE_SUCCESS;
+  ops.closeTaskSession = [](SCorrelationTaskSession*, int32_t code) {
+    ++qwtCorrelationCloseCount;
+    qwtCorrelationCloseCode = code;
+  };
+  mgmt.msgCb.pCorrelationOps = &ops;
+
+  SQWTaskCtx ctx = {0};
+  ctx.inFetch = 1;
+  ctx.pCorrelationSession = reinterpret_cast<SCorrelationTaskSession*>(0x1);
+  EXPECT_FALSE(qwStopTask(&mgmt, 1, 2, 3, 4, 0, 5, &ctx, true, TSDB_CODE_SCH_TIMEOUT_ERROR));
+  EXPECT_EQ(1, qwtCorrelationCloseCount);
+  EXPECT_EQ(TSDB_CODE_SCH_TIMEOUT_ERROR, qwtCorrelationCloseCode);
+  EXPECT_EQ(TSDB_CODE_SCH_TIMEOUT_ERROR, ctx.rspCode);
+  EXPECT_TRUE(QW_EVENT_RECEIVED(&ctx, QW_EVENT_DROP));
 }
 
 TEST(seqTest, normalCase) {

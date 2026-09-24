@@ -288,8 +288,8 @@ RESULT
 3|30
 ---
 ### whr-47 NEG
-SQL: SELECT id, val FROM {tbl} t1 WHERE val > (SELECT AVG(val) FROM {tbl} t2 WHERE t2.label = t1.label) ORDER BY time
-ERROR -0x7fffd95a: Not supported subquery as expr
+SQL: SELECT id, val FROM {tbl} t1 WHERE val > ANY (SELECT val FROM {tbl} t2 WHERE t2.label = t1.label) ORDER BY time
+ERROR -0x7fffd95a: Correlated subqueries are only supported as scalar expression subqueries
 ---
 ### whr-48 NEG
 SQL: SELECT id FROM {tbl} t1 WHERE EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.val > 30) ORDER BY time

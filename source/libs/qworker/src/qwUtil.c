@@ -320,8 +320,16 @@ void qwFreeSinkHandle(SQWTaskCtx *ctx) {
   }
 }
 
-int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
+void qwCloseTaskCorrelation(SQWorker* mgmt, SQWTaskCtx* ctx, int32_t code) {
+  if (NULL != ctx->pCorrelationSession && NULL != mgmt->msgCb.pCorrelationOps) {
+    mgmt->msgCb.pCorrelationOps->closeTaskSession(ctx->pCorrelationSession, code);
+  }
+}
+
+int32_t qwKillTaskHandle(SQWorker *mgmt, SQWTaskCtx *ctx, int32_t rspCode) {
   int32_t code = 0;
+
+  qwCloseTaskCorrelation(mgmt, ctx, rspCode);
 
   // Note: free/kill may in RC
   qTaskInfo_t taskHandle = atomic_load_ptr(&ctx->taskHandle);
@@ -367,6 +375,12 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       taosArrayDestroyEx(ctx->subQRes.rspList, qwFreeFetchRspItem);
     }
   }
+
+  if (NULL != ctx->pCorrelationSession && NULL != mgmt->msgCb.pCorrelationOps) {
+    qwCloseTaskCorrelation(mgmt, ctx, ctx->rspCode);
+    mgmt->msgCb.pCorrelationOps->releaseTaskSession(ctx->pCorrelationSession);
+    ctx->pCorrelationSession = NULL;
+  }
   
   if (gMemPoolHandle && ctx->memPoolSession) {
     qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession, true);
@@ -377,6 +391,7 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 static void freeExplainExecItem(void *param) {
   SExplainExecInfo *pInfo = param;
   taosMemoryFree(pInfo->verboseInfo);
+  taosMemoryFree(pInfo->pCorrelationStats);
 }
 
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
@@ -788,7 +803,7 @@ void qwDestroyJobInfo(void *job) {
 
   SQWJobInfo *pJob = (SQWJobInfo *)job;
 
-  taosMemoryFreeClear(pJob->memInfo);
+  taosMemPoolReleaseJob(pJob->memInfo);
   taosHashCleanup(pJob->pSessions);
   pJob->pSessions = NULL;
 }
@@ -798,6 +813,8 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
   bool resFreed = false;
   
   QW_LOCK(QW_WRITE, &ctx->lock);
+
+  qwCloseTaskCorrelation(mgmt, ctx, errCode);
   
   QW_TASK_DLOG("start to stop task, forceStop:%d, error:%s", forceStop, tstrerror(errCode));
   
@@ -809,7 +826,7 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
   }
 
   if (QW_QUERY_RUNNING(ctx)) {
-    code = qwKillTaskHandle(ctx, errCode);
+    code = qwKillTaskHandle(mgmt, ctx, errCode);
     if (TSDB_CODE_SUCCESS != code) {
       QW_TASK_ELOG("task running, async kill failed, error: %x", code);
     } else {

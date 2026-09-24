@@ -157,6 +157,7 @@ typedef struct SHJoinOperatorInfo {
   SFilterInfo*     pFinFilter;  
   SSDataBlock*     finBlk;
   SSDataBlock*     midBlk;
+  int64_t          outBlkId;
   STimeWindow      tblTimeRange;
   int32_t          pResColNum;
   int8_t*          pResColMap;

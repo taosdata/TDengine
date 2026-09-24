@@ -17,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmCorrelation.h"
 #include "dmNodes.h"
 #include "index.h"
 #include "qworker.h"
@@ -91,6 +92,10 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+  if ((code = dmInitCorrelation(pDnode)) != 0) {
+    goto _OVER;
+  }
+
   indexInit(tsNumOfCommitThreads);
 
   if ((code = dmInitStatusClient(pDnode)) != 0) {
@@ -106,6 +111,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
 
 _OVER:
   if (code != 0 && pDnode != NULL) {
+    dmCleanupCorrelation(pDnode);
     dmClearVars(pDnode);
     pDnode = NULL;
     dError("failed to create dnode since %s", tstrerror(code));
@@ -119,6 +125,7 @@ void dmCleanupDnode(SDnode *pDnode) {
     return;
   }
 
+  dmCleanupCorrelation(pDnode);
   dmCleanupClient(pDnode);
   dmCleanupStatusClient(pDnode);
   dmCleanupSyncClient(pDnode);

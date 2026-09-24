@@ -68,6 +68,7 @@ typedef int32_t (*FMakeObject)(int16_t type, SNode** ppNode);
 typedef int32_t (*FSetObject)(STlv* pTlv, void* pObj);
 
 static int32_t nodeToMsg(const void* pObj, STlvEncoder* pEncoder);
+static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj);
 static int32_t nodeListToMsg(const void* pObj, STlvEncoder* pEncoder);
 static int32_t SArrayToMsg(const void* pObj, STlvEncoder* pEncoder);
 
@@ -2457,7 +2458,7 @@ static int32_t msgToQueryNodeAddr(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { DOWNSTREAM_SOURCE_CODE_INLINE_ATTRS = 1 };
+enum { DOWNSTREAM_SOURCE_CODE_INLINE_ATTRS = 1, DOWNSTREAM_SOURCE_CODE_PRODUCER_QUERY_ID };
 
 static int32_t downstreamSourceNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SDownstreamSourceNode* pNode = (const SDownstreamSourceNode*)pObj;
@@ -2483,7 +2484,12 @@ static int32_t downstreamSourceNodeInlineToMsg(const void* pObj, STlvEncoder* pE
 }
 
 static int32_t downstreamSourceNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  return tlvEncodeObj(pEncoder, DOWNSTREAM_SOURCE_CODE_INLINE_ATTRS, downstreamSourceNodeInlineToMsg, pObj);
+  const SDownstreamSourceNode* pNode = (const SDownstreamSourceNode*)pObj;
+  int32_t code = tlvEncodeObj(pEncoder, DOWNSTREAM_SOURCE_CODE_INLINE_ATTRS, downstreamSourceNodeInlineToMsg, pObj);
+  if (TSDB_CODE_SUCCESS == code && 0 != pNode->producerQueryId) {
+    code = tlvEncodeU64(pEncoder, DOWNSTREAM_SOURCE_CODE_PRODUCER_QUERY_ID, pNode->producerQueryId);
+  }
+  return code;
 }
 
 static int32_t msgToDownstreamSourceNodeInlineToMsg(STlvDecoder* pDecoder, void* pObj) {
@@ -2518,6 +2524,9 @@ static int32_t msgToDownstreamSourceNode(STlvDecoder* pDecoder, void* pObj) {
     switch (pTlv->type) {
       case DOWNSTREAM_SOURCE_CODE_INLINE_ATTRS:
         code = tlvDecodeObjFromTlv(pTlv, msgToDownstreamSourceNodeInlineToMsg, pNode);
+        break;
+      case DOWNSTREAM_SOURCE_CODE_PRODUCER_QUERY_ID:
+        code = tlvDecodeU64(pTlv, &pNode->producerQueryId);
         break;
       default:
         break;
@@ -4667,6 +4676,7 @@ enum {
   PHY_MERGE_CODE_INPUT_WITH_GROUP_ID,
   PHY_MERGE_CODE_TYPE,
   PHY_MERGE_CODE_OUTER_GROUP_PHASE_MODE,
+  PHY_MERGE_CODE_SRC_END_GROUP_ID,
 };
 
 static int32_t physiMergeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4701,6 +4711,9 @@ static int32_t physiMergeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeBool(pEncoder,
                          PHY_MERGE_CODE_OUTER_GROUP_PHASE_MODE,
                          pNode->outerGroupPhaseMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_MERGE_CODE_SRC_END_GROUP_ID, pNode->srcEndGroupId);
   }
 
   return code;
@@ -4742,6 +4755,9 @@ static int32_t msgToPhysiMergeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_MERGE_CODE_OUTER_GROUP_PHASE_MODE:
         code = tlvDecodeBool(pTlv, &pNode->outerGroupPhaseMode);
+        break;
+      case PHY_MERGE_CODE_SRC_END_GROUP_ID:
+        code = tlvDecodeI32(pTlv, &pNode->srcEndGroupId);
         break;
       default:
         break;
@@ -6899,7 +6915,10 @@ enum {
   SUBPLAN_CODE_TAG_COND,
   SUBPLAN_CODE_TAG_INDEX_COND,
   SUBPLAN_CODE_INHERITED_MULTI_GROUP_JOIN,
-  SUBPLAN_CODE_DELAY_FREE_TASK
+  SUBPLAN_CODE_DELAY_FREE_TASK,
+  SUBPLAN_CODE_REQUIRES_ANCESTOR_CONTEXT,
+  SUBPLAN_CODE_EXEC_NODE_TABLE_NUM,
+  SUBPLAN_CODE_SUBQ
 };
 
 static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -6972,6 +6991,15 @@ static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_DELAY_FREE_TASK, pNode->delayFreeTask);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_REQUIRES_ANCESTOR_CONTEXT, pNode->requiresAncestorContext);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, SUBPLAN_CODE_EXEC_NODE_TABLE_NUM, pNode->execNodeStat.tableNum);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pNode->pSubQ) {
+    code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_SUBQ, nodeListToMsg, pNode->pSubQ);
   }
 
   return code;
@@ -7054,6 +7082,15 @@ static int32_t msgToSubplan(STlvDecoder* pDecoder, void* pObj) {
       case SUBPLAN_CODE_DELAY_FREE_TASK:
         code = tlvDecodeBool(pTlv, &pNode->delayFreeTask);
         break;
+      case SUBPLAN_CODE_REQUIRES_ANCESTOR_CONTEXT:
+        code = tlvDecodeBool(pTlv, &pNode->requiresAncestorContext);
+        break;
+      case SUBPLAN_CODE_EXEC_NODE_TABLE_NUM:
+        code = tlvDecodeI32(pTlv, &pNode->execNodeStat.tableNum);
+        break;
+      case SUBPLAN_CODE_SUBQ:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pSubQ);
+        break;
       default:
         break;
     }
@@ -7062,7 +7099,781 @@ static int32_t msgToSubplan(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { QUERY_PLAN_CODE_INLINE_ATTRS = 1, QUERY_PLAN_CODE_SUBPLANS, QUERY_PLAN_CODE_CHILDREN };
+
+// Only the new correlation format requires every scalar field. Legacy formats
+// retain their version-tolerant decoder behavior.
+
+static int32_t correlationBytesToMsg(STlvEncoder* pEncoder, int16_t tag, const void* pValue, int32_t len) {
+  if (len < 0 || pEncoder->offset < 0 || pEncoder->offset > INT32_MAX - (int32_t)sizeof(STlv) ||
+      len > INT32_MAX - (int32_t)sizeof(STlv) - pEncoder->offset || (len > 0 && NULL == pValue)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t needed = pEncoder->offset + sizeof(STlv) + len;
+  if (needed > pEncoder->allocSize) {
+    void* pBuffer = taosMemoryRealloc(pEncoder->pBuf, needed);
+    if (NULL == pBuffer) return terrno;
+    pEncoder->pBuf = pBuffer;
+    pEncoder->allocSize = needed;
+  }
+  return tlvEncodeBinary(pEncoder, tag, len == 0 ? "" : pValue, len);
+}
+
+static int32_t correlationStringToMsg(STlvEncoder* pEncoder, int16_t tag, const char* pValue, size_t capacity) {
+  if (NULL == pValue) return TSDB_CODE_INVALID_PARA;
+  size_t len = strnlen(pValue, capacity);
+  if (len == capacity || len >= INT32_MAX) return TSDB_CODE_INVALID_PARA;
+  return correlationBytesToMsg(pEncoder, tag, pValue, len);
+}
+
+static int32_t correlationMsgString(STlv* pTlv, char* pValue, size_t capacity) {
+  if (pTlv->len < 0 || pTlv->len >= capacity || memchr(pTlv->value, '\0', pTlv->len) != NULL) {
+    return TSDB_CODE_FAILED;
+  }
+  memcpy(pValue, pTlv->value, pTlv->len);
+  pValue[pTlv->len] = '\0';
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationMsgDynString(STlv* pTlv, char** ppValue) {
+  if (pTlv->len < 0 || pTlv->len == INT32_MAX || memchr(pTlv->value, '\0', pTlv->len) != NULL) {
+    return TSDB_CODE_FAILED;
+  }
+  *ppValue = taosMemoryMalloc((size_t)pTlv->len + 1);
+  if (NULL == *ppValue) return terrno;
+  return correlationMsgString(pTlv, *ppValue, (size_t)pTlv->len + 1);
+}
+
+static int32_t correlationMsgDataType(STlv* pTlv, SDataType* pType) {
+  if (pTlv->len != 3 * sizeof(uint8_t) + sizeof(int32_t)) return TSDB_CODE_FAILED;
+  return tlvDecodeObjFromTlv(pTlv, msgToDataTypeInline, pType);
+}
+
+// Typed node/list decoding and ownership cleanup are local to correlation fields.
+static int32_t correlationMsgNode(STlvDecoder* pDecoder, SNode** ppNode, ENodeType expectedType, ENodeType alternateType) {
+  STlv*   pTlv = NULL;
+  int32_t code = tlvGetNextTlv(pDecoder, &pTlv);
+  if (TSDB_CODE_SUCCESS == code && NULL == pTlv) code = TSDB_CODE_FAILED;
+  if (TSDB_CODE_SUCCESS == code && pTlv->type != expectedType && pTlv->type != alternateType) {
+    code = TSDB_CODE_INVALID_MSG;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeDynObjFromTlv(pTlv, (FMakeObject)nodesMakeNode, msgToSpecificNode, (void**)ppNode);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(*ppNode);
+    *ppNode = NULL;
+  }
+  return code;
+}
+
+static int32_t correlationMsgNodeFromTlv(STlv* pTlv, SNode** ppNode) {
+  STlvDecoder decoder = {.bufSize = pTlv->len, .offset = 0, .pBuf = pTlv->value};
+  int32_t     code = correlationMsgNode(&decoder, ppNode, QUERY_NODE_COLUMN, QUERY_NODE_OUTER_REF);
+  return TSDB_CODE_SUCCESS == code && decoder.offset != decoder.bufSize ? TSDB_CODE_FAILED : code;
+}
+
+// Decode the owned node type; type 0 is reserved for an empty list.
+static int32_t correlationMsgList(STlv* pTlv, SNodeList** ppList, ENodeType elementType) {
+  if (elementType == 0 && pTlv->len != 0) return TSDB_CODE_INVALID_MSG;
+  STlvDecoder decoder = {.bufSize = pTlv->len, .offset = 0, .pBuf = pTlv->value};
+  int32_t code = TSDB_CODE_SUCCESS;
+  while (TSDB_CODE_SUCCESS == code && decoder.offset != decoder.bufSize) {
+    SNode* pNode = NULL;
+    code = correlationMsgNode(&decoder, &pNode, elementType, elementType);
+    if (TSDB_CODE_SUCCESS == code) code = nodesListMakeStrictAppend(ppList, pNode);
+  }
+  return code;
+}
+
+enum {
+  CORRELATION_EXPR_DATA_TYPE = 1,
+  CORRELATION_EXPR_ALIAS_NAME = 2,
+  CORRELATION_EXPR_USER_ALIAS = 3,
+  CORRELATION_EXPR_SRC_TABLE = 4,
+  CORRELATION_EXPR_AS_ALIAS = 5,
+  CORRELATION_EXPR_AS_PARAM = 6,
+  CORRELATION_EXPR_AS_POSITION = 7,
+  CORRELATION_EXPR_JOIN_SRC = 8,
+  CORRELATION_EXPR_HAS_NULL = 9,
+  CORRELATION_EXPR_PROJ_IDX = 10,
+  CORRELATION_EXPR_RELATED_TO = 11,
+  CORRELATION_EXPR_BIND_EXPR_ID = 12,
+};
+
+static int32_t correlationExprToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SExprNode* pNode = pObj;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CORRELATION_EXPR_DATA_TYPE, dataTypeInlineToMsg, &pNode->resType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToMsg(pEncoder, CORRELATION_EXPR_ALIAS_NAME, pNode->aliasName, sizeof(pNode->aliasName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToMsg(pEncoder, CORRELATION_EXPR_USER_ALIAS, pNode->userAlias, sizeof(pNode->userAlias));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToMsg(pEncoder, CORRELATION_EXPR_SRC_TABLE, pNode->srcTable, sizeof(pNode->srcTable));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, CORRELATION_EXPR_AS_ALIAS, pNode->asAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, CORRELATION_EXPR_AS_PARAM, pNode->asParam);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, CORRELATION_EXPR_AS_POSITION, pNode->asPosition);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, CORRELATION_EXPR_JOIN_SRC, pNode->joinSrc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, CORRELATION_EXPR_HAS_NULL, pNode->hasNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATION_EXPR_PROJ_IDX, pNode->projIdx);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATION_EXPR_RELATED_TO, pNode->relatedTo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATION_EXPR_BIND_EXPR_ID, pNode->bindExprID);
+  }
+  return code;
+}
+
+static int32_t msgToCorrelationExpr(STlvDecoder* pDecoder, void* pObj) {
+  SExprNode* pNode = pObj;
+  uint32_t   seen = 0;
+  STlv*      pTlv = NULL;
+  int32_t    code = TSDB_CODE_SUCCESS;
+  while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) &&
+         NULL != pTlv) {
+    if (pTlv->type > 0 && pTlv->type <= 12) {
+      uint32_t bit = 1U << pTlv->type;
+      if (seen & bit) return TSDB_CODE_FAILED;
+      seen |= bit;
+    }
+    switch (pTlv->type) {
+      case CORRELATION_EXPR_DATA_TYPE:
+        code = correlationMsgDataType(pTlv, &pNode->resType);
+        break;
+      case CORRELATION_EXPR_ALIAS_NAME:
+        code = correlationMsgString(pTlv, pNode->aliasName, sizeof(pNode->aliasName));
+        break;
+      case CORRELATION_EXPR_USER_ALIAS:
+        code = correlationMsgString(pTlv, pNode->userAlias, sizeof(pNode->userAlias));
+        break;
+      case CORRELATION_EXPR_SRC_TABLE:
+        code = correlationMsgString(pTlv, pNode->srcTable, sizeof(pNode->srcTable));
+        break;
+      case CORRELATION_EXPR_AS_ALIAS:
+        if (pTlv->len != 1 || (pTlv->value[0] != 0 && pTlv->value[0] != 1)) return TSDB_CODE_FAILED;
+        code = tlvDecodeBool(pTlv, &pNode->asAlias);
+        break;
+      case CORRELATION_EXPR_AS_PARAM:
+        if (pTlv->len != 1 || (pTlv->value[0] != 0 && pTlv->value[0] != 1)) return TSDB_CODE_FAILED;
+        code = tlvDecodeBool(pTlv, &pNode->asParam);
+        break;
+      case CORRELATION_EXPR_AS_POSITION:
+        if (pTlv->len != 1 || (pTlv->value[0] != 0 && pTlv->value[0] != 1)) return TSDB_CODE_FAILED;
+        code = tlvDecodeBool(pTlv, &pNode->asPosition);
+        break;
+      case CORRELATION_EXPR_JOIN_SRC:
+        if (pTlv->len != 1 || (pTlv->value[0] != 0 && pTlv->value[0] != 1)) return TSDB_CODE_FAILED;
+        code = tlvDecodeBool(pTlv, &pNode->joinSrc);
+        break;
+      case CORRELATION_EXPR_HAS_NULL:
+        if (pTlv->len != 1 || (pTlv->value[0] != 0 && pTlv->value[0] != 1)) return TSDB_CODE_FAILED;
+        code = tlvDecodeBool(pTlv, &pNode->hasNull);
+        break;
+      case CORRELATION_EXPR_PROJ_IDX:
+        code = tlvDecodeI32(pTlv, &pNode->projIdx);
+        break;
+      case CORRELATION_EXPR_RELATED_TO:
+        code = tlvDecodeI32(pTlv, &pNode->relatedTo);
+        break;
+      case CORRELATION_EXPR_BIND_EXPR_ID:
+        code = tlvDecodeI32(pTlv, &pNode->bindExprID);
+        break;
+      default:
+        break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && (seen & 0x1ffeU) != 0x1ffeU) code = TSDB_CODE_FAILED;
+  return code;
+}
+
+enum {
+  OUTER_REF_CODE_EXPR = 1,
+  OUTER_REF_CODE_SCOPE_ID = 2,
+  OUTER_REF_CODE_BINDING_ID = 3,
+  OUTER_REF_CODE_TABLE_REF_ID = 4,
+  OUTER_REF_CODE_TABLE_ALIAS = 5,
+  OUTER_REF_CODE_COL_NAME = 6,
+};
+
+static int32_t outerRefNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SOuterRefNode* pNode = pObj;
+  int32_t              code = nodesValidateCorrelationNode(pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, OUTER_REF_CODE_EXPR, correlationExprToMsg, &pNode->node);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, OUTER_REF_CODE_SCOPE_ID, pNode->scopeId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, OUTER_REF_CODE_BINDING_ID, pNode->bindingId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, OUTER_REF_CODE_TABLE_REF_ID, pNode->tableRefId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToMsg(pEncoder, OUTER_REF_CODE_TABLE_ALIAS, pNode->tableAlias, sizeof(pNode->tableAlias));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToMsg(pEncoder, OUTER_REF_CODE_COL_NAME, pNode->colName, sizeof(pNode->colName));
+  }
+  return code;
+}
+
+static int32_t msgToOuterRefNode(STlvDecoder* pDecoder, void* pObj) {
+  SOuterRefNode* pNode = pObj;
+  uint32_t       seen = 0;
+  STlv*          pTlv = NULL;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) &&
+         NULL != pTlv) {
+    if (pTlv->type > 0 && pTlv->type <= 6) {
+      uint32_t bit = 1U << pTlv->type;
+      if (seen & bit) return TSDB_CODE_FAILED;
+      seen |= bit;
+    }
+    switch (pTlv->type) {
+      case OUTER_REF_CODE_EXPR:
+        code = tlvDecodeObjFromTlv(pTlv, msgToCorrelationExpr, &pNode->node);
+        break;
+      case OUTER_REF_CODE_SCOPE_ID:
+        code = tlvDecodeI32(pTlv, &pNode->scopeId);
+        break;
+      case OUTER_REF_CODE_BINDING_ID:
+        code = tlvDecodeI64(pTlv, &pNode->bindingId);
+        break;
+      case OUTER_REF_CODE_TABLE_REF_ID:
+        code = tlvDecodeI64(pTlv, &pNode->tableRefId);
+        break;
+      case OUTER_REF_CODE_TABLE_ALIAS:
+        code = correlationMsgString(pTlv, pNode->tableAlias, sizeof(pNode->tableAlias));
+        break;
+      case OUTER_REF_CODE_COL_NAME:
+        code = correlationMsgString(pTlv, pNode->colName, sizeof(pNode->colName));
+        break;
+      default:
+        break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && (seen & 0x7eU) != 0x7eU) code = TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS == code ? nodesValidateCorrelationNode(pObj) : code;
+}
+
+enum {
+  CORRELATION_PARAM_CODE_EXPR = 1,
+  CORRELATION_PARAM_CODE_PARAM_ID = 2,
+};
+
+static int32_t correlationParamNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SCorrelationParamNode* pNode = pObj;
+  int32_t                      code = nodesValidateCorrelationNode(pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CORRELATION_PARAM_CODE_EXPR, correlationExprToMsg, &pNode->node);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATION_PARAM_CODE_PARAM_ID, pNode->paramId);
+  }
+  return code;
+}
+
+static int32_t msgToCorrelationParamNode(STlvDecoder* pDecoder, void* pObj) {
+  SCorrelationParamNode* pNode = pObj;
+  uint32_t               seen = 0;
+  STlv*                  pTlv = NULL;
+  int32_t                code = TSDB_CODE_SUCCESS;
+  while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) &&
+         NULL != pTlv) {
+    if (pTlv->type > 0 && pTlv->type <= 2) {
+      uint32_t bit = 1U << pTlv->type;
+      if (seen & bit) return TSDB_CODE_FAILED;
+      seen |= bit;
+    }
+    switch (pTlv->type) {
+      case CORRELATION_PARAM_CODE_EXPR:
+        code = tlvDecodeObjFromTlv(pTlv, msgToCorrelationExpr, &pNode->node);
+        break;
+      case CORRELATION_PARAM_CODE_PARAM_ID:
+        code = tlvDecodeI32(pTlv, &pNode->paramId);
+        break;
+      default:
+        break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && (seen & 0x6U) != 0x6U) code = TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS == code ? nodesValidateCorrelationNode(pObj) : code;
+}
+
+enum {
+  PARAM_BINDING_CODE_PARAM_ID = 1,
+  PARAM_BINDING_CODE_DATA_TYPE = 2,
+  PARAM_BINDING_CODE_SOURCE_KIND = 3,
+  PARAM_BINDING_CODE_SCOPE_ID = 4,
+  PARAM_BINDING_CODE_BINDING_ID = 5,
+  PARAM_BINDING_CODE_TABLE_REF_ID = 6,
+  PARAM_BINDING_CODE_SOURCE_BLOCK_ID = 7,
+  PARAM_BINDING_CODE_SOURCE_SLOT_ID = 8,
+  PARAM_BINDING_CODE_INHERITED_PARAM_ID = 9,
+  PARAM_BINDING_CODE_SOURCE = 10,
+};
+
+static int32_t correlationParamBindingNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SCorrelationParamBindingNode* pNode = pObj;
+  int32_t                             code = nodesValidateCorrelationNode(pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PARAM_BINDING_CODE_PARAM_ID, pNode->paramId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PARAM_BINDING_CODE_DATA_TYPE, dataTypeInlineToMsg, &pNode->dataType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PARAM_BINDING_CODE_SOURCE_KIND, pNode->sourceKind);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PARAM_BINDING_CODE_SCOPE_ID, pNode->scopeId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PARAM_BINDING_CODE_BINDING_ID, pNode->bindingId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PARAM_BINDING_CODE_TABLE_REF_ID, pNode->tableRefId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PARAM_BINDING_CODE_SOURCE_BLOCK_ID, pNode->sourceBlockId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI16(pEncoder, PARAM_BINDING_CODE_SOURCE_SLOT_ID, pNode->sourceSlotId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PARAM_BINDING_CODE_INHERITED_PARAM_ID, pNode->inheritedParamId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PARAM_BINDING_CODE_SOURCE, nodeToMsg, pNode->pSource);
+  }
+  return code;
+}
+
+static int32_t msgToCorrelationParamBindingNode(STlvDecoder* pDecoder, void* pObj) {
+  SCorrelationParamBindingNode* pNode = pObj;
+  uint32_t                      seen = 0;
+  STlv*                         pTlv = NULL;
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) &&
+         NULL != pTlv) {
+    if (pTlv->type > 0 && pTlv->type <= 10) {
+      uint32_t bit = 1U << pTlv->type;
+      if (seen & bit) return TSDB_CODE_FAILED;
+      seen |= bit;
+    }
+    switch (pTlv->type) {
+      case PARAM_BINDING_CODE_PARAM_ID:
+        code = tlvDecodeI32(pTlv, &pNode->paramId);
+        break;
+      case PARAM_BINDING_CODE_DATA_TYPE:
+        code = correlationMsgDataType(pTlv, &pNode->dataType);
+        break;
+      case PARAM_BINDING_CODE_SOURCE_KIND:
+        code = tlvDecodeEnum(pTlv, &pNode->sourceKind, sizeof(pNode->sourceKind));
+        break;
+      case PARAM_BINDING_CODE_SCOPE_ID:
+        code = tlvDecodeI32(pTlv, &pNode->scopeId);
+        break;
+      case PARAM_BINDING_CODE_BINDING_ID:
+        code = tlvDecodeI64(pTlv, &pNode->bindingId);
+        break;
+      case PARAM_BINDING_CODE_TABLE_REF_ID:
+        code = tlvDecodeI64(pTlv, &pNode->tableRefId);
+        break;
+      case PARAM_BINDING_CODE_SOURCE_BLOCK_ID:
+        code = tlvDecodeI64(pTlv, &pNode->sourceBlockId);
+        break;
+      case PARAM_BINDING_CODE_SOURCE_SLOT_ID:
+        code = tlvDecodeI16(pTlv, &pNode->sourceSlotId);
+        break;
+      case PARAM_BINDING_CODE_INHERITED_PARAM_ID:
+        code = tlvDecodeI32(pTlv, &pNode->inheritedParamId);
+        break;
+      case PARAM_BINDING_CODE_SOURCE:
+        code = correlationMsgNodeFromTlv(pTlv, &pNode->pSource);
+        break;
+      default:
+        break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && (seen & 0x3feU) != 0x3feU) code = TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS == code ? nodesValidateCorrelationNode(pObj) : code;
+}
+
+enum {
+  CORRELATED_SUBQUERY_CODE_EXPR = 1,
+  CORRELATED_SUBQUERY_CODE_TEMPLATE_ID = 2,
+  CORRELATED_SUBQUERY_CODE_EXPR_ID = 3,
+  CORRELATED_SUBQUERY_CODE_PARAM_BINDINGS = 5,
+  CORRELATED_SUBQUERY_CODE_SUBQUERY_SQL = 6,
+  CORRELATED_SUBQUERY_CODE_SCOPE_ID = 7,
+  CORRELATED_SUBQUERY_CODE_PARENT_SCOPE_ID = 8,
+};
+
+static int32_t correlatedSubqueryNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SCorrelatedSubqueryNode* pNode = pObj;
+  int32_t                        code = nodesValidateCorrelationNode(pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CORRELATED_SUBQUERY_CODE_EXPR, correlationExprToMsg, &pNode->node);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATED_SUBQUERY_CODE_TEMPLATE_ID, pNode->templateId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, CORRELATED_SUBQUERY_CODE_EXPR_ID, pNode->exprId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATED_SUBQUERY_CODE_SCOPE_ID, pNode->scopeId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATED_SUBQUERY_CODE_PARENT_SCOPE_ID, pNode->parentScopeId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CORRELATED_SUBQUERY_CODE_PARAM_BINDINGS, nodeListToMsg, pNode->pParamBindings);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToMsg(pEncoder, CORRELATED_SUBQUERY_CODE_SUBQUERY_SQL, pNode->pSubquerySql, INT32_MAX);
+  }
+  return code;
+}
+
+static int32_t msgToCorrelatedSubqueryNode(STlvDecoder* pDecoder, void* pObj) {
+  SCorrelatedSubqueryNode* pNode = pObj;
+  uint32_t                 seen = 0;
+  STlv*                    pTlv = NULL;
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) &&
+         NULL != pTlv) {
+    if (pTlv->type > 0 && pTlv->type <= 8) {
+      uint32_t bit = 1U << pTlv->type;
+      if (seen & bit) return TSDB_CODE_FAILED;
+      seen |= bit;
+    }
+    switch (pTlv->type) {
+      case CORRELATED_SUBQUERY_CODE_EXPR:
+        code = tlvDecodeObjFromTlv(pTlv, msgToCorrelationExpr, &pNode->node);
+        break;
+      case CORRELATED_SUBQUERY_CODE_TEMPLATE_ID:
+        code = tlvDecodeI32(pTlv, &pNode->templateId);
+        break;
+      case CORRELATED_SUBQUERY_CODE_EXPR_ID:
+        code = tlvDecodeI64(pTlv, &pNode->exprId);
+        break;
+      case CORRELATED_SUBQUERY_CODE_SCOPE_ID:
+        code = tlvDecodeI32(pTlv, &pNode->scopeId);
+        break;
+      case CORRELATED_SUBQUERY_CODE_PARENT_SCOPE_ID:
+        code = tlvDecodeI32(pTlv, &pNode->parentScopeId);
+        break;
+      case CORRELATED_SUBQUERY_CODE_PARAM_BINDINGS:
+        code = correlationMsgList(pTlv, &pNode->pParamBindings, QUERY_NODE_CORRELATION_PARAM_BINDING);
+        break;
+      case CORRELATED_SUBQUERY_CODE_SUBQUERY_SQL:
+        code = correlationMsgDynString(pTlv, &pNode->pSubquerySql);
+        break;
+      default:
+        break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && (seen & 0x1ceU) != 0x1ceU) code = TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS == code ? nodesValidateCorrelationNode(pObj) : code;
+}
+
+enum {
+  CORRELATION_TEMPLATE_CODE_TEMPLATE_ID = 1,
+  CORRELATION_TEMPLATE_CODE_SCOPE_ID = 2,
+  CORRELATION_TEMPLATE_CODE_RESULT_TYPE = 3,
+  CORRELATION_TEMPLATE_CODE_RESULT_NAME = 4,
+  CORRELATION_TEMPLATE_CODE_PARAMS = 5,
+  CORRELATION_TEMPLATE_CODE_NESTED_TEMPLATES = 6,
+  CORRELATION_TEMPLATE_CODE_TIME_RANGE_INIT = 7,
+  CORRELATION_TEMPLATE_CODE_PLAN_LEN = 8,
+  CORRELATION_TEMPLATE_CODE_PLAN_BYTES = 9,
+};
+
+enum {
+  CORRELATION_TIME_RANGE_CODE_SCOPE_ID = 1,
+  CORRELATION_TIME_RANGE_CODE_PRECISION = 2,
+  CORRELATION_TIME_RANGE_CODE_INTERP = 3,
+  CORRELATION_TIME_RANGE_CODE_ALLOW_NO_RANGE = 4,
+  CORRELATION_TIME_RANGE_CODE_SUBPLAN_ID = 5,
+  CORRELATION_TIME_RANGE_CODE_BLOCK_ID = 6,
+  CORRELATION_TIME_RANGE_CODE_NODE_TYPE = 7,
+  CORRELATION_TIME_RANGE_CODE_EXPR = 8,
+};
+
+static int32_t correlationTimeRangeInitNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SCorrelationTimeRangeInitNode* pNode = pObj;
+  int32_t                              code = nodesValidateCorrelationNode(pObj);
+  if (TSDB_CODE_SUCCESS == code) code = tlvEncodeI32(pEncoder, CORRELATION_TIME_RANGE_CODE_SCOPE_ID, pNode->scopeId);
+  if (TSDB_CODE_SUCCESS == code) code = tlvEncodeU8(pEncoder, CORRELATION_TIME_RANGE_CODE_PRECISION, pNode->precision);
+  if (TSDB_CODE_SUCCESS == code) code = tlvEncodeBool(pEncoder, CORRELATION_TIME_RANGE_CODE_INTERP, pNode->interpRange);
+  if (TSDB_CODE_SUCCESS == code) code = tlvEncodeBool(pEncoder, CORRELATION_TIME_RANGE_CODE_ALLOW_NO_RANGE, pNode->allowNoTimeRange);
+  if (TSDB_CODE_SUCCESS == code) code = tlvEncodeObj(pEncoder, CORRELATION_TIME_RANGE_CODE_SUBPLAN_ID,
+                                                      subplanIdToMsg, &pNode->targetSubplanId);
+  if (TSDB_CODE_SUCCESS == code) code = tlvEncodeI64(pEncoder, CORRELATION_TIME_RANGE_CODE_BLOCK_ID, pNode->targetBlockId);
+  if (TSDB_CODE_SUCCESS == code) code = tlvEncodeEnum(pEncoder, CORRELATION_TIME_RANGE_CODE_NODE_TYPE, pNode->targetNodeType);
+  if (TSDB_CODE_SUCCESS == code) code = tlvEncodeObj(pEncoder, CORRELATION_TIME_RANGE_CODE_EXPR, nodeToMsg, pNode->pRangeExpr);
+  return code;
+}
+
+static int32_t msgToCorrelationTimeRangeInitNode(STlvDecoder* pDecoder, void* pObj) {
+  SCorrelationTimeRangeInitNode* pNode = pObj;
+  uint32_t                       seen = 0;
+  STlv*                          pTlv = NULL;
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) &&
+         NULL != pTlv) {
+    if (pTlv->type > 0 && pTlv->type <= CORRELATION_TIME_RANGE_CODE_EXPR) {
+      uint32_t bit = 1U << pTlv->type;
+      if (seen & bit) return TSDB_CODE_FAILED;
+      seen |= bit;
+    }
+    switch (pTlv->type) {
+      case CORRELATION_TIME_RANGE_CODE_SCOPE_ID:
+        code = tlvDecodeI32(pTlv, &pNode->scopeId);
+        break;
+      case CORRELATION_TIME_RANGE_CODE_PRECISION:
+        code = tlvDecodeU8(pTlv, &pNode->precision);
+        break;
+      case CORRELATION_TIME_RANGE_CODE_INTERP:
+        code = tlvDecodeBool(pTlv, &pNode->interpRange);
+        break;
+      case CORRELATION_TIME_RANGE_CODE_ALLOW_NO_RANGE:
+        code = tlvDecodeBool(pTlv, &pNode->allowNoTimeRange);
+        break;
+      case CORRELATION_TIME_RANGE_CODE_SUBPLAN_ID:
+        code = tlvDecodeObjFromTlv(pTlv, msgToSubplanId, &pNode->targetSubplanId);
+        break;
+      case CORRELATION_TIME_RANGE_CODE_BLOCK_ID:
+        code = tlvDecodeI64(pTlv, &pNode->targetBlockId);
+        break;
+      case CORRELATION_TIME_RANGE_CODE_NODE_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->targetNodeType, sizeof(pNode->targetNodeType));
+        break;
+      case CORRELATION_TIME_RANGE_CODE_EXPR:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pRangeExpr);
+        break;
+      default:
+        break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && (seen & 0x1feU) != 0x1feU) code = TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS == code ? nodesValidateCorrelationNode(pObj) : code;
+}
+
+static int32_t correlationTemplateNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SCorrelationTemplateNode* pNode = pObj;
+  int32_t                         code = nodesValidateCorrelationNode(pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATION_TEMPLATE_CODE_TEMPLATE_ID, pNode->templateId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATION_TEMPLATE_CODE_SCOPE_ID, pNode->scopeId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CORRELATION_TEMPLATE_CODE_RESULT_TYPE, dataTypeInlineToMsg, &pNode->resultType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToMsg(pEncoder, CORRELATION_TEMPLATE_CODE_RESULT_NAME, pNode->resultName, sizeof(pNode->resultName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CORRELATION_TEMPLATE_CODE_PARAMS, nodeListToMsg, pNode->pParams);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CORRELATION_TEMPLATE_CODE_NESTED_TEMPLATES, nodeListToMsg, pNode->pNestedTemplates);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CORRELATION_TEMPLATE_CODE_TIME_RANGE_INIT, nodeListToMsg, pNode->pTimeRangeInit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, CORRELATION_TEMPLATE_CODE_PLAN_LEN, pNode->planLen);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationBytesToMsg(pEncoder, CORRELATION_TEMPLATE_CODE_PLAN_BYTES, pNode->pPlan, pNode->planLen);
+  }
+  return code;
+}
+
+static int32_t msgToCorrelationTemplateNode(STlvDecoder* pDecoder, void* pObj) {
+  SCorrelationTemplateNode* pNode = pObj;
+  uint32_t                  seen = 0;
+  STlv*                     pTlv = NULL;
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   decodedPlanLen = -1;
+  while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) &&
+         NULL != pTlv) {
+    if (pTlv->type > 0 && pTlv->type <= 9) {
+      uint32_t bit = 1U << pTlv->type;
+      if (seen & bit) return TSDB_CODE_FAILED;
+      seen |= bit;
+    }
+    switch (pTlv->type) {
+      case CORRELATION_TEMPLATE_CODE_TEMPLATE_ID:
+        code = tlvDecodeI32(pTlv, &pNode->templateId);
+        break;
+      case CORRELATION_TEMPLATE_CODE_SCOPE_ID:
+        code = tlvDecodeI32(pTlv, &pNode->scopeId);
+        break;
+      case CORRELATION_TEMPLATE_CODE_RESULT_TYPE:
+        code = correlationMsgDataType(pTlv, &pNode->resultType);
+        break;
+      case CORRELATION_TEMPLATE_CODE_RESULT_NAME:
+        code = correlationMsgString(pTlv, pNode->resultName, sizeof(pNode->resultName));
+        break;
+      case CORRELATION_TEMPLATE_CODE_PARAMS:
+        code = correlationMsgList(pTlv, &pNode->pParams, QUERY_NODE_CORRELATION_PARAM);
+        break;
+      case CORRELATION_TEMPLATE_CODE_NESTED_TEMPLATES:
+        code = correlationMsgList(pTlv, &pNode->pNestedTemplates, QUERY_NODE_CORRELATION_TEMPLATE);
+        break;
+      case CORRELATION_TEMPLATE_CODE_TIME_RANGE_INIT:
+        code = correlationMsgList(pTlv, &pNode->pTimeRangeInit, QUERY_NODE_CORRELATION_TIME_RANGE_INIT);
+        break;
+      case CORRELATION_TEMPLATE_CODE_PLAN_LEN:
+        code = tlvDecodeI32(pTlv, &pNode->planLen);
+        break;
+      case CORRELATION_TEMPLATE_CODE_PLAN_BYTES:
+        decodedPlanLen = pTlv->len;
+        if (pTlv->len > 0) code = tlvDecodeDynBinary(pTlv, (void**)&pNode->pPlan);
+        break;
+      default:
+        break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && (seen & 0x31eU) != 0x31eU) code = TSDB_CODE_FAILED;
+  if (TSDB_CODE_SUCCESS == code && decodedPlanLen != pNode->planLen) code = TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS == code ? nodesValidateCorrelationNode(pObj) : code;
+}
+
+enum { QUERY_PLAN_CODE_INLINE_ATTRS = 1, QUERY_PLAN_CODE_SUBPLANS, QUERY_PLAN_CODE_CHILDREN,
+       QUERY_PLAN_CODE_CORRELATION_TEMPLATES, QUERY_PLAN_CODE_SUBPLAN_LINKS,
+       QUERY_PLAN_CODE_SUBQ_TYPE, QUERY_PLAN_CODE_SUB_SQL, QUERY_PLAN_CODE_EXPLAIN_MODE,
+       QUERY_PLAN_CODE_EXPLAIN_VERBOSE, QUERY_PLAN_CODE_EXPLAIN_RATIO,
+       QUERY_PLAN_CODE_HAS_FEDERATED_SCAN, QUERY_PLAN_CODE_HAS_SCAN };
+
+enum { SUBPLAN_LINK_CODE_PARENT = 1, SUBPLAN_LINK_CODE_CHILD };
+
+static int32_t subplanLinkToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SSubplanLink* pLink = (const SSubplanLink*)pObj;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  code = tlvEncodeObj(pEncoder, SUBPLAN_LINK_CODE_PARENT, subplanIdToMsg, &pLink->parentId);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = tlvEncodeObj(pEncoder, SUBPLAN_LINK_CODE_CHILD, subplanIdToMsg, &pLink->childId);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t subplanLinksToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SQueryPlan* pPlan = (const SQueryPlan*)pObj;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+  SNode*            pLevel = NULL;
+  FOREACH(pLevel, pPlan->pSubplans) {
+    QUERY_CHECK_CONDITION(QUERY_NODE_NODE_LIST == nodeType(pLevel), code, lino, _return,
+                          TSDB_CODE_PLAN_INTERNAL_ERROR);
+    SNode* pEntity = NULL;
+    FOREACH(pEntity, ((SNodeListNode*)pLevel)->pNodeList) {
+      QUERY_CHECK_CONDITION(QUERY_NODE_PHYSICAL_SUBPLAN == nodeType(pEntity), code, lino, _return,
+                            TSDB_CODE_PLAN_INTERNAL_ERROR);
+      const SSubplan* pParent = (const SSubplan*)pEntity;
+      SNode* pChild = NULL;
+      FOREACH(pChild, pParent->pChildren) {
+        if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pChild)) {
+          continue;
+        }
+        SSubplanLink link = {.parentId = pParent->id, .childId = ((SSubplan*)pChild)->id};
+        code = tlvEncodeObj(pEncoder, TLV_TYPE_ARRAY_ELEM, subplanLinkToMsg, &link);
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+    }
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t msgToSubplanLink(STlvDecoder* pDecoder, void* pObj) {
+  SSubplanLink* pLink = (SSubplanLink*)pObj;
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  uint8_t       seen = 0;
+  STlv*         pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    if (SUBPLAN_LINK_CODE_PARENT == pTlv->type && !(seen & 1)) {
+      code = tlvDecodeObjFromTlv(pTlv, msgToSubplanId, &pLink->parentId);
+      seen |= 1;
+    } else if (SUBPLAN_LINK_CODE_CHILD == pTlv->type && !(seen & 2)) {
+      code = tlvDecodeObjFromTlv(pTlv, msgToSubplanId, &pLink->childId);
+      seen |= 2;
+    } else {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  QUERY_CHECK_CONDITION(3 == seen, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t msgToSubplanLinks(STlv* pTlv, SArray** ppLinks) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* pLinks = taosArrayInit(4, sizeof(SSubplanLink));
+  QUERY_CHECK_NULL(pLinks, code, lino, _return, terrno);
+  STlvDecoder decoder = {.bufSize = pTlv->len, .offset = 0, .pBuf = pTlv->value};
+  STlv* pElem = NULL;
+  tlvForEach(&decoder, pElem, code) {
+    QUERY_CHECK_CONDITION(TLV_TYPE_ARRAY_ELEM == pElem->type, code, lino, _return,
+                          TSDB_CODE_PLAN_INTERNAL_ERROR);
+    SSubplanLink link = {0};
+    code = tlvDecodeObjFromTlv(pElem, msgToSubplanLink, &link);
+    QUERY_CHECK_CODE(code, lino, _return);
+    QUERY_CHECK_NULL(taosArrayPush(pLinks, &link), code, lino, _return, terrno);
+  }
+  *ppLinks = pLinks;
+  pLinks = NULL;
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  taosArrayDestroy(pLinks);
+  return code;
+}
 
 static int32_t queryPlanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SQueryPlan* pNode = (const SQueryPlan*)pObj;
@@ -7084,6 +7895,36 @@ static int32_t queryPlanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pNode->pChildren) {
     code = tlvEncodeObj(pEncoder, QUERY_PLAN_CODE_CHILDREN, nodeListToMsg, pNode->pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pNode->pCorrelationTemplates) {
+    code = nodesValidateCorrelationNode((const SNode*)pNode);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tlvEncodeObj(pEncoder, QUERY_PLAN_CODE_CORRELATION_TEMPLATES, nodeListToMsg, pNode->pCorrelationTemplates);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, QUERY_PLAN_CODE_SUBPLAN_LINKS, subplanLinksToMsg, pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, QUERY_PLAN_CODE_SUBQ_TYPE, pNode->subQType);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pNode->subSql) {
+    code = correlationStringToMsg(pEncoder, QUERY_PLAN_CODE_SUB_SQL, pNode->subSql, INT32_MAX);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, QUERY_PLAN_CODE_EXPLAIN_MODE, pNode->explainInfo.mode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, QUERY_PLAN_CODE_EXPLAIN_VERBOSE, pNode->explainInfo.verbose);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeDouble(pEncoder, QUERY_PLAN_CODE_EXPLAIN_RATIO, pNode->explainInfo.ratio);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, QUERY_PLAN_CODE_HAS_FEDERATED_SCAN, pNode->hasFederatedScan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, QUERY_PLAN_CODE_HAS_SCAN, pNode->hasScan);
   }
   if ((qDebugFlag & DEBUG_DEBUG) && TSDB_CODE_SUCCESS == code) {
     qDebug("FQ-MSG: encoded query plan qid=0x%" PRIx64 " numOfSubplans=%d levels=%d subqueries=%d",
@@ -7108,6 +7949,9 @@ static int32_t msgToQueryPlanInline(STlvDecoder* pDecoder, void* pObj) {
 static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
   SQueryPlan* pNode = (SQueryPlan*)pObj;
 
+  bool hasCorrelationTemplates = false;
+  bool hasDagLinks = false;
+  SArray* pLinks = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
   tlvForEach(pDecoder, pTlv, code) {
@@ -7121,16 +7965,65 @@ static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
       case QUERY_PLAN_CODE_CHILDREN:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pChildren);
         break;
+      case QUERY_PLAN_CODE_CORRELATION_TEMPLATES:
+        if (hasCorrelationTemplates) {
+          taosArrayDestroy(pLinks);
+          return TSDB_CODE_FAILED;
+        }
+        hasCorrelationTemplates = true;
+        code = correlationMsgList(pTlv, &pNode->pCorrelationTemplates, QUERY_NODE_CORRELATION_TEMPLATE);
+        break;
+      case QUERY_PLAN_CODE_SUBPLAN_LINKS:
+        if (hasDagLinks) {
+          taosArrayDestroy(pLinks);
+          return TSDB_CODE_QRY_INVALID_MSG;
+        }
+        hasDagLinks = true;
+        code = msgToSubplanLinks(pTlv, &pLinks);
+        break;
+      case QUERY_PLAN_CODE_SUBQ_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->subQType, sizeof(pNode->subQType));
+        break;
+      case QUERY_PLAN_CODE_SUB_SQL:
+        if (NULL != pNode->subSql) {
+          taosArrayDestroy(pLinks);
+          return TSDB_CODE_QRY_INVALID_MSG;
+        }
+        code = correlationMsgDynString(pTlv, &pNode->subSql);
+        if (TSDB_CODE_SUCCESS == code) {
+          pNode->ownsSubSql = true;
+        }
+        break;
+      case QUERY_PLAN_CODE_EXPLAIN_MODE:
+        code = tlvDecodeEnum(pTlv, &pNode->explainInfo.mode, sizeof(pNode->explainInfo.mode));
+        break;
+      case QUERY_PLAN_CODE_EXPLAIN_VERBOSE:
+        code = tlvDecodeBool(pTlv, &pNode->explainInfo.verbose);
+        break;
+      case QUERY_PLAN_CODE_EXPLAIN_RATIO:
+        code = tlvDecodeDouble(pTlv, &pNode->explainInfo.ratio);
+        break;
+      case QUERY_PLAN_CODE_HAS_FEDERATED_SCAN:
+        code = tlvDecodeBool(pTlv, &pNode->hasFederatedScan);
+        break;
+      case QUERY_PLAN_CODE_HAS_SCAN:
+        code = tlvDecodeBool(pTlv, &pNode->hasScan);
+        break;
       default:
         break;
     }
   }
+  if (TSDB_CODE_SUCCESS == code && hasDagLinks) {
+    code = nodesRestoreSubplanDag(pNode, pLinks);
+  }
+  taosArrayDestroy(pLinks);
   if ((qDebugFlag & DEBUG_DEBUG) && TSDB_CODE_SUCCESS == code) {
     qDebug("FQ-MSG: decoded query plan qid=0x%" PRIx64 " numOfSubplans=%d levels=%d subqueries=%d",
            pNode->queryId, pNode->numOfSubplans, pNode->pSubplans ? LIST_LENGTH(pNode->pSubplans) : 0,
            pNode->pChildren ? LIST_LENGTH(pNode->pChildren) : 0);
   }
 
+  if (TSDB_CODE_SUCCESS == code) code = nodesValidateCorrelationNode((const SNode*)pNode);
   return code;
 }
 
@@ -7527,6 +8420,25 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   // nodesWarn("specificNodeToMsg node = %s, before tlv count = %d", nodesNodeName(nodeType(pObj)), pEncoder->tlvCount);
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pObj)) {
+    case QUERY_NODE_OUTER_REF:
+      code = outerRefNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM:
+      code = correlationParamNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      code = correlationParamBindingNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      code = correlatedSubqueryNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+      code = correlationTemplateNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      code = correlationTimeRangeInitNodeToMsg(pObj, pEncoder);
+      break;
+
     case QUERY_NODE_COLUMN:
       code = columnNodeToMsg(pObj, pEncoder);
       break;
@@ -7764,6 +8676,25 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
 static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pObj)) {
+    case QUERY_NODE_OUTER_REF:
+      code = msgToOuterRefNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM:
+      code = msgToCorrelationParamNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      code = msgToCorrelationParamBindingNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      code = msgToCorrelatedSubqueryNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+      code = msgToCorrelationTemplateNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      code = msgToCorrelationTimeRangeInitNode(pDecoder, pObj);
+      break;
+
     case QUERY_NODE_COLUMN:
       code = msgToColumnNode(pDecoder, pObj);
       break;

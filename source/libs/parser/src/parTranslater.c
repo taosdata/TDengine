@@ -639,6 +639,36 @@ static bool    getJoinContais(SNode* pNode);
 static uint8_t getStmtPrecision(SNode* pStmt);
 static bool    stmtIsSingleTable(SNode* pStmt);
 
+typedef struct SCorrelationBindingState {
+  SCorrelationBinding binding;
+  char                tableAlias[TSDB_TABLE_NAME_LEN];
+  char                colName[TSDB_COL_NAME_LEN];
+  SNode*               pSource;
+} SCorrelationBindingState;
+
+typedef struct SCorrelationScopeState {
+  SCorrelationScope scope;
+  SNode*             pStmt;
+  int32_t            level;
+} SCorrelationScopeState;
+
+struct SCorrelationSemanticContext {
+  SArray*  pScopes;        // element is SCorrelationScopeState
+  SArray*  pBindings;      // element is SCorrelationBindingState
+  int32_t  nextScopeId;
+  int64_t  nextTableRefId;
+  int64_t  nextBindingId;
+  int64_t  nextAggregateId;
+  int64_t  nextExprId;
+};
+
+typedef struct SCorrelationScopeGuard {
+  int32_t    previousScopeId;
+  ESqlClause previousClause;
+  int32_t    previousLevelScopeId;
+  bool       hadLevelScope;
+} SCorrelationScopeGuard;
+
 static int32_t rewriteShowValidateVtable(STranslateContext* pCxt, SQuery* pQuery);
 
 static bool isWindowJoinStmt(SSelectStmt* pSelect) {
@@ -656,6 +686,299 @@ static bool beforeHaving(ESqlClause clause) { return clause < SQL_CLAUSE_HAVING;
 static bool afterHaving(ESqlClause clause) { return clause > SQL_CLAUSE_HAVING; }
 
 static bool beforeWindow(ESqlClause clause) { return clause < SQL_CLAUSE_WINDOW; }
+
+static SCorrelationScopeState* getCorrelationScope(STranslateContext* pCxt, int32_t scopeId) {
+  if (NULL == pCxt->pCorrelation || scopeId <= 0 ||
+      scopeId > (int32_t)taosArrayGetSize(pCxt->pCorrelation->pScopes)) {
+    return NULL;
+  }
+  return taosArrayGet(pCxt->pCorrelation->pScopes, scopeId - 1);
+}
+
+static SCorrelationBindingState* getCorrelationBinding(STranslateContext* pCxt, int64_t bindingId) {
+  if (NULL == pCxt->pCorrelation || bindingId <= 0) {
+    return NULL;
+  }
+  int32_t numOfBindings = (int32_t)taosArrayGetSize(pCxt->pCorrelation->pBindings);
+  for (int32_t i = 0; i < numOfBindings; ++i) {
+    SCorrelationBindingState* pBinding = taosArrayGet(pCxt->pCorrelation->pBindings, i);
+    if (pBinding->binding.bindingId == bindingId) {
+      return pBinding;
+    }
+  }
+  return NULL;
+}
+
+static int32_t getCorrelationScopeAtLevel(STranslateContext* pCxt, int32_t level) {
+  if (NULL == pCxt->pCorrelationScopeLevels || level < 0 ||
+      level >= (int32_t)taosArrayGetSize(pCxt->pCorrelationScopeLevels)) {
+    return 0;
+  }
+  return *(int32_t*)taosArrayGet(pCxt->pCorrelationScopeLevels, level);
+}
+
+static bool isCorrelationScopeAncestor(STranslateContext* pCxt, int32_t ancestorScopeId, int32_t scopeId) {
+  SCorrelationScopeState* pScope = getCorrelationScope(pCxt, scopeId);
+  while (NULL != pScope && pScope->scope.parentScopeId > 0) {
+    if (pScope->scope.parentScopeId == ancestorScopeId) {
+      return true;
+    }
+    pScope = getCorrelationScope(pCxt, pScope->scope.parentScopeId);
+  }
+  return false;
+}
+
+static void destroyCorrelationSemanticContext(SCorrelationSemanticContext* pSemantic) {
+  if (NULL == pSemantic) {
+    return;
+  }
+  int32_t numOfScopes = (int32_t)taosArrayGetSize(pSemantic->pScopes);
+  for (int32_t i = 0; i < numOfScopes; ++i) {
+    SCorrelationScopeState* pScope = taosArrayGet(pSemantic->pScopes, i);
+    int32_t numOfAggregates = (int32_t)taosArrayGetSize(pScope->scope.pAggregates);
+    for (int32_t j = 0; j < numOfAggregates; ++j) {
+      SCorrelationAggregate* pAggregate = taosArrayGet(pScope->scope.pAggregates, j);
+      nodesDestroyNode(pAggregate->pExpr);
+    }
+    taosArrayDestroy(pScope->scope.pTableRefs);
+    taosArrayDestroy(pScope->scope.pBindings);
+    taosArrayDestroy(pScope->scope.pFreeBindings);
+    taosArrayDestroy(pScope->scope.pAggregates);
+  }
+  int32_t numOfBindings = (int32_t)taosArrayGetSize(pSemantic->pBindings);
+  for (int32_t i = 0; i < numOfBindings; ++i) {
+    SCorrelationBindingState* pBinding = taosArrayGet(pSemantic->pBindings, i);
+    nodesDestroyNode(pBinding->pSource);
+  }
+  taosArrayDestroy(pSemantic->pScopes);
+  taosArrayDestroy(pSemantic->pBindings);
+  taosMemoryFree(pSemantic);
+}
+
+static int32_t initCorrelationSemanticContext(STranslateContext* pCxt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  pCxt->pCorrelation = taosMemoryCalloc(1, sizeof(SCorrelationSemanticContext));
+  QUERY_CHECK_NULL(pCxt->pCorrelation, code, lino, _return, terrno);
+  pCxt->ownsCorrelationContext = true;
+  pCxt->pCorrelation->pScopes = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SCorrelationScopeState));
+  QUERY_CHECK_NULL(pCxt->pCorrelation->pScopes, code, lino, _return, terrno);
+  pCxt->pCorrelation->pBindings = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SCorrelationBindingState));
+  QUERY_CHECK_NULL(pCxt->pCorrelation->pBindings, code, lino, _return, terrno);
+  pCxt->pCorrelation->nextScopeId = 1;
+  pCxt->pCorrelation->nextTableRefId = 1;
+  pCxt->pCorrelation->nextBindingId = 1;
+  pCxt->pCorrelation->nextAggregateId = 1;
+  pCxt->pCorrelation->nextExprId = 1;
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  destroyCorrelationSemanticContext(pCxt->pCorrelation);
+  pCxt->pCorrelation = NULL;
+  pCxt->ownsCorrelationContext = false;
+  return code;
+}
+
+static int32_t setCorrelationScopeAtLevel(STranslateContext* pCxt, int32_t level, int32_t scopeId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  while ((int32_t)taosArrayGetSize(pCxt->pCorrelationScopeLevels) <= level) {
+    int32_t emptyScopeId = 0;
+    QUERY_CHECK_NULL(taosArrayPush(pCxt->pCorrelationScopeLevels, &emptyScopeId), code, lino, _return, terrno);
+  }
+  taosArraySet(pCxt->pCorrelationScopeLevels, level, &scopeId);
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
+static int32_t enterCorrelationScope(STranslateContext* pCxt, SNode* pStmt, SCorrelationScopeGuard* pGuard) {
+  if (NULL == pCxt->pCorrelation) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  bool                     scopeRegistered = false;
+  SCorrelationScopeState   state = {0};
+  state.scope.scopeId = pCxt->pCorrelation->nextScopeId++;
+  state.scope.parentScopeId = pCxt->currCorrelationScopeId;
+  state.scope.clause = pCxt->currClause;
+  state.scope.exprId = pCxt->nextCorrelationScopeExprId;
+  state.scope.pTableRefs = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SCorrelationTableRef));
+  QUERY_CHECK_NULL(state.scope.pTableRefs, code, lino, _return, terrno);
+  state.scope.pBindings = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SCorrelationBinding));
+  QUERY_CHECK_NULL(state.scope.pBindings, code, lino, _return, terrno);
+  state.scope.pFreeBindings = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SCorrelationBinding));
+  QUERY_CHECK_NULL(state.scope.pFreeBindings, code, lino, _return, terrno);
+  state.scope.pAggregates = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SCorrelationAggregate));
+  QUERY_CHECK_NULL(state.scope.pAggregates, code, lino, _return, terrno);
+  state.pStmt = pStmt;
+  state.level = pCxt->currLevel;
+  QUERY_CHECK_NULL(taosArrayPush(pCxt->pCorrelation->pScopes, &state), code, lino, _return, terrno);
+  scopeRegistered = true;
+
+  pGuard->previousScopeId = pCxt->currCorrelationScopeId;
+  pGuard->previousClause = pCxt->currClause;
+  pGuard->hadLevelScope = pCxt->currLevel < (int32_t)taosArrayGetSize(pCxt->pCorrelationScopeLevels);
+  pGuard->previousLevelScopeId = getCorrelationScopeAtLevel(pCxt, pCxt->currLevel);
+  PAR_ERR_JRET(setCorrelationScopeAtLevel(pCxt, pCxt->currLevel, state.scope.scopeId));
+  pCxt->currCorrelationScopeId = state.scope.scopeId;
+  if (0 == pCxt->rootCorrelationScopeId) {
+    pCxt->rootCorrelationScopeId = state.scope.scopeId;
+  }
+  pCxt->nextCorrelationScopeExprId = 0;
+  pCxt->currClause = 0;
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  if (!scopeRegistered) {
+    taosArrayDestroy(state.scope.pTableRefs);
+    taosArrayDestroy(state.scope.pBindings);
+    taosArrayDestroy(state.scope.pFreeBindings);
+    taosArrayDestroy(state.scope.pAggregates);
+  }
+  return code;
+}
+
+static void leaveCorrelationScope(STranslateContext* pCxt, const SCorrelationScopeGuard* pGuard) {
+  pCxt->currCorrelationScopeId = pGuard->previousScopeId;
+  pCxt->currClause = pGuard->previousClause;
+  int32_t scopeId = pGuard->hadLevelScope ? pGuard->previousLevelScopeId : 0;
+  if (pCxt->currLevel < (int32_t)taosArrayGetSize(pCxt->pCorrelationScopeLevels)) {
+    taosArraySet(pCxt->pCorrelationScopeLevels, pCxt->currLevel, &scopeId);
+  }
+}
+
+static int32_t registerCorrelationTable(STranslateContext* pCxt, STableNode* pTable) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+
+  SCorrelationScopeState* pScope = getCorrelationScope(pCxt, pCxt->currCorrelationScopeId);
+  if (NULL == pScope) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t numOfTables = (int32_t)taosArrayGetSize(pScope->scope.pTableRefs);
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    SCorrelationTableRef* pTableRef = taosArrayGet(pScope->scope.pTableRefs, i);
+    if (0 == strcmp(pTableRef->tableAlias, pTable->tableAlias)) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SCorrelationTableRef tableRef = {
+      .tableRefId = pCxt->pCorrelation->nextTableRefId++, .scopeId = pScope->scope.scopeId};
+  tstrncpy(tableRef.tableAlias, pTable->tableAlias, sizeof(tableRef.tableAlias));
+  QUERY_CHECK_NULL(taosArrayPush(pScope->scope.pTableRefs, &tableRef), code, lino, _return, terrno);
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
+typedef struct SCollectCorrelationBindingsContext {
+  STranslateContext* pTranslate;
+  int32_t            queryScopeId;
+  SArray*            pBindings;
+  int32_t            code;
+} SCollectCorrelationBindingsContext;
+
+static int32_t addCorrelationFreeBinding(SCollectCorrelationBindingsContext* pCxt,
+                                         const SCorrelationBinding* pBinding) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (!isCorrelationScopeAncestor(pCxt->pTranslate, pBinding->scopeId, pCxt->queryScopeId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numOfBindings = (int32_t)taosArrayGetSize(pCxt->pBindings);
+  for (int32_t i = 0; i < numOfBindings; ++i) {
+    SCorrelationBinding* pExisting = taosArrayGet(pCxt->pBindings, i);
+    if (pExisting->bindingId == pBinding->bindingId) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  QUERY_CHECK_NULL(taosArrayPush(pCxt->pBindings, pBinding), code, lino, _return, terrno);
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
+static EDealRes collectCorrelationBinding(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_OUTER_REF != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  int32_t                             code = TSDB_CODE_SUCCESS;
+  int32_t                             lino = 0;
+  SCollectCorrelationBindingsContext* pCxt = pContext;
+  SOuterRefNode*                       pRef = (SOuterRefNode*)pNode;
+  SCorrelationBindingState*            pBinding = getCorrelationBinding(pCxt->pTranslate, pRef->bindingId);
+  QUERY_CHECK_NULL(pBinding, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->pTranslate->msgBuf, TSDB_CODE_PAR_CORRELATION_BINDING_NOT_FOUND,
+                                           "Correlation binding %" PRId64 " was not found in query scope %d",
+                                           pRef->bindingId, pCxt->queryScopeId));
+  PAR_ERR_JRET(addCorrelationFreeBinding(pCxt, &pBinding->binding));
+  return DEAL_RES_CONTINUE;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  pCxt->code = code;
+  return DEAL_RES_ERROR;
+}
+
+static int32_t finalizeCorrelationScope(STranslateContext* pCxt, SNode* pStmt, int32_t scopeId) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+
+  SCorrelationScopeState* pScope = getCorrelationScope(pCxt, scopeId);
+  QUERY_CHECK_NULL(pScope, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_SCOPE_NOT_FOUND,
+                                           "Correlation scope %d was not found while finalizing the query", scopeId));
+  taosArrayClear(pScope->scope.pFreeBindings);
+  SCollectCorrelationBindingsContext cxt = {
+      .pTranslate = pCxt, .queryScopeId = scopeId, .pBindings = pScope->scope.pFreeBindings, .code = TSDB_CODE_SUCCESS};
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt;
+    nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, collectCorrelationBinding, &cxt);
+    nodesWalkExpr(pSelect->pRange, collectCorrelationBinding, &cxt);
+    nodesWalkExpr(pSelect->pRangeAround, collectCorrelationBinding, &cxt);
+    nodesWalkExpr(pSelect->pEvery, collectCorrelationBinding, &cxt);
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
+    SSetOperator* pSet = (SSetOperator*)pStmt;
+    nodesWalkExprs(pSet->pProjectionList, collectCorrelationBinding, &cxt);
+    nodesWalkExprs(pSet->pOrderByList, collectCorrelationBinding, &cxt);
+  }
+  PAR_ERR_JRET(cxt.code);
+
+  int32_t numOfScopes = (int32_t)taosArrayGetSize(pCxt->pCorrelation->pScopes);
+  for (int32_t i = 0; i < numOfScopes; ++i) {
+    SCorrelationScopeState* pChild = taosArrayGet(pCxt->pCorrelation->pScopes, i);
+    if (pChild->scope.parentScopeId != scopeId) {
+      continue;
+    }
+    int32_t numOfBindings = (int32_t)taosArrayGetSize(pChild->scope.pFreeBindings);
+    for (int32_t j = 0; j < numOfBindings; ++j) {
+      PAR_ERR_JRET(addCorrelationFreeBinding(&cxt, taosArrayGet(pChild->scope.pFreeBindings, j)));
+    }
+  }
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
 
 static bool hasSameTableAlias(SArray* pTables) {
   if (taosArrayGetSize(pTables) < 2) {
@@ -707,6 +1030,9 @@ static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
       }
       ++currTotalLevel;
     } while (currTotalLevel <= pCxt->currLevel);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = registerCorrelationTable(pCxt, (STableNode*)pTable);
   }
   return code;
 }
@@ -1587,6 +1913,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->msgBuf.buf = pParseCxt->pMsg;
   pCxt->msgBuf.len = pParseCxt->msgLen;
   pCxt->pNsLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+  pCxt->pCorrelationScopeLevels = taosArrayInit(TARRAY_MIN_SIZE, sizeof(int32_t));
   pCxt->currLevel = 0;
   pCxt->levelNo = 0;
   pCxt->currClause = 0;
@@ -1597,8 +1924,15 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTargetTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   initStreamInfo(&pCxt->streamInfo);
-  if (NULL == pCxt->pNsLevel || NULL == pCxt->pDbs || NULL == pCxt->pTables || NULL == pCxt->pTargetTables) {
+  if (NULL == pCxt->pNsLevel || NULL == pCxt->pCorrelationScopeLevels || NULL == pCxt->pDbs ||
+      NULL == pCxt->pTables || NULL == pCxt->pTargetTables) {
     return terrno;
+  }
+  if (!isSubCtx) {
+    int32_t code = initCorrelationSemanticContext(pCxt);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
   return isSubCtx ? TSDB_CODE_SUCCESS : nodesMakeList(&pCxt->pSubQueries);
 }
@@ -1647,6 +1981,11 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
       taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
     }
     taosArrayDestroy(pCxt->pNsLevel);
+  }
+
+  taosArrayDestroy(pCxt->pCorrelationScopeLevels);
+  if (pCxt->ownsCorrelationContext) {
+    destroyCorrelationSemanticContext(pCxt->pCorrelation);
   }
 
   if (NULL != pCxt->pCmdMsg) {
@@ -2816,11 +3155,140 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
   return code;
 }
 
+static int64_t getCorrelationTableRefId(STranslateContext* pCxt, int32_t scopeId, const char* pTableAlias) {
+  SCorrelationScopeState* pScope = getCorrelationScope(pCxt, scopeId);
+  if (NULL == pScope) {
+    return 0;
+  }
+  int32_t numOfTables = (int32_t)taosArrayGetSize(pScope->scope.pTableRefs);
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    SCorrelationTableRef* pTableRef = taosArrayGet(pScope->scope.pTableRefs, i);
+    if (0 == strcmp(pTableRef->tableAlias, pTableAlias)) {
+      return pTableRef->tableRefId;
+    }
+  }
+  return 0;
+}
+
+static int32_t getOrCreateCorrelationColumnBinding(STranslateContext* pCxt, int32_t scopeId, int64_t tableRefId,
+                                                   SColumnNode* pCol, SCorrelationBindingState** ppBinding) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  SCorrelationBindingState state = {0};
+
+  SCorrelationScopeState*  pScope = getCorrelationScope(pCxt, scopeId);
+  QUERY_CHECK_NULL(pScope, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_SCOPE_NOT_FOUND,
+                                           "Correlation scope %d was not found for column '%s.%s'", scopeId,
+                                           pCol->tableAlias, pCol->colName));
+  if (tableRefId <= 0) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_TABLE_REF_NOT_FOUND,
+                                         "Table reference %" PRId64 " is invalid for outer column '%s.%s' in scope %d",
+                                         tableRefId, pCol->tableAlias, pCol->colName, scopeId));
+  }
+  int32_t numOfBindings = (int32_t)taosArrayGetSize(pCxt->pCorrelation->pBindings);
+  for (int32_t i = 0; i < numOfBindings; ++i) {
+    SCorrelationBindingState* pBinding = taosArrayGet(pCxt->pCorrelation->pBindings, i);
+    if (pBinding->binding.scopeId == scopeId && pBinding->binding.tableRefId == tableRefId &&
+        pBinding->binding.colId == pCol->colId) {
+      *ppBinding = pBinding;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  state.binding.bindingId = pCxt->pCorrelation->nextBindingId++;
+  state.binding.scopeId = scopeId;
+  state.binding.tableRefId = tableRefId;
+  state.binding.colId = pCol->colId;
+  state.binding.dataType = pCol->node.resType;
+  tstrncpy(state.tableAlias, pCol->tableAlias, sizeof(state.tableAlias));
+  tstrncpy(state.colName, pCol->colName, sizeof(state.colName));
+  PAR_ERR_JRET(nodesCloneNode((SNode*)pCol, &state.pSource));
+  QUERY_CHECK_NULL(taosArrayPush(pScope->scope.pBindings, &state.binding), code, lino, _return, terrno);
+  QUERY_CHECK_NULL(taosArrayPush(pCxt->pCorrelation->pBindings, &state), code, lino, _return, terrno);
+  *ppBinding = taosArrayGet(pCxt->pCorrelation->pBindings,
+                            taosArrayGetSize(pCxt->pCorrelation->pBindings) - 1);
+  state.pSource = NULL;
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  nodesDestroyNode(state.pSource);
+  return code;
+}
+
+static int32_t makeOuterRefNode(const SCorrelationBindingState* pBinding, const SExprNode* pOriginal,
+                                SOuterRefNode** ppRef) {
+  SOuterRefNode* pRef = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_OUTER_REF, (SNode**)&pRef);
+  PAR_ERR_JRET(code);
+  pRef->scopeId = pBinding->binding.scopeId;
+  pRef->bindingId = pBinding->binding.bindingId;
+  pRef->tableRefId = pBinding->binding.tableRefId;
+  pRef->node.resType = pBinding->binding.dataType;
+  tstrncpy(pRef->tableAlias, pBinding->tableAlias, sizeof(pRef->tableAlias));
+  tstrncpy(pRef->colName, pBinding->colName, sizeof(pRef->colName));
+  if (NULL != pOriginal) {
+    tstrncpy(pRef->node.aliasName, pOriginal->aliasName, sizeof(pRef->node.aliasName));
+    tstrncpy(pRef->node.userAlias, pOriginal->userAlias, sizeof(pRef->node.userAlias));
+    tstrncpy(pRef->node.srcTable, pOriginal->srcTable, sizeof(pRef->node.srcTable));
+    pRef->node.asAlias = pOriginal->asAlias;
+    pRef->node.asParam = pOriginal->asParam;
+    pRef->node.asPosition = pOriginal->asPosition;
+  }
+  *ppRef = pRef;
+  pRef = NULL;
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  nodesDestroyNode((SNode*)pRef);
+  return code;
+}
+
+static EDealRes bindOuterColumn(STranslateContext* pCxt, SColumnNode** pCol, int32_t resolvedLevel,
+                                STableNode* pTable) {
+  if (resolvedLevel == pCxt->currLevel) {
+    return DEAL_RES_CONTINUE;
+  }
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   scopeId = getCorrelationScopeAtLevel(pCxt, resolvedLevel);
+  int64_t                   tableRefId = getCorrelationTableRefId(pCxt, scopeId, pTable->tableAlias);
+  SCorrelationBindingState* pBinding = NULL;
+  SOuterRefNode*             pRef = NULL;
+
+  if (scopeId <= 0) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_SCOPE_NOT_FOUND,
+                                         "No correlation scope for outer column '%s.%s' at query level %d",
+                                         pTable->tableAlias, (*pCol)->colName, resolvedLevel));
+  }
+  if (tableRefId <= 0) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_TABLE_REF_NOT_FOUND,
+                                         "Outer table alias '%s' is not registered in correlation scope %d",
+                                         pTable->tableAlias, scopeId));
+  }
+
+  PAR_ERR_JRET(getOrCreateCorrelationColumnBinding(pCxt, scopeId, tableRefId, *pCol, &pBinding));
+  PAR_ERR_JRET(makeOuterRefNode(pBinding, &(*pCol)->node, &pRef));
+  nodesDestroyNode((SNode*)*pCol);
+  *(SNode**)pCol = (SNode*)pRef;
+  pRef = NULL;
+  return DEAL_RES_CONTINUE;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  pCxt->errCode = code;
+  nodesDestroyNode((SNode*)pRef);
+  return DEAL_RES_ERROR;
+}
+
 static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode** pCol) {
   int32_t currLevel = pCxt->currLevel;
   while (currLevel >= 0) {
-    SArray* pTables = taosArrayGetP(pCxt->pNsLevel, currLevel);
-    size_t  nums = taosArrayGetSize(pTables);
+    SArray* pTables = currLevel < (int32_t)taosArrayGetSize(pCxt->pNsLevel)
+                          ? taosArrayGetP(pCxt->pNsLevel, currLevel)
+                          : NULL;
+    size_t  nums = NULL == pTables ? 0 : taosArrayGetSize(pTables);
     bool    foundTable = false;
     for (size_t i = 0; i < nums; ++i) {
       STableNode* pTable = taosArrayGetP(pTables, i);
@@ -2832,7 +3300,7 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
           return DEAL_RES_ERROR;
         }
         if (foundCol) {
-          break;
+          return bindOuterColumn(pCxt, pCol, currLevel, pTable);
         }
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
       }
@@ -2858,38 +3326,33 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
 
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, (*pCol)->tableAlias);
     }
-
-    break;
   }
-
-  if (pCxt->isExprSubQ && currLevel != pCxt->currLevel) {
-    pCxt->isCorrelatedSubQ = true;
-  }
-
-  return DEAL_RES_CONTINUE;
+  return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, (*pCol)->tableAlias);
 }
 
 /**
   translate column in tables without table prefix
  */
-static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNode** pCol, bool* pFound) {
-  SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
-  size_t  nums = taosArrayGetSize(pTables);
+static EDealRes translateColumnWithoutPrefixAtLevel(STranslateContext* pCxt, SColumnNode** pCol, int32_t level,
+                                                    bool* pFound, STableNode** ppTable) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pTables = level < (int32_t)taosArrayGetSize(pCxt->pNsLevel) ? taosArrayGetP(pCxt->pNsLevel, level) : NULL;
+  size_t  nums = NULL == pTables ? 0 : taosArrayGetSize(pTables);
   bool    isInternalPk = isInternalPrimaryKey(*pCol);
   *pFound = false;
+  *ppTable = NULL;
 
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
     bool        foundCol = false;
-    pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol, false);
-    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-      return DEAL_RES_ERROR;
-    }
+    PAR_ERR_JRET(findAndSetColumn(pCxt, pCol, pTable, &foundCol, false));
     if (foundCol) {
       if (*pFound) {
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, (*pCol)->colName);
+        generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, (*pCol)->colName);
+        PAR_ERR_JRET(pCxt->errCode);
       }
       *pFound = true;
+      *ppTable = pTable;
     }
     if (isInternalPk) {  // this value should be updated
       break;
@@ -2897,28 +3360,29 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
   }
 
   return DEAL_RES_CONTINUE;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  pCxt->errCode = code;
+  return DEAL_RES_ERROR;
+}
+
+static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNode** pCol, bool* pFound) {
+  STableNode* pTable = NULL;
+  return translateColumnWithoutPrefixAtLevel(pCxt, pCol, pCxt->currLevel, pFound, &pTable);
 }
 
 static EDealRes translateSubQColumnWithoutPrefix(STranslateContext* pCxt, SColumnNode** pCol, bool* pFound) {
-  int32_t currLevel = pCxt->currLevel--;
-  while (pCxt->currLevel >= 0) {
-    EDealRes res = translateColumnWithoutPrefix(pCxt, pCol, pFound);
+  for (int32_t level = pCxt->currLevel - 1; level >= 0; --level) {
+    STableNode* pTable = NULL;
+    EDealRes res = translateColumnWithoutPrefixAtLevel(pCxt, pCol, level, pFound, &pTable);
     if (DEAL_RES_ERROR == res) {
-      pCxt->currLevel = currLevel;
       return res;
     }
-
-    if (false == *pFound) {
-      pCxt->currLevel--;
-      continue;
+    if (*pFound) {
+      return bindOuterColumn(pCxt, pCol, level, pTable);
     }
-
-    pCxt->isCorrelatedSubQ = true;
-    break;
   }
-
-  pCxt->currLevel = currLevel;
-
   return DEAL_RES_CONTINUE;
 }
 
@@ -3318,6 +3782,9 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
       res = translateColumnUseAlias(pCxt, pCol, &found);
       *translateAsAlias = true;
     }
+    if (!found && res != DEAL_RES_ERROR && pCxt->isExprSubQ) {
+      res = translateSubQColumnWithoutPrefix(pCxt, pCol, &found);
+    }
     if (!found && res != DEAL_RES_ERROR) {
       if (isInternalPrimaryKey(*pCol)) {
         if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
@@ -3552,6 +4019,104 @@ static const char* getStmtOrigSubquerySql(const SNode* pStmt) {
     return ((const SSetOperator*)pStmt)->pOrigSubquerySql;
   }
   return NULL;
+}
+
+static int32_t createCorrelationParamBinding(STranslateContext* pCxt, int32_t paramId,
+                                             const SCorrelationBinding* pSemanticBinding,
+                                             SCorrelationParamBindingNode** ppBinding) {
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       lino = 0;
+  SCorrelationParamBindingNode* pBinding = NULL;
+
+  SCorrelationBindingState*     pState = getCorrelationBinding(pCxt, pSemanticBinding->bindingId);
+  QUERY_CHECK_NULL(pState, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_BINDING_NOT_FOUND,
+                                           "Correlation binding %" PRId64 " was not found for parameter %d",
+                                           pSemanticBinding->bindingId, paramId));
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, (SNode**)&pBinding));
+  pBinding->paramId = paramId;
+  pBinding->dataType = pSemanticBinding->dataType;
+  pBinding->sourceKind = CORRELATION_SOURCE_LOGICAL;
+  pBinding->scopeId = pSemanticBinding->scopeId;
+  pBinding->bindingId = pSemanticBinding->bindingId;
+  pBinding->tableRefId = pSemanticBinding->tableRefId;
+  if (pSemanticBinding->scopeId == pCxt->currCorrelationScopeId) {
+    code = nodesCloneNode(pState->pSource, &pBinding->pSource);
+  } else if (isCorrelationScopeAncestor(pCxt, pSemanticBinding->scopeId, pCxt->currCorrelationScopeId)) {
+    code = makeOuterRefNode(pState, NULL, (SOuterRefNode**)&pBinding->pSource);
+  } else {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_BINDING_SCOPE_NOT_VISIBLE,
+                                   "Binding %" PRId64 " belongs to scope %d, which is not visible from scope %d",
+                                   pSemanticBinding->bindingId, pSemanticBinding->scopeId,
+                                   pCxt->currCorrelationScopeId);
+  }
+  PAR_ERR_JRET(code);
+  *ppBinding = pBinding;
+  pBinding = NULL;
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  nodesDestroyNode((SNode*)pBinding);
+  return code;
+}
+
+static int32_t replaceCorrelatedExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  SCorrelatedSubqueryNode* pCorrelated = NULL;
+
+  PAR_ERR_JRET(validateExprSubQuery(pSubQuery));
+  SCorrelationScopeState* pScope = getCorrelationScope(pCxt, pCxt->subqueryCorrelationScopeId);
+  QUERY_CHECK_NULL(pScope, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_SCOPE_NOT_FOUND,
+                                           "Correlation scope %d was not found for subquery expression %" PRId64,
+                                           pCxt->subqueryCorrelationScopeId, pCxt->subqueryCorrelationExprId));
+  if (pScope->scope.exprId != pCxt->subqueryCorrelationExprId) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_EXPR_SCOPE_MISMATCH,
+                                         "Subquery expression %" PRId64 " does not match expression %" PRId64
+                                         " recorded in scope %d",
+                                         pCxt->subqueryCorrelationExprId, pScope->scope.exprId,
+                                         pScope->scope.scopeId));
+  }
+  if (0 == taosArrayGetSize(pScope->scope.pFreeBindings)) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_FREE_BINDINGS_MISSING,
+                                         "Correlated subquery expression %" PRId64 " has no outer bindings in scope %d",
+                                         pCxt->subqueryCorrelationExprId, pScope->scope.scopeId));
+  }
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_CORRELATED_SUBQUERY, (SNode**)&pCorrelated));
+  pCorrelated->templateId = pCxt->pSubQueries->length - 1;
+  pCorrelated->exprId = pCxt->subqueryCorrelationExprId;
+  pCorrelated->scopeId = pScope->scope.scopeId;
+  pCorrelated->parentScopeId = pScope->scope.parentScopeId;
+  pCorrelated->node.resType = ((SExprNode*)pSubQuery)->resType;
+  getExprSubQueryResType(pSubQuery, &pCorrelated->node.resType);
+  tstrncpy(pCorrelated->node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pCorrelated->node.aliasName));
+  tstrncpy(pCorrelated->node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pCorrelated->node.userAlias));
+  const char* pOrigSql = getStmtOrigSubquerySql(pSubQuery);
+  if (NULL != pOrigSql) {
+    pCorrelated->pSubquerySql = taosStrdup(pOrigSql);
+    QUERY_CHECK_NULL(pCorrelated->pSubquerySql, code, lino, _return, terrno);
+  }
+
+  int32_t numOfBindings = (int32_t)taosArrayGetSize(pScope->scope.pFreeBindings);
+  for (int32_t i = 0; i < numOfBindings; ++i) {
+    SCorrelationParamBindingNode* pBinding = NULL;
+    PAR_ERR_JRET(createCorrelationParamBinding(pCxt, i, taosArrayGet(pScope->scope.pFreeBindings, i), &pBinding));
+    code = nodesListMakeStrictAppend(&pCorrelated->pParamBindings, (SNode*)pBinding);
+    pBinding = NULL;
+    PAR_ERR_JRET(code);
+  }
+  *pNode = (SNode*)pCorrelated;
+  pCorrelated = NULL;
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  nodesDestroyNode((SNode*)pCorrelated);
+  return code;
 }
 
 static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery, int32_t rewriteType) {
@@ -6454,20 +7019,45 @@ static int32_t rewriteQueryTimeFunc(STranslateContext* pCxt, int64_t val, SNode*
   return code;
 }
 
+static int32_t rewriteDeferredQueryTimeFunc(STranslateContext* pCxt, SNode** pNode, int32_t flag) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char*   pLiteral = taosStrdup("0");
+  QUERY_CHECK_NULL(pLiteral, code, lino, _return, terrno);
+  PAR_ERR_JRET(rewriteFuncToValue(pCxt, &pLiteral, pNode));
+  ((SValueNode*)*pNode)->flag |= flag;
+  return code;
+
+_return:
+  parserError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  taosMemoryFree(pLiteral);
+  return code;
+}
+
 static int32_t rewriteQstartFunc(STranslateContext* pCxt, SNode** pNode) {
+  if (((SSelectStmt*)pCxt->pCurrStmt)->timeRangeParamDependent) {
+    return rewriteDeferredQueryTimeFunc(pCxt, pNode, VALUE_FLAG_DEFERRED_QSTART);
+  }
   return rewriteQueryTimeFunc(pCxt, ((SSelectStmt*)pCxt->pCurrStmt)->timeRange.skey, pNode);
 }
 
 static int32_t rewriteQendFunc(STranslateContext* pCxt, SNode** pNode) {
+  if (((SSelectStmt*)pCxt->pCurrStmt)->timeRangeParamDependent) {
+    return rewriteDeferredQueryTimeFunc(pCxt, pNode, VALUE_FLAG_DEFERRED_QEND);
+  }
   return rewriteQueryTimeFunc(pCxt, ((SSelectStmt*)pCxt->pCurrStmt)->timeRange.ekey, pNode);
 }
 
 static int32_t rewriteQdurationFunc(STranslateContext* pCxt, SNode** pNode) {
-  STimeWindow range = ((SSelectStmt*)pCxt->pCurrStmt)->timeRange;
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  if (pSelect->timeRangeParamDependent) {
+    return rewriteDeferredQueryTimeFunc(pCxt, pNode, VALUE_FLAG_DEFERRED_QDURATION);
+  }
+  STimeWindow range = pSelect->timeRange;
   if (INT64_MIN == range.skey || INT64_MAX == range.ekey) {
     return rewriteQueryTimeFunc(pCxt, INT64_MIN, pNode);
   }
-  return rewriteQueryTimeFunc(pCxt, range.ekey - range.skey + 1, pNode);
+  return rewriteQueryTimeFunc(pCxt, (int64_t)((uint64_t)range.ekey - (uint64_t)range.skey + 1), pNode);
 }
 
 static int32_t rewriteClientPseudoColumnFunc(STranslateContext* pCxt, SNode** pNode) {
@@ -6610,6 +7200,285 @@ static bool isSqlWindowFunctionNode(const SFunctionNode* pFunc) {
          (fmIsSqlWindowFunc(pFunc->functionName) || fmCanUseAsSqlWindowAgg(pFunc->functionName));
 }
 
+static int32_t correlationScopeDistance(STranslateContext* pCxt, int32_t scopeId, int32_t ancestorScopeId) {
+  int32_t distance = 0;
+  while (scopeId > 0) {
+    if (scopeId == ancestorScopeId) {
+      return distance;
+    }
+    SCorrelationScopeState* pScope = getCorrelationScope(pCxt, scopeId);
+    if (NULL == pScope) {
+      break;
+    }
+    scopeId = pScope->scope.parentScopeId;
+    ++distance;
+  }
+  return INT32_MAX;
+}
+
+typedef struct SAggregateBindingContext {
+  STranslateContext* pTranslate;
+  int32_t            currentScopeId;
+  int32_t            nearestScopeId;
+  int32_t            nearestDistance;
+  bool               hasLocalBinding;
+  bool               localHasAggregate;
+  bool               nearestHasAggregate;
+} SAggregateBindingContext;
+
+static EDealRes collectAggregateBinding(SNode* pNode, void* pContext) {
+  SAggregateBindingContext* pCxt = pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    pCxt->hasLocalBinding = true;
+    return DEAL_RES_CONTINUE;
+  }
+  if (QUERY_NODE_OUTER_REF != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SOuterRefNode* pRef = (SOuterRefNode*)pNode;
+  int32_t distance = correlationScopeDistance(pCxt->pTranslate, pCxt->currentScopeId, pRef->scopeId);
+  if (0 == distance) {
+    pCxt->hasLocalBinding = true;
+    pCxt->localHasAggregate = pCxt->localHasAggregate || 0 == pRef->tableRefId;
+  } else if (distance < pCxt->nearestDistance) {
+    pCxt->nearestScopeId = pRef->scopeId;
+    pCxt->nearestDistance = distance;
+    pCxt->nearestHasAggregate = 0 == pRef->tableRefId;
+  } else if (distance == pCxt->nearestDistance) {
+    pCxt->nearestHasAggregate = pCxt->nearestHasAggregate || 0 == pRef->tableRefId;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static ESqlClause getAggregateOwnerClause(STranslateContext* pCxt, int32_t currentScopeId, int32_t ownerScopeId) {
+  if (currentScopeId == ownerScopeId) {
+    return pCxt->currClause;
+  }
+  SCorrelationScopeState* pScope = getCorrelationScope(pCxt, currentScopeId);
+  while (NULL != pScope && pScope->scope.parentScopeId != ownerScopeId) {
+    pScope = getCorrelationScope(pCxt, pScope->scope.parentScopeId);
+  }
+  return NULL == pScope ? 0 : pScope->scope.clause;
+}
+
+typedef struct SLocalizeAggregateContext {
+  STranslateContext* pTranslate;
+  int32_t            ownerScopeId;
+  int32_t            code;
+} SLocalizeAggregateContext;
+
+static EDealRes localizeAggregateOuterRef(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_OUTER_REF != nodeType(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SOuterRefNode*             pRef = (SOuterRefNode*)*pNode;
+  SLocalizeAggregateContext* pCxt = pContext;
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    lino = 0;
+  SNode*                     pLocal = NULL;
+
+  if (pRef->scopeId != pCxt->ownerScopeId) {
+    return DEAL_RES_CONTINUE;
+  }
+  if (0 == pRef->tableRefId) {
+    PAR_ERR_JRET(TSDB_CODE_PAR_AGG_FUNC_NESTING);
+  }
+  SCorrelationBindingState* pBinding = getCorrelationBinding(pCxt->pTranslate, pRef->bindingId);
+  QUERY_CHECK_NULL(pBinding, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->pTranslate->msgBuf, TSDB_CODE_PAR_CORRELATION_BINDING_NOT_FOUND,
+                                           "Aggregate binding %" PRId64 " was not found in owner scope %d",
+                                           pRef->bindingId, pCxt->ownerScopeId));
+  QUERY_CHECK_NULL(pBinding->pSource, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->pTranslate->msgBuf,
+                                           TSDB_CODE_PAR_CORRELATION_AGG_BINDING_SOURCE_INVALID,
+                                           "Aggregate binding %" PRId64 " has no source column in scope %d",
+                                           pRef->bindingId, pCxt->ownerScopeId));
+  if (QUERY_NODE_COLUMN != nodeType(pBinding->pSource)) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->pTranslate->msgBuf,
+                                         TSDB_CODE_PAR_CORRELATION_AGG_BINDING_SOURCE_INVALID,
+                                         "Aggregate binding %" PRId64 " has source node type %d instead of a column",
+                                         pRef->bindingId, nodeType(pBinding->pSource)));
+  }
+  PAR_ERR_JRET(nodesCloneNode(pBinding->pSource, &pLocal));
+  nodesDestroyNode(*pNode);
+  *pNode = pLocal;
+  pLocal = NULL;
+  return DEAL_RES_CONTINUE;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  pCxt->code = code;
+  nodesDestroyNode(pLocal);
+  return DEAL_RES_ERROR;
+}
+
+static int32_t translateLiftedAggregate(STranslateContext* pCxt, SNode** ppAggregate, int32_t ownerScopeId,
+                                        ESqlClause ownerClause) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  SNode*                  pSavedStmt = NULL;
+  ESqlClause              savedClause = 0;
+  int32_t                 savedLevel = 0;
+  int32_t                 savedScopeId = 0;
+  bool                    savedDual = false;
+  bool                    contextChanged = false;
+
+  SCorrelationScopeState* pOwner = getCorrelationScope(pCxt, ownerScopeId);
+  QUERY_CHECK_NULL(pOwner, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_SCOPE_NOT_FOUND,
+                                           "Aggregate owner scope %d was not found", ownerScopeId));
+  QUERY_CHECK_NULL(pOwner->pStmt, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_AGG_OWNER_NOT_SELECT,
+                                           "Aggregate owner scope %d has no query statement", ownerScopeId));
+  if (QUERY_NODE_SELECT_STMT != nodeType(pOwner->pStmt)) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_AGG_OWNER_NOT_SELECT,
+                                         "Aggregate owner scope %d contains statement type %d instead of SELECT",
+                                         ownerScopeId, nodeType(pOwner->pStmt)));
+  }
+
+  SLocalizeAggregateContext localize = {
+      .pTranslate = pCxt, .ownerScopeId = ownerScopeId, .code = TSDB_CODE_SUCCESS};
+  nodesRewriteExprs(((SFunctionNode*)*ppAggregate)->pParameterList, localizeAggregateOuterRef, &localize);
+  PAR_ERR_JRET(localize.code);
+
+  pSavedStmt = pCxt->pCurrStmt;
+  savedClause = pCxt->currClause;
+  savedLevel = pCxt->currLevel;
+  savedScopeId = pCxt->currCorrelationScopeId;
+  savedDual = pCxt->dual;
+  pCxt->pCurrStmt = pOwner->pStmt;
+  pCxt->currClause = ownerClause;
+  pCxt->currLevel = pOwner->level;
+  pCxt->currCorrelationScopeId = ownerScopeId;
+  pCxt->dual = NULL == ((SSelectStmt*)pOwner->pStmt)->pFromTable;
+  contextChanged = true;
+  PAR_ERR_JRET(getFuncInfo(pCxt, (SFunctionNode*)*ppAggregate));
+  PAR_ERR_JRET(translateNormalFunction(pCxt, ppAggregate));
+
+_return:
+  if (contextChanged) {
+    pCxt->pCurrStmt = pSavedStmt;
+    pCxt->currClause = savedClause;
+    pCxt->currLevel = savedLevel;
+    pCxt->currCorrelationScopeId = savedScopeId;
+    pCxt->dual = savedDual;
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t registerLiftedAggregate(STranslateContext* pCxt, SFunctionNode** pFunc, int32_t ownerScopeId,
+                                       ESqlClause ownerClause) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  SNode*                   pLifted = NULL;
+  SNode*                   pAggregateRecord = NULL;
+  SCorrelationBindingState binding = {0};
+  SOuterRefNode*           pReplacement = NULL;
+
+  SCorrelationScopeState*  pOwner = getCorrelationScope(pCxt, ownerScopeId);
+  QUERY_CHECK_NULL(pOwner, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_SCOPE_NOT_FOUND,
+                                           "Aggregate owner scope %d was not found while registering the binding",
+                                           ownerScopeId));
+  SSelectStmt*             pOwnerSelect = (SSelectStmt*)pOwner->pStmt;
+  QUERY_CHECK_NULL(pOwnerSelect, code, lino, _return,
+                   generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_AGG_OWNER_NOT_SELECT,
+                                           "Aggregate owner scope %d has no SELECT query statement", ownerScopeId));
+  if (QUERY_NODE_SELECT_STMT != nodeType(pOwner->pStmt)) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_AGG_OWNER_NOT_SELECT,
+                                         "Aggregate owner scope %d contains statement type %d instead of SELECT",
+                                         ownerScopeId, nodeType(pOwner->pStmt)));
+  }
+
+  PAR_ERR_JRET(nodesCloneNode((SNode*)*pFunc, &pLifted));
+  PAR_ERR_JRET(translateLiftedAggregate(pCxt, &pLifted, ownerScopeId, ownerClause));
+
+  int64_t aggregateId = pCxt->pCorrelation->nextAggregateId++;
+  int64_t bindingId = pCxt->pCorrelation->nextBindingId++;
+  char    resultName[TSDB_COL_NAME_LEN] = {0};
+  snprintf(resultName, sizeof(resultName), "__corr_agg_%" PRId64, bindingId);
+  tstrncpy(((SExprNode*)pLifted)->aliasName, resultName, sizeof(((SExprNode*)pLifted)->aliasName));
+  tstrncpy(((SExprNode*)pLifted)->userAlias, resultName, sizeof(((SExprNode*)pLifted)->userAlias));
+
+  PAR_ERR_JRET(nodesCloneNode(pLifted, &pAggregateRecord));
+
+  binding.binding.bindingId = bindingId;
+  binding.binding.scopeId = ownerScopeId;
+  binding.binding.tableRefId = 0;
+  binding.binding.aggregateId = aggregateId;
+  binding.binding.dataType = ((SExprNode*)pLifted)->resType;
+  tstrncpy(binding.colName, resultName, sizeof(binding.colName));
+  PAR_ERR_JRET(makeOuterRefNode(&binding, NULL, (SOuterRefNode**)&binding.pSource));
+
+  PAR_ERR_JRET(makeOuterRefNode(&binding, &(*pFunc)->node, &pReplacement));
+
+  SCorrelationAggregate aggregate = {.aggregateId = aggregateId, .clause = ownerClause, .pExpr = pAggregateRecord};
+  QUERY_CHECK_NULL(taosArrayPush(pOwner->scope.pAggregates, &aggregate), code, lino, _return, terrno);
+  pAggregateRecord = NULL;
+  QUERY_CHECK_NULL(taosArrayPush(pOwner->scope.pBindings, &binding.binding), code, lino, _return, terrno);
+  QUERY_CHECK_NULL(taosArrayPush(pCxt->pCorrelation->pBindings, &binding), code, lino, _return, terrno);
+  binding.pSource = NULL;
+  code = nodesListMakeStrictAppend(&pOwnerSelect->pProjectionBindList, pLifted);
+  pLifted = NULL;
+  PAR_ERR_JRET(code);
+
+  nodesDestroyNode((SNode*)*pFunc);
+  *(SNode**)pFunc = (SNode*)pReplacement;
+  pReplacement = NULL;
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  nodesDestroyNode((SNode*)pReplacement);
+  nodesDestroyNode(binding.pSource);
+  nodesDestroyNode(pAggregateRecord);
+  nodesDestroyNode(pLifted);
+  return code;
+}
+
+static int32_t translateCorrelationAggregate(STranslateContext* pCxt, SFunctionNode** pFunc, bool* pLifted) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  *pLifted = false;
+  if (NULL != (*pFunc)->pOver || !fmIsAggFunc((*pFunc)->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SAggregateBindingContext bindings = {.pTranslate = pCxt,
+                                       .currentScopeId = pCxt->currCorrelationScopeId,
+                                       .nearestScopeId = 0,
+                                       .nearestDistance = INT32_MAX};
+  nodesWalkExprs((*pFunc)->pParameterList, collectAggregateBinding, &bindings);
+  int32_t ownerScopeId = bindings.hasLocalBinding || 0 == bindings.nearestScopeId
+                             ? pCxt->currCorrelationScopeId
+                             : bindings.nearestScopeId;
+  if ((bindings.hasLocalBinding && bindings.localHasAggregate) ||
+      (!bindings.hasLocalBinding && bindings.nearestHasAggregate && ownerScopeId == bindings.nearestScopeId)) {
+    PAR_ERR_JRET(TSDB_CODE_PAR_AGG_FUNC_NESTING);
+  }
+  if (ownerScopeId == pCxt->currCorrelationScopeId) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ESqlClause ownerClause = getAggregateOwnerClause(pCxt, pCxt->currCorrelationScopeId, ownerScopeId);
+  if (0 == ownerClause) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_CORRELATION_AGG_OWNER_CLAUSE_NOT_FOUND,
+                                         "No owning SQL clause was found between correlation scopes %d and %d",
+                                         pCxt->currCorrelationScopeId, ownerScopeId));
+  }
+  PAR_ERR_JRET(registerLiftedAggregate(pCxt, pFunc, ownerScopeId, ownerClause));
+  *pLifted = true;
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
   if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
@@ -6652,6 +7521,18 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && (*pFunc)->isDistinct) {
     pCxt->errCode = validateDistinctFunc(pCxt, *pFunc);
+  }
+  bool aggregateLifted = false;
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = translateCorrelationAggregate(pCxt, pFunc, &aggregateLifted);
+    if (TSDB_CODE_PAR_AGG_FUNC_NESTING == pCxt->errCode) {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING,
+                                              "Aggregate function '%s' cannot contain another aggregate",
+                                              (*pFunc)->functionName);
+    }
+  }
+  if (TSDB_CODE_SUCCESS != pCxt->errCode || aggregateLifted) {
+    return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     if ((SQL_CLAUSE_GROUP_BY == pCxt->currClause || SQL_CLAUSE_PARTITION_BY == pCxt->currClause) &&
@@ -6736,6 +7617,14 @@ static bool scalarSubqueryHasNestedExprSubquery(SNode* pNode) {
 }
 
 static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
+  if (isDeleteStmt(pCxt->pCurrStmt)) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
+                                            "Subqueries are not supported in DELETE WHERE");
+    return DEAL_RES_ERROR;
+  }
+
+  SNode* pSubquery = *pNode;
+  bool   appendedToSubqueries = false;
   bool subqHasFrom = (QUERY_NODE_SELECT_STMT == nodeType(*pNode)) &&
                      (NULL != ((SSelectStmt*)*pNode)->pFromTable);
   if (pCxt->dual && !pCxt->isExprSubQ && !subqHasFrom) {
@@ -6750,17 +7639,33 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = updateExprSubQueryType(*pNode, &pCxt->expSubQueryType);
   }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->isExprSubQ && pCxt->dual &&
+      E_SUB_QUERY_COLUMN == pCxt->expSubQueryType) {
+    parserError("quantified subquery not supported in expression subquery without FROM");
+    pCxt->errCode = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+  }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = translateExprSubqueryImpl(pCxt, *pNode);
+    appendedToSubqueries = (TSDB_CODE_SUCCESS == pCxt->errCode);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_SCALAR == pCxt->expSubQueryType) {
-    pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);
+    if (pCxt->subqueryIsCorrelated) {
+      pCxt->errCode = replaceCorrelatedExprSubQuery(pCxt, pNode, *pNode);
+    } else {
+      pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);
+    }
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_TABLE == pCxt->expSubQueryType) {
     pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_COLUMN == pCxt->expSubQueryType) {
     pCxt->errCode = updateSubQResType(*pNode);
+  }
+
+  if (TSDB_CODE_SUCCESS != pCxt->errCode && appendedToSubqueries && *pNode == pSubquery &&
+      pCxt->pSubQueries->pTail->pNode == pSubquery) {
+    pCxt->pSubQueries->pTail->pNode = NULL;
+    nodesListErase(pCxt->pSubQueries, pCxt->pSubQueries->pTail);
   }
 
   return (TSDB_CODE_SUCCESS == pCxt->errCode) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
@@ -14217,6 +15122,68 @@ _return:
   return code;
 }
 
+static EDealRes findCorrelationTimeParam(SNode* pNode, void* pContext) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      return DEAL_RES_IGNORE_CHILD;
+    default:
+      return DEAL_RES_CONTINUE;
+  }
+}
+
+typedef struct STimeRangeDependencyContext {
+  bool depends;
+  bool primaryOnly;
+} STimeRangeDependencyContext;
+
+static bool isRangeTimeColumn(SNode* pNode, bool primaryOnly) {
+  if (NULL == pNode || QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return false;
+  }
+  const SColumnNode* pCol = (const SColumnNode*)pNode;
+  return COLUMN_TYPE_COLUMN == pCol->colType && TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type &&
+         (!primaryOnly || PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId || pCol->isPrimTs);
+}
+
+static EDealRes findParamDependentTimeBound(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_OPERATOR != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  STimeRangeDependencyContext* pDependency = (STimeRangeDependencyContext*)pContext;
+  SOperatorNode* pOp = (SOperatorNode*)pNode;
+  if ((pOp->opType < OP_TYPE_GREATER_THAN || pOp->opType > OP_TYPE_EQUAL) &&
+      OP_TYPE_IN != pOp->opType) {
+    return DEAL_RES_CONTINUE;
+  }
+  SNode* pOther = NULL;
+  if (isRangeTimeColumn(pOp->pLeft, pDependency->primaryOnly)) {
+    pOther = pOp->pRight;
+  } else if (isRangeTimeColumn(pOp->pRight, pDependency->primaryOnly)) {
+    pOther = pOp->pLeft;
+  }
+  if (NULL == pOther) {
+    return DEAL_RES_CONTINUE;
+  }
+  bool hasParam = false;
+  nodesWalkExpr(pOther, findCorrelationTimeParam, &hasParam);
+  if (hasParam) {
+    pDependency->depends = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool queryTimeRangeDependsOnParam(SNode* pCond, bool primaryOnly) {
+  STimeRangeDependencyContext dependency = {.depends = false, .primaryOnly = primaryOnly};
+  nodesWalkExpr(pCond, findParamDependentTimeBound, &dependency);
+  return dependency.depends;
+}
+
 static int32_t translateSurroundingTime(STranslateContext* pCxt, SNode* pSurroundingTime) {
   if (pSurroundingTime != NULL) {
     const SValueNode* pSurroundingTimeVal = (SValueNode*)pSurroundingTime;
@@ -14240,7 +15207,7 @@ static int32_t translateSurroundingTime(STranslateContext* pCxt, SNode* pSurroun
 }
 
 static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval, bool isInterpFill,
-                         bool allowNoTimeRange, uint8_t precision) {
+                         bool allowNoTimeRange, uint8_t precision, bool deferTimeRange) {
   if (FILL_MODE_NONE == pFill->mode) {
     if (isInterpFill) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Unsupported fill type");
@@ -14256,7 +15223,7 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) && !pFill->pTimeRange) {
+  if (!deferTimeRange && TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) && !pFill->pTimeRange) {
     if (allowNoTimeRange) {
       return TSDB_CODE_SUCCESS;
     }
@@ -14269,32 +15236,22 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
                                    "Start and End time of query range required ");
   }
 
+  if (deferTimeRange) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_DESC_INITIALIZER)) {
     return TSDB_CODE_SUCCESS;
   }
 
   // interp FILL clause
-  if (NULL == pInterval) {
+  if (NULL == pInterval || inStreamCalcClause(pCxt)) {
     return TSDB_CODE_SUCCESS;
   }
-  int64_t timeRange = 0;
-  int64_t intervalRange = 0;
-  int64_t res = int64SafeSub(pFill->timeRange.skey, pFill->timeRange.ekey);
-  timeRange = res < 0 ? res == INT64_MIN ? INT64_MAX : -res : res;
-  if (IS_CALENDAR_TIME_DURATION(pInterval->unit)) {
-    int64_t f = 1;
-    int64_t tickPerDay = convertTimePrecision(MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, precision);
-    if (pInterval->unit == 'n') {
-      f = 30LL * tickPerDay;
-    } else if (pInterval->unit == 'y') {
-      f = 365LL * tickPerDay;
-    }
-    intervalRange = pInterval->datum.i * f;
-  } else {
-    intervalRange = pInterval->datum.i;
-  }
-  if ((timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW && !inStreamCalcClause(pCxt)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+  int32_t code = filterValidateFillTimeRange(&pFill->timeRange, pInterval->datum.i, pInterval->unit,
+                                             precision, allowNoTimeRange);
+  if (TSDB_CODE_SUCCESS != code) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, code);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -14324,7 +15281,9 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
   // COUNT is identified after translateSelectList(), so validate unbounded
   // FILL(NEAR) there after its dedicated error rule has run.
   bool allowNoTimeRange = allowFillWithoutTimeRange(pSelect) || FILL_MODE_NEAR == pFill->mode;
-  return checkFill(pCxt, pFill, (SValueNode*)pInterval->pInterval, false, allowNoTimeRange, pSelect->precision);
+  pSelect->deferredFillAllowNoTimeRange = allowNoTimeRange;
+  return checkFill(pCxt, pFill, (SValueNode*)pInterval->pInterval, false, allowNoTimeRange, pSelect->precision,
+                   pSelect->timeRangeParamDependent);
 }
 
 static int32_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit, double* pMonth) {
@@ -14741,7 +15700,9 @@ static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSe
   int32_t              code = TSDB_CODE_SUCCESS;
 
   pInterval->timeRange = pSelect->timeRange;
-  tryCalcIntervalAutoOffset(pInterval);
+  if (!pSelect->timeRangeParamDependent) {
+    tryCalcIntervalAutoOffset(pInterval);
+  }
 
   code = checkIntervalWindow(pCxt, pInterval);
   if (TSDB_CODE_SUCCESS == code) {
@@ -15761,7 +16722,7 @@ static int32_t translateExternalWindow(STranslateContext* pCxt, SSelectStmt* pSe
   // Note: checkFillValues is NOT called here because the projection list
   // has not been translated yet (funcId/resType are unresolved).
   // translateFillValues() handles it after translateSelectList().
-  code = checkFill(pCxt, pFill, NULL, false, false, pSelect->precision);
+  code = checkFill(pCxt, pFill, NULL, false, false, pSelect->precision, false);
 
 _return:
   pCxt->currClause = savedClause;
@@ -15987,7 +16948,8 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateSurroundingTime(pCxt, pFill->pSurroundingTime);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkFill(pCxt, pFill, (SValueNode*)pSelect->pEvery, true, false, pSelect->precision);
+    code = checkFill(pCxt, pFill, (SValueNode*)pSelect->pEvery, true, false, pSelect->precision,
+                     pSelect->interpRangeParamDependent);
   }
   QUERY_CHECK_CODE(code, lino, _end);
   bool hasRowTsOriginFunc = false;
@@ -16089,6 +17051,9 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExpr(pCxt, &pSelect->pRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pSelect->interpRangeParamDependent = queryTimeRangeDependsOnParam(pSelect->pRange, false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpEvery(pCxt, &pSelect->pEvery);
@@ -16679,6 +17644,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                         "%%%%trows cannot be used with WHERE clause."));
   }
   PAR_ERR_RET(translateExpr(pCxt, &pSelect->pWhere));
+  pSelect->timeRangeParamDependent = queryTimeRangeDependsOnParam(pSelect->pWhere, true);
   if (pCxt->pParseCxt->stmtBindVersion == 2) {
     fixStmtTsPlaceholderPrecisionInWhere(pSelect);
   }
@@ -17936,7 +18902,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     SFillNode* pFill = (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill;
     if (NULL != pFill && FILL_MODE_NEAR == pFill->mode &&
         TSWINDOW_IS_EQUAL(pSelect->timeRange, TSWINDOW_INITIALIZER) && NULL == pSelect->pTimeRange &&
-        !allowFillWithoutTimeRange(pSelect)) {
+        !allowFillWithoutTimeRange(pSelect) && !pSelect->timeRangeParamDependent) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
     }
   }
@@ -17944,7 +18910,8 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
       QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
     SFillNode* pFill = (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill;
     if (NULL != pFill && FILL_MODE_NONE != pFill->mode &&
-        TSWINDOW_IS_EQUAL(pSelect->timeRange, TSWINDOW_INITIALIZER) && NULL == pSelect->pTimeRange) {
+        TSWINDOW_IS_EQUAL(pSelect->timeRange, TSWINDOW_INITIALIZER) && NULL == pSelect->pTimeRange &&
+        !pSelect->timeRangeParamDependent) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
     }
   }
@@ -32151,6 +33118,19 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     }
   }
 #endif
+  bool                   queryBlock = QUERY_NODE_SELECT_STMT == nodeType(pNode) || QUERY_NODE_SET_OPERATOR == nodeType(pNode);
+  bool                   scopeEntered = false;
+  int32_t                scopeId = 0;
+  SCorrelationScopeGuard scopeGuard = {0};
+  if (queryBlock) {
+    code = enterCorrelationScope(pCxt, pNode, &scopeGuard);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    scopeEntered = true;
+    scopeId = pCxt->currCorrelationScopeId;
+  }
+
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT:
       code = translateSelect(pCxt, (SSelectStmt*)pNode);
@@ -32565,11 +33545,26 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     default:
       break;
   }
+  if (scopeEntered) {
+    if (TSDB_CODE_SUCCESS == code) {
+      code = finalizeCorrelationScope(pCxt, pNode, scopeId);
+    }
+    leaveCorrelationScope(pCxt, &scopeGuard);
+  }
   return code;
 }
 
 static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateContext* pDst) {
   int32_t code = TSDB_CODE_SUCCESS;
+  pDst->pCorrelation = pSrc->pCorrelation;
+  pDst->currCorrelationScopeId = pSrc->currCorrelationScopeId;
+  pDst->currClause = pSrc->currClause;
+  taosArrayDestroy(pDst->pCorrelationScopeLevels);
+  pDst->pCorrelationScopeLevels = taosArrayDup(pSrc->pCorrelationScopeLevels, NULL);
+  if (NULL == pDst->pCorrelationScopeLevels) {
+    return terrno;
+  }
+
   int32_t levelNum = taosArrayGetSize(pSrc->pNsLevel);
   if (levelNum <= 0) {
     // Parent has no namespace levels (e.g. dual/no-FROM outer query). The child
@@ -32581,6 +33576,8 @@ static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateConte
       taosArrayDestroy(pEmpty);
       return terrno;
     }
+    pDst->levelNo = pSrc->levelNo + 1;
+    pDst->currLevel = pSrc->currLevel + 1;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -32606,9 +33603,6 @@ static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateConte
 
 void updateContextFromSubQ(STranslateContext* pCxt, SNode* pNode, STranslateContext* pChild) {
   if (pChild) {
-    if (pChild->isCorrelatedSubQ) {
-      pCxt->isCorrelatedSubQ = true;
-    }
     if (pChild->hasNonLocalSubQ) {
       pCxt->hasNonLocalSubQ = true;
     }
@@ -32635,6 +33629,36 @@ void updateContextFromSubQ(STranslateContext* pCxt, SNode* pNode, STranslateCont
   }
 
   return;
+}
+
+static SCorrelationScopeState* findCorrelationScopeByStmt(STranslateContext* pCxt, SNode* pStmt) {
+  if (NULL == pCxt->pCorrelation) {
+    return NULL;
+  }
+  int32_t numOfScopes = (int32_t)taosArrayGetSize(pCxt->pCorrelation->pScopes);
+  for (int32_t i = 0; i < numOfScopes; ++i) {
+    SCorrelationScopeState* pScope = taosArrayGet(pCxt->pCorrelation->pScopes, i);
+    if (pScope->pStmt == pStmt) {
+      return pScope;
+    }
+  }
+  return NULL;
+}
+
+static bool correlationTableSubqueryUnsupported(STranslateContext* pCxt, SNode* pTable) {
+  if (NULL == pTable) {
+    return false;
+  }
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pTable)) {
+    SCorrelationScopeState* pScope = findCorrelationScopeByStmt(pCxt, ((STempTableNode*)pTable)->pSubquery);
+    return NULL != pScope && taosArrayGetSize(pScope->scope.pFreeBindings) > 0;
+  }
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+    return correlationTableSubqueryUnsupported(pCxt, pJoin->pLeft) ||
+           correlationTableSubqueryUnsupported(pCxt, pJoin->pRight);
+  }
+  return false;
 }
 
 static int32_t mergeTranslateContextMetas(STranslateContext* pCxt, STranslateContext* pSrc) {
@@ -32750,80 +33774,15 @@ static void getFromTableExtSourceName(SNode* pFromTable, char outSrc[TSDB_EXT_SO
   }
 }
 
-/* -- Correlated-subquery pre-scan ---------------------------------------------
- * Walk an expression tree and look for SColumnNode references whose tableAlias
- * matches an entry in the outer namespace but NOT in the inner FROM table.
- * This lets us detect correlation BEFORE attempting to translate the inner
- * SELECT, so we can reject it with a consistent error code even when the inner
- * SELECT's table-metadata lookup would fail first (e.g. InfluxDB flight_sql).
- */
-typedef struct SOuterRefCheckCxt {
-  SArray* pOuterNs;    /* outer namespace level (array of STableNode*)     */
-  SNode*  pInnerFrom;  /* inner FROM table (to exclude inner aliases)       */
-  bool    found;
-} SOuterRefCheckCxt;
-
-static EDealRes walkCheckOuterRef(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN != nodeType(pNode)) return DEAL_RES_CONTINUE;
-  SOuterRefCheckCxt* pCtx = (SOuterRefCheckCxt*)pContext;
-  SColumnNode*       pCol = (SColumnNode*)pNode;
-  if ('\0' == pCol->tableAlias[0]) return DEAL_RES_CONTINUE;
-
-  /* Skip if the alias belongs to the inner FROM (not an outer reference). */
-  if (pCtx->pInnerFrom) {
-    if (QUERY_NODE_REAL_TABLE == nodeType(pCtx->pInnerFrom)) {
-      SRealTableNode* pInnerTable = (SRealTableNode*)pCtx->pInnerFrom;
-      if (0 == strcmp(pInnerTable->table.tableAlias, pCol->tableAlias)) {
-        return DEAL_RES_CONTINUE;
-      }
-    }
-  }
-
-  /* Check whether the alias matches any outer table. */
-  int32_t n = (int32_t)taosArrayGetSize(pCtx->pOuterNs);
-  for (int32_t i = 0; i < n; ++i) {
-    STableNode* pTable = (STableNode*)taosArrayGetP(pCtx->pOuterNs, i);
-    if (pTable && 0 == strcmp(pTable->tableAlias, pCol->tableAlias)) {
-      pCtx->found = true;
-      return DEAL_RES_END;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-/* Returns true if the inner SELECT's WHERE clause contains a column reference
- * to an outer-query table alias (i.e. the subquery is correlated). */
-static bool innerSelectIsCorrelated(STranslateContext* pCxt, SSelectStmt* pInner) {
-  if (!pInner->pWhere) return false;
-  int32_t levelNum = (int32_t)taosArrayGetSize(pCxt->pNsLevel);
-  if (levelNum == 0 || pCxt->currLevel >= levelNum) return false;
-  SArray* pOuterNs = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
-  if (!pOuterNs || taosArrayGetSize(pOuterNs) == 0) return false;
-
-  SOuterRefCheckCxt cxt = {
-      .pOuterNs   = pOuterNs,
-      .pInnerFrom = pInner->pFromTable,
-      .found      = false,
-  };
-  nodesWalkExpr(pInner->pWhere, walkCheckOuterRef, &cxt);
-  return cxt.found;
-}
-
 static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) {
-  /* Pre-check: if the inner SELECT's WHERE references an outer table alias,
-   * the subquery is correlated.  Reject it immediately with a consistent
-   * error code before any metadata lookup so that all sources (including
-   * those whose metadata fetch may fail earlier, e.g. InfluxDB/flight_sql)
-   * return the same errno as local TDengine. */
-  if (QUERY_NODE_SELECT_STMT == nodeType(pNode) &&
-      innerSelectIsCorrelated(pCxt, (SSelectStmt*)pNode)) {
-    parserError("Correlated subQuery (pre-detected): not supported");
-    return TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
-  }
-
   int32_t           code = TSDB_CODE_SUCCESS;
   STranslateContext cxt = {0};
   cxt.isExprSubQ = true;
+  pCxt->subqueryIsCorrelated = false;
+  pCxt->subqueryCorrelationScopeId = 0;
+  pCxt->subqueryCorrelationExprId = 0;
+
+  int64_t exprId = pCxt->pCorrelation->nextExprId++;
 
   code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
@@ -32834,7 +33793,36 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
     code = setCurrLevelNsFromParent(pCxt, &cxt);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    cxt.nextCorrelationScopeExprId = exprId;
     code = translateQuery(&cxt, pNode);
+  }
+  SCorrelationScopeState* pSubqueryScope = getCorrelationScope(&cxt, cxt.rootCorrelationScopeId);
+  bool isCorrelated = TSDB_CODE_SUCCESS == code && NULL != pSubqueryScope &&
+                      taosArrayGetSize(pSubqueryScope->scope.pFreeBindings) > 0;
+  if (isCorrelated && E_SUB_QUERY_SCALAR != pCxt->expSubQueryType) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
+                                   "Correlated subqueries are only supported as scalar expression subqueries");
+  }
+  if (isCorrelated && TSDB_CODE_SUCCESS == code &&
+      (pCxt->pParseCxt->topicQuery || inStreamCalcClause(pCxt) || inStreamTriggerClause(pCxt))) {
+    const char* context = pCxt->pParseCxt->topicQuery
+                              ? "topic queries"
+                              : inStreamCalcClause(pCxt) ? "stream calculation clauses" : "stream trigger clauses";
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE,
+                                   "Correlated scalar subqueries are not supported in %s", context);
+  }
+  if (isCorrelated && TSDB_CODE_SUCCESS == code && QUERY_POLICY_CLIENT == tsQueryPolicy) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_POLICY,
+                                   "Client query policy does not support correlated scalar subqueries");
+  }
+  if (isCorrelated && TSDB_CODE_SUCCESS == code && queryHasExternalTable(pNode)) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
+                                   "Correlated scalar subqueries cannot read external tables");
+  }
+  if (isCorrelated && TSDB_CODE_SUCCESS == code && QUERY_NODE_SELECT_STMT == nodeType(pNode) &&
+      correlationTableSubqueryUnsupported(&cxt, ((SSelectStmt*)pNode)->pFromTable)) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
+                                   "Correlated scalar subqueries cannot contain a correlated subquery in FROM");
   }
   if (TSDB_CODE_SUCCESS == code) {
     updateContextFromSubQ(pCxt, pNode, &cxt);
@@ -32850,12 +33838,11 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListAppend(pCxt->pSubQueries, pNode);
   }
-  if (pCxt->isCorrelatedSubQ) {
-    // Correlated subqueries are not supported in TDengine (including FQ external
-    // sources).  Reject unconditionally so that behavior is identical whether the
-    // FROM table is a local TDengine table or an FQ external source.
-    parserError("Correlated subQuery not supported now");
-    code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->subqueryIsCorrelated = isCorrelated;
+    pCxt->subqueryCorrelationScopeId = cxt.rootCorrelationScopeId;
+    pCxt->subqueryCorrelationExprId = exprId;
+    pCxt->isCorrelatedSubQ = pCxt->isCorrelatedSubQ || isCorrelated;
   }
   /*
     if (pCxt->hasLocalSubQ) {

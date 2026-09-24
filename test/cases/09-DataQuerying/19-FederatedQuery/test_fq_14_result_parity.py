@@ -209,8 +209,8 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT id, val FROM {tbl} WHERE val > (SELECT AVG(val) FROM {tbl}) ORDER BY time",),
         ("SELECT id FROM {tbl} WHERE val = (SELECT MAX(val) FROM {tbl}) ORDER BY time",),
         ("SELECT id, val FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE label = 'north') ORDER BY time",),
-        ("SELECT id, val FROM {tbl} t1 WHERE val > (SELECT AVG(val) FROM {tbl} t2 WHERE t2.label = t1.label) ORDER BY time",
-         dict(positive=False, reason="correlated scalar subquery in WHERE not supported (0x800026A6)")),
+        ("SELECT id, val FROM {tbl} t1 WHERE val > ANY (SELECT val FROM {tbl} t2 WHERE t2.label = t1.label) ORDER BY time",
+         dict(positive=False, reason="correlated quantified subquery in WHERE not supported (0x800026A6)")),
         ("SELECT id FROM {tbl} t1 WHERE EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.val > 30) ORDER BY time",
          dict(positive=False, reason="correlated EXISTS subquery as expr not supported (0x800026A6)")),
         # WHERE + 聚合 / ORDER / LIMIT 组合

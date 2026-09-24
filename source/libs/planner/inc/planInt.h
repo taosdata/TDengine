@@ -85,6 +85,7 @@ bool           planIsExternalWindowSubquery(const SPlanContext* pCxt, int32_t su
 int32_t        planMarkSubqueryPushedDown(SPlanContext* pCxt, int32_t subQIdx);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
+void    planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker, void* pContext);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);

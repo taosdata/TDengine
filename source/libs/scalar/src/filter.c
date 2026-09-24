@@ -18,6 +18,7 @@
 #include <tlog.h>
 #include "decimal.h"
 #include "nodes.h"
+#include "querynodes.h"
 #include "os.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -25,6 +26,8 @@
 #include "filter.h"
 #include "filterInt.h"
 #include "functionMgt.h"
+#include "function.h"
+#include "scalar.h"
 #include "sclInt.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -4906,6 +4909,15 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool*
   SFilterInfo *info = NULL;
   int32_t      code = 0;
 
+  if (nodesExprHasCorrelation(pNode)) {
+    TAOS_SET_OBJ_ALIGNED(win, TSWINDOW_INITIALIZER);
+    *isStrict = false;
+    if (hasRemoteNode) {
+      *hasRemoteNode = false;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
   *isStrict = true;
 
   FLT_ERR_JRET(filterInitFromNode(pNode, &info, FLT_OPTION_NO_REWRITE | FLT_OPTION_TIMESTAMP, NULL));
@@ -4957,6 +4969,76 @@ _return:
   FLT_RET(code);
 }
 
+int32_t filterCalcSemanticTimeRange(const SNode* pCondition, bool allowNonPrimaryTimeColumn,
+                                    STimeWindow* pRange) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pConditionCopy = NULL;
+  SNode*  pPrimaryKeyCond = NULL;
+  SNode*  pFallbackCond = NULL;
+  SNode*  pCalculated = NULL;
+  bool    isStrict = false;
+
+  TAOS_SET_OBJ_ALIGNED(pRange, TSWINDOW_INITIALIZER);
+  if (NULL == pCondition) {
+    return code;
+  }
+  FLT_ERR_JRET(nodesCloneNode(pCondition, &pConditionCopy));
+  FLT_ERR_JRET(filterPartitionCond(&pConditionCopy, &pPrimaryKeyCond, NULL, NULL, NULL));
+  if (NULL == pPrimaryKeyCond) {
+    if (!allowNonPrimaryTimeColumn) {
+      goto _return;
+    }
+    FLT_ERR_JRET(nodesCloneNode(pCondition, &pFallbackCond));
+  }
+  SNode* pTimeCond = NULL != pPrimaryKeyCond ? pPrimaryKeyCond : pFallbackCond;
+  if (nodesExprHasCorrelation(pTimeCond)) {
+    FLT_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  }
+  FLT_ERR_JRET(scalarCalculateConstants(pTimeCond, &pCalculated));
+  // scalarCalculateConstants takes ownership of pTimeCond, including when it returns the same pointer.
+  if (NULL != pPrimaryKeyCond) {
+    pPrimaryKeyCond = NULL;
+  } else {
+    pFallbackCond = NULL;
+  }
+  if (QUERY_NODE_VALUE != nodeType(pCalculated)) {
+    FLT_ERR_JRET(filterGetTimeRange(pCalculated, pRange, &isStrict, NULL));
+  }
+
+_return:
+  nodesDestroyNode(pConditionCopy);
+  nodesDestroyNode(pPrimaryKeyCond);
+  nodesDestroyNode(pFallbackCond);
+  nodesDestroyNode(pCalculated);
+  FLT_RET(code);
+}
+
+int32_t filterValidateFillTimeRange(const STimeWindow* pRange, int64_t interval, int8_t intervalUnit,
+                                    uint8_t precision, bool allowNoTimeRange) {
+  if (TSWINDOW_IS_EQUAL(*pRange, TSWINDOW_INITIALIZER)) {
+    return allowNoTimeRange ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE;
+  }
+  if (TSWINDOW_IS_EQUAL(*pRange, TSWINDOW_DESC_INITIALIZER) || interval <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint64_t span = pRange->skey <= pRange->ekey
+                      ? (uint64_t)pRange->ekey - (uint64_t)pRange->skey
+                      : (uint64_t)pRange->skey - (uint64_t)pRange->ekey;
+  int64_t timeRange = span > INT64_MAX ? INT64_MAX : (int64_t)span;
+  int64_t intervalRange = interval;
+  if (IS_CALENDAR_TIME_DURATION(intervalUnit)) {
+    int64_t tickPerDay = convertTimePrecision(MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, precision);
+    int64_t days = intervalUnit == 'n' ? 30LL : intervalUnit == 'y' ? 365LL : 1LL;
+    int64_t scale = days * tickPerDay;
+    intervalRange = interval > INT64_MAX / scale ? INT64_MAX : interval * scale;
+  }
+  if (intervalRange <= 0 || timeRange / intervalRange >= MAX_INTERVAL_TIME_WINDOW) {
+    return TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
   SFltTreeStat *stat = (SFltTreeStat *)pContext;
 
@@ -4985,7 +5067,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
 
   if (QUERY_NODE_VALUE == nodeType(*pNode)) {
     SValueNode *valueNode = (SValueNode *)*pNode;
-    if (valueNode->placeholderNo >= 1) {
+    if (valueNode->placeholderNo >= 1 || valueNode->isNull) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }
@@ -5449,7 +5531,7 @@ static int32_t fltSclProcessCNF(SFilterInfo *pInfo, SArray *sclOpListCNF, SArray
 }
 
 static bool fltSclIsCollectableNode(SNode *pNode) {
-  if (nodeType(pNode) != QUERY_NODE_OPERATOR) {
+  if (nodeType(pNode) != QUERY_NODE_OPERATOR || nodesExprHasCorrelation(pNode)) {
     return false;
   }
 
@@ -5901,6 +5983,14 @@ bool filterBlockSmaOnlyUsesNumOfNull(const SFilterInfo *info) {
   return hasNumOfNullOnlyUsage;
 }
 
+static EDealRes fltFindCorrelatedSubquery(SNode *pNode, void *pContext) {
+  if (QUERY_NODE_CORRELATED_SUBQUERY == nodeType(pNode)) {
+    *(bool *)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, void* pSclExtraParams) {
   SFilterInfo *info = NULL;
   if (pNode == NULL) {
@@ -5925,7 +6015,12 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, 
   info->options = options;
   info->pStreamRtInfo = pSclExtraParams;
 
-  if (options & FLT_OPTION_SCALAR_MODE) {
+  bool hasCorrelation = nodesExprHasCorrelation(pNode);
+  bool hasCorrelatedCall = false;
+  if (hasCorrelation) {
+    nodesWalkExpr(pNode, fltFindCorrelatedSubquery, &hasCorrelatedCall);
+  }
+  if ((options & FLT_OPTION_SCALAR_MODE) || hasCorrelation) {
     info->scalarMode = true;
     fltDebug("force set scalar mode: %d", info->scalarMode);
   } else {
@@ -5942,13 +6037,17 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, 
     fltDebug("scalar mode: %d", info->scalarMode);
   }
 
-  FLT_ERR_JRET(fltBuildBlkOrNotNullGroups(pNode, &info->pBlkOrNotNullGroups));
+  if (!hasCorrelatedCall) {
+    FLT_ERR_JRET(fltBuildBlkOrNotNullGroups(pNode, &info->pBlkOrNotNullGroups));
+  }
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
   } else {
     info->sclCtx.node = pNode;
-    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node));
+    if (!hasCorrelatedCall) {
+      FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node));
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -5960,8 +6059,9 @@ _return:
   FLT_RET(code);
 }
 
-int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
-                      int16_t numOfCols, int32_t *pResultStatus) {
+int32_t filterExecuteWithCorrelation(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
+                                     SColumnDataAgg *statis, int16_t numOfCols, int32_t *pResultStatus,
+                                     const SCorrelationEvalContext *pCorrelation) {
   if (NULL == info) {
     *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
     return TSDB_CODE_SUCCESS;
@@ -5982,13 +6082,15 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       FLT_ERR_JRET(terrno);
     }
 
-    gTaskScalarExtra.pStreamInfo  = (void*)info->pStreamRtInfo;
-    gTaskScalarExtra.pStreamRange = NULL;
     output.param = info->pTable;
-    gTaskScalarExtra.pTaskInfo    = info->pTaskInfo    ? info->pTaskInfo    : gTaskScalarExtra.pTaskInfo;
-    gTaskScalarExtra.isTaskKilled = info->isTaskKilled ? info->isTaskKilled : gTaskScalarExtra.isTaskKilled;
-    code =
-        scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
+    SScalarExtraInfo extra = gTaskScalarExtra;
+    SScalarExtraInfo *pExtra = NULL == pCorrelation ? &gTaskScalarExtra : &extra;
+    pExtra->pStreamInfo = (void *)info->pStreamRtInfo;
+    pExtra->pStreamRange = NULL;
+    pExtra->pTaskInfo = info->pTaskInfo ? info->pTaskInfo : pExtra->pTaskInfo;
+    pExtra->isTaskKilled = info->isTaskKilled ? info->isTaskKilled : pExtra->isTaskKilled;
+    pExtra->pCorrelation = pCorrelation;
+    code = scalarCalculate(info->sclCtx.node, pList, &output, pExtra);
     taosArrayDestroy(pList);
 
     *p = output.columnData;
@@ -6043,6 +6145,11 @@ _return:
   return code;
 }
 
+int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
+                      int16_t numOfCols, int32_t *pResultStatus) {
+  return filterExecuteWithCorrelation(info, pSrc, p, statis, numOfCols, pResultStatus, NULL);
+}
+
 typedef struct SClassifyConditionCxt {
   bool hasPrimaryKey;
   bool hasTagIndexCol;
@@ -6086,6 +6193,9 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
 }
 
 EConditionType filterClassifyCondition(SNode *pNode) {
+  if (nodesExprHasCorrelation(pNode)) {
+    return COND_TYPE_NORMAL;
+  }
   SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
   nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
   if (cxt.hasOtherCol || (cxt.hasPrimaryKey && cxt.hasTagCol)) {

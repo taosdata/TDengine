@@ -926,6 +926,17 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
     }
   }
 
+  int32_t statNum = taosArrayGetSize(operatorInfo->pTaskInfo->pCorrelationStats);
+  if (statNum > 0) {
+    pExplainInfo->pCorrelationStats = taosMemoryMalloc((size_t)statNum * sizeof(SExplainCorrelationStat));
+    if (NULL == pExplainInfo->pCorrelationStats) {
+      return terrno;
+    }
+    memcpy(pExplainInfo->pCorrelationStats, taosArrayGet(operatorInfo->pTaskInfo->pCorrelationStats, 0),
+           (size_t)statNum * sizeof(SExplainCorrelationStat));
+    pExplainInfo->correlationStatNum = statNum;
+  }
+
   qDebug("%s explain exec collected, opType=%d(%s) blockId=%" PRId64 " rows=%" PRIu64 " verboseLen=%u phyNode=%p",
          GET_TASKID(operatorInfo->pTaskInfo), operatorInfo->operatorType, nodesNodeName(operatorInfo->operatorType),
          operatorInfo->resultDataBlockId, pExplainInfo->numOfRows, pExplainInfo->verboseLen, operatorInfo->pPhyNode);

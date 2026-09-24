@@ -17,6 +17,7 @@
 
 #include "function.h"
 #include "functionMgt.h"
+#include "filter.h"
 #include "index.h"
 #include "os.h"
 #include "query.h"
@@ -3008,17 +3009,17 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
       }
     }
     pExp->pExpr->_function.bindExprID = ((SExprNode*)pNode)->bindExprID;
-  } else if (type == QUERY_NODE_OPERATOR) {
+  } else if (type == QUERY_NODE_OPERATOR || type == QUERY_NODE_CORRELATED_SUBQUERY) {
     pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
-    SOperatorNode* pOpNode = (SOperatorNode*)pNode;
+    SExprNode* pExprNode = (SExprNode*)pNode;
 
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
     QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
     pExp->base.numOfParams = 1;
 
-    SDataType* pType = &pOpNode->node.resType;
+    SDataType* pType = &pExprNode->resType;
     pExp->base.resSchema =
-        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pOpNode->node.aliasName);
+        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pExprNode->aliasName);
     pExp->pExpr->_optrRoot.pRootNode = pNode;
   } else if (type == QUERY_NODE_CASE_WHEN) {
     pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
@@ -3424,6 +3425,620 @@ SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
  * @param[out] extTwindow The external range to read for only one record, which is used for FILL clause.
  * @note `cond` and `twindow` may be the same address.
  */
+typedef struct SDeferredQueryTimeContext {
+  STimeWindow range;
+  int32_t code;
+} SDeferredQueryTimeContext;
+
+static EDealRes initDeferredQueryTimeValue(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_VALUE != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SValueNode* pValue = (SValueNode*)pNode;
+  int32_t flag = pValue->flag & VALUE_FLAG_DEFERRED_QUERY_TIME;
+  if (0 == flag) {
+    return DEAL_RES_CONTINUE;
+  }
+  SDeferredQueryTimeContext* pInit = (SDeferredQueryTimeContext*)pContext;
+  int64_t value = 0;
+  bool isNull = false;
+  if (VALUE_FLAG_DEFERRED_QSTART == flag) {
+    value = pInit->range.skey;
+    isNull = INT64_MIN == value || INT64_MAX == value;
+  } else if (VALUE_FLAG_DEFERRED_QEND == flag) {
+    value = pInit->range.ekey;
+    isNull = INT64_MIN == value || INT64_MAX == value;
+  } else if (VALUE_FLAG_DEFERRED_QDURATION == flag) {
+    isNull = INT64_MIN == pInit->range.skey || INT64_MAX == pInit->range.ekey;
+    if (!isNull) {
+      value = (int64_t)((uint64_t)pInit->range.ekey - (uint64_t)pInit->range.skey + 1);
+    }
+  } else {
+    pInit->code = TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    return DEAL_RES_ERROR;
+  }
+
+  char* pLiteral = NULL;
+  if (!isNull) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%" PRId64, value);
+    pLiteral = taosStrdup(buf);
+    if (NULL == pLiteral) {
+      pInit->code = terrno;
+      return DEAL_RES_ERROR;
+    }
+  }
+  taosMemoryFree(pValue->literal);
+  pValue->literal = pLiteral;
+  pValue->isNull = isNull;
+  if (isNull) {
+    pValue->datum.i = 0;
+    pValue->typeData = 0;
+  } else {
+    pInit->code = nodesSetValueNodeValue(pValue, &value);
+    if (TSDB_CODE_SUCCESS != pInit->code) {
+      return DEAL_RES_ERROR;
+    }
+  }
+  pValue->flag &= ~VALUE_FLAG_DEFERRED_QUERY_TIME;
+  return DEAL_RES_CONTINUE;
+}
+
+static SPhysiNode* findTimeRangeInitTarget(SPhysiNode* pNode, const SCorrelationTimeRangeInitNode* pInit,
+                                           int32_t* pMatches) {
+  if (NULL == pNode) {
+    return NULL;
+  }
+  SPhysiNode* pFound = NULL;
+  if (nodeType((SNode*)pNode) == pInit->targetNodeType && NULL != pNode->pOutputDataBlockDesc &&
+      pNode->pOutputDataBlockDesc->dataBlockId == pInit->targetBlockId) {
+    ++*pMatches;
+    pFound = pNode;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SPhysiNode* pOther = findTimeRangeInitTarget((SPhysiNode*)pChild, pInit, pMatches);
+    if (NULL != pOther) {
+      pFound = pOther;
+    }
+  }
+  return pFound;
+}
+
+static void resolveDeferredAutoOffset(int64_t* pOffset, int64_t interval, int64_t sliding,
+                                      int8_t intervalUnit, int8_t slidingUnit, int8_t precision,
+                                      int8_t firstDayOfWeek, void* timezone, STimeWindow range) {
+  if (AUTO_DURATION_VALUE != *pOffset) {
+    return;
+  }
+  SInterval info = {.interval = interval,
+                    .sliding = sliding,
+                    .intervalUnit = intervalUnit,
+                    .slidingUnit = slidingUnit,
+                    .offset = *pOffset,
+                    .precision = precision,
+                    .firstDayOfWeek = firstDayOfWeek,
+                    .timezone = timezone,
+                    .timeRange = range};
+  calcIntervalAutoOffset(&info);
+  *pOffset = info.offset;
+}
+
+static int32_t initTimeRangeTarget(SPhysiNode* pNode, const SCorrelationTimeRangeInitNode* pInit,
+                                   STimeWindow range) {
+  switch (nodeType((SNode*)pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
+      SDeferredQueryTimeContext cxt = {.range = range, .code = TSDB_CODE_SUCCESS};
+      nodesWalkExprs(((SProjectPhysiNode*)pNode)->pProjections, initDeferredQueryTimeValue, &cxt);
+      return cxt.code;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL: {
+      SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)pNode;
+      pInterval->timeRange = range;
+      resolveDeferredAutoOffset(&pInterval->offset, pInterval->interval, pInterval->sliding,
+                                pInterval->intervalUnit, pInterval->slidingUnit, pInit->precision,
+                                pInterval->firstDayOfWeek, pInterval->timezone, range);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
+      ((SExternalWindowPhysiNode*)pNode)->timeRange = range;
+      return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC: {
+      SInterpFuncPhysiNode* pInterp = (SInterpFuncPhysiNode*)pNode;
+      if (FILL_MODE_NONE != pInterp->fillMode) {
+        int32_t code = filterValidateFillTimeRange(&range, pInterp->interval, pInterp->intervalUnit,
+                                                    pInit->precision, false);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+      }
+      pInterp->timeRange = range;
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_FILL: {
+      SFillPhysiNode* pFill = (SFillPhysiNode*)pNode;
+      if (FILL_MODE_NONE != pFill->mode) {
+        int32_t code = filterValidateFillTimeRange(&range, pFill->interval, pFill->intervalUnit,
+                                                    pInit->precision, pInit->allowNoTimeRange);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+      }
+      pFill->timeRange = range;
+      resolveDeferredAutoOffset(&pFill->offset, pFill->interval, pFill->sliding,
+                                pFill->intervalUnit, pFill->slidingUnit, pInit->precision,
+                                pFill->firstDayOfWeek, pFill->timezone, range);
+      return TSDB_CODE_SUCCESS;
+    }
+    default:
+      return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+}
+
+int32_t qInitCorrelationTimeRange(SSubplan* pSubplan, const SNodeList* pTimeRangeInit) {
+  if (NULL == pSubplan) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  SNode* pDescriptor = NULL;
+  FOREACH(pDescriptor, pTimeRangeInit) {
+    if (QUERY_NODE_CORRELATION_TIME_RANGE_INIT != nodeType(pDescriptor)) {
+      return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    }
+    const SCorrelationTimeRangeInitNode* pInit = (const SCorrelationTimeRangeInitNode*)pDescriptor;
+    if (pInit->targetSubplanId.queryId != pSubplan->id.queryId ||
+        pInit->targetSubplanId.groupId != pSubplan->id.groupId ||
+        pInit->targetSubplanId.subplanId != pSubplan->id.subplanId) {
+      continue;
+    }
+    if (NULL == pInit->pRangeExpr) {
+      return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    }
+    STimeWindow range = TSWINDOW_INITIALIZER;
+    int32_t code = filterCalcSemanticTimeRange(pInit->pRangeExpr, pInit->interpRange, &range);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("%s failed to calculate time range since %s", __func__, tstrerror(code));
+      return code;
+    }
+    int32_t matches = 0;
+    SPhysiNode* pNode = findTimeRangeInitTarget(pSubplan->pNode, pInit, &matches);
+    if (1 != matches || NULL == pNode) {
+      return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    }
+    code = initTimeRangeTarget(pNode, pInit, range);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("%s failed to initialize time range since %s", __func__, tstrerror(code));
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SCorrelationBindContext {
+  const SArray* pDefs;
+  const SArray* pValues;
+  int32_t code;
+  int32_t lino;
+  bool verify;
+} SCorrelationBindContext;
+
+static EDealRes qReplaceCorrelationParam(SNode** ppNode, void* pContext) {
+  SCorrelationBindContext* pCtx = pContext;
+  if (QUERY_NODE_CORRELATION_PARAM != nodeType(*ppNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SValueNode* pValue = NULL;
+  void*       pDatum = NULL;
+  bool        ownsDatum = false;
+
+  const SCorrelationParamNode* pParam = (const SCorrelationParamNode*)*ppNode;
+  const SCorrelationParamDef* pDef = NULL;
+  const SCorrelationWireValue* pBound = NULL;
+  for (int32_t i = 0; i < taosArrayGetSize(pCtx->pDefs); ++i) {
+    const SCorrelationParamDef* pCandidate = taosArrayGet(pCtx->pDefs, i);
+    if (pCandidate->paramId == pParam->paramId) {
+      pDef = pCandidate;
+      break;
+    }
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pCtx->pValues); ++i) {
+    const SCorrelationWireValue* pCandidate = taosArrayGet(pCtx->pValues, i);
+    if (pCandidate->paramId == pParam->paramId) {
+      pBound = pCandidate;
+      break;
+    }
+  }
+  QUERY_CHECK_NULL(pDef, pCtx->code, pCtx->lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_NULL(pBound, pCtx->code, pCtx->lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_CONDITION(pParam->node.resType.type == pDef->dataType.type &&
+                            pParam->node.resType.precision == pDef->dataType.precision &&
+                            pParam->node.resType.scale == pDef->dataType.scale &&
+                            pParam->node.resType.bytes == pDef->dataType.bytes,
+                        pCtx->code, pCtx->lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+
+  pCtx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValue);
+  QUERY_CHECK_CODE(pCtx->code, pCtx->lino, _return);
+  pValue->node.resType = pDef->dataType;
+  pValue->translate = true;
+  pValue->isNull = pBound->isNull;
+  if (!pBound->isNull) {
+    pDatum = pBound->pData;
+    if (IS_VAR_DATA_TYPE(pDef->dataType.type) || TSDB_DATA_TYPE_DECIMAL == pDef->dataType.type) {
+      pDatum = taosMemoryMalloc(pBound->dataLen);
+      QUERY_CHECK_NULL(pDatum, pCtx->code, pCtx->lino, _return, terrno);
+      ownsDatum = true;
+      memcpy(pDatum, pBound->pData, pBound->dataLen);
+    }
+    pCtx->code = nodesSetValueNodeValue(pValue, pDatum);
+    QUERY_CHECK_CODE(pCtx->code, pCtx->lino, _return);
+  }
+  SCorrelationParamNode* pOld = (SCorrelationParamNode*)*ppNode;
+  pValue->node = pOld->node;
+  pValue->node.type = QUERY_NODE_VALUE;
+  pValue->node.asParam = false;
+  pOld->node.pAssociation = NULL;
+  nodesDestroyNode(*ppNode);
+  *ppNode = (SNode*)pValue;
+  return DEAL_RES_IGNORE_CHILD;
+
+_return:
+  if (ownsDatum && NULL != pValue && NULL == pValue->datum.p) {
+    taosMemoryFree(pDatum);
+  }
+  nodesDestroyNode((SNode*)pValue);
+  return DEAL_RES_ERROR;
+}
+
+static EDealRes qFindUnboundCorrelationParam(SNode* pNode, void* pContext) {
+  SCorrelationBindContext* pCtx = pContext;
+  if (QUERY_NODE_CORRELATION_PARAM == nodeType(pNode) || QUERY_NODE_OUTER_REF == nodeType(pNode)) {
+    pCtx->code = TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    return DEAL_RES_ERROR;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void qVisitPhysicalCorrelationExprs(SPhysiNode* pNode, SCorrelationBindContext* pCtx) {
+  if (NULL == pNode || TSDB_CODE_SUCCESS != pCtx->code) {
+    return;
+  }
+#define VISIT_EXPR(field)                                                                        \
+  do {                                                                                           \
+    if (TSDB_CODE_SUCCESS == pCtx->code) {                                                        \
+      if (pCtx->verify) {                                                                         \
+        nodesWalkExpr((field), qFindUnboundCorrelationParam, pCtx);                                \
+      } else {                                                                                    \
+        nodesRewriteExpr(&(field), qReplaceCorrelationParam, pCtx);                               \
+      }                                                                                           \
+    }                                                                                            \
+  } while (0)
+#define VISIT_EXPRS(field)                                                                       \
+  do {                                                                                           \
+    if (TSDB_CODE_SUCCESS == pCtx->code) {                                                        \
+      if (pCtx->verify) {                                                                         \
+        nodesWalkExprs((field), qFindUnboundCorrelationParam, pCtx);                               \
+      } else {                                                                                    \
+        nodesRewriteExprs((field), qReplaceCorrelationParam, pCtx);                               \
+      }                                                                                           \
+    }                                                                                            \
+  } while (0)
+
+  VISIT_EXPR(pNode->pConditions);
+  VISIT_EXPR(pNode->pLimit);
+  VISIT_EXPR(pNode->pSlimit);
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
+      SScanPhysiNode* pScan = (SScanPhysiNode*)pNode;
+      VISIT_EXPRS(pScan->pScanCols);
+      VISIT_EXPRS(pScan->pScanPseudoCols);
+      if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pNode) ||
+          QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pNode) ||
+          QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN == nodeType(pNode) ||
+          QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == nodeType(pNode)) {
+        STableScanPhysiNode* pTable = (STableScanPhysiNode*)pNode;
+        VISIT_EXPR(pTable->pPrimaryCond);
+        VISIT_EXPR(pTable->pTimeRange);
+        VISIT_EXPR(pTable->pExtTimeRange);
+        VISIT_EXPRS(pTable->pDynamicScanFuncs);
+        VISIT_EXPRS(pTable->pGroupTags);
+        VISIT_EXPRS(pTable->pTags);
+        VISIT_EXPR(pTable->pSubtable);
+      } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode)) {
+        SVirtualScanPhysiNode* pVirtual = (SVirtualScanPhysiNode*)pNode;
+        VISIT_EXPRS(pVirtual->pGroupTags);
+        VISIT_EXPRS(pVirtual->pTargets);
+        VISIT_EXPRS(pVirtual->pTags);
+        VISIT_EXPRS(pVirtual->pLocalTags);
+        VISIT_EXPRS(pVirtual->pRefTagCols);
+        VISIT_EXPR(pVirtual->pSubtable);
+        VISIT_EXPR(pVirtual->pTagFilterCond);
+      } else if (QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN == nodeType(pNode) ||
+                 QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN == nodeType(pNode)) {
+        SLastRowScanPhysiNode* pLast = (SLastRowScanPhysiNode*)pNode;
+        VISIT_EXPRS(pLast->pGroupTags);
+        VISIT_EXPRS(pLast->pTargets);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+      SFederatedScanPhysiNode* pScan = (SFederatedScanPhysiNode*)pNode;
+      VISIT_EXPRS(pScan->pScanCols);
+      VISIT_EXPR(pScan->pExtTable);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE: {
+      STagRefSourcePhysiNode* pSource = (STagRefSourcePhysiNode*)pNode;
+      VISIT_EXPRS(pSource->pRefCols);
+      VISIT_EXPRS(pSource->pScanCols);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      VISIT_EXPRS(((SProjectPhysiNode*)pNode)->pProjections);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
+      SAggPhysiNode* pAgg = (SAggPhysiNode*)pNode;
+      VISIT_EXPRS(pAgg->pExprs);
+      VISIT_EXPRS(pAgg->pGroupKeys);
+      VISIT_EXPRS(pAgg->pAggFuncs);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT: {
+      SSortPhysiNode* pSort = (SSortPhysiNode*)pNode;
+      VISIT_EXPRS(pSort->pExprs);
+      VISIT_EXPRS(pSort->pSortKeys);
+      VISIT_EXPRS(pSort->pTargets);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
+      SPartitionPhysiNode* pPart = (SPartitionPhysiNode*)pNode;
+      VISIT_EXPRS(pPart->pExprs);
+      VISIT_EXPRS(pPart->pPartitionKeys);
+      VISIT_EXPRS(pPart->pTargets);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
+      SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
+      VISIT_EXPRS(pMerge->pMergeKeys);
+      VISIT_EXPRS(pMerge->pTargets);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
+      VISIT_EXPRS(((SGroupCachePhysiNode*)pNode)->pGroupCols);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
+      SDynQueryCtrlPhysiNode* pCtrl = (SDynQueryCtrlPhysiNode*)pNode;
+      VISIT_EXPRS(pCtrl->vtbScan.pScanCols);
+      VISIT_EXPRS(pCtrl->vtbScan.pRefTagCols);
+      VISIT_EXPR(pCtrl->vtbScan.pTagFilterCond);
+      VISIT_EXPRS(pCtrl->vtbWindow.pTargets);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
+      SSortMergeJoinPhysiNode* pJoin = (SSortMergeJoinPhysiNode*)pNode;
+      VISIT_EXPR(pJoin->pWindowOffset);
+      VISIT_EXPR(pJoin->pJLimit);
+      VISIT_EXPR(pJoin->leftPrimExpr);
+      VISIT_EXPR(pJoin->rightPrimExpr);
+      VISIT_EXPRS(pJoin->pEqLeft);
+      VISIT_EXPRS(pJoin->pEqRight);
+      VISIT_EXPR(pJoin->pColOnCond);
+      VISIT_EXPR(pJoin->pFullOnCond);
+      VISIT_EXPRS(pJoin->pTargets);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {
+      SHashJoinPhysiNode* pJoin = (SHashJoinPhysiNode*)pNode;
+      VISIT_EXPR(pJoin->pWindowOffset);
+      VISIT_EXPR(pJoin->pJLimit);
+      VISIT_EXPRS(pJoin->pOnLeft);
+      VISIT_EXPRS(pJoin->pOnRight);
+      VISIT_EXPR(pJoin->leftPrimExpr);
+      VISIT_EXPR(pJoin->rightPrimExpr);
+      VISIT_EXPR(pJoin->pLeftOnCond);
+      VISIT_EXPR(pJoin->pRightOnCond);
+      VISIT_EXPR(pJoin->pFullOnCond);
+      VISIT_EXPRS(pJoin->pTargets);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL: {
+      SWindowPhysiNode* pWindow = (SWindowPhysiNode*)pNode;
+      VISIT_EXPRS(pWindow->pExprs);
+      VISIT_EXPRS(pWindow->pFuncs);
+      VISIT_EXPRS(pWindow->pProjs);
+      VISIT_EXPR(pWindow->pTspk);
+      VISIT_EXPR(pWindow->pTsEnd);
+      if (QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE == nodeType(pNode)) {
+        VISIT_EXPRS(((SStateWindowPhysiNode*)pNode)->pStateKeys);
+      } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == nodeType(pNode)) {
+        VISIT_EXPR(((SEventWinodwPhysiNode*)pNode)->pStartCond);
+        VISIT_EXPR(((SEventWinodwPhysiNode*)pNode)->pEndCond);
+      } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == nodeType(pNode)) {
+        VISIT_EXPRS(((SAnomalyWindowPhysiNode*)pNode)->pAnomalyKeys);
+      } else if (QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW == nodeType(pNode) ||
+                 QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == nodeType(pNode) ||
+                 QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == nodeType(pNode)) {
+        SExternalWindowPhysiNode* pExternal = (SExternalWindowPhysiNode*)pNode;
+        VISIT_EXPR(pExternal->pTimeRange);
+        VISIT_EXPR(pExternal->pWindowConditions);
+        VISIT_EXPRS(pExternal->extFill.pFillExprs);
+        VISIT_EXPR(pExternal->extFill.pFillValues);
+        VISIT_EXPR(pExternal->pSubquery);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC: {
+      SWindowFuncPhysiNode* pWindow = (SWindowFuncPhysiNode*)pNode;
+      VISIT_EXPRS(pWindow->pExprs);
+      VISIT_EXPRS(pWindow->pPartitionKeys);
+      VISIT_EXPRS(pWindow->pOrderKeys);
+      VISIT_EXPRS(pWindow->pFuncs);
+      VISIT_EXPR(pWindow->pFrame);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_FILL: {
+      SFillPhysiNode* pFill = (SFillPhysiNode*)pNode;
+      VISIT_EXPRS(pFill->pFillExprs);
+      VISIT_EXPRS(pFill->pNotFillExprs);
+      VISIT_EXPRS(pFill->pFillNullExprs);
+      VISIT_EXPR(pFill->pWStartTs);
+      VISIT_EXPR(pFill->pValues);
+      VISIT_EXPR(pFill->pTimeRange);
+      VISIT_EXPR(pFill->pSurroundingTime);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC: {
+      SInterpFuncPhysiNode* pInterp = (SInterpFuncPhysiNode*)pNode;
+      VISIT_EXPRS(pInterp->pExprs);
+      VISIT_EXPRS(pInterp->pFuncs);
+      VISIT_EXPR(pInterp->pTimeRange);
+      VISIT_EXPR(pInterp->pFillValues);
+      VISIT_EXPR(pInterp->pTimeSeries);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC: {
+      SIndefRowsFuncPhysiNode* pFunc = (SIndefRowsFuncPhysiNode*)pNode;
+      VISIT_EXPRS(pFunc->pExprs);
+      VISIT_EXPRS(pFunc->pFuncs);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER: {
+      SDistinctFilterPhysiNode* pDistinct = (SDistinctFilterPhysiNode*)pNode;
+      VISIT_EXPRS(pDistinct->pExprs);
+      VISIT_EXPRS(pDistinct->pTargets);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC: {
+      SForecastFuncPhysiNode* pFunc = (SForecastFuncPhysiNode*)pNode;
+      VISIT_EXPRS(pFunc->pExprs);
+      VISIT_EXPRS(pFunc->pFuncs);
+      break;
+    }
+    default:
+      break;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    qVisitPhysicalCorrelationExprs((SPhysiNode*)pChild, pCtx);
+  }
+#undef VISIT_EXPR
+#undef VISIT_EXPRS
+}
+
+static void qVisitCorrelationSinkExprs(SDataSinkNode* pSink, SCorrelationBindContext* pCtx) {
+  if (NULL == pSink || TSDB_CODE_SUCCESS != pCtx->code) {
+    return;
+  }
+  if (QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT == nodeType(pSink)) {
+    SQueryInserterNode* pInsert = (SQueryInserterNode*)pSink;
+    if (pCtx->verify) {
+      nodesWalkExprs(pInsert->pCols, qFindUnboundCorrelationParam, pCtx);
+    } else {
+      nodesRewriteExprs(pInsert->pCols, qReplaceCorrelationParam, pCtx);
+    }
+  } else if (QUERY_NODE_PHYSICAL_PLAN_DELETE == nodeType(pSink)) {
+    SDataDeleterNode* pDelete = (SDataDeleterNode*)pSink;
+    if (pCtx->verify) {
+      nodesWalkExpr(pDelete->pAffectedRows, qFindUnboundCorrelationParam, pCtx);
+      if (TSDB_CODE_SUCCESS == pCtx->code) {
+        nodesWalkExpr(pDelete->pStartTs, qFindUnboundCorrelationParam, pCtx);
+      }
+      if (TSDB_CODE_SUCCESS == pCtx->code) {
+        nodesWalkExpr(pDelete->pEndTs, qFindUnboundCorrelationParam, pCtx);
+      }
+    } else {
+      nodesRewriteExpr(&pDelete->pAffectedRows, qReplaceCorrelationParam, pCtx);
+      if (TSDB_CODE_SUCCESS == pCtx->code) {
+        nodesRewriteExpr(&pDelete->pStartTs, qReplaceCorrelationParam, pCtx);
+      }
+      if (TSDB_CODE_SUCCESS == pCtx->code) {
+        nodesRewriteExpr(&pDelete->pEndTs, qReplaceCorrelationParam, pCtx);
+      }
+    }
+  }
+}
+
+int32_t qBindCorrelationSubplan(SSubplan* pSubplan, const SArray* pDefs, const SArray* pValues,
+                               SNodeList* pTimeRangeInit) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  QUERY_CHECK_NULL(pSubplan, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  code = tValidateCorrelationParams(pDefs, pValues);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  SCorrelationBindContext ctx = {.pDefs = pDefs, .pValues = pValues, .code = TSDB_CODE_SUCCESS};
+  qVisitPhysicalCorrelationExprs(pSubplan->pNode, &ctx);
+  qVisitCorrelationSinkExprs(pSubplan->pDataSink, &ctx);
+  if (TSDB_CODE_SUCCESS == ctx.code) {
+    nodesRewriteExpr(&pSubplan->pTagCond, qReplaceCorrelationParam, &ctx);
+  }
+  if (TSDB_CODE_SUCCESS == ctx.code) {
+    nodesRewriteExpr(&pSubplan->pTagIndexCond, qReplaceCorrelationParam, &ctx);
+  }
+  SNode* pDescriptor = NULL;
+  FOREACH(pDescriptor, pTimeRangeInit) {
+    if (TSDB_CODE_SUCCESS != ctx.code) {
+      break;
+    }
+    if (QUERY_NODE_CORRELATION_TIME_RANGE_INIT != nodeType(pDescriptor)) {
+      ctx.code = TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      break;
+    }
+    nodesRewriteExpr(&((SCorrelationTimeRangeInitNode*)pDescriptor)->pRangeExpr, qReplaceCorrelationParam, &ctx);
+  }
+  code = ctx.code;
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  ctx.verify = true;
+  qVisitPhysicalCorrelationExprs(pSubplan->pNode, &ctx);
+  qVisitCorrelationSinkExprs(pSubplan->pDataSink, &ctx);
+  if (TSDB_CODE_SUCCESS == ctx.code) {
+    nodesWalkExpr(pSubplan->pTagCond, qFindUnboundCorrelationParam, &ctx);
+  }
+  if (TSDB_CODE_SUCCESS == ctx.code) {
+    nodesWalkExpr(pSubplan->pTagIndexCond, qFindUnboundCorrelationParam, &ctx);
+  }
+  FOREACH(pDescriptor, pTimeRangeInit) {
+    if (TSDB_CODE_SUCCESS != ctx.code) {
+      break;
+    }
+    nodesWalkExpr(((SCorrelationTimeRangeInitNode*)pDescriptor)->pRangeExpr, qFindUnboundCorrelationParam, &ctx);
+  }
+  code = ctx.code;
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = qInitCorrelationTimeRange(pSubplan, pTimeRangeInit);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* range, STimeWindow* twindow,
                                  STimeWindow* extTwindows) {
   int32_t     code = TSDB_CODE_SUCCESS;
@@ -5845,7 +6460,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   req.taskId = pSource->taskId;
   req.srcTaskId = ctx->taskId;
   req.blockIdx = ctx->blockIdx;
-  req.queryId = ctx->queryId;
+  req.queryId = pSource->producerQueryId ? pSource->producerQueryId : ctx->queryId;
   req.execId = pSource->execId;
 
   if (IS_STREAM_MODE(pTaskInfo)) {
