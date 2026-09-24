@@ -33,6 +33,7 @@ over a task committed while protection was off, using a mock xnoded bound to
 the xnoded unix socket. This test does not depend on Explorer UI or Server.
 """
 
+import json
 import os
 import socketserver
 import threading
@@ -201,7 +202,11 @@ class TestXnodeSixStarWrite:
 
     @classmethod
     def _switch_protection_preserving_data(cls, protection: int):
-        """Flip xnodeDsnProtection without wiping the dnode data directory."""
+        """Flip xnodeDsnProtection without wiping the dnode data directory.
+
+        The persisted global config is loaded after taos.cfg and therefore
+        must be updated together with the external config file when present.
+        """
         cfg_path = tdDnodes.dnodes[0].cfgPath
         tdSql.close()
         tdDnodes.stoptaosd(1)
@@ -217,17 +222,35 @@ class TestXnodeSixStarWrite:
                     cfg_file.write(line)
             if not replaced:
                 cfg_file.write(f"xnodeDsnProtection {protection}\n")
+
+        data_dir = tdDnodes.dnodes[0].dataDir[0].split(" ", 1)[0]
+        global_cfg_path = os.path.join(data_dir, "dnode", "config", "global.json")
+        if os.path.isfile(global_cfg_path):
+            with open(global_cfg_path, encoding="utf-8") as global_cfg_file:
+                global_cfg = json.load(global_cfg_file)
+            persisted_configs = global_cfg.get("configs")
+            if not isinstance(persisted_configs, dict) or "xnodeDsnProtection" not in persisted_configs:
+                raise AssertionError(f"xnodeDsnProtection is missing from {global_cfg_path}")
+            persisted_configs["xnodeDsnProtection"] = protection
+            with open(global_cfg_path, "w", encoding="utf-8") as global_cfg_file:
+                json.dump(global_cfg, global_cfg_file, separators=(",", ":"))
+                global_cfg_file.write("\n")
+
         tdDnodes.starttaosd(1)
         last_err = None
         for _ in range(30):
             try:
                 new_conn = taos.connect()
                 tdSql.init(new_conn.cursor())
-                return
+                break
             except Exception as err:  # taosd not ready yet
                 last_err = err
                 time.sleep(1)
-        raise AssertionError(f"taosd did not come back after restart: {last_err}")
+        else:
+            raise AssertionError(f"taosd did not come back after restart: {last_err}")
+        tdSql.query("SHOW VARIABLES LIKE 'xnodeDsnProtection'")
+        assert len(tdSql.queryResult) == 1, tdSql.queryResult
+        assert str(tdSql.queryResult[0][1]) == str(protection), tdSql.queryResult
 
     def _start_mock_xnoded(self) -> MockXnoded:
         socket_path = os.path.join(tdDnodes.dnodes[0].dataDir[0], ".taosxnoded.sock")
@@ -338,10 +361,11 @@ class TestXnodeSixStarWrite:
         1. Restart taosd with xnodeDsnProtection=1 and a valid public key file.
         2. Bind a mock xnoded to the xnoded unix socket so /task/check succeeds
            and CREATE XNODE TASK commits a task with real credentials.
-        3. ALTER XNODE TASK with "******" userinfo password and query token
-           succeeds (KEEP); the SHOW readback returns the merged candidate
-           shape with masked sensitive values; a KEEP without a matching old
-           sensitive key fails with TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED.
+        3. ALTER XNODE TASK with a "******" userinfo password and the
+           committed query token succeeds; the SHOW readback returns
+           the merged candidate shape with masked sensitive values; a KEEP
+           without a matching old sensitive key fails with
+           TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED.
         4. ALTER XNODE TASK with a fresh credential (REPLACE) also succeeds.
 
         Since: v3.4.2.8
@@ -362,21 +386,21 @@ class TestXnodeSixStarWrite:
                 f"TO 'taos://sinku:sinkpw@h2:6030/db2'",
                 queryTimes=1,
             )
-            # KEEP both sensitive fields; the candidate reshapes everything else.
+            # KEEP the password while retaining the committed connection identity and token.
             tdSql.execute(
-                f"ALTER XNODE TASK '{name}' FROM 'taos://userX:******@hX:6030/dbX?token=******' "
+                f"ALTER XNODE TASK '{name}' FROM 'taos://user1:******@h1:6030/db1?token=tok123' "
                 f"TO 'taos://sinku:******@h2:6030/db2'",
                 queryTimes=1,
             )
             rs = tdSql.query(f"SHOW XNODE TASKS WHERE name = '{name}'", row_tag=True)
             assert len(rs) == 1, f"expected one task row, got {rs}"
             from_shown, to_shown = str(rs[0][2]), str(rs[0][3])
-            assert "userX" in from_shown and "hX" in from_shown, from_shown
+            assert "user1" in from_shown and "h1" in from_shown and "db1" in from_shown, from_shown
             assert "oldsecret" not in from_shown and "sinkpw" not in to_shown, (from_shown, to_shown)
             assert "******" in from_shown and "******" in to_shown, (from_shown, to_shown)
             # KEEP for a sensitive key the committed DSN does not carry is rejected.
             tdSql.error(
-                f"ALTER XNODE TASK '{name}' FROM 'taos://userX:******@hX:6030/dbX?password=******' "
+                f"ALTER XNODE TASK '{name}' FROM 'taos://user1:******@h1:6030/db1?password=******' "
                 f"TO 'taos://sinku:******@h2:6030/db2'",
                 expectedErrno=TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED,
             )
