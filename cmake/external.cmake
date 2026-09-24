@@ -358,6 +358,38 @@ if(TD_EXT_DEADSTRIP_CFLAGS)
     set(TD_EXT_DEADSTRIP_SUFFIX " ${TD_EXT_DEADSTRIP_CFLAGS}")
 endif()
 
+# ---------------------------------------------------------------------------
+# CFLAGS/CXXFLAGS for autotools externals built via `configure`
+# (mxml/apr/aprutil/sasl2/gsasl).
+# Setting CFLAGS in the configure environment *replaces* the package's own
+# default optimization/debug flags entirely, so do not hardcode e.g. -g -O2
+# (would override the per-config flags: a Debug build must stay unoptimized)
+# and do not pass -fPIC alone (would silently drop optimization -- see the
+# ext_tz note below).  Mirror the main project's per-config flags instead,
+# the same approach ext_tz uses for its hand-written Makefile.
+if(TD_CONFIG_NAME_RESOLVED STREQUAL "Release")
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_RELEASE}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_RELEASE}")
+elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "RelWithDebInfo")
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "MinSizeRel")
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_MINSIZEREL}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+else()
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_DEBUG}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_DEBUG}")
+endif()
+# Never leave these libs unoptimized, even if the config flags are emptied.
+if(_td_ext_autotools_config_flags STREQUAL "")
+    set(_td_ext_autotools_config_flags "-O2")
+endif()
+if(_td_ext_autotools_cxx_config_flags STREQUAL "")
+    set(_td_ext_autotools_cxx_config_flags "-O2")
+endif()
+string(JOIN " " _td_ext_autotools_cflags "-fPIC" "${_td_ext_autotools_config_flags}")
+string(JOIN " " _td_ext_autotools_cxxflags "-fPIC" "${_td_ext_autotools_cxx_config_flags}")
+
 # zlib
 if(TD_LINUX)
     set(ext_zlib_static libz.a)
@@ -586,6 +618,7 @@ if(BUILD_TEST)           # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -Dgtest_force_shared_crt:BOOL=ON
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -758,6 +791,7 @@ ExternalProject_Add(ext_xz
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
     CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
     CMAKE_ARGS -DCREATE_LZMA_SYMLINKS:BOOL=OFF
     CMAKE_ARGS -DCREATE_XZ_SYMLINKS:BOOL=OFF
@@ -803,10 +837,21 @@ if(NOT TD_WINDOWS)        # {
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/xxhash.Makefile Makefile
         CONFIGURE_COMMAND ""
+        # xxhash.Makefile only adds -fPIC to the shared-lib rule, so libxxhash.a
+        # comes out non-PIC and cannot be linked into -pie executables. MOREFLAGS
+        # appends to CFLAGS and keeps the Makefile's own defaults (-O3 + its
+        # warning set); a bare `CFLAGS=-fPIC` would replace them entirely.
+        #
+        # BUILD_ALWAYS: a flag-only change leaves the externals CI cache step
+        # stamps valid, so the rebuild is skipped and the stale non-PIC archive
+        # keeps being linked.  make -B is needed alongside it: the flags are not
+        # in xxhash.o's prerequisite list, so plain `make` sees the cached
+        # object as up-to-date and re-archives it without recompiling.
         BUILD_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${_ins}
+            COMMAND ${_EXT_ENV_PREFIX} make -B DESTDIR=${_ins} MOREFLAGS=-fPIC
         INSTALL_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${_ins} install
+            COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${_ins} MOREFLAGS=-fPIC install
+        BUILD_ALWAYS TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1669,6 +1714,7 @@ if(TD_TAOS_TOOLS)
         CMAKE_ARGS -DJANSSON_INCLUDE_DIRS:STRING=${ext_jansson_install}/include
         CMAKE_ARGS -DJANSSON_LIBRARY_DIRS:STRING=${ext_jansson_install}/lib/${ext_jansson_static}
         CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${_c_flags}"
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/avro.lang.c.CMakeLists.txt.in            ${ext_avro_source}/lang/c/CMakeLists.txt
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/avro.lang.c.src.avro.msinttypes.h.in     ${ext_avro_source}/lang/c/src/avro/msinttypes.h
@@ -1814,6 +1860,7 @@ ExternalProject_Add(ext_libs3
     CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
     CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
     CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
     BUILD_COMMAND
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
     INSTALL_COMMAND
@@ -1859,6 +1906,7 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
         CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
         CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/azure.CMakeLists.txt.in" "${ext_azure_source}/CMakeLists.txt"
         BUILD_COMMAND
@@ -1924,9 +1972,10 @@ if(NOT TD_WINDOWS)        # {
           ${ext_mxml_source}/CHANGES.md
         WORKING_DIRECTORY ${ext_mxml_source}
         COMMAND pwd
-        COMMAND ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
+        COMMAND "${CMAKE_COMMAND}" -E env "CFLAGS=${_td_ext_autotools_cflags}" ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
         COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${ext_mxml_source}/install
         COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${ext_mxml_source}/install install
+        VERBATIM
     )
 
     add_custom_target(ext_mxml_post
@@ -1936,6 +1985,7 @@ if(NOT TD_WINDOWS)        # {
         COMMAND "${CMAKE_COMMAND}" -E echo ${ext_mxml_source}/install/lib/${ext_mxml_static}
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./install/include/mxml.h ${_ins}/include/mxml.h
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./install/lib/${ext_mxml_static} ${_ins}/lib/${ext_mxml_static}
+        VERBATIM
     )
     add_dependencies(build_externals ext_mxml_post)     # this is for github workflow in cache-miss step.
 
@@ -1968,7 +2018,7 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DAPR_BUILD_SHARED:BOOL=OFF
         PATCH_COMMAND ""
         CONFIGURE_COMMAND
-            COMMAND ./configure --prefix=${_ins} --enable-shared=no
+            COMMAND "${CMAKE_COMMAND}" -E env "CFLAGS=${_td_ext_autotools_cflags}" ./configure --prefix=${_ins} --enable-shared=no
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make            # NOTE: do NOT specify DESTDIR=
         INSTALL_COMMAND
@@ -2009,7 +2059,7 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         PATCH_COMMAND ""
         CONFIGURE_COMMAND
-            COMMAND ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
+            COMMAND "${CMAKE_COMMAND}" -E env "CFLAGS=${_td_ext_autotools_cflags}" ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make            # NOTE: do NOT specify DESTDIR=
         INSTALL_COMMAND
@@ -2090,8 +2140,8 @@ if(${BUILD_LIBSASL})      # {
             COMMAND "${CMAKE_COMMAND}" -E env
                 CC=gcc
                 CC_FOR_BUILD=gcc
-                "CFLAGS=-Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
-                "CXXFLAGS=-Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
+                "CFLAGS=${_td_ext_autotools_cflags} -Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
+                "CXXFLAGS=${_td_ext_autotools_cxxflags} -Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
                 ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no --with-saslauthd=no --with-authdaemond=no
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make
@@ -2143,7 +2193,7 @@ if(${BUILD_LIBGSASL} AND ${TD_LINUX})      # {
             COMMAND "${CMAKE_COMMAND}" -E env
                 CC=gcc
                 CC_FOR_BUILD=gcc
-                "CFLAGS=-fPIC${TD_EXT_DEADSTRIP_SUFFIX}"
+                "CFLAGS=${_td_ext_autotools_cflags}${TD_EXT_DEADSTRIP_SUFFIX}"
                 ./configure --prefix=${_ins} --with-pic --enable-static=yes --enable-shared=no
                     --disable-nls --enable-scram-sha256
                     --without-stringprep

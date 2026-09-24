@@ -186,10 +186,10 @@ class TestVTableQueryExtSourceFilter:
 
         # Failed validation must not create an own column or disturb existing bindings.
         tdSql.error(f"alter vtable own_child add column bad int from {ref}.v where device = 'd1'",
-                    expectedErrno=0x6212)  # TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER
+                    expectedErrno=0x6217)  # TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER
         tdSql.error(f"create vtable own_bad (bad int from {ref}.v where device = 'd1') "
                     "using filter_stable tags (4)",
-                    expectedErrno=0x6212)
+                    expectedErrno=0x6217)
         tdSql.execute("alter vtable own_child drop column own_w")
         tdSql.execute(f"alter vtable own_child add column own_w int from {ref}.w "
                       "where device = 'd2' and tenant = 1")

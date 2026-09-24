@@ -3029,6 +3029,7 @@ TEST(td_msg_test, stream_runtime_info_preserves_current_event_condition_path) {
 }
 
 #include "SClientHbBatchReq.cpp"
+#include "SCMSubscribeReq.cpp"
 #include "SDeleteRes.cpp"
 // Verify the encode/decode roundtrip of each vnode's per-target snapshot progress array pSnapProgress in a status req.
 // Build 2 SVnodeSnapProgress entries, serialize then deserialize, and assert the group count and each field match.

@@ -2326,8 +2326,23 @@ static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVi
   SLogicNode *pRefScan = NULL;
   bool        put = false;
 
-  PLAN_ERR_JRET(findRefTableNode(refTableNodeMap, pColRef->refDbName, pColRef->refTableName, &pRefTable));
-  PLAN_ERR_JRET(findRefColId(pRefTable, pColRef->refColName, &colId, &colIdx));
+  code = findRefTableNode(refTableNodeMap, pColRef->refDbName, pColRef->refTableName, &pRefTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (TSDB_CODE_NOT_FOUND == code) {
+      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST,
+                                 pColRef->refDbName, pColRef->refTableName, pVirtualTable->table.dbName,
+                                 pVirtualTable->table.tableName);
+    }
+    // internal errors from nodesCloneNode (e.g. OOM) must not masquerade as a missing source table
+    return code;
+  }
+  code = findRefColId(pRefTable, pColRef->refColName, &colId, &colIdx);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRefTable);
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_VTABLE_SRC_COL_NOT_FOUND,
+                               pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+                               pVirtualTable->table.dbName, pVirtualTable->table.tableName);
+  }
 
   char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
   TSlice tableNameBuf = {0};
@@ -2384,8 +2399,23 @@ static int32_t addSubScanNodeByRef(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   SLogicNode* pRefScan = NULL;
   bool        put = false;
 
-  PLAN_ERR_JRET(findRefTableNode(refTableNodeMap, pColRef->refDbName, pColRef->refTableName, &pRefTable));
-  PLAN_ERR_JRET(findRefColId(pRefTable, pColRef->refColName, &colId, &colIdx));
+  code = findRefTableNode(refTableNodeMap, pColRef->refDbName, pColRef->refTableName, &pRefTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (TSDB_CODE_NOT_FOUND == code) {
+      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST,
+                                 pColRef->refDbName, pColRef->refTableName, pVirtualTable->table.dbName,
+                                 pVirtualTable->table.tableName);
+    }
+    // internal errors from nodesCloneNode (e.g. OOM) must not masquerade as a missing source table
+    return code;
+  }
+  code = findRefColId(pRefTable, pColRef->refColName, &colId, &colIdx);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRefTable);
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_VTABLE_SRC_COL_NOT_FOUND,
+                               pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+                               pVirtualTable->table.dbName, pVirtualTable->table.tableName);
+  }
 
   char   tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
   TSlice tableNameBuf = {0};

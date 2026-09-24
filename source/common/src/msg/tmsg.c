@@ -12815,6 +12815,112 @@ _exit:
   return tlen;
 }
 
+static int32_t tDecodeSubscribeI32(SDecoder *decoder, int32_t *value) {
+  uint8_t *data = NULL;
+  TAOS_CHECK_RETURN(tDecodeBinaryWithSize(decoder, sizeof(*value), &data));
+  if (taosDecodeFixedI32(data, value) != data + sizeof(*value)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return 0;
+}
+
+static int32_t tDecodeSubscribeString(SDecoder *decoder, char *value, uint32_t capacity) {
+  uint64_t length = 0;
+  for (int32_t index = 0; index < 10; ++index) {
+    uint8_t byte = 0;
+    TAOS_CHECK_RETURN(tDecodeU8(decoder, &byte));
+    if (index == 9 && byte > 1) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    length |= (uint64_t)(byte & 0x7f) << (7 * index);
+    if ((byte & 0x80) == 0) {
+      if (length >= capacity || length > decoder->size - decoder->pos) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      TAOS_CHECK_RETURN(tDecodeFixed(decoder, value, (uint32_t)length));
+      value[length] = '\0';
+      return 0;
+    }
+  }
+  return TSDB_CODE_INVALID_MSG;
+}
+
+int32_t tDeserializeSCMSubscribeReq(void *buf, SCMSubscribeReq *pReq, int32_t len) {
+  if (pReq == NULL || buf == NULL || len <= 0) {
+    uError("TMQ subscribe decode rejected invalid arguments, payload length:%d", len);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  enum { MAX_SUBSCRIBE_TOPICS = 10000, SUBSCRIBE_OPTION_BYTES = 9 };
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  int32_t  topicNum = 0;
+  uint8_t *consumerId = NULL;
+  pReq->topicNames = NULL;
+  tDecoderInit(&decoder, buf, len);
+
+  TAOS_CHECK_EXIT(tDecodeBinaryWithSize(&decoder, sizeof(pReq->consumerId), &consumerId));
+  if (taosDecodeFixedI64(consumerId, &pReq->consumerId) != consumerId + sizeof(pReq->consumerId)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_CHECK_EXIT(tDecodeSubscribeString(&decoder, pReq->cgroup, sizeof(pReq->cgroup)));
+  TAOS_CHECK_EXIT(tDecodeSubscribeString(&decoder, pReq->clientId, sizeof(pReq->clientId)));
+  TAOS_CHECK_EXIT(tDecodeSubscribeI32(&decoder, &topicNum));
+  if (topicNum < 0 || topicNum > MAX_SUBSCRIBE_TOPICS ||
+      decoder.size - decoder.pos < SUBSCRIBE_OPTION_BYTES ||
+      topicNum > decoder.size - decoder.pos - SUBSCRIBE_OPTION_BYTES) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+
+  pReq->topicNames = taosArrayInit(topicNum, sizeof(char *));
+  if (pReq->topicNames == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  for (int32_t index = 0; index < topicNum; ++index) {
+    char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+    TAOS_CHECK_EXIT(tDecodeSubscribeString(&decoder, topic, sizeof(topic)));
+    char *name = taosStrdup(topic);
+    if (name == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    if (taosArrayPush(pReq->topicNames, &name) == NULL) {
+      taosMemoryFree(name);
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->withTbName));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->autoCommit));
+  TAOS_CHECK_EXIT(tDecodeSubscribeI32(&decoder, &pReq->autoCommitInterval));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->resetOffsetCfg));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->enableReplay));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->enableBatchMeta));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeSubscribeI32(&decoder, &pReq->sessionTimeoutMs));
+    TAOS_CHECK_EXIT(tDecodeSubscribeI32(&decoder, &pReq->maxPollIntervalMs));
+    TAOS_CHECK_EXIT(tDecodeSubscribeString(&decoder, pReq->user, sizeof(pReq->user)));
+    TAOS_CHECK_EXIT(tDecodeSubscribeString(&decoder, pReq->fqdn, sizeof(pReq->fqdn)));
+  } else {
+    pReq->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
+    pReq->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
+    pReq->user[0] = '\0';
+    pReq->fqdn[0] = '\0';
+  }
+
+_exit:
+  if (code != 0) {
+    uError("TMQ subscribe decode failed, payload length:%d, offset:%u, topics:%d, code:0x%x(%s)",
+           len, decoder.pos, topicNum, code, tstrerror(code));
+    taosArrayDestroyP(pReq->topicNames, NULL);
+    pReq->topicNames = NULL;
+  } else {
+    uDebug("TMQ subscribe decoded, payload length:%d, topics:%d", len, topicNum);
+  }
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicReq *pReq) {
   int32_t  sqlLen = 0;
   int32_t  astLen = 0;

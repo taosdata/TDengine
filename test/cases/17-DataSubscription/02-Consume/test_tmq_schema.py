@@ -21,6 +21,7 @@ import socket
 import os
 import threading
 from enum import Enum
+from taos.tmq import Consumer
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 
@@ -172,6 +173,72 @@ class TestCase:
             tsql.execute(sql)
         tdLog.debug("insert data ............ [OK]")
         return
+
+    def consume_topic_rows(self, consumer, expected_rows, timeout_seconds=20):
+        rows = []
+        deadline = time.time() + timeout_seconds
+        while len(rows) < expected_rows and time.time() < deadline:
+            result = consumer.poll(1)
+            if not result:
+                continue
+            error = result.error()
+            if error is not None:
+                tdLog.exit(f"TMQ poll failed: {error}")
+            value = result.value()
+            if value is None:
+                continue
+            for block in value:
+                rows.extend(block.fetchall())
+        if len(rows) != expected_rows:
+            tdLog.exit(f"Expected {expected_rows} TMQ rows, got {len(rows)}")
+        return rows
+
+    def do_query_topic_column_expansion(self):
+        database = "db_query_topic_expand"
+        table = "ntb_query_topic_expand"
+        topic = "topic_query_topic_expand"
+        initial_value = "a" * 32
+        expanded_value = "b" * 40
+
+        consumer = None
+        try:
+            tdSql.execute(f"drop database if exists {database}")
+            tdSql.execute(f"create database {database} vgroups 1 wal_retention_period 3600")
+            tdSql.execute(f"create table {database}.{table} (ts timestamp, value binary(32))")
+            tdSql.execute(f"create topic {topic} as select ts, value from {database}.{table}")
+
+            consumer = Consumer({
+                "group.id": "query_topic_expand_group",
+                "td.connect.user": "root",
+                "td.connect.pass": "taosdata",
+                "enable.auto.commit": "false",
+                "auto.offset.reset": "earliest",
+            })
+            consumer.subscribe([topic])
+            tdLog.debug("Inserting initial query topic row with current timestamp")
+            tdSql.execute(f"insert into {database}.{table} values(now, '{initial_value}')")
+            initial_rows = self.consume_topic_rows(consumer, 1)
+            if len(initial_rows[0][1]) != len(initial_value):
+                tdLog.exit(f"Expected initial value length {len(initial_value)}, got {len(initial_rows[0][1])}")
+
+            tdSql.execute(f"alter table {database}.{table} modify column value binary(40)")
+            tdLog.debug("Inserting expanded query topic row one second after the initial row")
+            tdSql.execute(f"insert into {database}.{table} values(now+1s, '{expanded_value}')")
+            expanded_rows = self.consume_topic_rows(consumer, 1)
+            if len(expanded_rows[0][1]) != len(expanded_value):
+                tdLog.exit(f"Expected expanded value length {len(expanded_value)}, got {len(expanded_rows[0][1])}")
+        finally:
+            # consume_topic_rows exits via SystemExit on failure, so the topic and the database are
+            # dropped here as well: they must be removed even when the consumer cannot be created
+            # or closed, otherwise they leak into the shared test instance.
+            try:
+                if consumer is not None:
+                    consumer.close()
+            finally:
+                tdSql.execute(f"drop topic if exists {topic}")
+                tdSql.execute(f"drop database if exists {database}")
+
+        print("query topic column expansion ........ [passed]")
 
     def prepareEnv(self, **parameterDict):
         # create new connector for my thread
@@ -447,16 +514,19 @@ class TestCase:
         2. Add column during consumption
         3. Drop column during consumption
         4. Modify column type
-        5. Verify schema evolution handled
-        6. Check backward compatibility
+        5. Consume values written after a queried column is expanded
+        6. Verify schema evolution handled
+        7. Check backward compatibility
         
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_schema.py
+            - 2026-09-20 Mingming Wang Added query topic column expansion regression coverage.
 
         """
         tdSql.prepare()
@@ -469,6 +539,7 @@ class TestCase:
         cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdLog.info("cfgPath: %s" % cfgPath)
 
+        self.do_query_topic_column_expansion()
         self.tmqCase1(cfgPath, buildPath)
         self.tmqCase4(cfgPath, buildPath)
         self.tmqCase5(cfgPath, buildPath)

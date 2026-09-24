@@ -385,8 +385,8 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     }
     case TDMT_SCH_QUERY_RSP:
     case TDMT_SCH_MERGE_QUERY_RSP: {
-      SCH_ERR_JRET(rspCode);
       if (NULL == pMsg->pData) {
+        SCH_ERR_JRET(rspCode);
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
@@ -400,11 +400,15 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
 
       if (tDeserializeSQueryTableRsp(pMsg->pData, msgSize, &queryRsp) < 0) {
         SCH_TASK_ELOG("tDeserializeSQueryTableRsp failed, msgSize:%d", msgSize);
+        SCH_ERR_JRET(rspCode);
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
       }
       hasQueryRsp = true;
 
+      // extract the detail text before the code check aborts the path
       SCH_ERR_JRET(schSaveJobExecRes(pJob, &queryRsp));
+
+      SCH_ERR_JRET(rspCode);
 
       SCH_ERR_JRET(queryRsp.code);
 

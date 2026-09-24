@@ -67,6 +67,10 @@ typedef struct STranslateContext {
   // rewriteExprSubQuery can pre-render the EXISTS SQL for pushdown rather than
   // creating a separate inner subquery plan.
   bool sameExtSourceCorrelatedExists;
+  // Set once vtbRefSetSrcTableErrMsg has written an enriched "virtual table ... query
+  // failed" message: an outer hop hitting the same failure must not overwrite the
+  // inner (more precise) message.
+  bool vtbRefErrMsgSet;
 } STranslateContext;
 
 int32_t normalizeCreateStreamSql(STranslateContext* pCxt, const SCreateStreamStmt* pStmt, char** ppSql);

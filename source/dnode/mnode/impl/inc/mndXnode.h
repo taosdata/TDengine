@@ -43,19 +43,20 @@ void    mndXnodeCleanupShowProtection(SShowObj *pShow);
 // registry; they must stay in one-to-one correspondence with the canonical IDs and
 // are the only values tests may compare against the fixture error_id strings:
 //   1 INPUT_TYPE_INVALID        <-> 40 SIXSTAR_INPUT_TYPE_INVALID
-//   2 PERCENT_ENCODING_INVALID  <-> 41 SIXSTAR_PERCENT_ENCODING_INVALID
+//   2 (retired, not reused)     <-> 41 SIXSTAR_PERCENT_ENCODING_INVALID (retired)
 //   3 FIELD_AMBIGUOUS           <-> 42 SIXSTAR_FIELD_AMBIGUOUS
 //   4 CREATE_MASKED             <-> 43 SIXSTAR_CREATE_MASKED
 //   5 KEEP_MISSING              <-> 44 SIXSTAR_KEEP_MISSING
 //   6 JOB_JSON_INVALID          <-> 45 SIXSTAR_JOB_JSON_INVALID
+//   7 CONNECTION_CHANGED        <-> 46 SIXSTAR_CONNECTION_CHANGED
 typedef enum {
   XNODE_SIXSTAR_ERROR_NONE = 0,
   XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID = 1,
-  XNODE_SIXSTAR_ERROR_PERCENT_ENCODING_INVALID = 2,
   XNODE_SIXSTAR_ERROR_FIELD_AMBIGUOUS = 3,
   XNODE_SIXSTAR_ERROR_CREATE_MASKED = 4,
   XNODE_SIXSTAR_ERROR_KEEP_MISSING = 5,
   XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID = 6,
+  XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED = 7,
 } EXnodeSixStarError;
 
 typedef enum {
@@ -91,6 +92,11 @@ typedef struct {
   int32_t     len;
 } SXnodeSixStarField;
 
+typedef enum {
+  XNODE_SIXSTAR_DIRECTION_FROM = 0,
+  XNODE_SIXSTAR_DIRECTION_TO = 1,
+} EXnodeSixStarDirection;
+
 // isJob selects which candidate/old field pairs are consumed: isJob == true
 // merges only candidateConfig/oldConfig, isJob == false merges only
 // candidateFrom/oldFrom and candidateTo/oldTo. Fields of the other direction
@@ -111,6 +117,9 @@ typedef struct {
   int32_t           maxFromLen;
   int32_t           maxToLen;
   int32_t           maxConfigLen;
+  int32_t           direction;
+  int32_t           oldVia;
+  int32_t           candidateVia;
 } SXnodeSixStarMergeInput;
 
 // Accepted merge result. Buffers are NUL-terminated, owned by the caller and

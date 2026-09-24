@@ -214,6 +214,10 @@ static tmq_list_t* tmq_ctx_remove_topic(struct tmq_ctx* context, const char* top
   char**  topic_names = NULL;
   int32_t topic_count = 0;
 
+  if (context == NULL || topic_name == NULL || topic_name[0] == '\0') {
+    return NULL;
+  }
+
   // append topic name to the list
   tmq_list_t* topic_list = tmq_list_new();
   if (!topic_list) {
@@ -251,6 +255,10 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
   char        consumer_client_id[64] = {0};
   char        port_str[16] = {0};
   tmq_list_t* topic_list = NULL;
+
+  if (context == NULL || topic_name == NULL || topic_name[0] == '\0' || cid == NULL || cid[0] == '\0') {
+    return false;
+  }
 
   UNUSED(snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id));
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);
@@ -339,6 +347,10 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
   char            port_str[16] = {0};
   tmq_list_t*     topic_list = NULL;
   tmq_topic_info* tinfo_found;
+
+  if (context == NULL || topic_name == NULL || topic_name[0] == '\0' || cid == NULL || cid[0] == '\0') {
+    return false;
+  }
 
   snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id);
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);
