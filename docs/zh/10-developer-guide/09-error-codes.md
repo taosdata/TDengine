@@ -740,6 +740,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000620D | Virtual table query cannot resolve ref column                              | 虚拟表查询在递归解析引用列时，找不到合法的下一跳引用或最终引用列               | 检查虚拟表引用链和元数据定义，必要时联系开发处理 |
 | 0x8000620E | Virtual table circular reference detected                                  | 虚拟表查询在递归解析引用链时，检测到循环引用（A→B→...→A）                | 检查虚拟表引用链，消除循环依赖             |
 | 0x8000620F | No valid epSet for virtual super table data source node                    | 虚拟超级表查询使用了过期的数据源 vgroup 路由，执行器找不到对应 endpoint       | 客户端会刷新相关数据库元数据并自动重试；若持续失败，请检查集群状态和客户端日志 |
+| 0x80006210 | Virtual table source table does not exist                                  | 虚拟表引用的源表不存在（已被删除或改名）                                  | 确认源表是否存在；重建源表或修正引用 |
+| 0x80006211 | Virtual table source column not found                                      | 虚拟表引用的源表列不存在                                                 | 确认源表 schema；修正引用列或重建源表 |
+| 0x80006212 | Virtual table ref column unresolved                                        | 虚拟表引用列无法解析（链路过深、成环或终端缺失）                           | 用 SHOW VTABLE VALIDATE 定位失败点；修正引用链 |
 
 #### federated query
 

@@ -445,7 +445,12 @@ void freeSTableMetaRspPointer(void *p) {
 }
 
 void destroyQueryExecRes(SExecResult* pRes) {
-  if (NULL == pRes || NULL == pRes->res) {
+  if (NULL == pRes) {
+    return;
+  }
+
+  taosMemoryFreeClear(pRes->extErrMsg);
+  if (NULL == pRes->res) {
     return;
   }
 
