@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "dataset_schema": "taosQueryTest-default-v1",
+  "targets": [
+    {
+      "target": "mysql",
+      "script": "prepare-mysql-data.sh",
+      "namespace": "fq_default",
+      "tables": ["fq_series", "fq_device", "fq_series_empty"],
+      "primary_key": ["ts", "device_id"],
+      "timezone": "UTC",
+      "time_precision": "us",
+      "null_semantics": "sql_null",
+      "cleanup": "drop_owned_databases",
+      "type_mapping": "mysql-v1"
+    },
+    {
+      "target": "pg",
+      "script": "prepare-postgresql-data.sh",
+      "namespace": "fq_default",
+      "tables": ["fq_series", "fq_device", "fq_series_empty"],
+      "primary_key": ["ts", "device_id"],
+      "timezone": "UTC",
+      "time_precision": "us",
+      "null_semantics": "sql_null",
+      "cleanup": "drop_owned_database",
+      "type_mapping": "postgresql-v1"
+    },
+    {
+      "target": "influx",
+      "script": "prepare-influxdb-data.sh",
+      "namespace": "fq_default",
+      "tables": ["fq_series", "fq_device", "fq_precision"],
+      "primary_key": ["time", "device_id"],
+      "timezone": "UTC",
+      "time_precision": "ns",
+      "null_semantics": "missing_field",
+      "cleanup": "delete_owned_buckets",
+      "type_mapping": "influxdb-v3-arrow-v1"
+    }
+  ]
+}

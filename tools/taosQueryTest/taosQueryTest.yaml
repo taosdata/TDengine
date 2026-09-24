@@ -1,0 +1,18 @@
+version: 1
+
+execution:
+  statement_timeout_seconds: 300
+  statement_retry_count: 2
+  # Keep the measured 16-pair profile; increasing isolated taosd count can
+  # reduce throughput through host-side contention rather than improve it.
+  pair_count: 16
+  judge_worker_count: 14
+  queue_capacity: 4096
+  pair_async_window: 96
+  random_builder_count: 4
+  # random_seed: 20260902
+
+ai:
+  provider: codex
+  command: codex
+  working_directory: ""
