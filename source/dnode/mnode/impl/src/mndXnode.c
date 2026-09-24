@@ -2479,16 +2479,6 @@ static int32_t mndXnodeHexValue(char c) {
   return -1;
 }
 
-static bool mndXnodePercentValid(const char *value, int32_t len) {
-  for (int32_t i = 0; i < len; ++i) {
-    if (value[i] == '%' && (i + 2 >= len || mndXnodeHexValue(value[i + 1]) < 0 || mndXnodeHexValue(value[i + 2]) < 0)) {
-      return false;
-    }
-    if (value[i] == '%') i += 2;
-  }
-  return true;
-}
-
 static bool mndXnodeUtf8Valid(const char *value, int32_t len) {
   if (value == NULL || len < 0) return false;
   for (int32_t i = 0; i < len;) {
@@ -2523,17 +2513,21 @@ static bool mndXnodeUtf8Valid(const char *value, int32_t len) {
   return true;
 }
 
+// Lenient percent decoding mirroring the connector DSN parser (mdsn): `%`
+// decodes only when followed by two ASCII hex characters, otherwise it is
+// copied as a literal byte. An invalid sequence therefore still contains a
+// literal `%` and can never decode to the six-star control marker.
 static int32_t mndXnodePercentDecode(const char *value, int32_t len, char **decoded, int32_t *decodedLen) {
   if (value == NULL || len < 0 || decoded == NULL || decodedLen == NULL || *decoded != NULL) {
     return mndXnodeProtectionError();
   }
   *decodedLen = 0;
-  if (!mndXnodePercentValid(value, len)) return mndXnodeProtectionError();
   char *out = taosMemoryMalloc((size_t)len + 1);
   if (out == NULL) return mndXnodeProtectionError();
   int32_t outLen = 0;
   for (int32_t i = 0; i < len; ++i) {
-    if (value[i] == '%') {
+    if (value[i] == '%' && i + 2 < len && mndXnodeHexValue(value[i + 1]) >= 0 &&
+        mndXnodeHexValue(value[i + 2]) >= 0) {
       out[outLen++] = (char)((mndXnodeHexValue(value[i + 1]) << 4) | mndXnodeHexValue(value[i + 2]));
       i += 2;
     } else {
@@ -2566,6 +2560,7 @@ static int32_t mndXnodeNormalizeSensitiveKey(char *key, int32_t len) {
 
 static bool mndXnodeSensitiveNormalizedMatch(const char *key, int32_t outLen) {
   return strstr(key, "password") != NULL || strstr(key, "passwd") != NULL || strstr(key, "privatekey") != NULL ||
+         strcmp(key, "certkey") == 0 || strcmp(key, "sslclientkey") == 0 || strcmp(key, "sslkeypem") == 0 ||
          strstr(key, "secret") != NULL || strstr(key, "apikey") != NULL || strstr(key, "accessid") != NULL ||
          strstr(key, "accesskey") != NULL || strstr(key, "totpcode") != NULL || strcmp(key, "token") == 0 ||
          (outLen >= 5 && strcmp(key + outLen - 5, "token") == 0);
@@ -2652,8 +2647,10 @@ static int32_t mndXnodeMaskDsnInternal(const char *dsn, int32_t dsnLen, char **m
       char *key = NULL;
       int32_t keyLen = 0;
       int32_t code = mndXnodePercentDecode(dsn + pos, equal - pos, &key, &keyLen);
-      // A key that cannot be decoded cannot be classified; mask its value
-      // conservatively instead of failing the whole DSN.
+      // Decoding is lenient: an invalid `%` sequence stays as literal bytes
+      // and the key is classified as-is. A key that still cannot be decoded
+      // (decoded NUL) cannot be classified; mask its value conservatively
+      // instead of failing the whole DSN.
       bool sensitive = equal < end && (code != TSDB_CODE_SUCCESS || mndXnodeSensitiveKey(key, keyLen));
       taosMemoryFree(key);
       if (sensitive) replacements += 1;
@@ -3282,15 +3279,15 @@ static int32_t mndXnodeSetDsnShowColumn(SShowObj *pShow, SColumnInfoData *pColIn
 // ---------------------------------------------------------------------------
 // Six-star write semantics for CREATE/ALTER XNODE TASK/JOB.
 //
-// When xnodeDsnProtection=1 the mnode applies the structured six-star rules of
-// the shared DsnInteropV1 profile to the sensitive fields of candidate DSNs and
-// Job configs. The merge runs on the write queue before the final object is
-// encoded into the commit log, so no control six-star can reach the commit log,
-// a connector, or the runtime object regardless of the client entry point. When
-// the protection is disabled the merge is skipped entirely and a six-star value
-// is stored as an ordinary credential. The sixStarError out-parameters carry the
-// stable cross-language registry mapping (EXnodeSixStarError); the SQL-visible
-// error stays TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED and never embeds the
+// When xnodeDsnProtection=1 the mnode applies the structured six-star rules to
+// the sensitive fields of candidate DSNs and Job configs. The merge runs on
+// the write queue before the final object is encoded into the commit log, so
+// no control six-star can reach the commit log, a connector, or the runtime
+// object regardless of the client entry point. When the protection is
+// disabled the merge is skipped entirely and a six-star value is stored as an
+// ordinary credential. The sixStarError out-parameters carry the stable
+// cross-language registry mapping (EXnodeSixStarError); the SQL-visible error
+// stays TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED and never embeds the
 // candidate DSN, the old secret, or the six-star marker itself.
 // ---------------------------------------------------------------------------
 
@@ -3360,9 +3357,11 @@ int32_t mndXnodeSixStarScanDsn(const char *dsn, int32_t dsnLen, SXnodeSixStarSlo
   // concept ('#' is an ordinary data byte), a URL-form DSN (with "://") starts
   // its query at the LAST '?', and a path-like DSN (e.g. csv:/path?x=1) starts
   // it at the FIRST '?'. The query region runs to the end of the DSN. Percent
-  // decoding is strict and happens exactly once per sensitive field (userinfo
-  // password, every query key, every sensitive query value); a bare '%'
-  // anywhere else (e.g. busy_threshold=30%) passes through untouched.
+  // decoding is lenient and happens exactly once per sensitive field (userinfo
+  // password, every query key, every sensitive query value); an invalid '%'
+  // sequence keeps its literal bytes and can never decode to the six-star
+  // marker, and a bare '%' anywhere else (e.g. busy_threshold=30%) passes
+  // through untouched.
   int32_t firstQuestion = -1;
   int32_t lastQuestion = -1;
   for (int32_t i = 0; i < dsnLen; ++i) {
@@ -3422,7 +3421,7 @@ int32_t mndXnodeSixStarScanDsn(const char *dsn, int32_t dsnLen, SXnodeSixStarSlo
           code = mndXnodePercentDecode(dsn + slot.wireValueOff, slot.wireValueLen, &slot.decodedValue,
                                        &slot.decodedValueLen);
           if (code != TSDB_CODE_SUCCESS) {
-            code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_PERCENT_ENCODING_INVALID);
+            code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
           }
         }
         if (code == TSDB_CODE_SUCCESS) {
@@ -3449,7 +3448,7 @@ int32_t mndXnodeSixStarScanDsn(const char *dsn, int32_t dsnLen, SXnodeSixStarSlo
       int32_t decodedKeyLen = 0;
       code = mndXnodePercentDecode(dsn + pos, equal - pos, &decodedKey, &decodedKeyLen);
       if (code != TSDB_CODE_SUCCESS) {
-        code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_PERCENT_ENCODING_INVALID);
+        code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
         goto _OVER;
       }
       // The decoded key is normalized in place for the sensitivity test; only a
@@ -3463,7 +3462,7 @@ int32_t mndXnodeSixStarScanDsn(const char *dsn, int32_t dsnLen, SXnodeSixStarSlo
         code = mndXnodePercentDecode(dsn + pos, equal - pos, &decodedKey, &decodedKeyLen);
         if (code != TSDB_CODE_SUCCESS) {
           taosMemoryFree(normalizedKey);
-          code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_PERCENT_ENCODING_INVALID);
+          code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
           goto _OVER;
         }
         SXnodeSixStarSlot slot = {0};
@@ -3492,7 +3491,7 @@ int32_t mndXnodeSixStarScanDsn(const char *dsn, int32_t dsnLen, SXnodeSixStarSlo
                                      &slot.decodedValueLen);
         if (code != TSDB_CODE_SUCCESS) {
           mndXnodeSixStarFreeSlot(&slot);
-          code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_PERCENT_ENCODING_INVALID);
+          code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
           goto _OVER;
         }
         if (taosArrayPush(pSlots, &slot) == NULL) {
@@ -3534,6 +3533,277 @@ _OVER:
 static bool mndXnodeSixStarIsMaskedValue(const char *decodedValue, int32_t decodedValueLen) {
   return decodedValueLen == XNODE_SHOW_MASK_VALUE_LEN &&
          memcmp(decodedValue, XNODE_SHOW_MASK_VALUE, XNODE_SHOW_MASK_VALUE_LEN) == 0;
+}
+
+static bool mndXnodeSixStarBlockedParam(int32_t direction, const char *driver, const char *key) {
+  const char *effective = strcmp(driver, "sync") == 0 ? "tmq" : driver;
+  if (strcmp(effective, "kafka") == 0) {
+    if (direction == XNODE_SIXSTAR_DIRECTION_TO) {
+      if (strncmp(key, "kafka.", 6) != 0) return false;
+      key += 6;
+    }
+    if (strcmp(key, "bootstrap.servers") == 0 || strcmp(key, "security.protocol") == 0 ||
+        strcmp(key, "enable.ssl.certificate.verification") == 0 || strncmp(key, "ssl.", 4) == 0 ||
+        strncmp(key, "sasl.", 5) == 0) {
+      return true;
+    }
+  }
+  if ((strcmp(effective, "pulsar") == 0 || strcmp(effective, "pulsarTuya") == 0) && strncmp(key, "pulsar.", 7) == 0)
+    return true;
+  if ((strcmp(effective, "mqtt") == 0 || strcmp(effective, "sparkplugb") == 0) &&
+      (strcmp(key, "ca") == 0 || strcmp(key, "cert") == 0)) return true;
+  if ((strcmp(effective, "pulsar") == 0 || strcmp(effective, "pulsarTuya") == 0) &&
+      (strcmp(key, "cert") == 0 || strcmp(key, "ba_username") == 0 || strcmp(key, "custom_auth_name") == 0 ||
+       strcmp(key, "custom_auth_data") == 0 || strcmp(key, "custom_is_ssl") == 0 || strcmp(key, "tuya_env") == 0))
+    return true;
+  if (strcmp(effective, "influxdb") == 0 &&
+      (strcmp(key, "version") == 0 || strcmp(key, "orgId") == 0 || strcmp(key, "username") == 0)) return true;
+  if ((strcmp(effective, "mysql") == 0 || strcmp(effective, "postgres") == 0) &&
+      (strcmp(key, "ssl_mode") == 0 || strcmp(key, "ssl_ca") == 0 || strcmp(key, "ssl_client_cert") == 0))
+    return true;
+  if (strcmp(effective, "mssql") == 0 &&
+      (strcmp(key, "encryption") == 0 || strcmp(key, "trust_cert") == 0 || strcmp(key, "trust_cert_ca") == 0 ||
+       strcmp(key, "instance_name") == 0)) return true;
+  if (strcmp(effective, "mongodb") == 0 &&
+      (strcmp(key, "tls") == 0 || strcmp(key, "ca_file_path") == 0 || strcmp(key, "cert_key_file_path") == 0 ||
+       strcmp(key, "mechanism") == 0 || strcmp(key, "source") == 0 || strcmp(key, "load_balanced") == 0 ||
+       strcmp(key, "direct_connection") == 0 || strcmp(key, "repl_set_name") == 0)) return true;
+  if (strcmp(effective, "avevaHistorian") == 0 &&
+      (strcmp(key, "encryption") == 0 || strcmp(key, "encryptionLevel") == 0)) return true;
+  if ((strcmp(effective, "pi") == 0 || strcmp(effective, "pibackfill") == 0) &&
+      (strcmp(key, "PIServerUser") == 0 || strcmp(key, "PIServerDomain") == 0 || strcmp(key, "PISystemName") == 0))
+    return true;
+  if ((strcmp(effective, "opc") == 0 || strcmp(effective, "opcda") == 0 || strcmp(effective, "opcua") == 0) &&
+      (strcmp(key, "security_policy") == 0 || strcmp(key, "security_mode") == 0 || strcmp(key, "certificate") == 0 ||
+       strcmp(key, "auth_certificate") == 0 || strcmp(key, "failover_endpoints") == 0)) return true;
+  if ((strcmp(effective, "taos") == 0 || strcmp(effective, "tmq") == 0) &&
+      (strcmp(key, "tls_mode") == 0 || strcmp(key, "tls_version") == 0 || strcmp(key, "tls_ca") == 0 ||
+       strcmp(key, "conn_mode") == 0)) return true;
+  if (strcmp(effective, "local") == 0 &&
+      (strcmp(key, "s3_enable") == 0 || strcmp(key, "s3_endpoint") == 0 || strcmp(key, "s3_bucket") == 0 ||
+       strcmp(key, "s3_region") == 0 || strcmp(key, "s3_uri_style") == 0 || strcmp(key, "s3_object_prefix") == 0))
+    return true;
+  return false;
+}
+
+static int32_t mndXnodeSixStarQueryStart(const char *dsn, int32_t len) {
+  bool url = false;
+  for (int32_t i = 0; i + 2 < len; ++i) {
+    if (dsn[i] == '/' || dsn[i] == '?') break;
+    if (dsn[i] == ':' && dsn[i + 1] == '/' && dsn[i + 2] == '/') {
+      url = true;
+      break;
+    }
+  }
+  int32_t pos = -1;
+  for (int32_t i = 0; i < len; ++i) {
+    if (dsn[i] == '?') {
+      pos = i;
+      if (!url) break;
+    }
+  }
+  return pos < 0 ? len : pos;
+}
+
+static int32_t mndXnodeSixStarDriver(const char *dsn, int32_t len, char *driver, int32_t driverLen) {
+  int32_t end = 0;
+  while (end < len && dsn[end] != ':') ++end;
+  if (end <= 0 || end >= driverLen) return TSDB_CODE_FAILED;
+  int32_t plus = 0;
+  while (plus < end && dsn[plus] != '+') ++plus;
+  if (plus == 0) return TSDB_CODE_FAILED;
+  (void)memcpy(driver, dsn, (size_t)plus);
+  driver[plus] = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct {
+  char   *key;
+  int32_t keyLen;
+  char   *value;
+  int32_t valueLen;
+} SXnodeSixStarProjectionPart;
+
+static int32_t mndXnodeSixStarProjectionPartCmp(const void *pa, const void *pb) {
+  const SXnodeSixStarProjectionPart *a = (const SXnodeSixStarProjectionPart *)pa;
+  const SXnodeSixStarProjectionPart *b = (const SXnodeSixStarProjectionPart *)pb;
+  int32_t minLen = a->keyLen < b->keyLen ? a->keyLen : b->keyLen;
+  if (minLen > 0) {
+    int32_t code = memcmp(a->key, b->key, (size_t)minLen);
+    if (code != 0) return code;
+  }
+  if (a->keyLen != b->keyLen) return a->keyLen < b->keyLen ? -1 : 1;
+  minLen = a->valueLen < b->valueLen ? a->valueLen : b->valueLen;
+  if (minLen > 0) {
+    int32_t code = memcmp(a->value, b->value, (size_t)minLen);
+    if (code != 0) return code;
+  }
+  if (a->valueLen != b->valueLen) return a->valueLen < b->valueLen ? -1 : 1;
+  return 0;
+}
+
+static void mndXnodeSixStarFreeProjectionParts(SXnodeSixStarProjectionPart *parts, int32_t numParts) {
+  if (parts == NULL) return;
+  for (int32_t i = 0; i < numParts; ++i) {
+    taosMemoryFree(parts[i].key);
+    taosMemoryFree(parts[i].value);
+  }
+  taosMemoryFree(parts);
+}
+
+static int32_t mndXnodeSixStarQueryProjection(const char *dsn, int32_t dsnLen, int32_t queryStart, int32_t direction,
+                                              char **ppProjection, int32_t *pProjectionLen) {
+  *ppProjection = NULL;
+  *pProjectionLen = 0;
+  char driver[64] = {0};
+  if (mndXnodeSixStarDriver(dsn, dsnLen, driver, sizeof(driver)) != TSDB_CODE_SUCCESS) return TSDB_CODE_FAILED;
+  int32_t capacity = dsnLen > 0 ? dsnLen + 1 : 1;
+  char   *projection = taosMemoryCalloc(1, (size_t)capacity);
+  if (projection == NULL) return mndXnodeProtectionError();
+  int32_t partCapacity = dsnLen > 0 ? dsnLen : 1;
+  SXnodeSixStarProjectionPart *parts =
+      taosMemoryCalloc((size_t)partCapacity, sizeof(SXnodeSixStarProjectionPart));
+  if (parts == NULL) {
+    taosMemoryFree(projection);
+    return mndXnodeProtectionError();
+  }
+  int32_t partCount = 0;
+  int32_t pos = queryStart < dsnLen ? queryStart + 1 : dsnLen;
+  while (pos < dsnLen) {
+    int32_t end = pos;
+    while (end < dsnLen && dsn[end] != '&') ++end;
+    int32_t equal = pos;
+    while (equal < end && dsn[equal] != '=') ++equal;
+    char *decodedKey = NULL;
+    char *decodedValue = NULL;
+    int32_t keyLen = 0;
+    int32_t valueLen = 0;
+    int32_t code = mndXnodePercentDecode(dsn + pos, equal - pos, &decodedKey, &keyLen);
+    if (code == TSDB_CODE_SUCCESS && equal < end)
+      code = mndXnodePercentDecode(dsn + equal + 1, end - equal - 1, &decodedValue, &valueLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(decodedKey);
+      taosMemoryFree(decodedValue);
+      taosMemoryFree(projection);
+      mndXnodeSixStarFreeProjectionParts(parts, partCount);
+      return code;
+    }
+    if (equal < end && mndXnodeSixStarBlockedParam(direction, driver, decodedKey)) {
+      if (partCount >= partCapacity) {
+        taosMemoryFree(decodedKey);
+        taosMemoryFree(decodedValue);
+        taosMemoryFree(projection);
+        mndXnodeSixStarFreeProjectionParts(parts, partCount);
+        return mndXnodeProtectionError();
+      }
+      parts[partCount].key = decodedKey;
+      parts[partCount].keyLen = keyLen;
+      parts[partCount].value = decodedValue;
+      parts[partCount].valueLen = valueLen;
+      ++partCount;
+      decodedKey = NULL;
+      decodedValue = NULL;
+    }
+    taosMemoryFree(decodedKey);
+    taosMemoryFree(decodedValue);
+    pos = end + 1;
+  }
+  taosSort(parts, partCount, sizeof(*parts), mndXnodeSixStarProjectionPartCmp);
+  int64_t projectedLen = 0;
+  for (int32_t i = 0; i < partCount; ++i) {
+    projectedLen += (int64_t)parts[i].keyLen + parts[i].valueLen + 2;
+  }
+  if (projectedLen >= capacity || projectedLen > INT32_MAX) {
+    taosMemoryFree(projection);
+    mndXnodeSixStarFreeProjectionParts(parts, partCount);
+    return mndXnodeProtectionError();
+  }
+  int32_t outLen = 0;
+  for (int32_t i = 0; i < partCount; ++i) {
+    (void)memcpy(projection + outLen, parts[i].key, (size_t)parts[i].keyLen);
+    outLen += parts[i].keyLen;
+    projection[outLen++] = '=';
+    (void)memcpy(projection + outLen, parts[i].value, (size_t)parts[i].valueLen);
+    outLen += parts[i].valueLen;
+    projection[outLen++] = '&';
+  }
+  projection[outLen] = 0;
+  mndXnodeSixStarFreeProjectionParts(parts, partCount);
+  *ppProjection = projection;
+  *pProjectionLen = outLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeSixStarBuildPrefixSkeleton(const char *dsn, int32_t prefixLen, const SXnodeSixStarSlot *slots,
+                                                  int32_t numSlots, char **ppSkeleton, int32_t *pSkeletonLen) {
+  int64_t finalLen = prefixLen;
+  for (int32_t i = 0; i < numSlots; ++i) {
+    if (slots[i].wireValueOff >= prefixLen) continue;
+    int32_t valueLen = TMIN(slots[i].wireValueLen, prefixLen - slots[i].wireValueOff);
+    finalLen += XNODE_SHOW_MASK_VALUE_LEN - valueLen;
+  }
+  if (finalLen < 0 || finalLen > INT32_MAX) return mndXnodeProtectionError();
+  char *skeleton = taosMemoryMalloc((size_t)finalLen + 1);
+  if (skeleton == NULL) return mndXnodeProtectionError();
+  int32_t out = 0;
+  int32_t cursor = 0;
+  for (int32_t i = 0; i < numSlots; ++i) {
+    if (slots[i].wireValueOff >= prefixLen) break;
+    int32_t end = TMIN(slots[i].wireValueOff + slots[i].wireValueLen, prefixLen);
+    if (slots[i].wireValueOff < cursor) continue;
+    (void)memcpy(skeleton + out, dsn + cursor, (size_t)(slots[i].wireValueOff - cursor));
+    out += slots[i].wireValueOff - cursor;
+    (void)memcpy(skeleton + out, XNODE_SHOW_MASK_VALUE, XNODE_SHOW_MASK_VALUE_LEN);
+    out += XNODE_SHOW_MASK_VALUE_LEN;
+    cursor = end;
+  }
+  (void)memcpy(skeleton + out, dsn + cursor, (size_t)(prefixLen - cursor));
+  out += prefixLen - cursor;
+  skeleton[out] = 0;
+  *ppSkeleton = skeleton;
+  *pSkeletonLen = out;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeSixStarConnectionMatch(const char *oldDsn, int32_t oldLen, const char *candDsn, int32_t candLen,
+                                              int32_t direction, int32_t *pSixStarError) {
+  SXnodeSixStarSlot *oldSlots = NULL;
+  SXnodeSixStarSlot *candSlots = NULL;
+  int32_t numOld = 0;
+  int32_t numCand = 0;
+  int32_t code = mndXnodeSixStarScanDsn(oldDsn, oldLen, &oldSlots, &numOld, pSixStarError);
+  if (code == TSDB_CODE_SUCCESS) code = mndXnodeSixStarScanDsn(candDsn, candLen, &candSlots, &numCand, pSixStarError);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  char *oldPrefix = NULL;
+  char *candPrefix = NULL;
+  char *oldQuery = NULL;
+  char *candQuery = NULL;
+  int32_t oldPrefixLen = 0;
+  int32_t candPrefixLen = 0;
+  int32_t oldQueryLen = 0;
+  int32_t candQueryLen = 0;
+  int32_t oldQueryStart = mndXnodeSixStarQueryStart(oldDsn, oldLen);
+  int32_t candQueryStart = mndXnodeSixStarQueryStart(candDsn, candLen);
+  code = mndXnodeSixStarBuildPrefixSkeleton(oldDsn, oldQueryStart, oldSlots, numOld, &oldPrefix, &oldPrefixLen);
+  if (code == TSDB_CODE_SUCCESS)
+    code = mndXnodeSixStarBuildPrefixSkeleton(candDsn, candQueryStart, candSlots, numCand, &candPrefix, &candPrefixLen);
+  if (code == TSDB_CODE_SUCCESS)
+    code = mndXnodeSixStarQueryProjection(oldDsn, oldLen, oldQueryStart, direction, &oldQuery, &oldQueryLen);
+  if (code == TSDB_CODE_SUCCESS)
+    code = mndXnodeSixStarQueryProjection(candDsn, candLen, candQueryStart, direction, &candQuery, &candQueryLen);
+  if (code == TSDB_CODE_SUCCESS &&
+      (oldPrefixLen != candPrefixLen || memcmp(oldPrefix, candPrefix, (size_t)oldPrefixLen) != 0 || oldQueryLen != candQueryLen ||
+       memcmp(oldQuery, candQuery, (size_t)oldQueryLen) != 0)) {
+    code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED);
+  }
+  taosMemoryFree(oldPrefix);
+  taosMemoryFree(candPrefix);
+  taosMemoryFree(oldQuery);
+  taosMemoryFree(candQuery);
+_OVER:
+  mndXnodeSixStarFreeSlots(oldSlots, numOld);
+  mndXnodeSixStarFreeSlots(candSlots, numCand);
+  return code;
 }
 
 // Old slots are matched by (role, normalizedKey, duplicateOrdinal); a userinfo
@@ -3582,7 +3852,7 @@ static const SXnodeSixStarSlot *mndXnodeSixStarMatchOldSlot(const SXnodeSixStarS
 // (REPLACE), and a sensitive field absent from the candidate stays absent.
 static int32_t mndXnodeSixStarMergeDsn(const char *oldDsn, int32_t oldDsnLen, const char *candDsn, int32_t candDsnLen,
                                        bool create, int32_t maxLen, char **ppFinal, int32_t *pFinalLen,
-                                       int32_t *pSixStarError) {
+                                       int32_t direction, int32_t *pSixStarError) {
   if (ppFinal == NULL || pFinalLen == NULL || *ppFinal != NULL || candDsn == NULL || candDsnLen < 0) {
     return mndXnodeProtectionError();
   }
@@ -3612,6 +3882,8 @@ static int32_t mndXnodeSixStarMergeDsn(const char *oldDsn, int32_t oldDsnLen, co
     code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
     goto _OVER;
   }
+  code = mndXnodeSixStarConnectionMatch(oldDsn, oldDsnLen, candDsn, candDsnLen, direction, pSixStarError);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
   code = mndXnodeSixStarScanDsn(oldDsn, oldDsnLen, &oldSlots, &numOld, pSixStarError);
   if (code != TSDB_CODE_SUCCESS) goto _OVER;
   code = mndXnodeSixStarIndexOldSlots(oldSlots, numOld, &ppOldIndex);
@@ -3813,19 +4085,23 @@ static int32_t mndXnodeSixStarLoadOldJobConfig(const char *oldConfig, int32_t ol
   return code;
 }
 
-// JobConfigSpliceV1 write-path profile: the candidate config bytes are validated
-// with cJSON and a syntax-aware span scanner cross-checked against it, the
-// top-level from/to DSNs are merged with six-star semantics, and only the two
-// string literal spans are spliced back. Every other byte of the candidate is
-// copied verbatim; a direction without KEEP values keeps its original literal
+// Job config splice: the candidate config bytes are validated with cJSON and
+// a syntax-aware span scanner cross-checked against it, the top-level from/to
+// DSNs are merged with six-star semantics, and only the two string literal
+// spans are spliced back. Every other byte of the candidate is copied
+// verbatim; a direction without KEEP values keeps its original literal
 // untouched, and the result is never re-serialized through tjsonToString.
 static int32_t mndXnodeSixStarMergeJobConfig(const char *oldConfig, int32_t oldConfigLen, const char *candConfig,
                                              int32_t candConfigLen, bool create, int32_t maxConfigLen, char **ppFinal,
-                                             int32_t *pFinalLen, int32_t *pSixStarError) {
+                                             int32_t *pFinalLen, bool *pHasKeep, bool *pHasFrom, bool *pHasTo,
+                                             int32_t *pSixStarError) {
   if (ppFinal == NULL || pFinalLen == NULL || *ppFinal != NULL || candConfig == NULL || candConfigLen < 0) {
     return mndXnodeProtectionError();
   }
   *pFinalLen = 0;
+  if (pHasKeep != NULL) *pHasKeep = false;
+  if (pHasFrom != NULL) *pHasFrom = false;
+  if (pHasTo != NULL) *pHasTo = false;
   if (candConfigLen == 0) return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
   for (int32_t i = 0; i < candConfigLen; ++i) {
     if ((unsigned char)candConfig[i] == 0) {
@@ -3859,6 +4135,8 @@ static int32_t mndXnodeSixStarMergeJobConfig(const char *oldConfig, int32_t oldC
     if (code == TSDB_CODE_SUCCESS && ((fromCount > 0 && !from.present) || (toCount > 0 && !to.present))) {
       code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
     }
+    if (pHasFrom != NULL) *pHasFrom = from.present;
+    if (pHasTo != NULL) *pHasTo = to.present;
   }
 
   char                    *replacements[2] = {NULL, NULL};
@@ -3886,16 +4164,17 @@ static int32_t mndXnodeSixStarMergeJobConfig(const char *oldConfig, int32_t oldC
     int32_t          numCand = 0;
     code = mndXnodeSixStarScanDsn(decoded, decodedLen, &candSlots, &numCand, pSixStarError);
     if (code == TSDB_CODE_SUCCESS) {
-      bool hasKeep = false;
+      bool directionHasKeep = false;
       for (int32_t s = 0; s < numCand; ++s) {
         if (!mndXnodeSixStarIsMaskedValue(candSlots[s].decodedValue, candSlots[s].decodedValueLen)) continue;
         if (create) {
           code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_CREATE_MASKED);
           break;
         }
-        hasKeep = true;
+        directionHasKeep = true;
       }
-      if (code == TSDB_CODE_SUCCESS && hasKeep) {
+      if (pHasKeep != NULL && directionHasKeep) *pHasKeep = true;
+      if (code == TSDB_CODE_SUCCESS && directionHasKeep) {
         if (oldConfig == NULL) {
           code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
         }
@@ -3912,6 +4191,26 @@ static int32_t mndXnodeSixStarMergeJobConfig(const char *oldConfig, int32_t oldC
           oldSlots = direction == 0 ? oldJob.fromSlots : oldJob.toSlots;
           numOld = direction == 0 ? oldJob.numFromSlots : oldJob.numToSlots;
           if (oldDsn == NULL) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
+          if (code == TSDB_CODE_SUCCESS) {
+            const SXnodeSixStarSlot **ppOldIndex = NULL;
+            code = mndXnodeSixStarIndexOldSlots(oldSlots, numOld, &ppOldIndex);
+            if (code == TSDB_CODE_SUCCESS) {
+              for (int32_t s = 0; s < numCand; ++s) {
+                if (!mndXnodeSixStarIsMaskedValue(candSlots[s].decodedValue, candSlots[s].decodedValueLen)) continue;
+                if (mndXnodeSixStarMatchOldSlot(ppOldIndex, numOld, &candSlots[s]) == NULL) {
+                  code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
+                  break;
+                }
+              }
+            }
+            taosMemoryFree(ppOldIndex);
+          }
+          if (code == TSDB_CODE_SUCCESS) {
+            code = mndXnodeSixStarConnectionMatch(oldDsn, oldDsnLen, decoded, decodedLen,
+                                                  direction == 0 ? XNODE_SIXSTAR_DIRECTION_FROM
+                                                                 : XNODE_SIXSTAR_DIRECTION_TO,
+                                                  pSixStarError);
+          }
         }
         const SXnodeSixStarSlot **ppOldIndex = NULL;
         if (code == TSDB_CODE_SUCCESS) {
@@ -4021,12 +4320,52 @@ static int32_t mndXnodeSixStarDupField(const SXnodeSixStarField *pField, char **
   return mndXnodeSixStarDupBytes(pField->ptr, pField->len, ppOut, pOutLen);
 }
 
+static int32_t mndXnodeSixStarFieldHasKeep(const SXnodeSixStarField *pField, bool *pHasKeep,
+                                           int32_t *pSixStarError) {
+  *pHasKeep = false;
+  if (pField->ptr == NULL) return TSDB_CODE_SUCCESS;
+  SXnodeSixStarSlot *slots = NULL;
+  int32_t numSlots = 0;
+  int32_t code = mndXnodeSixStarScanDsn(pField->ptr, pField->len, &slots, &numSlots, pSixStarError);
+  if (code == TSDB_CODE_SUCCESS) {
+    for (int32_t i = 0; i < numSlots; ++i) {
+      if (mndXnodeSixStarIsMaskedValue(slots[i].decodedValue, slots[i].decodedValueLen)) {
+        *pHasKeep = true;
+        break;
+      }
+    }
+  }
+  mndXnodeSixStarFreeSlots(slots, numSlots);
+  return code;
+}
+
 int32_t mndXnodeSixStarMerge(const SXnodeSixStarMergeInput *pInput, SXnodeSixStarMergeOutput *pOutput,
                              int32_t *pSixStarError) {
   if (pInput == NULL || pOutput == NULL || pSixStarError == NULL) return mndXnodeProtectionError();
   memset(pOutput, 0, sizeof(*pOutput));
   *pSixStarError = XNODE_SIXSTAR_ERROR_NONE;
   int32_t code = TSDB_CODE_SUCCESS;
+  // ALTER treats VIA <= 0 as omitted, so it retains the committed route.
+  // Only an explicit positive VIA different from oldVia changes the route.
+  bool viaChanged = pInput->candidateVia > 0 && pInput->candidateVia != pInput->oldVia;
+  if (pInput->protectionEnabled && viaChanged) {
+    if (!pInput->isJob) {
+      bool hasKeep = false;
+      bool fromKeep = false;
+      bool toKeep = false;
+      code = mndXnodeSixStarFieldHasKeep(&pInput->candidateFrom, &fromKeep, pSixStarError);
+      if (code == TSDB_CODE_SUCCESS) code = mndXnodeSixStarFieldHasKeep(&pInput->candidateTo, &toKeep, pSixStarError);
+      hasKeep = fromKeep || toKeep;
+      if (code == TSDB_CODE_SUCCESS &&
+          (pInput->candidateFrom.ptr == NULL || pInput->candidateTo.ptr == NULL || hasKeep)) {
+        code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED);
+      }
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      mndXnodeSixStarMergeOutputFree(pOutput);
+      return code;
+    }
+  }
   if (!pInput->protectionEnabled) {
     const SXnodeSixStarField *finalFrom = pInput->candidateFrom.ptr != NULL ? &pInput->candidateFrom : &pInput->oldFrom;
     const SXnodeSixStarField *finalTo = pInput->candidateTo.ptr != NULL ? &pInput->candidateTo : &pInput->oldTo;
@@ -4036,12 +4375,21 @@ int32_t mndXnodeSixStarMerge(const SXnodeSixStarMergeInput *pInput, SXnodeSixSta
     if (code == TSDB_CODE_SUCCESS) code = mndXnodeSixStarDupField(finalTo, &pOutput->to, &pOutput->toLen);
     if (code == TSDB_CODE_SUCCESS) code = mndXnodeSixStarDupField(finalConfig, &pOutput->config, &pOutput->configLen);
   } else if (pInput->isJob) {
+    bool hasKeep = false;
+    bool hasFrom = false;
+    bool hasTo = false;
     if (pInput->candidateConfig.ptr == NULL) {
       code = mndXnodeSixStarDupField(&pInput->oldConfig, &pOutput->config, &pOutput->configLen);
     } else {
       code = mndXnodeSixStarMergeJobConfig(pInput->oldConfig.ptr, pInput->oldConfig.len, pInput->candidateConfig.ptr,
                                            pInput->candidateConfig.len, pInput->create, pInput->maxConfigLen,
-                                           &pOutput->config, &pOutput->configLen, pSixStarError);
+                                           &pOutput->config, &pOutput->configLen, &hasKeep, &hasFrom, &hasTo,
+                                           pSixStarError);
+    }
+    if (code == TSDB_CODE_SUCCESS && viaChanged &&
+        (pInput->candidateConfig.ptr == NULL || hasKeep || !hasFrom || !hasTo)) {
+      mndXnodeSixStarMergeOutputFree(pOutput);
+      code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED);
     }
   } else {
     if (pInput->candidateFrom.ptr == NULL) {
@@ -4049,7 +4397,7 @@ int32_t mndXnodeSixStarMerge(const SXnodeSixStarMergeInput *pInput, SXnodeSixSta
     } else {
       code = mndXnodeSixStarMergeDsn(pInput->oldFrom.ptr, pInput->oldFrom.len, pInput->candidateFrom.ptr,
                                      pInput->candidateFrom.len, pInput->create, pInput->maxFromLen, &pOutput->from,
-                                     &pOutput->fromLen, pSixStarError);
+                                     &pOutput->fromLen, XNODE_SIXSTAR_DIRECTION_FROM, pSixStarError);
     }
     if (code == TSDB_CODE_SUCCESS) {
       if (pInput->candidateTo.ptr == NULL) {
@@ -4057,7 +4405,7 @@ int32_t mndXnodeSixStarMerge(const SXnodeSixStarMergeInput *pInput, SXnodeSixSta
       } else {
         code = mndXnodeSixStarMergeDsn(pInput->oldTo.ptr, pInput->oldTo.len, pInput->candidateTo.ptr,
                                        pInput->candidateTo.len, pInput->create, pInput->maxToLen, &pOutput->to,
-                                       &pOutput->toLen, pSixStarError);
+                                       &pOutput->toLen, XNODE_SIXSTAR_DIRECTION_TO, pSixStarError);
       }
     }
   }
@@ -4147,6 +4495,8 @@ int32_t mndXnodeMergeUpdateTaskSixStar(const SXnodeTaskObj *pOld, const SMUpdate
   input.oldFrom.len = pOld->sourceDsn != NULL ? pOld->sourceDsnLen - 1 : 0;
   input.oldTo.ptr = pOld->sinkDsn;
   input.oldTo.len = pOld->sinkDsn != NULL ? pOld->sinkDsnLen - 1 : 0;
+  input.oldVia = pOld->via;
+  input.candidateVia = pUpdate->via;
   input.candidateFrom.ptr = pUpdate->source.cstr.ptr;
   input.candidateFrom.len = pUpdate->source.cstr.len;
   input.candidateTo.ptr = pUpdate->sink.cstr.ptr;
@@ -4191,6 +4541,8 @@ static int32_t mndXnodeMergeUpdateJobSixStar(const SXnodeJobObj *pOld, const SMU
   input.oldConfig.len = pOld->config != NULL ? pOld->configLen - 1 : 0;
   input.candidateConfig.ptr = pUpdate->config;
   input.candidateConfig.len = pUpdate->configLen;
+  input.oldVia = pOld->via;
+  input.candidateVia = pUpdate->via;
   input.maxConfigLen = TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN;
   int32_t code = mndXnodeSixStarMerge(&input, &output, &sixStarError);
   if (code == TSDB_CODE_SUCCESS) {

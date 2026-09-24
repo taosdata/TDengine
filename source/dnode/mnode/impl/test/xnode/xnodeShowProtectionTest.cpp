@@ -239,16 +239,18 @@ TEST_F(XnodeShowProtectionTest, PreservesBarePercentOutsideDecodedKeys) {
   }
 }
 
-TEST_F(XnodeShowProtectionTest, MasksValueWhenQueryKeyCannotBeDecoded) {
-  // A key that cannot be percent-decoded cannot be classified, so its value is
-  // masked conservatively instead of failing the whole DSN.
+TEST_F(XnodeShowProtectionTest, PassesThroughValueWhenQueryKeyHasInvalidEncoding) {
+  // Under lenient decoding an invalid '%' sequence stays as literal bytes and
+  // the key is classified as-is: the literal '%' keeps `pa%ssword` from
+  // matching the password rule, so a non-sensitive key leaves its value
+  // untouched instead of masking it conservatively.
   const struct {
     const char *input;
     const char *expected;
   } cases[] = {
-      {"taos://h/db?pa%ssword=x", "taos://h/db?pa%ssword=******"},
+      {"taos://h/db?pa%ssword=x", "taos://h/db?pa%ssword=x"},
       {"tmq+ws://127.0.0.1:6041/test?100%=1&password=p",
-       "tmq+ws://127.0.0.1:6041/test?100%=******&password=******"},
+       "tmq+ws://127.0.0.1:6041/test?100%=1&password=******"},
   };
   for (const auto &c : cases) {
     char *masked = nullptr;
