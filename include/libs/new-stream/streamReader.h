@@ -165,6 +165,8 @@ typedef struct SStreamTriggerReaderInfo {
 
 } SStreamTriggerReaderInfo;
 
+bool    stReaderTaskGetShallowMemoryEstimate(const SStreamReaderTask *pTask, int64_t *pBytes);
+
 typedef struct SStreamTriggerReaderCalcInfo {
   void*       pTask;
   void*       pFilterInfo;
