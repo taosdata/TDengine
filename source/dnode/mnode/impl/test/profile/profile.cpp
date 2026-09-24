@@ -40,7 +40,7 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
   strcpy(connectReq.app, "mnode_test_profile");
   strcpy(connectReq.db, "");
   strcpy(connectReq.user, "root");
-  memcpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
+  tstrncpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
   strcpy(connectReq.sVer, td_version);
   connectReq.connectTime = taosGetTimestampMs();
   tSignConnectReq(&connectReq);
@@ -80,7 +80,7 @@ TEST_F(MndTestProfile, 02_ConnectMsg_NotExistDB) {
   strcpy(connectReq.app, "mnode_test_profile");
   strcpy(connectReq.db, "not_exist_db");
   strcpy(connectReq.user, "root");
-  memcpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
+  tstrncpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
   strcpy(connectReq.sVer, td_version);
   connectReq.connectTime = taosGetTimestampMs();
   tSignConnectReq(&connectReq);
