@@ -287,7 +287,7 @@ class TestStableRenameColumn:
         # DROP / MODIFY on the renamed pk column are still rejected
         tdSql.error(
             f"alter stable {self.dbname}.pkstb drop column id2",
-            expectErrInfo="primary key column can not be",
+            expectErrInfo="composite primary key column cannot be added, modified, or dropped",
             fullMatched=False,
         )
         # a plain column on the same table renames fine
@@ -307,7 +307,7 @@ class TestStableRenameColumn:
         tdSql.checkData(0, 0, 50)
         tdSql.error(
             f"alter table {self.dbname}.pkntb drop column id2",
-            expectErrInfo="primary key column can not be",
+            expectErrInfo="composite primary key column cannot be added, modified, or dropped",
             fullMatched=False,
         )
         tdSql.execute(f"alter table {self.dbname}.pkntb rename column val val_ok")
