@@ -154,7 +154,7 @@ class IdmpScene:
         with open(f"{self.vstb_sql}", "r", encoding="utf-8") as f:
             for line in f:
                 sql = line.strip()
-                if sql:
+                if sql and not sql.startswith(("--", "#")):
                     tdLog.debug(f"virtual stable SQL: {sql}")
                     tdSql.execute(sql, queryTimes=1)
                     vstb_count += 1
@@ -171,7 +171,7 @@ class IdmpScene:
         with open(f"{self.vtb_sql}", "r", encoding="utf-8") as f:
             for line in f:
                 sql = line.strip()
-                if sql:
+                if sql and not sql.startswith(("--", "#")):
                     tdLog.debug(f"virtual table SQL: {sql}")
                     vtb_count += 1
                     tdSql.execute(sql, queryTimes=1)
