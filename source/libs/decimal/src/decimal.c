@@ -1161,6 +1161,11 @@ bool decimal64Compare(EOperatorType op, const SDecimalCompareCtx* pLeft, const S
       Decimal128 dec128L = {0}, dec128R = {0};
       makeDecimal128FromDecimal64(&dec128L, leftDec);
       makeDecimal128FromDecimal64(&dec128R, rightDec);
+      if (deltaScale < 0) {
+        decimal128ScaleUp(&dec128L, -deltaScale);
+      } else {
+        decimal128ScaleUp(&dec128R, deltaScale);
+      }
       return doCompareDecimal128(op, &dec128L, &dec128R);
     } else {
       if (deltaScale < 0) {
