@@ -409,6 +409,7 @@ extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
 extern int32_t tsStreamBufferSize;
+extern int32_t tsStreamTriggerMaxPendingParams;
 extern int64_t tsStreamBufferSizeBytes;
 extern bool    tsStreamPerfLogEnabled;
 extern bool    tsFilterScalarMode;

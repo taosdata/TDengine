@@ -162,6 +162,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | streamBufferSize | taosd | Maximum cache size that stream computing can use |
 | streamNotifyMessageSize | taosd | Controls the message size for event notifications |
 | streamNotifyFrameSize | taosd | Controls the underlying frame size when sending event notification messages |
+| streamTriggerMaxPendingParams | taosd | Upper bound (count) of pending calculation parameters a stream trigger can accumulate |
 | **Log Related** | | |
 | logDir | both | Log file directory, operational logs will be written to this directory |
 | minimalLogDirGB | both | Stops writing logs when the available space on the disk where the log folder is located is less than this value |

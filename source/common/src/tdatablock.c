@@ -1023,6 +1023,70 @@ size_t blockDataGetSize(const SSDataBlock* pBlock) {
   return total;
 }
 
+static bool blockDataAddMemorySize(size_t* pTotal, size_t bytes) {
+  if (*pTotal > SIZE_MAX - bytes) return false;
+  *pTotal += bytes;
+  return true;
+}
+
+static bool blockDataMultiplyMemorySize(size_t left, size_t right, size_t* pResult) {
+  if (right != 0 && left > SIZE_MAX / right) return false;
+  *pResult = left * right;
+  return true;
+}
+
+size_t blockDataGetMemorySize(const SSDataBlock* pBlock) {
+  if (pBlock == NULL) return 0;
+
+  size_t total = sizeof(*pBlock);
+  if (pBlock->pDataBlock == NULL) return total;
+  if (!blockDataAddMemorySize(&total, sizeof(*pBlock->pDataBlock))) return SIZE_MAX;
+  size_t arrayDataBytes = 0;
+  if (pBlock->pDataBlock->pData != NULL &&
+      (!blockDataMultiplyMemorySize(pBlock->pDataBlock->capacity, pBlock->pDataBlock->elemSize, &arrayDataBytes) ||
+       !blockDataAddMemorySize(&total, arrayDataBytes))) {
+    return SIZE_MAX;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (size_t i = 0; i < numOfCols; ++i) {
+    const SColumnInfoData* pColumn = taosArrayGet(pBlock->pDataBlock, i);
+    if (pColumn == NULL) continue;
+
+    size_t dataBytes = 0;
+    size_t auxiliaryBytes = 0;
+    if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
+      if (pColumn->pData != NULL) dataBytes = pColumn->varmeta.allocLen;
+      if (pColumn->varmeta.offset != NULL &&
+          !blockDataMultiplyMemorySize(pBlock->info.capacity, sizeof(*pColumn->varmeta.offset), &auxiliaryBytes)) {
+        return SIZE_MAX;
+      }
+    } else {
+      if (pColumn->pData != NULL) {
+        if (pColumn->info.bytes < 0 ||
+            !blockDataMultiplyMemorySize((size_t)pColumn->info.bytes, pBlock->info.capacity, &dataBytes)) {
+          return SIZE_MAX;
+        }
+      }
+      if (pColumn->nullbitmap != NULL) {
+        auxiliaryBytes = BitmapLen(pBlock->info.capacity);
+      }
+    }
+    if (!blockDataAddMemorySize(&total, dataBytes) || !blockDataAddMemorySize(&total, auxiliaryBytes)) {
+      return SIZE_MAX;
+    }
+  }
+
+  if (pBlock->pBlockAgg != NULL) {
+    size_t aggregateBytes = 0;
+    if (!blockDataMultiplyMemorySize(numOfCols, sizeof(*pBlock->pBlockAgg), &aggregateBytes) ||
+        !blockDataAddMemorySize(&total, aggregateBytes)) {
+      return SIZE_MAX;
+    }
+  }
+  return total;
+}
+
 // the number of tuples can be fit in one page.
 // Actual data rows pluses the corresponding meta data must fit in one memory buffer of the given page size.
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,

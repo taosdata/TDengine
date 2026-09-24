@@ -301,9 +301,10 @@ TEST_F(StreamTaskStatsDebugTest, ReaderPeriodContainsEveryCommonIdentityField) {
       .activeScanContexts = 3,
       .tableCount = 4,
       .cacheEntries = 5,
+      .shallowMemoryBytesEstimate = 12345,
       .validMask = STREAM_READER_GAUGE_LAST_WAL | STREAM_READER_GAUGE_LAST_SUCCESS |
                    STREAM_READER_GAUGE_ACTIVE_CONTEXTS | STREAM_READER_GAUGE_TABLE_COUNT |
-                   STREAM_READER_GAUGE_CACHE_ENTRIES,
+                   STREAM_READER_GAUGE_CACHE_ENTRIES | STREAM_READER_GAUGE_SHALLOW_MEMORY,
   };
 
   const std::string line = formatReaderPeriod(snapshot);
@@ -337,6 +338,7 @@ TEST_F(StreamTaskStatsDebugTest, ReaderPeriodContainsEveryCommonIdentityField) {
       "active_scan_contexts=3",
       "table_count=4",
       "cache_entries=5",
+      "reader_shallow_memory_bytes_estimate=12345",
       "stats_overflow=true",
   };
   for (const char *field : requiredFields) {

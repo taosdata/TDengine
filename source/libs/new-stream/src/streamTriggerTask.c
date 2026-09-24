@@ -32,6 +32,7 @@
 #include "tarray.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 #include "thash.h"
 #include "tmisce.h"
 #include "tmsg.h"
@@ -39,10 +40,12 @@
 #include "tutil.h"
 
 #define STREAM_TRIGGER_CHECK_INTERVAL_MS  1000                    // 1s
+#define STREAM_TRIGGER_CHECK_INTERVAL_US  (STREAM_TRIGGER_CHECK_INTERVAL_MS * 1000LL)
 #define STREAM_TRIGGER_IDLE_TIME_NS       1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
 #define STREAM_TRIGGER_NOTICE_RETRY_NS    (50 * NANOSECOND_PER_MSEC)
 #define STREAM_TRIGGER_MAX_METAS          1 * 1024 * 1024         // 1M
-#define STREAM_TRIGGER_MAX_PENDING_PARAMS 1 * 1024 * 1024         // 1M
+#define STREAM_TRIGGER_CALC_PARAM_POOL_MIN_CAP 1024
+#define STREAM_TRIGGER_CALC_PARAM_POOL_SHRINK_INTERVAL_US (60 * 1000000LL)
 #define STREAM_TRIGGER_REALTIME_SESSIONID 1
 #define STREAM_TRIGGER_HISTORY_SESSIONID  2
 
@@ -10364,16 +10367,68 @@ static bool stTriggerGaugeAdd(int64_t lhs, int64_t rhs, int64_t *pResult) {
   return true;
 }
 
+static bool stTriggerRecalcRequestBytes(const SSTriggerRecalcRequest *pReq,
+                                       SStreamTriggerRecalcMemory *pMemory) {
+  if (pReq == NULL) return true;
+  size_t hashBytes = tSimpleHashGetMemSize(pReq->pTsdbVersions);
+  int64_t payloadBytes = (int64_t)tSimpleHashGetSize(pReq->pTsdbVersions) *
+                         (sizeof(int32_t) + sizeof(int64_t));
+  if (hashBytes > INT64_MAX) return false;
+  return stTriggerGaugeAdd(pMemory->requestCount, 1, &pMemory->requestCount) &&
+         stTriggerGaugeAdd(pMemory->requestBytes, sizeof(*pReq), &pMemory->requestBytes) &&
+         stTriggerGaugeAdd(pMemory->versionHashBytes, (int64_t)hashBytes, &pMemory->versionHashBytes) &&
+         stTriggerGaugeAdd(pMemory->versionHashBytes, payloadBytes, &pMemory->versionHashBytes);
+}
+
+static bool stTriggerRecalcMemoryAdd(SStreamTriggerRecalcMemory *pTarget,
+                                    const SStreamTriggerRecalcMemory *pSource) {
+  return stTriggerGaugeAdd(pTarget->requestCount, pSource->requestCount, &pTarget->requestCount) &&
+         stTriggerGaugeAdd(pTarget->requestBytes, pSource->requestBytes, &pTarget->requestBytes) &&
+         stTriggerGaugeAdd(pTarget->versionHashBytes, pSource->versionHashBytes, &pTarget->versionHashBytes) &&
+         stTriggerGaugeAdd(pTarget->readyQueueBytes, pSource->readyQueueBytes, &pTarget->readyQueueBytes);
+}
+
 void stTriggerTaskRefreshCommonDebugGauges(SStreamTriggerTask *pTask) {
   if (pTask == NULL) return;
 
+  int64_t nowMonoUs = streamTaskGetMonotonicUs();
+  taosWLockLatch(&pTask->debugGaugesLock);
+  if (pTask->commonDebugGaugesSampled && nowMonoUs >= pTask->commonDebugGaugesAtMonoUs &&
+      nowMonoUs - pTask->commonDebugGaugesAtMonoUs < STREAM_TRIGGER_CHECK_INTERVAL_US) {
+    taosWUnLockLatch(&pTask->debugGaugesLock);
+    return;
+  }
+  pTask->commonDebugGaugesAtMonoUs = nowMonoUs;
+  pTask->commonDebugGaugesSampled = true;
+  taosWUnLockLatch(&pTask->debugGaugesLock);
+
   SStreamTriggerCommonDebugGauges gauges = {0};
 
+  bool recalcMemoryValid = true;
+  taosWLockLatch(&pTask->recalcRequestLock);
   if (pTask->pRecalcRequests != NULL) {
-    taosRLockLatch(&pTask->recalcRequestLock);
     gauges.pendingRecalcRequestCount = listNEles(pTask->pRecalcRequests);
-    taosRUnLockLatch(&pTask->recalcRequestLock);
+    gauges.recalcMemory.readyQueueBytes = sizeof(SList) +
+        gauges.pendingRecalcRequestCount * (sizeof(SListNode) + sizeof(SSTriggerRecalcRequest *));
+    for (SListNode *pNode = listHead(pTask->pRecalcRequests); pNode != NULL; pNode = TD_DLIST_NODE_NEXT(pNode)) {
+      if (!stTriggerRecalcRequestBytes(*(SSTriggerRecalcRequest **)pNode->data, &gauges.recalcMemory)) {
+        recalcMemoryValid = false;
+        break;
+      }
+    }
     gauges.validMask |= STREAM_TRIGGER_GAUGE_PENDING_RECALC_REQUEST;
+  }
+  for (SSTriggerRecalcRequest *pReq = TD_DLIST_HEAD(&pTask->backoffRecalcRequests); pReq != NULL;
+       pReq = TD_DLIST_NODE_NEXT(pReq)) {
+    if (!stTriggerRecalcRequestBytes(pReq, &gauges.recalcMemory)) {
+      recalcMemoryValid = false;
+      break;
+    }
+  }
+  taosWUnLockLatch(&pTask->recalcRequestLock);
+  if (recalcMemoryValid) gauges.validMask |= STREAM_TRIGGER_GAUGE_RECALC_MEMORY;
+  if (!recalcMemoryValid) {
+    ST_TASK_WLOG("%s", "failed to estimate shared recalculation memory due to overflow");
   }
   if (pTask->pRecalcTracker != NULL) {
     bool    historyValid = false;
@@ -10389,11 +10444,16 @@ void stTriggerTaskRefreshCommonDebugGauges(SStreamTriggerTask *pTask) {
   }
 
   taosWLockLatch(&pTask->debugGaugesLock);
-  pTask->commonDebugGauges = gauges;
+  if (pTask->commonDebugGaugesAtMonoUs == nowMonoUs) {
+    pTask->commonDebugGauges = gauges;
+  }
   taosWUnLockLatch(&pTask->debugGaugesLock);
+  ST_TASK_TLOG("sampled common debug gauges, pendingRecalc:%" PRId64 ", recalcMemoryValid:%d",
+               gauges.pendingRecalcRequestCount, recalcMemoryValid);
 }
 
-static SStreamTriggerRealtimeDebugGauges stTriggerTaskBuildRealtimeDebugGauges(SSTriggerRealtimeContext *pContext) {
+static SStreamTriggerRealtimeDebugGauges stTriggerTaskBuildRealtimeDebugGauges(SStreamTriggerTask *pTask,
+                                                                             SSTriggerRealtimeContext *pContext) {
   SStreamTriggerRealtimeDebugGauges gauges = {
       .present = true,
       .pendingPullRetryCount = listNEles(&pContext->retryPullReqs),
@@ -10430,13 +10490,32 @@ static SStreamTriggerRealtimeDebugGauges stTriggerTaskBuildRealtimeDebugGauges(S
   if (stTriggerPoolBytes(&pContext->calcParamPool, &gauges.calcParamPoolBytes)) {
     gauges.validMask |= STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL;
   }
+  bool recalcMemoryValid = true;
+  int32_t iter = 0;
+  taosRLockLatch(&pTask->recalcRequestLock);
+  SSTriggerGroupPendingRecalc *pPending = tSimpleHashIterate(pTask->pGroupPendingRecalcs, NULL, &iter);
+  while (pPending != NULL && recalcMemoryValid) {
+    for (SSTriggerRecalcRequest *pReq = TD_DLIST_HEAD(&pPending->pendingRequests); pReq != NULL;
+         pReq = TD_DLIST_NODE_NEXT(pReq)) {
+      if (!stTriggerRecalcRequestBytes(pReq, &gauges.recalcMemory)) {
+        recalcMemoryValid = false;
+        break;
+      }
+    }
+    pPending = tSimpleHashIterate(pTask->pGroupPendingRecalcs, pPending, &iter);
+  }
+  taosRUnLockLatch(&pTask->recalcRequestLock);
+  if (recalcMemoryValid) gauges.validMask |= STREAM_TRIGGER_GAUGE_RECALC_MEMORY;
+  if (!recalcMemoryValid) {
+    ST_TASK_WLOG("%s", "failed to estimate pending recalculation memory due to overflow");
+  }
   return gauges;
 }
 
 void stTriggerTaskPublishRealtimeDebugGauges(SStreamTriggerTask *pTask, SSTriggerRealtimeContext *pContext) {
   if (pTask == NULL || pContext == NULL) return;
 
-  SStreamTriggerRealtimeDebugGauges gauges = stTriggerTaskBuildRealtimeDebugGauges(pContext);
+  SStreamTriggerRealtimeDebugGauges gauges = stTriggerTaskBuildRealtimeDebugGauges(pTask, pContext);
 
   taosWLockLatch(&pTask->debugGaugesLock);
   pTask->realtimeDebugGauges = gauges;
@@ -10446,16 +10525,27 @@ void stTriggerTaskPublishRealtimeDebugGauges(SStreamTriggerTask *pTask, SSTrigge
 void stTriggerTaskUpdateRealtimeDebugGauges(SStreamTriggerTask *pTask, SSTriggerRealtimeContext *pContext) {
   if (pTask == NULL || pContext == NULL) return;
 
+  int64_t nowMonoUs = streamTaskGetMonotonicUs();
   taosRLockLatch(&pTask->debugGaugesLock);
   bool published = pTask->realtimeDebugGauges.present;
+  int64_t lastUpdateMonoUs = pTask->realtimeDebugGaugesAtMonoUs;
   taosRUnLockLatch(&pTask->debugGaugesLock);
-  if (!published) return;
+  if (!published && pContext->calcParamPool.pData == NULL) return;
+  if (published && nowMonoUs >= lastUpdateMonoUs &&
+      nowMonoUs - lastUpdateMonoUs < STREAM_TRIGGER_CHECK_INTERVAL_US) {
+    return;
+  }
+  if (!published) {
+    ST_TASK_DLOG("publishing realtime debug gauges after calc parameter pool initialization, session:%" PRId64,
+                 pContext->sessionId);
+  }
 
-  SStreamTriggerRealtimeDebugGauges gauges = stTriggerTaskBuildRealtimeDebugGauges(pContext);
+  SStreamTriggerRealtimeDebugGauges gauges = stTriggerTaskBuildRealtimeDebugGauges(pTask, pContext);
 
   taosWLockLatch(&pTask->debugGaugesLock);
-  if (pTask->realtimeDebugGauges.present) {
+  if (pTask->realtimeDebugGauges.present || pContext->calcParamPool.pData != NULL) {
     pTask->realtimeDebugGauges = gauges;
+    pTask->realtimeDebugGaugesAtMonoUs = nowMonoUs;
   }
   taosWUnLockLatch(&pTask->debugGaugesLock);
 }
@@ -10471,6 +10561,9 @@ static SStreamTriggerHistoryDebugGauges stTriggerTaskBuildHistoryDebugGauges(SST
       .validMask = STREAM_TRIGGER_GAUGE_PENDING_PULL_RETRY | STREAM_TRIGGER_GAUGE_PENDING_CALC_RETRY |
                    STREAM_TRIGGER_GAUGE_PENDING_NOTIFY,
   };
+  if (stTriggerRecalcRequestBytes(pContext->pManualRecalcRequest, &gauges.recalcMemory)) {
+    gauges.validMask |= STREAM_TRIGGER_GAUGE_RECALC_MEMORY;
+  }
   if (pContext->pGroups != NULL) {
     gauges.historyGroupCount = tSimpleHashGetSize(pContext->pGroups);
     gauges.validMask |= STREAM_TRIGGER_GAUGE_HISTORY_GROUP;
@@ -10512,6 +10605,7 @@ void stTriggerTaskClearRealtimeDebugGauges(SStreamTriggerTask *pTask) {
   if (pTask == NULL) return;
   taosWLockLatch(&pTask->debugGaugesLock);
   pTask->realtimeDebugGauges = (SStreamTriggerRealtimeDebugGauges){0};
+  pTask->realtimeDebugGaugesAtMonoUs = 0;
   taosWUnLockLatch(&pTask->debugGaugesLock);
 }
 
@@ -10539,6 +10633,25 @@ static void stTriggerTaskComposeDebugGauges(SStreamTriggerTask *pTask, SStreamTr
   pResult->pendingRecalcRequestCount = pCommon->pendingRecalcRequestCount;
   pResult->historyProgressPct = pCommon->historyProgressPct;
   pResult->validMask |= pCommon->validMask;
+
+  bool recalcMemoryValid = (pCommon->validMask & STREAM_TRIGGER_GAUGE_RECALC_MEMORY) != 0;
+  pResult->recalcMemory = pCommon->recalcMemory;
+  if (pRealtime->present) {
+    recalcMemoryValid = recalcMemoryValid &&
+        (pRealtime->validMask & STREAM_TRIGGER_GAUGE_RECALC_MEMORY) != 0 &&
+        stTriggerRecalcMemoryAdd(&pResult->recalcMemory, &pRealtime->recalcMemory);
+  }
+  if (pHistory->present) {
+    recalcMemoryValid = recalcMemoryValid &&
+        (pHistory->validMask & STREAM_TRIGGER_GAUGE_RECALC_MEMORY) != 0 &&
+        stTriggerRecalcMemoryAdd(&pResult->recalcMemory, &pHistory->recalcMemory);
+  }
+  recalcMemoryValid = recalcMemoryValid &&
+      stTriggerGaugeAdd(pResult->recalcMemory.requestBytes, pResult->recalcMemory.versionHashBytes,
+                        &pResult->recalcMemory.totalBytes) &&
+      stTriggerGaugeAdd(pResult->recalcMemory.totalBytes, pResult->recalcMemory.readyQueueBytes,
+                        &pResult->recalcMemory.totalBytes);
+  if (!recalcMemoryValid) pResult->validMask &= ~STREAM_TRIGGER_GAUGE_RECALC_MEMORY;
 
   bool retryValid =
       (!pRealtime->present || (pRealtime->validMask & STREAM_TRIGGER_GAUGE_PENDING_PULL_RETRY) != 0) &&
@@ -10601,6 +10714,30 @@ static void stTriggerTaskComposeDebugGauges(SStreamTriggerTask *pTask, SStreamTr
                           pHistory->present ? pHistory->calcParamPoolBytes : 0, &pResult->calcParamPoolBytes);
   }
   if (calcPresent && calcValid) pResult->validMask |= STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL;
+
+  bool poolMemoryValid = true;
+  int64_t poolMemoryBytes = 0;
+  if (pRealtime->present) {
+    const uint64_t realtimePoolMask = STREAM_TRIGGER_GAUGE_META_POOL | STREAM_TRIGGER_GAUGE_TABLE_UID_POOL |
+                                      STREAM_TRIGGER_GAUGE_WINDOW_POOL | STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL;
+    poolMemoryValid = (pRealtime->validMask & realtimePoolMask) == realtimePoolMask;
+    if (poolMemoryValid) {
+      poolMemoryValid = stTriggerGaugeAdd(poolMemoryBytes, pRealtime->metaPoolBytes, &poolMemoryBytes) &&
+                        stTriggerGaugeAdd(poolMemoryBytes, pRealtime->tableUidPoolBytes, &poolMemoryBytes) &&
+                        stTriggerGaugeAdd(poolMemoryBytes, pRealtime->windowPoolBytes, &poolMemoryBytes) &&
+                        stTriggerGaugeAdd(poolMemoryBytes, pRealtime->calcParamPoolBytes, &poolMemoryBytes);
+    }
+  }
+  if (poolMemoryValid && pHistory->present) {
+    poolMemoryValid = (pHistory->validMask & STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL) != 0;
+    if (poolMemoryValid) {
+      poolMemoryValid = stTriggerGaugeAdd(poolMemoryBytes, pHistory->calcParamPoolBytes, &poolMemoryBytes);
+    }
+  }
+  if (poolMemoryValid && (pRealtime->present || pHistory->present)) {
+    pResult->poolMemoryBytes = poolMemoryBytes;
+    pResult->validMask |= STREAM_TRIGGER_GAUGE_POOL_MEMORY;
+  }
   taosRUnLockLatch(&pTask->debugGaugesLock);
 }
 
@@ -10961,6 +11098,14 @@ static int32_t stTriggerLogResources(SStreamTriggerTask *pTask, const SStreamTas
   ST_APPEND_RESOURCE(calcParamPoolUsed, "calc_param_pool_used", STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL);
   ST_APPEND_RESOURCE(calcParamPoolCapacity, "calc_param_pool_capacity", STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL);
   ST_APPEND_RESOURCE(calcParamPoolBytes, "calc_param_pool_bytes", STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL);
+  ST_APPEND_RESOURCE(poolMemoryBytes, "trigger_pool_memory_bytes_estimate", STREAM_TRIGGER_GAUGE_POOL_MEMORY);
+  ST_APPEND_RESOURCE(recalcMemory.requestCount, "recalc_request_count", STREAM_TRIGGER_GAUGE_RECALC_MEMORY);
+  ST_APPEND_RESOURCE(recalcMemory.requestBytes, "recalc_request_memory_bytes_estimate", STREAM_TRIGGER_GAUGE_RECALC_MEMORY);
+  ST_APPEND_RESOURCE(recalcMemory.versionHashBytes, "recalc_version_hash_memory_bytes_estimate",
+                     STREAM_TRIGGER_GAUGE_RECALC_MEMORY);
+  ST_APPEND_RESOURCE(recalcMemory.readyQueueBytes, "recalc_ready_queue_memory_bytes_estimate",
+                     STREAM_TRIGGER_GAUGE_RECALC_MEMORY);
+  ST_APPEND_RESOURCE(recalcMemory.totalBytes, "trigger_recalc_memory_bytes_estimate", STREAM_TRIGGER_GAUGE_RECALC_MEMORY);
 #undef ST_APPEND_RESOURCE
   return stTriggerEmitLine(pTask, line);
 }
@@ -11759,8 +11904,9 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   QUERY_CHECK_CODE(code, lino, _end);
   code = taosObjPoolInit(&pContext->windowPool, 1024, sizeof(SSTriggerWindow));
   QUERY_CHECK_CODE(code, lino, _end);
-  code = taosObjPoolInit(&pContext->calcParamPool, 1024, sizeof(SSTriggerCalcParam));
+  code = taosObjPoolInit(&pContext->calcParamPool, STREAM_TRIGGER_CALC_PARAM_POOL_MIN_CAP, sizeof(SSTriggerCalcParam));
   QUERY_CHECK_CODE(code, lino, _end);
+  pContext->lastCalcParamPoolShrinkMonoUs = streamTaskGetMonotonicUs();
 
   if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
     code = stCreateCalcDataCacheIterMap(&pContext->pCalcDataCacheIters);
@@ -13697,7 +13843,7 @@ static int32_t stRealtimeContextDispatchNestedCalc(SSTriggerRealtimeContext *pCo
       goto _error;
     }
     if (pGroup->nestedCalcDeadline > nowNs && pGroup->nestedPendingParamCount < STREAM_CALC_REQ_MAX_WIN_NUM &&
-        pContext->nestedPendingParamCount < STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+        pContext->nestedPendingParamCount < tsStreamTriggerMaxPendingParams) {
       break;
     }
 
@@ -13723,7 +13869,7 @@ static int32_t stRealtimeContextDispatchNestedCalc(SSTriggerRealtimeContext *pCo
       code = stTriggerTaskAcquireRequest(pTask, pContext->sessionId, pGroup->gid, &pContext->pCalcReq);
       if (code != TSDB_CODE_SUCCESS) goto _error;
       if (pContext->pCalcReq == NULL) {
-        if (pTask->lowLatencyCalc || pContext->nestedPendingParamCount >= STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+        if (pTask->lowLatencyCalc || pContext->nestedPendingParamCount >= tsStreamTriggerMaxPendingParams) {
           pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
         } else {
           pContext->status = STRIGGER_CONTEXT_FETCH_META;
@@ -14285,7 +14431,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
         pParam->prevTs--;
       }
     }
-    ST_TASK_DLOG("realtime [calc param %d]: gid=%" PRId64 ", path=%s, wstart=%" PRId64 ", wend=%" PRId64
+    ST_TASK_TLOG("realtime [calc param %d]: gid=%" PRId64 ", path=%s, wstart=%" PRId64 ", wend=%" PRId64
                  ", nrows=%" PRId64
                  ", _trollup_tbcount=%d"
                  ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
@@ -14294,6 +14440,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
                  pParam->prevTs, pParam->currentTs, pParam->nextTs, pParam->prevLocalTime, pParam->nextLocalTime,
                  pParam->triggerTime, pCalcReq->createTable);
   }
+  ST_TASK_DLOG("realtime calc param size: %"PRIzu, TARRAY_SIZE(pCalcReq->params));
 
 #ifdef SKIP_SEND_CALC_REQUEST
   code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
@@ -15183,6 +15330,35 @@ _end:
   return code;
 }
 
+static void stTriggerTaskShrinkCalcParamPool(SStreamTriggerTask *pTask, SObjPool *pPool,
+                                            int64_t *pLastShrinkMonoUs, int64_t nowMonoUs, int64_t sessionId) {
+  if (pPool->pData == NULL || pPool->capacity <= STREAM_TRIGGER_CALC_PARAM_POOL_MIN_CAP) {
+    return;
+  }
+  if (*pLastShrinkMonoUs == 0 || nowMonoUs < *pLastShrinkMonoUs) {
+    *pLastShrinkMonoUs = nowMonoUs;
+    return;
+  }
+  if (pPool->size != 0 ||
+      nowMonoUs - *pLastShrinkMonoUs < STREAM_TRIGGER_CALC_PARAM_POOL_SHRINK_INTERVAL_US) {
+    return;
+  }
+
+  *pLastShrinkMonoUs = nowMonoUs;
+  int64_t oldCap = pPool->capacity;
+  int64_t newCap = TMAX(STREAM_TRIGGER_CALC_PARAM_POOL_MIN_CAP, oldCap / 2);
+  int32_t code = taosObjPoolShrinkEmpty(pPool, newCap);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_WLOG("failed to shrink calc param pool, context session:%" PRId64
+                 ", capacity:%" PRId64 ", target:%" PRId64 ", code:%d (%s)",
+                 sessionId, oldCap, newCap, code, tstrerror(code));
+    return;
+  }
+  ST_TASK_DLOG("shrunk calc param pool, context session:%" PRId64
+               ", capacity:%" PRId64 " -> %" PRId64 ", released bytes:%" PRId64,
+               sessionId, oldCap, pPool->capacity, (oldCap - pPool->capacity) * pPool->nodeSize);
+}
+
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   return stRealtimeContextCheckAt(pContext, taosGetTimestampNs());
 }
@@ -15201,6 +15377,9 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
   int64_t             checkEndMonoUs = 0;
   bool                nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
   bool                periodicCheckpointChecked = false;
+
+  stTriggerTaskShrinkCalcParamPool(pTask, &pContext->calcParamPool, &pContext->lastCalcParamPoolShrinkMonoUs,
+                                   checkStartMonoUs, pContext->sessionId);
 
   if (nested && !pContext->suppressOutput) {
     stTriggerTaskSweepRetiredNestedRecoveries(pTask);
@@ -15540,7 +15719,7 @@ _check:
     QUERY_CHECK_CODE(code, lino, _end);
     pContext->status = STRIGGER_CONTEXT_FETCH_META;
     if (pGroup->pPendingCalcParams.neles >= STREAM_CALC_REQ_MAX_WIN_NUM ||
-        pContext->calcParamPool.size >= STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+        pContext->calcParamPool.size >= tsStreamTriggerMaxPendingParams) {
       break;
     }
   }
@@ -15566,7 +15745,7 @@ _check:
         !(pTask->lowLatencyCalc && (pContext->pMinGroup->pPendingCalcParams.neles > 0 ||
                                     pContext->pMinGroup->pPendingParWinCalcParams.neles > 0)) &&
         pContext->pMinGroup->pPendingCalcParams.neles < STREAM_CALC_REQ_MAX_WIN_NUM &&
-        pContext->calcParamPool.size < STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+        pContext->calcParamPool.size < tsStreamTriggerMaxPendingParams) {
       stDebug("ext calc deferred: gid:%" PRId64 " nextExecTime:%" PRId64 " now:%" PRId64
               " pendingParams:%" PRId64,
               pContext->pMinGroup->gid, pContext->pMinGroup->nextExecTime, now,
@@ -15613,7 +15792,7 @@ _check:
         code = stTriggerTaskAcquireRequest(pTask, pContext->sessionId, pGroup->gid, &pContext->pCalcReq);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pContext->pCalcReq == NULL) {
-          if (pTask->lowLatencyCalc || pContext->calcParamPool.size >= STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+          if (pTask->lowLatencyCalc || pContext->calcParamPool.size >= tsStreamTriggerMaxPendingParams) {
             pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
             goto _end;
           }
@@ -15688,7 +15867,7 @@ _check:
             code = stTriggerTaskAcquireRequest(pTask, pContext->sessionId, pGroup->gid, &pContext->pCalcReq);
             QUERY_CHECK_CODE(code, lino, _end);
             if (pContext->pCalcReq == NULL) {
-              if (pTask->lowLatencyCalc || pContext->calcParamPool.size >= STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+              if (pTask->lowLatencyCalc || pContext->calcParamPool.size >= tsStreamTriggerMaxPendingParams) {
                 ST_TASK_DLOG("pause due to no available runner for group %" PRId64, pGroup->gid);
                 goto _end;
               } else {
@@ -15748,7 +15927,7 @@ _check:
           !(pTask->lowLatencyCalc && (pContext->pMinGroup->pPendingCalcParams.neles > 0 ||
                                       pContext->pMinGroup->pPendingParWinCalcParams.neles > 0)) &&
           pContext->pMinGroup->pPendingCalcParams.neles < STREAM_CALC_REQ_MAX_WIN_NUM &&
-          pContext->calcParamPool.size < STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+          pContext->calcParamPool.size < tsStreamTriggerMaxPendingParams) {
         pContext->pMinGroup = NULL;
       }
     } else {
@@ -17606,8 +17785,9 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
     pContext->pNotifyParams = taosArrayInit(0, sizeof(SSTriggerCalcParam));
     QUERY_CHECK_NULL(pContext->pNotifyParams, code, lino, _end, terrno);
   }
-  code = taosObjPoolInit(&pContext->calcParamPool, 1024, sizeof(SSTriggerCalcParam));
+  code = taosObjPoolInit(&pContext->calcParamPool, STREAM_TRIGGER_CALC_PARAM_POOL_MIN_CAP, sizeof(SSTriggerCalcParam));
   QUERY_CHECK_CODE(code, lino, _end);
+  pContext->lastCalcParamPoolShrinkMonoUs = streamTaskGetMonotonicUs();
 
   code = stCreateCalcDataCacheIterMap(&pContext->pCalcDataCacheIters);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -18641,6 +18821,9 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   bool useGroupedAccumulator =
       needsRunnerGate && pTask->multiGroupBatch && !(pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS);
 
+  stTriggerTaskShrinkCalcParamPool(pTask, &pContext->calcParamPool, &pContext->lastCalcParamPoolShrinkMonoUs,
+                                   checkStartMonoUs, pContext->sessionId);
+
   if (stTriggerTaskHasNestedRecoveryOwner(pTask)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -19045,7 +19228,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   if (pContext->pMinGroup == NULL && pContext->pMaxDelayHeap->min != NULL) {
     pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerHistoryGroup, heapNode);
     if ((nested || pContext->progressStepId == 0 || !stHistoryGroupHasPendingCalc(pContext->pMinGroup)) &&
-        !pContext->finishCheck && stHistoryContextPendingCalcUpperBound(pContext) < STREAM_TRIGGER_MAX_PENDING_PARAMS &&
+        !pContext->finishCheck && stHistoryContextPendingCalcUpperBound(pContext) < tsStreamTriggerMaxPendingParams &&
         stHistoryGroupPendingCalcCount(pContext->pMinGroup) < STREAM_CALC_REQ_MAX_WIN_NUM) {
       pContext->pMinGroup = NULL;
     }
@@ -19109,7 +19292,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerHistoryGroup, heapNode);
       if ((nested || pContext->progressStepId == 0 || !stHistoryGroupHasPendingCalc(pContext->pMinGroup)) &&
           !pContext->finishCheck &&
-          stHistoryContextPendingCalcUpperBound(pContext) < STREAM_TRIGGER_MAX_PENDING_PARAMS &&
+          stHistoryContextPendingCalcUpperBound(pContext) < tsStreamTriggerMaxPendingParams &&
           stHistoryGroupPendingCalcCount(pContext->pMinGroup) < STREAM_CALC_REQ_MAX_WIN_NUM) {
         pContext->pMinGroup = NULL;
       }
@@ -19135,7 +19318,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
           if (pContext->pCalcReq == NULL) {
             if ((!nested && pContext->progressStepId != 0 && stHistoryGroupHasPendingCalc(pGroup)) ||
                 pContext->finishCheck ||
-                stHistoryContextPendingCalcUpperBound(pContext) >= STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+                stHistoryContextPendingCalcUpperBound(pContext) >= tsStreamTriggerMaxPendingParams) {
               ST_TASK_DLOG("pause due to no available runner for history group %" PRId64, pGroup->gid);
               goto _end;
             } else {
@@ -19207,7 +19390,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerHistoryGroup, heapNode);
       if ((nested || pContext->progressStepId == 0 || !stHistoryGroupHasPendingCalc(pContext->pMinGroup)) &&
           !pContext->finishCheck &&
-          stHistoryContextPendingCalcUpperBound(pContext) < STREAM_TRIGGER_MAX_PENDING_PARAMS &&
+          stHistoryContextPendingCalcUpperBound(pContext) < tsStreamTriggerMaxPendingParams &&
           stHistoryGroupPendingCalcCount(pContext->pMinGroup) < STREAM_CALC_REQ_MAX_WIN_NUM) {
         pContext->pMinGroup = NULL;
       }

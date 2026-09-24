@@ -21,6 +21,7 @@
 #include "osMemPool.h"
 #include "osMemory.h"
 #include "streamInt.h"
+#include "streamTaskStats.h"
 #include "executor.h"
 #include "tarray.h"
 #include "tdatablock.h"
@@ -31,8 +32,8 @@
 #include "tmsg.h"
 
 #define STREAM_READER_PERIOD_LOG_BUFFER_SIZE 2048
-// Six int64 values, one int32, the longest status, eight uint64 values, two rates, nine optional values, and a bool.
-#define STREAM_READER_PERIOD_LOG_VALUE_BYTES (6 * 21 + 11 + 10 + 8 * 20 + 2 * 32 + 9 * 32 + 5)
+// Six int64 values, one int32, the longest status, eight uint64 values, two rates, ten optional values, and a bool.
+#define STREAM_READER_PERIOD_LOG_VALUE_BYTES (6 * 21 + 11 + 10 + 8 * 20 + 2 * 32 + 10 * 32 + 5)
 #define STREAM_READER_PERIOD_LOG_FORMAT                                                                              \
   "record=task_period stream_id=%" PRId64 " task_id=%" PRId64 " serious_id=%" PRId64                                 \
   " node_id=%d task_type=reader status=%s stats_start_at=%" PRId64 " uptime_ms=%" PRId64 " stats_window_ms=%" PRId64 \
@@ -42,13 +43,83 @@
   " scan_duration_samples=%" PRIu64                                                                                  \
   " scan_duration_avg_ms=%s scan_duration_max_ms=%s scan_duration_lifetime_max_ms=%s"                                \
   " scan_duration_lifetime_max_at=%s last_returned_wal_ver=%s last_success_at=%s"                                    \
-  " active_scan_contexts=%s table_count=%s cache_entries=%s stats_overflow=%s"
+  " active_scan_contexts=%s table_count=%s cache_entries=%s reader_shallow_memory_bytes_estimate=%s stats_overflow=%s"
 
 enum {
   STREAM_READER_PERIOD_LOG_BUFFER_CHECK =
       1 / (int)(sizeof(STREAM_READER_PERIOD_LOG_FORMAT) + STREAM_READER_PERIOD_LOG_VALUE_BYTES <=
                 STREAM_READER_PERIOD_LOG_BUFFER_SIZE)
 };
+
+static bool stReaderAddMemoryBytes(int64_t *pTotal, size_t bytes) {
+  if (bytes > INT64_MAX || *pTotal > INT64_MAX - (int64_t)bytes) return false;
+  *pTotal += (int64_t)bytes;
+  return true;
+}
+
+static bool stReaderAddArrayMemory(int64_t *pTotal, const SArray *pArray) {
+  if (pArray == NULL) return true;
+  if (pArray->elemSize != 0 && pArray->capacity > SIZE_MAX / pArray->elemSize) return false;
+  return stReaderAddMemoryBytes(pTotal, sizeof(*pArray) + (size_t)pArray->capacity * pArray->elemSize);
+}
+
+static bool stReaderAddBlockMemory(int64_t *pTotal, const SSDataBlock *pBlock) {
+  return pBlock == NULL || stReaderAddMemoryBytes(pTotal, blockDataGetMemorySize(pBlock));
+}
+
+bool stReaderTaskGetShallowMemoryEstimate(const SStreamReaderTask *pTask, int64_t *pBytes) {
+  if (pTask == NULL || pTask->info == NULL || pBytes == NULL ||
+      (pTask->task.flags & STREAM_FLAG_REF_EXT_SOURCE) != 0) {
+    return false;
+  }
+
+  if (pTask->triggerReader != 1) {
+    const SArray *pCalcInfos = (const SArray *)pTask->info;
+    int64_t       total = 0;
+    if (!stReaderAddArrayMemory(&total, pCalcInfos) || pCalcInfos->elemSize != POINTER_BYTES) return false;
+    for (size_t i = 0; i < pCalcInfos->size; ++i) {
+      const SStreamTriggerReaderCalcInfo *pCalcInfo = *(SStreamTriggerReaderCalcInfo **)TARRAY_GET_ELEM(pCalcInfos, i);
+      if (pCalcInfo != NULL && !stReaderAddMemoryBytes(&total, sizeof(*pCalcInfo))) return false;
+    }
+    *pBytes = total;
+    return true;
+  }
+
+  const SStreamTriggerReaderInfo *pInfo = (const SStreamTriggerReaderInfo *)pTask->info;
+  int64_t total = sizeof(*pInfo);
+  const SHashObj *hashes[] = {pInfo->streamTaskMap, pInfo->groupIdMap, pInfo->pTableMetaCacheTrigger,
+                              pInfo->pTableMetaCacheCalc, pInfo->triggerTableSchemaMapVTable};
+  const SSHashObj *simpleHashes[] = {pInfo->uidHashTrigger, pInfo->uidHashCalc};
+  const SArray *arrays[] = {pInfo->tableList.pTableList, pInfo->vSetTableList.pTableList, pInfo->tsSchemas};
+  const SSDataBlock *blocks[] = {pInfo->triggerResBlock, pInfo->triggerBlock, pInfo->calcResBlock,
+                                 pInfo->calcBlock, pInfo->metaBlock, pInfo->tsBlock};
+
+  for (size_t i = 0; i < sizeof(hashes) / sizeof(hashes[0]); ++i) {
+    if (!stReaderAddMemoryBytes(&total, taosHashGetMemSize(hashes[i]))) return false;
+  }
+  for (size_t i = 0; i < sizeof(simpleHashes) / sizeof(simpleHashes[0]); ++i) {
+    if (!stReaderAddMemoryBytes(&total, tSimpleHashGetMemSize(simpleHashes[i]))) return false;
+  }
+  for (size_t i = 0; i < sizeof(arrays) / sizeof(arrays[0]); ++i) {
+    if (!stReaderAddArrayMemory(&total, arrays[i])) return false;
+  }
+  for (size_t i = 0; i < sizeof(blocks) / sizeof(blocks[0]); ++i) {
+    if (!stReaderAddBlockMemory(&total, blocks[i])) return false;
+  }
+  if (pInfo->vtbCache != NULL) {
+    if (!stReaderAddMemoryBytes(&total, sizeof(*pInfo->vtbCache)) ||
+        !stReaderAddArrayMemory(&total, pInfo->vtbCache->reqColCids) ||
+        !stReaderAddArrayMemory(&total, pInfo->vtbCache->reqTagCids) ||
+        !stReaderAddArrayMemory(&total, pInfo->vtbCache->uidSlice) ||
+        !stReaderAddMemoryBytes(&total, tSimpleHashGetMemSize(pInfo->vtbCache->uid2Result)) ||
+        !stReaderAddMemoryBytes(&total, taosHashGetMemSize(pInfo->vtbCache->dbVgInfo)) ||
+        !stReaderAddMemoryBytes(&total, taosHashGetMemSize(pInfo->vtbCache->tblRefCache))) {
+      return false;
+    }
+  }
+  *pBytes = total;
+  return true;
+}
 
 static int32_t stReaderFormatOptionalI64(char* pBuffer, int32_t bufferSize, bool valid, int64_t value) {
   int32_t len = valid ? snprintf(pBuffer, bufferSize, "%" PRId64, value) : snprintf(pBuffer, bufferSize, "NA");
@@ -78,12 +149,17 @@ int32_t stReaderTaskLogStats(SStreamTask* pTask, const SStreamTaskPeriodSnapshot
   char                              activeScanContexts[32] = {0};
   char                              tableCount[32] = {0};
   char                              cacheEntries[32] = {0};
+  char                              shallowMemoryBytesEstimate[32] = {0};
 
   int32_t code = stReaderFormatOptionalMs(
       scanAvgMs, sizeof(scanAvgMs), pPeriod->scanDuration.samples > 0,
       pPeriod->scanDuration.samples > 0
           ? (double)pPeriod->scanDuration.totalUs / (double)pPeriod->scanDuration.samples / 1000.0
           : 0.0);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalI64(
+      shallowMemoryBytesEstimate, sizeof(shallowMemoryBytesEstimate),
+      (pGauges->validMask & STREAM_READER_GAUGE_SHALLOW_MEMORY) != 0, pGauges->shallowMemoryBytesEstimate);
   if (code != TSDB_CODE_SUCCESS) return code;
   code = stReaderFormatOptionalMs(scanMaxMs, sizeof(scanMaxMs), pPeriod->scanDuration.samples > 0,
                                   (double)pPeriod->scanDuration.maxUs / 1000.0);
@@ -126,7 +202,7 @@ int32_t stReaderTaskLogStats(SStreamTask* pTask, const SStreamTaskPeriodSnapshot
                               pPeriod->noContextCount, pPeriod->failureCount, pPeriod->dataRows, pPeriod->dataBlocks,
                               rowsPerSec, blocksPerSec, pPeriod->scanDuration.samples, scanAvgMs, scanMaxMs,
                               scanLifetimeMaxMs, scanLifetimeMaxAt, lastReturnedWalVer, lastSuccessAt, activeScanContexts,
-                              tableCount, cacheEntries, pSnapshot->statsOverflow ? "true" : "false");
+                              tableCount, cacheEntries, shallowMemoryBytesEstimate, pSnapshot->statsOverflow ? "true" : "false");
   if (len < 0 || len >= sizeof(line)) return TSDB_CODE_OUT_OF_BUFFER;
 
   ST_TASK_DLOG("%s", line);

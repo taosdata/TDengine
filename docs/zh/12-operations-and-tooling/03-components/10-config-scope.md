@@ -163,6 +163,7 @@ toc_max_heading_level: 4
 | streamBufferSize | taosd | 流计算可以使用的最大缓存大小，只适用于 %%trows 的结果缓存 |
 | streamNotifyMessageSize | taosd | 用于控制事件通知的消息大小 |
 | streamNotifyFrameSize | taosd | 用于控制事件通知消息发送时底层的帧大小 |
+| streamTriggerMaxPendingParams | taosd | 流计算触发时允许积攒的待计算参数个数上限，达到后暂停积攒新参数 |
 | **日志相关** | | |
 | logDir | both | 日志文件目录，运行日志将写入该目录 |
 | minimalLogDirGB | both | 日志文件夹所在磁盘可用空间大小小于该值时，停止写日志 |
