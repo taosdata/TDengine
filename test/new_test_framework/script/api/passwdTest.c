@@ -237,6 +237,19 @@ int main(int argc, char *argv[]) {
   }
   createUsers(taos, argv[1], qstr);
   passVerTestMulti(argv[1], qstr);
+
+  // passVerTestMulti changed root's password to 'taos@123'. The old connection
+  // (established with 'taosdata' before the change) is kicked by the server's
+  // hb stale-conn check (HB_KILL_CONN_AUTH): any further request on it fails
+  // with an authentication error. Reconnect with the new password so the
+  // remaining tests keep working.
+  taos_close(taos);
+  taos = taos_connect(argv[1], "root", "taos@123", NULL, 0);
+  if (taos == NULL) {
+    printf("failed to reconnect to server with new password, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
+    exit(1);
+  }
+
   sysInfoTest(taos, argv[1], qstr);
   userDroppedTest(taos, argv[1], qstr);
   clearTestEnv(taos, argv[1], qstr);
@@ -490,18 +503,35 @@ _loop:
 void clearTestEnv(TAOS *taos, const char *host, char *qstr) {
   fprintf(stderr, "######## %s start #########\n", __func__);
 
-  // NOTE: root password cannot be restored now as the result of
-  // 'PASSWORD_REUSE_MAX' and 'PASSWORD_REUSE_TIME'.
-  //
-  //  sprintf(qstr, "alter user root pass 'taosdata'");
-  //  queryDB(taos, qstr);
-
   if (isDropUser) {
     for (int i = 0; i < nUser; ++i) {
       snprintf(qstr, BUF_LEN, "drop user %s", users[i]);
       queryDB(taos, qstr);
     }
   }
+
+  // passVerTestMulti changed root's password to 'taos@123'. Restore it to the
+  // default 'taosdata' so a later taosd restart (or the test framework's
+  // deploy probe, which logs in with root/taosdata) is not blocked by an
+  // Authentication failure on a stale data dir.
+  //
+  // NOTE: 'PASSWORD_REUSE_MAX'/'PASSWORD_REUSE_TIME' are only set on the test
+  // users (user0..user9), NOT on root, so restoring root's password is allowed.
+  // Do this LAST: after root's password changes, the server may kick this
+  // connection on the next heartbeat (HB_KILL_CONN_AUTH), so nothing should
+  // use this connection afterwards.
+  snprintf(qstr, BUF_LEN, "alter user root pass 'taosdata'");
+  {
+    TAOS_RES *pSql = taos_query(taos, qstr);
+    int32_t   code = taos_errno(pSql);
+    if (code != 0) {
+      fprintf(stderr, "failed to restore root password: %s, reason: %s\n", qstr, taos_errstr(pSql));
+    } else {
+      fprintf(stderr, "success to restore root password: %s\n", qstr);
+    }
+    taos_free_result(pSql);
+  }
+
   // sleep(3000);
   fprintf(stderr, "######## %s end #########\n", __func__);
 }
