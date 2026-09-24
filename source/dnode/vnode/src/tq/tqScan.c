@@ -905,12 +905,34 @@ static int32_t tqDoSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SC
 
   if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
     if (COL_VAL_IS_VALUE(pColVal)) {
-      char val[65535 + 2] = {0};
-      if (pColVal->value.pData != NULL) {
-        (void)memcpy(varDataVal(val), pColVal->value.pData, pColVal->value.nData);
+      if (pColumnInfoData->info.bytes < (int32_t)VARSTR_HEADER_SIZE) {
+        tqError("column:%d has invalid schema bytes:%d for variable type:%d", pColumnInfoData->info.colId,
+                pColumnInfoData->info.bytes, pColumnInfoData->info.type);
+        return TSDB_CODE_INVALID_PARA;
       }
-      varDataSetLen(val, pColVal->value.nData);
-      code = colDataSetVal(pColumnInfoData, rowIndex, val, false);
+
+      uint32_t maxDataLen = (uint32_t)(pColumnInfoData->info.bytes - (int32_t)VARSTR_HEADER_SIZE);
+      if (pColVal->value.nData > maxDataLen) {
+        tqWarn("column:%d value is rejected because data length:%" PRIu32
+               " exceeds schema payload length:%" PRIu32 ", type:%d",
+               pColumnInfoData->info.colId, pColVal->value.nData, maxDataLen, pColumnInfoData->info.type);
+        return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+      }
+
+      const char* data = (const char*)pColVal->value.pData;
+      if (data == NULL && pColVal->value.nData != 0) {
+        tqError("column:%d has null data with nonzero length:%" PRIu32 ", type:%d",
+                pColumnInfoData->info.colId, pColVal->value.nData, pColumnInfoData->info.type);
+        return TSDB_CODE_INVALID_PARA;
+      }
+
+      if (pColumnInfoData->varmeta.offset[rowIndex] > 0) {
+        tqDebug("column:%d row:%d reset stale var data offset:%d", pColumnInfoData->info.colId, rowIndex,
+                pColumnInfoData->varmeta.offset[rowIndex]);
+      }
+      pColumnInfoData->varmeta.offset[rowIndex] = -1;
+      code = varColSetVarData(pColumnInfoData, rowIndex, data == NULL ? "" : data,
+                              (int32_t)pColVal->value.nData, false);
     } else {
       colDataSetNULL(pColumnInfoData, rowIndex);
     }
@@ -1083,10 +1105,29 @@ static int32_t tqRetrieveCols(STqReader* pReader, SSDataBlock* pBlock, SHashObj*
     numOfRows = taosArrayGetSize(pSubmitTbData->aRowP);
   }
 
-  code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + numOfRows);
+  code = tqCheckSchema(pReader, pSubmitTbData);
   TSDB_CHECK_CODE(code, line, END);
 
-  code = tqCheckSchema(pReader, pSubmitTbData);
+  for (int32_t schemaIdx = 0; schemaIdx < pReader->pTSchema->numOfCols; ++schemaIdx) {
+    const STColumn* pSchemaCol = &pReader->pTSchema->columns[schemaIdx];
+    const int16_t* pSlotId = taosHashGet(pCol2SlotId, &pSchemaCol->colId, sizeof(pSchemaCol->colId));
+    if (pSlotId == NULL) {
+      continue;
+    }
+    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, *pSlotId);
+    TSDB_CHECK_NULL(pColData, code, line, END, terrno);
+    if (pColData->info.bytes != pSchemaCol->bytes) {
+      tqDebug("uid:%" PRId64 " schema version:%d column:%d slot:%d update block bytes:%d to:%d",
+              pSubmitTbData->uid, pSubmitTbData->sver, pSchemaCol->colId, *pSlotId,
+              pColData->info.bytes, pSchemaCol->bytes);
+      if (pBlock->info.rowSize != 0) {
+        pBlock->info.rowSize += pSchemaCol->bytes - pColData->info.bytes;
+      }
+      pColData->info.bytes = pSchemaCol->bytes;
+    }
+  }
+
+  code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + numOfRows);
   TSDB_CHECK_CODE(code, line, END);
 
   // convert and scan one block
@@ -2051,7 +2092,7 @@ static bool tqFilterForStbSub(STQ* pTq, STqHandle* pHandle, SSubmitTbData* pSubm
   STqExecHandle* pExec = &pHandle->execHandle;
   STqReader* pReader = pExec->pTqReader;
   if (taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t)) == NULL) {
-    tqInfo("iterator submit block in hash continue for stb sub, progress:%d/%d, total queried tables:%d, uid:%" PRId64,
+    tqDebug("iterator submit block in hash continue for stb sub, progress:%d/%d, total queried tables:%d, uid:%" PRId64,
             pReader->nextBlk, (int32_t)taosArrayGetSize(pReader->submit.aSubmitTbData), (int32_t)taosHashGetSize(pReader->tbIdHash), pSubmitTbData->uid);
     ret = true;
   }
@@ -2084,7 +2125,17 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
   TSDB_CHECK_NULL(pSchemas, code, lino, END, terrno);
   
   code = tqRetrieveTaosxBlock(pReader, pRsp, pBlocks, pSchemas, pSubmitTbData, rawList, pHandle->fetchMeta);
-  TSDB_CHECK_CODE(code, lino, END);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("consumer:0x%" PRIx64 " vgId:%d failed to retrieve taosx block, QID:0x%" PRIx64
+            ", wal version:%" PRId64 ", block:%d/%d, uid:%" PRId64 ", suid:%" PRId64
+            ", schema version:%d, flags:0x%x, fetch meta:%d, raw data:%d, code:0x%x(%s)",
+            pHandle->consumerId, pTq->pVnode->config.vgId, pRequest->reqId, version, pReader->nextBlk,
+            (int32_t)taosArrayGetSize(pReader->submit.aSubmitTbData), pSubmitTbData->uid, pSubmitTbData->suid,
+            pSubmitTbData->sver, pSubmitTbData->flags, pHandle->fetchMeta, pRequest->rawData, code,
+            tstrerror(code));
+    lino = __LINE__;
+    goto END;
+  }
   bool tmp = (pSubmitTbData->flags & pRequest->sourceExcluded) != 0;
   TSDB_CHECK_CONDITION(!tmp, code, lino, END, TSDB_CODE_SUCCESS);
 
@@ -2840,4 +2891,3 @@ static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const 
 
   return 0;
 }
-

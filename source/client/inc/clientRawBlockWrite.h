@@ -65,6 +65,8 @@ extern "C" {
 #define LOG_ID_TAG   "connId:0x%" PRIx64 ", QID:0x%" PRIx64 ",func:%s"
 #define LOG_ID_VALUE *(int64_t*)taos, pRequest->requestId, __func__
 
+int32_t tmqGetRawDataFromRes(void* pRetrieve, uint32_t retrieveLen, void** ppRawData);
+
 #define PROCESS_TABLE_NOT_EXIST(code, tbName) \
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) { \
     uWarn(LOG_ID_TAG " %s does not exist, skipping", LOG_ID_VALUE, tbName); \

@@ -67,6 +67,8 @@ add_executable(tmq_td33798 tmq_td33798.c)
 add_executable(tmq_td37265 tmq_td37265.c)
 add_executable(tmq_ts7402 tmq_ts7402.c)
 add_executable(tmq_token tmq_token.c)
+add_executable(tmq_consumer_owner_check tmq_consumer_owner_check.c)
+target_include_directories(tmq_consumer_owner_check PRIVATE $<TARGET_PROPERTY:${TAOS_NATIVE_LIB},INCLUDE_DIRECTORIES>)
 add_executable(tmq_batch_alter_tag tmq_batch_alter_tag.c)
 add_executable(tmq_alter_tag tmq_alter_tag.c)
 add_executable(tmq_poll_test tmq_poll_test.c)
@@ -120,6 +122,21 @@ target_link_libraries(
     tmq_token
     PUBLIC ${TD_TEST_C_LIBS}
 )
+
+if(TD_WINDOWS)
+    target_link_libraries(
+        tmq_consumer_owner_check
+        PUBLIC ${TAOS_NATIVE_LIB_STATIC}
+        PUBLIC util
+        PUBLIC common
+        PUBLIC os
+    )
+else()
+    target_link_libraries(
+        tmq_consumer_owner_check
+        PUBLIC ${TD_TEST_C_LIBS}
+    )
+endif()
 
 target_link_libraries(
     tmq_ts5466

@@ -550,8 +550,8 @@ int ttqSubAdd(struct tmqtt *context, const char *sub, uint8_t qos, uint32_t iden
   int                    rc = 0;
   struct tmqtt__subhier *subhier;
   const char            *sharename = NULL;
-  char                  *local_sub;
-  char                 **topics;
+  char                  *local_sub = NULL;
+  char                 **topics = NULL;
   size_t                 topiclen;
 
   rc = ttqSubTopicTokenise(sub, &local_sub, &topics, &sharename);
@@ -814,6 +814,15 @@ int ttqSubTopicTokenise(const char *subtopic, char **local_sub, char ***topics, 
   int    i;
   size_t len;
 
+  if (local_sub == NULL || topics == NULL || subtopic == NULL) {
+    return TTQ_ERR_INVAL;
+  }
+  *local_sub = NULL;
+  *topics = NULL;
+  if (sharename != NULL) {
+    *sharename = NULL;
+  }
+
   len = strlen(subtopic);
   if (len == 0) {
     return TTQ_ERR_INVAL;
@@ -831,6 +840,7 @@ int ttqSubTopicTokenise(const char *subtopic, char **local_sub, char ***topics, 
   *topics = ttq_calloc((size_t)(count + 3) /* 3=$shared,sharename,NULL */, sizeof(char *));
   if ((*topics) == NULL) {
     ttq_free(*local_sub);
+    *local_sub = NULL;
     return TTQ_ERR_NOMEM;
   }
 
@@ -849,7 +859,9 @@ int ttqSubTopicTokenise(const char *subtopic, char **local_sub, char ***topics, 
   if (!strcmp((*topics)[0], "$share")) {
     if (count < 3 || (count == 3 && strlen((*topics)[2]) == 0)) {
       ttq_free(*local_sub);
+      *local_sub = NULL;
       ttq_free(*topics);
+      *topics = NULL;
       return TTQ_ERR_PROTOCOL;
     }
 

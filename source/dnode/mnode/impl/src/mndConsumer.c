@@ -241,6 +241,29 @@ END:
   return code;
 }
 
+// Check whether the requester owns the consumer. This is the single place that logs an owner
+// mismatch: callers must not log the same rejection again, since the heartbeat path may repeat it
+// every heartbeat interval for a consumer that can never be recovered automatically.
+static int32_t validateConsumerOwner(const SRpcMsg *pMsg, const SMqConsumerObj *pConsumer) {
+  if (pMsg == NULL || pConsumer == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (strncmp(RPC_MSG_USER(pMsg), pConsumer->user, TSDB_USER_LEN) != 0) {
+    mWarn("consumer:0x%" PRIx64 " owner mismatch, requester:%s, owner:%s, "
+          "group:%s, QID:0x%" PRIx64 ":0x%" PRIx64
+          "; if this is a legacy token consumer after upgrade, close and "
+          "recreate it with the same group and topics; keep the consumer "
+          "group to retain committed offsets",
+          pConsumer->consumerId, RPC_MSG_USER(pMsg), pConsumer->user,
+          pConsumer->cgroup, pMsg->info.traceId.rootId,
+          pMsg->info.traceId.msgId);
+    return TSDB_CODE_MND_CONSUMER_NOT_EXIST;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static void storeOffsetRows(SMnode *pMnode, SMqHbReq *req, SMqConsumerObj *pConsumer){
   if (pMnode == NULL || req == NULL || pConsumer == NULL){
     return;
@@ -305,12 +328,19 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   SMqHbReq        req = {0};
   SMqHbRsp        rsp = {0};
   SMqConsumerObj *pConsumer = NULL;
+  bool            ownerRejected = false;
   PRINT_LOG_START
 
   MND_TMQ_RETURN_CHECK(tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req));
   int64_t consumerId = req.consumerId;
   MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, consumerId, &pConsumer));
   taosWLockLatch(&pConsumer->lock);
+  code = validateConsumerOwner(pMsg, pConsumer);
+  if (code != TSDB_CODE_SUCCESS) {
+    ownerRejected = true;
+    lino = __LINE__;
+    goto END;
+  }
   MND_TMQ_RETURN_CHECK(checkPrivilege(pMnode, pConsumer, &rsp, RPC_MSG_USER(pMsg), RPC_MSG_TOKEN(pMsg)));
   atomic_store_32(&pConsumer->hbStatus, 0);
   mDebug("consumer:0x%" PRIx64 " receive hb pollFlag:%d pollStatus:%d", consumerId, req.pollFlag, pConsumer->pollStatus);
@@ -330,7 +360,17 @@ END:
   tDestroySMqHbRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
   tDestroySMqHbReq(&req);
-  PRINT_LOG_END
+  if (ownerRejected) {
+    // validateConsumerOwner already reported the mismatch with the recovery guidance; a rejected
+    // heartbeat repeats on every heartbeat interval, so keep the summary at debug level only.
+    mDebug("%s rejected the requester at line:%d since:%s", __func__, lino, tstrerror(code));
+  } else if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
+    mWarn("%s failed at line:%d since:%s", __func__, lino, tstrerror(code));
+  } else if (code == 0) {
+    mDebug("%s return success", __func__);
+  } else {
+    mError("%s failed at line:%d since:%s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -451,12 +491,19 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   int32_t     code = 0;
   int32_t     lino = 0;
   SMqConsumerObj *pConsumer = NULL;
+  bool        ownerRejected = false;
   PRINT_LOG_START
 
   MND_TMQ_RETURN_CHECK(tDeserializeSMqAskEpReq(pMsg->pCont, pMsg->contLen, &req));
   int64_t consumerId = req.consumerId;
   MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, consumerId, &pConsumer));
   taosRLockLatch(&pConsumer->lock);
+  code = validateConsumerOwner(pMsg, pConsumer);
+  if (code != TSDB_CODE_SUCCESS) {
+    ownerRejected = true;
+    lino = __LINE__;
+    goto END;
+  }
   if (strncmp(req.cgroup, pConsumer->cgroup, tListLen(pConsumer->cgroup)) != 0) {
     mError("consumer:0x%" PRIx64 " group:%s not consistent with data in sdb, saved cgroup:%s", consumerId, req.cgroup,
            pConsumer->cgroup);
@@ -488,7 +535,16 @@ END:
   }
   tDeleteSMqAskEpRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
-  PRINT_LOG_END
+  if (ownerRejected) {
+    // validateConsumerOwner already reported the mismatch with the recovery guidance
+    mDebug("%s rejected the requester at line:%d since:%s", __func__, lino, tstrerror(code));
+  } else if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
+    mWarn("%s failed at line:%d since:%s", __func__, lino, tstrerror(code));
+  } else if (code == 0) {
+    mDebug("%s return success", __func__);
+  } else {
+    mError("%s failed at line:%d since:%s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -631,8 +687,10 @@ static int32_t checkAndSortTopic(SMnode *pMnode, SArray *pTopicList){
   return 0;
 }
 
-static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqConsumerObj** ppConsumer){
-  if (pMnode == NULL || subscribe == NULL) {
+static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, const SRpcMsg *pMsg,
+                                bool *pOwnerMismatch, SMqConsumerObj **ppConsumer){
+  if (pMnode == NULL || subscribe == NULL || pMsg == NULL ||
+      pOwnerMismatch == NULL || ppConsumer == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int64_t         consumerId = subscribe->consumerId;
@@ -649,7 +707,16 @@ static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqC
 
     MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(consumerId, cgroup, CONSUMER_INSERT_SUB, NULL, subscribe, &pConsumerNew));
   } else {
+    taosRLockLatch(&pExistedConsumer->lock);
+    code = validateConsumerOwner(pMsg, pExistedConsumer);
     int32_t status = atomic_load_32(&pExistedConsumer->status);
+    taosRUnLockLatch(&pExistedConsumer->lock);
+
+    if (code != TSDB_CODE_SUCCESS) {
+      *pOwnerMismatch = true;
+      lino = __LINE__;
+      goto END;
+    }
 
     mInfo("receive tmq subscribe request from existed consumer:0x%" PRIx64
               ",cgroup:%s, current status:%d(%s), subscribe topic num: %d",
@@ -685,18 +752,30 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   int32_t         lino = 0;
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
+  bool            ownerMismatch = false;
 
   PRINT_LOG_START
   SCMSubscribeReq subscribe = {0};
   MND_TMQ_RETURN_CHECK(tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen));
+  tstrncpy(subscribe.user, RPC_MSG_USER(pMsg), TSDB_USER_LEN);
+  mDebug("consumer:0x%" PRIx64 " subscribe uses authenticated owner:%s, "
+         "QID:0x%" PRIx64 ":0x%" PRIx64,
+         subscribe.consumerId, subscribe.user, pMsg->info.traceId.rootId,
+         pMsg->info.traceId.msgId);
   bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
   if(unSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
     taosRLockLatch(&pConsumerTmp->lock);
-    size_t topicNum = taosArrayGetSize(pConsumerTmp->assignedTopics);
+    code = validateConsumerOwner(pMsg, pConsumerTmp);
+    size_t topicNum = code == TSDB_CODE_SUCCESS ? taosArrayGetSize(pConsumerTmp->assignedTopics) : 0;
     taosRUnLockLatch(&pConsumerTmp->lock);
     mndReleaseConsumer(pMnode, pConsumerTmp);
+    if (code != TSDB_CODE_SUCCESS) {
+      ownerMismatch = true;
+      lino = __LINE__;
+      goto END;
+    }
     if (topicNum == 0){
       goto END;
     }
@@ -708,7 +787,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   MND_TMQ_NULL_CHECK(pTrans);
 
   MND_TMQ_RETURN_CHECK(validateTopics(pTrans, &subscribe, pMnode, RPC_MSG_USER(pMsg), RPC_MSG_TOKEN(pMsg)));
-  MND_TMQ_RETURN_CHECK(buildSubConsumer(pMnode, &subscribe, &pConsumerNew));
+  MND_TMQ_RETURN_CHECK(buildSubConsumer(pMnode, &subscribe, pMsg, &ownerMismatch, &pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndSetConsumerCommitLogs(pTrans, pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
   code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -717,7 +796,10 @@ END:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, NULL);
-  code = (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
+  code = (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE ||
+          (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST && !ownerMismatch))
+             ? 0
+             : code;
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS){
     mError("tmq subscribe request from consumer:0x%" PRIx64 " failed, code:%d", subscribe.consumerId, code);
   } else {
