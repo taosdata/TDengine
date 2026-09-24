@@ -392,6 +392,7 @@ SWords shellCommands[] = {
     {"alter xnode set token <anyword>;", 0, 0, NULL},
     {"alter xnode set user <user_name> pass <anyword>;", 0, 0, NULL},
     {"alter xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"restart xnode;", 0, 0, NULL},
     {"drop xnode <anyword>;", 0, 0, NULL},
     {"drop xnode force <anyword>;", 0, 0, NULL},
     {"drop xnode <anyword> <anyword>;", 0, 0, NULL},
