@@ -518,6 +518,7 @@ static SKeyword keywordTable[] = {
     {"IDLE_TIMEOUT",         TK_IDLE_TIMEOUT},
     {"IDLE",                 TK_IDLE},
     {"RESUME",               TK_RESUME},
+    {"RESTART",              TK_RESTART},
     {"_TIDLESTART",          TK_TIDLESTART},
     {"_TIDLEEND",            TK_TIDLEEND},
     {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},

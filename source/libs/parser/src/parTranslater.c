@@ -18605,6 +18605,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDrainXnodeReq, pReq);
       break;
     }
+    case TDMT_MND_RESTART_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMRestartXnodeReq, pReq);
+      break;
+    }
     case TDMT_MND_CREATE_XNODE_TASK: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateXnodeTaskReq, pReq);
       break;
@@ -21324,6 +21328,13 @@ static int32_t translateDrainXnode(STranslateContext* pCxt, SDrainXnodeStmt* pSt
   drainReq.xnodeId = pStmt->xnodeId;
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DRAIN_XNODE, (FSerializeFunc)tSerializeSMDrainXnodeReq, &drainReq);
   tFreeSMDrainXnodeReq(&drainReq);
+  return code;
+}
+
+static int32_t translateRestartXnode(STranslateContext* pCxt, SRestartXnodeStmt* pStmt) {
+  SMRestartXnodeReq restartReq = {0};
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_RESTART_XNODE, (FSerializeFunc)tSerializeSMRestartXnodeReq, &restartReq);
+  tFreeSMRestartXnodeReq(&restartReq);
   return code;
 }
 
@@ -30553,6 +30564,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DRAIN_XNODE_STMT:
       code = translateDrainXnode(pCxt, (SDrainXnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_RESTART_XNODE_STMT:
+      code = translateRestartXnode(pCxt, (SRestartXnodeStmt*)pNode);
       break;
     case QUERY_NODE_ALTER_XNODE_STMT:
       code = translateAlterXnode(pCxt, (SAlterXnodeStmt*)pNode);
