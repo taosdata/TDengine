@@ -782,15 +782,20 @@ class TestCase:
                 tdSql.checkData(row, 5, c4)
             row_offset += len(expected_data)
 
-    def parallel_insert(self, db_name, table_name, ts_start, n_rows, binary_len, num_threads=10):        
+    def parallel_insert(self, db_name, table_name, ts_start, n_rows, binary_len, num_threads=10):
         def insert_rows(start_idx, end_idx):
             conn = taos.connect()
             cursor = conn.cursor()
             cursor.execute(f"use {db_name}")
-            binary_data_cache = [''.join(random.choices(string.ascii_letters + string.digits, k=binary_len)) for _ in range(20)]
+            # every row uses its own payload, do NOT reuse a small cache of values here: the data
+            # file is compressed (zstd through TSZ) and 'ssmigrate' only migrates a data file
+            # bigger than ss_chunkpages * page_size (16MB by default). A redundant payload is
+            # deduplicated by the compressor, and the file size then depends on the compressor
+            # implementation instead of the number of rows, which can silently turn the migration
+            # into a no-op and break the s10/s11 assertions.
             for i in range(start_idx, end_idx):
                 ts = ts_start + i * 1000  # interval 1s (1000ms)
-                binary_data = random.choice(binary_data_cache)
+                binary_data = ''.join(random.choices(string.ascii_letters + string.digits, k=binary_len))
                 cursor.execute(f"insert into {table_name} values({ts}, {i}, '{binary_data}')")
             cursor.close()
             conn.close()
@@ -936,6 +941,9 @@ class TestCase:
             - 2025-09-25: Initial version from Kaili Xu(TS-6113).
             - 2025-11-04: Check negative ts from Kaili Xu(TD-38485).
             - 2026-03-04: Add ssmigrate test with/without rsma from Kaili Xu(6841578238).
+            - 2026-09-24: Use a unique payload per row in the ssmigrate test, so that the data
+                          file is always larger than the 16MB migration threshold and does not
+                          depend on the compression ratio anymore.
         """
         self.s1_create_db_table()
         self.s2_create_rsma()

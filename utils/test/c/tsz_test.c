@@ -37,6 +37,8 @@ int main(int argc, char *argv[]) {
 // include dirs and the TSZ archive come with the "util" target (contrib/TSZ is a PUBLIC dependency).
 #include "Huffman.h"
 #include "defines.h"
+// vendored zstd, for the CVE-2019-11922 regression case (defect 7123546794)
+#include "zstd.h"
 
 // ------- define -----------
 #define FT_CNT   8
@@ -2745,6 +2747,11 @@ extern char     tsCompressor[32];
 // error code. It must never write out of bounds, and it must never terminate the process (the
 // FSE decoder used to call exit(1) on garbage input).
 //
+// Case 7 additionally covers CVE-2019-11922 (defect 7123546794): the one-pass compressor of the
+// vendored zstd must never write past a destination buffer smaller than ZSTD_compressBound(). The
+// behavioural sweep is a best effort (the upstream report came out of a fuzzer), the version floor
+// is what pins the fix: 1.3.8 is the first release with the missing capacity check.
+//
 static int secFailed = 0;
 
 #define SEC_CHECK(cond, name)              \
@@ -2979,6 +2986,75 @@ int secMalformedTest() {
       }
       taosMemoryFree(tree);
     }
+  }
+
+  // 7) CVE-2019-11922 (defect 7123546794): zstd before 1.3.8 wrote the RLE code table entry with
+  //    no capacity left, i.e. out of bounds, when the destination buffer was smaller than
+  //    ZSTD_compressBound(). 1.3.8 carries the upstream guard, the version assertion below is what
+  //    fails loudly if the vendor tree is ever downgraded again, and the capacity sweep keeps the
+  //    "never wrote past the declared capacity" contract honest for the one-pass API.
+  {
+    size_t const srcSize = (size_t)cnt * sizeof(float);
+    size_t const bound = ZSTD_compressBound(srcSize);
+    float*       flat = (float*)taosMemoryMalloc(srcSize);
+    char*        dst = (char*)taosMemoryMalloc(bound + 32);
+    char*        back2 = (char*)taosMemoryMalloc(srcSize);
+    if (flat == NULL || dst == NULL || back2 == NULL) {
+      printf("  [FAIL] out of memory for the zstd regression case\n");
+      secFailed++;
+    } else {
+      const void* inputs[2];
+      size_t      full = 0;
+      int         overrun = 0;
+      int         bogus = 0;
+      int         roundTrip = 1;
+      int         baselineOk = 1;
+      int         k;
+
+      // a smooth ramp and a constant block: the constant one is what makes the encoder select the
+      // RLE code table, the branch that used to overflow the destination buffer
+      for (k = 0; k < cnt; k++) flat[k] = 3.14f;
+      inputs[0] = data;
+      inputs[1] = flat;
+
+      for (k = 0; k < 2; k++) {
+        size_t cap;
+        full = ZSTD_compress(dst, bound, inputs[k], srcSize, 1);
+        if (ZSTD_isError(full) || full == 0) {
+          printf("  [FAIL] zstd one-pass compression failed: %s\n", ZSTD_getErrorName(full));
+          secFailed++;
+          baselineOk = 0;  /* the capacity sweep never ran, do not report it as passing below */
+          break;
+        }
+        if (ZSTD_decompress(back2, srcSize, dst, full) != srcSize || memcmp(back2, inputs[k], srcSize) != 0) {
+          roundTrip = 0;
+        }
+
+        for (cap = (full > 1) ? full - 1 : 1;; cap = cap / 2) {
+          size_t r;
+          size_t i;
+          memset(dst, 0x5A, bound + 32);
+          r = ZSTD_compress(dst, cap, inputs[k], srcSize, 1);
+          if (!ZSTD_isError(r) && r > cap) bogus = 1; /* a size that does not fit the capacity */
+          for (i = 0; i < 32; i++) {
+            if ((unsigned char)dst[cap + i] != 0x5A) overrun = 1;
+          }
+          if (cap <= 1) break;
+        }
+      }
+
+      if (baselineOk) {
+        SEC_CHECK(roundTrip, "zstd one-pass round-trips losslessly");
+        SEC_CHECK(!overrun, "a too small destination buffer is not overrun");
+        SEC_CHECK(!bogus, "a too small destination buffer never reports a bogus size");
+      }
+      SEC_CHECK(ZSTD_versionNumber() >= 10308, "vendored zstd fixes CVE-2019-11922 (>= 1.3.8)");
+    }
+
+    /* single cleanup path: the three buffers are freed exactly once, whatever happened above */
+    if (flat) taosMemoryFree(flat);
+    if (dst) taosMemoryFree(dst);
+    if (back2) taosMemoryFree(back2);
   }
 
   taosMemoryFree(out);

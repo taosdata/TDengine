@@ -3864,6 +3864,16 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
       pOut->tbMeta->numOfTagRefs = pOut->vctbMeta->numOfTagRefs;
       pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     }
+
+    int32_t metaSize = TABLE_META_FULL_SIZE(pOut->tbMeta);
+    int32_t tbNameSize = strlen(pOut->ctbName) + 1;
+    STableMeta *pTbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + tbNameSize);
+    if (NULL == pTbMeta) {
+      CTG_ERR_JRET(terrno);
+    }
+    pOut->tbMeta = pTbMeta;
+    tableMetaResetPointers(pOut->tbMeta);
+    tstrncpy((char*)pOut->tbMeta + metaSize, pOut->ctbName, tbNameSize);
     taosMemoryFreeClear(pOut->vctbMeta);
   }
 
@@ -4473,17 +4483,24 @@ static int32_t ctgTsmaFetchStreamProgress(SCtgTaskReq* tReq, const STableTSMAInf
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
+    SStreamTaskAddr* pStreamAddr = pTsmaInfo->streamAddr;
+    if (NULL == pStreamAddr) {
+      ctgError("invalid NULL streamAddr for the %dth tsma, name:%s, streamUid:%" PRId64, i, pTsmaInfo->name,
+               pTsmaInfo->streamUid);
+      CTG_ERR_RET(TSDB_CODE_INVALID_MSG);
+    }
+
     pTsmaInfo->reqTs = taosGetTimestampMs();
     // make StreamProgressReq, send it
     SStreamProgressReq req = {.fetchIdx = i,
                               .streamId = pTsmaInfo->streamUid,
-                              .taskId = ((SStreamTaskAddr*)pTsmaInfo->streamAddr)->taskId};
+                              .taskId = pStreamAddr->taskId};
     SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
                               .requestId = pConn->requestId,
                               .requestObjRefId = pConn->requestObjRefId,
-                              .mgmtEps = ((SStreamTaskAddr*)pTsmaInfo->streamAddr)->epset};
+                              .mgmtEps = pStreamAddr->epset};
 
-    CTG_ERR_JRET(ctgGetStreamProgressFromMnode(pCtg, &vConn, pTbName, NULL, tReq, &req, ((SStreamTaskAddr*)pTsmaInfo->streamAddr)->nodeId));
+    CTG_ERR_JRET(ctgGetStreamProgressFromMnode(pCtg, &vConn, pTbName, NULL, tReq, &req, pStreamAddr->nodeId));
 
     pFetch->subFetchNum++;
   }
