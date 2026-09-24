@@ -683,6 +683,8 @@ const char* nodesNodeName(ENodeType type) {
       return "DropXnodeStmt";
     case QUERY_NODE_ALTER_XNODE_STMT:
       return "AlterXnodeStmt";
+    case QUERY_NODE_RESTART_XNODE_STMT:
+      return "RestartXnodeStmt";
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
       return "ShowXnodeJobsStmt";
     default:
@@ -11934,6 +11936,18 @@ static int32_t alterXnodeStmtToJson(const void* pObj, SJson* pJson) {
   return tjsonAddIntegerToObject(pJson, jkUpdateDropXNodeStmtId, pNode->id);
 }
 
+static int32_t restartXnodeStmtToJson(const void* pObj, SJson* pJson) {
+  (void)pObj;
+  (void)pJson;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t jsonToRestartXnodeStmt(const SJson* pJson, void* pObj) {
+  (void)pJson;
+  (void)pObj;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t jsonToUpdateXnodeStmt(const SJson* pJson, void* pObj) {
   SAlterXnodeStmt* pNode = (SAlterXnodeStmt*)pObj;
   return tjsonGetIntValue(pJson, jkUpdateDropXNodeStmtId, &pNode->id);
@@ -13953,6 +13967,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return dropXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_XNODE_STMT:
       return alterXnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_RESTART_XNODE_STMT:
+      return restartXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       return createXnodeTaskStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_XNODE_TASK_STMT:
@@ -14497,6 +14513,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToCreateXnodeJobStmt(pJson, pObj);
     case QUERY_NODE_DROP_XNODE_JOB_STMT:
       return jsonToDropXnodeJobStmt(pJson, pObj);
+    case QUERY_NODE_RESTART_XNODE_STMT:
+      return jsonToRestartXnodeStmt(pJson, pObj);
     default:
       break;
   }

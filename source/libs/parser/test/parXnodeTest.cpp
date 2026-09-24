@@ -23,6 +23,23 @@ namespace ParserTest {
 
 class ParserXnodeTest : public ParserDdlTest {};
 
+TEST_F(ParserXnodeTest, restartXnode) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_RESTART_XNODE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_RESTART_XNODE);
+
+    SMRestartXnodeReq req = {0};
+    ASSERT_EQ(tDeserializeSMRestartXnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
+              TSDB_CODE_SUCCESS);
+    tFreeSMRestartXnodeReq(&req);
+  });
+
+  run("RESTART XNODE");
+}
+
 TEST_F(ParserXnodeTest, taskDsnSqlEscapesAreDecoded) {
   login("root");
   useDb("root", "test");

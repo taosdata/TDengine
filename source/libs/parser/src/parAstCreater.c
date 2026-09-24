@@ -6905,6 +6905,16 @@ _err:
   return NULL;
 }
 
+SNode* createRestartXnodeStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRestartXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RESTART_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createAlterXnodeStmt(SAstCreateContext* pCxt, const SToken* pToken, const SToken* pUser, const SToken* pPass) {
   CHECK_PARSER_STATUS(pCxt);
   SAlterXnodeStmt* pStmt = NULL;

@@ -5,21 +5,6 @@
 #!loose_mode: false
 #!charset: UTF-8
 
--- Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
---
--- SPDX-License-Identifier: AGPL-3.0-or-later
---
--- This program is free software: you can use, redistribute, and/or modify
--- it under the terms of the GNU Affero General Public License, version 3
--- or later ("AGPL"), as published by the Free Software Foundation.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
--- FITNESS FOR A PARTICULAR PURPOSE.
---
--- You should have received a copy of the GNU Affero General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
-
 CREATE DATABASE IF NOT EXISTS idmp_sample_tobacco REPLICA 1   DURATION 10d KEEP 3650d,3650d,3650d     PRECISION 'ms'   MINROWS 100 MAXROWS 4096 COMP 2 ;
 
 CREATE TABLE IF NOT EXISTS `idmp_sample_tobacco`.`cutting_public_point` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `pid` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `fault_alarm` BOOL ENCODE 'bit-packing' COMPRESS 'zstd' LEVEL 'medium', `control_setpoint` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `equipment_status` BOOL ENCODE 'bit-packing' COMPRESS 'zstd' LEVEL 'medium', `production_information` VARCHAR(512) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium', `measured_value` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tobacco_asset` NCHAR(256), `process_stage` NCHAR(32), `process_step` NCHAR(32), `equipment_type` NCHAR(32))

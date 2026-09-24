@@ -1148,6 +1148,9 @@ typedef enum ENodeType {
   QUERY_NODE_SERIES_TAG_ASSIGN,
   // appended to avoid disturbing pinned show-statement values
   QUERY_NODE_FLUSH_MNODE_STMT,
+
+  // xnode restart (appended to preserve existing enum numeric values)
+  QUERY_NODE_RESTART_XNODE_STMT,
 } ENodeType;
 
 typedef struct {
@@ -4898,6 +4901,15 @@ typedef struct {
 int32_t tSerializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
 int32_t tDeserializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
 void    tFreeSMDrainXnodeReq(SMDrainXnodeReq* pReq);
+
+typedef struct {
+  int32_t sqlLen;
+  char*   sql;
+} SMRestartXnodeReq;
+int32_t tSerializeSMRestartXnodeReq(void* buf, int32_t bufLen, SMRestartXnodeReq* pReq);
+int32_t tDeserializeSMRestartXnodeReq(void* buf, int32_t bufLen, SMRestartXnodeReq* pReq);
+void    tFreeSMRestartXnodeReq(SMRestartXnodeReq* pReq);
+
 typedef enum {
   XNODE_TASK_SOURCE_DSN = 1,
   XNODE_TASK_SOURCE_DATABASE,

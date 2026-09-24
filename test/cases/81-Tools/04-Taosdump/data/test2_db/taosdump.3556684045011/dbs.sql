@@ -5,21 +5,6 @@
 #!loose_mode: false
 #!charset: UTF-8
 
--- Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
---
--- SPDX-License-Identifier: AGPL-3.0-or-later
---
--- This program is free software: you can use, redistribute, and/or modify
--- it under the terms of the GNU Affero General Public License, version 3
--- or later ("AGPL"), as published by the Free Software Foundation.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
--- FITNESS FOR A PARTICULAR PURPOSE.
---
--- You should have received a copy of the GNU Affero General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
-
 CREATE DATABASE IF NOT EXISTS db REPLICA 1 VGROUPS 2   DURATION 100d KEEP 3650d,3650d,3650d     PRECISION 'ms'   MINROWS 100 MAXROWS 4096 COMP 2 ;
 
 CREATE STABLE IF NOT EXISTS `db`.`st` (`ts` TIMESTAMP, `c1` TIMESTAMP, `c2` INT, `c3` BIGINT, `c4` FLOAT, `c5` DOUBLE, `c6` VARCHAR(8), `c7` SMALLINT, `c8` TINYINT, `c9` BOOL, `c10` NCHAR(8)) TAGS (`t1` INT) SECURITY_LEVEL 0 SECURE_DELETE 0
