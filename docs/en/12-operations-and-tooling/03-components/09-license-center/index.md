@@ -35,6 +35,7 @@ If a local CLS will serve multiple TSDB / IDMP instances, read [Quotas and Slots
 | [Deploy and Activate](./01-deploy-and-activate.md) | Install CLS, configure, online/offline import, connect TSDB/IDMP |
 | [Quotas and Slots](./02-quota-and-slots.md) | Slot count vs per-slot quota, multi-instance and license types |
 | [Usage and Availability](./03-usage-and-availability.md) | Instance usage views, sync to ELS, CLS deployment shape |
+| [FAQ](./04-faq.md) | License expiry, slot conflicts, license code import, offline licensing, and version queries |
 
 ## Model summary
 
