@@ -141,6 +141,18 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
+    if (pRsp != &rsp && pRsp->reqType != pMsgCtx->reqType) {
+      ctgError("rsp reqType %d mis-match reqType %d, msgIdx:%d", pRsp->reqType, pMsgCtx->reqType, pRsp->msgIdx);
+
+      pRsp = &rsp;
+      pRsp->msgIdx = *msgIdx;
+      pRsp->reqType = pMsgCtx->reqType;
+      pRsp->rspCode = TSDB_CODE_INVALID_MSG;
+      taskMsg.msgType = pRsp->reqType;
+      taskMsg.pData = NULL;
+      taskMsg.len = 0;
+    }
+
     SHashObj* pPrevMsgBatchs = pMsgCtx->pBatchs;
     pMsgCtx->pBatchs = pBatchs;
 
@@ -2116,9 +2128,11 @@ int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, i
                             .mgmtEps = vgroupInfo->epSet,
                             .txnId = pConn->txnId};
 
+  if (NULL != pTask) {
+    CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, NULL, NULL));
+  }
   return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
 }
-
 // -----------------------------------------------------------------------------
 // Federated query: fetch ext source info from mnode
 // -----------------------------------------------------------------------------
