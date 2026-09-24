@@ -65,7 +65,7 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   strcpy(connectReq.app, "mnode_test_show");
   strcpy(connectReq.db, "");
   strcpy(connectReq.user, "root");
-  memcpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
+  tstrncpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
   strcpy(connectReq.sVer, td_version);
   connectReq.connectTime = taosGetTimestampMs();
   tSignConnectReq(&connectReq);
