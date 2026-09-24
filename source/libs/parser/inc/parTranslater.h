@@ -27,6 +27,8 @@ extern "C" {
 #include "parUtil.h"
 #include "parser.h"
 
+typedef struct SCorrelationSemanticContext SCorrelationSemanticContext;
+
 typedef struct STranslateContext {
   SParseContext*           pParseCxt;
   int32_t                  errCode;
@@ -67,6 +69,15 @@ typedef struct STranslateContext {
   // rewriteExprSubQuery can pre-render the EXISTS SQL for pushdown rather than
   // creating a separate inner subquery plan.
   bool sameExtSourceCorrelatedExists;
+  SCorrelationSemanticContext* pCorrelation;  // Shared scope and binding registry.
+  SArray* pCorrelationScopeLevels;  // Current scopeId at each query level; owned by this context.
+  int32_t currCorrelationScopeId;   // Scope currently being translated.
+  int32_t rootCorrelationScopeId;   // Root scope created for this translation context.
+  int32_t subqueryCorrelationScopeId;  // Scope returned by the latest expression subquery.
+  int64_t nextCorrelationScopeExprId;  // exprId assigned to the next scope that is entered.
+  int64_t subqueryCorrelationExprId;   // exprId returned by the latest expression subquery.
+  bool ownsCorrelationContext;  // Whether this context must destroy pCorrelation.
+  bool subqueryIsCorrelated;     // Whether the latest expression subquery captured an outer binding.
   // Set once vtbRefSetSrcTableErrMsg has written an enriched "virtual table ... query
   // failed" message: an outer hop hitting the same failure must not overwrite the
   // inner (more precise) message.

@@ -621,7 +621,119 @@ void cleanupResultRowFunctionState(SExprSupp* pSup, SResultRow* pRow) {
   }
 }
 
-int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet) {
+static int32_t taskCorrelationBeforeBlocking(void* pContext) {
+  SExecTaskInfo* pTaskInfo = pContext;
+  if (NULL == pTaskInfo->pWorkerCb) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return pTaskInfo->pWorkerCb->beforeBlocking(pTaskInfo->pWorkerCb->pPool);
+}
+
+static void taskCorrelationAfterBlocking(void* pContext) {
+  SExecTaskInfo* pTaskInfo = pContext;
+  if (NULL != pTaskInfo->pWorkerCb) {
+    int32_t code = pTaskInfo->pWorkerCb->afterRecoverFromBlocking(pTaskInfo->pWorkerCb->pPool);
+    if (TSDB_CODE_SUCCESS != code) {
+      pTaskInfo->code = code;
+      qError("%s failed since %s", __func__, tstrerror(code));
+    }
+  }
+}
+
+static int32_t recordTaskCorrelationStats(void* pContext, int32_t templateId, bool called, int64_t elapsedUs) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pContext;
+  QUERY_CHECK_NULL(pTaskInfo, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  if (NULL == pTaskInfo->pCorrelationStats) {
+    pTaskInfo->pCorrelationStats = taosArrayInit(2, sizeof(SExplainCorrelationStat));
+    QUERY_CHECK_NULL(pTaskInfo->pCorrelationStats, code, lino, _return, terrno);
+  }
+  SExplainCorrelationStat* pStat = NULL;
+  for (int32_t i = 0; i < taosArrayGetSize(pTaskInfo->pCorrelationStats); ++i) {
+    SExplainCorrelationStat* pEntry = taosArrayGet(pTaskInfo->pCorrelationStats, i);
+    if (pEntry->templateId == templateId) {
+      pStat = pEntry;
+      break;
+    }
+  }
+  if (NULL == pStat) {
+    SExplainCorrelationStat entry = {.templateId = templateId};
+    pStat = taosArrayPush(pTaskInfo->pCorrelationStats, &entry);
+    QUERY_CHECK_NULL(pStat, code, lino, _return, terrno);
+  }
+  ++pStat->inputRows;
+  if (called) {
+    ++pStat->calls;
+    pStat->elapsedUs += elapsedUs;
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+const SCorrelationEvalContext* initTaskCorrelationEvalContext(SExecTaskInfo* pTaskInfo,
+                                                              SCorrelationEvalContext* pCorrelation,
+                                                              SCorrelationWaitHooks* pWait) {
+  if (NULL == pTaskInfo || NULL == pTaskInfo->pCorrelationSession || NULL == pTaskInfo->pCorrelationOps) {
+    return NULL;
+  }
+  *pWait = (SCorrelationWaitHooks){.pContext = pTaskInfo,
+                                   .beforeBlocking = taskCorrelationBeforeBlocking,
+                                   .afterRecoverFromBlocking = taskCorrelationAfterBlocking};
+  *pCorrelation = (SCorrelationEvalContext){.pSession = pTaskInfo->pCorrelationSession,
+                                            .pOps = pTaskInfo->pCorrelationOps,
+                                            .pWait = pWait,
+                                            .pSubquerySources = NULL == pTaskInfo->pSubJobCtx
+                                                                    ? NULL
+                                                                    : pTaskInfo->pSubJobCtx->subEndPoints,
+                                            .pStatsContext = pTaskInfo->enableExplain ? pTaskInfo : NULL,
+                                            .recordStats = pTaskInfo->enableExplain ? recordTaskCorrelationStats : NULL};
+  return pCorrelation;
+}
+
+int32_t doFilterWithTaskCorrelation(SSDataBlock* pBlock, SFilterInfo* pFilterInfo,
+                                    SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet,
+                                    SExecTaskInfo* pTaskInfo) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SCorrelationEvalContext        correlation = {0};
+  SCorrelationWaitHooks          wait = {0};
+  const SCorrelationEvalContext* pCorrelation = initTaskCorrelationEvalContext(pTaskInfo, &correlation, &wait);
+  code = doFilterWithCorrelation(pBlock, pFilterInfo, pColMatchInfo, pRet, pCorrelation);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t filterExecuteWithTaskCorrelation(SFilterInfo* pFilterInfo, SSDataBlock* pBlock,
+                                         SColumnInfoData** ppResult, SColumnDataAgg* pStatis,
+                                         int16_t numOfCols, int32_t* pResultStatus,
+                                         SExecTaskInfo* pTaskInfo) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SCorrelationEvalContext        correlation = {0};
+  SCorrelationWaitHooks          wait = {0};
+  const SCorrelationEvalContext* pCorrelation = initTaskCorrelationEvalContext(pTaskInfo, &correlation, &wait);
+  code = filterExecuteWithCorrelation(pFilterInfo, pBlock, ppResult, pStatis, numOfCols, pResultStatus, pCorrelation);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t doFilterWithCorrelation(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo,
+                                SColumnInfoData** pRet, const SCorrelationEvalContext* pCorrelation) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
@@ -635,8 +747,8 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   QUERY_CHECK_CODE(code, lino, _err);
 
   int32_t status = 0;
-  code =
-      filterExecute(pFilterInfo, pBlock, pRet != NULL ? pRet : &p, NULL, param1.numOfCols, &status);
+  code = filterExecuteWithCorrelation(pFilterInfo, pBlock, pRet != NULL ? pRet : &p, NULL, param1.numOfCols,
+                                      &status, pCorrelation);
   QUERY_CHECK_CODE(code, lino, _err);
 
   code = extractQualifiedTupleByFilterResult(pBlock, pRet != NULL ? *pRet : p, status);
@@ -667,6 +779,10 @@ _err:
   colDataDestroy(p);
   taosMemoryFree(p);
   return code;
+}
+
+int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet) {
+  return doFilterWithCorrelation(pBlock, pFilterInfo, pColMatchInfo, pRet, NULL);
 }
 
 int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status) {

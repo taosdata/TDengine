@@ -3359,7 +3359,8 @@ static int32_t doStateWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
   while (1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    code = doFilter(pBInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    code = doFilterWithTaskCorrelation(pBInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                       pOperator->pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
@@ -3492,7 +3493,8 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
       }
       code = buildFastIntervalResultBlock(pOperator, pInfo);
       QUERY_CHECK_CODE(code, lino, _end);
-      code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+      code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                         pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
       pFast = pInfo->aggSup.pFastInterval;
       if (pFast->nextResult >= pFast->numOfWindows) {
@@ -3508,7 +3510,8 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
 
   while (1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                       pOperator->pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
@@ -4066,7 +4069,8 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
 
     while (1) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-      code = doFilter(pBInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+      code = doFilterWithTaskCorrelation(pBInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                         pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
 
       bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
@@ -4134,7 +4138,8 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
   QUERY_CHECK_CODE(code, lino, _end);
   while (1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    code = doFilter(pBInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    code = doFilterWithTaskCorrelation(pBInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                       pOperator->pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
@@ -5046,7 +5051,8 @@ static int32_t buildFastMergeIntervalResultBlock(SOperatorInfo* pOperator) {
     if (pFast->inputCompleted && pFast->nextWindow >= pFast->numOfWindows) {
       setOperatorCompleted(pOperator);
     }
-    return doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    return doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                       pOperator->pTaskInfo);
   }
   bool sparse = !pFast->denseMode && pFast->activeCount > 0 &&
                 (int64_t)pFast->activeCount * 5 < (int64_t)(pFast->maxActiveWindow - pFast->minActiveWindow + 1);
@@ -5056,7 +5062,8 @@ static int32_t buildFastMergeIntervalResultBlock(SOperatorInfo* pOperator) {
     if (pFast->inputCompleted && pFast->nextWindow >= pFast->numOfWindows) {
       setOperatorCompleted(pOperator);
     }
-    return doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    return doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                       pOperator->pTaskInfo);
   }
   while (pFast->nextWindow < pFast->sealedWindowExclusive && pRes->info.rows < pOperator->resultInfo.threshold) {
     int32_t windowIndex = pFast->nextWindow;
@@ -5121,7 +5128,8 @@ _cleanup:
   if (pFast->nextWindow >= pFast->numOfWindows) {
     setOperatorCompleted(pOperator);
   }
-  return doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  return doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                     pOperator->pTaskInfo);
 }
 
 void destroyMAIOperatorInfo(void* param) {
@@ -5233,7 +5241,8 @@ _finalize:
   code = TSDB_CODE_SUCCESS;
   pExInfo->pEntry = NULL;
   pExInfo->finalized = true;
-  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  code = doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                     pOperator->pTaskInfo);
 _return:
   if (NULL != pExInfo->pHashEntry) {
     int32_t removeCode = taosHashRemove(gExIntervalHash, &pExInfo->queryId, sizeof(pExInfo->queryId));
@@ -5379,7 +5388,8 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         finalizeResultRows(pIaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pRes, pTaskInfo);
         resetResultRow(pMiaInfo->pResultRow, pIaInfo->aggSup.resultRowSize - sizeof(SResultRow));
         cleanupAfterGroupResultGen(pMiaInfo, pRes);
-        code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+        code = doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                           pOperator->pTaskInfo);
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
@@ -5404,7 +5414,8 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
 
         pMiaInfo->prefetchedBlock = pBlock;
         cleanupAfterGroupResultGen(pMiaInfo, pRes);
-        code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+        code = doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                           pOperator->pTaskInfo);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pRes->info.rows == 0) {
           // After filtering for last group, the result is empty, so we need to continue to process next group
@@ -5432,7 +5443,8 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
 
     doMergeAlignedIntervalAggImpl(pOperator, &pIaInfo->binfo.resultRowInfo, pBlock, pRes);
 
-    code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    code = doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                       pOperator->pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pRes->info.rows >= pOperator->resultInfo.capacity) {

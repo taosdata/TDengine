@@ -24,6 +24,97 @@
 #include "tref.h"
 #include "trpc.h"
 
+static void schFreeCorrelationValues(SArray* pValues) {
+  if (NULL == pValues) {
+    return;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pValues); ++i) {
+    SCorrelationWireValue* pValue = taosArrayGet(pValues, i);
+    taosMemoryFree(pValue->pData);
+  }
+  taosArrayDestroy(pValues);
+}
+
+static int32_t schCopyCorrelationValues(const SArray* pSource, SArray** ppValues) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* pValues = NULL;
+  void*   pPendingData = NULL;
+  QUERY_CHECK_NULL(ppValues, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  *ppValues = NULL;
+  if (NULL == pSource) {
+    goto _return;
+  }
+
+  pValues = taosArrayInit(taosArrayGetSize(pSource), sizeof(SCorrelationWireValue));
+  QUERY_CHECK_NULL(pValues, code, lino, _return, terrno);
+  for (int32_t i = 0; i < taosArrayGetSize(pSource); ++i) {
+    SCorrelationWireValue value = *(const SCorrelationWireValue*)taosArrayGet(pSource, i);
+    value.pData = NULL;
+    if (value.dataLen > 0) {
+      value.pData = taosMemoryMalloc(value.dataLen);
+      QUERY_CHECK_NULL(value.pData, code, lino, _return, terrno);
+      pPendingData = value.pData;
+      memcpy(value.pData, ((const SCorrelationWireValue*)taosArrayGet(pSource, i))->pData, value.dataLen);
+    }
+    void* pPushed = taosArrayPush(pValues, &value);
+    QUERY_CHECK_NULL(pPushed, code, lino, _return, terrno);
+    pPendingData = NULL;
+  }
+  *ppValues = pValues;
+  pValues = NULL;
+
+_return:
+  taosMemoryFree(pPendingData);
+  schFreeCorrelationValues(pValues);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (lino > 0) {
+      qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    } else {
+      qError("%s failed since %s", __func__, tstrerror(code));
+    }
+  }
+  return code;
+}
+
+static int32_t schCopySubquerySources(const SArray* pSource, SArray** ppSources) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* pCopied = NULL;
+  SNode*  pPending = NULL;
+  QUERY_CHECK_NULL(ppSources, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  *ppSources = NULL;
+  if (0 == taosArrayGetSize(pSource)) {
+    return code;
+  }
+
+  pCopied = taosArrayInit(taosArrayGetSize(pSource), POINTER_BYTES);
+  QUERY_CHECK_NULL(pCopied, code, lino, _return, terrno);
+  for (int32_t i = 0; i < taosArrayGetSize(pSource); ++i) {
+    const SNode* pNode = taosArrayGetP(pSource, i);
+    QUERY_CHECK_NULL(pNode, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    QUERY_CHECK_CONDITION(QUERY_NODE_DOWNSTREAM_SOURCE == nodeType(pNode), code, lino, _return,
+                          TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    SCH_ERR_JRET(nodesCloneNode(pNode, &pPending));
+    QUERY_CHECK_NULL(taosArrayPush(pCopied, &pPending), code, lino, _return, terrno);
+    pPending = NULL;
+  }
+  *ppSources = pCopied;
+  pCopied = NULL;
+
+_return:
+  nodesDestroyNode(pPending);
+  taosArrayDestroyP(pCopied, (FDelete)nodesDestroyNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (lino > 0) {
+      qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    } else {
+      qError("%s failed since %s", __func__, tstrerror(code));
+    }
+  }
+  return code;
+}
+
 void schUpdateJobErrCode(SSchJob *pJob, int32_t errCode) {
   if (TSDB_CODE_SUCCESS == errCode) {
     return;
@@ -903,6 +994,8 @@ void schFreeJobImpl(void *job) {
   uint64_t queryId = pJob->queryId;
   int64_t  refId = pJob->refId;
   bool     isParentJob = SCH_IS_PARENT_JOB(pJob);
+  void (*cbParamFreeFp)(void*) = isParentJob ? pJob->cbParamFreeFp : NULL;
+  void* cbParam = pJob->userRes.cbParam;
 
   qDebug("QID:0x%" PRIx64 ", begin to free sch job, jobId:0x%" PRIx64 ", pointer:%p, isParent:%d", queryId, refId, pJob, isParentJob);
 
@@ -947,8 +1040,13 @@ void schFreeJobImpl(void *job) {
   qExplainFreeCtx(pJob->explainCtx);
 
   destroyQueryExecRes(&pJob->execRes);
+  taosMemoryFree(pJob->pCorrelationTemplates);
 
   if (isParentJob) {
+    taosArrayDestroyP(pJob->pExternalSubquerySources, (FDelete)nodesDestroyNode);
+    taosArrayDestroy(pJob->pCorrelationParamDefs);
+    schFreeCorrelationValues(pJob->pCorrelationParamValues);
+    taosMemoryFree(pJob->pCorrelationTimeInit);
     taosArrayDestroy(pJob->nodeList);
     qDestroyQueryPlan(pJob->pDag);
     qDebug("QID:0x%" PRIx64 " pDag: %p destroyed", queryId, pJob->pDag);
@@ -969,6 +1067,10 @@ void schFreeJobImpl(void *job) {
     if (jobNum == 0) {
       schCloseJobRef();
     }
+  }
+
+  if (NULL != cbParamFreeFp) {
+    cbParamFreeFp(cbParam);
   }
 
   qDebug("QID:0x%" PRIx64 ", sch job freed, jobId:0x%" PRIx64 ", pointer:%p, isParent:%d", queryId, refId, pJob, isParentJob);
@@ -1025,6 +1127,7 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
   pJob->subJobId = subJobId;
   pJob->attr.explainMode = pParent->attr.explainMode;
   pJob->attr.localExec = false;
+  pJob->attr.inlineTaskLaunch = pParent->attr.inlineTaskLaunch;
   pJob->conn = pParent->conn;
   pJob->firstDayOfWeek = pParent->firstDayOfWeek;
   
@@ -1046,6 +1149,23 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
   pJob->secureDelete = pParent->secureDelete;
   pJob->pWorkerCb    = pParent->pWorkerCb;
   pJob->nodeList = pParent->nodeList;
+  pJob->correlation = pParent->correlation;
+  pJob->txnId = pParent->txnId;
+  pJob->pCorrelationParamDefs = pParent->pCorrelationParamDefs;
+  pJob->pCorrelationParamValues = pParent->pCorrelationParamValues;
+  pJob->pCorrelationTimeInit = pParent->pCorrelationTimeInit;
+  pJob->correlationTimeInitLen = pParent->correlationTimeInitLen;
+  if (NULL != pDag->pCorrelationTemplates) {
+    SNodeListNode templates = {0};
+    templates.node.type = QUERY_NODE_NODE_LIST;
+    templates.pNodeList = pDag->pCorrelationTemplates;
+    int32_t len = 0;
+    SCH_ERR_JRET(nodesNodeToMsg((SNode*)&templates, &pJob->pCorrelationTemplates, &len));
+    if (len <= 0) {
+      SCH_ERR_JRET(TSDB_CODE_INVALID_MSG);
+    }
+    pJob->correlationTemplatesLen = len;
+  }
 
   qDebug("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p, pDag:%p, subQType:%d", 
     pParent->queryId, subJobId, pJob->conn.pTrans, pJob, pJob->pDag, pJob->pDag->subQType);
@@ -1092,14 +1212,25 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   int32_t  code = 0;
   int32_t  i = 0;
   int64_t  refId = -1;
+  if (NULL != pReq->pPlanTaken) {
+    *pReq->pPlanTaken = false;
+  }
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
     qError("QID:0x%" PRIx64 ", calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
     SCH_ERR_JRET(terrno);
   }
 
+  pJob->pDag = pReq->pDag;
+  pJob->userRes.cbParam = pReq->cbParam;
+  pJob->cbParamFreeFp = pReq->cbParamFreeFp;
+  if (NULL != pReq->pPlanTaken) {
+    *pReq->pPlanTaken = true;
+  }
+
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->attr.localExec = pReq->localReq;
+  pJob->attr.inlineTaskLaunch = pReq->inlineTaskLaunch;
   pJob->conn = *pReq->pConn;
   pJob->firstDayOfWeek = pReq->firstDayOfWeek;
   
@@ -1110,7 +1241,38 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
       SCH_ERR_JRET(terrno);
     }
   }
-  pJob->pDag = pReq->pDag;
+  pJob->correlation = pReq->correlation;
+  SCH_ERR_JRET(schCopySubquerySources(pReq->pExternalSubquerySources, &pJob->pExternalSubquerySources));
+  SCH_ERR_JRET(tValidateCorrelationParams(pReq->pCorrelationParamDefs, pReq->pCorrelationParamValues));
+  if (NULL != pReq->pCorrelationParamDefs) {
+    pJob->pCorrelationParamDefs = taosArrayDup(pReq->pCorrelationParamDefs, NULL);
+    if (NULL == pJob->pCorrelationParamDefs) {
+      SCH_ERR_JRET(terrno);
+    }
+  }
+  SCH_ERR_JRET(schCopyCorrelationValues(pReq->pCorrelationParamValues, &pJob->pCorrelationParamValues));
+  if (NULL != pReq->pDag->pCorrelationTemplates) {
+    SNodeListNode templates = {0};
+    templates.node.type = QUERY_NODE_NODE_LIST;
+    templates.pNodeList = pReq->pDag->pCorrelationTemplates;
+    int32_t len = 0;
+    SCH_ERR_JRET(nodesNodeToMsg((SNode*)&templates, &pJob->pCorrelationTemplates, &len));
+    if (len <= 0) {
+      SCH_ERR_JRET(TSDB_CODE_INVALID_MSG);
+    }
+    pJob->correlationTemplatesLen = len;
+  }
+  if (NULL != pReq->pCorrelationTimeRangeInit) {
+    SNodeListNode timeInit = {0};
+    timeInit.node.type = QUERY_NODE_NODE_LIST;
+    timeInit.pNodeList = (SNodeList*)pReq->pCorrelationTimeRangeInit;
+    int32_t len = 0;
+    SCH_ERR_JRET(nodesNodeToMsg((SNode*)&timeInit, &pJob->pCorrelationTimeInit, &len));
+    if (len <= 0) {
+      SCH_ERR_JRET(TSDB_CODE_INVALID_MSG);
+    }
+    pJob->correlationTimeInitLen = len;
+  }
   if (pReq->allocatorRefId > 0) {
     pJob->allocatorRefId = nodesMakeAllocatorWeakRef(pReq->allocatorRefId);
     if (pJob->allocatorRefId <= 0) {
@@ -1207,7 +1369,9 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
 _return:
 
   if (NULL == pJob) {
-    qDestroyQueryPlan(pReq->pDag);
+    if (NULL == pReq->pPlanTaken) {
+      qDestroyQueryPlan(pReq->pDag);
+    }
   } else if (pJob->refId <= 0) {
     schFreeJobImpl(pJob);
   } else {

@@ -30,6 +30,31 @@ typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
 typedef bool    (*sclIsTaskKilled)(void*);
 
 typedef struct SFilterInfo SFilterInfo;
+typedef struct SCorrelationTaskSession SCorrelationTaskSession;
+typedef struct SCorrelationRuntimeOps SCorrelationRuntimeOps;
+typedef struct SCorrelationWaitHooks SCorrelationWaitHooks;
+
+// Borrowed for one Scalar/Filter invocation. A missing row range selects the
+// full input block; JOIN row positions apply to the named input blocks only.
+typedef struct SCorrelationEvalContext {
+  SCorrelationTaskSession*      pSession;
+  const SCorrelationRuntimeOps* pOps;
+  const SArray*                 pInheritedParams;
+  const SCorrelationWaitHooks*  pWait;
+  const SArray*                 pSubquerySources;  // Borrowed noncorrelated producer endpoints.
+  bool                          hasRowRange;
+  int32_t                       rowStart;
+  int32_t                       rowEnd;
+  bool                          hasJoinRows;
+  int64_t                       leftBlockId;
+  int64_t                       rightBlockId;
+  int32_t                       leftRow;
+  int32_t                       rightRow;
+  void*                         pStatsContext;  // Borrowed; may be NULL.
+  // Called after each input row. called reports whether invokeScalar ran;
+  // elapsedUs covers that call. A nonzero return aborts evaluation.
+  int32_t (*recordStats)(void* pContext, int32_t templateId, bool called, int64_t elapsedUs);
+} SCorrelationEvalContext;
 
 typedef struct SScalarExtraInfo {
   void*              pStreamInfo;
@@ -40,6 +65,7 @@ typedef struct SScalarExtraInfo {
   uint64_t           streamGen;
   void*              pTaskInfo;    // opaque task handle for kill check
   sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
+  const SCorrelationEvalContext*  pCorrelation;
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);

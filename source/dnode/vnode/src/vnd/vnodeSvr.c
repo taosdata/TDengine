@@ -1328,7 +1328,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_SCH_MERGE_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_FETCH_RSP:
-      return qWorkerProcessRspMsg(pVnode, pVnode->pQuery, pMsg, 0);
+      return qWorkerProcessRspMsg(pVnode, pVnode->pQuery, pMsg, NULL, 0);
     // case TDMT_SCH_CANCEL_TASK:
     //   return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_DROP_TASK:

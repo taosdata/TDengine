@@ -956,6 +956,20 @@ SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
 SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 ```
 
+### 相关标量子查询
+
+相关标量子查询引用外层查询块的列，并在外层表达式实际求值时，使用当前行的值执行内层查询。例如：
+
+```sql
+SELECT r.ts, r.c1,
+       (SELECT h.c1 FROM history h WHERE h.device_id = r.device_id ORDER BY h.ts DESC LIMIT 1)
+FROM readings r;
+```
+
+内层查询必须只返回一列。返回零行时，表达式结果为该列类型的 `NULL`；返回一行时，使用该行的值；返回多行时报错。`LIMIT 1` 可以明确限制结果基数。相关引用可以来自当前外层查询块或更外层的祖先查询块，内层每次执行都使用对应调用位置的值。
+
+相关标量子查询可用于普通查询和 `INSERT INTO ... SELECT` 的查询部分。查询中的非相关子查询仍按原有方式独立计算和复用。当前不支持相关 `IN`、`EXISTS`、`ANY`、`ALL`、行子查询，以及在 `FROM` 派生表中引用外层列；这些限制不影响查询中已有的非相关子查询。流计算、订阅、DDL 及其他 DML 语句不支持相关标量子查询。
+
 ### 子查询表达式
 
 从 `v3.4.1.0` 版本开始，TDengine 支持下列子查询表达式。其中的子查询仅限非相关子查询，目前支持在查询和流计算语句中使用；订阅、DDL，以及除 `INSERT INTO ... SELECT` 外的 DML 语句暂不支持。

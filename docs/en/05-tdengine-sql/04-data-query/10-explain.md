@@ -335,6 +335,12 @@ In this example:
 
 For statements that contain subqueries, do not stop at the first few lines of the main plan. Always check whether additional `InitPlan n` sections follow, because the real cost may come from a full scan, aggregation, sort, or another expensive operator inside a subquery.
 
+### Correlated Scalar Subqueries
+
+A correlated scalar subquery appears as a `Correlated Scalar Subquery` expression under the operator that evaluates it, rather than as a one-time `InitPlan`. The expression row shows its template number, evaluation stage, and result type. Parameter rows identify the source scope and block/slot or inherited parameter number, without showing parameter values. The execution plan for the correlated subquery appears under `Subquery Plan`, including its scans, aggregates, sorts, and other operators. Static `EXPLAIN` displays this plan information without executing the subquery.
+
+`EXPLAIN ANALYZE` also displays `Input Rows`, `Calls`, and `Time` for that expression: the rows or JOIN candidate pairs that reached the evaluation point, the number of inner calls actually started, and their cumulative elapsed time. `Calls` is distinct from the owning operator's `execTimes`; separate calls with identical parameters are counted separately. A branch evaluated under ordinary CASE semantics is counted even when its value is not selected. A parent call's time includes waiting for nested calls, so times across nested levels should not be added together as the SQL statement's total time.
+
 ## Examples
 
 ### Show the execution plan of a normal query

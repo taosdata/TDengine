@@ -39,6 +39,7 @@
 #include "os.h"
 
 #include "filterInt.h"
+#include "filter.h"
 #include "functionMgt.h"
 #include "nodes.h"
 #include "parUtil.h"
@@ -6031,6 +6032,712 @@ TEST(ScalarStreamPlaceholderTest, externalWindowEvaluatesEachGroupLineageSeparat
   nodesDestroyNode(start);
   nodesDestroyNode(end);
   tDestroyStRtFuncInfo(&runtime);
+}
+
+constexpr int32_t kMaxCorrelationMockCalls = 8;
+
+struct CorrelationScalarMock {
+  int32_t seen[kMaxCorrelationMockCalls] = {};
+  int32_t seenOther[kMaxCorrelationMockCalls] = {};
+  int32_t calls = 0;
+  int32_t expectedParamCount = 1;
+  int32_t failOnCall = 0;
+  int32_t nullOnValue = 0;
+  const void *sourceData = nullptr;
+  bool copiedParams = true;
+  int64_t chargedBytes = 0;
+  int64_t peakBytes = 0;
+  int64_t limitBytes = 0;
+  const SArray *pInheritedParams = nullptr;
+  const SArray *expectedSources = nullptr;
+  bool sourcesMatch = true;
+  uint64_t recordedRows = 0;
+  uint64_t recordedCalls = 0;
+  int64_t recordedElapsedUs = 0;
+  const void *varSources[kMaxCorrelationMockCalls] = {};
+  bool varCopied = true;
+};
+
+static int32_t recordCorrelationStatsMock(void *pContext, int32_t templateId, bool called, int64_t elapsedUs) {
+  auto *pMock = static_cast<CorrelationScalarMock *>(pContext);
+  if (0 != templateId) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  ++pMock->recordedRows;
+  pMock->recordedCalls += called ? 1 : 0;
+  pMock->recordedElapsedUs += elapsedUs;
+  return TSDB_CODE_SUCCESS;
+}
+
+static const SArray *getInheritedCorrelationParamsMock(const SCorrelationTaskSession *pSession) {
+  auto *pMock = reinterpret_cast<const CorrelationScalarMock *>(pSession);
+  return pMock->pInheritedParams;
+}
+
+static int32_t reserveCorrelationResultMock(SCorrelationTaskSession *pSession, int64_t bytes) {
+  auto *pMock = reinterpret_cast<CorrelationScalarMock *>(pSession);
+  if (pMock->limitBytes > 0 && pMock->chargedBytes + bytes > pMock->limitBytes) {
+    return TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;
+  }
+  pMock->chargedBytes += bytes;
+  pMock->peakBytes = TMAX(pMock->peakBytes, pMock->chargedBytes);
+  return TSDB_CODE_SUCCESS;
+}
+
+static void releaseCorrelationResultMock(SCorrelationTaskSession *pSession, int64_t bytes) {
+  auto *pMock = reinterpret_cast<CorrelationScalarMock *>(pSession);
+  ASSERT_LE(bytes, pMock->chargedBytes);
+  pMock->chargedBytes -= bytes;
+}
+
+static int32_t invokeCorrelationScalarMock(SCorrelationTaskSession *pSession,
+                                           const SCorrelationScalarRequest *pRequest,
+                                           SValueNode **ppResult) {
+  auto *pMock = reinterpret_cast<CorrelationScalarMock *>(pSession);
+  pMock->sourcesMatch &= pRequest->pSubquerySources == pMock->expectedSources;
+  if (pRequest->templateId != 0 || nullptr == pRequest->pParams ||
+      taosArrayGetSize(pRequest->pParams) != pMock->expectedParamCount) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  if (pMock->calls >= kMaxCorrelationMockCalls) {
+    ADD_FAILURE() << "CorrelationScalarMock call capacity exceeded";
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  auto *pValue = static_cast<const SCorrelationParamValue *>(taosArrayGet(pRequest->pParams, 0));
+  if (nullptr == pValue || pValue->isNull || pValue->length != sizeof(int32_t) || nullptr == pValue->pData) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  pMock->copiedParams &= pValue->pData != pMock->sourceData;
+  int32_t value = 0;
+  memcpy(&value, pValue->pData, sizeof(value));
+  if (pMock->expectedParamCount == 2) {
+    auto *pOther = static_cast<const SCorrelationParamValue *>(taosArrayGet(pRequest->pParams, 1));
+    if (nullptr == pOther || pOther->paramId != 1 || pOther->isNull ||
+        pOther->length != sizeof(int32_t) || nullptr == pOther->pData) {
+      return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    }
+    memcpy(&pMock->seenOther[pMock->calls], pOther->pData, sizeof(int32_t));
+  }
+  pMock->seen[pMock->calls++] = value;
+  if (pMock->calls == pMock->failOnCall) {
+    return TSDB_CODE_QRY_SUBQ_EXEC_ERROR;
+  }
+
+  SNode *pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  auto *pResult = reinterpret_cast<SValueNode *>(pNode);
+  pResult->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pResult->isNull = value == pMock->nullOnValue;
+  pResult->typeData = value * 10;
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t invokeCorrelationVarMock(SCorrelationTaskSession *pSession,
+                                        const SCorrelationScalarRequest *pRequest,
+                                        SValueNode **ppResult) {
+  auto *pMock = reinterpret_cast<CorrelationScalarMock *>(pSession);
+  if (nullptr == pRequest->pParams || taosArrayGetSize(pRequest->pParams) != 1) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  if (pMock->calls >= kMaxCorrelationMockCalls) {
+    ADD_FAILURE() << "CorrelationScalarMock call capacity exceeded";
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  auto *pValue = static_cast<const SCorrelationParamValue *>(taosArrayGet(pRequest->pParams, 0));
+  if (nullptr == pValue || pValue->dataType.type != TSDB_DATA_TYPE_VARCHAR) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  int32_t row = pMock->calls++;
+  if (!pValue->isNull) {
+    pMock->varCopied &= pValue->pData != pMock->varSources[row];
+  }
+  if (!pValue->isNull && (pValue->length <= VARSTR_HEADER_SIZE || nullptr == pValue->pData ||
+                          varDataTLen(pValue->pData) != pValue->length)) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  if (pValue->isNull && (pValue->length != 0 || nullptr != pValue->pData)) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  SNode *pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  auto *pResult = reinterpret_cast<SValueNode *>(pNode);
+  pResult->node.resType = {.type = TSDB_DATA_TYPE_VARCHAR, .bytes = 32};
+  pResult->isNull = pValue->isNull;
+  if (!pValue->isNull) {
+    pResult->datum.p = static_cast<char *>(taosMemoryMalloc(pValue->length));
+    if (nullptr == pResult->datum.p) {
+      nodesDestroyNode(pNode);
+      return terrno;
+    }
+    memcpy(pResult->datum.p, pValue->pData, pValue->length);
+  }
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+static SCorrelatedSubqueryNode *makeCorrelationScalarNode(int64_t blockId) {
+  SNode *pNode = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_CORRELATED_SUBQUERY, &pNode)) {
+    return nullptr;
+  }
+  auto *pCall = reinterpret_cast<SCorrelatedSubqueryNode *>(pNode);
+  pCall->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pCall->templateId = 0;
+  pCall->exprId = 1;
+  pCall->scopeId = 2;
+  pCall->parentScopeId = 1;
+
+  SNode *pBindingNode = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pBindingNode)) {
+    nodesDestroyNode(pNode);
+    return nullptr;
+  }
+  auto *pBinding = reinterpret_cast<SCorrelationParamBindingNode *>(pBindingNode);
+  pBinding->paramId = 0;
+  pBinding->dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pBinding->sourceKind = CORRELATION_SOURCE_BLOCK;
+  pBinding->sourceBlockId = blockId;
+  pBinding->sourceSlotId = 0;
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pCall->pParamBindings, pBindingNode)) {
+    nodesDestroyNode(pNode);
+    return nullptr;
+  }
+  return pCall;
+}
+
+TEST(CorrelationScalarTest, UsesExactBlockAndOriginalRows) {
+  SArray *pBlocks = taosArrayInit(2, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 3, &columnInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 3, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pFirst = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pSecond = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 1));
+  auto *pFirstCol = static_cast<SColumnInfoData *>(taosArrayGet(pFirst->pDataBlock, 0));
+  auto *pSecondCol = static_cast<SColumnInfoData *>(taosArrayGet(pSecond->pDataBlock, 0));
+  for (int32_t row = 0; row < 3; ++row) {
+    int32_t first = 100 + row, second = row + 1;
+    ASSERT_EQ(colDataSetVal(pFirstCol, row, reinterpret_cast<char *>(&first), false), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(pSecondCol, row, reinterpret_cast<char *>(&second), false), TSDB_CODE_SUCCESS);
+  }
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pSecond->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  SNode *pOtherNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pOtherNode), TSDB_CODE_SUCCESS);
+  auto *pOtherBinding = reinterpret_cast<SCorrelationParamBindingNode *>(pOtherNode);
+  pOtherBinding->paramId = 1;
+  pOtherBinding->dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pOtherBinding->sourceKind = CORRELATION_SOURCE_BLOCK;
+  pOtherBinding->sourceBlockId = pFirst->info.id.blockId;
+  pOtherBinding->sourceSlotId = 0;
+  ASSERT_EQ(nodesListStrictAppend(pCall->pParamBindings, pOtherNode), TSDB_CODE_SUCCESS);
+  CorrelationScalarMock mock = {};
+  mock.expectedParamCount = 2;
+  mock.sourceData = pSecondCol->pData;
+  mock.nullOnValue = 2;
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {
+      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 3);
+  EXPECT_EQ(mock.seen[0], 1);
+  EXPECT_EQ(mock.seen[1], 2);
+  EXPECT_EQ(mock.seen[2], 3);
+  EXPECT_EQ(mock.seenOther[0], 100);
+  EXPECT_EQ(mock.seenOther[1], 101);
+  EXPECT_EQ(mock.seenOther[2], 102);
+  EXPECT_TRUE(mock.copiedParams);
+  EXPECT_GT(mock.peakBytes, 0);
+  EXPECT_EQ(mock.chargedBytes, 0);
+  EXPECT_EQ(output.numOfRows, 3);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 0)), 10);
+  EXPECT_TRUE(colDataIsNull(&result, 3, 1, nullptr));
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 2)), 30);
+
+  mock.calls = 0;
+  correlation.hasRowRange = true;
+  correlation.rowStart = 0;
+  correlation.rowEnd = 0;
+  correlation.hasJoinRows = true;
+  correlation.leftBlockId = pFirst->info.id.blockId;
+  correlation.rightBlockId = pSecond->info.id.blockId;
+  correlation.leftRow = 1;
+  correlation.rightRow = 2;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 1);
+  EXPECT_EQ(mock.seen[0], 3);
+  EXPECT_EQ(mock.seenOther[0], 101);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  colDataDestroy(&result);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, RangePreservesOtherRowsAndFailureStopsParent) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 4, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pSource = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  for (int32_t row = 0; row < 4; ++row) {
+    int32_t value = row + 4;
+    ASSERT_EQ(colDataSetVal(pSource, row, reinterpret_cast<char *>(&value), false), TSDB_CODE_SUCCESS);
+  }
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  CorrelationScalarMock mock = {};
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {
+      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock),
+      .pOps = &ops,
+      .hasRowRange = true,
+      .rowStart = 1,
+      .rowEnd = 1};
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  ASSERT_EQ(colInfoDataEnsureCapacity(&result, 4, true), TSDB_CODE_SUCCESS);
+  for (int32_t row = 0; row < 4; ++row) {
+    int32_t value = 99;
+    ASSERT_EQ(colDataSetVal(&result, row, reinterpret_cast<char *>(&value), false), TSDB_CODE_SUCCESS);
+  }
+  SScalarParam output = {};
+  output.columnData = &result;
+  output.numOfRows = 4;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 1);
+  EXPECT_EQ(mock.seen[0], 5);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 0)), 99);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 1)), 50);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 2)), 99);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 3)), 99);
+  EXPECT_EQ(mock.chargedBytes, 0);
+  colDataDestroy(&result);
+
+  SColumnInfoData freshResult = {};
+  freshResult.info = columnInfo;
+  SScalarParam freshOutput = {};
+  freshOutput.columnData = &freshResult;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &freshOutput, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(colDataIsNull(&freshResult, 4, 0, nullptr));
+  EXPECT_FALSE(colDataIsNull(&freshResult, 4, 1, nullptr));
+  EXPECT_TRUE(colDataIsNull(&freshResult, 4, 2, nullptr));
+  EXPECT_TRUE(colDataIsNull(&freshResult, 4, 3, nullptr));
+  colDataDestroy(&freshResult);
+
+  correlation.hasRowRange = false;
+  mock.calls = 0;
+  mock.nullOnValue = 5;
+  mock.failOnCall = 3;
+  SNode *pColumnNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pColumnNode), TSDB_CODE_SUCCESS);
+  auto *pColumn = reinterpret_cast<SColumnNode *>(pColumnNode);
+  pColumn->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pColumn->dataBlockId = pBlock->info.id.blockId;
+  pColumn->slotId = 0;
+  SNode *pParent = nullptr;
+  ASSERT_EQ(scltMakeOpNode(&pParent, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pColumnNode,
+                          reinterpret_cast<SNode *>(pCall)), TSDB_CODE_SUCCESS);
+  SColumnInfoData parentResult = {};
+  parentResult.info = createColumnInfo(2, TSDB_DATA_TYPE_BOOL, sizeof(bool));
+  SScalarParam parentOutput = {};
+  parentOutput.columnData = &parentResult;
+  EXPECT_EQ(scalarCalculate(pParent, pBlocks, &parentOutput, &extra), TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
+  EXPECT_EQ(mock.calls, 3);
+  EXPECT_EQ(mock.seen[0], 4);
+  EXPECT_EQ(mock.seen[1], 5);
+  EXPECT_EQ(mock.seen[2], 6);
+  EXPECT_EQ(parentOutput.numOfRows, 0);
+  EXPECT_EQ(parentResult.pData, nullptr);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  colDataDestroy(&parentResult);
+  nodesDestroyNode(pParent);
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, EmptyBlockDoesNotInvoke) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 1, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  pBlock->info.rows = 0;
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  CorrelationScalarMock mock = {};
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {
+      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+  EXPECT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(output.numOfRows, 0);
+  EXPECT_EQ(mock.calls, 0);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  colDataDestroy(&result);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, InheritedParameterIsCopiedForEachRow) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 2, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  auto *pBinding = reinterpret_cast<SCorrelationParamBindingNode *>(
+      nodesListGetNode(pCall->pParamBindings, 0));
+  pBinding->sourceKind = CORRELATION_SOURCE_INHERITED;
+  pBinding->sourceBlockId = -1;
+  pBinding->sourceSlotId = -1;
+  pBinding->inheritedParamId = 7;
+  int32_t inheritedData = 42;
+  SCorrelationParamValue inherited = {
+      .paramId = 7,
+      .dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)},
+      .length = sizeof(int32_t),
+      .pData = &inheritedData};
+  SArray *pInherited = taosArrayInit(1, sizeof(SCorrelationParamValue));
+  ASSERT_NE(pInherited, nullptr);
+  ASSERT_NE(taosArrayPush(pInherited, &inherited), nullptr);
+
+  CorrelationScalarMock mock = {};
+  mock.pInheritedParams = pInherited;
+  mock.sourceData = &inheritedData;
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.getInheritedParams = getInheritedCorrelationParamsMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {
+      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 2);
+  EXPECT_EQ(mock.seen[0], 42);
+  EXPECT_EQ(mock.seen[1], 42);
+  EXPECT_TRUE(mock.copiedParams);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  colDataDestroy(&result);
+  taosArrayDestroy(pInherited);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, CurrentRowAndAncestorUseChildParameterIds) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 2, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pColumn = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  for (int32_t row = 0; row < 2; ++row) {
+    int32_t value = row + 1;
+    ASSERT_EQ(colDataSetVal(pColumn, row, reinterpret_cast<char *>(&value), false), TSDB_CODE_SUCCESS);
+  }
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  SNode *pAncestorNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pAncestorNode), TSDB_CODE_SUCCESS);
+  auto *pAncestor = reinterpret_cast<SCorrelationParamBindingNode *>(pAncestorNode);
+  pAncestor->paramId = 1;
+  pAncestor->dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pAncestor->sourceKind = CORRELATION_SOURCE_INHERITED;
+  pAncestor->inheritedParamId = 7;
+  ASSERT_EQ(nodesListStrictAppend(pCall->pParamBindings, pAncestorNode), TSDB_CODE_SUCCESS);
+
+  int32_t ancestorData = 42;
+  SCorrelationParamValue inherited = {
+      .paramId = 7,
+      .dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)},
+      .length = sizeof(int32_t),
+      .pData = &ancestorData};
+  SArray *pInherited = taosArrayInit(1, sizeof(SCorrelationParamValue));
+  ASSERT_NE(pInherited, nullptr);
+  ASSERT_NE(taosArrayPush(pInherited, &inherited), nullptr);
+  SArray *pSources = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pSources, nullptr);
+
+  CorrelationScalarMock mock = {};
+  mock.expectedParamCount = 2;
+  mock.pInheritedParams = pInherited;
+  mock.expectedSources = pSources;
+  mock.sourceData = pColumn->pData;
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.getInheritedParams = getInheritedCorrelationParamsMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {
+      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops,
+      .pSubquerySources = pSources, .pStatsContext = &mock, .recordStats = recordCorrelationStatsMock};
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 2);
+  EXPECT_EQ(mock.seen[0], 1);
+  EXPECT_EQ(mock.seen[1], 2);
+  EXPECT_EQ(mock.seenOther[0], 42);
+  EXPECT_EQ(mock.seenOther[1], 42);
+  EXPECT_TRUE(mock.copiedParams);
+  EXPECT_TRUE(mock.sourcesMatch);
+  EXPECT_EQ(mock.recordedRows, 2);
+  EXPECT_EQ(mock.recordedCalls, 2);
+  EXPECT_GE(mock.recordedElapsedUs, 0);
+
+  colDataDestroy(&result);
+  taosArrayDestroy(pSources);
+  taosArrayDestroy(pInherited);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, CaseCountsUnselectedBranchWithRepeatedParameters) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 2, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pColumn = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  int32_t repeated = 1;
+  ASSERT_EQ(colDataSetVal(pColumn, 0, reinterpret_cast<char *>(&repeated), false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pColumn, 1, reinterpret_cast<char *>(&repeated), false), TSDB_CODE_SUCCESS);
+
+  SNode *pWhen = nullptr;
+  SNode *pThen = nullptr;
+  SNode *pBranch = nullptr;
+  SNode *pCase = nullptr;
+  bool trueValue = true;
+  int32_t selectedValue = 7;
+  ASSERT_EQ(scltMakeValueNode(&pWhen, TSDB_DATA_TYPE_BOOL, &trueValue), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&pThen, TSDB_DATA_TYPE_INT, &selectedValue), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &pBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)pBranch)->pWhen = pWhen;
+  ((SWhenThenNode *)pBranch)->pThen = pThen;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &pCase), TSDB_CODE_SUCCESS);
+  auto *pCaseWhen = reinterpret_cast<SCaseWhenNode *>(pCase);
+  pCaseWhen->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pCaseWhen->pElse = reinterpret_cast<SNode *>(makeCorrelationScalarNode(pBlock->info.id.blockId));
+  ASSERT_NE(pCaseWhen->pElse, nullptr);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pCaseWhen->pWhenThenList, pBranch), TSDB_CODE_SUCCESS);
+
+  CorrelationScalarMock mock = {};
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {
+      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops,
+      .pStatsContext = &mock, .recordStats = recordCorrelationStatsMock};
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+
+  ASSERT_EQ(scalarCalculate(pCase, pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 0)), selectedValue);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 1)), selectedValue);
+  EXPECT_EQ(mock.calls, 2);
+  EXPECT_EQ(mock.seen[0], repeated);
+  EXPECT_EQ(mock.seen[1], repeated);
+  EXPECT_EQ(mock.recordedRows, 2);
+  EXPECT_EQ(mock.recordedCalls, 2);
+
+  colDataDestroy(&result);
+  nodesDestroyNode(pCase);
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, VariableInputAndResultOwnTheirBytes) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_VARCHAR, 32);
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData sourceColumn = {};
+  sourceColumn.info = columnInfo;
+  ASSERT_EQ(colInfoDataEnsureCapacity(&sourceColumn, 3, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &sourceColumn), TSDB_CODE_SUCCESS);
+  pBlock->info.rows = 3;
+  pBlock->info.capacity = 3;
+  pBlock->info.id.blockId = 0;
+  ASSERT_NE(taosArrayPush(pBlocks, &pBlock), nullptr);
+  auto *pSource = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  char first[VARSTR_HEADER_SIZE + 3] = {};
+  char last[VARSTR_HEADER_SIZE + 3] = {};
+  varDataSetLen(first, 3);
+  varDataSetLen(last, 3);
+  memcpy(varDataVal(first), "one", 3);
+  memcpy(varDataVal(last), "two", 3);
+  ASSERT_EQ(colDataSetVal(pSource, 0, first, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pSource, 1, nullptr, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pSource, 2, last, false), TSDB_CODE_SUCCESS);
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  pCall->node.resType = {.type = TSDB_DATA_TYPE_VARCHAR, .bytes = 32};
+  auto *pBinding = reinterpret_cast<SCorrelationParamBindingNode *>(
+      nodesListGetNode(pCall->pParamBindings, 0));
+  pBinding->dataType = pCall->node.resType;
+  CorrelationScalarMock mock = {};
+  mock.varSources[0] = colDataGetData(pSource, 0);
+  mock.varSources[2] = colDataGetData(pSource, 2);
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationVarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {
+      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 3);
+  EXPECT_TRUE(mock.varCopied);
+  EXPECT_EQ(mock.chargedBytes, 0);
+  EXPECT_EQ(varDataTLen(colDataGetData(&result, 0)), sizeof(first));
+  EXPECT_EQ(memcmp(varDataVal(colDataGetData(&result, 0)), "one", 3), 0);
+  EXPECT_TRUE(colDataIsNull(&result, 3, 1, nullptr));
+  EXPECT_EQ(memcmp(varDataVal(colDataGetData(&result, 2)), "two", 3), 0);
+
+  colDataDestroy(&result);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, FilterUsesTemporaryResultAndPropagatesErrors) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 3, &columnInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, false, 3, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pParam = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  auto *pVoltage = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 1));
+  int32_t voltages[] = {15, 15, 35};
+  for (int32_t row = 0; row < 3; ++row) {
+    int32_t param = row + 1;
+    ASSERT_EQ(colDataSetVal(pParam, row, reinterpret_cast<char *>(&param), false), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(pVoltage, row, reinterpret_cast<char *>(&voltages[row]), false), TSDB_CODE_SUCCESS);
+  }
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  SNode *pColumnNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pColumnNode), TSDB_CODE_SUCCESS);
+  auto *pColumn = reinterpret_cast<SColumnNode *>(pColumnNode);
+  pColumn->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pColumn->dataBlockId = pBlock->info.id.blockId;
+  pColumn->slotId = 1;
+  SNode *pCondition = nullptr;
+  ASSERT_EQ(scltMakeOpNode(&pCondition, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pColumnNode,
+                          reinterpret_cast<SNode *>(pCall)), TSDB_CODE_SUCCESS);
+
+  SFilterInfo *pFilter = nullptr;
+  ASSERT_EQ(filterInitFromNode(pCondition, &pFilter, 0, nullptr), TSDB_CODE_SUCCESS);
+  CorrelationScalarMock mock = {};
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {
+      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SColumnInfoData *pMask = nullptr;
+  int32_t status = 0;
+  int32_t filterCode = filterExecuteWithCorrelation(pFilter, pBlock, &pMask, nullptr, 2, &status, &correlation);
+  EXPECT_EQ(mock.calls, 3);
+  ASSERT_EQ(filterCode, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pMask, nullptr);
+  EXPECT_EQ(status, FILTER_RESULT_PARTIAL_QUALIFIED);
+  EXPECT_TRUE(*reinterpret_cast<bool *>(colDataGetData(pMask, 0)));
+  EXPECT_FALSE(*reinterpret_cast<bool *>(colDataGetData(pMask, 1)));
+  EXPECT_TRUE(*reinterpret_cast<bool *>(colDataGetData(pMask, 2)));
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pParam, 1)), 2);
+  EXPECT_EQ(mock.chargedBytes, 0);
+  colDataDestroy(pMask);
+  taosMemoryFree(pMask);
+
+  mock.calls = 0;
+  mock.failOnCall = 2;
+  pMask = nullptr;
+  EXPECT_EQ(filterExecuteWithCorrelation(pFilter, pBlock, &pMask, nullptr, 2, &status, &correlation),
+            TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
+  EXPECT_EQ(mock.calls, 2);
+  EXPECT_EQ(pMask, nullptr);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  mock.calls = 0;
+  mock.failOnCall = 0;
+  mock.limitBytes = 1;
+  EXPECT_EQ(filterExecuteWithCorrelation(pFilter, pBlock, &pMask, nullptr, 2, &status, &correlation),
+            TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
+  EXPECT_EQ(mock.calls, 0);
+  EXPECT_EQ(pMask, nullptr);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  filterFreeInfo(pFilter);
+  nodesDestroyNode(pCondition);
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
 }
 
 int main(int argc, char **argv) {

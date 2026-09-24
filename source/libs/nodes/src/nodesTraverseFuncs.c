@@ -60,10 +60,19 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
   EDealRes res = DEAL_RES_CONTINUE;
 
   switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_TEMPLATE:  // Template ownership is not an expression traversal edge.
     case QUERY_NODE_COLUMN:
     case QUERY_NODE_VALUE:
     case QUERY_NODE_LIMIT:
       // these node types with no subnodes
+      break;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      res = walkExprs(((SCorrelatedSubqueryNode*)pNode)->pParamBindings, order, walker, pContext);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      res = walkExpr(((SCorrelationParamBindingNode*)pNode)->pSource, order, walker, pContext);
       break;
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
@@ -401,10 +410,19 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
 
   SNode* pNode = *pRawNode;
   switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_TEMPLATE:  // Template ownership is not an expression traversal edge.
     case QUERY_NODE_COLUMN:
     case QUERY_NODE_VALUE:
     case QUERY_NODE_LIMIT:
       // these node types with no subnodes
+      break;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      res = rewriteExprs(((SCorrelatedSubqueryNode*)pNode)->pParamBindings, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      res = rewriteExpr(&((SCorrelationParamBindingNode*)pNode)->pSource, order, rewriter, pContext);
       break;
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;

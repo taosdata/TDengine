@@ -1151,6 +1151,13 @@ typedef enum ENodeType {
 
   // xnode restart (appended to preserve existing enum numeric values)
   QUERY_NODE_RESTART_XNODE_STMT,
+  // Correlation nodes use a separate range; existing wire IDs stay unchanged.
+  QUERY_NODE_OUTER_REF = 1300,
+  QUERY_NODE_CORRELATION_PARAM,
+  QUERY_NODE_CORRELATION_PARAM_BINDING,
+  QUERY_NODE_CORRELATED_SUBQUERY,
+  QUERY_NODE_CORRELATION_TEMPLATE,
+  QUERY_NODE_CORRELATION_TIME_RANGE_INIT,
 } ENodeType;
 
 typedef struct {
@@ -3256,6 +3263,7 @@ typedef struct SDownstreamSourceNode {
   int32_t        execId;
   int32_t        fetchMsgType;
   bool           localExec;
+  uint64_t       producerQueryId;  // Zero means the legacy same-query producer.
 } SDownstreamSourceNode;
 
 
@@ -4534,6 +4542,13 @@ typedef struct {
   char    data[];
 } SRetrieveMetaTableRsp;
 
+typedef struct SExplainCorrelationStat {
+  int32_t  templateId;
+  uint64_t inputRows;
+  uint64_t calls;
+  int64_t  elapsedUs;
+} SExplainCorrelationStat;
+
 typedef struct SExplainExecInfo {
   /* the number of rows returned */
   uint64_t numOfRows;
@@ -4563,6 +4578,8 @@ typedef struct SExplainExecInfo {
   uint64_t inputRows;
 
   int32_t  vgId;
+  uint32_t correlationStatNum;
+  SExplainCorrelationStat* pCorrelationStats;
 } SExplainExecInfo;
 
 typedef struct {
@@ -5428,6 +5445,38 @@ int32_t tDeserializeSServerStatusRsp(void* buf, int32_t bufLen, SServerStatusRsp
  * |(denoted by sqlLen) |(In JSON, denoted by contentLen) |
  * +--------------------+---------------------------------+
  */
+typedef struct SCorrelationParamDef {
+  int32_t   paramId;
+  SDataType dataType;
+} SCorrelationParamDef;
+
+typedef struct SCorrelationWireValue {
+  int32_t   paramId;
+  SDataType dataType;
+  bool      isNull;
+  int32_t   dataLen;  // Exact byte length; zero when isNull is true.
+  uint8_t*  pData;    // May contain NUL; owned on decode/copy, borrowed on send.
+} SCorrelationWireValue;
+
+typedef struct SCorrelationExecution {
+  uint64_t rootExecutionId;
+  uint64_t rootQueryId;
+  uint64_t rootClientId;
+  uint32_t executionGeneration;
+  uint64_t parentQueryId;
+  uint64_t parentClientId;
+  uint64_t parentTaskId;
+  uint64_t parentSeriesId;
+  int32_t  parentExecId;
+  int32_t  templateId;
+  uint64_t callOrdinal;
+  // Bounded NUL-terminated names copied into the task-session context.
+  char     user[TSDB_USER_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     timezoneName[TD_TIMEZONE_LEN];
+  char     charsetName[TD_LOCALE_LEN];
+} SCorrelationExecution;
+
 typedef struct SSubQueryMsg {
   SMsgHead header;
   uint64_t sId;
@@ -5449,11 +5498,20 @@ typedef struct SSubQueryMsg {
   char*    msg;
   SArray*  subEndPoints;  // subJobs's endpoints, element is SDownstreamSourceNode*
   int64_t  txnId;         // batch meta txn ID (0 = not in txn)
+  SCorrelationExecution correlation;
+  SArray*  pCorrelationParamDefs;    // SCorrelationParamDef elements.
+  SArray*  pCorrelationParamValues;  // SCorrelationWireValue elements.
+  uint32_t correlationTemplatesLen;
+  char*    pCorrelationTemplates;    // Owned on decode; borrowed on send.
+  uint32_t correlationTimeInitLen;
+  char*    pCorrelationTimeInit;     // Owned on decode; borrowed on send.
+  SArray*  pCorrelationNodeList;     // SQueryNodeLoad candidates inherited by nested jobs.
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
 int32_t tDeserializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
 void    tFreeSSubQueryMsg(SSubQueryMsg* pReq);
+int32_t tValidateCorrelationParams(const SArray* pDefs, const SArray* pValues);
 
 typedef struct {
   SMsgHead header;

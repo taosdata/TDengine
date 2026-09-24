@@ -76,6 +76,14 @@ add_test(
     COMMAND streamMsgTest
 )
 
+add_executable(subQueryMsgTest "subQueryMsgTest.cpp")
+DEP_ext_gtest(subQueryMsgTest)
+target_link_libraries(subQueryMsgTest PRIVATE os util common nodes planner parser catalog transport function qcom extconnector)
+if(TD_GRANT)
+    target_link_libraries(subQueryMsgTest PRIVATE grant)
+endif()
+add_test(NAME subQueryMsgTest COMMAND subQueryMsgTest)
+
 # ttimeQuarterParseTest.cpp
 add_executable(ttimeQuarterParseTest "ttimeQuarterParseTest.cpp")
 DEP_ext_gtest(ttimeQuarterParseTest)

@@ -1510,6 +1510,10 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->node.inputTsOrder = ORDER_ASC;
   pJoin->node.groupAction = GROUP_ACTION_CLEAR;
   pJoin->hashJoinHint = getHashJoinOptHint(pSelect->pHint);
+  // Correlated ON predicates must be evaluated for every candidate pair.
+  if (pJoin->hashJoinHint && nodesExprHasCorrelation(pJoinTable->pOnCond)) {
+    pJoin->hashJoinHint = false;
+  }
   pJoin->batchScanHint = getBatchScanOptionFromHint(pSelect->pHint);
   pJoin->node.requireDataOrder = (pJoin->hashJoinHint || pJoinTable->leftNoOrderedSubQuery || pJoinTable->rightNoOrderedSubQuery) ? DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
@@ -5182,6 +5186,8 @@ static int32_t collectNonWindowAggFuncs(SSelectStmt* pSelect, ESqlClause clause,
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t appendLiftedCorrelationAggregates(const SSelectStmt* pSelect, SNodeList** ppExprs);
+
 static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   SNodeList* pAggFuncs = NULL;
   int32_t    code = collectNonWindowAggFuncs(pSelect, SQL_CLAUSE_GROUP_BY, &pAggFuncs);
@@ -5220,6 +5226,10 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   // be executed as an Agg function to get its output rows into the result block.
   if (TSDB_CODE_SUCCESS == code && pSelect->hasTailFunc && pSelect->hasMultiRowsFunc) {
     code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, NULL, isTailFuncById, &pAgg->pAggFuncs);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL == pSelect->pWindow) {
+    code = appendLiftedCorrelationAggregates(pSelect, &pAgg->pAggFuncs);
   }
 
   // rewrite the expression in subsequent clauses
@@ -5878,6 +5888,38 @@ _return:
   return code;
 }
 
+static int32_t appendLiftedCorrelationAggregates(const SSelectStmt* pSelect, SNodeList** ppExprs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pClone = NULL;
+  SNode*  pBindingExpr = NULL;
+  FOREACH(pBindingExpr, pSelect->pProjectionBindList) {
+    const char* pAlias = ((SExprNode*)pBindingExpr)->aliasName;
+    if (0 != strncmp(pAlias, "__corr_agg_", sizeof("__corr_agg_") - 1)) {
+      continue;
+    }
+    bool found = false;
+    SNode* pExpr = NULL;
+    FOREACH(pExpr, *ppExprs) {
+      if (0 == strcmp(((SExprNode*)pExpr)->aliasName, pAlias)) {
+        found = true;
+        break;
+      }
+    }
+    if (found) {
+      continue;
+    }
+    PLAN_ERR_JRET(nodesCloneNode(pBindingExpr, &pClone));
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(ppExprs, pClone));
+    pClone = NULL;
+  }
+  return code;
+
+_return:
+  planError("%s failed since %s", __func__, tstrerror(code));
+  nodesDestroyNode(pClone);
+  return code;
+}
+
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -5911,6 +5953,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     // use the child node's first target (primary key) as a minimal projection to ensure
     // the window operator still produces output rows.
     PLAN_ERR_JRET(createWindowLogicNodeHandleSubquery(pCxt, pSelect, pWindow));
+    PLAN_ERR_JRET(appendLiftedCorrelationAggregates(pSelect, &pWindow->pProjs));
 
     // Ensure columns referenced in HAVING are in pProjs BEFORE rewrite/targets
     // creation so they go through rewriteExprsForSelect and appear in pTargets.
@@ -5924,6 +5967,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
   } else {
     // Existing function-collection path
+    PLAN_ERR_JRET(appendLiftedCorrelationAggregates(pSelect, &pWindow->pFuncs));
     PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
     PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
   }

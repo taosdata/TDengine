@@ -454,6 +454,17 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     }
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP: {
+      if (TSDB_CODE_SUCCESS == rspCode) {
+        if (NULL == pMsg->pData || pMsg->len < (int32_t)sizeof(SRetrieveTableRsp)) {
+          rspCode = TSDB_CODE_QRY_INVALID_MSG;
+        } else {
+          const SRetrieveTableRsp* pRsp = (const SRetrieveTableRsp*)pMsg->pData;
+          int32_t compLen = ntohl((uint32_t)pRsp->compLen);
+          if (compLen < 0 || compLen > pMsg->len - (int32_t)sizeof(SRetrieveTableRsp)) {
+            rspCode = TSDB_CODE_QRY_INVALID_MSG;
+          }
+        }
+      }
       code = schProcessFetchRsp(pJob, pTask, pMsg->pData, rspCode);
       pMsg->pData = NULL;
       SCH_ERR_JRET(code);
@@ -1196,17 +1207,37 @@ _return:
 int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarget) {
   *ppRes = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
-  SSchJob* pJob = NULL;
+  SSchJob* pJob = pTarget;
+  SDownstreamSourceNode* pSource = NULL;
   
   if (SCH_IS_PARENT_JOB(pTarget) && !SCH_JOB_GOT_SUB_JOBS(pTarget)) {
-    pJob = pTarget;
-    SCH_TASK_DLOG("task query without subEndPoints, pJob:%p", pTarget);
+    const SArray* pExternal = pTarget->pExternalSubquerySources;
+    if (0 == taosArrayGetSize(pExternal)) {
+      SCH_TASK_DLOG("task query without subEndPoints, pJob:%p", pTarget);
+      return TSDB_CODE_SUCCESS;
+    }
+    *ppRes = taosArrayInit(taosArrayGetSize(pExternal), POINTER_BYTES);
+    if (NULL == *ppRes) {
+      SCH_ERR_RET(terrno);
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(pExternal); ++i) {
+      const SNode* pNode = taosArrayGetP(pExternal, i);
+      if (NULL == pNode || QUERY_NODE_DOWNSTREAM_SOURCE != nodeType(pNode)) {
+        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+      }
+      SCH_ERR_JRET(nodesCloneNode(pNode, (SNode**)&pSource));
+      if (NULL == taosArrayPush(*ppRes, &pSource)) {
+        nodesDestroyNode((SNode*)pSource);
+        pSource = NULL;
+        SCH_ERR_JRET(terrno);
+      }
+      pSource = NULL;
+    }
     return TSDB_CODE_SUCCESS;
   }
   
   int32_t subJobNum = SCH_IS_PARENT_JOB(pTarget) ? pTarget->subJobs->size : pTarget->subJobId;
   SSchJob* pParent = SCH_IS_PARENT_JOB(pTarget) ? pTarget : (SSchJob*)pTarget->parent;
-  SDownstreamSourceNode* pSource = NULL;
 
   if (subJobNum > 0) {
     *ppRes = taosArrayInit(subJobNum, POINTER_BYTES);
@@ -1226,6 +1257,7 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
     
     memcpy(&pSource->addr, &pJob->resNode, sizeof(pSource->addr));
     pSource->clientId = pJob->fetchTask->clientId;
+    pSource->producerQueryId = pJob->queryId;
     pSource->taskId = pJob->fetchTask->taskId;
     pSource->sId = pJob->fetchTask->seriesId;
     pSource->execId = pJob->fetchTask->execId;
@@ -1233,8 +1265,10 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
     pSource->localExec = pJob->attr.localExec;
     if (NULL == taosArrayPush(*ppRes, &pSource)) {
       nodesDestroyNode((SNode *)pSource);
+      pSource = NULL;
       SCH_ERR_JRET(terrno);
     }
+    pSource = NULL;
   }
 
   pJob = pTarget;
@@ -1242,6 +1276,7 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
 
 _return:
 
+  nodesDestroyNode((SNode*)pSource);
   if (code) {
     taosArrayDestroyP(*ppRes, (FDelete)nodesDestroyNode);
     *ppRes = NULL;
@@ -1321,7 +1356,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 
-      SSubQueryMsg qMsg;
+      SSubQueryMsg qMsg = {0};
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
       qMsg.sId = pTask->seriesId;
@@ -1343,6 +1378,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.msgLen = pTask->msgLen;
       qMsg.msg = pTask->msg;
       qMsg.txnId = pJob->txnId;
+      qMsg.correlation = pJob->correlation;
+      qMsg.pCorrelationParamDefs = pJob->pCorrelationParamDefs;
+      qMsg.pCorrelationParamValues = pJob->pCorrelationParamValues;
+      qMsg.pCorrelationTemplates = pJob->pCorrelationTemplates;
+      qMsg.correlationTemplatesLen = pJob->correlationTemplatesLen;
+      qMsg.pCorrelationTimeInit = pJob->pCorrelationTimeInit;
+      qMsg.correlationTimeInitLen = pJob->correlationTimeInitLen;
+      qMsg.pCorrelationNodeList = NULL != pJob->pCorrelationTemplates ? pJob->nodeList : NULL;
 
       if (strcmp(tsLocalFqdn, GET_ACTIVE_EP(&addr->epSet)->fqdn) == 0) {
         qMsg.compress = 0;

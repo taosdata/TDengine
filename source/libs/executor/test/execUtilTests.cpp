@@ -23,6 +23,7 @@
 #include <map>
 #include <new>
 #include <string>
+#include <thread>
 #include <tuple>
 #include <vector>
 
@@ -33,11 +34,13 @@
 #include "functionMgt.h"
 #include "interpResultStore.h"
 #include "libs/new-stream/dataSink.h"
+#include "nodes.h"
 #include "operator.h"
 #include "osEnv.h"
 #include "osMemory.h"
 #include "planner.h"
 #include "querynodes.h"
+#include "query.h"
 #include "querytask.h"
 #include "streamMsg.h"
 #include "stub.h"
@@ -45,6 +48,7 @@
 #include "tdatablock.h"
 #include "ttime.h"
 #include "tsort.h"
+#include "tmsg.h"
 #include "windowfunc.h"
 
 extern "C" SHashObj *gStreamGrpTableHash;
@@ -3017,6 +3021,170 @@ TEST(projectApplyFunctionsTest, scalarFuncNoDoubleFreeOnErrorAndSuccessPath) {
   blockDataDestroy(pResult);
   nodesDestroyNode(reinterpret_cast<SNode *>(pFuncNode));
   fmFuncMgtDestroy();
+}
+
+struct ExecutorCorrelationMock {
+  int32_t calls = 0;
+  int32_t failOnCall = 0;
+};
+
+static int32_t invokeExecutorCorrelationMock(SCorrelationTaskSession* pSession,
+                                             const SCorrelationScalarRequest* pRequest,
+                                             SValueNode** ppResult) {
+  auto* pMock = reinterpret_cast<ExecutorCorrelationMock*>(pSession);
+  auto* pParam = static_cast<const SCorrelationParamValue*>(taosArrayGet(pRequest->pParams, 0));
+  if (nullptr == pParam || nullptr == pParam->pData || pParam->dataType.type != TSDB_DATA_TYPE_INT) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  ++pMock->calls;
+  if (pMock->calls == pMock->failOnCall) {
+    return TSDB_CODE_QRY_SUBQ_EXEC_ERROR;
+  }
+  SNode* pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  auto* pValue = reinterpret_cast<SValueNode*>(pNode);
+  pValue->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pValue->typeData = *static_cast<const int32_t*>(pParam->pData) * 10;
+  *ppResult = pValue;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t reserveExecutorCorrelationMock(SCorrelationTaskSession*, int64_t) {
+  return TSDB_CODE_SUCCESS;
+}
+
+static void releaseExecutorCorrelationMock(SCorrelationTaskSession*, int64_t) {}
+
+static SCorrelatedSubqueryNode* makeExecutorCorrelationCall(int64_t blockId) {
+  SNode* pNode = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_CORRELATED_SUBQUERY, &pNode)) {
+    return nullptr;
+  }
+  auto* pCall = reinterpret_cast<SCorrelatedSubqueryNode*>(pNode);
+  pCall->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  SNode* pBindingNode = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pBindingNode)) {
+    nodesDestroyNode(pNode);
+    return nullptr;
+  }
+  auto* pBinding = reinterpret_cast<SCorrelationParamBindingNode*>(pBindingNode);
+  pBinding->dataType = pCall->node.resType;
+  pBinding->sourceKind = CORRELATION_SOURCE_BLOCK;
+  pBinding->sourceBlockId = blockId;
+  pBinding->sourceSlotId = 0;
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pCall->pParamBindings, pBindingNode)) {
+    nodesDestroyNode(pBindingNode);
+    nodesDestroyNode(pNode);
+    return nullptr;
+  }
+  return pCall;
+}
+
+TEST(CorrelationExecutorTest, ProjectMaterializesEachInputRow) {
+  SSDataBlock* pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData input = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  SColumnInfoData result = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &input), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &result), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pBlock, 3), TSDB_CODE_SUCCESS);
+  pBlock->info.id.blockId = 71;
+  pBlock->info.rows = 3;
+  for (int32_t row = 0; row < 3; ++row) {
+    int32_t value = row + 1;
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 0)), row,
+                            reinterpret_cast<const char*>(&value), false), TSDB_CODE_SUCCESS);
+  }
+
+  auto* pCall = makeExecutorCorrelationCall(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  SExprInfo expr = {};
+  ASSERT_EQ(createExprFromOneNode(&expr, reinterpret_cast<SNode*>(pCall), 1), TSDB_CODE_SUCCESS);
+  ExecutorCorrelationMock mock;
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeExecutorCorrelationMock;
+  ops.reserveResultMemory = reserveExecutorCorrelationMock;
+  ops.releaseResultMemory = releaseExecutorCorrelationMock;
+  SExecTaskInfo task = {};
+  task.pCorrelationOps = &ops;
+  task.pCorrelationSession = reinterpret_cast<SCorrelationTaskSession*>(&mock);
+  SqlFunctionCtx func = {};
+  ASSERT_EQ(projectApplyFunctions(&expr, pBlock, pBlock, &func, 1, nullptr, nullptr, &task), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 3);
+  auto* pOutput = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 1));
+  for (int32_t row = 0; row < 3; ++row) {
+    EXPECT_EQ(*reinterpret_cast<int32_t*>(colDataGetData(pOutput, row)), (row + 1) * 10);
+  }
+
+  destroyExprInfo(&expr, 1);
+  nodesDestroyNode(reinterpret_cast<SNode*>(pCall));
+  blockDataDestroy(pBlock);
+}
+
+TEST(CorrelationExecutorTest, FilterKeepsInputColumnsAndPropagatesCallError) {
+  SSDataBlock* pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData parameter = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  SColumnInfoData voltage = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &parameter), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &voltage), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pBlock, 3), TSDB_CODE_SUCCESS);
+  pBlock->info.id.blockId = 72;
+  pBlock->info.rows = 3;
+  int32_t voltages[] = {15, 15, 35};
+  for (int32_t row = 0; row < 3; ++row) {
+    int32_t value = row + 1;
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 0)), row,
+                            reinterpret_cast<const char*>(&value), false), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 1)), row,
+                            reinterpret_cast<const char*>(&voltages[row]), false), TSDB_CODE_SUCCESS);
+  }
+
+  auto* pCall = makeExecutorCorrelationCall(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  SNode* pColumnNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pColumnNode), TSDB_CODE_SUCCESS);
+  auto* pColumn = reinterpret_cast<SColumnNode*>(pColumnNode);
+  pColumn->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pColumn->dataBlockId = pBlock->info.id.blockId;
+  pColumn->slotId = 1;
+  SNode* pCondition = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_OPERATOR, &pCondition), TSDB_CODE_SUCCESS);
+  auto* pOperator = reinterpret_cast<SOperatorNode*>(pCondition);
+  pOperator->node.resType = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  pOperator->opType = OP_TYPE_GREATER_THAN;
+  pOperator->pLeft = pColumnNode;
+  pOperator->pRight = reinterpret_cast<SNode*>(pCall);
+  SFilterInfo* pFilter = nullptr;
+  ASSERT_EQ(filterInitFromNode(pCondition, &pFilter, 0, nullptr), TSDB_CODE_SUCCESS);
+
+  ExecutorCorrelationMock mock;
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeExecutorCorrelationMock;
+  ops.reserveResultMemory = reserveExecutorCorrelationMock;
+  ops.releaseResultMemory = releaseExecutorCorrelationMock;
+  SExecTaskInfo task = {};
+  task.pCorrelationOps = &ops;
+  task.pCorrelationSession = reinterpret_cast<SCorrelationTaskSession*>(&mock);
+  mock.failOnCall = 2;
+  EXPECT_EQ(doFilterWithTaskCorrelation(pBlock, pFilter, nullptr, nullptr, &task),
+            TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
+  EXPECT_EQ(pBlock->info.rows, 3);
+  mock.calls = 0;
+  mock.failOnCall = 0;
+  ASSERT_EQ(doFilterWithTaskCorrelation(pBlock, pFilter, nullptr, nullptr, &task), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 3);
+  ASSERT_EQ(pBlock->info.rows, 2);
+  auto* pParams = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 0));
+  EXPECT_EQ(*reinterpret_cast<int32_t*>(colDataGetData(pParams, 0)), 1);
+  EXPECT_EQ(*reinterpret_cast<int32_t*>(colDataGetData(pParams, 1)), 3);
+
+  filterFreeInfo(pFilter);
+  nodesDestroyNode(pCondition);
+  blockDataDestroy(pBlock);
 }
 
 // Test for fix of double-free bug in handleRemoteRowRes / extractSingleRspBlock
@@ -15077,4 +15245,133 @@ TEST(execUtilTest, interpResultStoreDeepCopiesVariablePksAcrossCleanup) {
   blockDataDestroy(pSource);
   blockDataDestroy(pExpected);
   interpResultStoreDestroy(pStore);
+}
+
+TEST(CorrelationBindTest, PrivatePhysicalPlanOwnsTypedValuesAndRejectsMissingParam) {
+  SSubplan* subplan = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&subplan));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, (SNode**)&subplan->pNode));
+  auto* project = (SProjectPhysiNode*)subplan->pNode;
+
+  int32_t number = 42;
+  uint8_t text[VARSTR_HEADER_SIZE + 3] = {0};
+  varDataSetLen(text, 3);
+  memcpy(varDataVal(text), "a\0b", 3);
+  SCorrelationParamDef defs[3] = {};
+  SCorrelationWireValue values[3] = {};
+  for (int32_t i = 0; i < 3; ++i) {
+    defs[i].paramId = i;
+    defs[i].dataType.type = i == 1 ? TSDB_DATA_TYPE_VARCHAR : TSDB_DATA_TYPE_INT;
+    defs[i].dataType.bytes = i == 1 ? sizeof(text) : sizeof(number);
+    values[i].paramId = i;
+    values[i].dataType = defs[i].dataType;
+    SCorrelationParamNode* param = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_CORRELATION_PARAM, (SNode**)&param));
+    param->paramId = i;
+    param->node.resType = defs[i].dataType;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&project->pProjections, (SNode*)param));
+  }
+  values[0].dataLen = sizeof(number);
+  values[0].pData = (uint8_t*)&number;
+  values[1].dataLen = sizeof(text);
+  values[1].pData = text;
+  values[2].isNull = true;
+  SArray* pDefs = taosArrayInit(3, sizeof(SCorrelationParamDef));
+  SArray* pValues = taosArrayInit(3, sizeof(SCorrelationWireValue));
+  ASSERT_NE(nullptr, pDefs);
+  ASSERT_NE(nullptr, pValues);
+  for (int32_t i = 0; i < 3; ++i) {
+    ASSERT_NE(nullptr, taosArrayPush(pDefs, &defs[i]));
+    ASSERT_NE(nullptr, taosArrayPush(pValues, &values[i]));
+  }
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, qBindCorrelationSubplan(subplan, pDefs, pValues, nullptr));
+  auto* boundInt = (SValueNode*)nodesListGetNode(project->pProjections, 0);
+  auto* boundText = (SValueNode*)nodesListGetNode(project->pProjections, 1);
+  auto* boundNull = (SValueNode*)nodesListGetNode(project->pProjections, 2);
+  ASSERT_EQ(QUERY_NODE_VALUE, nodeType(boundInt));
+  ASSERT_EQ(QUERY_NODE_VALUE, nodeType(boundText));
+  ASSERT_EQ(QUERY_NODE_VALUE, nodeType(boundNull));
+  EXPECT_EQ(42, boundInt->datum.i);
+  EXPECT_EQ(0, memcmp(boundText->datum.p, text, sizeof(text)));
+  EXPECT_TRUE(boundNull->isNull);
+  memset(text, 0, sizeof(text));
+  EXPECT_EQ(3, varDataLen(boundText->datum.p));
+  EXPECT_EQ('a', varDataVal(boundText->datum.p)[0]);
+  varDataSetLen(text, 3);
+  memcpy(varDataVal(text), "a\0b", 3);
+
+  SCorrelationParamNode* missing = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_CORRELATION_PARAM, (SNode**)&missing));
+  missing->paramId = 99;
+  missing->node.resType = defs[0].dataType;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&project->pProjections, (SNode*)missing));
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_CORRELATION_NODE, qBindCorrelationSubplan(subplan, pDefs, pValues, nullptr));
+
+  taosArrayDestroy(pDefs);
+  taosArrayDestroy(pValues);
+  nodesDestroyNode((SNode*)subplan);
+}
+
+TEST(CorrelationBindTest, DecodedParameterOutlivesRpcBufferDuringDelayedBind) {
+  SSubplan* subplan = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&subplan));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, (SNode**)&subplan->pNode));
+  auto* project = (SProjectPhysiNode*)subplan->pNode;
+  SCorrelationParamNode* param = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_CORRELATION_PARAM, (SNode**)&param));
+  param->paramId = 0;
+  param->node.resType.type = TSDB_DATA_TYPE_INT;
+  param->node.resType.bytes = sizeof(int32_t);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&project->pProjections, (SNode*)param));
+
+  int32_t original = 101;
+  SCorrelationParamDef def = {};
+  def.paramId = 0;
+  def.dataType = param->node.resType;
+  SCorrelationWireValue value = {};
+  value.paramId = 0;
+  value.dataType = def.dataType;
+  value.dataLen = sizeof(original);
+  value.pData = (uint8_t*)&original;
+  SSubQueryMsg message = {};
+  char planByte = 'x';
+  message.queryId = 1;
+  message.msg = &planByte;
+  message.msgLen = 1;
+  message.correlation.rootExecutionId = 1;
+  message.correlation.rootQueryId = 1;
+  message.correlation.executionGeneration = 1;
+  strcpy(message.correlation.timezoneName, "UTC");
+  strcpy(message.correlation.charsetName, "UTF-8");
+  message.pCorrelationParamDefs = taosArrayInit(1, sizeof(def));
+  message.pCorrelationParamValues = taosArrayInit(1, sizeof(value));
+  ASSERT_NE(nullptr, message.pCorrelationParamDefs);
+  ASSERT_NE(nullptr, message.pCorrelationParamValues);
+  ASSERT_NE(nullptr, taosArrayPush(message.pCorrelationParamDefs, &def));
+  ASSERT_NE(nullptr, taosArrayPush(message.pCorrelationParamValues, &value));
+  int32_t length = tSerializeSSubQueryMsg(nullptr, 0, &message);
+  ASSERT_GT(length, 0);
+  std::vector<uint8_t> wire(length);
+  ASSERT_EQ(length, tSerializeSSubQueryMsg(wire.data(), length, &message));
+
+  SSubQueryMsg received = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSSubQueryMsg(wire.data(), length, &received));
+  taosArrayDestroy(message.pCorrelationParamDefs);
+  taosArrayDestroy(message.pCorrelationParamValues);
+  std::vector<uint8_t>().swap(wire);
+  original = 0;
+
+  int32_t bindCode = TSDB_CODE_SUCCESS;
+  std::thread consumer([&] {
+    bindCode = qBindCorrelationSubplan(subplan, received.pCorrelationParamDefs, received.pCorrelationParamValues,
+                                      nullptr);
+  });
+  consumer.join();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, bindCode);
+  auto* bound = (SValueNode*)nodesListGetNode(project->pProjections, 0);
+  ASSERT_EQ(QUERY_NODE_VALUE, nodeType(bound));
+  EXPECT_EQ(101, bound->datum.i);
+  tFreeSSubQueryMsg(&received);
+  nodesDestroyNode((SNode*)subplan);
 }

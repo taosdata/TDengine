@@ -93,6 +93,7 @@ typedef struct SDnode {
   STfs         *pTfs;
   SMgmtWrapper  wrappers[NODE_END];
   SDnodeTrans   trans;
+  SCorrelationRuntime *pCorrelationRuntime;
 } SDnode;
 
 // dmEnv.c

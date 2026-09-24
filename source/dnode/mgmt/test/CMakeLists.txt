@@ -15,6 +15,7 @@
 
 if(BUILD_TEST)
     enable_testing()
+    add_subdirectory(correlation)
     add_subdirectory(qnode)
     add_subdirectory(snode)
     #add_subdirectory(mnode)

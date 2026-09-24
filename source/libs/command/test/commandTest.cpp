@@ -24,8 +24,158 @@
 extern "C" {
 #include "command.h"
 #include "parInt.h"
+#include "plannodes.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+}
+
+TEST(ExplainCorrelationTest, StaticPlanShowsCallUnderOwningOperator) {
+  SQueryPlan* pPlan = nullptr;
+  SSubplan* pSubplan = nullptr;
+  SNodeListNode* pLevel = nullptr;
+  SProjectPhysiNode* pProject = nullptr;
+  SDataBlockDescNode* pDesc = nullptr;
+  SCorrelatedSubqueryNode* pCall = nullptr;
+  SCorrelationParamBindingNode* pBinding = nullptr;
+  SCorrelationTemplateNode* pTemplate = nullptr;
+  SColumnNode* pSource = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, reinterpret_cast<SNode**>(&pPlan)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, reinterpret_cast<SNode**>(&pSubplan)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_NODE_LIST, reinterpret_cast<SNode**>(&pLevel)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, reinterpret_cast<SNode**>(&pProject)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, reinterpret_cast<SNode**>(&pDesc)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CORRELATED_SUBQUERY, reinterpret_cast<SNode**>(&pCall)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, reinterpret_cast<SNode**>(&pBinding)),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CORRELATION_TEMPLATE, reinterpret_cast<SNode**>(&pTemplate)),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode**>(&pSource)), TSDB_CODE_SUCCESS);
+  pPlan->numOfSubplans = 1;
+  pPlan->explainInfo.mode = EXPLAIN_MODE_STATIC;
+  pSubplan->id.groupId = 1;
+  pProject->node.pOutputDataBlockDesc = pDesc;
+  pDesc->totalRowSize = sizeof(int32_t);
+  pDesc->outputRowSize = sizeof(int32_t);
+  pCall->templateId = 3;
+  pCall->exprId = 1;
+  pCall->scopeId = 2;
+  pCall->parentScopeId = 1;
+  pCall->node.resType.type = TSDB_DATA_TYPE_INT;
+  pCall->node.resType.bytes = sizeof(int32_t);
+  pBinding->paramId = 0;
+  pBinding->dataType = pCall->node.resType;
+  pBinding->scopeId = 1;
+  pBinding->bindingId = 1;
+  pBinding->tableRefId = 1;
+  pBinding->sourceKind = CORRELATION_SOURCE_BLOCK;
+  pBinding->sourceBlockId = 7;
+  pBinding->sourceSlotId = 2;
+  pBinding->inheritedParamId = -1;
+  pSource->node.resType = pBinding->dataType;
+  pSource->dataBlockId = pBinding->sourceBlockId;
+  pSource->slotId = pBinding->sourceSlotId;
+  pBinding->pSource = reinterpret_cast<SNode*>(pSource);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pCall->pParamBindings, reinterpret_cast<SNode*>(pBinding)),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pProject->pProjections, reinterpret_cast<SNode*>(pCall)),
+            TSDB_CODE_SUCCESS);
+  pSubplan->pNode = reinterpret_cast<SPhysiNode*>(pProject);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pLevel->pNodeList, reinterpret_cast<SNode*>(pSubplan)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pPlan->pSubplans, reinterpret_cast<SNode*>(pLevel)), TSDB_CODE_SUCCESS);
+
+  SQueryPlan* pTemplatePlan = nullptr;
+  SSubplan* pTemplateSubplan = nullptr;
+  SNodeListNode* pTemplateLevel = nullptr;
+  SProjectPhysiNode* pTemplateProject = nullptr;
+  SDataBlockDescNode* pTemplateDesc = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, reinterpret_cast<SNode**>(&pTemplatePlan)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, reinterpret_cast<SNode**>(&pTemplateSubplan)),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_NODE_LIST, reinterpret_cast<SNode**>(&pTemplateLevel)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, reinterpret_cast<SNode**>(&pTemplateProject)),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, reinterpret_cast<SNode**>(&pTemplateDesc)),
+            TSDB_CODE_SUCCESS);
+  pTemplatePlan->numOfSubplans = 1;
+  pTemplateSubplan->id.groupId = 1;
+  pTemplateProject->node.pOutputDataBlockDesc = pTemplateDesc;
+  pTemplateDesc->totalRowSize = sizeof(int32_t);
+  pTemplateDesc->outputRowSize = sizeof(int32_t);
+  ASSERT_EQ(nodesMakeList(&pTemplateProject->pProjections), TSDB_CODE_SUCCESS);
+  pTemplateSubplan->pNode = reinterpret_cast<SPhysiNode*>(pTemplateProject);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pTemplateLevel->pNodeList,
+                                      reinterpret_cast<SNode*>(pTemplateSubplan)),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pTemplatePlan->pSubplans,
+                                      reinterpret_cast<SNode*>(pTemplateLevel)),
+            TSDB_CODE_SUCCESS);
+  pTemplate->templateId = pCall->templateId;
+  pTemplate->scopeId = pCall->scopeId;
+  pTemplate->resultType = pCall->node.resType;
+  ASSERT_EQ(nodesNodeToMsg(reinterpret_cast<SNode*>(pTemplatePlan), &pTemplate->pPlan,
+                           &pTemplate->planLen),
+            TSDB_CODE_SUCCESS);
+  nodesDestroyNode(reinterpret_cast<SNode*>(pTemplatePlan));
+  ASSERT_EQ(nodesListMakeStrictAppend(&pPlan->pCorrelationTemplates,
+                                      reinterpret_cast<SNode*>(pTemplate)),
+            TSDB_CODE_SUCCESS);
+
+  SRetrieveTableRsp* pRsp = nullptr;
+  ASSERT_EQ(qExecStaticExplain(pPlan, &pRsp), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pRsp, nullptr);
+  SSDataBlock block = {};
+  const char* pEnd = nullptr;
+  ASSERT_EQ(blockDecode(&block, pRsp->data + PAYLOAD_PREFIX_LEN, &pEnd), TSDB_CODE_SUCCESS);
+  auto* pColumn = static_cast<SColumnInfoData*>(taosArrayGet(block.pDataBlock, 0));
+  std::string result;
+  for (int32_t i = 0; i < block.info.rows; ++i) {
+    char* pValue = colDataGetData(pColumn, i);
+    result.append(varDataVal(pValue), varDataLen(pValue));
+    result.push_back('\n');
+  }
+  EXPECT_NE(result.find("Projection"), std::string::npos);
+  EXPECT_NE(result.find("Correlated Scalar Subquery (template: 3, stage: Projection, type: INT)"),
+            std::string::npos);
+  EXPECT_NE(result.find("Param 0: scope 1, block 7, slot 2"), std::string::npos);
+  EXPECT_NE(result.find("Subquery Plan"), std::string::npos);
+  EXPECT_EQ(result.find("Input Rows:"), std::string::npos);
+  blockDataFreeRes(&block);
+  taosMemoryFree(pRsp);
+
+  pPlan->explainInfo.mode = EXPLAIN_MODE_ANALYZE;
+  SExplainCtx* pCtx = nullptr;
+  ASSERT_EQ(qExecExplainBegin(pPlan, &pCtx, taosGetTimestampUs()), TSDB_CODE_SUCCESS);
+  SExplainRsp statsRsp = {};
+  statsRsp.numOfPlans = 1;
+  statsRsp.subplanInfo = static_cast<SExplainExecInfo*>(taosMemoryCalloc(1, sizeof(SExplainExecInfo)));
+  ASSERT_NE(statsRsp.subplanInfo, nullptr);
+  statsRsp.subplanInfo[0].correlationStatNum = 1;
+  statsRsp.subplanInfo[0].pCorrelationStats =
+      static_cast<SExplainCorrelationStat*>(taosMemoryCalloc(1, sizeof(SExplainCorrelationStat)));
+  ASSERT_NE(statsRsp.subplanInfo[0].pCorrelationStats, nullptr);
+  statsRsp.subplanInfo[0].pCorrelationStats[0].templateId = 3;
+  statsRsp.subplanInfo[0].pCorrelationStats[0].inputRows = 5;
+  statsRsp.subplanInfo[0].pCorrelationStats[0].calls = 4;
+  statsRsp.subplanInfo[0].pCorrelationStats[0].elapsedUs = 12345;
+  pRsp = nullptr;
+  ASSERT_EQ(qExplainUpdateExecInfo(pCtx, qExplainGetCurrPlan(pCtx, -1), &statsRsp, 1, &pRsp),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(qExecExplainEnd(pCtx, &pRsp), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pRsp, nullptr);
+  SSDataBlock analyzed = {};
+  ASSERT_EQ(blockDecode(&analyzed, pRsp->data + PAYLOAD_PREFIX_LEN, &pEnd), TSDB_CODE_SUCCESS);
+  pColumn = static_cast<SColumnInfoData*>(taosArrayGet(analyzed.pDataBlock, 0));
+  result.clear();
+  for (int32_t i = 0; i < analyzed.info.rows; ++i) {
+    char* pValue = colDataGetData(pColumn, i);
+    result.append(varDataVal(pValue), varDataLen(pValue));
+    result.push_back('\n');
+  }
+  EXPECT_NE(result.find("Input Rows: 5, Calls: 4, Time: 12.345 ms"), std::string::npos);
+  blockDataFreeRes(&analyzed);
+  taosMemoryFree(pRsp);
+  qExplainFreeCtx(pCtx);
+  nodesDestroyNode(reinterpret_cast<SNode*>(pPlan));
 }
 
 namespace {

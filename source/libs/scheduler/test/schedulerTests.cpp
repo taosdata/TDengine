@@ -38,6 +38,7 @@
 
 #include "catalog.h"
 #include "scheduler.h"
+#include "tmsg.h"
 #include "taos.h"
 #include "tdatablock.h"
 #include "tdef.h"
@@ -1496,14 +1497,15 @@ TEST(otherTest, function) {
   dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
   ASSERT_EQ(schHandleNotifyCallback(&param, &dataBuf, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
 
-  SSchCallbackParamHeader param2 = {0};
+  SSchTaskCallbackParam param2 = {0};
   dataBuf.pData = taosMemoryMalloc(1);
   dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
   schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
-  param2.isHbParam = true;
+  SSchHbCallbackParam hbParam = {0};
+  hbParam.head.isHbParam = true;
   dataBuf.pData = taosMemoryMalloc(1);
   dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
-  schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
+  schHandleLinkBrokenCallback(&hbParam, &dataBuf, TSDB_CODE_SUCCESS);
   
   schMgmt.jobRef = -1;
 }
@@ -1511,7 +1513,8 @@ TEST(otherTest, function) {
 TEST(otherTest, branch) {
   SSchJob job = {0};
   SSchTask task = {0};
-  memset(&schMgmt, 0, sizeof(schMgmt));
+  // SSchStat contains empty structs, whose size differs between C and C++.
+  memset(&schMgmt, 0, offsetof(SSchedulerMgmt, stat));
 
   job.subJobId = -1;
   
@@ -1778,6 +1781,179 @@ void schtReset() {
   schtTestMTRunSec = 1;
   schtTestPrintNum = 1000;
   schtStartFetch = 0;
+}
+
+TEST(correlationTest, reuseProducerEndpointsWithoutChangingIdentity) {
+  SNode *pSourceNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, &pSourceNode), TSDB_CODE_SUCCESS);
+  auto *pSource = reinterpret_cast<SDownstreamSourceNode *>(pSourceNode);
+  pSource->producerQueryId = 101;
+  pSource->taskId = 202;
+  SArray *pExternal = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pExternal, nullptr);
+  ASSERT_NE(taosArrayPush(pExternal, &pSource), nullptr);
+
+  SSchJob job = {};
+  job.queryId = 303;
+  job.pExternalSubquerySources = pExternal;
+  SArray *pEndpoints = nullptr;
+  ASSERT_EQ(schBuildSubJobEndpoints(nullptr, &pEndpoints, &job), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pEndpoints, nullptr);
+  ASSERT_EQ(taosArrayGetSize(pEndpoints), 1);
+  auto *pCopied = static_cast<SDownstreamSourceNode *>(taosArrayGetP(pEndpoints, 0));
+  ASSERT_NE(pCopied, nullptr);
+  EXPECT_NE(pCopied, pSource);
+  EXPECT_NE(pCopied->producerQueryId, job.queryId);
+  EXPECT_EQ(pCopied->producerQueryId, 101);
+  EXPECT_EQ(pCopied->taskId, 202);
+
+  taosArrayDestroyP(pEndpoints, reinterpret_cast<FDelete>(nodesDestroyNode));
+  taosArrayDestroyP(pExternal, reinterpret_cast<FDelete>(nodesDestroyNode));
+}
+
+TEST(correlationTest, ignoresResponseFromPreviousExecution) {
+  SSchJob job = {};
+  job.attr.type = JOB_TYPE_QUERY;
+  job.seriesId = 2;
+  SSchTask task = {};
+  task.seriesId = 2;
+  task.execId = 2;
+  task.status = JOB_TASK_STATUS_EXEC;
+  task.handle = reinterpret_cast<void*>(0x2);
+  task.execNodes = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, task.execNodes);
+  SSchNodeInfo node = {};
+  node.handle = task.handle;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(task.execNodes, &task.execId, sizeof(task.execId), &node, sizeof(node)));
+
+  SDataBuf oldExecution = {};
+  oldExecution.msgType = TDMT_SCH_QUERY_RSP;
+  oldExecution.pData = taosMemoryMalloc(1);
+  ASSERT_NE(nullptr, oldExecution.pData);
+  oldExecution.len = 1;
+  EXPECT_EQ(TSDB_CODE_SCH_IGNORE_ERROR, schHandleResponseMsg(&job, &task, 2, 1, &oldExecution, TSDB_CODE_SUCCESS));
+  EXPECT_EQ(nullptr, oldExecution.pData);
+  EXPECT_EQ(2, task.execId);
+  EXPECT_EQ(JOB_TASK_STATUS_EXEC, task.status);
+  EXPECT_EQ(reinterpret_cast<void*>(0x2), task.handle);
+
+  SDataBuf oldSeries = {};
+  oldSeries.msgType = TDMT_SCH_QUERY_RSP;
+  oldSeries.pData = taosMemoryMalloc(1);
+  ASSERT_NE(nullptr, oldSeries.pData);
+  oldSeries.len = 1;
+  oldSeries.handle = reinterpret_cast<void*>(0x3);
+  EXPECT_EQ(TSDB_CODE_SCH_IGNORE_ERROR, schHandleResponseMsg(&job, &task, 1, 2, &oldSeries, TSDB_CODE_SUCCESS));
+  EXPECT_EQ(nullptr, oldSeries.pData);
+  EXPECT_EQ(2, task.execId);
+  EXPECT_EQ(JOB_TASK_STATUS_EXEC, task.status);
+  EXPECT_EQ(reinterpret_cast<void*>(0x2), task.handle);
+  auto* savedNode = static_cast<SSchNodeInfo*>(taosHashGet(task.execNodes, &task.execId, sizeof(task.execId)));
+  ASSERT_NE(nullptr, savedNode);
+  EXPECT_EQ(reinterpret_cast<void*>(0x2), savedNode->handle);
+
+  SDataBuf oldNetworkError = {};
+  oldNetworkError.msgType = TDMT_SCH_LINK_BROKEN;
+  oldNetworkError.pData = taosMemoryMalloc(1);
+  ASSERT_NE(nullptr, oldNetworkError.pData);
+  oldNetworkError.len = 1;
+  EXPECT_EQ(TSDB_CODE_SCH_IGNORE_ERROR,
+            schHandleResponseMsg(&job, &task, 1, 2, &oldNetworkError, TSDB_CODE_SUCCESS));
+  EXPECT_EQ(nullptr, oldNetworkError.pData);
+  EXPECT_NE(nullptr, taosHashGet(task.execNodes, &task.execId, sizeof(task.execId)));
+  EXPECT_EQ(reinterpret_cast<void*>(0x2), task.handle);
+  taosHashCleanup(task.execNodes);
+}
+
+TEST(correlationTest, retainsParameterBytesAfterCallerReleasesThem) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of scheduler planner hooks is unreliable in Windows release builds";
+#endif
+  ASSERT_EQ(schedulerInit(), TSDB_CODE_SUCCESS);
+  schtSetPlanToString();
+  schtSetExecNode();
+
+  for (int32_t input : {101, 202}) {
+    SQueryPlan *pDag = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, reinterpret_cast<SNode **>(&pDag)), TSDB_CODE_SUCCESS);
+    schtBuildQueryDag(pDag);
+
+    SArray *pDefs = taosArrayInit(1, sizeof(SCorrelationParamDef));
+    SArray *pValues = taosArrayInit(1, sizeof(SCorrelationWireValue));
+    ASSERT_NE(pDefs, nullptr);
+    ASSERT_NE(pValues, nullptr);
+    SCorrelationParamDef def = {};
+    def.paramId = 0;
+    def.dataType.type = TSDB_DATA_TYPE_INT;
+    def.dataType.bytes = sizeof(input);
+    auto *pBytes = static_cast<uint8_t *>(taosMemoryMalloc(sizeof(input)));
+    ASSERT_NE(pBytes, nullptr);
+    memcpy(pBytes, &input, sizeof(input));
+    SCorrelationWireValue value = {};
+    value.paramId = 0;
+    value.dataType = def.dataType;
+    value.dataLen = sizeof(input);
+    value.pData = pBytes;
+    ASSERT_NE(taosArrayPush(pDefs, &def), nullptr);
+    ASSERT_NE(taosArrayPush(pValues, &value), nullptr);
+
+    SRequestConnInfo conn = {};
+    SSchedulerReq req = {};
+    req.pConn = &conn;
+    req.pDag = pDag;
+    req.pCorrelationParamDefs = pDefs;
+    req.pCorrelationParamValues = pValues;
+    int64_t jobId = 0;
+    ASSERT_EQ(schInitJob(&jobId, &req), TSDB_CODE_SUCCESS);
+
+    SSchJob *pJob = nullptr;
+    ASSERT_EQ(schAcquireJob(jobId, &pJob), TSDB_CODE_SUCCESS);
+    ASSERT_NE(pJob, nullptr);
+    auto *pSaved = static_cast<SCorrelationWireValue *>(taosArrayGet(pJob->pCorrelationParamValues, 0));
+    ASSERT_NE(pSaved, nullptr);
+    ASSERT_NE(pSaved->pData, pBytes);
+    taosMemoryFree(pBytes);
+    taosArrayDestroy(pValues);
+    taosArrayDestroy(pDefs);
+    int32_t saved = 0;
+    memcpy(&saved, pSaved->pData, sizeof(saved));
+    EXPECT_EQ(saved, input);
+
+    char planByte = 'x';
+    SSubQueryMsg message = {};
+    message.queryId = pJob->queryId;
+    message.msg = &planByte;
+    message.msgLen = 1;
+    message.correlation.rootExecutionId = 1;
+    message.correlation.rootQueryId = 1;
+    message.correlation.executionGeneration = 1;
+    strcpy(message.correlation.timezoneName, "UTC");
+    strcpy(message.correlation.charsetName, "UTF-8");
+    message.pCorrelationParamDefs = pJob->pCorrelationParamDefs;
+    message.pCorrelationParamValues = pJob->pCorrelationParamValues;
+    int32_t wireLen = tSerializeSSubQueryMsg(nullptr, 0, &message);
+    ASSERT_GT(wireLen, 0);
+    void *pWire = taosMemoryMalloc(wireLen);
+    ASSERT_NE(pWire, nullptr);
+    ASSERT_EQ(tSerializeSSubQueryMsg(pWire, wireLen, &message), wireLen);
+    schReleaseJob(jobId);
+    schedulerFreeJob(&jobId, TSDB_CODE_SUCCESS);
+
+    SSubQueryMsg received = {};
+    ASSERT_EQ(tDeserializeSSubQueryMsg(pWire, wireLen, &received), TSDB_CODE_SUCCESS);
+    taosMemoryFree(pWire);
+    ASSERT_EQ(taosArrayGetSize(received.pCorrelationParamValues), 1);
+    auto *pReceived = static_cast<SCorrelationWireValue *>(taosArrayGet(received.pCorrelationParamValues, 0));
+    ASSERT_NE(pReceived, nullptr);
+    ASSERT_NE(pReceived->pData, nullptr);
+    int32_t actual = 0;
+    memcpy(&actual, pReceived->pData, sizeof(actual));
+    EXPECT_EQ(actual, input);
+    tFreeSSubQueryMsg(&received);
+  }
+
+  schedulerDestroy();
+  schMgmt.jobRef = -1;
 }
 
 int main(int argc, char **argv) {

@@ -651,6 +651,16 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
 
   SQWMsg qwMsg = {
       .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgMask = msg.msgMask, .subQType = msg.subQType};
+  qwMsg.pCorrelation = &msg.correlation;
+  qwMsg.pCorrelationParamDefs = msg.pCorrelationParamDefs;
+  qwMsg.pCorrelationParamValues = msg.pCorrelationParamValues;
+  qwMsg.pCorrelationTemplates = msg.pCorrelationTemplates;
+  qwMsg.correlationTemplatesLen = msg.correlationTemplatesLen;
+  qwMsg.pCorrelationTimeInit = msg.pCorrelationTimeInit;
+  qwMsg.correlationTimeInitLen = msg.correlationTimeInitLen;
+  qwMsg.pCorrelationNodeList = msg.pCorrelationNodeList;
+  qwMsg.txnId = msg.txnId;
+  qwMsg.firstDayOfWeek = msg.firstDayOfWeek;
 
   QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p, SQL:%s", pMsg->info.handle, msg.sql);
   code = qwPreprocessQuery(QW_FPARAMS(), &qwMsg);
@@ -715,6 +725,16 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   int32_t  eId = msg.execId;
 
   SQWMsg qwMsg = {.node = node, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgType = pMsg->msgType, .code = pMsg->code, .subEndPoints = &msg.subEndPoints};
+  qwMsg.pCorrelation = &msg.correlation;
+  qwMsg.pCorrelationParamDefs = msg.pCorrelationParamDefs;
+  qwMsg.pCorrelationParamValues = msg.pCorrelationParamValues;
+  qwMsg.pCorrelationTemplates = msg.pCorrelationTemplates;
+  qwMsg.correlationTemplatesLen = msg.correlationTemplatesLen;
+  qwMsg.pCorrelationTimeInit = msg.pCorrelationTimeInit;
+  qwMsg.correlationTimeInitLen = msg.correlationTimeInitLen;
+  qwMsg.pCorrelationNodeList = msg.pCorrelationNodeList;
+  qwMsg.txnId = msg.txnId;
+  qwMsg.firstDayOfWeek = msg.firstDayOfWeek;
   qwMsg.msgInfo.explain = msg.explain;
   qwMsg.msgInfo.taskType = msg.taskType;
   qwMsg.msgInfo.needFetch = msg.needFetch;
@@ -848,14 +868,14 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
+int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SEpSet *pEpSet, int64_t ts) {
   SQWorker *mgmt = (SQWorker *)qWorkerMgmt;
   if (mgmt) {
     QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE));
     QW_STAT_INC(mgmt->stat.msgStat.rspProcessed, 1);
   }
 
-  qProcessRspMsg(NULL, pMsg, NULL);
+  qProcessRspMsg(NULL, pMsg, pEpSet);
   pMsg->pCont = NULL;
   return TSDB_CODE_SUCCESS;
 }

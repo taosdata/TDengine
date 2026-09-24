@@ -281,7 +281,7 @@ int32_t mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* 
 }
 
 int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build,
-                                   int32_t startRowIdx) {
+                                    int32_t startRowIdx, SExecTaskInfo* pTaskInfo) {
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -295,7 +295,7 @@ int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo
   }
 
   int32_t status = 0;
-  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  code = filterExecuteWithTaskCorrelation(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status, pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _err;
   }
@@ -332,7 +332,7 @@ _err:
 }
 
 int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build,
-                               int32_t startGrpIdx, int32_t startRowIdx) {
+                               int32_t startGrpIdx, int32_t startRowIdx, SExecTaskInfo* pTaskInfo) {
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -347,7 +347,7 @@ int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SM
   }
 
   int32_t status = 0;
-  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  code = filterExecuteWithTaskCorrelation(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status, pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _return;
   }
@@ -398,7 +398,7 @@ _return:
   return code;
 }
 
-int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo) {
+int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo) {
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -412,7 +412,7 @@ int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInf
   }
 
   int32_t status = 0;
-  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  code = filterExecuteWithTaskCorrelation(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status, pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _return;
   }
@@ -436,7 +436,7 @@ _return:
   return code;
 }
 
-int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo) {
+int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo) {
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -450,7 +450,7 @@ int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo) 
   }
 
   int32_t status = 0;
-  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  code = filterExecuteWithTaskCorrelation(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status, pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _err;
   }
@@ -1874,7 +1874,7 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
       qDebug("%s merge join fin filter block rows=%" PRId64 " cols=%d outBlkId=%" PRId64,
              GET_TASKID(pOperator->pTaskInfo), pBlock->info.rows,
              (int32_t)taosArrayGetSize(pBlock->pDataBlock), pBlock->info.id.blockId);
-      code = doFilter(pBlock, pJoin->pFinFilter, NULL, NULL);
+      code = doFilterWithTaskCorrelation(pBlock, pJoin->pFinFilter, NULL, NULL, pOperator->pTaskInfo);
       if (code) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         pJoin->errCode = code;
@@ -1983,6 +1983,9 @@ int32_t mJoinHandleConds(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJo
       break;
   }
 
+  filterSetExecContext(pJoin->pFPreFilter, pTaskInfo, isTaskKilled);
+  filterSetExecContext(pJoin->pPreFilter, pTaskInfo, isTaskKilled);
+  filterSetExecContext(pJoin->pFinFilter, pTaskInfo, isTaskKilled);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -15801,6 +15801,17 @@ int32_t tSerializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
     TAOS_CHECK_EXIT(tEncodeU64(&encoder, info->inputRows));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, info->vgId));
   }
+  for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
+    const SExplainExecInfo* info = &pRsp->subplanInfo[i];
+    TAOS_CHECK_EXIT(tEncodeU32(&encoder, info->correlationStatNum));
+    for (uint32_t j = 0; j < info->correlationStatNum; ++j) {
+      const SExplainCorrelationStat* stat = &info->pCorrelationStats[j];
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, stat->templateId));
+      TAOS_CHECK_EXIT(tEncodeU64(&encoder, stat->inputRows));
+      TAOS_CHECK_EXIT(tEncodeU64(&encoder, stat->calls));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, stat->elapsedUs));
+    }
+  }
 
   tEndEncode(&encoder);
 
@@ -15843,6 +15854,25 @@ int32_t tDeserializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
     TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pRsp->subplanInfo[i].inputRows));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->subplanInfo[i].vgId));
   }
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
+      SExplainExecInfo* info = &pRsp->subplanInfo[i];
+      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &info->correlationStatNum));
+      if (info->correlationStatNum > 0) {
+        info->pCorrelationStats = taosMemoryCalloc(info->correlationStatNum, sizeof(SExplainCorrelationStat));
+        if (NULL == info->pCorrelationStats) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+      for (uint32_t j = 0; j < info->correlationStatNum; ++j) {
+        SExplainCorrelationStat* stat = &info->pCorrelationStats[j];
+        TAOS_CHECK_EXIT(tDecodeI32(&decoder, &stat->templateId));
+        TAOS_CHECK_EXIT(tDecodeU64(&decoder, &stat->inputRows));
+        TAOS_CHECK_EXIT(tDecodeU64(&decoder, &stat->calls));
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &stat->elapsedUs));
+      }
+    }
+  }
 
   tEndDecode(&decoder);
 
@@ -15859,6 +15889,7 @@ void tFreeSExplainRsp(SExplainRsp *pRsp) {
   for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
     SExplainExecInfo *pExec = pRsp->subplanInfo + i;
     taosMemoryFree(pExec->verboseInfo);
+    taosMemoryFree(pExec->pCorrelationStats);
   }
 
   taosMemoryFreeClear(pRsp->subplanInfo);
@@ -16241,6 +16272,297 @@ _exit:
   return code;
 }
 
+#define MAX_CORRELATION_PARAM_COUNT 1024
+#define MAX_CORRELATION_PARAM_BYTES (16 * 1024 * 1024)
+
+static bool correlationTypeEqual(const SDataType* pA, const SDataType* pB) {
+  return pA->type == pB->type && pA->precision == pB->precision && pA->scale == pB->scale &&
+         pA->bytes == pB->bytes;
+}
+
+static bool correlationTypeValid(const SDataType* pType) {
+  if (!isValidDataType(pType->type) || pType->type == TSDB_DATA_TYPE_NULL || pType->bytes <= 0 ||
+      pType->bytes > MAX_CORRELATION_PARAM_BYTES) {
+    return false;
+  }
+  if (!IS_VAR_DATA_TYPE(pType->type) && pType->bytes != tDataTypes[pType->type].bytes) {
+    return false;
+  }
+  if (IS_DECIMAL_TYPE(pType->type) &&
+      (pType->precision < TSDB_DECIMAL_MIN_PRECISION ||
+       pType->precision > (TSDB_DATA_TYPE_DECIMAL64 == pType->type ? TSDB_DECIMAL64_MAX_PRECISION
+                                                              : TSDB_DECIMAL128_MAX_PRECISION) ||
+       pType->scale > pType->precision)) {
+    return false;
+  }
+  return true;
+}
+
+int32_t tValidateCorrelationParams(const SArray* pDefs, const SArray* pValues) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (NULL == pDefs && NULL == pValues) {
+    goto _return;
+  }
+  QUERY_CHECK_CONDITION(NULL != pDefs && NULL != pValues, code, lino, _return, TSDB_CODE_INVALID_MSG);
+  QUERY_CHECK_CONDITION(pDefs->elemSize == sizeof(SCorrelationParamDef) &&
+                            pValues->elemSize == sizeof(SCorrelationWireValue),
+                        code, lino, _return, TSDB_CODE_INVALID_MSG);
+  int32_t count = taosArrayGetSize(pDefs);
+  QUERY_CHECK_CONDITION(count <= MAX_CORRELATION_PARAM_COUNT && count == taosArrayGetSize(pValues), code, lino,
+                        _return, TSDB_CODE_INVALID_MSG);
+  for (int32_t i = 0; i < count; ++i) {
+    const SCorrelationParamDef* pDef = taosArrayGet(pDefs, i);
+    QUERY_CHECK_NULL(pDef, code, lino, _return, TSDB_CODE_INVALID_MSG);
+    QUERY_CHECK_CONDITION(pDef->paramId >= 0 && correlationTypeValid(&pDef->dataType), code, lino, _return,
+                          TSDB_CODE_INVALID_MSG);
+    for (int32_t j = 0; j < i; ++j) {
+      const SCorrelationParamDef* pPrior = taosArrayGet(pDefs, j);
+      QUERY_CHECK_NULL(pPrior, code, lino, _return, TSDB_CODE_INVALID_MSG);
+      QUERY_CHECK_CONDITION(pPrior->paramId != pDef->paramId, code, lino, _return, TSDB_CODE_INVALID_MSG);
+    }
+
+    const SCorrelationWireValue* pMatch = NULL;
+    for (int32_t j = 0; j < count; ++j) {
+      const SCorrelationWireValue* pValue = taosArrayGet(pValues, j);
+      QUERY_CHECK_NULL(pValue, code, lino, _return, TSDB_CODE_INVALID_MSG);
+      if (pValue->paramId != pDef->paramId) {
+        continue;
+      }
+      QUERY_CHECK_CONDITION(NULL == pMatch, code, lino, _return, TSDB_CODE_INVALID_MSG);
+      pMatch = pValue;
+    }
+    QUERY_CHECK_NULL(pMatch, code, lino, _return, TSDB_CODE_INVALID_MSG);
+    QUERY_CHECK_CONDITION(correlationTypeEqual(&pDef->dataType, &pMatch->dataType) &&
+                              pMatch->dataLen >= 0 && pMatch->dataLen <= MAX_CORRELATION_PARAM_BYTES &&
+                              (!pMatch->isNull || (0 == pMatch->dataLen && NULL == pMatch->pData)) &&
+                              (pMatch->isNull ||
+                               (pMatch->dataLen > 0 && NULL != pMatch->pData &&
+                                (IS_VAR_DATA_TYPE(pDef->dataType.type)
+                                     ? pMatch->dataLen <= pDef->dataType.bytes
+                                     : pMatch->dataLen == pDef->dataType.bytes))),
+                          code, lino, _return, TSDB_CODE_INVALID_MSG);
+    if (!pMatch->isNull && (IS_STR_DATA_TYPE(pDef->dataType.type) ||
+                            TSDB_DATA_TYPE_GEOMETRY == pDef->dataType.type)) {
+      QUERY_CHECK_CONDITION(pMatch->dataLen >= VARSTR_HEADER_SIZE &&
+                                varDataTLen(pMatch->pData) == pMatch->dataLen,
+                            code, lino, _return, TSDB_CODE_INVALID_MSG);
+    }
+    if (!pMatch->isNull && IS_STR_DATA_BLOB(pDef->dataType.type)) {
+      QUERY_CHECK_CONDITION(pMatch->dataLen >= BLOBSTR_HEADER_SIZE &&
+                                blobDataTLen(pMatch->pData) == pMatch->dataLen,
+                            code, lino, _return, TSDB_CODE_INVALID_MSG);
+    }
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tEncodeCorrelationType(SEncoder* pEncoder, const SDataType* pType) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  TAOS_CHECK_EXIT(tEncodeU8(pEncoder, pType->type));
+  TAOS_CHECK_EXIT(tEncodeU8(pEncoder, pType->precision));
+  TAOS_CHECK_EXIT(tEncodeU8(pEncoder, pType->scale));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pType->bytes));
+
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tDecodeCorrelationType(SDecoder* pDecoder, SDataType* pType) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &pType->type));
+  TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &pType->precision));
+  TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &pType->scale));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pType->bytes));
+
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tEncodeCorrelationName(SEncoder* pEncoder, const char* pName, size_t capacity) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  size_t  len = strnlen(pName, capacity);
+  QUERY_CHECK_CONDITION(len < capacity, code, lino, _exit, TSDB_CODE_INVALID_MSG);
+  TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName, len));
+
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tDecodeCorrelationName(SDecoder* pDecoder, char* pName, size_t capacity) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  char*    pWire = NULL;
+  uint32_t len = 0;
+  TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &pWire, &len));
+  QUERY_CHECK_NULL(pWire, code, lino, _exit, TSDB_CODE_INVALID_MSG);
+  QUERY_CHECK_CONDITION(len < capacity && '\0' == pWire[len] && NULL == memchr(pWire, '\0', len), code, lino,
+                        _exit, TSDB_CODE_INVALID_MSG);
+  memcpy(pName, pWire, len + 1);
+
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tEncodeCorrelationExecution(SEncoder* pEncoder, const SCorrelationExecution* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pCtx->rootExecutionId));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pCtx->rootQueryId));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pCtx->rootClientId));
+  TAOS_CHECK_EXIT(tEncodeU32(pEncoder, pCtx->executionGeneration));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pCtx->parentQueryId));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pCtx->parentClientId));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pCtx->parentTaskId));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pCtx->parentSeriesId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pCtx->parentExecId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pCtx->templateId));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pCtx->callOrdinal));
+  TAOS_CHECK_EXIT(tEncodeCorrelationName(pEncoder, pCtx->user, sizeof(pCtx->user)));
+  TAOS_CHECK_EXIT(tEncodeCorrelationName(pEncoder, pCtx->dbFName, sizeof(pCtx->dbFName)));
+  TAOS_CHECK_EXIT(tEncodeCorrelationName(pEncoder, pCtx->timezoneName, sizeof(pCtx->timezoneName)));
+  TAOS_CHECK_EXIT(tEncodeCorrelationName(pEncoder, pCtx->charsetName, sizeof(pCtx->charsetName)));
+
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tDecodeCorrelationExecution(SDecoder* pDecoder, SCorrelationExecution* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pCtx->rootExecutionId));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pCtx->rootQueryId));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pCtx->rootClientId));
+  TAOS_CHECK_EXIT(tDecodeU32(pDecoder, &pCtx->executionGeneration));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pCtx->parentQueryId));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pCtx->parentClientId));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pCtx->parentTaskId));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pCtx->parentSeriesId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pCtx->parentExecId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pCtx->templateId));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pCtx->callOrdinal));
+  TAOS_CHECK_EXIT(tDecodeCorrelationName(pDecoder, pCtx->user, sizeof(pCtx->user)));
+  TAOS_CHECK_EXIT(tDecodeCorrelationName(pDecoder, pCtx->dbFName, sizeof(pCtx->dbFName)));
+  TAOS_CHECK_EXIT(tDecodeCorrelationName(pDecoder, pCtx->timezoneName, sizeof(pCtx->timezoneName)));
+  TAOS_CHECK_EXIT(tDecodeCorrelationName(pDecoder, pCtx->charsetName, sizeof(pCtx->charsetName)));
+
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tEncodeCorrelationParams(SEncoder* pEncoder, const SArray* pDefs, const SArray* pValues) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t count = taosArrayGetSize(pDefs);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, count));
+  for (int32_t i = 0; i < count; ++i) {
+    const SCorrelationParamDef* pDef = taosArrayGet(pDefs, i);
+    QUERY_CHECK_NULL(pDef, code, lino, _exit, TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pDef->paramId));
+    TAOS_CHECK_EXIT(tEncodeCorrelationType(pEncoder, &pDef->dataType));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, taosArrayGetSize(pValues)));
+  for (int32_t i = 0; i < count; ++i) {
+    const SCorrelationWireValue* pValue = taosArrayGet(pValues, i);
+    QUERY_CHECK_NULL(pValue, code, lino, _exit, TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pValue->paramId));
+    TAOS_CHECK_EXIT(tEncodeCorrelationType(pEncoder, &pValue->dataType));
+    TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pValue->isNull));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pValue->dataLen));
+    TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pValue->pData, pValue->dataLen));
+  }
+
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tDecodeCorrelationParams(SDecoder* pDecoder, SArray** ppDefs, SArray** ppValues) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  count = 0;
+  uint8_t* pPendingData = NULL;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &count));
+  QUERY_CHECK_CONDITION(count >= 0 && count <= MAX_CORRELATION_PARAM_COUNT, code, lino, _exit,
+                        TSDB_CODE_INVALID_MSG);
+  if (count > 0) {
+    *ppDefs = taosArrayInit(count, sizeof(SCorrelationParamDef));
+    QUERY_CHECK_NULL(*ppDefs, code, lino, _exit, terrno);
+  }
+  for (int32_t i = 0; i < count; ++i) {
+    SCorrelationParamDef def = {0};
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &def.paramId));
+    TAOS_CHECK_EXIT(tDecodeCorrelationType(pDecoder, &def.dataType));
+    QUERY_CHECK_NULL(taosArrayPush(*ppDefs, &def), code, lino, _exit, terrno);
+  }
+  int32_t valueCount = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &valueCount));
+  QUERY_CHECK_CONDITION(valueCount == count, code, lino, _exit, TSDB_CODE_INVALID_MSG);
+  if (count > 0) {
+    *ppValues = taosArrayInit(count, sizeof(SCorrelationWireValue));
+    QUERY_CHECK_NULL(*ppValues, code, lino, _exit, terrno);
+  }
+  for (int32_t i = 0; i < count; ++i) {
+    SCorrelationWireValue value = {0};
+    uint8_t* pWireData = NULL;
+    uint32_t decodedLen = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &value.paramId));
+    TAOS_CHECK_EXIT(tDecodeCorrelationType(pDecoder, &value.dataType));
+    TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &value.isNull));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &value.dataLen));
+    QUERY_CHECK_CONDITION(value.dataLen >= 0 && value.dataLen <= MAX_CORRELATION_PARAM_BYTES, code, lino, _exit,
+                          TSDB_CODE_INVALID_MSG);
+    QUERY_CHECK_CONDITION(value.isNull ? 0 == value.dataLen : value.dataLen > 0, code, lino, _exit,
+                          TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pWireData, &decodedLen));
+    QUERY_CHECK_CONDITION(decodedLen == value.dataLen, code, lino, _exit, TSDB_CODE_INVALID_MSG);
+    if (decodedLen > 0) {
+      value.pData = taosMemoryMalloc(decodedLen);
+      QUERY_CHECK_NULL(value.pData, code, lino, _exit, terrno);
+      pPendingData = value.pData;
+      memcpy(value.pData, pWireData, decodedLen);
+    }
+    QUERY_CHECK_NULL(taosArrayPush(*ppValues, &value), code, lino, _exit, terrno);
+    pPendingData = NULL;
+  }
+  TAOS_CHECK_EXIT(tValidateCorrelationParams(*ppDefs, *ppValues));
+
+_exit:
+  taosMemoryFree(pPendingData);
+  if (TSDB_CODE_SUCCESS != code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   int32_t code = 0;
   int32_t lino;
@@ -16284,6 +16606,76 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
 
   // batch meta txn: txnId for same-txn visibility
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
+
+  // Indexed tail keeps the fixed-size legacy endpoint elements unchanged.
+  bool hasCorrelation = (0 != pReq->correlation.rootExecutionId);
+  bool hasTemplates = (0 != pReq->correlationTemplatesLen);
+  bool hasTimeInit = (0 != pReq->correlationTimeInitLen);
+  int32_t nodeCount = taosArrayGetSize(pReq->pCorrelationNodeList);
+  bool hasNodeList = hasTemplates && nodeCount > 0;
+  if (hasCorrelation) {
+    if (0 == pReq->correlation.rootQueryId || 0 == pReq->correlation.executionGeneration ||
+        pReq->correlation.templateId < -1 ||
+        TSDB_CODE_SUCCESS != tValidateCorrelationParams(pReq->pCorrelationParamDefs, pReq->pCorrelationParamValues)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+  } else if (NULL != pReq->pCorrelationParamDefs || NULL != pReq->pCorrelationParamValues) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  if (hasTemplates && (NULL == pReq->pCorrelationTemplates || pReq->correlationTemplatesLen > MAX_CORRELATION_PARAM_BYTES)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  if (hasTimeInit && (!hasCorrelation || NULL == pReq->pCorrelationTimeInit ||
+                      pReq->correlationTimeInitLen > MAX_CORRELATION_PARAM_BYTES)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  if (nodeCount > MAX_CORRELATION_PARAM_COUNT || (nodeCount > 0 && !hasTemplates)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  int32_t producerNum = 0;
+  for (int32_t i = 0; i < subEndpointNum; ++i) {
+    SDownstreamSourceNode* pSource = taosArrayGetP(pReq->subEndPoints, i);
+    if (hasCorrelation && 0 == pSource->producerQueryId) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (pSource->producerQueryId != 0 && (hasCorrelation || pSource->producerQueryId != pReq->queryId)) {
+      ++producerNum;
+    }
+  }
+  if (producerNum > 0 || hasCorrelation || hasTemplates || hasTimeInit || hasNodeList) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, producerNum));
+    for (int32_t i = 0; i < subEndpointNum; ++i) {
+      SDownstreamSourceNode* pSource = taosArrayGetP(pReq->subEndPoints, i);
+      if (pSource->producerQueryId == 0 || (!hasCorrelation && pSource->producerQueryId == pReq->queryId)) {
+        continue;
+      }
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, i));
+      TAOS_CHECK_EXIT(tEncodeU64(&encoder, pSource->producerQueryId));
+    }
+  }
+  if (hasCorrelation || hasTemplates || hasTimeInit || hasNodeList) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));  // Correlation tail version.
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, (hasCorrelation ? 1 : 0) | (hasTemplates ? 2 : 0) | (hasTimeInit ? 4 : 0) |
+                                        (hasNodeList ? 8 : 0)));
+    if (hasCorrelation) {
+      TAOS_CHECK_EXIT(tEncodeCorrelationExecution(&encoder, &pReq->correlation));
+      TAOS_CHECK_EXIT(tEncodeCorrelationParams(&encoder, pReq->pCorrelationParamDefs, pReq->pCorrelationParamValues));
+    }
+    if (hasTemplates) {
+      TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->correlationTemplatesLen));
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (uint8_t*)pReq->pCorrelationTemplates, pReq->correlationTemplatesLen));
+    }
+    if (hasTimeInit) {
+      TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->correlationTimeInitLen));
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (uint8_t*)pReq->pCorrelationTimeInit, pReq->correlationTimeInitLen));
+    }
+    if (hasNodeList) {
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nodeCount));
+      for (int32_t i = 0; i < nodeCount; ++i) {
+        TAOS_CHECK_EXIT(tEncodeSQueryNodeLoad(&encoder, taosArrayGet(pReq->pCorrelationNodeList, i)));
+      }
+    }
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -16315,6 +16707,7 @@ int32_t tDeserializeSDownstreamSourceNode(SDecoder *pDecoder, SDownstreamSourceN
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pSource->execId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pSource->fetchMsgType));
   TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pSource->localExec));
+  pSource->type = QUERY_NODE_DOWNSTREAM_SOURCE;
 
 _exit:
 
@@ -16325,12 +16718,21 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   int32_t   code = 0;
   int32_t   lino;
   int32_t   headLen = sizeof(SMsgHead);
+  if (NULL == buf || NULL == pReq || bufLen < headLen + sizeof(int32_t)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   SMsgHead *pHead = buf;
   pHead->vgId = pReq->header.vgId;
   pHead->contLen = pReq->header.contLen;
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
+  int32_t frameLen = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &frameLen));
+  if (frameLen < 0 || frameLen != bufLen - headLen - sizeof(int32_t)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  decoder.pos = 0;
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
@@ -16390,10 +16792,115 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   } else {
     pReq->txnId = 0;
   }
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t producerNum = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &producerNum));
+    if (producerNum < 0 || producerNum > subEndpointNum) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    for (int32_t i = 0; i < producerNum; ++i) {
+      int32_t index = -1;
+      uint64_t producerQueryId = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &index));
+      TAOS_CHECK_EXIT(tDecodeU64(&decoder, &producerQueryId));
+      if (index < 0 || index >= subEndpointNum || 0 == producerQueryId) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      SDownstreamSourceNode* pSource = taosArrayGetP(pReq->subEndPoints, index);
+      if (0 != pSource->producerQueryId) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      pSource->producerQueryId = producerQueryId;
+    }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    int8_t version = 0;
+    int8_t flags = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &version));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &flags));
+    if (version != 1 || flags <= 0 || (flags & ~15) != 0 || ((flags & 4) && !(flags & 1)) ||
+        ((flags & 8) && !(flags & 2))) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (flags & 1) {
+      TAOS_CHECK_EXIT(tDecodeCorrelationExecution(&decoder, &pReq->correlation));
+      if (0 == pReq->correlation.rootExecutionId || 0 == pReq->correlation.rootQueryId ||
+          0 == pReq->correlation.executionGeneration ||
+          pReq->correlation.templateId < -1) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      TAOS_CHECK_EXIT(tDecodeCorrelationParams(&decoder, &pReq->pCorrelationParamDefs,
+                                               &pReq->pCorrelationParamValues));
+      for (int32_t i = 0; i < subEndpointNum; ++i) {
+        SDownstreamSourceNode* pSource = taosArrayGetP(pReq->subEndPoints, i);
+        if (0 == pSource->producerQueryId) {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
+      }
+    }
+    if (flags & 2) {
+      uint8_t* pWire = NULL;
+      uint32_t decodedLen = 0;
+      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->correlationTemplatesLen));
+      if (0 == pReq->correlationTemplatesLen || pReq->correlationTemplatesLen > MAX_CORRELATION_PARAM_BYTES) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pWire, &decodedLen));
+      if (decodedLen != pReq->correlationTemplatesLen) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      pReq->pCorrelationTemplates = taosMemoryMalloc(decodedLen);
+      if (NULL == pReq->pCorrelationTemplates) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      memcpy(pReq->pCorrelationTemplates, pWire, decodedLen);
+    }
+    if (flags & 4) {
+      uint8_t* pWire = NULL;
+      uint32_t decodedLen = 0;
+      TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->correlationTimeInitLen));
+      if (0 == pReq->correlationTimeInitLen || pReq->correlationTimeInitLen > MAX_CORRELATION_PARAM_BYTES) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pWire, &decodedLen));
+      if (decodedLen != pReq->correlationTimeInitLen) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      pReq->pCorrelationTimeInit = taosMemoryMalloc(decodedLen);
+      if (NULL == pReq->pCorrelationTimeInit) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      memcpy(pReq->pCorrelationTimeInit, pWire, decodedLen);
+    }
+    if (flags & 8) {
+      int32_t count = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &count));
+      if (count <= 0 || count > MAX_CORRELATION_PARAM_COUNT) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      pReq->pCorrelationNodeList = taosArrayInit(count, sizeof(SQueryNodeLoad));
+      if (NULL == pReq->pCorrelationNodeList) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < count; ++i) {
+        SQueryNodeLoad node = {0};
+        TAOS_CHECK_EXIT(tDecodeSQueryNodeLoad(&decoder, &node));
+        if (NULL == taosArrayPush(pReq->pCorrelationNodeList, &node)) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+    }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
+  if (code != 0) {
+    tFreeSSubQueryMsg(pReq);
+  }
   return code;
 }
 
@@ -16405,6 +16912,21 @@ void tFreeSSubQueryMsg(SSubQueryMsg *pReq) {
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->msg);
   taosArrayDestroyP(pReq->subEndPoints, NULL);
+  pReq->subEndPoints = NULL;
+  taosArrayDestroy(pReq->pCorrelationParamDefs);
+  pReq->pCorrelationParamDefs = NULL;
+  if (NULL != pReq->pCorrelationParamValues) {
+    for (int32_t i = 0; i < taosArrayGetSize(pReq->pCorrelationParamValues); ++i) {
+      SCorrelationWireValue* pValue = taosArrayGet(pReq->pCorrelationParamValues, i);
+      taosMemoryFree(pValue->pData);
+    }
+    taosArrayDestroy(pReq->pCorrelationParamValues);
+    pReq->pCorrelationParamValues = NULL;
+  }
+  taosMemoryFreeClear(pReq->pCorrelationTemplates);
+  taosMemoryFreeClear(pReq->pCorrelationTimeInit);
+  taosArrayDestroy(pReq->pCorrelationNodeList);
+  pReq->pCorrelationNodeList = NULL;
 }
 
 static int32_t tEncodeForeignScanFilter(SEncoder* pEncoder, uint64_t scanParamId,

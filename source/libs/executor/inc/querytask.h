@@ -112,6 +112,9 @@ struct SExecTaskInfo {
   STaskSubJobCtx*          pSubJobCtx;
   bool                     enableExplain;     // enable explain flag
   int64_t                  txnId;             // batch meta txn: carries txn context for in-txn meta visibility
+  const SCorrelationRuntimeOps* pCorrelationOps;
+  SCorrelationTaskSession*      pCorrelationSession;
+  SArray*                       pCorrelationStats;  // SExplainCorrelationStat entries for this task.
   char                     extErrMsg[512];    // federated query: remote-side error message (empty string = none)
   bool                     hasExtPushdownDiag;
   SExtPushdownDiagnostic   extPushdownDiag;
