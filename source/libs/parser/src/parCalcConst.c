@@ -730,6 +730,14 @@ static void replaceSetOpWithChild(SNode** ppStmt, SSetOperator* pSetOp, bool kee
   SNode* pKeep = keepLeft ? pSetOp->pLeft : pSetOp->pRight;
   SNode* pDrop = keepLeft ? pSetOp->pRight : pSetOp->pLeft;
 
+  SNode* pKeepProj = NULL;
+  SNode* pSetOpProj = NULL;
+  FORBOTH(pKeepProj, getChildProjection(pKeep), pSetOpProj, pSetOp->pProjectionList) {
+    SExprNode* pKeepExpr = (SExprNode*)pKeepProj;
+    SExprNode* pSetOpExpr = (SExprNode*)pSetOpProj;
+    tstrncpy(pKeepExpr->aliasName, pSetOpExpr->aliasName, TSDB_COL_NAME_LEN);
+  }
+
   // Outer column references must retain the set operator's output namespace.
   if (QUERY_NODE_SELECT_STMT == nodeType(pKeep)) {
     tstrncpy(((SSelectStmt*)pKeep)->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
