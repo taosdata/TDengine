@@ -111,6 +111,14 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
 }
 
 static int32_t getSchemaBytes(const SSchema* pSchema) {
+  if (IS_DECIMAL_TYPE(pSchema->type) && (((uint32_t)pSchema->bytes >> 24) != 0)) {
+    int32_t bytes = pSchema->bytes;
+    uint8_t precision = 0;
+    uint8_t scale = 0;
+    extractDecimalTypeInfoFromBytes(&bytes, &precision, &scale);
+    return bytes;
+  }
+
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_VARBINARY:
@@ -246,7 +254,12 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
 
     if (IS_DECIMAL_TYPE(pMeta->schema[i].type) && withExtSchema(pMeta->tableType)) {
       uint8_t prec = 0, scale = 0;
-      decimalFromTypeMod(pMeta->schemaExt[i].typeMod, &prec, &scale);
+      if (pMeta->schemaExt != NULL && i < pMeta->tableInfo.numOfColumns) {
+        decimalFromTypeMod(pMeta->schemaExt[i].typeMod, &prec, &scale);
+      } else if (((uint32_t)pMeta->schema[i].bytes >> 24) != 0) {
+        int32_t bytes = pMeta->schema[i].bytes;
+        extractDecimalTypeInfoFromBytes(&bytes, &prec, &scale);
+      }
       size_t len = snprintf(buf + VARSTR_HEADER_SIZE, DESCRIBE_RESULT_FIELD_LEN - VARSTR_HEADER_SIZE, "%s(%hhu, %hhu)",
                             tDataTypes[pMeta->schema[i].type].name, prec, scale);
       varDataSetLen(buf, len);
