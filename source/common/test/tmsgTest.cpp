@@ -3896,3 +3896,104 @@ TEST(td_msg_test, explain_response_accepts_previous_format) {
   EXPECT_EQ(output.subplanInfo[0].pCorrelationStats, nullptr);
   tFreeSExplainRsp(&output);
 }
+
+/* The CONNECT request is the authentication step itself, so it is decoded on the mnode worker's
+ * stack before any credential is examined. Its app/db/user/passwd/sVer/token fields are fixed
+ * arrays in SConnectReq, and the decoder must never copy more than the destination holds. */
+static int32_t encodeConnectBody(uint8_t *buf, int32_t cap, const char *app, uint32_t appLen) {
+  char    passwd[TSDB_PASSWORD_LEN + 1] = {0};
+  uint8_t signature[20] = {0};
+  /* the client stores a NUL-terminated password in a TSDB_PASSWORD_LEN byte array */
+  strncpy(passwd, "passwd", TSDB_PASSWORD_LEN - 1);
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, cap);
+  int32_t code = tStartEncode(&encoder);
+  if (code < 0) return code;
+  if ((code = tEncodeI8(&encoder, 0)) < 0) return code;
+  if ((code = tEncodeI32(&encoder, 1234)) < 0) return code;
+  if ((code = tEncodeCStrWithLen(&encoder, app, appLen)) < 0) return code;
+  if ((code = tEncodeCStr(&encoder, "db")) < 0) return code;
+  if ((code = tEncodeCStr(&encoder, "user")) < 0) return code;
+  if ((code = tEncodeCStrWithLen(&encoder, passwd, TSDB_PASSWORD_LEN)) < 0) return code;
+  if ((code = tEncodeI64(&encoder, 1)) < 0) return code;
+  if ((code = tEncodeCStr(&encoder, "3.4.1.6")) < 0) return code;
+  if ((code = tEncodeI32(&encoder, 0)) < 0) return code;
+  if ((code = tEncodeCStr(&encoder, "")) < 0) return code;
+  if ((code = tEncodeI64(&encoder, 2)) < 0) return code;
+  if ((code = tEncodeBinary(&encoder, signature, sizeof(signature))) < 0) return code;
+  if ((code = tEncodeCStr(&encoder, NULL)) < 0) return code;
+  tEndEncode(&encoder);
+  return encoder.pos;
+}
+
+TEST(td_msg_test, connect_req_rejects_app_that_does_not_fit) {
+  /* TSDB_APP_NAME_LEN characters plus the NUL terminator cannot fit SConnectReq.app */
+  std::vector<char> app(TSDB_APP_NAME_LEN + 1, 'A');
+  app[TSDB_APP_NAME_LEN] = '\0';
+  std::vector<uint8_t> buf(4096);
+  int32_t bodyLen = encodeConnectBody(buf.data(), (int32_t)buf.size(), app.data(), TSDB_APP_NAME_LEN);
+  ASSERT_GT(bodyLen, 0);
+
+  SConnectReq req = {0};
+  EXPECT_EQ(tDeserializeSConnectReq(buf.data(), bodyLen, &req), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(td_msg_test, connect_req_rejects_oversized_app) {
+  /* the reported attack: a several KiB app string inside a matching frame */
+  const int32_t     appLen = 3000;
+  std::vector<char> app(appLen + 1, 'A');
+  app[appLen] = '\0';
+  std::vector<uint8_t> buf(8192);
+  int32_t bodyLen = encodeConnectBody(buf.data(), (int32_t)buf.size(), app.data(), appLen);
+  ASSERT_GT(bodyLen, 0);
+
+  SConnectReq req = {0};
+  EXPECT_EQ(tDeserializeSConnectReq(buf.data(), bodyLen, &req), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(td_msg_test, connect_req_accepts_app_that_fits) {
+  std::vector<char> app(TSDB_APP_NAME_LEN, 'A');
+  app[TSDB_APP_NAME_LEN - 1] = '\0';
+  std::vector<uint8_t> buf(4096);
+  int32_t bodyLen = encodeConnectBody(buf.data(), (int32_t)buf.size(), app.data(),
+                                      TSDB_APP_NAME_LEN - 1);
+  ASSERT_GT(bodyLen, 0);
+
+  SConnectReq req = {0};
+  ASSERT_EQ(tDeserializeSConnectReq(buf.data(), bodyLen, &req), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(req.app, app.data());
+  EXPECT_STREQ(req.db, "db");
+  EXPECT_STREQ(req.user, "user");
+  EXPECT_STREQ(req.sVer, "3.4.1.6");
+  /* passwd is encoded with tEncodeCStrWithLen(x, TSDB_PASSWORD_LEN) by tSerializeSConnectReq,
+   * i.e. one byte more than the field holds; that historical encoding must keep working. */
+  EXPECT_STREQ(req.passwd, "passwd");
+}
+
+TEST(td_msg_test, connect_req_roundtrip) {
+  SConnectReq req = {0};
+  req.connType = 0;
+  req.pid = 42;
+  tstrncpy(req.app, "taosdatashell", sizeof(req.app));
+  tstrncpy(req.db, "mydb", sizeof(req.db));
+  tstrncpy(req.user, "root", sizeof(req.user));
+  tstrncpy(req.passwd, "taosdata", sizeof(req.passwd));
+  tstrncpy(req.token, "token", sizeof(req.token));
+  tstrncpy(req.sVer, "3.4.1.6", sizeof(req.sVer));
+
+  int32_t size = tSerializeSConnectReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> buf(size);
+  ASSERT_EQ(tSerializeSConnectReq(buf.data(), size, &req), size);
+
+  SConnectReq decoded = {0};
+  ASSERT_EQ(tDeserializeSConnectReq(buf.data(), size, &decoded), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded.pid, 42);
+  EXPECT_STREQ(decoded.app, "taosdatashell");
+  EXPECT_STREQ(decoded.db, "mydb");
+  EXPECT_STREQ(decoded.user, "root");
+  EXPECT_STREQ(decoded.passwd, "taosdata");
+  EXPECT_STREQ(decoded.token, "token");
+  EXPECT_STREQ(decoded.sVer, "3.4.1.6");
+}

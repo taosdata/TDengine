@@ -1283,6 +1283,7 @@ TEST_F(StreamNotifyTest, GroupedNotificationsKeepGidTbnameWindowAndLineage) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  signal(SIGPIPE, SIG_IGN);
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

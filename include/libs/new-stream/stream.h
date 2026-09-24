@@ -144,6 +144,12 @@ typedef struct SStreamRunnerTaskExecution {
   int32_t            sinkHandleInited;  // 0: Uninitialized, 1: initializing, 2: initialized
 
   SStreamRunnerGroupedContinuation *pGroupedContinuation;
+  int64_t            outputMemoryBytes;
+  int64_t            executorMemoryBytes;
+  int64_t            memorySnapshotAtMonoUs;
+  bool               outputMemoryValid;
+  bool               executorMemoryValid;
+  bool               memorySnapshotPublished;
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {
@@ -172,6 +178,8 @@ typedef struct SStreamRunnerTaskExecMgr {
   SList*        pRunningExecs;
   TdThreadMutex lock;
   bool          lockInited;
+  TdThreadMutex stateLock;
+  bool          stateLockInited;
   int32_t       execBuildNum;
 } SStreamRunnerTaskExecMgr;
 

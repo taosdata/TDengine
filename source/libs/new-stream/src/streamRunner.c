@@ -31,6 +31,8 @@
 #include "tdatablock.h"
 #include "ttime.h"
 
+#define STREAM_RUNNER_MEMORY_SAMPLE_INTERVAL_US 1000000LL
+
 static void stRunnerRecordInput(void* param, uint64_t rows, uint64_t blocks) {
   stTaskStatsRecordRunnerInput(param, rows, blocks, streamTaskGetMonotonicUs());
 }
@@ -90,7 +92,7 @@ static void stRunnerRecordBlocking(void* param, bool blocking) {
   " calc_duration_lifetime_max_at=%s result_latency_samples=%" PRIu64                                                 \
   " result_latency_avg_ms=%s result_latency_max_ms=%s result_latency_lifetime_max_ms=%s"                              \
   " result_latency_lifetime_max_at=%s free_exec_count=%s running_exec_count=%s parallel_execution_limit=%s"           \
-  " last_calc_at=%s last_result_at=%s last_output_at=%s stats_overflow=%s"
+  " last_calc_at=%s last_result_at=%s last_output_at=%s runner_owned_memory_bytes_estimate=%s executor_memory_bytes_estimate=%s stats_overflow=%s"
 
 static int32_t stRunnerFormatOptionalI64(char* pBuffer, int32_t bufferSize, bool valid, int64_t value) {
   int32_t len = valid ? snprintf(pBuffer, bufferSize, "%" PRId64, value) : snprintf(pBuffer, bufferSize, "NA");
@@ -100,6 +102,84 @@ static int32_t stRunnerFormatOptionalI64(char* pBuffer, int32_t bufferSize, bool
 static int32_t stRunnerFormatOptionalMs(char* pBuffer, int32_t bufferSize, bool valid, double valueMs) {
   int32_t len = valid ? snprintf(pBuffer, bufferSize, "%.3f", valueMs) : snprintf(pBuffer, bufferSize, "NA");
   return len < 0 || len >= bufferSize ? TSDB_CODE_OUT_OF_BUFFER : TSDB_CODE_SUCCESS;
+}
+
+static bool stRunnerAddMemoryBytes(int64_t *pTotal, size_t bytes) {
+  if (bytes > INT64_MAX || *pTotal > INT64_MAX - (int64_t)bytes) return false;
+  *pTotal += (int64_t)bytes;
+  return true;
+}
+
+/* The executor estimate is published only through the DEBUG period log, while qGetTaskMemorySize()
+ * walks the whole operator tree (one taosMemSize() call per operator pointer) and emits one qDebug()
+ * line per operator.  The walk is therefore only performed when query debug logging is enabled; the
+ * last published snapshot is kept otherwise. */
+static bool stRunnerExecutorMemorySamplingEnabled(void) { return (qDebugFlag & DEBUG_DEBUG) != 0; }
+
+/* A fresh exec reports a valid 0 bytes for its executor, which means "this slot has no executor
+ * yet" rather than "an executor without memory".  Once an executor is created the value is
+ * unknown until the next successful sample, because the walk is skipped when query debug logging
+ * is disabled; publishing the initial 0 would misreport the executor memory. */
+static void stRunnerInvalidateExecutorMemorySnapshot(SStreamRunnerTaskExecution* pExec) {
+  pExec->executorMemoryBytes = 0;
+  pExec->executorMemoryValid = false;
+}
+
+static void stRunnerRefreshMemorySnapshot(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
+  int64_t nowMonoUs = streamTaskGetMonotonicUs();
+  if (pExec->memorySnapshotPublished && nowMonoUs >= pExec->memorySnapshotAtMonoUs &&
+      nowMonoUs - pExec->memorySnapshotAtMonoUs < STREAM_RUNNER_MEMORY_SAMPLE_INTERVAL_US) {
+    return;
+  }
+
+  size_t outputBytes = pExec->pOutBlock == NULL ? 0 : blockDataGetMemorySize(pExec->pOutBlock);
+  pExec->outputMemoryValid = outputBytes <= INT64_MAX;
+  pExec->outputMemoryBytes = pExec->outputMemoryValid ? (int64_t)outputBytes : 0;
+
+  bool    executorSampled = false;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (stRunnerExecutorMemorySamplingEnabled()) {
+    int64_t executorBytes = 0;
+    code = pExec->pExecutor == NULL ? TSDB_CODE_SUCCESS
+                                    : qGetTaskMemorySize((qTaskInfo_t)pExec->pExecutor, &executorBytes);
+    pExec->executorMemoryValid = code == TSDB_CODE_SUCCESS && executorBytes >= 0;
+    pExec->executorMemoryBytes = pExec->executorMemoryValid ? executorBytes : 0;
+    executorSampled = true;
+  }
+
+  pExec->memorySnapshotAtMonoUs = nowMonoUs;
+  pExec->memorySnapshotPublished = true;
+  if (!pExec->outputMemoryValid || (executorSampled && !pExec->executorMemoryValid)) {
+    ST_TASK_WLOG("failed to sample runner memory, execId:%d, outputValid:%d, executorValid:%d, code:%d",
+                 pExec->runtimeInfo.execId, pExec->outputMemoryValid, pExec->executorMemoryValid, code);
+  } else if (executorSampled) {
+    ST_TASK_DLOG("sampled runner memory, execId:%d, outputBytes:%" PRId64 ", executorBytes:%" PRId64,
+                 pExec->runtimeInfo.execId, pExec->outputMemoryBytes, pExec->executorMemoryBytes);
+  }
+}
+
+static bool stRunnerGetMemoryEstimate(const SList *pList, int64_t *pTotal) {
+  if (pList == NULL || pTotal == NULL) return false;
+  if (!stRunnerAddMemoryBytes(pTotal, sizeof(*pList))) return false;
+  for (SListNode *pNode = listHead(pList); pNode != NULL; pNode = TD_DLIST_NODE_NEXT(pNode)) {
+    if (!stRunnerAddMemoryBytes(pTotal, sizeof(*pNode) + (size_t)listEleSize(pList))) return false;
+    const SStreamRunnerTaskExecution *pExec = (const SStreamRunnerTaskExecution *)pNode->data;
+    if (!pExec->outputMemoryValid || !stRunnerAddMemoryBytes(pTotal, (size_t)pExec->outputMemoryBytes)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool stRunnerGetExecutorMemoryEstimate(const SList *pList, int64_t *pTotal) {
+  if (pList == NULL || pTotal == NULL) return false;
+  for (SListNode *pNode = listHead(pList); pNode != NULL; pNode = TD_DLIST_NODE_NEXT(pNode)) {
+    const SStreamRunnerTaskExecution *pExec = (const SStreamRunnerTaskExecution *)pNode->data;
+    if (!pExec->executorMemoryValid || !stRunnerAddMemoryBytes(pTotal, (size_t)pExec->executorMemoryBytes)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 int32_t stRunnerTaskLogStats(SStreamRunnerTask* pTask, const SStreamTaskPeriodSnapshot* pSnapshot) {
@@ -112,6 +192,10 @@ int32_t stRunnerTaskLogStats(SStreamRunnerTask* pTask, const SStreamTaskPeriodSn
   int32_t      freeExecCount = 0;
   int32_t      runningExecCount = 0;
   int32_t      parallelExecutionLimit = 0;
+  int64_t      ownedMemoryBytesEstimate = 0;
+  bool         ownedMemoryValid = false;
+  int64_t      executorMemoryBytesEstimate = 0;
+  bool         executorMemoryValid = false;
   SStreamTask* pOwner = NULL;
   void*        taskAddr = NULL;
   // Heartbeat holds pStream->lock, which keeps the list node and base identity alive. The task-map handle protects
@@ -119,14 +203,22 @@ int32_t stRunnerTaskLogStats(SStreamRunnerTask* pTask, const SStreamTaskPeriodSn
   if (gStreamMgmt.taskMap != NULL &&
       streamAcquireTask(pTask->task.streamId, pTask->task.taskId, &pOwner, &taskAddr) == TSDB_CODE_SUCCESS &&
       pOwner == &pTask->task) {
-    if (pTask->execMgr.lockInited && taosThreadMutexLock(&pTask->execMgr.lock) == TSDB_CODE_SUCCESS) {
-      if (pTask->execMgr.pFreeExecs != NULL && pTask->execMgr.pRunningExecs != NULL) {
-        freeExecCount = listNEles(pTask->execMgr.pFreeExecs);
-        runningExecCount = listNEles(pTask->execMgr.pRunningExecs);
-        parallelExecutionLimit = pTask->parallelExecutionNun;
-        execSnapshotValid = true;
+    if (pTask->execMgr.stateLockInited && taosThreadMutexLock(&pTask->execMgr.stateLock) == TSDB_CODE_SUCCESS) {
+      if (pTask->execMgr.lockInited && taosThreadMutexLock(&pTask->execMgr.lock) == TSDB_CODE_SUCCESS) {
+        if (pTask->execMgr.pFreeExecs != NULL && pTask->execMgr.pRunningExecs != NULL) {
+          freeExecCount = listNEles(pTask->execMgr.pFreeExecs);
+          runningExecCount = listNEles(pTask->execMgr.pRunningExecs);
+          parallelExecutionLimit = pTask->parallelExecutionNun;
+          execSnapshotValid = true;
+          ownedMemoryValid = stRunnerGetMemoryEstimate(pTask->execMgr.pFreeExecs, &ownedMemoryBytesEstimate) &&
+                             stRunnerGetMemoryEstimate(pTask->execMgr.pRunningExecs, &ownedMemoryBytesEstimate);
+          executorMemoryValid =
+              stRunnerGetExecutorMemoryEstimate(pTask->execMgr.pFreeExecs, &executorMemoryBytesEstimate) &&
+              stRunnerGetExecutorMemoryEstimate(pTask->execMgr.pRunningExecs, &executorMemoryBytesEstimate);
+        }
+        if (taosThreadMutexUnlock(&pTask->execMgr.lock) != TSDB_CODE_SUCCESS) execSnapshotValid = false;
       }
-      if (taosThreadMutexUnlock(&pTask->execMgr.lock) != TSDB_CODE_SUCCESS) execSnapshotValid = false;
+      if (taosThreadMutexUnlock(&pTask->execMgr.stateLock) != TSDB_CODE_SUCCESS) execSnapshotValid = false;
     }
   } else if (taskAddr != NULL) {
     streamReleaseTask(taskAddr);
@@ -150,12 +242,20 @@ int32_t stRunnerTaskLogStats(SStreamRunnerTask* pTask, const SStreamTaskPeriodSn
   char                              freeExecCountValue[32] = {0};
   char                              runningExecCountValue[32] = {0};
   char                              parallelExecutionLimitValue[32] = {0};
+  char                              ownedMemoryBytesEstimateValue[32] = {0};
+  char                              executorMemoryBytesEstimateValue[32] = {0};
 
   int32_t code = stRunnerFormatOptionalMs(
       calcAvgMs, sizeof(calcAvgMs), pPeriod->calcDuration.samples > 0,
       pPeriod->calcDuration.samples > 0
           ? (double)pPeriod->calcDuration.totalUs / (double)pPeriod->calcDuration.samples / 1000.0
           : 0.0);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+  code = stRunnerFormatOptionalI64(executorMemoryBytesEstimateValue, sizeof(executorMemoryBytesEstimateValue),
+                                   executorMemoryValid, executorMemoryBytesEstimate);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+  code = stRunnerFormatOptionalI64(ownedMemoryBytesEstimateValue, sizeof(ownedMemoryBytesEstimateValue),
+                                   ownedMemoryValid, ownedMemoryBytesEstimate);
   if (code != TSDB_CODE_SUCCESS) goto _exit;
   code = stRunnerFormatOptionalMs(calcMaxMs, sizeof(calcMaxMs), pPeriod->calcDuration.samples > 0,
                                   (double)pPeriod->calcDuration.maxUs / 1000.0);
@@ -214,7 +314,8 @@ int32_t stRunnerTaskLogStats(SStreamRunnerTask* pTask, const SStreamTaskPeriodSn
       (double)pPeriod->outputRows / seconds, (double)pPeriod->outputBlocks / seconds, pPeriod->calcDuration.samples,
       calcAvgMs, calcMaxMs, calcLifetimeMaxMs, calcLifetimeMaxAt, pPeriod->resultLatency.samples, resultAvgMs,
       resultMaxMs, resultLifetimeMaxMs, resultLifetimeMaxAt, freeExecCountValue, runningExecCountValue,
-      parallelExecutionLimitValue, lastCalcAt, lastResultAt, lastOutputAt, pSnapshot->statsOverflow ? "true" : "false");
+      parallelExecutionLimitValue, lastCalcAt, lastResultAt, lastOutputAt, ownedMemoryBytesEstimateValue,
+      executorMemoryBytesEstimateValue, pSnapshot->statsOverflow ? "true" : "false");
   if (len < 0 || len >= sizeof(line)) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _exit;
@@ -230,7 +331,8 @@ _exit:
 
 static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
   SStreamRunnerTaskExecMgr*  pMgr = &pTask->execMgr;
-  SStreamRunnerTaskExecution exec = {.pExecutor = NULL, .pPlan = pTask->pPlan};
+  SStreamRunnerTaskExecution exec = {
+      .pExecutor = NULL, .pPlan = pTask->pPlan, .outputMemoryValid = true, .executorMemoryValid = true};
   // decode plan into queryPlan
   int32_t code = 0, lino = 0;
   code = taosThreadMutexInit(&pMgr->lock, 0);
@@ -240,10 +342,23 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   }
 
   pMgr->lockInited = true;
+
+  code = taosThreadMutexInit(&pMgr->stateLock, 0);
+  if (code != 0) {
+    ST_TASK_ELOG("failed to init stream runner task state mutex, code:%s", tstrerror(code));
+    TAOS_UNUSED(taosThreadMutexDestroy(&pMgr->lock));
+    pMgr->lockInited = false;
+    return code;
+  }
+  pMgr->stateLockInited = true;
   
   code = taosThreadMutexLock(&pMgr->lock);
   if(code != 0) {
     ST_TASK_ELOG("failed to lock stream runner task mgr mutex, code:%s", tstrerror(code));
+    TAOS_UNUSED(taosThreadMutexDestroy(&pMgr->stateLock));
+    pMgr->stateLockInited = false;
+    TAOS_UNUSED(taosThreadMutexDestroy(&pMgr->lock));
+    pMgr->lockInited = false;
     return code;
   }
   pMgr->pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
@@ -268,11 +383,18 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   }
 
   pMgr->pRunningExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
-  if (!pMgr->pRunningExecs) return terrno;
+  if (!pMgr->pRunningExecs) {
+    code = terrno;
+    goto _exit;
+  }
 
 _exit:
 
   taosThreadMutexUnlock(&pMgr->lock);
+  if (code != TSDB_CODE_SUCCESS && pMgr->stateLockInited) {
+    TAOS_UNUSED(taosThreadMutexDestroy(&pMgr->stateLock));
+    pMgr->stateLockInited = false;
+  }
   
   return code;
 }
@@ -391,6 +513,7 @@ static void stRunnerTaskReleaseExec(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     ST_TASK_ELOG("failed to lock stream runner task exec mgr mutex, code:%s", tstrerror(code));
     return;
   }
+  stRunnerRefreshMemorySnapshot(pTask, pExec);
   SListNode* pNode = listNode(pExec);
   pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
   tdListPrependNode(pMgr->pFreeExecs, pNode);
@@ -423,6 +546,7 @@ static int32_t stRunnerTaskRetainExec(SStreamRunnerTask* pTask, SStreamRunnerTas
   if (pContinuation == NULL || !pContinuation->inUse) {
     code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   } else {
+    stRunnerRefreshMemorySnapshot(pTask, pExec);
     pContinuation->retained = true;
     pContinuation->inUse = false;
   }
@@ -507,8 +631,20 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
 int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
   SStreamRunnerTask* pTask = *ppTask;
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
+  if (pMgr->stateLockInited) {
+    int32_t code = taosThreadMutexLock(&pMgr->stateLock);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("failed to lock stream runner task state mutex during undeploy, code:%s", tstrerror(code));
+      return code;
+    }
+  }
   tdListFreeP(pMgr->pRunningExecs, stRunnerDestroyTaskExecution);
   tdListFreeP(pMgr->pFreeExecs, stRunnerDestroyTaskExecution);
+  if (pMgr->stateLockInited) {
+    TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->stateLock));
+    TAOS_UNUSED(taosThreadMutexDestroy(&pMgr->stateLock));
+    pMgr->stateLockInited = false;
+  }
   TAOS_UNUSED(taosThreadMutexDestroy(&pMgr->lock));
   NODES_DESTORY_NODE(pTask->pSubTableExpr);
   NODES_DESTORY_LIST(pTask->output.pTagValExprs);
@@ -1530,6 +1666,10 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExec
   }
   if (code) {
     ST_TASK_ELOG("failed to build task, code:%s", tstrerror(code));
+    /* A failed create may destroy the task it built while still handing back its handle, so the
+     * executor must never be kept: the cleanup path below samples the executor memory and would
+     * otherwise dereference freed memory. */
+    pExec->pExecutor = NULL;
     return code;
   }
 
@@ -1546,6 +1686,7 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExec
   double el = (taosGetTimestampMs() - st) / 1000.0;
   ST_TASK_DLOG("expand stream task completed, elapsed time:%.2fsec", el);
 
+  stRunnerInvalidateExecutorMemorySnapshot(pExec);
   return code;
 }
 
@@ -1927,6 +2068,22 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
                                    taosGetTimestampMs());
   }
 
+  /* stateLock only covers the exec allocation window: it serializes access to the exec lists with
+   * the heartbeat sampler, which reads the published memory snapshots of both lists, and with
+   * undeploy, which frees those lists without taking execMgr.lock.  Reset, operator execution and
+   * release are NOT covered by it; operator-owned state is never inspected off the execution
+   * thread.  The lock only exists while the task is deployed, so a task without it has no undeploy
+   * in flight and the request proceeds without locking. */
+  bool    stateLockHeld = false;
+  int32_t stateLockCode = TSDB_CODE_SUCCESS;
+  if (pTask->execMgr.stateLockInited) {
+    stateLockCode = taosThreadMutexLock(&pTask->execMgr.stateLock);
+    if (stateLockCode != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("failed to lock stream runner task state mutex, code:%s", tstrerror(stateLockCode));
+      return stateLockCode;
+    }
+    stateLockHeld = true;
+  }
   acquireMode = pReq->brandNew ? STREAM_RUNNER_ACQUIRE_BRAND_NEW : STREAM_RUNNER_ACQUIRE_RETAINED_CONTINUATION;
   code = stRunnerTaskAcquireExec(pTask, pReq->execId, acquireMode, &pExec);
   if (code != TSDB_CODE_SUCCESS && !pReq->brandNew && !pReq->isMultiGroupCalc) {
@@ -1937,8 +2094,10 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     stRunnerRecordFailure(pTask, STREAM_RUNNER_FAILURE_CALC, NULL);
     stTaskStatsRecordRunnerCalcDuration(pTask->pStats, 0, streamTaskGetMonotonicUs(), taosGetTimestampMs());
+    if (stateLockHeld) TAOS_UNUSED(taosThreadMutexUnlock(&pTask->execMgr.stateLock));
     return code;
   }
+  if (stateLockHeld) TAOS_UNUSED(taosThreadMutexUnlock(&pTask->execMgr.stateLock));
   pExec->runtimeInfo.pInputStatsParam = pTask->pStats;
   pExec->runtimeInfo.inputStatsFp = stRunnerRecordInput;
   pTask->task.status = STREAM_STATUS_RUNNING;
@@ -2595,6 +2754,8 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   }
   if (code) {
     ST_TASK_ELOG("failed to build task, code:%s", tstrerror(code));
+    /* See stRunnerBuildTask(): never keep the handle of a task that the failed create destroyed. */
+    pExec->pExecutor = NULL;
     return code;
   }
 
@@ -2611,6 +2772,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   double el = (taosGetTimestampMs() - st) / 1000.0;
   ST_TASK_ILOG("The %dth runner exec built completed, elapsed time:%.2fsec", atomic_fetch_add_32(&pTask->execMgr.execBuildNum, 1), el);
 
+  stRunnerInvalidateExecutorMemorySnapshot(pExec);
   return code;
 }
 

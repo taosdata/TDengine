@@ -294,6 +294,9 @@ bool qTaskIsExecuting(qTaskInfo_t qinfo);
  */
 void qDestroyTask(qTaskInfo_t tinfo);
 
+/** Return an estimate of executor-owned memory currently visible from a query task. */
+int32_t qGetTaskMemorySize(qTaskInfo_t tinfo, int64_t *pBytes);
+
 void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList);

@@ -280,6 +280,9 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     return code;
   }
   SInserterParam* pInserterParam = NULL;
+  /* The sink manager stays owned by this function until the stream inserter adopts it. */
+  void*           pSinkManager = NULL;
+  bool            sinkManagerHandedOver = false;
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
@@ -310,7 +313,6 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
                            .maxDataBlockNumPerQuery = 50,
                            .maxDataBytesPerQuery = 256 * 1024 * 1024,
                            .compress = compressResult};
-    void*           pSinkManager = NULL;
     code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
@@ -327,11 +329,23 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     TSDB_CHECK_CODE(code, lino, _error);
     
     pInserterParam->readHandle = taosMemCalloc(1, sizeof(SReadHandle));
+    if (NULL == pInserterParam->readHandle) {
+      qError("failed to taosMemCalloc read handle, code:%s, %s", tstrerror(terrno), (*pTask)->id.str);
+      code = terrno;
+      goto _error;
+    }
     pInserterParam->readHandle->pMsgCb = readHandle->pMsgCb;
 
+    /* The create releases the sink manager when it fails as well, so the cleanup below must not
+     * release it any more. */
+    sinkManagerHandedOver = true;
     code = createStreamDataInserter(pSinkManager, handle, pInserterParam);
     if (code) {
       qError("failed to createStreamDataInserter, code:%s, %s", tstrerror(code), (*pTask)->id.str);
+      /* A failed create releases the param it adopted - destroyDataSinker() frees
+       * pInserter->pParam - so the cleanup below must not free it a second time.  Only a failure
+       * before the inserter itself exists keeps the param, where dropping the reference leaks it. */
+      pInserterParam = NULL;
     }
   }
   qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s", taskId, pSubplan->id.queryId,
@@ -345,7 +359,14 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
     if (pInserterParam != NULL) {
+      /* The cloned param is a separate allocation owned by pInserterParam, so it has to be released
+       * here as well; destroyStreamInserterParam() accepts a NULL param. */
+      destroyStreamInserterParam(pInserterParam->streamInserterParam);
+      taosMemoryFree(pInserterParam->readHandle);
       taosMemoryFree(pInserterParam);
+    }
+    if (!sinkManagerHandedOver && pSinkManager != NULL) {
+      taosMemoryFree(pSinkManager);
     }
   }
   return code;
@@ -461,6 +482,10 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
                                pInserterParams);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(*pTaskInfo);
+    /* The task is already gone, so the caller must not keep its handle: callers treat this out
+     * parameter as the owner of a live executor, and a dangling handle would be used (and even
+     * dereferenced by the memory sampling of the stream runner) after the failure. */
+    *pTaskInfo = NULL;
     return code;
   }
 
@@ -1385,6 +1410,74 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
 
   printTaskExecCostInLog(pTaskInfo);  // print the query cost summary
   doDestroyTask(pTaskInfo);
+}
+
+static bool qAddTaskMemorySize(int64_t *pTotal, int64_t bytes) {
+  if (bytes < 0 || *pTotal > INT64_MAX - bytes) return false;
+  *pTotal += bytes;
+  return true;
+}
+
+static bool qAddTaskAllocation(int64_t *pTotal, const void *pMemory) {
+  return pMemory == NULL || qAddTaskMemorySize(pTotal, taosMemSize((void *)pMemory));
+}
+
+static bool qGetOperatorMemorySize(const SOperatorInfo *pOperator, int64_t *pTotal, const char *taskId) {
+  if (pOperator == NULL) return true;
+  if (pOperator->numOfRealDownstream > 0 && pOperator->pDownstream == NULL) return false;
+  int64_t operatorStart = *pTotal;
+  if (!qAddTaskAllocation(pTotal, pOperator) || !qAddTaskAllocation(pTotal, pOperator->info) ||
+      !qAddTaskAllocation(pTotal, pOperator->pDownstream) ||
+      !qAddTaskAllocation(pTotal, pOperator->pOperatorGetParam) ||
+      !qAddTaskAllocation(pTotal, pOperator->pOperatorNotifyParam) ||
+      !qAddTaskAllocation(pTotal, pOperator->pDownstreamGetParams) ||
+      !qAddTaskAllocation(pTotal, pOperator->pDownstreamNotifyParams) ||
+      !qAddTaskAllocation(pTotal, pOperator->exprSupp.pExprInfo) ||
+      !qAddTaskAllocation(pTotal, pOperator->exprSupp.pCtx) ||
+      !qAddTaskAllocation(pTotal, pOperator->exprSupp.rowEntryInfoOffset) ||
+      !qAddTaskAllocation(pTotal, pOperator->exprSupp.pFilterInfo)) {
+    return false;
+  }
+  int64_t downstreamStart = *pTotal;
+  for (int32_t i = 0; i < pOperator->numOfRealDownstream; ++i) {
+    if (!qGetOperatorMemorySize(pOperator->pDownstream[i], pTotal, taskId)) return false;
+  }
+  qDebug("%s operator memory estimate: name=%s type=%u self_bytes=%" PRId64 " subtree_bytes=%" PRId64,
+         taskId != NULL ? taskId : "unknown", pOperator->name != NULL ? pOperator->name : "unknown",
+         pOperator->operatorType, downstreamStart - operatorStart, *pTotal - operatorStart);
+  return true;
+}
+
+int32_t qGetTaskMemorySize(qTaskInfo_t tinfo, int64_t *pBytes) {
+  if (tinfo == NULL || pBytes == NULL) return TSDB_CODE_INVALID_PARA;
+
+  const SExecTaskInfo *pTaskInfo = (const SExecTaskInfo *)tinfo;
+  int64_t              total = 0;
+  if (!qAddTaskAllocation(&total, pTaskInfo) || !qAddTaskAllocation(&total, pTaskInfo->sql) ||
+      (pTaskInfo->pSubplan != NULL && !qAddTaskMemorySize(&total, sizeof(*pTaskInfo->pSubplan))) ||
+      !qAddTaskAllocation(&total, pTaskInfo->schemaInfos) ||
+      !qAddTaskAllocation(&total, pTaskInfo->pResultBlockList) ||
+      !qAddTaskAllocation(&total, pTaskInfo->stopInfo.pStopInfo) ||
+      !qAddTaskAllocation(&total, pTaskInfo->pOpParam) ||
+      (pTaskInfo->ownStreamRtInfo && !qAddTaskAllocation(&total, pTaskInfo->pStreamRuntimeInfo)) ||
+      !qAddTaskAllocation(&total, pTaskInfo->pSubJobCtx) ||
+      !qGetOperatorMemorySize(pTaskInfo->pRoot, &total, pTaskInfo->id.str)) {
+    qError("%s failed to estimate task memory", GET_TASKID(pTaskInfo));
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (pTaskInfo->pResultBlockList != NULL) {
+    for (size_t i = 0; i < TARRAY_SIZE(pTaskInfo->pResultBlockList); ++i) {
+      SSDataBlock *pBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pTaskInfo->pResultBlockList, i);
+      size_t blockBytes = pBlock == NULL ? 0 : blockDataGetMemorySize(pBlock);
+      if (blockBytes > INT64_MAX || !qAddTaskMemorySize(&total, (int64_t)blockBytes)) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+  }
+  *pBytes = total;
+  qDebug("%s executor memory estimate: %" PRId64 " bytes", GET_TASKID(pTaskInfo), total);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList) {
