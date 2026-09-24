@@ -19,7 +19,6 @@
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
 
-ERR_NOT_EXIST = "Table does not exist"
 ERR_RESC_BUSY = "Resource busy, table is being modified by another transaction"
 
 
@@ -60,9 +59,13 @@ class TestBatchMetaTxnDdlVisibility:
         return s.queryResult[0][0]
 
     def _assert_gone(self, tables, session=None):
+        # a dropped/invisible table — plain or virtual — always surfaces as the plain
+        # not-exist errno (0x2603) on describe/query: the enriched vtable source codes
+        # (0x6210/0x6211) are only reachable when the queried vtable itself still exists
+        # but its source is broken (verified on enterprise build 2026-09-21)
         s = session or tdSql
         for t in tables:
-            s.error(f"describe {t}", expectErrInfo=ERR_NOT_EXIST)
+            s.error(f"describe {t}", expectedErrno=0x2603)
 
     def _assert_exist(self, tables, session=None):
         s = session or tdSql
@@ -236,7 +239,7 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("COMMIT")
         s2.query("show tables")
         s2.checkRows(1)
-        s2.error("select c1 from ct1", expectErrInfo=ERR_NOT_EXIST)
+        s2.error("select c1 from ct1", expectedErrno=0x2603)
         s2.close()
 
     def check_b2_drop_child_table_rollback(self):
@@ -250,7 +253,7 @@ class TestBatchMetaTxnDdlVisibility:
 
         tdSql.execute("BEGIN")
         tdSql.execute("drop table ct1")
-        tdSql.error("select c1 from ct1", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("select c1 from ct1", expectedErrno=0x2603)
         tdSql.execute("ROLLBACK")
 
         tdSql.query("select c1 from ct1")
@@ -299,8 +302,8 @@ class TestBatchMetaTxnDdlVisibility:
         s2.checkData(0, 0, 99)
 
         tdSql.execute("COMMIT")
-        s2.error("select * from ntb1", expectErrInfo=ERR_NOT_EXIST)
-        s2.error("describe ntb1", expectErrInfo=ERR_NOT_EXIST)
+        s2.error("select * from ntb1", expectedErrno=0x2603)
+        s2.error("describe ntb1", expectedErrno=0x2603)
         s2.close()
 
         # --- ROLLBACK restores ---
@@ -337,7 +340,7 @@ class TestBatchMetaTxnDdlVisibility:
 
         # Same session: all gone
         self._assert_gone(["stb", "ct1"])
-        tdSql.error("select * from stb", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("select * from stb", expectedErrno=0x2603)
 
         # Other session: all visible
         s2 = self._other()
@@ -356,8 +359,8 @@ class TestBatchMetaTxnDdlVisibility:
         s2.checkRows(0)
         s2.query("show tables")
         s2.checkRows(0)
-        s2.error("select * from ct1", expectErrInfo=ERR_NOT_EXIST)
-        s2.error("describe ct1", expectErrInfo=ERR_NOT_EXIST)
+        s2.error("select * from ct1", expectedErrno=0x2603)
+        s2.error("describe ct1", expectedErrno=0x2603)
         s2.close()
 
     def check_d2_drop_stb_rollback(self):
@@ -399,8 +402,8 @@ class TestBatchMetaTxnDdlVisibility:
 
         # All references error with correct message
         for tbl in ["stb", "ct1", "ct2"]:
-            tdSql.error(f"describe {tbl}", expectErrInfo=ERR_NOT_EXIST)
-            tdSql.error(f"select * from {tbl}", expectErrInfo=ERR_NOT_EXIST)
+            tdSql.error(f"describe {tbl}", expectedErrno=0x2603)
+            tdSql.error(f"select * from {tbl}", expectedErrno=0x2603)
 
         tdSql.execute("COMMIT")
         self._assert_gone(["stb", "ct1", "ct2"])
@@ -423,7 +426,7 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("drop table vstb")
 
         self._assert_gone(["vstb", "vct1"])
-        tdSql.error("select * from vstb", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("select * from vstb", expectedErrno=0x2603)
 
         s2 = self._other()
         s2.query("select c1 from vct1")
@@ -449,7 +452,10 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("COMMIT")
 
         self._assert_gone(["vstb", "vct1"])
-        tdSql.error("select * from vct1", expectErrInfo=ERR_NOT_EXIST)
+        # the dropped query target itself surfaces as the plain not-exist (0x2603);
+        # the enriched source-table code (0x6210) only applies when the vtable exists
+        # but its source is broken
+        tdSql.error("select * from vct1", expectedErrno=0x2603)
         tdSql.query("show vtables")
         tdSql.checkRows(0)
 
@@ -465,7 +471,7 @@ class TestBatchMetaTxnDdlVisibility:
         # --- Isolation ---
         tdSql.execute("BEGIN")
         tdSql.execute("drop table vct1")
-        tdSql.error("select c1 from vct1", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("select c1 from vct1", expectedErrno=0x2603)
 
         s2 = self._other()
         s2.query("select c1 from vct1")
@@ -522,7 +528,7 @@ class TestBatchMetaTxnDdlVisibility:
         # --- Isolation + ROLLBACK ---
         tdSql.execute("BEGIN")
         tdSql.execute("drop table vntb")
-        tdSql.error("select c1 from vntb", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("select c1 from vntb", expectedErrno=0x2603)
 
         s2 = self._other()
         s2.query("select c1 from vntb")
@@ -537,7 +543,7 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("BEGIN")
         tdSql.execute("drop table vntb")
         tdSql.execute("COMMIT")
-        tdSql.error("select * from vntb", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("select * from vntb", expectedErrno=0x2603)
 
     # =========================================================================
     # Section F: Mixed operations in single transaction
@@ -587,8 +593,8 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("alter table ct2 set tag t1=222")
         tdSql.execute("COMMIT")
 
-        tdSql.error("select * from ct1", expectErrInfo=ERR_NOT_EXIST)
-        tdSql.error("select * from ntb1", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("select * from ct1", expectedErrno=0x2603)
+        tdSql.error("select * from ntb1", expectedErrno=0x2603)
         assert 'c2' in self._cols("stb")
         assert self._tag_val("stb", "ct2", "t1") == 222
 
@@ -669,7 +675,8 @@ class TestBatchMetaTxnDdlVisibility:
 
         # Other session sees none
         s2 = self._other()
-        self._assert_gone(["ntb_new", "stb_new", "ct_new", "vstb_new", "vct_new", "vntb_new"], s2)
+        self._assert_gone(["ntb_new", "stb_new", "ct_new"], s2)
+        self._assert_gone(["vstb_new", "vct_new", "vntb_new"], s2)
 
         tdSql.execute("COMMIT")
 
@@ -790,16 +797,16 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("BEGIN")
         tdSql.execute("drop table src_ct1")
 
-        tdSql.error("describe src_ct1", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("describe src_ct1", expectedErrno=0x2603)
         self._assert_exist(["vct1"])
 
         s2 = self._other()
         s2.query("describe src_ct1")  # isolation: other still sees source
 
         tdSql.execute("COMMIT")
-        s2.error("describe src_ct1", expectErrInfo=ERR_NOT_EXIST)
+        s2.error("describe src_ct1", expectedErrno=0x2603)
         s2.query("describe vct1")  # virtual metadata still exists
-        s2.error("select * from vct1", expectErrInfo=ERR_NOT_EXIST)  # but query fails
+        s2.error("select * from vct1", expectedErrno=(0x2603, 0x6210))  # but query fails
         s2.close()
 
     def check_k2_drop_source_stb_in_txn(self):
@@ -823,7 +830,7 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("COMMIT")
         self._assert_gone(["src_stb", "src_ct1"], s2)
         s2.query("describe vct1")
-        s2.error("select * from vct1", expectErrInfo=ERR_NOT_EXIST)
+        s2.error("select * from vct1", expectedErrno=(0x2603, 0x6210))
         s2.close()
 
     def check_k3_drop_source_rollback(self):
@@ -838,7 +845,7 @@ class TestBatchMetaTxnDdlVisibility:
         # child rollback
         tdSql.execute("BEGIN")
         tdSql.execute("drop table src_ct1")
-        tdSql.error("describe src_ct1", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("describe src_ct1", expectedErrno=0x2603)
         tdSql.execute("ROLLBACK")
         self._assert_exist(["src_ct1", "vct1"])
 
@@ -860,13 +867,13 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("create vtable vct1 (c1 from txn_vis_db.src_ct1.c1) using vstb tags(1)")
         tdSql.execute("drop table src_ct1")
 
-        tdSql.error("describe src_ct1", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("describe src_ct1", expectedErrno=0x2603)
         self._assert_exist(["vct1"])
 
         tdSql.execute("COMMIT")
-        tdSql.error("describe src_ct1", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("describe src_ct1", expectedErrno=0x2603)
         self._assert_exist(["vct1"])
-        tdSql.error("select * from vct1", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("select * from vct1", expectedErrno=(0x2603, 0x6210))
 
     def check_k5_drop_source_normal_for_virtual_normal(self):
         """DROP source normal table for virtual normal: isolation + commit + rollback."""
@@ -881,16 +888,16 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("BEGIN")
         tdSql.execute("drop table src_ntb")
 
-        tdSql.error("describe src_ntb", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("describe src_ntb", expectedErrno=0x2603)
         self._assert_exist(["vntb"])
 
         s2 = self._other()
         s2.query("describe src_ntb")  # isolation
 
         tdSql.execute("COMMIT")
-        s2.error("describe src_ntb", expectErrInfo=ERR_NOT_EXIST)
+        s2.error("describe src_ntb", expectedErrno=0x2603)
         s2.query("describe vntb")
-        s2.error("select * from vntb", expectErrInfo=ERR_NOT_EXIST)
+        s2.error("select * from vntb", expectedErrno=(0x2603, 0x6210))
         s2.close()
 
         # --- Rollback variant ---
@@ -901,7 +908,7 @@ class TestBatchMetaTxnDdlVisibility:
 
         tdSql.execute("BEGIN")
         tdSql.execute("drop table src_ntb")
-        tdSql.error("describe src_ntb", expectErrInfo=ERR_NOT_EXIST)
+        tdSql.error("describe src_ntb", expectedErrno=0x2603)
         tdSql.execute("ROLLBACK")
         self._assert_exist(["src_ntb", "vntb"])
 
@@ -1087,6 +1094,7 @@ class TestBatchMetaTxnDdlVisibility:
         Section L: Bulk drop >1000 virtual CTBs — txn visibility, rollback, commit
 
         Since: v3.3.6.0
+
         Labels: common,ci
         """
         # Section A

@@ -49,6 +49,7 @@ typedef struct SSourceDataInfo {
   bool                tableSeq;
   char*               decompBuf;
   int32_t             decompBufSize;
+  char                extErrMsg[512]; // detail text carried back from the source task's failed fetch response
   SOrgTbInfo*         orgTbInfo;
   SArray*             batchOrgTbInfo; // SArray<SOrgTbInfo>
   SArray*             tagList;
@@ -79,6 +80,94 @@ static void clearSourceResponse(SSourceDataInfo* pDataInfo);
 static void destroyExchangeMultiGroupResult(void* pParam);
 
 static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code);
+
+// Vtable data-source fetch types. EX_SRC_TYPE_VSTB_SYS_SCAN is deliberately
+// excluded: it is the ins_vc_cols / requested-column meta read issued by the
+// dynamic query control operator, whose failures are resolution-level and are
+// already upgraded to the dedicated codes server-side in
+// sysTableScanFillRequestedVirtualTableCol.
+static bool exIsVtbDataSource(EExchangeSourceType type) {
+  switch (type) {
+    case EX_SRC_TYPE_VSTB_SCAN:
+    case EX_SRC_TYPE_VSTB_WIN_SCAN:
+    case EX_SRC_TYPE_VSTB_AGG_SCAN:
+    case EX_SRC_TYPE_VSTB_TAG_SCAN:
+    case EX_SRC_TYPE_VTB_WIN_SCAN:
+    case EX_SRC_TYPE_VSTB_TS_SCAN:
+    case EX_SRC_TYPE_VSTB_INTERVAL_SCAN:
+    case EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// A failed virtual-table source fetch is by construction a dependency failure
+// (these sources exist only to serve vtable refs): upgrade the stock
+// table/column-not-found codes to the dedicated vtable codes so clients can
+// tell a broken vtable dependency from a plain missing table. The failing
+// source is also formatted into extErrMsg (unless the source task already
+// supplied a more precise detail text) so the client-visible error names the
+// missing db.table; SHOW VTABLE VALIDATE gives the full picture.
+static int32_t exUpgradeVtbSourceCode(SSourceDataInfo* pDataInfo, int32_t errCode) {
+  int32_t code = errCode;
+  if (code == TSDB_CODE_SUCCESS || !exIsVtbDataSource(pDataInfo->type)) {
+    return code;
+  }
+  int32_t upgraded = code;
+  switch (code) {
+    case TSDB_CODE_TDB_TABLE_NOT_EXIST:
+    case TSDB_CODE_PAR_TABLE_NOT_EXIST:
+      upgraded = TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST;
+      break;
+    case TSDB_CODE_PAR_INVALID_COLUMN:
+    case TSDB_CODE_NOT_FOUND:
+      upgraded = TSDB_CODE_VTABLE_SRC_COL_NOT_FOUND;
+      break;
+    default:
+      return code;
+  }
+  const char* pTbName = NULL;
+  int32_t     batchSize = 0;
+  if (pDataInfo->orgTbInfo != NULL) {
+    pTbName = pDataInfo->orgTbInfo->tbName;
+  } else if (pDataInfo->batchOrgTbInfo != NULL && taosArrayGetSize(pDataInfo->batchOrgTbInfo) > 0) {
+    SOrgTbInfo* pFirst = taosArrayGet(pDataInfo->batchOrgTbInfo, 0);
+    pTbName = pFirst->tbName;
+    batchSize = (int32_t)taosArrayGetSize(pDataInfo->batchOrgTbInfo);
+  }
+  if (pTbName != NULL && batchSize <= 1) {
+    qError("virtual table source scan failed, source table %s, code:%s -> %s; run SHOW VTABLE VALIDATE for details",
+           pTbName, tstrerror(code), tstrerror(upgraded));
+  } else if (pTbName != NULL) {
+    // one consolidated line: a batch failure hits the whole array, and per-table lines
+    // would flood the log with duplicates and drown other messages
+    qError("virtual table source scan failed, first failing source table %s of %d batched tables, code:%s -> %s; "
+           "run SHOW VTABLE VALIDATE for details",
+           pTbName, batchSize, tstrerror(code), tstrerror(upgraded));
+  } else {
+    qError("virtual table source scan failed, code:%s -> %s; run SHOW VTABLE VALIDATE for details", tstrerror(code),
+           tstrerror(upgraded));
+  }
+  if (pTbName != NULL && pDataInfo->extErrMsg[0] == '\0') {
+    // the column name is only known at the fill layer; here name the source table
+    if (upgraded == TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST) {
+      (void)snprintf(pDataInfo->extErrMsg, sizeof(pDataInfo->extErrMsg), "%s: %s", tstrerror(upgraded), pTbName);
+    } else {
+      (void)snprintf(pDataInfo->extErrMsg, sizeof(pDataInfo->extErrMsg), "%s (source table %s)", tstrerror(upgraded),
+                     pTbName);
+    }
+  }
+  return upgraded;
+}
+
+// The source-task detail text (when present) is the client-facing error: copy it
+// onto the task so qworker can attach it to the query/fetch response.
+static void copySourceExtErrMsg(SExecTaskInfo* pTaskInfo, const SSourceDataInfo* pDataInfo) {
+  if (pDataInfo->extErrMsg[0] != '\0' && pTaskInfo->extErrMsg[0] == '\0') {
+    tstrncpy(pTaskInfo->extErrMsg, pDataInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg));
+  }
+}
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex);
 static int32_t getCompletedSources(const SArray* pArray, int32_t* pRes);
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator);
@@ -477,6 +566,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
              tstrerror(pDataInfo->code));
       pTaskInfo->code = pDataInfo->code;
+      copySourceExtErrMsg(pTaskInfo, pDataInfo);
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
@@ -612,6 +702,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       if (pDataInfo->code != TSDB_CODE_SUCCESS) {
         code = pDataInfo->code;
+        copySourceExtErrMsg(pTaskInfo, pDataInfo);
         TAOS_CHECK_EXIT(code);
       }
 
@@ -985,6 +1076,7 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
 
     pDataInfo->totalRows = 0;
     pDataInfo->code = 0;
+    pDataInfo->extErrMsg[0] = '\0';
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
     pDataInfo->fetchSent = false;
     pDataInfo->fetchTimes = 0;
@@ -1253,10 +1345,22 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index,
            pRsp->numOfBlocks, pRsp->numOfRows, pExchangeInfo);
   } else {
+    // qworker appends optional NUL-terminated detail text to failed fetch responses
+    if (pMsg->pData != NULL && pMsg->len > (int32_t)sizeof(SRetrieveTableRsp)) {
+      const char* pExtErrMsg = ((SRetrieveTableRsp*)pMsg->pData)->data;
+      size_t      extErrLen = pMsg->len - sizeof(SRetrieveTableRsp);
+      if (memchr(pExtErrMsg, '\0', extErrLen) != NULL) {
+        tstrncpy(pSourceDataInfo->extErrMsg, pExtErrMsg, sizeof(pSourceDataInfo->extErrMsg));
+      }
+    }
     taosMemoryFree(pMsg->pData);
     pSourceDataInfo->rspLen = 0;
-    pSourceDataInfo->code = rpcCvtErrCode(code);
-    if (pSourceDataInfo->code != code) {
+    int32_t cvted = rpcCvtErrCode(code);
+    // single write: the upgrade takes the rpc-converted code and returns the final one
+    pSourceDataInfo->code = exUpgradeVtbSourceCode(pSourceDataInfo, cvted);
+    // the "cvted" log branch must key off rpcCvtErrCode's conversion only; the
+    // vtable upgrade always changes the code and logs on its own
+    if (cvted != code) {
       qError("%s fetch rsp received, index:%d, error:%s, cvted error: %s, %p", pSourceDataInfo->taskId, index,
              tstrerror(code), tstrerror(pSourceDataInfo->code), pExchangeInfo);
     } else {
@@ -1839,6 +1943,13 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     if (code == TSDB_CODE_SUCCESS && pBuf.pData != NULL) {
       code = getLocalFetchResponseLen(pBuf.pData, &pBuf.len);
       if (code != TSDB_CODE_SUCCESS) taosMemoryFreeClear(pBuf.pData);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      // The local-exec path aborts before loadRemoteDataCallback, so the
+      // vtable-source code upgrade must happen here as well.
+      code = exUpgradeVtbSourceCode(pDataInfo, rpcCvtErrCode(code));
+      pDataInfo->code = code;
+      copySourceExtErrMsg(pTaskInfo, pDataInfo);
     }
     QUERY_CHECK_CODE(code, lino, _end);
     pDataInfo->startTime = taosGetTimestampUs();
@@ -2857,6 +2968,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
              tstrerror(pDataInfo->code));
       pOperator->pTaskInfo->code = pDataInfo->code;
+      copySourceExtErrMsg(pOperator->pTaskInfo, pDataInfo);
       return pOperator->pTaskInfo->code;
     }
 

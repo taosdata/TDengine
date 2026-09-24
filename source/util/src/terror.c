@@ -1205,6 +1205,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED,      "Virtual table refer
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_REF_COLUMN,      "Virtual table query cannot resolve ref column")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_CIRCULAR_REF,            "Virtual table circular reference detected")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_DATA_SRC_EP_MISS,         "No valid epSet for virtual super table data source node")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST,      "Virtual table source table does not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SRC_COL_NOT_FOUND,        "Virtual table source column not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REF_UNRESOLVED,           "Virtual table ref column unresolved")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type is not supported on tag")

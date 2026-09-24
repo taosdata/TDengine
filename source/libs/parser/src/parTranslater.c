@@ -1562,6 +1562,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->levelNo = 0;
   pCxt->currClause = 0;
   pCxt->origStmtType = 0;
+  pCxt->vtbRefErrMsgSet = false;
   pCxt->pMetaCache = pMetaCache;
   pCxt->pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -9293,6 +9294,9 @@ static int32_t createVStbExtTableNodes(STranslateContext* pCxt, SVirtualTableNod
   return TSDB_CODE_SUCCESS;
 }
 
+static void vtbRefSetSrcTableErrMsg(STranslateContext* pCxt, int32_t code, const SColRef* pRef, const char* vDbName,
+                                    const char* vTbName);
+
 static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
                                           SVirtualTableNode* pVTable) {
   SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
@@ -9446,6 +9450,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
         setTableNameByColRef(pRefNode, pRef);
         int32_t rc = translateTable(pCxt, (SNode**)&pRefNode, false);
         if (rc != TSDB_CODE_SUCCESS) {
+          vtbRefSetSrcTableErrMsg(pCxt, rc, pRef, pVTable->table.dbName, pVTable->table.tableName);
           nodesDestroyNode((SNode*)pRefNode);
           code = rc;
           taosArrayDestroy(pNextRefs);
@@ -9852,6 +9857,38 @@ static int32_t validateExternalColRefCurrentMeta(STranslateContext* pCxt, const 
   return TSDB_CODE_SUCCESS;
 }
 
+// On source-table meta fetch failure for a known vtable ref, put the ref names
+// into the user-visible error message. The err code itself is kept unchanged so
+// the client retry / cache-refresh classification (NEED_CLIENT_HANDLE_ERROR)
+// is unaffected.
+static void vtbRefSetSrcTableErrMsg(STranslateContext* pCxt, int32_t code, const SColRef* pRef, const char* vDbName,
+                                    const char* vTbName) {
+  if (TSDB_CODE_SUCCESS == code) {
+    return;
+  }
+  if (code != TSDB_CODE_PAR_TABLE_NOT_EXIST && code != TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+    return;
+  }
+  // The ref target can itself be a virtual table whose own source is the real
+  // failure: that inner hop has already written a richer message naming it,
+  // and overwriting it here would blame this (still existing) table instead.
+  // vtbRefErrMsgSet is the explicit marker for "message already enriched".
+  if (pCxt->vtbRefErrMsgSet) {
+    return;
+  }
+  if (pRef->refDbName[0] != '\0') {
+    generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
+                            "virtual table \"%s.%s\" query failed: source table \"%s.%s\" does not exist", vDbName,
+                            vTbName, pRef->refDbName, pRef->refTableName);
+  } else {
+    // same-db ref without an explicit db name: no "db." prefix to print
+    generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
+                            "virtual table \"%s.%s\" query failed: source table \"%s\" does not exist", vDbName,
+                            vTbName, pRef->refTableName);
+  }
+  pCxt->vtbRefErrMsgSet = true;
+}
+
 static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
                                                 SVirtualTableNode* pVTable) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -9905,7 +9942,13 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
         if (taosHashGet(pTableNameHash, tableNameKey, strlen(tableNameKey)) == NULL) {
           PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRTNode));
           setTableNameByColRef(pRTNode, &pMeta->colRef[i]);
-          PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, false));
+          code = translateTable(pCxt, (SNode**)&pRTNode, false);
+          if (TSDB_CODE_SUCCESS != code) {
+            vtbRefSetSrcTableErrMsg(pCxt, code, &pMeta->colRef[i], pVTable->table.dbName, pVTable->table.tableName);
+            pCxt->refTable = false;
+            pCxt->pParseCxt->async = tmpAsync;
+            goto _return;
+          }
           PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
           pRTNode = NULL;  // now owned by pVTable->refTables
           PAR_ERR_JRET(taosHashPut(pTableNameHash, tableNameKey, strlen(tableNameKey), NULL, 0));
@@ -9927,7 +9970,13 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
       if (taosHashGet(pTableNameHash, tableNameKey, strlen(tableNameKey)) == NULL) {
         PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRTNode));
         setTableNameByColRef(pRTNode, &pMeta->tagRef[i]);
-        PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, false));
+        code = translateTable(pCxt, (SNode**)&pRTNode, false);
+        if (TSDB_CODE_SUCCESS != code) {
+          vtbRefSetSrcTableErrMsg(pCxt, code, &pMeta->tagRef[i], pVTable->table.dbName, pVTable->table.tableName);
+          pCxt->refTable = false;
+          pCxt->pParseCxt->async = tmpAsync;
+          goto _return;
+        }
         PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
         PAR_ERR_JRET(taosHashPut(pTableNameHash, tableNameKey, strlen(tableNameKey), NULL, 0));
         pRTNode = NULL;  // now owned by pVTable->refTables
@@ -9960,7 +10009,13 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
         if (taosHashGet(pTableNameHash, transKey, strlen(transKey)) != NULL) continue;
         PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRTNode));
         setTableNameByColRef(pRTNode, pTransRef);
-        PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, false));
+        code = translateTable(pCxt, (SNode**)&pRTNode, false);
+        if (TSDB_CODE_SUCCESS != code) {
+          vtbRefSetSrcTableErrMsg(pCxt, code, pTransRef, pVTable->table.dbName, pVTable->table.tableName);
+          pCxt->refTable = false;
+          pCxt->pParseCxt->async = tmpAsync;
+          goto _return;
+        }
         PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
         PAR_ERR_JRET(taosHashPut(pTableNameHash, transKey, strlen(transKey), NULL, 0));
         pRTNode = NULL;
