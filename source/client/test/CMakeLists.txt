@@ -39,6 +39,15 @@ TARGET_LINK_LIBRARIES(
         tmqTest PRIVATE
         PUBLIC os util common transport parser catalog scheduler function ${TAOS_NATIVE_LIB_STATIC} qcom
 )
+# tmqTest mostly drives a live taosd, so the suite itself stays excluded from the unit-test
+# job (`ctest -E` matches the "tmqTest" name in .gitlab/.tsdb-test.yml and
+# test/cases/82-UnitTest/test.sh).  The service-independent regression cases are registered
+# under a separate name that does not match those exclude regexes, otherwise they would only
+# be compiled and never executed.
+add_test(
+        NAME tmqRawDataTest
+        COMMAND tmqTest --gtest_filter=testCase.validate_raw_data_block_versions_Test:testCase.invalid_raw_data_response_returns_error_Test:testCase.rejected_poll_response_retains_offset_Test
+)
 
 ADD_EXECUTABLE(smlTest smlTest.cpp)
 DEP_ext_gtest(smlTest)

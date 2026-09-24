@@ -5317,45 +5317,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   return tlen;
 }
 
-static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq, int32_t len) {
-  void* start = buf;
-  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
-  buf = taosDecodeStringTo(buf, pReq->cgroup);
-  buf = taosDecodeStringTo(buf, pReq->clientId);
-
-  int32_t topicNum = 0;
-  buf = taosDecodeFixedI32(buf, &topicNum);
-
-  pReq->topicNames = taosArrayInit(topicNum, sizeof(void*));
-  if (pReq->topicNames == NULL) {
-    return terrno;
-  }
-  for (int32_t i = 0; i < topicNum; i++) {
-    char* name = NULL;
-    buf = taosDecodeString(buf, &name);
-    if (taosArrayPush(pReq->topicNames, &name) == NULL) {
-      return terrno;
-    }
-  }
-
-  buf = taosDecodeFixedI8(buf, &pReq->withTbName);
-  buf = taosDecodeFixedI8(buf, &pReq->autoCommit);
-  buf = taosDecodeFixedI32(buf, &pReq->autoCommitInterval);
-  buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
-  buf = taosDecodeFixedI8(buf, &pReq->enableReplay);
-  buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
-  if ((char*)buf - (char*)start < len) {
-    buf = taosDecodeFixedI32(buf, &pReq->sessionTimeoutMs);
-    buf = taosDecodeFixedI32(buf, &pReq->maxPollIntervalMs);
-    buf = taosDecodeStringTo(buf, pReq->user);
-    buf = taosDecodeStringTo(buf, pReq->fqdn);
-  } else {
-    pReq->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
-    pReq->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
-  }
-
-  return 0;
-}
+int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq, int32_t len);
 
 typedef struct {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];

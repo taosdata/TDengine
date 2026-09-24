@@ -900,6 +900,7 @@ VER_1.0 {
     strftime;
     strntolower;
     strtolower;
+    syncAskEp;
     tCompressData;
     tDataTypes;
     tDecodeSTqOffset;
