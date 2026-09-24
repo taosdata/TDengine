@@ -255,15 +255,15 @@ static dictItem ZDICT_analyzePos(
     }
 
     {   int i;
-        U32 searchLength;
+        U32 mml;
         U32 refinedStart = start;
         U32 refinedEnd = end;
 
         DISPLAYLEVEL(4, "\n");
-        DISPLAYLEVEL(4, "found %3u matches of length >= %i at pos %7u  ", (U32)(end-start), MINMATCHLENGTH, (U32)pos);
+        DISPLAYLEVEL(4, "found %3u matches of length >= %i at pos %7u  ", (unsigned)(end-start), MINMATCHLENGTH, (unsigned)pos);
         DISPLAYLEVEL(4, "\n");
 
-        for (searchLength = MINMATCHLENGTH ; ; searchLength++) {
+        for (mml = MINMATCHLENGTH ; ; mml++) {
             BYTE currentChar = 0;
             U32 currentCount = 0;
             U32 currentID = refinedStart;
@@ -271,13 +271,13 @@ static dictItem ZDICT_analyzePos(
             U32 selectedCount = 0;
             U32 selectedID = currentID;
             for (id =refinedStart; id < refinedEnd; id++) {
-                if (b[suffix[id] + searchLength] != currentChar) {
+                if (b[suffix[id] + mml] != currentChar) {
                     if (currentCount > selectedCount) {
                         selectedCount = currentCount;
                         selectedID = currentID;
                     }
                     currentID = id;
-                    currentChar = b[ suffix[id] + searchLength];
+                    currentChar = b[ suffix[id] + mml];
                     currentCount = 0;
                 }
                 currentCount ++;
@@ -293,7 +293,7 @@ static dictItem ZDICT_analyzePos(
             refinedEnd = refinedStart + selectedCount;
         }
 
-        /* evaluate gain based on new ref */
+        /* evaluate gain based on new dict */
         start = refinedStart;
         pos = suffix[refinedStart];
         end = start;
@@ -341,8 +341,8 @@ static dictItem ZDICT_analyzePos(
         for (i=MINMATCHLENGTH; i<=(int)maxLength; i++)
             savings[i] = savings[i-1] + (lengthList[i] * (i-3));
 
-        DISPLAYLEVEL(4, "Selected ref at position %u, of length %u : saves %u (ratio: %.2f)  \n",
-                     (U32)pos, (U32)maxLength, savings[maxLength], (double)savings[maxLength] / maxLength);
+        DISPLAYLEVEL(4, "Selected dict at position %u, of length %u : saves %u (ratio: %.2f)  \n",
+                     (unsigned)pos, (unsigned)maxLength, (unsigned)savings[maxLength], (double)savings[maxLength] / maxLength);
 
         solution.pos = (U32)pos;
         solution.length = (U32)maxLength;
@@ -497,7 +497,7 @@ static U32 ZDICT_dictSize(const dictItem* dictList)
 static size_t ZDICT_trainBuffer_legacy(dictItem* dictList, U32 dictListSize,
                             const void* const buffer, size_t bufferSize,   /* buffer must end with noisy guard band */
                             const size_t* fileSizes, unsigned nbFiles,
-                            U32 minRatio, U32 notificationLevel)
+                            unsigned minRatio, U32 notificationLevel)
 {
     int* const suffix0 = (int*)malloc((bufferSize+2)*sizeof(*suffix0));
     int* const suffix = suffix0+1;
@@ -523,11 +523,11 @@ static size_t ZDICT_trainBuffer_legacy(dictItem* dictList, U32 dictListSize,
     memset(doneMarks, 0, bufferSize+16);
 
     /* limit sample set size (divsufsort limitation)*/
-    if (bufferSize > ZDICT_MAX_SAMPLES_SIZE) DISPLAYLEVEL(3, "sample set too large : reduced to %u MB ...\n", (U32)(ZDICT_MAX_SAMPLES_SIZE>>20));
+    if (bufferSize > ZDICT_MAX_SAMPLES_SIZE) DISPLAYLEVEL(3, "sample set too large : reduced to %u MB ...\n", (unsigned)(ZDICT_MAX_SAMPLES_SIZE>>20));
     while (bufferSize > ZDICT_MAX_SAMPLES_SIZE) bufferSize -= fileSizes[--nbFiles];
 
     /* sort */
-    DISPLAYLEVEL(2, "sorting %u files of total size %u MB ...\n", nbFiles, (U32)(bufferSize>>20));
+    DISPLAYLEVEL(2, "sorting %u files of total size %u MB ...\n", nbFiles, (unsigned)(bufferSize>>20));
     {   int const divSuftSortResult = divsufsort((const unsigned char*)buffer, suffix, (int)bufferSize, 0);
         if (divSuftSortResult != 0) { result = ERROR(GENERIC); goto _cleanup; }
     }
@@ -581,7 +581,7 @@ static void ZDICT_fillNoise(void* buffer, size_t length)
 
 typedef struct
 {
-    ZSTD_CCtx* ref;    /* contains reference to dictionary */
+    ZSTD_CDict* dict;    /* dictionary */
     ZSTD_CCtx* zc;     /* working context */
     void* workPlace;   /* must be ZSTD_BLOCKSIZE_MAX allocated */
 } EStats_ress_t;
@@ -589,7 +589,7 @@ typedef struct
 #define MAXREPOFFSET 1024
 
 static void ZDICT_countEStats(EStats_ress_t esr, ZSTD_parameters params,
-                              U32* countLit, U32* offsetcodeCount, U32* matchlengthCount, U32* litlengthCount, U32* repOffsets,
+                              unsigned* countLit, unsigned* offsetcodeCount, unsigned* matchlengthCount, unsigned* litlengthCount, U32* repOffsets,
                               const void* src, size_t srcSize,
                               U32 notificationLevel)
 {
@@ -597,11 +597,12 @@ static void ZDICT_countEStats(EStats_ress_t esr, ZSTD_parameters params,
     size_t cSize;
 
     if (srcSize > blockSizeMax) srcSize = blockSizeMax;   /* protection vs large samples */
-    {   size_t const errorCode = ZSTD_copyCCtx(esr.zc, esr.ref, 0);
-        if (ZSTD_isError(errorCode)) { DISPLAYLEVEL(1, "warning : ZSTD_copyCCtx failed \n"); return; }
+    {   size_t const errorCode = ZSTD_compressBegin_usingCDict(esr.zc, esr.dict);
+        if (ZSTD_isError(errorCode)) { DISPLAYLEVEL(1, "warning : ZSTD_compressBegin_usingCDict failed \n"); return; }
+
     }
     cSize = ZSTD_compressBlock(esr.zc, esr.workPlace, ZSTD_BLOCKSIZE_MAX, src, srcSize);
-    if (ZSTD_isError(cSize)) { DISPLAYLEVEL(3, "warning : could not compress sample size %u \n", (U32)srcSize); return; }
+    if (ZSTD_isError(cSize)) { DISPLAYLEVEL(3, "warning : could not compress sample size %u \n", (unsigned)srcSize); return; }
 
     if (cSize) {  /* if == 0; block is not compressible */
         const seqStore_t* const seqStorePtr = ZSTD_getSeqStore(esr.zc);
@@ -670,7 +671,7 @@ static void ZDICT_insertSortCount(offsetCount_t table[ZSTD_REP_NUM+1], U32 val, 
  * rewrite `countLit` to contain a mostly flat but still compressible distribution of literals.
  * necessary to avoid generating a non-compressible distribution that HUF_writeCTable() cannot encode.
  */
-static void ZDICT_flatLit(U32* countLit)
+static void ZDICT_flatLit(unsigned* countLit)
 {
     int u;
     for (u=1; u<256; u++) countLit[u] = 2;
@@ -686,18 +687,18 @@ static size_t ZDICT_analyzeEntropy(void*  dstBuffer, size_t maxDstSize,
                              const void* dictBuffer, size_t  dictBufferSize,
                                    unsigned notificationLevel)
 {
-    U32 countLit[256];
+    unsigned countLit[256];
     HUF_CREATE_STATIC_CTABLE(hufTable, 255);
-    U32 offcodeCount[OFFCODE_MAX+1];
+    unsigned offcodeCount[OFFCODE_MAX+1];
     short offcodeNCount[OFFCODE_MAX+1];
     U32 offcodeMax = ZSTD_highbit32((U32)(dictBufferSize + 128 KB));
-    U32 matchLengthCount[MaxML+1];
+    unsigned matchLengthCount[MaxML+1];
     short matchLengthNCount[MaxML+1];
-    U32 litLengthCount[MaxLL+1];
+    unsigned litLengthCount[MaxLL+1];
     short litLengthNCount[MaxLL+1];
     U32 repOffset[MAXREPOFFSET];
     offsetCount_t bestRepOffset[ZSTD_REP_NUM+1];
-    EStats_ress_t esr;
+    EStats_ress_t esr = { NULL, NULL, NULL };
     ZSTD_parameters params;
     U32 u, huffLog = 11, Offlog = OffFSELog, mlLog = MLFSELog, llLog = LLFSELog, total;
     size_t pos = 0, errorCode;
@@ -708,14 +709,6 @@ static size_t ZDICT_analyzeEntropy(void*  dstBuffer, size_t maxDstSize,
 
     /* init */
     DEBUGLOG(4, "ZDICT_analyzeEntropy");
-    esr.ref = ZSTD_createCCtx();
-    esr.zc = ZSTD_createCCtx();
-    esr.workPlace = malloc(ZSTD_BLOCKSIZE_MAX);
-    if (!esr.ref || !esr.zc || !esr.workPlace) {
-        eSize = ERROR(memory_allocation);
-        DISPLAYLEVEL(1, "Not enough memory \n");
-        goto _cleanup;
-    }
     if (offcodeMax>OFFCODE_MAX) { eSize = ERROR(dictionaryCreation_failed); goto _cleanup; }   /* too large dictionary */
     for (u=0; u<256; u++) countLit[u] = 1;   /* any character must be described */
     for (u=0; u<=offcodeMax; u++) offcodeCount[u] = 1;
@@ -726,12 +719,15 @@ static size_t ZDICT_analyzeEntropy(void*  dstBuffer, size_t maxDstSize,
     memset(bestRepOffset, 0, sizeof(bestRepOffset));
     if (compressionLevel==0) compressionLevel = g_compressionLevel_default;
     params = ZSTD_getParams(compressionLevel, averageSampleSize, dictBufferSize);
-    {   size_t const beginResult = ZSTD_compressBegin_advanced(esr.ref, dictBuffer, dictBufferSize, params, 0);
-        if (ZSTD_isError(beginResult)) {
-            DISPLAYLEVEL(1, "error : ZSTD_compressBegin_advanced() failed : %s \n", ZSTD_getErrorName(beginResult));
-            eSize = ERROR(GENERIC);
-            goto _cleanup;
-    }   }
+
+    esr.dict = ZSTD_createCDict_advanced(dictBuffer, dictBufferSize, ZSTD_dlm_byRef, ZSTD_dct_rawContent, params.cParams, ZSTD_defaultCMem);
+    esr.zc = ZSTD_createCCtx();
+    esr.workPlace = malloc(ZSTD_BLOCKSIZE_MAX);
+    if (!esr.dict || !esr.zc || !esr.workPlace) {
+        eSize = ERROR(memory_allocation);
+        DISPLAYLEVEL(1, "Not enough memory \n");
+        goto _cleanup;
+    }
 
     /* collect stats on all samples */
     for (u=0; u<nbFiles; u++) {
@@ -856,7 +852,7 @@ static size_t ZDICT_analyzeEntropy(void*  dstBuffer, size_t maxDstSize,
     eSize += 12;
 
 _cleanup:
-    ZSTD_freeCCtx(esr.ref);
+    ZSTD_freeCDict(esr.dict);
     ZSTD_freeCCtx(esr.zc);
     free(esr.workPlace);
 
@@ -867,8 +863,8 @@ _cleanup:
 
 size_t ZDICT_finalizeDictionary(void* dictBuffer, size_t dictBufferCapacity,
                           const void* customDictContent, size_t dictContentSize,
-                          const void* samplesBuffer, const size_t* samplesSizes, unsigned nbSamples,
-                          ZDICT_params_t params)
+                          const void* samplesBuffer, const size_t* samplesSizes,
+                          unsigned nbSamples, ZDICT_params_t params)
 {
     size_t hSize;
 #define HBUFFSIZE 256   /* should prove large enough for all entropy headers */
@@ -914,9 +910,10 @@ size_t ZDICT_finalizeDictionary(void* dictBuffer, size_t dictBufferCapacity,
 }
 
 
-size_t ZDICT_addEntropyTablesFromBuffer_advanced(void* dictBuffer, size_t dictContentSize, size_t dictBufferCapacity,
-                                                 const void* samplesBuffer, const size_t* samplesSizes, unsigned nbSamples,
-                                                 ZDICT_params_t params)
+static size_t ZDICT_addEntropyTablesFromBuffer_advanced(
+        void* dictBuffer, size_t dictContentSize, size_t dictBufferCapacity,
+        const void* samplesBuffer, const size_t* samplesSizes, unsigned nbSamples,
+        ZDICT_params_t params)
 {
     int const compressionLevel = (params.compressionLevel == 0) ? g_compressionLevel_default : params.compressionLevel;
     U32 const notificationLevel = params.notificationLevel;
@@ -947,7 +944,11 @@ size_t ZDICT_addEntropyTablesFromBuffer_advanced(void* dictBuffer, size_t dictCo
     return MIN(dictBufferCapacity, hSize+dictContentSize);
 }
 
-
+/* Hidden declaration for dbio.c */
+size_t ZDICT_trainFromBuffer_unsafe_legacy(
+                            void* dictBuffer, size_t maxDictSize,
+                            const void* samplesBuffer, const size_t* samplesSizes, unsigned nbSamples,
+                            ZDICT_legacy_params_t params);
 /*! ZDICT_trainFromBuffer_unsafe_legacy() :
 *   Warning : `samplesBuffer` must be followed by noisy guard band.
 *   @return : size of dictionary, or an error code which can be tested with ZDICT_isError()
@@ -982,31 +983,33 @@ size_t ZDICT_trainFromBuffer_unsafe_legacy(
 
     /* display best matches */
     if (params.zParams.notificationLevel>= 3) {
-        U32 const nb = MIN(25, dictList[0].pos);
-        U32 const dictContentSize = ZDICT_dictSize(dictList);
-        U32 u;
-        DISPLAYLEVEL(3, "\n %u segments found, of total size %u \n", dictList[0].pos-1, dictContentSize);
+        unsigned const nb = MIN(25, dictList[0].pos);
+        unsigned const dictContentSize = ZDICT_dictSize(dictList);
+        unsigned u;
+        DISPLAYLEVEL(3, "\n %u segments found, of total size %u \n", (unsigned)dictList[0].pos-1, dictContentSize);
         DISPLAYLEVEL(3, "list %u best segments \n", nb-1);
         for (u=1; u<nb; u++) {
-            U32 const pos = dictList[u].pos;
-            U32 const length = dictList[u].length;
+            unsigned const pos = dictList[u].pos;
+            unsigned const length = dictList[u].length;
             U32 const printedLength = MIN(40, length);
-            if ((pos > samplesBuffSize) || ((pos + length) > samplesBuffSize))
+            if ((pos > samplesBuffSize) || ((pos + length) > samplesBuffSize)) {
+                free(dictList);
                 return ERROR(GENERIC);   /* should never happen */
+            }
             DISPLAYLEVEL(3, "%3u:%3u bytes at pos %8u, savings %7u bytes |",
-                         u, length, pos, dictList[u].savings);
+                         u, length, pos, (unsigned)dictList[u].savings);
             ZDICT_printHex((const char*)samplesBuffer+pos, printedLength);
             DISPLAYLEVEL(3, "| \n");
     }   }
 
 
     /* create dictionary */
-    {   U32 dictContentSize = ZDICT_dictSize(dictList);
+    {   unsigned dictContentSize = ZDICT_dictSize(dictList);
         if (dictContentSize < ZDICT_CONTENTSIZE_MIN) { free(dictList); return ERROR(dictionaryCreation_failed); }   /* dictionary content too small */
         if (dictContentSize < targetDictSize/4) {
-            DISPLAYLEVEL(2, "!  warning : selected content significantly smaller than requested (%u < %u) \n", dictContentSize, (U32)maxDictSize);
+            DISPLAYLEVEL(2, "!  warning : selected content significantly smaller than requested (%u < %u) \n", dictContentSize, (unsigned)maxDictSize);
             if (samplesBuffSize < 10 * targetDictSize)
-                DISPLAYLEVEL(2, "!  consider increasing the number of samples (total size : %u MB)\n", (U32)(samplesBuffSize>>20));
+                DISPLAYLEVEL(2, "!  consider increasing the number of samples (total size : %u MB)\n", (unsigned)(samplesBuffSize>>20));
             if (minRep > MINRATIO) {
                 DISPLAYLEVEL(2, "!  consider increasing selectivity to produce larger dictionary (-s%u) \n", selectivity+1);
                 DISPLAYLEVEL(2, "!  note : larger dictionaries are not necessarily better, test its efficiency on samples \n");
@@ -1014,9 +1017,9 @@ size_t ZDICT_trainFromBuffer_unsafe_legacy(
         }
 
         if ((dictContentSize > targetDictSize*3) && (nbSamples > 2*MINRATIO) && (selectivity>1)) {
-            U32 proposedSelectivity = selectivity-1;
+            unsigned proposedSelectivity = selectivity-1;
             while ((nbSamples >> proposedSelectivity) <= MINRATIO) { proposedSelectivity--; }
-            DISPLAYLEVEL(2, "!  note : calculated dictionary significantly larger than requested (%u > %u) \n", dictContentSize, (U32)maxDictSize);
+            DISPLAYLEVEL(2, "!  note : calculated dictionary significantly larger than requested (%u > %u) \n", dictContentSize, (unsigned)maxDictSize);
             DISPLAYLEVEL(2, "!  consider increasing dictionary size, or produce denser dictionary (-s%u) \n", proposedSelectivity);
             DISPLAYLEVEL(2, "!  always test dictionary efficiency on real samples \n");
         }
@@ -1082,17 +1085,17 @@ size_t ZDICT_trainFromBuffer_legacy(void* dictBuffer, size_t dictBufferCapacity,
 size_t ZDICT_trainFromBuffer(void* dictBuffer, size_t dictBufferCapacity,
                              const void* samplesBuffer, const size_t* samplesSizes, unsigned nbSamples)
 {
-    ZDICT_cover_params_t params;
+    ZDICT_fastCover_params_t params;
     DEBUGLOG(3, "ZDICT_trainFromBuffer");
     memset(&params, 0, sizeof(params));
     params.d = 8;
     params.steps = 4;
     /* Default to level 6 since no compression level information is available */
-    params.zParams.compressionLevel = 6;
+    params.zParams.compressionLevel = 3;
 #if defined(DEBUGLEVEL) && (DEBUGLEVEL>=1)
     params.zParams.notificationLevel = DEBUGLEVEL;
 #endif
-    return ZDICT_optimizeTrainFromBuffer_cover(dictBuffer, dictBufferCapacity,
+    return ZDICT_optimizeTrainFromBuffer_fastCover(dictBuffer, dictBufferCapacity,
                                                samplesBuffer, samplesSizes, nbSamples,
                                                &params);
 }
