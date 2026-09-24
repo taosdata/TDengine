@@ -368,6 +368,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/02-Series/test_vtable_series_meta.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/02-Series/test_vtable_series_smoke.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/01-Basic/test_vtable_show_tag.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/01-Basic/test_vtable_validate_errmsg.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/01-Basic/test_vtable_show_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_decimal.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/03-TagRef/test_vtable_tag_ref.py

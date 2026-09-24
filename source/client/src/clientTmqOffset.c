@@ -302,6 +302,10 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
     tqErrorC("consumer:0x%" PRIx64 " failed to get the wal info from vgId:%d for topic:%s", pCommon->consumerId,
              pParam->vgId, pCommon->pTopicName);
 
+  } else if (pMsg->pData == NULL || pMsg->len < sizeof(SMqRspHead)) {
+    code = TSDB_CODE_TMQ_INVALID_MSG;
+    tqErrorC("consumer:0x%" PRIx64 " received short wal info response, len:%u", pCommon->consumerId,
+             pMsg->len);
   } else {
     SMqDataRsp rsp = {0};
     SDecoder   decoder = {0};

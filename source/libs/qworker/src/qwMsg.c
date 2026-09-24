@@ -247,11 +247,19 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
   rsp.affectedRows = affectedRows;
   rsp.tbVerInfo = ctx->tbInfo;
 
-  // Propagate federated query remote-side error message when available
-  if (ctx && ctx->taskHandle) {
-    const char* extMsg = qGetExtErrMsg(ctx->taskHandle);
+  // Propagate the executor's detailed error message when available.
+  // Snapshot under extErrLock (dedicated latch, never nested in ctx->lock);
+  // the serializer runs after unlock on the local copy.
+  char extBuf[512] = {0};
+  if (ctx) {
+    QW_LOCK(QW_READ, &ctx->extErrLock);
+    const char* extMsg = ctx->taskHandle ? qGetExtErrMsg(ctx->taskHandle) : ctx->extErrMsg;
     if (extMsg && extMsg[0] != '\0') {
-      rsp.extErrMsg = (char*)extMsg;  // serializer only reads; task outlives this function
+      tstrncpy(extBuf, extMsg, sizeof(extBuf));
+    }
+    QW_UNLOCK(QW_READ, &ctx->extErrLock);
+    if (extBuf[0] != '\0') {
+      rsp.extErrMsg = extBuf;  // serializer only reads
     }
     const SExtPushdownDiagnostic* extDiag = qGetExtPushdownDiagnostic(ctx->taskHandle);
     if (extDiag != NULL) {
@@ -354,13 +362,29 @@ int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *pStatus, int
 
 int32_t qwBuildAndSendFetchRsp(SQWTaskCtx *ctx, int32_t rspType, SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength,
                                int32_t code) {
+  // Snapshot under extErrLock (dedicated latch, never nested in ctx->lock)
+  char extErrBuf[512] = {0};
+  if (ctx != NULL && code != TSDB_CODE_SUCCESS) {
+    QW_LOCK(QW_READ, &ctx->extErrLock);
+    if (ctx->extErrMsg[0] != '\0') {
+      tstrncpy(extErrBuf, ctx->extErrMsg, sizeof(extErrBuf));
+    }
+    QW_UNLOCK(QW_READ, &ctx->extErrLock);
+  }
+  const char* extErrMsg = (extErrBuf[0] != '\0') ? extErrBuf : NULL;
+  int32_t     extErrLen = extErrMsg ? (int32_t)strlen(extErrMsg) + 1 : 0;
+
   if (NULL == pRsp) {
-    pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+    // Error fetch responses carry optional NUL-terminated detail text after the fixed header.
+    pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp) + extErrLen);
     if (NULL == pRsp) {
       QW_RET(terrno);
     }
     TAOS_MEMSET(pRsp, 0, sizeof(SRetrieveTableRsp));
-    dataLength = 0;
+    if (extErrLen > 0) {
+      memcpy(pRsp->data, extErrMsg, extErrLen);
+    }
+    dataLength = extErrLen;
   }
 
   SRpcMsg rpcRsp = {

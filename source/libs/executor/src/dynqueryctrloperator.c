@@ -4485,7 +4485,8 @@ static int32_t dynBuildResolvedColRefsFromEdgeMap(SOperatorInfo* pOperator, SHas
     }
 
     if (taosHashGet(pVtbScan->resolvedColRefMap, pRootRef->colRef, strlen(pRootRef->colRef)) == NULL) {
-      code = TSDB_CODE_VTABLE_INVALID_REF_COLUMN;
+      qError("vtb ref chain unresolved: root ref %s", pRootRef->colRef);
+      code = TSDB_CODE_VTABLE_REF_UNRESOLVED;
       QUERY_CHECK_CODE(code, line, _return);
     }
   }
@@ -4642,7 +4643,7 @@ static int32_t dynResolveFinalColRef(SOperatorInfo* pOperator, const char* colRe
 
   if (ppCached == NULL) {
     qError("%s failed since unresolved ref cache miss, ref:%s", __func__, colRef);
-    return TSDB_CODE_VTABLE_INVALID_REF_COLUMN;
+    return TSDB_CODE_VTABLE_REF_UNRESOLVED;
   }
 
   *ppResolved = *ppCached;
@@ -4867,6 +4868,7 @@ static int32_t parseColRefNameView(const char* colRef, SColRefNameView* pView) {
   firstDot = strchr(colRef, '.');
   secondDot = (firstDot == NULL) ? NULL : strchr(firstDot + 1, '.');
   if (firstDot == NULL || secondDot == NULL || firstDot == colRef || secondDot == firstDot + 1 || secondDot[1] == 0) {
+    // malformed ref name: a format violation, not a resolution miss
     code = TSDB_CODE_VTABLE_INVALID_REF_COLUMN;
     QUERY_CHECK_CODE(code, line, _return);
   }

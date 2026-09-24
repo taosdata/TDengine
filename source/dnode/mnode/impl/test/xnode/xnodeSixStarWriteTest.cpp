@@ -141,6 +141,7 @@ struct ObjectFields {
   StateValue from;
   StateValue to;
   StateValue config;
+  int32_t    via = 0;
 };
 
 struct MergeCase {
@@ -235,6 +236,10 @@ std::string CheckStateValueFields(cJSON *stateValue) {
 
 std::string CheckObjectFields(cJSON *fields) {
   if (!cJSON_IsObject(fields)) return "FIXTURE_REQUIRED_FIELD";
+  cJSON *via = cJSON_GetObjectItem(fields, "via");
+  if (via != nullptr && (!cJSON_IsNumber(via) || via->valuedouble != static_cast<double>(via->valueint))) {
+    return "FIXTURE_SCHEMA_INVALID";
+  }
   for (const char *key : {"from", "to", "config"}) {
     if (!HasKey(fields, key)) return "FIXTURE_REQUIRED_FIELD";
     std::string err = CheckStateValueFields(cJSON_GetObjectItem(fields, key));
@@ -441,7 +446,9 @@ std::string ExtractStateValue(cJSON *stateValue, StateValue *out) {
 
 std::string ExtractObjectFields(cJSON *fields, ObjectFields *out) {
   if (!cJSON_IsObject(fields)) return "FIXTURE_SCHEMA_INVALID";
-  if (IsUnknownKeyPresent(fields, {"from", "to", "config"})) return "FIXTURE_SCHEMA_INVALID";
+  if (IsUnknownKeyPresent(fields, {"via", "from", "to", "config"})) return "FIXTURE_SCHEMA_INVALID";
+  cJSON *via = cJSON_GetObjectItem(fields, "via");
+  if (via != nullptr) out->via = via->valueint;
   std::string err = ExtractStateValue(cJSON_GetObjectItem(fields, "from"), &out->from);
   if (!err.empty()) return err;
   err = ExtractStateValue(cJSON_GetObjectItem(fields, "to"), &out->to);
@@ -450,10 +457,11 @@ std::string ExtractObjectFields(cJSON *fields, ObjectFields *out) {
 }
 
 // Six-star error_ids accepted by the shared fixture schema (canonical registry
-// IDs 40-45), mirroring EXnodeSixStarError in mndXnode.h.
-const char *const kSixStarIds[] = {"SIXSTAR_INPUT_TYPE_INVALID", "SIXSTAR_PERCENT_ENCODING_INVALID",
-                                   "SIXSTAR_FIELD_AMBIGUOUS",    "SIXSTAR_CREATE_MASKED",
-                                   "SIXSTAR_KEEP_MISSING",       "SIXSTAR_JOB_JSON_INVALID"};
+// IDs 40-46, with 41 SIXSTAR_PERCENT_ENCODING_INVALID retired), mirroring
+// EXnodeSixStarError in mndXnode.h.
+const char *const kSixStarIds[] = {"SIXSTAR_INPUT_TYPE_INVALID", "SIXSTAR_FIELD_AMBIGUOUS",
+                                   "SIXSTAR_CREATE_MASKED",      "SIXSTAR_KEEP_MISSING",
+                                   "SIXSTAR_JOB_JSON_INVALID",   "SIXSTAR_CONNECTION_CHANGED"};
 
 std::string ExtractScanCase(cJSON *entry, ScanCase *out) {
   if (IsUnknownKeyPresent(entry, {"id", "input_bytes_b64url", "expected"})) return "FIXTURE_SCHEMA_INVALID";
@@ -622,8 +630,6 @@ const char *SixStarErrorName(int32_t sixStarError) {
   switch (sixStarError) {
     case XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID:
       return "SIXSTAR_INPUT_TYPE_INVALID";
-    case XNODE_SIXSTAR_ERROR_PERCENT_ENCODING_INVALID:
-      return "SIXSTAR_PERCENT_ENCODING_INVALID";
     case XNODE_SIXSTAR_ERROR_FIELD_AMBIGUOUS:
       return "SIXSTAR_FIELD_AMBIGUOUS";
     case XNODE_SIXSTAR_ERROR_CREATE_MASKED:
@@ -632,6 +638,8 @@ const char *SixStarErrorName(int32_t sixStarError) {
       return "SIXSTAR_KEEP_MISSING";
     case XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID:
       return "SIXSTAR_JOB_JSON_INVALID";
+    case XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED:
+      return "SIXSTAR_CONNECTION_CHANGED";
     default:
       return "SIXSTAR_UNKNOWN";
   }
@@ -725,9 +733,11 @@ TEST_F(XnodeSixStarWriteTest, ExecutesAllMergeCases) {
     input.oldFrom = FieldOf(mergeCase.oldFields.from);
     input.oldTo = FieldOf(mergeCase.oldFields.to);
     input.oldConfig = FieldOf(mergeCase.oldFields.config);
+    input.oldVia = mergeCase.oldFields.via;
     input.candidateFrom = FieldOf(mergeCase.candidate.from);
     input.candidateTo = FieldOf(mergeCase.candidate.to);
     input.candidateConfig = FieldOf(mergeCase.candidate.config);
+    input.candidateVia = mergeCase.candidate.via;
     input.maxFromLen = TSDB_XNODE_TASK_SOURCE_LEN;
     input.maxToLen = TSDB_XNODE_TASK_SINK_LEN;
     input.maxConfigLen = TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN;
@@ -854,7 +864,7 @@ TEST_F(XnodeSixStarWriteTest, KeepsStoredRealSixStarCredentialAsCredential) {
   SXnodeSixStarMergeInput input = {0};
   std::string             oldFrom = "taos://u:******@from-host/db?token=from-token";
   std::string             oldTo = "taos://u:to-old@to-host/db";
-  std::string             candFrom = "taos://u:******@new-host/db?token=******";
+  std::string             candFrom = "taos://u:******@from-host/db?token=from-token";
   std::string             candTo = "taos://u:new-to@new-host/db";
   input.create = false;
   input.protectionEnabled = true;
@@ -868,7 +878,7 @@ TEST_F(XnodeSixStarWriteTest, KeepsStoredRealSixStarCredentialAsCredential) {
   SXnodeSixStarMergeOutput output = {0};
   int32_t                  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
   ASSERT_EQ(mndXnodeSixStarMerge(&input, &output, &sixStarError), TSDB_CODE_SUCCESS);
-  EXPECT_EQ(std::string(output.from, output.fromLen), "taos://u:******@new-host/db?token=from-token");
+  EXPECT_EQ(std::string(output.from, output.fromLen), "taos://u:******@from-host/db?token=from-token");
   EXPECT_EQ(std::string(output.to, output.toLen), candTo);
   mndXnodeSixStarMergeOutputFree(&output);
 
@@ -899,11 +909,56 @@ TEST_F(XnodeSixStarWriteTest, KeepsNonSensitiveSixStarUntouched) {
   mndXnodeSixStarMergeOutputFree(&output);
 }
 
+TEST_F(XnodeSixStarWriteTest, KeepsTaskSecretWhenViaIsOmitted) {
+  SXnodeSixStarMergeInput input = {0};
+  std::string             oldFrom = "taos://u:old-password@from-host/db";
+  std::string             oldTo = "taos://u:old-password@to-host/db";
+  std::string             candidateFrom = "taos://u:******@from-host/db";
+  std::string             candidateTo = "taos://u:new-password@to-host/db";
+  input.protectionEnabled = true;
+  input.oldVia = 7;
+  input.oldFrom = {oldFrom.data(), static_cast<int32_t>(oldFrom.size())};
+  input.oldTo = {oldTo.data(), static_cast<int32_t>(oldTo.size())};
+  input.candidateFrom = {candidateFrom.data(), static_cast<int32_t>(candidateFrom.size())};
+  input.candidateTo = {candidateTo.data(), static_cast<int32_t>(candidateTo.size())};
+  input.maxFromLen = TSDB_XNODE_TASK_SOURCE_LEN;
+  input.maxToLen = TSDB_XNODE_TASK_SINK_LEN;
+
+  SXnodeSixStarMergeOutput output = {0};
+  int32_t                  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  EXPECT_EQ(mndXnodeSixStarMerge(&input, &output, &sixStarError), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(std::string(output.from, output.fromLen), oldFrom);
+  EXPECT_EQ(std::string(output.to, output.toLen), candidateTo);
+  mndXnodeSixStarMergeOutputFree(&output);
+}
+
+TEST_F(XnodeSixStarWriteTest, KeepsJobSecretWhenViaIsOmitted) {
+  SXnodeSixStarMergeInput input = {0};
+  std::string             oldConfig =
+      R"({"from":"taos://u:old-password@from-host/db","to":"taos://u:old-password@to-host/db"})";
+  std::string candidateConfig =
+      R"({"from":"taos://u:******@from-host/db","to":"taos://u:new-password@to-host/db"})";
+  std::string expectedConfig =
+      R"({"from":"taos://u:old-password@from-host/db","to":"taos://u:new-password@to-host/db"})";
+  input.protectionEnabled = true;
+  input.isJob = true;
+  input.oldVia = 7;
+  input.oldConfig = {oldConfig.data(), static_cast<int32_t>(oldConfig.size())};
+  input.candidateConfig = {candidateConfig.data(), static_cast<int32_t>(candidateConfig.size())};
+  input.maxConfigLen = TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN;
+
+  SXnodeSixStarMergeOutput output = {0};
+  int32_t                  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  EXPECT_EQ(mndXnodeSixStarMerge(&input, &output, &sixStarError), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(std::string(output.config, output.configLen), expectedConfig);
+  mndXnodeSixStarMergeOutputFree(&output);
+}
+
 TEST_F(XnodeSixStarWriteTest, TreatsPercentEncodedSixStarAsControlMarker) {
   // ALTER: %2A%2A%2A%2A%2A%2A decodes to exactly six stars and KEEPs.
   SXnodeSixStarMergeInput input = {0};
   std::string             oldFrom = "taos://u:real-old@from-host/db";
-  std::string             candFrom = "taos://u:%2A%2A%2A%2A%2A%2A@new-host/db";
+  std::string             candFrom = "taos://u:%2A%2A%2A%2A%2A%2A@from-host/db";
   input.create = false;
   input.protectionEnabled = true;
   input.oldFrom = {oldFrom.data(), static_cast<int32_t>(oldFrom.size())};
@@ -912,7 +967,7 @@ TEST_F(XnodeSixStarWriteTest, TreatsPercentEncodedSixStarAsControlMarker) {
   SXnodeSixStarMergeOutput output = {0};
   int32_t                  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
   ASSERT_EQ(mndXnodeSixStarMerge(&input, &output, &sixStarError), TSDB_CODE_SUCCESS);
-  EXPECT_EQ(std::string(output.from, output.fromLen), "taos://u:real-old@new-host/db");
+  EXPECT_EQ(std::string(output.from, output.fromLen), "taos://u:real-old@from-host/db");
   mndXnodeSixStarMergeOutputFree(&output);
 
   // CREATE: the same encoded marker is rejected instead of being stored.
@@ -937,7 +992,7 @@ TEST_F(XnodeSixStarWriteTest, EnforcesJobConfigOutputBufferBoundary) {
   const size_t passwordLen = 1000000;
   std::string  password(passwordLen, 'a');
   std::string  oldConfig = "{\"from\":\"taos://u:" + password + "@old/db\",\"to\":\"taos://u:x@h2/db\"}";
-  std::string  prefix = "{\"from\":\"taos://u:******@new/db\",\"to\":\"taos://u:y@h3/db\",\"pad\":\"";
+  std::string  prefix = "{\"from\":\"taos://u:******@old/db\",\"to\":\"taos://u:y@h2/db\",\"pad\":\"";
   std::string  suffix = "\"}";
   // final = prefix + pad + suffix with "******" replaced by password
   size_t       padLen = kMax - (prefix.size() + suffix.size() - 6 + passwordLen);
@@ -968,7 +1023,7 @@ TEST_F(XnodeSixStarWriteTest, EnforcesTaskDsnLengthBoundaryAfterKeep) {
   SXnodeSixStarMergeInput input = {0};
   std::string             password(4000, 'a');
   std::string             oldFrom = "taos://u:" + password + "@old-host/db";
-  std::string             candFrom = "taos://u:******@" + std::string(200, 'h') + "/db";
+  std::string             candFrom = "taos://u:******@old-host/db?note=" + std::string(200, 'h');
   input.create = false;
   input.protectionEnabled = true;
   input.isJob = false;

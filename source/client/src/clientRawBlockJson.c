@@ -21,6 +21,7 @@
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientRawBlockWrite.h"
+#include "clientTmq.h"
 #include "nodes.h"
 #include "taosdef.h"
 #include "tcol.h"
@@ -1065,6 +1066,11 @@ static int32_t processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     RAW_NULL_CHECK(len);
     void* tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
     RAW_NULL_CHECK(tmpBuf);
+    if (*len < (int32_t)sizeof(SMqRspHead)) {
+      code = TSDB_CODE_TMQ_INVALID_MSG;
+      lino = __LINE__;
+      goto end;
+    }
     SMqMetaRsp metaRsp = {0};
     tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), *len - sizeof(SMqRspHead));
     RAW_RETURN_CHECK(tDecodeMqMetaRsp(&metaCoder, &metaRsp));

@@ -242,6 +242,15 @@ _return:
   taosArrayDestroy(pResList);
 
   if (TSDB_CODE_SUCCESS != code) {
+    // extErrMsg is read cross-thread by the response builders under extErrLock.
+    // A dedicated latch is used on purpose: this path can run while ctx->lock is
+    // already held by the caller, and SRWLatch is not recursive.
+    QW_LOCK(QW_WRITE, &ctx->extErrLock);
+    const char* extErrMsg = qGetExtErrMsg(taskHandle);
+    if (extErrMsg != NULL) {
+      tstrncpy(ctx->extErrMsg, extErrMsg, sizeof(ctx->extErrMsg));
+    }
+    QW_UNLOCK(QW_WRITE, &ctx->extErrLock);
     qwFreeTaskHandle(ctx);
   }
 
@@ -588,6 +597,11 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   ctx->queryExecDone = false;
   ctx->queryEnd = false;
 #endif
+
+  // a fresh dynamic execution must not carry the previous execution's error text
+  QW_LOCK(QW_WRITE, &ctx->extErrLock);
+  ctx->extErrMsg[0] = '\0';
+  QW_UNLOCK(QW_WRITE, &ctx->extErrLock);
 
   QW_SINK_ENABLE_MEMPOOL(ctx);
   dsReset(ctx->sinkHandle);
