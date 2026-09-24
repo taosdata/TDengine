@@ -1488,7 +1488,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/12-EncryptPassword/test_encrypt_user_login.py
 
 # 32-Grants
-,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py
+,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py -N 5 -M 3
 
 # 34-CpuAffinity
 ,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_switch.py
