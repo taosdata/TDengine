@@ -734,6 +734,44 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
   return TSDB_CODE_SUCCESS;
 }
 
+static uint8_t getDecimalBindScale(const char* value, int32_t len, uint8_t maxScale) {
+  int32_t fractionDigits = 0;
+  int32_t trailingZeros = 0;
+  int32_t exponentSign = 1;
+  int32_t exponentPos = len;
+  int64_t exponent = 0;
+  bool    afterPoint = false;
+
+  for (int32_t i = 0; i < len; ++i) {
+    if (value[i] == 'e' || value[i] == 'E') {
+      exponentPos = i + 1;
+      break;
+    }
+    if (value[i] == '.') {
+      afterPoint = true;
+    } else if (isdigit((unsigned char)value[i])) {
+      if (afterPoint) {
+        ++fractionDigits;
+      }
+      trailingZeros = value[i] == '0' ? trailingZeros + 1 : 0;
+    }
+  }
+
+  if (exponentPos < len && (value[exponentPos] == '+' || value[exponentPos] == '-')) {
+    exponentSign = value[exponentPos] == '-' ? -1 : 1;
+    ++exponentPos;
+  }
+  // Account for significand zeros even when a negative exponent shifts them
+  // into the fractional part. The bound still keeps exponent parsing safe.
+  int64_t exponentLimit = (int64_t)TMAX(fractionDigits, trailingZeros) + maxScale;
+  for (int32_t i = exponentPos; i < len && isdigit((unsigned char)value[i]); ++i) {
+    exponent = TMIN(exponent * 10 + value[i] - '0', exponentLimit);
+  }
+
+  int64_t scale = (int64_t)fractionDigits - trailingZeros - exponentSign * exponent;
+  return (uint8_t)TMAX(0, TMIN(scale, maxScale));
+}
+
 static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
   if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode)) {
     snprintf(((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN, "#%d", *(int32_t*)pContext);
@@ -1023,67 +1061,41 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL64: {
-      // TSDB_DATA_TYPE_DECIMAL64: buffer may be string, need to convert to int64_t
-      // If buffer is string, convert it to decimal64 value first
-      if (pParam->length && *(pParam->length) > 0 && *(pParam->length) != sizeof(int64_t)) {
-        // Buffer is string, need to convert
-        uint8_t precision = pVal->node.resType.precision;
-        uint8_t scale = pVal->node.resType.scale;
-        // If precision/scale not set, use default (should not happen in normal case)
-        if (precision == 0 && scale == 0) {
-          precision = 18;
-          scale = 0;
-        }
-        Decimal64 dec = {0};
-        int32_t   code = decimal64FromStr((const char*)pParam->buffer, *(pParam->length), precision, scale, &dec);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-        int64_t value = DECIMAL64_GET_VALUE(&dec);
-        pVal->datum.i = value;
-        pVal->typeData = value;
-        pVal->node.resType.bytes = sizeof(int64_t);
-      } else {
-        // Buffer is already int64_t value, use it directly
-        int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
-        if (code) {
-          return code;
-        }
+      int32_t   strLen = pParam->length ? *(pParam->length) : 0;
+      uint8_t   precision = TSDB_DECIMAL64_MAX_PRECISION;
+      uint8_t   scale = getDecimalBindScale((const char*)pParam->buffer, strLen, precision);
+      Decimal64 dec = {0};
+      int32_t   code = decimal64FromStr((const char*)pParam->buffer, strLen, precision, scale, &dec);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
+      int64_t value = DECIMAL64_GET_VALUE(&dec);
+      pVal->datum.i = value;
+      pVal->typeData = value;
+      pVal->node.resType.bytes = sizeof(int64_t);
+      pVal->node.resType.precision = precision;
+      pVal->node.resType.scale = scale;
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL: {
-      // TSDB_DATA_TYPE_DECIMAL: buffer is string, need to convert to decimal128 binary format
+      // Conversion can fail after rebinding a scalar whose union held no pointer.
+      pVal->datum.p = NULL;
       pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes;
-      pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes);
+      int32_t    strLen = pParam->length ? *(pParam->length) : 0;
+      uint8_t    precision = TSDB_DECIMAL128_MAX_PRECISION;
+      uint8_t    scale = getDecimalBindScale((const char*)pParam->buffer, strLen, precision);
+      Decimal128 dec = {0};
+      int32_t    code = decimal128FromStr((const char*)pParam->buffer, strLen, precision, scale, &dec);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pVal->datum.p = taosMemoryMalloc(pVal->node.resType.bytes);
       if (NULL == pVal->datum.p) {
         return terrno;
       }
-
-      // Check if buffer is string or already binary format
-      int32_t strLen = (pParam->length && *(pParam->length) > 0) ? *(pParam->length) : 0;
-      if (strLen > 0 && strLen != pVal->node.resType.bytes) {
-        // Buffer is string, need to convert to decimal128
-        uint8_t precision = pVal->node.resType.precision;
-        uint8_t scale = pVal->node.resType.scale;
-        // If precision/scale not set, use default (should not happen in normal case)
-        if (precision == 0 && scale == 0) {
-          precision = 38;
-          scale = 0;
-        }
-        Decimal128 dec = {0};
-        int32_t    code = decimal128FromStr((const char*)pParam->buffer, strLen, precision, scale, &dec);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosMemoryFree(pVal->datum.p);
-          pVal->datum.p = NULL;
-          return code;
-        }
-        // Copy decimal128 binary data
-        memcpy(pVal->datum.p, &dec, sizeof(Decimal128));
-      } else {
-        // Buffer is already binary format, copy directly
-        memcpy(pVal->datum.p, pParam->buffer, pVal->node.resType.bytes);
-      }
+      memcpy(pVal->datum.p, &dec, sizeof(Decimal128));
+      pVal->node.resType.precision = precision;
+      pVal->node.resType.scale = scale;
       break;
     }
     case TSDB_DATA_TYPE_BLOB:
