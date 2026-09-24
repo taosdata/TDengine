@@ -6,6 +6,7 @@ import os
 import random
 import re
 import string
+import subprocess
 import taos
 import threading
 import time
@@ -157,7 +158,7 @@ class TestCase:
             return val.timestamp()
         return time.mktime(time.strptime(str(val).split('.')[0], "%Y-%m-%d %H:%M:%S"))
 
-    def s6_check_default_grant_expire(self):
+    def s1_0_check_default_grant_expire(self):
         tdLog.printNoPrefix("======== test default grant expire time: ")
         # The default (ungranted) license expires 10 days after cluster creation.
         # Allow generous redundancy (7~30 days) to tolerate rounding/service delays,
@@ -204,7 +205,7 @@ class TestCase:
                 tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
                 tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
                 tdSql.query(f'show grants full;')
-                nGrantItems = 50
+                nGrantItems = 52
                 tdSql.checkRows(nGrantItems)
                 tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
                 for i in range(1, nGrantItems):
@@ -280,6 +281,44 @@ class TestCase:
             self.clearEnv()
             raise Exception(repr(e))
 
+    def s6_check_free_edition(self):
+        tdLog.printNoPrefix("======== test free license: ")
+        # Driven by grantTest 3. The lic-free- prefix match lives on the CLS response path and
+        # is not reachable from a test binary, so the stub sets the license-tier flag directly
+        # the way the CLS handler would once the prefix matched, and asserts the behaviour that
+        # follows from it: "free" shows up in all three tier-visible outputs (ins_cluster.version,
+        # SHOW CLUSTER, SHOW GRANTS) and stays there after expiry, the granted time-series figure
+        # is echoed back rather than replaced by taosd, neither table creation nor column addition
+        # is rejected above that figure, and applying the licence on an already-over-limit cluster
+        # succeeds where a tier-0 licence is refused.
+        #
+        # Runs last on purpose: it leaves the cluster on an expired license, which would break
+        # the timeseries and expire-time checks in the earlier steps.
+
+        # registerEmail defaults to empty. Asserted here rather than inside the stub because it is
+        # a once-per-cluster observation: the config framework refuses an empty value (see the
+        # stub), so once any address has been written the default can never be observed again, and
+        # only this side knows the cluster has not been touched yet.
+        tdSql.query("select value from information_schema.ins_dnode_variables "
+                    "where name = 'registerEmail' and dnode_id = 1")
+        tdSql.checkRows(1)
+        tdSql.checkEqual(tdSql.queryResult[0][0], "")
+        tdLog.info("registerEmail defaults to empty")
+
+        try:
+            process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 3', shell=True,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            output, error = process.communicate()
+            output = output.decode(encoding="utf-8")
+            error = error.decode(encoding="utf-8")
+            print(f"code: {process.returncode}")
+            print(f"error:\n{error}")
+            print(f"output:\n{output}")
+            tdSql.checkEqual(process.returncode, 0)
+        except Exception as e:
+            self.clearEnv()
+            raise Exception(repr(e))
+
     @staticmethod
     def parseSystemStbArrayFromC(filePath, arrayName):
         """
@@ -332,6 +371,17 @@ class TestCase:
 
         tdLog.printNoPrefix("======== test timeseries exclude systable: ")
         try:
+            # Re-establish the baseline instead of inheriting it from s0. grantTest 1 (s3) has to
+            # drop db and audit near its end so it can re-apply a licence whose limitTimeSeries is
+            # 1, which a cluster holding s0's tables would reject. That left the count at 0 here.
+            # The dependency was invisible for as long as s3 failed before reaching those drops.
+            # Only db matters for the baseline: getTablesTimeSeries and the grant counter both
+            # exclude the audit database, and test1 below recreates audit anyway.
+            tdSql.execute("drop database if exists db")
+            tdSql.execute("create database db keep 36500d")
+            tdSql.execute("create table db.stb0(ts timestamp, c0 int primary key,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)")
+            tdSql.execute("create table db.ctb0 using db.stb0 tags(0)")
+
             # Get the current timeseries count as baseline
             tss_grant_base = 5
             self.checkGrantsTimeSeries("initial grant check", tss_grant_base)
@@ -424,6 +474,7 @@ class TestCase:
         Since: 2026-03-13
 
         Labels: audit,grant,log,regression,system-table,timeseries,integration,functional,security
+
         Jira: 6672169603
 
         Catalog:
@@ -434,17 +485,19 @@ class TestCase:
             - 2026-03-13: Initial migration, covering main grant and timeseries statistics process from Cary Xu.
             - 2026-03-13: Added system table exclusion and is_audit database scenarios from Cary Xu.
             - 2026-07: Added query_restricted grant item (show grants full now 50 rows) and default grant expire-time check.
+            - 2026-09-23: Re-enabled s2/s3/s4 (previously deferred) and added s7 free-edition coverage.
         """
         # keep the order of following steps
         self.workPath = os.path.join(tdCom.getBuildPath(), "build", "bin")
         tdLog.info(self.workPath)
         self.s0_prepare_test_data()
         self.s1_check_timeseries()
-        # self.s2_check_show_grants_ungranted() # migrated later
-        # self.s3_check_show_grants_granted() # migrated later
-        # self.s4_ts6191_check_dual_replica() # migrated later
+        self.s1_0_check_default_grant_expire()
+        self.s2_check_show_grants_ungranted()
+        self.s3_check_show_grants_granted()
+        self.s4_ts6191_check_dual_replica()
         self.s5_check_timeseries_exclude_systable()
-        self.s6_check_default_grant_expire()
+        self.s6_check_free_edition()
         self.clearEnv()
 
 

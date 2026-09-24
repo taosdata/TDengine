@@ -177,6 +177,7 @@ int32_t tsClsRefreshInterval = 3600;
 char    tsClsLastSucTime[TSDB_GRANT_CLS_TIME_LEN] = {0};
 char    tsClsLastReqTime[TSDB_GRANT_CLS_TIME_LEN] = {0};
 char    tsClsLastFailReason[TSDB_GRANT_CLS_REASON_LEN] = {0};
+char    tsRegisterEmail[TSDB_REGISTER_EMAIL_LEN] = {0};
 int32_t gGrantClsPreRefreshInterval = 3600;
 #endif
 
@@ -1330,6 +1331,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastSucTime", tsClsLastSucTime, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastReqTime", tsClsLastReqTime, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastFailReason", tsClsLastFailReason, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "registerEmail", tsRegisterEmail, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 #endif
   // clang-format on
 
@@ -2166,6 +2168,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastFailReason");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_REASON_LEN));
   tstrncpy(tsClsLastFailReason, pItem->str, TSDB_GRANT_CLS_REASON_LEN);
+
+  // Length only, no address-format check: taosd never sends mail, so the format carries no
+  // meaning here. Validating the address is the job of the taos-explorer entry form.
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "registerEmail");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_REGISTER_EMAIL_LEN));
+  tstrncpy(tsRegisterEmail, pItem->str, TSDB_REGISTER_EMAIL_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
   TAOS_CHECK_RETURN(taosHandleClsEnabledChange(pItem->bval));
@@ -3465,6 +3473,11 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   if (strcasecmp(name, "clsQuotaSlotId") == 0) {
     TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN), &lino, _exit);
     tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
+    goto _exit;
+  }
+  if (strcasecmp(name, "registerEmail") == 0) {
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_REGISTER_EMAIL_LEN), &lino, _exit);
+    tstrncpy(tsRegisterEmail, pItem->str, TSDB_REGISTER_EMAIL_LEN);
     goto _exit;
   }
   if (strcasecmp(name, "clsRefreshInterval") == 0) {

@@ -1474,7 +1474,7 @@ class TestBatchMetaTxnStream:
             session refused with TXN_RESOURCE_BUSY while the stream is pending_drop)
         31. txn_drop_refuses_tsma_stream (txn DROP path runs the same TSMA guard as non-txn)
         32. preexisting_normal_out_table (form D: INTO an existing NORMAL table is a
-            reference, not a create — outTblExists vs outStbExists dispatch)
+            reference, not a create outTblExists vs outStbExists dispatch)
         33. nested_window_rejected_in_txn (nested-window streams are refused inside a
             txn with TXN_INVALID_OPERATION, accepted outside one)
 

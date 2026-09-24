@@ -2423,7 +2423,15 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
         goto _OVER;
       }
 
-      code = mndMarkStreamTxnDrop(pMnode, pReq, pStream, (txn_id_t)dropReq.txnId);
+      // The marker trans must NOT own this statement's RPC handle. There is one marker
+      // trans per stream in the batch and each one completes independently, so whichever
+      // finishes first would answer the client while the remaining streams are still
+      // unmarked -- an immediate `show streams` then renders those streams with their
+      // runtime status instead of pending_drop. Passing NULL keeps the request handle out
+      // of every trans; the single response is sent by the dispatcher when this function
+      // returns, i.e. after the whole batch has been marked (see the return-code logic at
+      // the end of this function).
+      code = mndMarkStreamTxnDrop(pMnode, NULL, pStream, (txn_id_t)dropReq.txnId);
       sdbRelease(pMnode->pSdb, pStream);
       pStream = NULL;
       if (code != 0) {
@@ -2510,6 +2518,9 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     if (dropReq.count == 1) MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, lifecycleUpdateTime);
   } else if (dropReq.txnId != 0 && notExistNum < dropReq.count) {
     // Txn path: all drops went through changeless marker trans; nothing to prepare.
+    // Those transes deliberately do not own the request (see the call site), so the
+    // response is sent by the dispatcher once this function returns - that is, after
+    // every PRE_DROP marker of the batch has been applied.
   } else {
     // All streams don't exist, no need to prepare transaction
     mndTransDrop(pTrans);
@@ -2532,9 +2543,26 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  // If any stream was successfully added to transaction, return ACTION_IN_PROGRESS
-  // Otherwise, all streams don't exist (and igNotExists is set), return SUCCESS
-  code = (notExistNum < dropReq.count) ? TSDB_CODE_ACTION_IN_PROGRESS : TSDB_CODE_SUCCESS;
+  // Response ownership for the whole statement.
+  //
+  // Non-txn: the trans created above owns pReq->info, so report ACTION_IN_PROGRESS and let
+  // it answer when it finishes (pre-existing behaviour). If every requested stream was
+  // missing and igNotExists was set there is no trans at all, so answer success here.
+  //
+  // Txn: no trans owns the request - the per-stream PRE_DROP marker transes are created
+  // WITHOUT pReq precisely so they cannot answer it. Letting the first marker trans answer
+  // released the client while the rest of the batch was still unmarked, so an immediate
+  // `show streams` saw those streams in their runtime status (Idle/Running) instead of
+  // pending_drop (this was the intermittent s10 failure). Returning SUCCESS here makes the
+  // dispatcher send the one and only response after the loop above; each mndTransPrepare in
+  // that loop has already applied its marker synchronously by then, so a caller that reads
+  // `show streams` right after the statement returns observes the whole batch as
+  // pending_drop.
+  if (dropReq.txnId != 0) {
+    code = TSDB_CODE_SUCCESS;
+  } else {
+    code = (notExistNum < dropReq.count) ? TSDB_CODE_ACTION_IN_PROGRESS : TSDB_CODE_SUCCESS;
+  }
 
 _OVER:
   if (pStream) {
@@ -2789,7 +2817,13 @@ _exit:
 }
 
 /* Batch meta txn (phase 2): persist PRE_DROP marker for a stream being dropped
- * in a transaction. Returns 0 on success, error code otherwise. */
+ * in a transaction. Returns 0 on success, error code otherwise.
+ *
+ * pReq is the client statement this marker belongs to. The batch DROP path passes NULL on
+ * purpose: every stream of the batch gets its own marker trans and they complete in
+ * sequence, so attaching the request would let the first completed trans answer the client
+ * before the remaining streams are marked. Only the response ownership of the statement is
+ * affected - the marker itself is identical either way. */
 static int32_t mndMarkStreamTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStreamObj *pStream, txn_id_t txnId) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
