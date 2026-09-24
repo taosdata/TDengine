@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <map>
 #include <new>
@@ -28,6 +29,7 @@
 #include <vector>
 
 #include "executil.h"
+#include "dataSinkMgt.h"
 #include "executor.h"
 #include "executorInt.h"
 #include "filter.h"
@@ -52,6 +54,14 @@
 #include "windowfunc.h"
 
 extern "C" SHashObj *gStreamGrpTableHash;
+extern "C" int32_t getStreamInsertTableInfo(int64_t streamId, int64_t groupId, int8_t tbType,
+                                            SInsertTableInfo*** ppInfo);
+#ifdef BUILD_TEST
+extern "C" int32_t dataInserterTestInitTableInfo(SStreamInserterParam* pParam, SStreamDataInserterInfo* pInfo);
+extern "C" int32_t dataInserterTestUpdateTableInfo(SStreamDataInserterInfo* pInfo, SSubmitRsp2* pRsp, int8_t tbType);
+extern "C" int32_t dataInserterTestRemoveTableInfo(int64_t streamId, int64_t groupId, int8_t tbType);
+extern "C" int64_t dataInserterTestSharedSchemaCount(void);
+#endif
 extern "C" char      tsStableTagFilterCache;
 extern "C" int32_t getTableList(void *pVnode, SScanPhysiNode *pScanNode, SNode *pTagCond, SNode *pTagIndexCond,
                                 STableListInfo *pListInfo, uint8_t *digest, const char *idstr, SStorageAPI *pStorageAPI,
@@ -2715,6 +2725,281 @@ TEST(streamDataInserterTest, groupTableHashUsesFullStreamGroupKey) {
   taosHashCleanup(gStreamGrpTableHash);
   gStreamGrpTableHash = nullptr;
 }
+
+#ifdef BUILD_TEST
+class StreamInsertSchemaSharingTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_EQ(initInserterGrpInfo(), TSDB_CODE_SUCCESS);
+    fields_ = taosArrayInit(2, sizeof(SFieldWithOptions));
+    ASSERT_NE(fields_, nullptr);
+    SFieldWithOptions timestamp = {};
+    timestamp.type = TSDB_DATA_TYPE_TIMESTAMP;
+    timestamp.bytes = sizeof(int64_t);
+    SFieldWithOptions value = {};
+    value.type = TSDB_DATA_TYPE_INT;
+    value.bytes = sizeof(int32_t);
+    ASSERT_NE(taosArrayPush(fields_, &timestamp), nullptr);
+    ASSERT_NE(taosArrayPush(fields_, &value), nullptr);
+  }
+
+  void TearDown() override {
+    taosHashCleanup(gStreamGrpTableHash);
+    gStreamGrpTableHash = nullptr;
+    EXPECT_EQ(dataInserterTestSharedSchemaCount(), 0);
+    taosArrayDestroy(fields_);
+  }
+
+  int32_t Init(int64_t streamId, int64_t groupId, const char* name, int8_t type = TSDB_SUPER_TABLE,
+               int32_t version = 1) {
+    SStreamInserterParam param = {};
+    param.pFields = fields_;
+    param.tbType = type;
+    param.sver = version;
+    param.suid = 100;
+    SStreamDataInserterInfo info = {};
+    info.streamId = streamId;
+    info.groupId = groupId;
+    info.tbName = const_cast<char*>(name);
+    return dataInserterTestInitTableInfo(&param, &info);
+  }
+
+  int32_t Update(int64_t groupId, int32_t version, int8_t type = TSDB_SUPER_TABLE, int16_t valueColId = 2) {
+    SSchema columns[2] = {};
+    columns[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    columns[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+    columns[0].bytes = sizeof(int64_t);
+    columns[1].colId = valueColId;
+    columns[1].type = TSDB_DATA_TYPE_INT;
+    columns[1].bytes = sizeof(int32_t);
+    STableMetaRsp meta = {};
+    meta.tuid = type == TSDB_NORMAL_TABLE ? 1000 : 1000 + groupId;
+    meta.vgId = 1;
+    meta.sversion = version;
+    meta.numOfColumns = 2;
+    meta.pSchemas = columns;
+    SVCreateTbRsp create = {};
+    create.pMeta = &meta;
+    SSubmitRsp2 response = {};
+    response.aCreateTbRsp = taosArrayInit(1, sizeof(SVCreateTbRsp));
+    if (response.aCreateTbRsp == nullptr) return terrno;
+    if (taosArrayPush(response.aCreateTbRsp, &create) == nullptr) {
+      taosArrayDestroy(response.aCreateTbRsp);
+      return terrno;
+    }
+    SStreamDataInserterInfo info = {};
+    info.streamId = 1;
+    info.groupId = groupId;
+    int32_t code = dataInserterTestUpdateTableInfo(&info, &response, type);
+    taosArrayDestroy(response.aCreateTbRsp);
+    return code;
+  }
+
+  SArray* fields_ = nullptr;
+};
+
+TEST_F(StreamInsertSchemaSharingTest, NormalTableUsesOneEntryPerStreamAcrossGroups) {
+  for (int64_t groupId = 1; groupId <= 512; ++groupId) {
+    ASSERT_EQ(Init(1, groupId, "result", TSDB_NORMAL_TABLE), TSDB_CODE_SUCCESS);
+  }
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 1);
+  SInsertTableInfo** first = nullptr;
+  SInsertTableInfo** last = nullptr;
+  ASSERT_EQ(getStreamInsertTableInfo(1, 1, TSDB_NORMAL_TABLE, &first), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(getStreamInsertTableInfo(1, 512, TSDB_NORMAL_TABLE, &last), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*first, *last);
+  EXPECT_STREQ((*first)->tbname, "result");
+  taosHashRelease(gStreamGrpTableHash, first);
+  taosHashRelease(gStreamGrpTableHash, last);
+  ASSERT_EQ(Init(2, 1, "other_result", TSDB_NORMAL_TABLE), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 2);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+  ASSERT_EQ(Update(512, 1, TSDB_NORMAL_TABLE), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Update(1, 1, TSDB_NORMAL_TABLE), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(dataInserterTestRemoveTableInfo(1, 256, TSDB_NORMAL_TABLE), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 1);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+}
+
+TEST_F(StreamInsertSchemaSharingTest, SubtablesKeepSeparateIdentityAndShareSchema) {
+  ASSERT_EQ(Init(1, 1, "child_one"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Init(1, 2, "child_two"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Update(1, 1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Update(2, 1), TSDB_CODE_SUCCESS);
+  SInsertTableInfo** first = nullptr;
+  SInsertTableInfo** second = nullptr;
+  ASSERT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &first), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(getStreamInsertTableInfo(1, 2, TSDB_SUPER_TABLE, &second), TSDB_CODE_SUCCESS);
+  EXPECT_NE(*first, *second);
+  EXPECT_EQ((*first)->pSchema, (*second)->pSchema);
+  EXPECT_NE((*first)->uid, (*second)->uid);
+  EXPECT_STREQ((*first)->tbname, "child_one");
+  EXPECT_STREQ((*second)->tbname, "child_two");
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+  taosHashRelease(gStreamGrpTableHash, first);
+  ASSERT_EQ(dataInserterTestRemoveTableInfo(1, 1, TSDB_SUPER_TABLE), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(dataInserterTestRemoveTableInfo(1, 2, TSDB_SUPER_TABLE), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+  EXPECT_EQ((*second)->pSchema->numOfCols, 2);
+  taosHashRelease(gStreamGrpTableHash, second);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 0);
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 0);
+}
+
+TEST_F(StreamInsertSchemaSharingTest, SchemaUpdatePreservesInFlightVersionAndReclaimsItAfterRelease) {
+  ASSERT_EQ(Init(1, 1, "child_one"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Init(1, 2, "child_two"), TSDB_CODE_SUCCESS);
+  SInsertTableInfo** oldInfo = nullptr;
+  ASSERT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &oldInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Update(1, 2), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Update(2, 2), TSDB_CODE_SUCCESS);
+  SInsertTableInfo** first = nullptr;
+  SInsertTableInfo** second = nullptr;
+  ASSERT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &first), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(getStreamInsertTableInfo(1, 2, TSDB_SUPER_TABLE, &second), TSDB_CODE_SUCCESS);
+  EXPECT_EQ((*first)->pSchema, (*second)->pSchema);
+  EXPECT_EQ((*first)->version, 2);
+  EXPECT_EQ((*oldInfo)->version, 1);
+  EXPECT_EQ((*oldInfo)->pSchema->version, 1);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 2);
+  taosHashRelease(gStreamGrpTableHash, oldInfo);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+  taosHashRelease(gStreamGrpTableHash, first);
+  taosHashRelease(gStreamGrpTableHash, second);
+}
+
+TEST_F(StreamInsertSchemaSharingTest, EqualVersionWithDifferentColumnLayoutIsNotShared) {
+  ASSERT_EQ(Init(1, 1, "child_one"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Init(1, 2, "child_two"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Update(1, 2, TSDB_SUPER_TABLE, 2), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Update(2, 2, TSDB_SUPER_TABLE, 5), TSDB_CODE_SUCCESS);
+  SInsertTableInfo** first = nullptr;
+  SInsertTableInfo** second = nullptr;
+  ASSERT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &first), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(getStreamInsertTableInfo(1, 2, TSDB_SUPER_TABLE, &second), TSDB_CODE_SUCCESS);
+  EXPECT_NE((*first)->pSchema, (*second)->pSchema);
+  EXPECT_EQ((*first)->pSchema->columns[1].colId, 2);
+  EXPECT_EQ((*second)->pSchema->columns[1].colId, 5);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 2);
+  taosHashRelease(gStreamGrpTableHash, first);
+  taosHashRelease(gStreamGrpTableHash, second);
+}
+
+TEST_F(StreamInsertSchemaSharingTest, RemovalAfterUpdateDoesNotReviveOrFreeAcquiredOldTable) {
+  ASSERT_EQ(Init(1, 1, "child_one"), TSDB_CODE_SUCCESS);
+  SInsertTableInfo** oldInfo = nullptr;
+  ASSERT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &oldInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Update(1, 2), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(dataInserterTestRemoveTableInfo(1, 1, TSDB_SUPER_TABLE), TSDB_CODE_SUCCESS);
+  SInsertTableInfo** current = nullptr;
+  EXPECT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &current), TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+  EXPECT_EQ((*oldInfo)->pSchema->version, 1);
+  taosHashRelease(gStreamGrpTableHash, oldInfo);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 0);
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 0);
+}
+
+static int32_t failSharedInsertSchemaHashPut(SHashObj*, const void*, size_t, const void*, size_t) {
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+TEST_F(StreamInsertSchemaSharingTest, FailedTableInsertAndSchemaPreparationPreserveExistingSchema) {
+  ASSERT_EQ(Init(1, 1, "child_one"), TSDB_CODE_SUCCESS);
+  {
+    Stub stub;
+    stub.set(taosHashPut, failSharedInsertSchemaHashPut);
+    EXPECT_EQ(Init(1, 2, "child_two"), TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(Update(1, 2), TSDB_CODE_OUT_OF_MEMORY);
+  }
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 1);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+  SInsertTableInfo** info = nullptr;
+  ASSERT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &info), TSDB_CODE_SUCCESS);
+  EXPECT_EQ((*info)->version, 1);
+  EXPECT_EQ((*info)->uid, 0);
+  EXPECT_EQ((*info)->pSchema->numOfCols, 2);
+  taosHashRelease(gStreamGrpTableHash, info);
+  ASSERT_EQ(dataInserterTestRemoveTableInfo(1, 1, TSDB_SUPER_TABLE), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 0);
+}
+
+TEST_F(StreamInsertSchemaSharingTest, FailedReplacementKeepsAcquiredOldTableAliveAndAllowsRecreation) {
+  ASSERT_EQ(Init(1, 1, "child_one"), TSDB_CODE_SUCCESS);
+  SInsertTableInfo** oldInfo = nullptr;
+  ASSERT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &oldInfo), TSDB_CODE_SUCCESS);
+  {
+    Stub stub;
+    stub.set(taosHashPut, failSharedInsertSchemaHashPut);
+    EXPECT_EQ(Update(1, 1), TSDB_CODE_OUT_OF_MEMORY);
+  }
+  SInsertTableInfo** current = nullptr;
+  EXPECT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &current), TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND);
+  EXPECT_EQ((*oldInfo)->pSchema->version, 1);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+  taosHashRelease(gStreamGrpTableHash, oldInfo);
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 0);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 0);
+  ASSERT_EQ(Init(1, 1, "child_one"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Update(1, 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 1);
+}
+
+TEST_F(StreamInsertSchemaSharingTest, SharedSchemaReferenceCountExceedsSixteenBits) {
+  constexpr int64_t groupCount = 65537;
+  for (int64_t groupId = 1; groupId <= groupCount; ++groupId) {
+    ASSERT_EQ(Init(1, groupId, "child"), TSDB_CODE_SUCCESS);
+  }
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), groupCount);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+  for (int64_t groupId = 1; groupId <= groupCount; ++groupId) {
+    ASSERT_EQ(dataInserterTestRemoveTableInfo(1, groupId, TSDB_SUPER_TABLE), TSDB_CODE_SUCCESS);
+  }
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 0);
+}
+
+TEST_F(StreamInsertSchemaSharingTest, FailedFirstSchemaInsertLeavesNoSharedEntry) {
+  {
+    Stub stub;
+    stub.set(taosHashPut, failSharedInsertSchemaHashPut);
+    EXPECT_EQ(Init(1, 1, "child"), TSDB_CODE_OUT_OF_MEMORY);
+  }
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 0);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 0);
+  ASSERT_EQ(Init(1, 1, "child"), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+}
+
+TEST_F(StreamInsertSchemaSharingTest, NullTableValueDoesNotLeakHashReference) {
+  int64_t key[2] = {1, 1};
+  SInsertTableInfo* empty = nullptr;
+  ASSERT_EQ(taosHashPut(gStreamGrpTableHash, key, sizeof(key), &empty, sizeof(empty)), TSDB_CODE_SUCCESS);
+  SStreamDataInserterInfo info = {};
+  info.streamId = 1;
+  info.groupId = 1;
+  EXPECT_EQ(dataInserterTestUpdateTableInfo(&info, nullptr, TSDB_SUPER_TABLE), TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  SInsertTableInfo** acquired = nullptr;
+  EXPECT_EQ(getStreamInsertTableInfo(1, 1, TSDB_SUPER_TABLE, &acquired), TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND);
+  ASSERT_EQ(dataInserterTestRemoveTableInfo(1, 1, TSDB_SUPER_TABLE), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 0);
+}
+
+TEST_F(StreamInsertSchemaSharingTest, ConcurrentNormalTableInitializationReusesOneEntry) {
+  std::atomic<int32_t> failures{0};
+  std::vector<std::thread> workers;
+  for (int64_t worker = 0; worker < 8; ++worker) {
+    workers.emplace_back([&, worker]() {
+      for (int64_t index = 0; index < 64; ++index) {
+        if (Init(1, worker * 64 + index, "result", TSDB_NORMAL_TABLE) != TSDB_CODE_SUCCESS) ++failures;
+      }
+    });
+  }
+  for (auto& worker : workers) worker.join();
+  EXPECT_EQ(failures.load(), 0);
+  EXPECT_EQ(taosHashGetSize(gStreamGrpTableHash), 1);
+  EXPECT_EQ(dataInserterTestSharedSchemaCount(), 1);
+}
+#endif
 
 TEST(execUtilTest, stableTagFilterCacheWarmsAllEqualTagGroupsOnMiss) {
   char oldStableTagFilterCache = tsStableTagFilterCache;

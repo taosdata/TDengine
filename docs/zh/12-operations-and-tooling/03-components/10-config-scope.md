@@ -167,6 +167,7 @@ toc_max_heading_level: 4
 | streamNotifyWorkerNum | taosd | 异步事件通知 worker 线程个数（每个 snode） |
 | streamNotifyBatchIntervalMs | taosd | 异步事件通知批处理的最大等待时间 |
 | streamNotifyParamPoolSize | taosd | 异步事件通知 pending 项对象池总容量上限（所有 stream 共享） |
+| streamTriggerMaxPendingParams | taosd | 流计算触发时允许积攒的待计算参数个数上限，达到后暂停积攒新参数 |
 | **日志相关** | | |
 | logDir | both | 日志文件目录，运行日志将写入该目录 |
 | minimalLogDirGB | both | 日志文件夹所在磁盘可用空间大小小于该值时，停止写日志 |

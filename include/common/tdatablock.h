@@ -270,6 +270,7 @@ int32_t blockDataFromBufBounded(SSDataBlock* pBlock, const char* buf,
 int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount, SSDataBlock** pResBlock);
 
 size_t blockDataGetSize(const SSDataBlock* pBlock);
+size_t blockDataGetMemorySize(const SSDataBlock* pBlock);
 size_t blockDataGetRowSize(SSDataBlock* pBlock);
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols);

@@ -67,6 +67,29 @@ Task-level metrics depend on task responsibility:
 
 Use `status` to check whether a task is healthy and `last_update` to determine whether its status and metrics are still fresh. The stream-level view does not have a `last_update` column.
 
+## Analyze Stream-Task Memory
+
+Task period logs report capacity estimates for objects attributable to each module; they are not the RSS of the
+`taosd` process:
+
+- Reader: `reader_shallow_memory_bytes_estimate` is a shallow structural memory estimate. For calc Readers, it counts only the outer array and its capacity and each calc info structure itself, excluding ASTs, plan strings, filters, conditions, and runtime arrays and contexts referenced by those structures. For trigger Readers, it covers known hash tables, arrays, data blocks, and virtual-table cache structures without recursively enumerating all nested resources. It does not represent all memory owned by a Reader. Readers that reference external data sources cannot enumerate their structures through this interface, so the field is `NA` for them.
+- Trigger: `trigger_pool_memory_bytes_estimate` in the `record=resources` line sums object-pool capacity for realtime and history contexts.
+- Runner: `runner_owned_memory_bytes_estimate` covers execution-list nodes and known output data-block capacity; `executor_memory_bytes_estimate` sums task objects, the operator tree, expression resources, result blocks, and directly visible executor allocations for each executor task.
+
+The Runner execution thread samples output-block and executor memory before releasing an executor or retaining its
+continuation, at most once per second for each executor. Heartbeats read the latest snapshot without accessing operators
+that are executing. Walking the operator tree is only performed when query debug logging is enabled;
+without it, an executor that has not been sampled yet reports `NA` instead of its initial zero bytes,
+while a previously sampled value is kept. Estimates can lag behind current allocations during a long
+calculation. Trigger common recalculation statistics also refresh at most once per second and reuse
+the previous snapshot between samples.
+
+These fields cover only allocations whose ownership is known by the module. The `estimate` suffix means nested
+allocations that cannot be enumerated through operator `info`, shared caches, and untracked third-party allocations are excluded; values must not be double-counted across
+modules. Sort by `stream_id`, `task_id`, and time, then check whether capacity grows together with `table_count`,
+`*_pool_capacity`, `running_exec_count`, or `pending_notify_count`. If module estimates stay stable while process RSS
+continues to grow, use `top` or a finer-grained allocator/executor profiler to inspect allocations outside this scope.
+
 ## View Historical-Data Processing Progress
 
 For a stream created with `STREAM_OPTIONS(FILL_HISTORY)` or `STREAM_OPTIONS(FILL_HISTORY_FIRST)`, `ins_streams.history_progress_pct` reports progress over the initial historical range:
@@ -113,6 +136,8 @@ This retention policy applies to terminal records; it is separate from persisten
 ## Understand `NULL` and Zero Values
 
 The one-minute metrics cover the latest 60 complete seconds and exclude the current second. After a task starts, restarts, or is redeployed, it must first produce a complete window; until then, the corresponding metrics are `NULL`.
+
+Reader, Trigger, and Runner DEBUG period logs target approximately 180 seconds; use the logged `stats_window_ms` for the actual interval.
 
 - If there is no input or output during a complete window, the corresponding rate is `0`.
 - If a Runner forms no result sample during a complete window, result latency is `NULL`.

@@ -124,8 +124,16 @@ static int32_t tDecodeBinaryWithSize(SDecoder* pCoder, uint32_t size, uint8_t** 
 static int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint32_t* len);
 static int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len);
 static int32_t tDecodeCStr(SDecoder* pCoder, char** val);
-static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val);
 static int32_t tDecodeCStrToFixed(SDecoder* pCoder, char* val, size_t dstSize);
+static int32_t tDecodeCStrToN(SDecoder* pCoder, char* val, uint32_t valSize);
+
+/* Decode a length-prefixed string into a fixed-size destination buffer. valSize is the capacity of
+ * val, the terminating NUL included; a string that does not fit is rejected with
+ * TSDB_CODE_INVALID_MSG and no byte is written past valSize.
+ * tDecodeCStrTo() bounds the copy by sizeof(val) and is therefore only valid when val is a char
+ * array. Decoding into a buffer whose capacity is not that of an array (an allocated buffer, or an
+ * array element reached through a pointer) must use tDecodeCStrToN() with the explicit capacity. */
+#define tDecodeCStrTo(pCoder, val) tDecodeCStrToN((pCoder), (val), (uint32_t)sizeof(val))
 
 /* ------------------------ IMPL ------------------------ */
 static FORCE_INLINE int32_t tEncodeFixed(SEncoder* pCoder, const void* val, uint32_t size) {
@@ -469,30 +477,35 @@ static FORCE_INLINE int32_t tDecodeCStr(SDecoder* pCoder, char** val) {
   return tDecodeCStrAndLen(pCoder, val, &len);
 }
 
-static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val) {
+static int32_t tDecodeCStrToN(SDecoder* pCoder, char* val, uint32_t valSize) {
   char*    pStr = NULL;
   uint32_t len = 0;
   TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pStr, &len));
 
-  if (len < pCoder->size) {
-    TAOS_MEMCPY(val, pStr, len + 1);
+  // len is the string length without the terminating NUL, which is copied as well
+  if (len + 1 > valSize) {
+    // Fixed-width string fields are historically encoded with tEncodeCStrWithLen(x, sizeof(x)),
+    // which writes sizeof(x) + 1 bytes, i.e. one byte more than the destination can hold. Such a
+    // message is accepted only while the string is still NUL-terminated inside the destination;
+    // a string that does not fit is rejected and nothing is ever written past valSize bytes.
+    char* pNul = (char*)memchr(pStr, '\0', valSize);
+    if (pNul == NULL) {
+      TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+    }
+    len = (uint32_t)(pNul - pStr);
   }
 
+  TAOS_MEMCPY(val, pStr, len + 1);
   return 0;
 }
 
 // Decode a length-prefixed C string into a caller-owned fixed-size buffer, rejecting the message
 // when the string does not fit.
 //
-// tDecodeCStrTo() bounds the read against the bytes remaining in the message only, never against
-// the destination: the decoder already guarantees len < pCoder->size, so its guard is always true
-// and it unconditionally copies len + 1 decoded bytes into whatever pointer the caller passes.
-// That is only safe while the destination is at least as large as the whole message. Whenever the
-// destination is a smaller fixed-size buffer, the decoded length has to be validated against that
-// buffer's capacity instead, which is what this function does.
-//
-// Prefer this function for struct fields and stack buffers declared as fixed-size arrays, e.g.
-// SMndCheckColRefReq.tbFName / colName inside the stack-local req built in mndProcessCheckColRefReq.
+// Unlike tDecodeCStrToN(), this is strict: the decoded length must be smaller than dstSize, so the
+// historical tEncodeCStrWithLen(x, sizeof(x)) encoding that carries one byte more than the
+// destination is rejected even when the string is NUL-terminated inside it. Use it only for
+// fields whose encoder never emits that form, e.g. SMndCheckColRefReq.tbFName / colName.
 // FORCE_INLINE matches the rest of this header and keeps the helper out of -Wunused-function in TUs
 // that include tencode.h without calling it.
 static FORCE_INLINE int32_t tDecodeCStrToFixed(SDecoder* pCoder, char* val, size_t dstSize) {

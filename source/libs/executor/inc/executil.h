@@ -160,12 +160,14 @@ typedef struct SDBVgInfoMgr {
 } SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
+struct SStreamInsertSchema;
 typedef struct SInsertTableInfo {
-  int64_t                  uid;
-  int64_t                  vgid;
-  int32_t                  version;
-  STSchema*                pSchema;
-  char*                    tbname;
+  int64_t                    uid;
+  int64_t                    vgid;
+  int32_t                    version;
+  STSchema*                  pSchema;
+  struct SStreamInsertSchema* pSharedSchema;
+  char*                      tbname;
 } SInsertTableInfo;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,

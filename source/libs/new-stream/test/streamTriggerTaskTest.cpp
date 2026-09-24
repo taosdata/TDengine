@@ -66,6 +66,7 @@ extern "C" {
 #include "taoserror.h"
 #include "tcurl.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 #include "tmisce.h"
 #include "ttime.h"
 
@@ -16274,7 +16275,7 @@ TEST_F(StreamNestedHistoryEffectsTest, ExactRefValidationWalksPendingLaneOnce) {
 TEST_F(StreamNestedHistoryEffectsTest, ContextPressureUsesConstantTimeConservativeBound) {
   NestedHistoryHarness harness;
   constexpr int32_t    groupCount = 32;
-  constexpr int32_t    contextPendingLimit = 1024 * 1024;
+  const int32_t        contextPendingLimit = tsStreamTriggerMaxPendingParams;
   prepareNestedHistoryGroups(harness, groupCount, 2);
 
   SSTriggerHistoryContext*            pContext = harness.historyContext();
@@ -16288,9 +16289,8 @@ TEST_F(StreamNestedHistoryEffectsTest, ContextPressureUsesConstantTimeConservati
     groups.push_back(pGroup);
   }
 
-  constexpr int32_t pendingPerGroup = (contextPendingLimit + groupCount - 1) / groupCount;
-  static_assert(pendingPerGroup < STREAM_CALC_REQ_MAX_WIN_NUM,
-                "pending calculation requests exceed the window limit");
+  const int32_t pendingPerGroup = (static_cast<int64_t>(contextPendingLimit) + groupCount - 1) / groupCount;
+  ASSERT_LT(pendingPerGroup, STREAM_CALC_REQ_MAX_WIN_NUM);
   ScopedHistoryPendingInflation inflation(pContext, groups, pendingPerGroup);
   pContext->pMinGroup = nullptr;
   pContext->finishCheck = false;
@@ -25122,6 +25122,80 @@ TEST_F(StreamTriggerRetryObservabilityTest, NestedRealtimeCheckFailureIsNotCount
   EXPECT_EQ(period.period.trigger.failureCount, 1U);
 }
 
+static int64_t gCalcParamPoolShrinkTestMonoUs = 0;
+
+static int64_t calcParamPoolShrinkTestMonotonicUs() { return gCalcParamPoolShrinkTestMonoUs; }
+
+static void* failCalcParamPoolShrinkRealloc(void*, int64_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+TEST_F(StreamTriggerRetryObservabilityTest, CalcParamPoolShrinksOnlyWhenEmptyAndThrottlesRetries) {
+  gCalcParamPoolShrinkTestMonoUs = 120000001;
+  stub_.set(stTriggerTaskReleaseRequest, releaseTriggerRetryRequestForCheck);
+  stub_.set(streamReadCheckPoint, failTriggerCheckpointRead);
+  stub_.set(streamTaskGetMonotonicUs, calcParamPoolShrinkTestMonotonicUs);
+  ASSERT_EQ(taosObjPoolInit(&context_.calcParamPool, 4096, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  context_.lastCalcParamPoolShrinkMonoUs = 60000001;
+  context_.status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
+  context_.haveReadCheckpoint = false;
+  atomic_store_8(&task_.isCheckpointReady, 1);
+
+  SSTriggerAHandle responseAhandle = {};
+  responseAhandle.param = &request_;
+  SMsgSendInfo responseSendInfo = {};
+  responseSendInfo.param = &responseAhandle;
+  SRpcMsg response = {};
+  response.msgType = TDMT_STREAM_TRIGGER_CALC_RSP;
+  response.info.ahandle = &responseSendInfo;
+  auto check = [&]() {
+    int64_t errorTaskId = 0;
+    EXPECT_EQ(stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId), TSDB_CODE_FAILED);
+    stDebug("calc param pool shrink test check, now:%" PRId64 ", capacity:%" PRId64 ", gauge capacity:%" PRId64,
+            gCalcParamPoolShrinkTestMonoUs, context_.calcParamPool.capacity,
+            task_.realtimeDebugGauges.calcParamPoolCapacity);
+  };
+
+  SObjList pending = {};
+  SSTriggerCalcParam param = {};
+  ASSERT_EQ(taosObjListInit(&pending, &context_.calcParamPool), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+  check();
+  EXPECT_EQ(context_.calcParamPool.capacity, 4096);
+  taosObjListClear(&pending);
+  void* originalData = context_.calcParamPool.pData;
+  int64_t originalFreeHead = context_.calcParamPool.freeHeadIdx;
+  int64_t originalFreeTail = context_.calcParamPool.freeTailIdx;
+  {
+    Stub allocationStub;
+    allocationStub.set(taosMemRealloc, failCalcParamPoolShrinkRealloc);
+    check();
+  }
+  EXPECT_EQ(context_.calcParamPool.pData, originalData);
+  EXPECT_EQ(context_.calcParamPool.capacity, 4096);
+  EXPECT_EQ(context_.calcParamPool.freeHeadIdx, originalFreeHead);
+  EXPECT_EQ(context_.calcParamPool.freeTailIdx, originalFreeTail);
+  EXPECT_EQ(context_.lastCalcParamPoolShrinkMonoUs, 120000001);
+  check();
+  EXPECT_EQ(context_.calcParamPool.capacity, 4096);
+  gCalcParamPoolShrinkTestMonoUs += 60000000;
+  check();
+  EXPECT_EQ(context_.calcParamPool.capacity, 2048);
+  EXPECT_EQ(context_.lastCalcParamPoolShrinkMonoUs, gCalcParamPoolShrinkTestMonoUs);
+  EXPECT_EQ(task_.realtimeDebugGauges.calcParamPoolCapacity, 2048);
+  EXPECT_EQ(task_.realtimeDebugGauges.calcParamPoolBytes, 2048 * context_.calcParamPool.nodeSize);
+  check();
+  EXPECT_EQ(context_.calcParamPool.capacity, 2048);
+  gCalcParamPoolShrinkTestMonoUs += 60000000;
+  check();
+  EXPECT_EQ(context_.calcParamPool.capacity, 1024);
+  gCalcParamPoolShrinkTestMonoUs += 60000000;
+  check();
+  EXPECT_EQ(context_.calcParamPool.capacity, 1024);
+  taosObjPoolDestroy(&context_.calcParamPool);
+}
+
 TEST_F(StreamTriggerRetryObservabilityTest, FailedResponseRefreshesMutatedOwnerGauges) {
   stub_.set(stTriggerTaskReleaseRequest, releaseTriggerRetryRequestAndClearPool);
   stub_.set(streamReadCheckPoint, failTriggerCheckpointRead);
@@ -29476,6 +29550,199 @@ class StreamTriggerDebugTest : public ::testing::Test {
   SStreamTriggerTask        task_ = {};
   SStreamTaskPeriodSnapshot snapshot_ = {};
 };
+
+static int64_t gCommonGaugeTestMonoUs = 0;
+
+static int64_t commonGaugeTestMonotonicUs() { return gCommonGaugeTestMonoUs; }
+
+TEST_F(StreamTriggerDebugTest, RecalcMemoryIncludesPendingReadyBackoffAndHistory) {
+  Stub clockStub;
+  clockStub.set(streamTaskGetMonotonicUs, commonGaugeTestMonotonicUs);
+  gCommonGaugeTestMonoUs = 0;
+  taosInitRWLatch(&task_.recalcRequestLock);
+  task_.pRecalcRequests = tdListNew(sizeof(SSTriggerRecalcRequest*));
+  ASSERT_NE(task_.pRecalcRequests, nullptr);
+  task_.pGroupPendingRecalcs = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task_.pGroupPendingRecalcs, nullptr);
+
+  SSTriggerRecalcRequest ready = {};
+  SSTriggerRecalcRequest pending = {};
+  SSTriggerRecalcRequest backoff = {};
+  SSTriggerRecalcRequest manual = {};
+  ready.pTsdbVersions = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  ASSERT_NE(ready.pTsdbVersions, nullptr);
+  for (int32_t vgId = 0; vgId < 64; ++vgId) {
+    int64_t version = vgId;
+    ASSERT_EQ(tSimpleHashPut(ready.pTsdbVersions, &vgId, sizeof(vgId), &version, sizeof(version)),
+              TSDB_CODE_SUCCESS);
+  }
+  SSTriggerRecalcRequest* readyPtr = &ready;
+  ASSERT_EQ(tdListAppend(task_.pRecalcRequests, &readyPtr), TSDB_CODE_SUCCESS);
+  TD_DLIST_APPEND(&task_.backoffRecalcRequests, &backoff);
+  SSTriggerGroupPendingRecalc group = {};
+  TD_DLIST_APPEND(&group.pendingRequests, &pending);
+  int64_t gid = 1;
+  ASSERT_EQ(tSimpleHashPut(task_.pGroupPendingRecalcs, &gid, sizeof(gid), &group, sizeof(group)),
+            TSDB_CODE_SUCCESS);
+
+  SSTriggerRealtimeContext realtime = {};
+  SSTriggerHistoryContext history = {};
+  history.pManualRecalcRequest = &manual;
+  stTriggerTaskRefreshCommonDebugGauges(&task_);
+  stTriggerTaskPublishRealtimeDebugGauges(&task_, &realtime);
+  stTriggerTaskPublishHistoryDebugGauges(&task_, &history);
+  EXPECT_EQ(task_.commonDebugGauges.recalcMemory.requestCount, 2);
+  EXPECT_EQ(task_.realtimeDebugGauges.recalcMemory.requestCount, 1);
+  EXPECT_EQ(task_.historyDebugGauges.recalcMemory.requestCount, 1);
+
+  int64_t hashBytes = tSimpleHashGetMemSize(ready.pTsdbVersions) + 64 * (sizeof(int32_t) + sizeof(int64_t));
+  int64_t queueBytes = sizeof(SList) + sizeof(SListNode) + sizeof(SSTriggerRecalcRequest*);
+  int64_t requestBytes = 4 * sizeof(SSTriggerRecalcRequest);
+  ScopedTriggerDebugLogCapture capture;
+  ASSERT_EQ(EmitPeriod(), TSDB_CODE_SUCCESS);
+  const auto& resources = FindRecord("record=resources");
+  EXPECT_NE(resources.find("recalc_request_count=4"), std::string::npos);
+  EXPECT_NE(resources.find("recalc_request_memory_bytes_estimate=" + std::to_string(requestBytes)), std::string::npos);
+  EXPECT_NE(resources.find("recalc_version_hash_memory_bytes_estimate=" + std::to_string(hashBytes)), std::string::npos);
+  EXPECT_NE(resources.find("recalc_ready_queue_memory_bytes_estimate=" + std::to_string(queueBytes)), std::string::npos);
+  EXPECT_NE(resources.find("trigger_recalc_memory_bytes_estimate=" +
+                           std::to_string(requestBytes + hashBytes + queueBytes)), std::string::npos);
+
+  tSimpleHashCleanup(ready.pTsdbVersions);
+  tdListFree(task_.pRecalcRequests);
+  task_.pRecalcRequests = nullptr;
+  tSimpleHashCleanup(task_.pGroupPendingRecalcs);
+  task_.pGroupPendingRecalcs = nullptr;
+  TD_DLIST_POP(&task_.backoffRecalcRequests, &backoff);
+  history.pManualRecalcRequest = nullptr;
+  gCommonGaugeTestMonoUs += 1000000;
+  stTriggerTaskRefreshCommonDebugGauges(&task_);
+  stTriggerTaskPublishRealtimeDebugGauges(&task_, &realtime);
+  stTriggerTaskPublishHistoryDebugGauges(&task_, &history);
+  gTriggerDebugLogs.clear();
+  ASSERT_EQ(EmitPeriod(), TSDB_CODE_SUCCESS);
+  const auto& emptyResources = FindRecord("record=resources");
+  EXPECT_NE(emptyResources.find("recalc_request_count=0"), std::string::npos);
+  EXPECT_NE(emptyResources.find("trigger_recalc_memory_bytes_estimate=0"), std::string::npos);
+}
+
+static SRWLatch* gRecalcMemorySnapshotLatch = nullptr;
+static bool gRecalcMemorySnapshotExcludesReaders = false;
+static int32_t gRecalcMemorySnapshotChecks = 0;
+
+static size_t checkRecalcMemorySnapshotExclusion(const SSHashObj*) {
+  ++gRecalcMemorySnapshotChecks;
+  int32_t code = taosWTryLockLatch(gRecalcMemorySnapshotLatch);
+  EXPECT_NE(code, 0);
+  if (code == 0) taosWUnLockLatch(gRecalcMemorySnapshotLatch);
+  if (gRecalcMemorySnapshotExcludesReaders) {
+    code = taosRTryLockLatch(gRecalcMemorySnapshotLatch);
+    EXPECT_NE(code, 0);
+    if (code == 0) taosRUnLockLatch(gRecalcMemorySnapshotLatch);
+  }
+  return 0;
+}
+
+TEST_F(StreamTriggerDebugTest, SharedRecalcMemoryExcludesQueueConsumers) {
+  task_.pRecalcRequests = tdListNew(sizeof(SSTriggerRecalcRequest*));
+  ASSERT_NE(task_.pRecalcRequests, nullptr);
+  SSTriggerRecalcRequest ready = {};
+  SSTriggerRecalcRequest* readyPtr = &ready;
+  ASSERT_EQ(tdListAppend(task_.pRecalcRequests, &readyPtr), TSDB_CODE_SUCCESS);
+  gRecalcMemorySnapshotLatch = &task_.recalcRequestLock;
+  gRecalcMemorySnapshotExcludesReaders = true;
+  gRecalcMemorySnapshotChecks = 0;
+  {
+    Stub stub;
+    stub.set(tSimpleHashGetMemSize, checkRecalcMemorySnapshotExclusion);
+    stTriggerTaskRefreshCommonDebugGauges(&task_);
+  }
+  EXPECT_EQ(gRecalcMemorySnapshotChecks, 1);
+  EXPECT_EQ(task_.commonDebugGauges.recalcMemory.requestCount, 1);
+  int32_t code = taosWTryLockLatch(&task_.recalcRequestLock);
+  EXPECT_EQ(code, 0);
+  if (code == 0) taosWUnLockLatch(&task_.recalcRequestLock);
+  gRecalcMemorySnapshotLatch = nullptr;
+  tdListFree(task_.pRecalcRequests);
+  task_.pRecalcRequests = nullptr;
+}
+
+TEST_F(StreamTriggerDebugTest, CommonMemorySamplingIsThrottledAndHandlesClockRollback) {
+  task_.pRecalcRequests = tdListNew(sizeof(SSTriggerRecalcRequest*));
+  ASSERT_NE(task_.pRecalcRequests, nullptr);
+  SSTriggerRecalcRequest ready = {};
+  SSTriggerRecalcRequest backoff = {};
+  SSTriggerRecalcRequest* readyPtr = &ready;
+  ASSERT_EQ(tdListAppend(task_.pRecalcRequests, &readyPtr), TSDB_CODE_SUCCESS);
+  TD_DLIST_APPEND(&task_.backoffRecalcRequests, &backoff);
+  gRecalcMemorySnapshotLatch = &task_.recalcRequestLock;
+  gRecalcMemorySnapshotExcludesReaders = true;
+  gRecalcMemorySnapshotChecks = 0;
+  gCommonGaugeTestMonoUs = 0;
+  {
+    Stub stub;
+    stub.set(streamTaskGetMonotonicUs, commonGaugeTestMonotonicUs);
+    stub.set(tSimpleHashGetMemSize, checkRecalcMemorySnapshotExclusion);
+    stTriggerTaskRefreshCommonDebugGauges(&task_);
+    EXPECT_EQ(gRecalcMemorySnapshotChecks, 2);
+    TD_DLIST_POP(&task_.backoffRecalcRequests, &backoff);
+    gCommonGaugeTestMonoUs = 999999;
+    for (int32_t response = 0; response < 100; ++response) {
+      stTriggerTaskRefreshCommonDebugGauges(&task_);
+    }
+    EXPECT_EQ(gRecalcMemorySnapshotChecks, 2);
+    EXPECT_EQ(task_.commonDebugGauges.recalcMemory.requestCount, 2);
+    gCommonGaugeTestMonoUs = 1000000;
+    stTriggerTaskRefreshCommonDebugGauges(&task_);
+    EXPECT_EQ(gRecalcMemorySnapshotChecks, 3);
+    EXPECT_EQ(task_.commonDebugGauges.recalcMemory.requestCount, 1);
+    gCommonGaugeTestMonoUs = 0;
+    stTriggerTaskRefreshCommonDebugGauges(&task_);
+    EXPECT_EQ(gRecalcMemorySnapshotChecks, 4);
+  }
+  gRecalcMemorySnapshotLatch = nullptr;
+  tdListFree(task_.pRecalcRequests);
+  task_.pRecalcRequests = nullptr;
+}
+
+TEST_F(StreamTriggerDebugTest, PendingRecalcMemoryExcludesWriters) {
+  task_.pGroupPendingRecalcs = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task_.pGroupPendingRecalcs, nullptr);
+  SSTriggerRecalcRequest pending = {};
+  SSTriggerGroupPendingRecalc group = {};
+  TD_DLIST_APPEND(&group.pendingRequests, &pending);
+  int64_t gid = 1;
+  ASSERT_EQ(tSimpleHashPut(task_.pGroupPendingRecalcs, &gid, sizeof(gid), &group, sizeof(group)),
+            TSDB_CODE_SUCCESS);
+  gRecalcMemorySnapshotLatch = &task_.recalcRequestLock;
+  gRecalcMemorySnapshotExcludesReaders = false;
+  gRecalcMemorySnapshotChecks = 0;
+  SSTriggerRealtimeContext realtime = {};
+  {
+    Stub stub;
+    stub.set(tSimpleHashGetMemSize, checkRecalcMemorySnapshotExclusion);
+    stTriggerTaskPublishRealtimeDebugGauges(&task_, &realtime);
+  }
+  EXPECT_EQ(gRecalcMemorySnapshotChecks, 1);
+  EXPECT_EQ(task_.realtimeDebugGauges.recalcMemory.requestCount, 1);
+  int32_t code = taosWTryLockLatch(&task_.recalcRequestLock);
+  EXPECT_EQ(code, 0);
+  if (code == 0) taosWUnLockLatch(&task_.recalcRequestLock);
+  gRecalcMemorySnapshotLatch = nullptr;
+  tSimpleHashCleanup(task_.pGroupPendingRecalcs);
+  task_.pGroupPendingRecalcs = nullptr;
+}
+
+TEST_F(StreamTriggerDebugTest, RecalcMemoryOverflowIsUnavailable) {
+  task_.commonDebugGauges.validMask |= STREAM_TRIGGER_GAUGE_RECALC_MEMORY;
+  task_.commonDebugGauges.recalcMemory.requestBytes = INT64_MAX;
+  task_.realtimeDebugGauges.validMask |= STREAM_TRIGGER_GAUGE_RECALC_MEMORY;
+  task_.realtimeDebugGauges.recalcMemory.requestBytes = 1;
+  task_.historyDebugGauges.validMask |= STREAM_TRIGGER_GAUGE_RECALC_MEMORY;
+  ScopedTriggerDebugLogCapture capture;
+  ASSERT_EQ(EmitPeriod(), TSDB_CODE_SUCCESS);
+  EXPECT_NE(FindRecord("record=resources").find("trigger_recalc_memory_bytes_estimate=NA"), std::string::npos);
+}
 
 TEST_F(StreamTriggerDebugTest, TriggerPeriodDoesNotInlineReaderOrRecalcArrays) {
   ScopedTriggerDebugLogCapture capture;
