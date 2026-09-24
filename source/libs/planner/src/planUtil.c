@@ -38,6 +38,10 @@ static char* getUsageErrFormat(int32_t errCode) {
       return "Planner invalid query control plan type";
     case TSDB_CODE_PLAN_INVALID_WINDOW_TYPE:
       return "Planner invalid window type";
+    case TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST:
+      return "virtual table source table \"%s.%s\" (referenced by virtual table \"%s.%s\") does not exist";
+    case TSDB_CODE_VTABLE_SRC_COL_NOT_FOUND:
+      return "virtual table source column \"%s.%s.%s\" (referenced by virtual table \"%s.%s\") not found";
     default:
       break;
   }

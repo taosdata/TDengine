@@ -507,6 +507,9 @@ void schDumpSubJobsExecRes(SSchJob *pParent, SExecResult *pRes) {
         SCH_JOB_DLOG("move sub job %p execRes %p to output", pJob, pRes->res);
       }
     }
+    if (NULL == pRes->extErrMsg) {
+      TSWAP(pRes->extErrMsg, pJob->execRes.extErrMsg);
+    }
     SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
   }
 }
@@ -521,6 +524,7 @@ void schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pRes->msgType = pJob->execRes.msgType;
   pRes->numOfBytes = pJob->execRes.numOfBytes;
   pJob->execRes.res = NULL;
+  TSWAP(pRes->extErrMsg, pJob->execRes.extErrMsg);
   
   SCH_JOB_DLOG("move job %p execRes %p to output", pJob, pRes->res);
   
@@ -760,6 +764,18 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp) {
+  if (rsp->extErrMsg) {
+    SCH_LOCK(SCH_WRITE, &pJob->resLock);
+
+    if (NULL == pJob->execRes.extErrMsg) {
+      TSWAP(pJob->execRes.extErrMsg, rsp->extErrMsg);
+    } else {
+      taosMemoryFreeClear(rsp->extErrMsg);
+    }
+
+    SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+  }
+
   if (rsp->tbVerInfo) {
     SCH_LOCK(SCH_WRITE, &pJob->resLock);
 
