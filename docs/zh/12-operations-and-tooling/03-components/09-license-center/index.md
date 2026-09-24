@@ -35,6 +35,7 @@ TDengine TSDB 企业版另可通过激活码直接激活集群，见 [激活 TDe
 | [部署与授权](./01-deploy-and-activate.md) | 安装 CLS、配置、在线/离线导入许可证、TSDB/IDMP 连接 CLS |
 | [配额与槽位](./02-quota-and-slots.md) | 槽位数量与槽位配额的分工、多实例与多许可类型 |
 | [用量查看与可用性](./03-usage-and-availability.md) | 实例级用量、与 ELS 同步、CLS 部署形态 |
+| [常见问题（FAQ）](./04-faq.md) | 许可证过期、槽位冲突、授权码导入、离线授权与版本查询等常见问题 |
 
 ## 模型要点
 
