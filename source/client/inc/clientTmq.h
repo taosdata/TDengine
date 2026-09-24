@@ -55,6 +55,11 @@ extern "C" {
 
 #define PROCESS_POLL_RSP(FUNC,DATA) \
   SDecoder decoder = {0}; \
+  if (pRspWrapper->pollRsp.data == NULL || pRspWrapper->pollRsp.len < sizeof(SMqRspHead)) { \
+    code = TSDB_CODE_TMQ_INVALID_MSG; \
+    tqErrorC("invalid poll response length:%u", pRspWrapper->pollRsp.len); \
+    goto END; \
+  } \
   tDecoderInit(&decoder, POINTER_SHIFT(pRspWrapper->pollRsp.data, sizeof(SMqRspHead)), pRspWrapper->pollRsp.len - sizeof(SMqRspHead)); \
   if (FUNC(&decoder, DATA) < 0) { \
     tDecoderClear(&decoder); \
@@ -168,6 +173,15 @@ enum {
   TMQ_CONSUMER_STATUS__CLOSED,
 };
 
+static FORCE_INLINE const char* tmqMsgTypeName(int8_t type) {
+  if (type < TMQ_MSG_TYPE__POLL_DATA_RSP || type > TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
+    return "unknown";
+  }
+  return tmqMsgTypeStr[type];
+}
+
+int32_t tmqValidateRawDataBlock(const void* data, uint32_t dataLen);
+
 enum {
   TMQ_DELAYED_TASK__ASK_EP = 1,
   TMQ_DELAYED_TASK__COMMIT,
@@ -210,6 +224,9 @@ typedef struct {
   bool          seekUpdated;          // offset is updated by seek operator, therefore, not update by vnode rsp.
   SEpSet        epSet;
 } SMqClientVg;
+
+void tmqUpdateVgInfo(SMqClientVg* pVg, STqOffsetVal* reqOffset, STqOffsetVal* rspOffset, int64_t sver, int64_t ever,
+                     int64_t consumerId, bool hasData, bool accepted);
 
 typedef struct {
   char           topicName[TSDB_TOPIC_FNAME_LEN];

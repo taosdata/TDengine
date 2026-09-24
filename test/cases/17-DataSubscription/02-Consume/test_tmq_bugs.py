@@ -1063,6 +1063,64 @@ class TestTmqBugs:
 
         print("test tmq_token ................ [passed]")       
 
+    def do_consumer_owner_check(self, *arguments):
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_consumer_owner_check' % buildPath
+        tdLog.info(f"Running consumer owner check: {cmdStr} {arguments}")
+        result = subprocess.run([cmdStr, *arguments], capture_output=True, text=True, timeout=120)
+        tdLog.info(result.stdout.strip())
+        if result.returncode != 0:
+            tdLog.error(result.stderr.strip())
+            tdLog.exit(f"Consumer owner check failed with exit code {result.returncode}")
+        print("consumer owner check ........... [passed]")
+
+    def test_consumer_owner_check(self):
+        """Reject cross-user TMQ endpoint requests.
+
+        1. Issue 7059626859:
+         - Verify that the owning user can request endpoints using their consumer ID.
+         - Verify that a different user cannot request endpoints with the owner's consumer ID.
+         - Verify that a different user cannot resubscribe or unsubscribe the owner.
+
+        Catalog:
+            - DataSubscription
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional,security
+
+        Jira: None
+
+        History:
+            - 2026-09-16 Mingming Wang Added an independent TMQ consumer owner authorization check.
+
+        """
+        self.do_consumer_owner_check()
+
+    def test_consumer_owner_recovery(self):
+        """Recover a token consumer after a legacy owner mismatch.
+
+        1. Model a persisted root owner and commit a consumed row.
+        2. Reject the token user's request for that consumer without changing its owner.
+        3. Close the rejected handle and retire the modeled legacy consumer.
+        4. Recreate the token consumer with the same group and topic.
+        5. Verify that the committed offset survives and only the next row is consumed.
+
+        Catalog:
+            - DataSubscription
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional,security
+
+        Jira: None
+
+        History:
+            - 2026-09-22 Mingming Wang Added legacy token consumer recovery coverage.
+
+        """
+        self.do_consumer_owner_check("--token-recovery")
+
     #
     # ------------------- main ----------------
     #
