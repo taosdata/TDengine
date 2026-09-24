@@ -211,6 +211,39 @@ TEST(ExternalTypeMapTest, InvalidModifiersNormalizeToLegalSchemaForAllProviders)
   }
 }
 
+TEST(testCase, virtual_table_meta_rejects_mismatched_col_ref_count) {
+  STableMetaRsp rsp = {0};
+  SSchema       schema = {0};
+  SSchemaExt    schemaExt = {0};
+  SColRef       colRefs[2] = {};
+  STableMetaOutput output = {0};
+
+  rsp.numOfColumns = 1;
+  rsp.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  rsp.numOfColRefs = 2;
+  rsp.pSchemas = &schema;
+  rsp.pSchemaExt = &schemaExt;
+  rsp.pColRefs = colRefs;
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema.bytes = sizeof(int64_t);
+
+  int32_t msgLen = tSerializeSTableMetaRsp(NULL, 0, &rsp);
+  ASSERT_GT(msgLen, 0);
+
+  char* pMsg = (char*)taosMemoryMalloc(msgLen);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_GT(tSerializeSTableMetaRsp(pMsg, msgLen, &rsp), 0);
+
+  initQueryModuleMsgHandle();
+  ASSERT_EQ(queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)](&output, pMsg, msgLen),
+            TSDB_CODE_INVALID_MSG);
+  ASSERT_EQ(output.tbMeta, nullptr);
+  ASSERT_EQ(output.vctbMeta, nullptr);
+
+  taosMemoryFree(pMsg);
+}
+
 TEST(testCase, clone_normal_create_table_req_preserves_metadata) {
   SSchema schema[2] = {};
   schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
