@@ -12254,6 +12254,12 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRsp->virtualStb));
     TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->numOfColRefs));
+    if (hasColRef(pRsp->tableType) &&
+        (pRsp->numOfColRefs < 0 || pRsp->numOfColRefs > pRsp->numOfColumns)) {
+      uError("invalid numOfColRefs:%d, numOfColumns:%d in table meta rsp", pRsp->numOfColRefs,
+             pRsp->numOfColumns);
+      TAOS_CHECK_RETURN(TSDB_CODE_INVALID_MSG);
+    }
     if (hasColRef(pRsp->tableType) && pRsp->numOfColRefs > 0) {
       pRsp->pColRefs = taosMemoryCalloc(pRsp->numOfColRefs, sizeof(SColRef));
       if (pRsp->pColRefs == NULL) {

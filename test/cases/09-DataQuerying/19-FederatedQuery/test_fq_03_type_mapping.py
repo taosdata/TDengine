@@ -1611,6 +1611,47 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # Main test entry point
     # ──────────────────────────────────────────────────────────────────────
 
+    def _do_describe_external_mysql_decimal(self):
+        self._mk_mysql_real(_SRC_M, database=_M_DB)
+        try:
+            tdSql.query(f"describe {_SRC_M}.{_M_DB}.all_types")
+            tdSql.checkRows(39)
+
+            decimal_rows = {
+                row[0]: (row[1], row[2])
+                for row in tdSql.queryResult
+                if row[0] in {"c_decimal", "c_decimal_big", "c_decimal_trunc"}
+            }
+            assert decimal_rows == {
+                "c_decimal": ("DECIMAL(18, 4)", 8),
+                "c_decimal_big": ("DECIMAL(38, 10)", 16),
+                "c_decimal_trunc": ("DECIMAL(38, 3)", 16),
+            }, f"unexpected DECIMAL DESCRIBE rows: {decimal_rows!r}"
+            print("external MySQL DECIMAL DESCRIBE ......................... [ passed ]")
+        finally:
+            tdSql.execute(f"drop external source if exists {_SRC_M}")
+
+    def test_describe_external_mysql_decimal(self):
+        """DESCRIBE returns DECIMAL metadata without crashing the client.
+
+        1. Reuse the MySQL all_types fixture containing DECIMAL columns.
+        2. Verify DECIMAL type modifiers and physical lengths in DESCRIBE.
+
+        Catalog:
+            - Query:FederatedQuery
+
+        Since: v3.4.2.12
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-24 Codex Add regression coverage for DECIMAL DESCRIBE crash.
+
+        """
+        self._do_describe_external_mysql_decimal()
+
     def test_fq_type_mapping_framework(self):
         """FQ-TYPE-001~060 + S01~S32: complete type mapping coverage.
 
