@@ -3840,3 +3840,59 @@ TEST(td_msg_test, retrieve_table_req_rejects_invalid_xnode_combinations) {
 TEST(td_msg_test, retrieve_table_req_validate_rejects_null) {
   EXPECT_EQ(tValidateSRetrieveTableReq(NULL), TSDB_CODE_INVALID_MSG);
 }
+
+TEST(td_msg_test, explain_correlation_stats_round_trip) {
+  SExplainCorrelationStat stats[] = {{.templateId = 3, .inputRows = 5, .calls = 4, .elapsedUs = 12345}};
+  SExplainExecInfo info = {};
+  info.correlationStatNum = 1;
+  info.pCorrelationStats = stats;
+  SExplainRsp input = {.numOfPlans = 1, .subplanInfo = &info};
+  int32_t size = tSerializeSExplainRsp(nullptr, 0, &input);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> buf(size);
+  ASSERT_EQ(tSerializeSExplainRsp(buf.data(), size, &input), size);
+
+  SExplainRsp output = {};
+  ASSERT_EQ(tDeserializeSExplainRsp(buf.data(), size, &output), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(output.numOfPlans, 1);
+  ASSERT_EQ(output.subplanInfo[0].correlationStatNum, 1);
+  ASSERT_NE(output.subplanInfo[0].pCorrelationStats, nullptr);
+  EXPECT_EQ(output.subplanInfo[0].pCorrelationStats[0].templateId, 3);
+  EXPECT_EQ(output.subplanInfo[0].pCorrelationStats[0].inputRows, 5);
+  EXPECT_EQ(output.subplanInfo[0].pCorrelationStats[0].calls, 4);
+  EXPECT_EQ(output.subplanInfo[0].pCorrelationStats[0].elapsedUs, 12345);
+  tFreeSExplainRsp(&output);
+}
+
+TEST(td_msg_test, explain_response_accepts_previous_format) {
+  uint8_t buf[256] = {};
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, buf, sizeof(buf));
+  ASSERT_EQ(tStartEncode(&encoder), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI32(&encoder, 1), TSDB_CODE_SUCCESS);             // numOfPlans
+  ASSERT_EQ(tEncodeU64(&encoder, 2), TSDB_CODE_SUCCESS);             // numOfRows
+  ASSERT_EQ(tEncodeU32(&encoder, 0), TSDB_CODE_SUCCESS);             // verboseLen
+  ASSERT_EQ(tEncodeBinary(&encoder, nullptr, 0), TSDB_CODE_SUCCESS);  // verboseInfo
+  // execCreate, execStart, execFirstRow, execLastRow
+  for (int32_t i = 0; i < 4; ++i) {
+    ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+  }
+  ASSERT_EQ(tEncodeU32(&encoder, 0), TSDB_CODE_SUCCESS);  // execTimes
+  // execElapsed, inputWaitElapsed, outputWaitElapsed
+  for (int32_t i = 0; i < 3; ++i) {
+    ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+  }
+  ASSERT_EQ(tEncodeU64(&encoder, 0), TSDB_CODE_SUCCESS);  // inputRows
+  ASSERT_EQ(tEncodeI32(&encoder, 1), TSDB_CODE_SUCCESS);  // vgId
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SExplainRsp output = {};
+  ASSERT_EQ(tDeserializeSExplainRsp(buf, size, &output), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(output.numOfPlans, 1);
+  EXPECT_EQ(output.subplanInfo[0].numOfRows, 2);
+  EXPECT_EQ(output.subplanInfo[0].correlationStatNum, 0);
+  EXPECT_EQ(output.subplanInfo[0].pCorrelationStats, nullptr);
+  tFreeSExplainRsp(&output);
+}

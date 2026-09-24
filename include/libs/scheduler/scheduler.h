@@ -24,6 +24,7 @@ extern "C" {
 
 #include "catalog.h"
 #include "planner.h"
+#include "tmsg.h"
 
 typedef struct SQueryProfileSummary {
   int64_t startTs;  // Object created and added into the message queue
@@ -55,6 +56,7 @@ typedef bool (*schedulerChkKillFp)(void* param);
 typedef struct SSchedulerReq {
   bool               syncReq;
   bool               localReq;
+  bool               inlineTaskLaunch;
   SRequestConnInfo*  pConn;
   SArray*            pNodeList;
   SQueryPlan*        pDag;
@@ -65,6 +67,7 @@ typedef struct SSchedulerReq {
   schedulerExecFp    execFp;
   schedulerFetchFp   fetchFp;
   void*              cbParam;
+  void (*cbParamFreeFp)(void*);
   schedulerChkKillFp chkKillFp;
   void*              chkKillParam;
   SExecResult*       pExecRes;
@@ -73,6 +76,12 @@ typedef struct SSchedulerReq {
   int8_t             secureDelete;
   void*              pWorkerCb;
   int8_t             firstDayOfWeek; /* 0-6, resolved by client before dispatch */
+  SCorrelationExecution correlation;
+  const SArray*      pCorrelationParamDefs;       // Borrowed; scheduler duplicates the array.
+  const SArray*      pCorrelationParamValues;     // Borrowed; scheduler deep-copies value payloads.
+  const SNodeList*   pCorrelationTimeRangeInit;   // Borrowed; scheduler serializes the node list.
+  const SArray*      pExternalSubquerySources;  // Borrowed producer endpoints from the parent job.
+  bool*              pPlanTaken;  // Optional out; true means scheduler owns or has freed pDag.
 } SSchedulerReq;
 
 int32_t schedulerInit(void);

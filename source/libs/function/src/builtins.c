@@ -713,8 +713,10 @@ static bool paramSupportNodeType(SNode* pNode, uint64_t typeFlag) {
     case QUERY_NODE_CASE_WHEN:
       return paramSupportCaseWhenNode(typeFlag);
     case QUERY_NODE_COLUMN:
+    case QUERY_NODE_OUTER_REF:
       return paramSupportColumnNode(typeFlag);
     case QUERY_NODE_REMOTE_VALUE:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
       return paramSupportRemoteValueNode(typeFlag);
     default:
       return false;

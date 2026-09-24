@@ -17,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmCorrelation.h"
 #include "qworker.h"
 #include "tanalytics.h"
 #include "tversion.h"
@@ -195,8 +196,17 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       return;
     case TDMT_MND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_DND_SYSTABLE_RETRIEVE_RSP:
+    case TDMT_SCH_QUERY_RSP:
+    case TDMT_SCH_MERGE_QUERY_RSP:
+    case TDMT_SCH_QUERY_CONTINUE_RSP:
+    case TDMT_SCH_QUERY_HEARTBEAT_RSP:
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP:
+    case TDMT_SCH_CANCEL_TASK_RSP:
+    case TDMT_SCH_DROP_TASK_RSP:
+    case TDMT_SCH_EXPLAIN_RSP:
+    case TDMT_SCH_TASK_NOTIFY_RSP:
+    case TDMT_SCH_TASK_RELEASE_RSP:
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_MND_GET_DB_INFO_RSP:
     case TDMT_VND_TABLE_META_RSP:
@@ -207,7 +217,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_STREAM_FETCH_EXT_RSP:  /* P4-E1: EXT fetch response from ETR */
     case TDMT_VND_SNODE_DROP_TABLE_RSP:
     case TDMT_VND_VTABLE_REF_RESOLVE_RSP:
-      code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
+      code = qWorkerProcessRspMsg(NULL, NULL, pRpc, pEpSet, 0);
       return;
     case TDMT_MND_STATUS_RSP:
       if (pEpSet != NULL) {
@@ -730,6 +740,8 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .serverRpc = pDnode->trans.serverRpc,
       .statusRpc = pDnode->trans.statusRpc,
       .syncRpc = pDnode->trans.syncRpc,
+      .pCorrelationRuntime = pDnode->pCorrelationRuntime,
+      .pCorrelationOps = NULL == pDnode->pCorrelationRuntime ? NULL : &gDmCorrelationRuntimeOps,
       .sendReqFp = dmSendReq,
       .sendSyncReqFp = dmSendSyncReq,
       .sendRspFp = dmSendRsp,

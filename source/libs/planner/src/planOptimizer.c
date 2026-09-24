@@ -1224,6 +1224,9 @@ static bool pdcJoinCopyTargetIsLocalTableScan(SJoinLogicNode* pJoin, bool leftCh
 
 static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftTbls, SSHashObj* pRightTbls,
                                         SNode* pNode, bool whereCond) {
+  if (nodesExprHasCorrelation(pNode)) {
+    return COND_ACTION_STAY;
+  }
   EJoinType               t = pJoin->joinType;
   EJoinSubType            s = pJoin->subType;
   SCpdIsMultiTableCondCxt cxt = {
@@ -3444,6 +3447,11 @@ static int32_t pdcDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAgg) {
     OPTIMIZE_FLAG_SET_MASK(pAgg->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     return TSDB_CODE_SUCCESS;
   }
+  if (nodesExprHasCorrelation(pAgg->node.pConditions) || nodesExprsHasCorrelation(pAgg->pAggFuncs) ||
+      nodesExprsHasCorrelation(pAgg->pGroupKeys)) {
+    OPTIMIZE_FLAG_SET_MASK(pAgg->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return TSDB_CODE_SUCCESS;
+  }
   // TODO: remove it after full implementation of pushing down to child
   if (1 != LIST_LENGTH(pAgg->node.pChildren)) {
     return TSDB_CODE_SUCCESS;
@@ -3863,6 +3871,12 @@ static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProjec
     return TSDB_CODE_SUCCESS;
   }
 
+  if (nodesExprHasCorrelation(pProject->node.pConditions) ||
+      nodesExprsHasCorrelation(pProject->pProjections)) {
+    OPTIMIZE_FLAG_SET_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return TSDB_CODE_SUCCESS;
+  }
+
   /* UNION ALL merge-point: distribute ts conditions to branch children. */
   if (pProject->isSetOpProj) {
     return pdcDealSetOpProject(pCxt, pProject);
@@ -3906,6 +3920,14 @@ static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode
   }
   if (pdcShouldKeepNodeConditionsForExternalSubtree(pLogicNode,
                                                     QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pLogicNode) ? "sort" : "partition")) {
+    OPTIMIZE_FLAG_SET_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (nodesExprHasCorrelation(pLogicNode->pConditions) ||
+      (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pLogicNode) &&
+       nodesExprsHasCorrelation(((SSortLogicNode*)pLogicNode)->pSortKeys)) ||
+      (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pLogicNode) &&
+       nodesExprsHasCorrelation(((SPartitionLogicNode*)pLogicNode)->pPartitionKeys))) {
     OPTIMIZE_FLAG_SET_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     return TSDB_CODE_SUCCESS;
   }
@@ -5383,6 +5405,12 @@ static bool smaIndexOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode->pParent;
+  if (nodesExprsHasCorrelation(pWindow->pFuncs) || nodesExprHasCorrelation(pWindow->node.pConditions) ||
+      nodesExprHasCorrelation(pScan->pPrimaryCond)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -5794,6 +5822,11 @@ static bool partTagsOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   if (partTagsOptIsPartitionFirst(pNode)) {
+    return false;
+  }
+
+  if (nodesExprHasCorrelation(pNode->pConditions) || nodesExprsHasCorrelation(partTagsGetPartKeys(pNode)) ||
+      nodesExprsHasCorrelation(partTagsGetFuncs(pNode))) {
     return false;
   }
 
@@ -8422,6 +8455,11 @@ static bool mergeProjectsMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  if (nodesExprsHasCorrelation(((SProjectLogicNode*)pNode)->pProjections) ||
+      nodesExprsHasCorrelation(((SProjectLogicNode*)pChild)->pProjections)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -8495,6 +8533,9 @@ static bool tagScanOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+  if (nodesExprHasCorrelation(pScan->node.pConditions) || nodesExprHasCorrelation(pScan->pPrimaryCond)) {
+    return false;
+  }
   if (pScan->hasNormalCols) {
     return false;
   }
@@ -8709,6 +8750,20 @@ static bool pushDownLimitOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   return true;
 }
 
+static EDealRes limitHasCorrelationInExpr(SNode* pNode, void* pContext) {
+  if (nodesExprHasCorrelation(pNode)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static bool limitNodeHasCorrelation(SLogicNode* pNode) {
+  bool hasCorrelation = false;
+  planWalkLogicExprFields(pNode, limitHasCorrelationInExpr, &hasCorrelation);
+  return hasCorrelation;
+}
+
 static void swapLimit(SLogicNode* pParent, SLogicNode* pChild) {
   pChild->pLimit = pParent->pLimit;
   pParent->pLimit = NULL;
@@ -8844,6 +8899,10 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
 }
 
 static int32_t pushDownLimitHow(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPushTo, bool* pPushed) {
+  if (limitNodeHasCorrelation(pNodeWithLimit) || limitNodeHasCorrelation(pNodeLimitPushTo)) {
+    *pPushed = false;
+    return TSDB_CODE_SUCCESS;
+  }
   switch (nodeType(pNodeWithLimit)) {
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
     case QUERY_NODE_LOGIC_PLAN_FILL:
@@ -9314,6 +9373,10 @@ static bool hashJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  // Keep correlated ON predicates on the merge path so every candidate pair is evaluated.
+  if (nodesExprHasCorrelation(pJoin->pFullOnCond)) {
+    goto _return;
+  }
   if (pJoin->multiGroupJoin) {
     return JOIN_ALGO_HASH != pJoin->joinAlgo;
   }
@@ -10476,6 +10539,11 @@ static bool tsmaOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
       } break;
       default:
         return false;
+    }
+
+    if (nodesExprsHasCorrelation(pFuncs) || nodesExprHasCorrelation(pParent->pConditions) ||
+        nodesExprHasCorrelation(pScan->pPrimaryCond)) {
+      return false;
     }
 
     FOREACH(pTmpNode, pFuncs) {

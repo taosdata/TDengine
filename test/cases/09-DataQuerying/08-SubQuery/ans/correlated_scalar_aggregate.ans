@@ -1,0 +1,317 @@
+
+taos> use correlated_scalar_positions;
+Database changed.
+
+taos> select sum(coalesce((select max(t.lim) from thresholds t where t.device = r.device), 0)) as sum_lim from readings r;
+        sum_lim        |
+========================
+                    55 |
+
+taos> select sum(coalesce((select max(t.lim) from thresholds t where t.device = r.device ), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select max(t.lim) from thresholds t where t.lim < r.v ), 0)) as total from readings r;
+         total         |
+========================
+                    65 |
+
+taos> select sum(coalesce((select max(t.lim) from thresholds t where t.ts <= r.ts ), 0)) as total from readings r;
+         total         |
+========================
+                    80 |
+
+taos> select sum(coalesce((select max(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select count(*) from thresholds t where t.device = r.device ), 0)) as total from readings r;
+         total         |
+========================
+                     3 |
+
+taos> select sum(coalesce((select count(*) from thresholds t where t.lim < r.v ), 0)) as total from readings r;
+         total         |
+========================
+                     5 |
+
+taos> select sum(coalesce((select count(*) from thresholds t where t.ts <= r.ts ), 0)) as total from readings r;
+         total         |
+========================
+                     6 |
+
+taos> select sum(coalesce((select count(*) from thresholds t where t.device = r.device and t.lim < r.v ), 0)) as total from readings r;
+         total         |
+========================
+                     2 |
+
+taos> select sum(coalesce((select min(t.lim) from thresholds t where t.device = r.device ), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select min(t.lim) from thresholds t where t.lim < r.v ), 0)) as total from readings r;
+         total         |
+========================
+                    45 |
+
+taos> select sum(coalesce((select min(t.lim) from thresholds t where t.ts <= r.ts ), 0)) as total from readings r;
+         total         |
+========================
+                    60 |
+
+taos> select sum(coalesce((select min(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select sum(t.lim) from thresholds t where t.device = r.device ), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select sum(t.lim) from thresholds t where t.lim < r.v ), 0)) as total from readings r;
+         total         |
+========================
+                    95 |
+
+taos> select sum(coalesce((select sum(t.lim) from thresholds t where t.ts <= r.ts ), 0)) as total from readings r;
+         total         |
+========================
+                   110 |
+
+taos> select sum(coalesce((select sum(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select t.lim from thresholds t where t.lim < r.v order by t.ts desc limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    65 |
+
+taos> select sum(coalesce((select t.lim from thresholds t where t.ts <= r.ts order by t.ts desc limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    80 |
+
+taos> select sum(coalesce((select t.lim from thresholds t where t.device = r.device and t.lim < r.v order by t.ts desc limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select (select max(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select (select max(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    65 |
+
+taos> select sum(coalesce((select (select max(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    80 |
+
+taos> select sum(coalesce((select (select max(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select (select count(*) from thresholds t where t.device = r.device ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                     3 |
+
+taos> select sum(coalesce((select (select count(*) from thresholds t where t.lim < r.v ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                     5 |
+
+taos> select sum(coalesce((select (select count(*) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                     6 |
+
+taos> select sum(coalesce((select (select count(*) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                     2 |
+
+taos> select sum(coalesce((select (select min(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select (select min(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    45 |
+
+taos> select sum(coalesce((select (select min(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    60 |
+
+taos> select sum(coalesce((select (select min(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select (select sum(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select (select sum(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    95 |
+
+taos> select sum(coalesce((select (select sum(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                   110 |
+
+taos> select sum(coalesce((select (select sum(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select (select t.lim from thresholds t where t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    65 |
+
+taos> select sum(coalesce((select (select t.lim from thresholds t where t.ts <= r.ts order by t.ts desc limit 1) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    80 |
+
+taos> select sum(coalesce((select (select t.lim from thresholds t where t.device = r.device and t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select (select (select max(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select (select (select max(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    65 |
+
+taos> select sum(coalesce((select (select (select max(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    80 |
+
+taos> select sum(coalesce((select (select (select max(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select (select (select count(*) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                     3 |
+
+taos> select sum(coalesce((select (select (select count(*) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                     5 |
+
+taos> select sum(coalesce((select (select (select count(*) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                     6 |
+
+taos> select sum(coalesce((select (select (select count(*) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                     2 |
+
+taos> select sum(coalesce((select (select (select min(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select (select (select min(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    45 |
+
+taos> select sum(coalesce((select (select (select min(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    60 |
+
+taos> select sum(coalesce((select (select (select min(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select (select (select sum(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select (select (select sum(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    95 |
+
+taos> select sum(coalesce((select (select (select sum(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                   110 |
+
+taos> select sum(coalesce((select (select (select sum(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select sum(coalesce((select (select (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    55 |
+
+taos> select sum(coalesce((select (select (select t.lim from thresholds t where t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    65 |
+
+taos> select sum(coalesce((select (select (select t.lim from thresholds t where t.ts <= r.ts order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    80 |
+
+taos> select sum(coalesce((select (select (select t.lim from thresholds t where t.device = r.device and t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1), 0)) as total from readings r;
+         total         |
+========================
+                    40 |
+
+taos> select r.v, (select max((select max(x.v) from readings x where x.device = t.device)) from thresholds t where t.device = r.device) as result from readings r order by r.ts;
+      v      |   result    |
+============================
+          10 |          20 |
+          20 |          20 |
+          30 |          30 |
+          40 | NULL        |
+

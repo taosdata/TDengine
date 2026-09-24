@@ -3250,6 +3250,11 @@ class TDCom:
         normalized = re.sub(r"cost=[0-9]+\.[0-9]+\.\.[0-9]+\.[0-9]+", "", normalized)
         normalized = re.sub(r"Planning Time: [0-9]+\.[0-9]+ ms", "", normalized)
         normalized = re.sub(r"Execution Time: [0-9]+\.[0-9]+ ms", "", normalized)
+        normalized = re.sub(
+            r"(Input Rows: [0-9]+, Calls: [0-9]+, Time:) [0-9]+\.[0-9]+ ms",
+            r"\1 ms",
+            normalized,
+        )
         normalized = re.sub(r"max_row_task=[0-9]+, ", "", normalized)
         return normalized.rstrip()
 

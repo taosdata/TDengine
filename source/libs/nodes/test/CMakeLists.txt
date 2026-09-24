@@ -41,3 +41,12 @@ IF(NOT TD_DARWIN)
         COMMAND nodesTest
     )
 ENDIF()
+
+IF(TD_DARWIN)
+    ADD_EXECUTABLE(nodesCorrelationTest "nodesCorrelationTest.cpp")
+    DEP_ext_gtest(nodesCorrelationTest)
+    TARGET_INCLUDE_DIRECTORIES(nodesCorrelationTest PRIVATE "${TD_SOURCE_DIR}/source/libs/nodes/inc"
+                                                  "${TD_SOURCE_DIR}/include/libs/function")
+    TARGET_LINK_LIBRARIES(nodesCorrelationTest PRIVATE os util common nodes qcom function)
+    add_test(NAME nodesCorrelationTest COMMAND nodesCorrelationTest)
+ENDIF()

@@ -1405,7 +1405,8 @@ static int32_t hJoinFinalizeMultiGroupBlock(SOperatorInfo* pOperator, bool* pHas
   *pHasOutput = false;
   if (pJoin->finBlk->info.rows > 0 && pJoin->pFinFilter != NULL) {
     int32_t rowsBefore = pJoin->finBlk->info.rows;
-    code = doFilter(pJoin->finBlk, pJoin->pFinFilter, NULL, &pFilterResult);
+    code = doFilterWithTaskCorrelation(pJoin->finBlk, pJoin->pFinFilter, NULL, &pFilterResult,
+                                       pOperator->pTaskInfo);
     if (code == TSDB_CODE_SUCCESS && pJoin->finBlk->info.rows < rowsBefore) {
       code = hJoinRebuildLineageByFilter(pJoin, rowsBefore, pFilterResult);
     }
@@ -1420,6 +1421,7 @@ static int32_t hJoinFinalizeMultiGroupBlock(SOperatorInfo* pOperator, bool* pHas
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
     pJoin->finBlk->info.id = pJoin->probeId;
+    pJoin->finBlk->info.id.blockId = pJoin->outBlkId;
     pJoin->finBlk->info.dataLoad = 1;
     HJ_ERR_RET(hJoinPublishLineage(pOperator, pJoin->finBlk->info.rows));
     *pHasOutput = true;
@@ -1725,7 +1727,7 @@ static int32_t hJoinSingleGroupMainProcess(struct SOperatorInfo* pOperator, SSDa
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-      code = doFilter(pRes, pJoin->pFinFilter, NULL, NULL);
+      code = doFilterWithTaskCorrelation(pRes, pJoin->pFinFilter, NULL, NULL, pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1753,7 +1755,7 @@ static int32_t hJoinSingleGroupMainProcess(struct SOperatorInfo* pOperator, SSDa
     }
 
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-      code = doFilter(pRes, pJoin->pFinFilter, NULL, NULL);
+      code = doFilterWithTaskCorrelation(pRes, pJoin->pFinFilter, NULL, NULL, pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1871,6 +1873,7 @@ static uint32_t hJoinGetFinBlkCapacity(SHJoinOperatorInfo* pJoin, SHashJoinPhysi
 
 
 int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode) {
+  pJoin->outBlkId = pJoinNode->node.pOutputDataBlockDesc->dataBlockId;
   pJoin->finBlk = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
   if (NULL == pJoin->finBlk) {
     QRY_ERR_RET(terrno);
@@ -1912,8 +1915,10 @@ static int32_t resetHashJoinOperState(SOperatorInfo* pOper) {
   blockDataCleanup(pHjOper->finBlk);
   if (pHjOper->midBlk != NULL) {
     pHjOper->midBlk->info.id = (SBlockID){0};
+    pHjOper->midBlk->info.id.blockId = pHjOper->outBlkId;
   }
   pHjOper->finBlk->info.id = (SBlockID){0};
+  pHjOper->finBlk->info.id.blockId = pHjOper->outBlkId;
 
   pHjOper->execInfo = (SHJoinExecInfo){0};
   pHjOper->hashOwnedBytes = 0;

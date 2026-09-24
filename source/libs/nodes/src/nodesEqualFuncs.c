@@ -94,6 +94,80 @@ static bool dataTypeEqual(SDataType a, SDataType b) {
   return a.type == b.type && a.bytes == b.bytes && a.precision == b.precision && a.scale == b.scale;
 }
 
+static bool outerRefNodeEqual(const SOuterRefNode* a, const SOuterRefNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_SCALAR_FIELD(bindingId);
+  COMPARE_SCALAR_FIELD(tableRefId);
+  // Display names are diagnostic; stable IDs distinguish shadowed or repeated tables.
+  return true;
+}
+
+static bool correlationParamNodeEqual(const SCorrelationParamNode* a, const SCorrelationParamNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(paramId);
+  return true;
+}
+
+static bool correlationParamBindingNodeEqual(const SCorrelationParamBindingNode* a,
+                                            const SCorrelationParamBindingNode* b) {
+  COMPARE_OBJECT_FIELD(dataType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(paramId);
+  COMPARE_SCALAR_FIELD(sourceKind);
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_SCALAR_FIELD(bindingId);
+  COMPARE_SCALAR_FIELD(tableRefId);
+  COMPARE_SCALAR_FIELD(sourceBlockId);
+  COMPARE_SCALAR_FIELD(sourceSlotId);
+  COMPARE_SCALAR_FIELD(inheritedParamId);
+  COMPARE_NODE_FIELD(pSource);
+  if (NULL != a->pSource && nodesIsExprNode(a->pSource) && nodesIsExprNode(b->pSource)) {
+    return dataTypeEqual(((SExprNode*)a->pSource)->resType, ((SExprNode*)b->pSource)->resType);
+  }
+  return true;
+}
+
+static bool correlatedSubqueryNodeEqual(const SCorrelatedSubqueryNode* a, const SCorrelatedSubqueryNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(templateId);
+  COMPARE_SCALAR_FIELD(exprId);
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_SCALAR_FIELD(parentScopeId);
+  COMPARE_NODE_LIST_FIELD(pParamBindings);
+  return true;
+}
+
+static bool correlationTemplateNodeEqual(const SCorrelationTemplateNode* a, const SCorrelationTemplateNode* b) {
+  COMPARE_SCALAR_FIELD(templateId);
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_OBJECT_FIELD(resultType, dataTypeEqual);
+  COMPARE_STRING_FIELD(resultName);
+  COMPARE_NODE_LIST_FIELD(pParams);
+  COMPARE_NODE_LIST_FIELD(pNestedTemplates);
+  COMPARE_NODE_LIST_FIELD(pTimeRangeInit);
+  COMPARE_SCALAR_FIELD(planLen);
+  if (a->planLen < 0 || (NULL == a->pPlan) != (NULL == b->pPlan)) {
+    return false;
+  }
+  return 0 == a->planLen ||
+         (NULL != a->pPlan && 0 == memcmp(a->pPlan, b->pPlan, a->planLen));
+}
+
+static bool correlationTimeRangeInitNodeEqual(const SCorrelationTimeRangeInitNode* a,
+                                              const SCorrelationTimeRangeInitNode* b) {
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_SCALAR_FIELD(precision);
+  COMPARE_SCALAR_FIELD(interpRange);
+  COMPARE_SCALAR_FIELD(allowNoTimeRange);
+  COMPARE_SCALAR_FIELD(targetSubplanId.queryId);
+  COMPARE_SCALAR_FIELD(targetSubplanId.groupId);
+  COMPARE_SCALAR_FIELD(targetSubplanId.subplanId);
+  COMPARE_SCALAR_FIELD(targetBlockId);
+  COMPARE_SCALAR_FIELD(targetNodeType);
+  COMPARE_NODE_FIELD(pRangeExpr);
+  return true;
+}
+
 static bool columnNodeEqual(const SColumnNode* a, const SColumnNode* b) {
   COMPARE_STRING_FIELD(dbName);
   COMPARE_STRING_FIELD(tableName);
@@ -382,6 +456,20 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
   switch (nodeType(a)) {
     case QUERY_NODE_LEFT_VALUE:
       return true;
+    case QUERY_NODE_OUTER_REF:
+      return outerRefNodeEqual((const SOuterRefNode*)a, (const SOuterRefNode*)b);
+    case QUERY_NODE_CORRELATION_PARAM:
+      return correlationParamNodeEqual((const SCorrelationParamNode*)a, (const SCorrelationParamNode*)b);
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      return correlationParamBindingNodeEqual((const SCorrelationParamBindingNode*)a,
+                                             (const SCorrelationParamBindingNode*)b);
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      return correlatedSubqueryNodeEqual((const SCorrelatedSubqueryNode*)a, (const SCorrelatedSubqueryNode*)b);
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+      return correlationTemplateNodeEqual((const SCorrelationTemplateNode*)a, (const SCorrelationTemplateNode*)b);
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      return correlationTimeRangeInitNodeEqual((const SCorrelationTimeRangeInitNode*)a,
+                                               (const SCorrelationTimeRangeInitNode*)b);
     case QUERY_NODE_COLUMN:
       return columnNodeEqual((const SColumnNode*)a, (const SColumnNode*)b);
     case QUERY_NODE_VALUE:

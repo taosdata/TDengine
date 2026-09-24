@@ -90,6 +90,13 @@ TEST_F(ParserInitialDTest, deleteSemanticCheck) {
   run("DELETE FROM t1 WHERE c1 + 1 > 10", TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR, PARSER_STAGE_TRANSLATE);
 }
 
+TEST_F(ParserInitialDTest, deleteRejectsExprSubquery) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1 WHERE ts > (SELECT MAX(ts) FROM st1s1 WHERE c1 = t1.c1)",
+      TSDB_CODE_PAR_INVALID_EXPR_SUBQ, PARSER_STAGE_TRANSLATE);
+}
+
 TEST_F(ParserInitialDTest, deleteSecureDelete) {
   useDb("root", "test");
 

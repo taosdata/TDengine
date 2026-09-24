@@ -58,9 +58,17 @@ typedef struct SFilterColumnParam {
 extern int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pinfo, uint32_t options, void* pSclExtraParams);
 extern int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
                              int16_t numOfCols, int32_t *pFilterResStatus);
+extern int32_t filterExecuteWithCorrelation(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
+                                            SColumnDataAgg *statis, int16_t numOfCols,
+                                            int32_t *pFilterResStatus,
+                                            const SCorrelationEvalContext *pCorrelation);
 extern int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param);
 extern int32_t filterSetDataFromColId(SFilterInfo *info, void *param);
 extern int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode);
+int32_t filterCalcSemanticTimeRange(const SNode* pCondition, bool allowNonPrimaryTimeColumn,
+                                    STimeWindow* pRange);
+int32_t filterValidateFillTimeRange(const STimeWindow* pRange, int64_t interval, int8_t intervalUnit,
+                                    uint8_t precision, bool allowNoTimeRange);
 extern void    filterSetExecContext(SFilterInfo *info, void* pTaskInfo, sclIsTaskKilled isTaskKilledFn);
 extern void    filterFreeInfo(SFilterInfo *info);
 extern int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,

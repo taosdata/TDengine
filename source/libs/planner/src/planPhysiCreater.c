@@ -5312,6 +5312,9 @@ static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
     case QUERY_NODE_REMOTE_VALUE: {
       return collectAndRewrite(pCxt, pNode);
     }
+    case QUERY_NODE_CORRELATED_SUBQUERY: {
+      return collectAndRewrite(pCxt, pNode);
+    }
     default:
       break;
   }

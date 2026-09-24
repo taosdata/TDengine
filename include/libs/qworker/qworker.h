@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 #include "executor.h"
+#include "tmsg.h"
 #include "tmsgcb.h"
 #include "trpc.h"
 
@@ -75,6 +76,20 @@ typedef struct SQWMsg {
   int32_t        msgLen;
   int32_t        msgMask;
   ESubQueryType  subQType;
+  // Borrowed from a stack-local decoded SSubQueryMsg and valid only during the
+  // current message-processing call chain. Do not store these pointers or hand
+  // them to another thread; long-lived users must copy the data.
+  const SCorrelationExecution* pCorrelation;
+  const SArray*                 pCorrelationParamDefs;
+  const SArray*                 pCorrelationParamValues;
+  const char*                   pCorrelationTemplates;
+  uint32_t                      correlationTemplatesLen;
+  const char*                   pCorrelationTimeInit;
+  uint32_t                      correlationTimeInitLen;
+  const SArray*                 pCorrelationNodeList;
+
+  int64_t txnId;
+  int8_t firstDayOfWeek;
   SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;
   SArray       **subEndPoints;
@@ -93,7 +108,7 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
 int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
+int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SEpSet *pEpSet, int64_t ts);
 
 int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 

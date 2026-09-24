@@ -61,6 +61,13 @@ typedef struct SScalarCtx {
   bool               isStream;
   sclFetchFromRemote fetchFp;
   uint64_t           streamGen;  // per-invocation generation for cache invalidation
+  // Borrowed for one scalar invocation; NULL for non-correlated evaluation.
+  const SCorrelationEvalContext* pCorrelation;
+  // Derived from the first input block and pCorrelation's optional row range.
+  int32_t            correlationRows;
+  int32_t            correlationStart;
+  int32_t            correlationEnd;
+  int64_t            correlationChargedBytes;  // memory reserved for correlation result vectors
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000

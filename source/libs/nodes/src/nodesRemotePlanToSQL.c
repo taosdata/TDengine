@@ -226,6 +226,7 @@ typedef struct {
   int32_t     pos;     // bytes written so far
   int32_t     cap;     // current capacity
   int32_t     err;     // first error code encountered (0 = OK)
+  int32_t     exprDepth;  // Check correlation once per complete expression.
   // DS section 5.2.6: client timezone name for timestamp -> calendar conversion.
   // Pointer into the SNodesRemoteSQLCtx.tzName string; NOT owned by SDynSQL.
   // NULL means "use server global default timezone" (legacy behaviour).
@@ -239,6 +240,7 @@ static void dynSQLInit(SDynSQL* s) {
   s->pos    = 0;
   s->cap    = 0;
   s->err    = 0;
+  s->exprDepth = 0;
   s->tzName = NULL;
 }
 
@@ -1063,6 +1065,36 @@ static const SExtColumnDef* findPrimaryKeyExtCol(const SExtTableMeta* pExtMeta) 
   }
 
   return NULL;
+}
+
+static bool fqIsCorrelationNode(const SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static EDealRes fqFindCorrelationNode(SNode* pNode, void* pContext) {
+  if (fqIsCorrelationNode(pNode)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t fqCheckRemoteExpr(const SNode* pExpr) {
+  bool found = false;
+  nodesWalkExpr((SNode*)pExpr, fqFindCorrelationNode, &found);
+  return found ? TSDB_CODE_EXT_SYNTAX_UNSUPPORTED : TSDB_CODE_SUCCESS;
 }
 
 // Forward declarations for mutual recursion
@@ -4391,9 +4423,29 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
   }
 }
 
+static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect,
+                                  const SExtTableMeta* pExtMeta,
+                                  const SNodesRemoteSQLCtx* pCtx);
+
 static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect,
                               const SExtTableMeta* pExtMeta,
                               const SNodesRemoteSQLCtx* pCtx) {
+  // Check the entire expression before alias equivalence can hide a correlated child.
+  if (0 == s->exprDepth) {
+    int32_t code = fqCheckRemoteExpr(pExpr);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  ++s->exprDepth;
+  int32_t code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
+  --s->exprDepth;
+  return code;
+}
+
+static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect,
+                                  const SExtTableMeta* pExtMeta,
+                                  const SNodesRemoteSQLCtx* pCtx) {
   if (!pExpr) return TSDB_CODE_SUCCESS;
 
   if (NULL == pExtMeta && NULL != pCtx && pCtx->inputSelectExprsFromChildSource &&
@@ -4451,6 +4503,8 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
         const SExprNode* pMatchedExpr = NULL;
         const char* pOutputAlias = fqResolveOutputRefAlias(pCol, pCtx, &pMatchedExpr);
         if (NULL != pOutputAlias && '\0' != pOutputAlias[0]) {
+          int32_t code = fqCheckRemoteExpr((const SNode*)pMatchedExpr);
+          if (TSDB_CODE_SUCCESS != code) return code;
           qDebug("FQ-SQL-REF: rewrite output ref col=%s alias=%s userAlias=%s -> selectAlias=%s exprType=%s dialect=%s",
                  pCol->colName, pCol->node.aliasName, pCol->node.userAlias,
                  pOutputAlias, pMatchedExpr ? nodesNodeName(nodeType((SNode*)pMatchedExpr)) : "(unknown)",
@@ -5385,6 +5439,11 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
       pCol = ((const STargetNode*)pCol)->pExpr;
     }
     if (NULL == pCol) continue;
+    int32_t correlationCode = fqCheckRemoteExpr(pCol);
+    if (TSDB_CODE_SUCCESS != correlationCode) {
+      if (!s->err) s->err = correlationCode;
+      return;
+    }
     char exprDesc[512] = {0};
     fqDebugDescribeExprNode(pCol, exprDesc, sizeof(exprDesc));
     qDebug("FQ-SQL-SELECT: expr[%d] %s", exprIdx, exprDesc);
@@ -5920,6 +5979,9 @@ static int32_t dynAppendOrderExpr(SDynSQL* s, const SNode* pExpr,
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t correlationCode = fqCheckRemoteExpr(pExpr);
+  if (TSDB_CODE_SUCCESS != correlationCode) return correlationCode;
+
   if (QUERY_NODE_COLUMN == nodeType((SNode*)pExpr)) {
     const SColumnNode* pOrderCol = (const SColumnNode*)pExpr;
     if ('\0' == pOrderCol->tableAlias[0] && '\0' == pOrderCol->tableName[0]) {
@@ -5932,6 +5994,8 @@ static int32_t dynAppendOrderExpr(SDynSQL* s, const SNode* pExpr,
         }
       }
       if (NULL != pAlias && '\0' != pAlias[0]) {
+        correlationCode = fqCheckRemoteExpr((const SNode*)pOutExpr);
+        if (TSDB_CODE_SUCCESS != correlationCode) return correlationCode;
         qDebug("FQ-SQL-ORDER: rewrite output ref col=%s alias=%s userAlias=%s -> selectAlias=%s exprType=%s",
                pOrderCol->colName, pOrderCol->node.aliasName, pOrderCol->node.userAlias,
                pAlias, pOutExpr ? nodesNodeName(nodeType((SNode*)pOutExpr)) : "(unknown)");
@@ -5941,6 +6005,8 @@ static int32_t dynAppendOrderExpr(SDynSQL* s, const SNode* pExpr,
 
       const SExprNode* pInputExpr = fqFindInputSelectExprByColumnRef(pCtx, pOrderCol);
       if (NULL != pInputExpr) {
+        correlationCode = fqCheckRemoteExpr((const SNode*)pInputExpr);
+        if (TSDB_CODE_SUCCESS != correlationCode) return correlationCode;
         const char* pOutputAlias =
             fqFindEquivalentOutputAlias(pInputExpr,
                                         (pCtx != NULL) ? pCtx->pOutputSelectExprs : NULL,
@@ -6460,6 +6526,8 @@ static int32_t renderGroupKeyExprs(SDynSQL* s, const SNodeList* pGroupKeys,
       pExpr = nodesListGetNode(((const SGroupingSetNode*)pExpr)->pParameterList, 0);
     }
 
+    int32_t correlationCode = fqCheckRemoteExpr(pExpr);
+    if (TSDB_CODE_SUCCESS != correlationCode) return correlationCode;
     bool renderedAlias = false;
     if (!withAlias && dialect == EXT_SQL_DIALECT_MYSQL &&
         pExpr != NULL && nodesIsExprNode((SNode*)pExpr) &&
@@ -6582,6 +6650,8 @@ static int32_t renderAggGroupKeyExprs(SDynSQL* s, const SAggLogicNode* pAgg,
 
     qDebug("FQ-SQL: render derived agg group key agg=%p funcIdx=%d withAlias=%d",
            pAgg, funcIdx, withAlias ? 1 : 0);
+    int32_t correlationCode = fqCheckRemoteExpr(pKeyExpr);
+    if (TSDB_CODE_SUCCESS != correlationCode) return correlationCode;
     bool renderedAlias = false;
     if (!withAlias && dialect == EXT_SQL_DIALECT_MYSQL &&
         nodesIsExprNode((SNode*)pKeyExpr) &&
@@ -8898,6 +8968,7 @@ static bool renderJoinLegWhere(const SJoinLogicNode* pJoin, EExtSQLDialect diale
 static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
                           const SNodesRemoteSQLCtx* pCtx, SDynSQL* s) {
   if (!pNode) { qError("FQ-SQL: renderNode NULL"); return TSDB_CODE_INVALID_PARA; }
+  if (fqIsCorrelationNode((const SNode*)pNode)) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
 
   // FROM-source nodes are their own statements.
   if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_JOIN) {
@@ -9531,6 +9602,10 @@ int32_t nodesRemotePlanToSQL(const SLogicNode* pRemotePlan, int8_t sourceType,
   if (!pRemotePlan || !ppSQL) {
     qError("FQ-SQL: nodesRemotePlanToSQL NULL input (pRemotePlan=%p ppSQL=%p)", pRemotePlan, ppSQL);
     return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (fqIsCorrelationNode((const SNode*)pRemotePlan)) {
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
 
   EExtSQLDialect dialect;

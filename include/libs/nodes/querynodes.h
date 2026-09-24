@@ -152,6 +152,11 @@ typedef struct STargetNode {
 // When set on a TSDB_DATA_TYPE_BINARY SValueNode, datum.p is a raw SQL fragment
 // (unquoted, unescaped) to be emitted verbatim into the remote SQL string.
 #define VALUE_FLAG_RAW_SQL_FRAG   (1 << 4)
+#define VALUE_FLAG_DEFERRED_QSTART    (1 << 5)
+#define VALUE_FLAG_DEFERRED_QEND      (1 << 6)
+#define VALUE_FLAG_DEFERRED_QDURATION (1 << 7)
+#define VALUE_FLAG_DEFERRED_QUERY_TIME \
+  (VALUE_FLAG_DEFERRED_QSTART | VALUE_FLAG_DEFERRED_QEND | VALUE_FLAG_DEFERRED_QDURATION)
 
 #define IS_DURATION_VAL(_flag)    ((_flag)&VALUE_FLAG_IS_DURATION)
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
@@ -190,6 +195,57 @@ typedef struct SRemoteValueNode {
   EFqSubqRenderMode renderMode;
   SNode*            pRemotePlan;
 } SRemoteValueNode;
+
+// IDs are allocated within one root semantic analysis and survive node copies.
+// Scope/binding/expression/table-reference IDs start at 1; parameter/template
+// IDs start at 0 and are local to their owning template/root plan respectively.
+typedef struct SOuterRefNode {
+  SExprNode node;
+  int32_t   scopeId;
+  int64_t   bindingId;
+  int64_t   tableRefId;  // Zero denotes an aggregate-result binding.
+  char      tableAlias[TSDB_TABLE_NAME_LEN];
+  char      colName[TSDB_COL_NAME_LEN];
+} SOuterRefNode;
+
+typedef struct SCorrelationParamNode {
+  SExprNode node;
+  int32_t   paramId;  // Internal parameter, never a STMT placeholder.
+} SCorrelationParamNode;
+
+typedef enum ECorrelationSourceKind {
+  CORRELATION_SOURCE_LOGICAL = 1,
+  CORRELATION_SOURCE_BLOCK,
+  CORRELATION_SOURCE_INHERITED,
+} ECorrelationSourceKind;
+
+typedef struct SCorrelationParamBindingNode {
+  ENodeType              type;
+  int32_t                paramId;
+  SDataType              dataType;
+  ECorrelationSourceKind sourceKind;
+  int32_t                scopeId;
+  int64_t                bindingId;
+  int64_t                tableRefId;
+  int64_t                sourceBlockId;     // -1 unless sourced from a block.
+  int16_t                sourceSlotId;      // -1 unless sourced from a block.
+  int32_t                inheritedParamId;  // -1 unless sourced from a parameter.
+  // Owned Column/OuterRef dependency for column retention and slot remapping.
+  // Block sources use Column; inherited sources have no local dependency (NULL).
+  // Aggregate sources reference their result, never re-evaluate the aggregate.
+  SNode*                 pSource;
+} SCorrelationParamBindingNode;
+
+typedef struct SCorrelatedSubqueryNode {
+  SExprNode             node;
+  int32_t               templateId;
+  int64_t               exprId;
+  int32_t               scopeId;        // Scope of the inner query block.
+  int32_t               parentScopeId;  // Scope containing this expression.
+  SNodeList*            pParamBindings;  // Owned parameter-source binding nodes.
+  char*                 pSubquerySql;    // Owned original SELECT, without ().
+  // No result slot or mutable per-invocation state belongs to this expression.
+} SCorrelatedSubqueryNode;
 
 #define VALUELIST_FLAG_VAL_UNSET      (1 << 0)
 
@@ -900,6 +956,9 @@ typedef struct SSelectStmt {
   bool            isDistinct;
   STimeWindow     timeRange;
   SNode*          pTimeRange; // STimeRangeNode for create stream
+  bool            timeRangeParamDependent;
+  bool            interpRangeParamDependent;
+  bool            deferredFillAllowNoTimeRange;
   SNodeList*      pProjectionList;
   SNodeList*      pProjectionBindList;
   SNode*          pFromTable;
@@ -1004,6 +1063,40 @@ typedef enum ESqlClause {
   SQL_CLAUSE_SELECT,
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;
+
+typedef struct SCorrelationTableRef {
+  int64_t tableRefId;  // Identifies a FROM instance, not the catalog table UID.
+  int32_t scopeId;
+  char    tableAlias[TSDB_TABLE_NAME_LEN];
+} SCorrelationTableRef;
+
+typedef struct SCorrelationBinding {
+  int64_t   bindingId;
+  int32_t   scopeId;
+  int64_t   tableRefId;   // Zero for an aggregate result.
+  int64_t   aggregateId;  // Zero for a table column.
+  col_id_t  colId;
+  SDataType dataType;
+} SCorrelationBinding;
+
+typedef struct SCorrelationAggregate {
+  int64_t    aggregateId;
+  ESqlClause clause;  // Checked in the aggregate's owning scope.
+  SNode*     pExpr;   // Owned complete aggregate expression.
+} SCorrelationAggregate;
+
+// Owned by one translation context (P02), never shared mutable runtime state.
+// All identities are stable values; AST addresses and currLevel are not keys.
+typedef struct SCorrelationScope {
+  int32_t    scopeId;
+  int32_t    parentScopeId;  // Zero at the root.
+  ESqlClause clause;        // Clause in the parent containing this query block.
+  int64_t    exprId;        // Zero at the root.
+  SArray*    pTableRefs;     // Owned SCorrelationTableRef entries.
+  SArray*    pBindings;      // Owned SCorrelationBinding entries.
+  SArray*    pFreeBindings;  // Owned ancestor SCorrelationBinding entries.
+  SArray*    pAggregates;    // Owned SCorrelationAggregate entries/expressions.
+} SCorrelationScope;
 
 typedef struct SDeleteStmt {
   ENodeType   type;        // QUERY_NODE_DELETE_STMT
@@ -1178,6 +1271,8 @@ bool nodesIsBitwiseOp(const SOperatorNode* pOp);
 
 bool nodesExprHasColumn(SNode* pNode);
 bool nodesExprsHasColumn(SNodeList* pList);
+bool nodesExprHasCorrelation(SNode* pNode);
+bool nodesExprsHasCorrelation(SNodeList* pList);
 
 // Validate and normalize a DDL filter in place, returning the timestamp primary-key column index.
 int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,

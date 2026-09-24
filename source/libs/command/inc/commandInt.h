@@ -228,10 +228,11 @@ typedef struct SQueryExplainRowInfo {
 } SQueryExplainRowInfo;
 
 typedef struct SExplainPlanCtx {
-  int32_t      rootGroupId;
-  int32_t      groupNum;
-  int32_t      groupDoneNum;
-  SHashObj    *groupHash;     // Hash<SExplainGroup>
+  int32_t          rootGroupId;
+  int32_t          groupNum;
+  int32_t          groupDoneNum;
+  SHashObj        *groupHash;              // Hash<SExplainGroup>
+  const SNodeList *pCorrelationTemplates;  // Borrowed from the current query plan.
 } SExplainPlanCtx;
 
 typedef struct SExplainCtx {

@@ -84,6 +84,7 @@ typedef struct SPlanQueryUnit {
   SQueryPlan*     pPhysiPlan;
   int32_t         origSubQIdx;
   int32_t         finalSubQIdx;
+  const SCorrelatedSubqueryNode* pCorrelationCall;  // Borrowed from the state-owned snapshot.
 } SPlanQueryUnit;
 
 typedef struct SPlanSubqueryState {
@@ -92,7 +93,258 @@ typedef struct SPlanSubqueryState {
   int32_t         numSubQueries;
   SPlanQueryUnit  rootUnit;
   SPlanQueryUnit** pSubqueryUnits;  // indexed by original global subQIdx
+  SCorrelatedSubqueryNode** pCorrelationCalls;  // Owned snapshots, same indexing.
 } SPlanSubqueryState;
+
+typedef struct SPlanCollectCorrelationContext {
+  SPlanSubqueryState* pState;
+  int32_t             code;
+} SPlanCollectCorrelationContext;
+
+static void planWalkQueryCorrelationExprs(SNode* pQuery, FNodeWalker walker, void* pContext);
+
+static void planWalkTableCorrelationExprs(SNode* pTable, FNodeWalker walker, void* pContext) {
+  if (NULL == pTable) {
+    return;
+  }
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+    nodesWalkExpr(pJoin->pWindowOffset, walker, pContext);
+    nodesWalkExpr(pJoin->pJLimit, walker, pContext);
+    planWalkTableCorrelationExprs(pJoin->pLeft, walker, pContext);
+    planWalkTableCorrelationExprs(pJoin->pRight, walker, pContext);
+  } else if (QUERY_NODE_TEMP_TABLE == nodeType(pTable)) {
+    planWalkQueryCorrelationExprs(((STempTableNode*)pTable)->pSubquery, walker, pContext);
+  }
+}
+
+static void planWalkQueryCorrelationExprs(SNode* pQuery, FNodeWalker walker, void* pContext) {
+  if (NULL == pQuery) {
+    return;
+  }
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
+    SSetOperator* pSet = (SSetOperator*)pQuery;
+    nodesWalkExprs(pSet->pProjectionList, walker, pContext);
+    nodesWalkExprs(pSet->pOrderByList, walker, pContext);
+    planWalkQueryCorrelationExprs(pSet->pLeft, walker, pContext);
+    planWalkQueryCorrelationExprs(pSet->pRight, walker, pContext);
+    return;
+  }
+  if (QUERY_NODE_SELECT_STMT != nodeType(pQuery)) {
+    return;
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pQuery;
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, walker, pContext);
+  nodesWalkExpr(pSelect->pRange, walker, pContext);
+  nodesWalkExpr(pSelect->pRangeAround, walker, pContext);
+  nodesWalkExpr(pSelect->pEvery, walker, pContext);
+  planWalkTableCorrelationExprs(pSelect->pFromTable, walker, pContext);
+}
+
+static EDealRes planCollectCorrelationCall(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_CORRELATED_SUBQUERY != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SPlanCollectCorrelationContext* pCxt = (SPlanCollectCorrelationContext*)pContext;
+  const SCorrelatedSubqueryNode* pCall = (const SCorrelatedSubqueryNode*)pNode;
+  if (pCall->templateId < 0 || pCall->templateId >= pCxt->pState->numSubQueries) {
+    pCxt->code = TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    return DEAL_RES_ERROR;
+  }
+  SCorrelatedSubqueryNode* pPrevious = pCxt->pState->pCorrelationCalls[pCall->templateId];
+  if (NULL != pPrevious && (pPrevious->exprId != pCall->exprId || pPrevious->scopeId != pCall->scopeId)) {
+    pCxt->code = TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    return DEAL_RES_ERROR;
+  }
+  if (NULL == pPrevious) {
+    SNode* pSnapshot = NULL;
+    pCxt->code = nodesCloneNode((const SNode*)pCall, &pSnapshot);
+    if (TSDB_CODE_SUCCESS != pCxt->code) {
+      return DEAL_RES_ERROR;
+    }
+    pCxt->pState->pCorrelationCalls[pCall->templateId] = (SCorrelatedSubqueryNode*)pSnapshot;
+  }
+  SNode* pBindingNode = NULL;
+  FOREACH(pBindingNode, ((SCorrelatedSubqueryNode*)pNode)->pParamBindings) {
+    SCorrelationParamBindingNode* pBinding = (SCorrelationParamBindingNode*)pBindingNode;
+    if (pBinding->scopeId != pCall->parentScopeId || NULL == pBinding->pSource ||
+        QUERY_NODE_OUTER_REF != nodeType(pBinding->pSource)) {
+      continue;
+    }
+    SOuterRefNode* pRef = (SOuterRefNode*)pBinding->pSource;
+    if (0 != pRef->tableRefId) {
+      continue;
+    }
+    SColumnNode* pCol = NULL;
+    pCxt->code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (TSDB_CODE_SUCCESS != pCxt->code) {
+      return DEAL_RES_ERROR;
+    }
+    pCol->node.resType = pRef->node.resType;
+    tstrncpy(pCol->colName, pRef->colName, sizeof(pCol->colName));
+    tstrncpy(pCol->node.aliasName, pRef->colName, sizeof(pCol->node.aliasName));
+    nodesDestroyNode(pBinding->pSource);
+    pBinding->pSource = (SNode*)pCol;
+  }
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static int32_t planCollectCorrelationCalls(SPlanSubqueryState* pState) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  SPlanCollectCorrelationContext cxt = {.pState = pState, .code = TSDB_CODE_SUCCESS};
+  planWalkQueryCorrelationExprs(pState->pTopAstRoot, planCollectCorrelationCall, &cxt);
+  PLAN_ERR_JRET(cxt.code);
+  SNode* pQuery = NULL;
+  FOREACH(pQuery, pState->pAllSubQueries) {
+    planWalkQueryCorrelationExprs(pQuery, planCollectCorrelationCall, &cxt);
+    PLAN_ERR_JRET(cxt.code);
+  }
+  return code;
+
+_return:
+  planError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
+typedef struct SPlanParamizeContext {
+  const SCorrelatedSubqueryNode* pCall;
+  int32_t                        code;
+} SPlanParamizeContext;
+
+static const SCorrelationParamBindingNode* planFindCorrelationParam(
+    const SCorrelatedSubqueryNode* pCall, int32_t scopeId, int64_t bindingId) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCall->pParamBindings) {
+    const SCorrelationParamBindingNode* pBinding = (const SCorrelationParamBindingNode*)pNode;
+    if (pBinding->scopeId == scopeId && pBinding->bindingId == bindingId) {
+      return pBinding;
+    }
+  }
+  return NULL;
+}
+
+static EDealRes planReplaceOuterRefWithParam(SNode** ppNode, void* pContext) {
+  if (QUERY_NODE_CORRELATED_SUBQUERY == nodeType(*ppNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if (QUERY_NODE_OUTER_REF != nodeType(*ppNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SPlanParamizeContext* pCxt = (SPlanParamizeContext*)pContext;
+  SOuterRefNode* pRef = (SOuterRefNode*)*ppNode;
+  const SCorrelationParamBindingNode* pBinding =
+      planFindCorrelationParam(pCxt->pCall, pRef->scopeId, pRef->bindingId);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SCorrelationParamNode* pParam = NULL;
+  if (NULL == pBinding) {
+    PLAN_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  }
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM, (SNode**)&pParam));
+  pParam->paramId = pBinding->paramId;
+  pParam->node.resType = pRef->node.resType;
+  tstrncpy(pParam->node.aliasName, pRef->node.aliasName, sizeof(pParam->node.aliasName));
+  tstrncpy(pParam->node.userAlias, pRef->node.userAlias, sizeof(pParam->node.userAlias));
+  tstrncpy(pParam->node.srcTable, pRef->node.srcTable, sizeof(pParam->node.srcTable));
+  pParam->node.projIdx = pRef->node.projIdx;
+  pParam->node.relatedTo = pRef->node.relatedTo;
+  nodesDestroyNode(*ppNode);
+  *ppNode = (SNode*)pParam;
+  return DEAL_RES_IGNORE_CHILD;
+
+_return:
+  pCxt->code = code;
+  planError("%s failed since %s", __func__, tstrerror(code));
+  nodesDestroyNode((SNode*)pParam);
+  return DEAL_RES_ERROR;
+}
+
+static void planParamizeQueryOuterRefs(SNode* pQuery, SPlanParamizeContext* pCxt);
+
+static void planParamizeTableOuterRefs(SNode* pTable, SPlanParamizeContext* pCxt) {
+  if (NULL == pTable || TSDB_CODE_SUCCESS != pCxt->code) {
+    return;
+  }
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+    nodesRewriteExpr(&pJoin->pWindowOffset, planReplaceOuterRefWithParam, pCxt);
+    nodesRewriteExpr(&pJoin->pJLimit, planReplaceOuterRefWithParam, pCxt);
+    planParamizeTableOuterRefs(pJoin->pLeft, pCxt);
+    planParamizeTableOuterRefs(pJoin->pRight, pCxt);
+  } else if (QUERY_NODE_TEMP_TABLE == nodeType(pTable)) {
+    planParamizeQueryOuterRefs(((STempTableNode*)pTable)->pSubquery, pCxt);
+  }
+}
+
+static void planParamizeQueryOuterRefs(SNode* pQuery, SPlanParamizeContext* pCxt) {
+  if (NULL == pQuery || TSDB_CODE_SUCCESS != pCxt->code) {
+    return;
+  }
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
+    SSetOperator* pSet = (SSetOperator*)pQuery;
+    nodesRewriteExprs(pSet->pProjectionList, planReplaceOuterRefWithParam, pCxt);
+    nodesRewriteExprs(pSet->pOrderByList, planReplaceOuterRefWithParam, pCxt);
+    planParamizeQueryOuterRefs(pSet->pLeft, pCxt);
+    planParamizeQueryOuterRefs(pSet->pRight, pCxt);
+    return;
+  }
+  if (QUERY_NODE_SELECT_STMT != nodeType(pQuery)) {
+    return;
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pQuery;
+  nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_FROM, planReplaceOuterRefWithParam, pCxt);
+  nodesRewriteExpr(&pSelect->pRange, planReplaceOuterRefWithParam, pCxt);
+  nodesRewriteExpr(&pSelect->pRangeAround, planReplaceOuterRefWithParam, pCxt);
+  nodesRewriteExpr(&pSelect->pEvery, planReplaceOuterRefWithParam, pCxt);
+  nodesRewriteExpr(&pSelect->pFill, planReplaceOuterRefWithParam, pCxt);
+  planParamizeTableOuterRefs(pSelect->pFromTable, pCxt);
+}
+
+static EDealRes planBindInheritedCorrelationSource(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_CORRELATED_SUBQUERY != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SPlanParamizeContext* pCxt = (SPlanParamizeContext*)pContext;
+  SCorrelatedSubqueryNode* pNested = (SCorrelatedSubqueryNode*)pNode;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SNode* pBindingNode = NULL;
+  FOREACH(pBindingNode, pNested->pParamBindings) {
+    SCorrelationParamBindingNode* pBinding = (SCorrelationParamBindingNode*)pBindingNode;
+    if (NULL == pBinding->pSource || QUERY_NODE_OUTER_REF != nodeType(pBinding->pSource)) {
+      continue;
+    }
+    SOuterRefNode* pRef = (SOuterRefNode*)pBinding->pSource;
+    const SCorrelationParamBindingNode* pInherited =
+        planFindCorrelationParam(pCxt->pCall, pRef->scopeId, pRef->bindingId);
+    QUERY_CHECK_NULL(pInherited, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    pBinding->sourceKind = CORRELATION_SOURCE_INHERITED;
+    pBinding->inheritedParamId = pInherited->paramId;
+    nodesDestroyNode(pBinding->pSource);
+    pBinding->pSource = NULL;
+  }
+  return DEAL_RES_IGNORE_CHILD;
+
+_return:
+  pCxt->code = code;
+  planError("%s failed since %s", __func__, tstrerror(code));
+  return DEAL_RES_ERROR;
+}
+
+static int32_t planParamizeCorrelationUnit(SPlanQueryUnit* pUnit) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SPlanParamizeContext cxt = {.pCall = pUnit->pCorrelationCall, .code = TSDB_CODE_SUCCESS};
+  planParamizeQueryOuterRefs(pUnit->pAstRoot, &cxt);
+  PLAN_ERR_JRET(cxt.code);
+  planWalkQueryCorrelationExprs(pUnit->pAstRoot, planBindInheritedCorrelationSource, &cxt);
+  PLAN_ERR_JRET(cxt.code);
+  return code;
+
+_return:
+  planError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
 
 typedef struct SPlanRemoteRewriteCtx {
   SPlanSubqueryState* pState;
@@ -251,7 +503,7 @@ static bool planGetRemoteExprInfo(SNode* pNode, int32_t** ppSubQIdx, EFqSubqRend
   }
 }
 
-static void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker, void* pContext) {
+void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker, void* pContext) {
   if (NULL == pNode) {
     return;
   }
@@ -524,24 +776,30 @@ static void planDestroySubqueryState(SPlanSubqueryState* pState, bool destroyPhy
     }
     taosMemoryFree(pState->pSubqueryUnits);
   }
+  if (NULL != pState->pCorrelationCalls) {
+    for (int32_t i = 0; i < pState->numSubQueries; ++i) {
+      nodesDestroyNode((SNode*)pState->pCorrelationCalls[i]);
+    }
+    taosMemoryFree(pState->pCorrelationCalls);
+  }
   taosMemoryFree(pState);
 }
 
 static int32_t planCreateSubqueryState(SPlanContext* pRootCxt, SPlanSubqueryState** ppState) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SPlanSubqueryState* pState = taosMemoryCalloc(1, sizeof(*pState));
-  if (NULL == pState) {
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pState, code, lino, _return, terrno);
 
   pState->pTopAstRoot = planExtractQueryRoot(pRootCxt->pAstRoot);
   pState->pAllSubQueries = planExtractSubQueries(pRootCxt->pAstRoot);
   pState->numSubQueries = (NULL != pState->pAllSubQueries) ? LIST_LENGTH(pState->pAllSubQueries) : 0;
   if (pState->numSubQueries > 0) {
     pState->pSubqueryUnits = taosMemoryCalloc((size_t)pState->numSubQueries, sizeof(SPlanQueryUnit*));
-    if (NULL == pState->pSubqueryUnits) {
-      taosMemoryFree(pState);
-      return terrno;
-    }
+    QUERY_CHECK_NULL(pState->pSubqueryUnits, code, lino, _return, terrno);
+    pState->pCorrelationCalls = taosMemoryCalloc((size_t)pState->numSubQueries,
+                                                 sizeof(SCorrelatedSubqueryNode*));
+    QUERY_CHECK_NULL(pState->pCorrelationCalls, code, lino, _return, terrno);
   }
 
   pState->rootUnit.pCtx = pRootCxt;
@@ -558,7 +816,12 @@ static int32_t planCreateSubqueryState(SPlanContext* pRootCxt, SPlanSubqueryStat
             pState->pTopAstRoot ? (int)nodeType(pState->pTopAstRoot) : -1, pState->numSubQueries);
 
   *ppState = pState;
-  return TSDB_CODE_SUCCESS;
+  return code;
+
+_return:
+  planError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  planDestroySubqueryState(pState, false);
+  return code;
 }
 
 static int32_t planCreateLogicForUnit(SPlanQueryUnit* pUnit) {
@@ -594,6 +857,7 @@ static int32_t planCreateAllLogicPlans(SPlanContext* pRootCxt, SPlanSubqueryStat
     pUnit->pAstRoot = pNode;
     pUnit->origSubQIdx = subQIdx;
     pUnit->finalSubQIdx = -1;
+    pUnit->pCorrelationCall = pState->pCorrelationCalls[subQIdx];
 
     initSubQueryPlanContext(pUnit->pCtx, pRootCxt, pNode, pState, subQIdx);
     pUnit->pCtx->forceNoMergeDataBlock =
@@ -603,7 +867,12 @@ static int32_t planCreateAllLogicPlans(SPlanContext* pRootCxt, SPlanSubqueryStat
               pRootCxt->queryId, subQIdx, (int)nodeType(pNode), (int)pUnit->pCtx->forceNoMergeDataBlock,
               pUnit->pCtx->groupId);
 
-    code = planCreateLogicForUnit(pUnit);
+    if (NULL != pUnit->pCorrelationCall) {
+      code = planParamizeCorrelationUnit(pUnit);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = planCreateLogicForUnit(pUnit);
+    }
     if (TSDB_CODE_SUCCESS != code) {
       planDestroyQueryUnit(pUnit, false);
       taosMemoryFree(pUnit);
@@ -785,6 +1054,10 @@ static int32_t planReorderAllSubqueries(SPlanSubqueryState* pState, int32_t** pp
     if (NULL == pUnit || NULL == pUnit->pLogicSubplan) {
       continue;
     }
+    if (NULL != pUnit->pCorrelationCall) {
+      pUnit->finalSubQIdx = -1;
+      continue;
+    }
     if (!pUnit->pLogicSubplan->pushedDown) {
       pOldToNew[i] = kept;
       pUnit->finalSubQIdx = kept++;
@@ -822,6 +1095,183 @@ static int32_t planReorderAllSubqueries(SPlanSubqueryState* pState, int32_t** pp
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SPlanFinalizeCorrelationContext {
+  int32_t code;
+} SPlanFinalizeCorrelationContext;
+
+static EDealRes planFinalizeCorrelationExpr(SNode* pNode, void* pContext) {
+  SPlanFinalizeCorrelationContext* pCxt = (SPlanFinalizeCorrelationContext*)pContext;
+  int32_t                          code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_OUTER_REF == nodeType(pNode)) {
+    PLAN_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  }
+  if (QUERY_NODE_CORRELATED_SUBQUERY != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SCorrelatedSubqueryNode* pCall = (SCorrelatedSubqueryNode*)pNode;
+  SNode* pBindingNode = NULL;
+  FOREACH(pBindingNode, pCall->pParamBindings) {
+    SCorrelationParamBindingNode* pBinding = (SCorrelationParamBindingNode*)pBindingNode;
+    if (CORRELATION_SOURCE_INHERITED == pBinding->sourceKind) {
+      continue;
+    }
+    if (NULL == pBinding->pSource || QUERY_NODE_COLUMN != nodeType(pBinding->pSource)) {
+      PLAN_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    }
+    SColumnNode* pSource = (SColumnNode*)pBinding->pSource;
+    if (pSource->dataBlockId < 0 || pSource->slotId < 0) {
+      PLAN_ERR_JRET(TSDB_CODE_PLAN_SLOT_NOT_FOUND);
+    }
+    pBinding->sourceKind = CORRELATION_SOURCE_BLOCK;
+    pBinding->sourceBlockId = pSource->dataBlockId;
+    pBinding->sourceSlotId = pSource->slotId;
+  }
+  return DEAL_RES_IGNORE_CHILD;
+
+_return:
+  pCxt->code = code;
+  planError("%s failed since %s", __func__, tstrerror(code));
+  return DEAL_RES_ERROR;
+}
+
+static void planWalkPhysiCorrelationExprs(SPhysiNode* pNode, FNodeWalker walker, void* pContext, int32_t* pCode) {
+  if (NULL == pNode || TSDB_CODE_SUCCESS != *pCode) {
+    return;
+  }
+
+  nodesWalkExpr(pNode->pConditions, walker, pContext);
+  if (TSDB_CODE_SUCCESS == *pCode) {
+    nodesWalkExpr(pNode->pLimit, walker, pContext);
+  }
+  if (TSDB_CODE_SUCCESS == *pCode) {
+    nodesWalkExpr(pNode->pSlimit, walker, pContext);
+  }
+  if (TSDB_CODE_SUCCESS != *pCode) {
+    return;
+  }
+  switch (nodeType((SNode*)pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
+      nodesWalkExprs(((SProjectPhysiNode*)pNode)->pProjections, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
+      SAggPhysiNode* pAgg = (SAggPhysiNode*)pNode;
+      nodesWalkExprs(pAgg->pExprs, walker, pContext);
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pAgg->pGroupKeys, walker, pContext);
+      }
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pAgg->pAggFuncs, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT: {
+      SSortPhysiNode* pSort = (SSortPhysiNode*)pNode;
+      nodesWalkExprs(pSort->pExprs, walker, pContext);
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pSort->pSortKeys, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
+      SPartitionPhysiNode* pPart = (SPartitionPhysiNode*)pNode;
+      nodesWalkExprs(pPart->pExprs, walker, pContext);
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pPart->pPartitionKeys, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {
+      SHashJoinPhysiNode* pJoin = (SHashJoinPhysiNode*)pNode;
+      nodesWalkExpr(pJoin->pLeftOnCond, walker, pContext);
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExpr(pJoin->pRightOnCond, walker, pContext);
+      }
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExpr(pJoin->pFullOnCond, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
+      SSortMergeJoinPhysiNode* pJoin = (SSortMergeJoinPhysiNode*)pNode;
+      nodesWalkExpr(pJoin->pColOnCond, walker, pContext);
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExpr(pJoin->pFullOnCond, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL: {
+      SWindowPhysiNode* pWindow = (SWindowPhysiNode*)pNode;
+      nodesWalkExprs(pWindow->pExprs, walker, pContext);
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pWindow->pFuncs, walker, pContext);
+      }
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pWindow->pProjs, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC: {
+      SWindowFuncPhysiNode* pWindow = (SWindowFuncPhysiNode*)pNode;
+      nodesWalkExprs(pWindow->pExprs, walker, pContext);
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pWindow->pPartitionKeys, walker, pContext);
+      }
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pWindow->pOrderKeys, walker, pContext);
+      }
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pWindow->pFuncs, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC: {
+      SIndefRowsFuncPhysiNode* pFunc = (SIndefRowsFuncPhysiNode*)pNode;
+      nodesWalkExprs(pFunc->pExprs, walker, pContext);
+      if (TSDB_CODE_SUCCESS == *pCode) {
+        nodesWalkExprs(pFunc->pFuncs, walker, pContext);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  if (TSDB_CODE_SUCCESS != *pCode) {
+    return;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    planWalkPhysiCorrelationExprs((SPhysiNode*)pChild, walker, pContext, pCode);
+  }
+}
+
+static int32_t planFinalizeCorrelationPlan(SQueryPlan* pPlan) {
+  int32_t                         code = TSDB_CODE_SUCCESS;
+  SPlanFinalizeCorrelationContext cxt = {.code = TSDB_CODE_SUCCESS};
+  SNode*                          pLevel = NULL;
+  FOREACH(pLevel, pPlan->pSubplans) {
+    SNode* pSubplanNode = NULL;
+    FOREACH(pSubplanNode, ((SNodeListNode*)pLevel)->pNodeList) {
+      planWalkPhysiCorrelationExprs(((SSubplan*)pSubplanNode)->pNode, planFinalizeCorrelationExpr, &cxt,
+                                    &cxt.code);
+      PLAN_ERR_JRET(cxt.code);
+    }
+  }
+  return code;
+
+_return:
+  planError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
 static int32_t planBuildPhysiForUnit(SPlanQueryUnit* pUnit, SArray* pExecNodeList) {
   planDebug("QID:0x%" PRIx64 ", stage4 physi start, queryRole:%s, origSubQIdx:%d",
             pUnit->pCtx->queryId, pUnit->isRoot ? "root" : "subquery", pUnit->origSubQIdx);
@@ -834,6 +1284,9 @@ static int32_t planBuildPhysiForUnit(SPlanQueryUnit* pUnit, SArray* pExecNodeLis
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pUnit->pCtx, pUnit->pLogicPlan, &pUnit->pPhysiPlan, pExecNodeList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = planFinalizeCorrelationPlan(pUnit->pPhysiPlan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = validateQueryPlan(pUnit->pCtx, pUnit->pPhysiPlan);
@@ -850,7 +1303,8 @@ static int32_t planAppendRetainedSubqueryPlans(SPlanSubqueryState* pState) {
   SQueryPlan* pRootPlan = pState->rootUnit.pPhysiPlan;
   for (int32_t i = 0; i < pState->numSubQueries; ++i) {
     SPlanQueryUnit* pUnit = pState->pSubqueryUnits[i];
-    if (NULL == pUnit || NULL == pUnit->pLogicSubplan || pUnit->pLogicSubplan->pushedDown) {
+    if (NULL == pUnit || NULL == pUnit->pLogicSubplan || pUnit->pLogicSubplan->pushedDown ||
+        NULL != pUnit->pCorrelationCall) {
       continue;
     }
     pUnit->pPhysiPlan->subSql = nodesGetSubSql(pUnit->pAstRoot);
@@ -868,6 +1322,278 @@ static int32_t planAppendRetainedSubqueryPlans(SPlanSubqueryState* pState) {
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes planFindDeferredQueryTime(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_VALUE == nodeType(pNode) &&
+      (((SValueNode*)pNode)->flag & VALUE_FLAG_DEFERRED_QUERY_TIME)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t planAppendTimeRangeInit(SCorrelationTemplateNode* pTemplate, const SSelectStmt* pSelect,
+                                       const SSubplanId* pSubplanId, const SPhysiNode* pNode,
+                                       bool interpRange) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SCorrelationTimeRangeInitNode* pInit = NULL;
+  const SNode*                   pRangeExpr = interpRange ? pSelect->pRange : pSelect->pWhere;
+  QUERY_CHECK_NULL(pRangeExpr, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_NULL(pNode->pOutputDataBlockDesc, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_CORRELATION_TIME_RANGE_INIT, (SNode**)&pInit));
+  pInit->scopeId = pTemplate->scopeId;
+  pInit->precision = pSelect->precision;
+  pInit->interpRange = interpRange;
+  pInit->allowNoTimeRange = !interpRange && pSelect->deferredFillAllowNoTimeRange;
+  pInit->targetSubplanId = *pSubplanId;
+  pInit->targetBlockId = pNode->pOutputDataBlockDesc->dataBlockId;
+  pInit->targetNodeType = nodeType((const SNode*)pNode);
+  PLAN_ERR_JRET(nodesCloneNode(pRangeExpr, &pInit->pRangeExpr));
+  PLAN_ERR_JRET(nodesListMakeStrictAppend(&pTemplate->pTimeRangeInit, (SNode*)pInit));
+  pInit = NULL;
+  return code;
+
+_return:
+  planError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  nodesDestroyNode((SNode*)pInit);
+  return code;
+}
+
+static int32_t planCollectTimeRangeInitTargets(SCorrelationTemplateNode* pTemplate,
+                                                const SSelectStmt* pSelect, const SSubplanId* pSubplanId,
+                                                const SPhysiNode* pNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == pNode) {
+    return code;
+  }
+  bool interpRange = false;
+  bool needsInit = false;
+  switch (nodeType((const SNode*)pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      if (pSelect->timeRangeParamDependent) {
+        nodesWalkExprs(((SProjectPhysiNode*)pNode)->pProjections, planFindDeferredQueryTime, &needsInit);
+      }
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
+      needsInit = pSelect->timeRangeParamDependent;
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      interpRange = true;
+      needsInit = pSelect->interpRangeParamDependent;
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FILL:
+      interpRange = pSelect->hasInterpFunc;
+      needsInit = interpRange ? pSelect->interpRangeParamDependent : pSelect->timeRangeParamDependent;
+      break;
+    default:
+      break;
+  }
+  if (needsInit) {
+    PLAN_ERR_JRET(planAppendTimeRangeInit(pTemplate, pSelect, pSubplanId, pNode, interpRange));
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    PLAN_ERR_JRET(planCollectTimeRangeInitTargets(pTemplate, pSelect, pSubplanId,
+                                                  (const SPhysiNode*)pChild));
+  }
+  return code;
+
+_return:
+  planError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
+static int32_t planAttachTimeRangeInit(SCorrelationTemplateNode* pTemplate, const SPlanQueryUnit* pUnit) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_SELECT_STMT != nodeType(pUnit->pAstRoot)) {
+    return code;
+  }
+  const SSelectStmt* pSelect = (const SSelectStmt*)pUnit->pAstRoot;
+  if (!pSelect->timeRangeParamDependent && !pSelect->interpRangeParamDependent) {
+    return code;
+  }
+  SNode* pLevel = NULL;
+  FOREACH(pLevel, pUnit->pPhysiPlan->pSubplans) {
+    SNode* pSubplanNode = NULL;
+    FOREACH(pSubplanNode, ((SNodeListNode*)pLevel)->pNodeList) {
+      const SSubplan* pSubplan = (const SSubplan*)pSubplanNode;
+      PLAN_ERR_JRET(planCollectTimeRangeInitTargets(pTemplate, pSelect, &pSubplan->id, pSubplan->pNode));
+    }
+  }
+  return code;
+
+_return:
+  planError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
+static int32_t planCreateCorrelationTemplate(SPlanQueryUnit* pUnit, SCorrelationTemplateNode** ppTemplate) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  SCorrelationTemplateNode*      pTemplate = NULL;
+  const SCorrelatedSubqueryNode* pCall = pUnit->pCorrelationCall;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_CORRELATION_TEMPLATE, (SNode**)&pTemplate));
+  pTemplate->templateId = pUnit->origSubQIdx;
+  pTemplate->scopeId = pCall->scopeId;
+  pTemplate->resultType = pCall->node.resType;
+  const char* pResultName = pCall->node.aliasName;
+  if ('\0' == pResultName[0]) {
+    snprintf(pTemplate->resultName, sizeof(pTemplate->resultName), "#correlation_result_%d", pTemplate->templateId);
+  } else {
+    tstrncpy(pTemplate->resultName, pResultName, sizeof(pTemplate->resultName));
+  }
+
+  SNode* pBindingNode = NULL;
+  FOREACH(pBindingNode, pCall->pParamBindings) {
+    const SCorrelationParamBindingNode* pBinding = (const SCorrelationParamBindingNode*)pBindingNode;
+    SCorrelationParamNode* pParam = NULL;
+    PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM, (SNode**)&pParam));
+    pParam->paramId = pBinding->paramId;
+    pParam->node.resType = pBinding->dataType;
+    code = nodesListMakeStrictAppend(&pTemplate->pParams, (SNode*)pParam);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pParam);
+      PLAN_ERR_JRET(code);
+    }
+  }
+
+  PLAN_ERR_JRET(planAttachTimeRangeInit(pTemplate, pUnit));
+  if (NULL != pUnit->pPhysiPlan->pPostPlan) {
+    PLAN_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  }
+  SNode* pLevel = NULL;
+  FOREACH(pLevel, pUnit->pPhysiPlan->pSubplans) {
+    SNode* pSubplan = NULL;
+    FOREACH(pSubplan, ((SNodeListNode*)pLevel)->pNodeList) {
+      ((SSubplan*)pSubplan)->requiresAncestorContext = true;
+    }
+  }
+  pUnit->pPhysiPlan->subSql = nodesGetSubSql(pUnit->pAstRoot);
+  nodesGetSubQType(pUnit->pAstRoot, (int32_t*)&pUnit->pPhysiPlan->subQType);
+  PLAN_ERR_JRET(nodesNodeToMsg((SNode*)pUnit->pPhysiPlan, &pTemplate->pPlan, &pTemplate->planLen));
+  *ppTemplate = pTemplate;
+  return code;
+
+_return:
+  planError("%s failed since %s", __func__, tstrerror(code));
+  nodesDestroyNode((SNode*)pTemplate);
+  return code;
+}
+
+typedef struct SPlanFindCorrelationCallContext {
+  int32_t templateId;
+  bool    found;
+} SPlanFindCorrelationCallContext;
+
+static EDealRes planFindCorrelationCall(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_CORRELATED_SUBQUERY != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SPlanFindCorrelationCallContext* pCxt = pContext;
+  if (((SCorrelatedSubqueryNode*)pNode)->templateId == pCxt->templateId) {
+    pCxt->found = true;
+  }
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static bool planPhysiPlanHasCorrelationCall(const SQueryPlan* pPlan, int32_t templateId) {
+  SPlanFindCorrelationCallContext cxt = {.templateId = templateId};
+  int32_t                         code = TSDB_CODE_SUCCESS;
+  SNode*                          pLevel = NULL;
+  FOREACH(pLevel, pPlan->pSubplans) {
+    SNode* pSubplanNode = NULL;
+    FOREACH(pSubplanNode, ((SNodeListNode*)pLevel)->pNodeList) {
+      planWalkPhysiCorrelationExprs(((SSubplan*)pSubplanNode)->pNode, planFindCorrelationCall, &cxt, &code);
+      if (cxt.found) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static int32_t planAppendCorrelationTemplates(SPlanSubqueryState* pState) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t numTemplates = 0;
+  for (int32_t i = 0; i < pState->numSubQueries; ++i) {
+    SPlanQueryUnit* pUnit = pState->pSubqueryUnits[i];
+    if (NULL != pUnit && NULL != pUnit->pCorrelationCall && NULL != pUnit->pPhysiPlan) {
+      ++numTemplates;
+    }
+  }
+  if (0 == numTemplates) {
+    return code;
+  }
+
+  SCorrelationTemplateNode** pTemplates = taosMemoryCalloc((size_t)pState->numSubQueries, sizeof(*pTemplates));
+  uint8_t* pOwned = taosMemoryCalloc((size_t)pState->numSubQueries, sizeof(*pOwned));
+  QUERY_CHECK_NULL(pTemplates, code, lino, _return, terrno);
+  QUERY_CHECK_NULL(pOwned, code, lino, _return, terrno);
+
+  for (int32_t i = 0; i < pState->numSubQueries; ++i) {
+    SPlanQueryUnit* pUnit = pState->pSubqueryUnits[i];
+    if (NULL == pUnit || NULL == pUnit->pCorrelationCall || NULL == pUnit->pPhysiPlan) {
+      continue;
+    }
+    PLAN_ERR_JRET(planCreateCorrelationTemplate(pUnit, &pTemplates[i]));
+    nodesDestroyNode((SNode*)pUnit->pPhysiPlan);
+    pUnit->pPhysiPlan = NULL;
+  }
+
+  for (int32_t i = 0; i < pState->numSubQueries; ++i) {
+    if (NULL == pTemplates[i]) {
+      continue;
+    }
+    const SCorrelatedSubqueryNode* pCall = pState->pCorrelationCalls[i];
+    SNodeList** ppList = &pState->rootUnit.pPhysiPlan->pCorrelationTemplates;
+    for (int32_t j = 0; j < pState->numSubQueries; ++j) {
+      if (j != i && NULL != pTemplates[j] && pTemplates[j]->scopeId == pCall->parentScopeId) {
+        ppList = &pTemplates[j]->pNestedTemplates;
+        break;
+      }
+    }
+    if (ppList == &pState->rootUnit.pPhysiPlan->pCorrelationTemplates) {
+      for (int32_t j = 0; j < pState->numSubQueries; ++j) {
+        SPlanQueryUnit* pUnit = pState->pSubqueryUnits[j];
+        if (NULL == pUnit || NULL != pUnit->pCorrelationCall || NULL == pUnit->pPhysiPlan) {
+          continue;
+        }
+        if (planPhysiPlanHasCorrelationCall(pUnit->pPhysiPlan, i)) {
+          ppList = &pUnit->pPhysiPlan->pCorrelationTemplates;
+          break;
+        }
+      }
+    }
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(ppList, (SNode*)pTemplates[i]));
+    pOwned[i] = 1;
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    if (lino > 0) {
+      planError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    } else {
+      planError("%s failed since %s", __func__, tstrerror(code));
+    }
+    if (NULL != pTemplates) {
+      for (int32_t i = 0; i < pState->numSubQueries; ++i) {
+        if (NULL != pTemplates[i] && (NULL == pOwned || !pOwned[i])) {
+          nodesDestroyNode((SNode*)pTemplates[i]);
+        }
+      }
+    }
+  }
+  taosMemoryFree(pOwned);
+  taosMemoryFree(pTemplates);
+  return code;
+}
+
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SPlanSubqueryState* pState = NULL;
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -881,6 +1607,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 
   TAOS_CHECK_EXIT(nodesAcquireAllocator(pCxt->allocatorId));
   TAOS_CHECK_EXIT(planCreateSubqueryState(pCxt, &pState));
+  TAOS_CHECK_EXIT(planCollectCorrelationCalls(pState));
 
   // Stage 1: create logic plans for root + all global subqueries.
   TAOS_CHECK_EXIT(planCreateAllLogicPlans(pCxt, pState));
@@ -918,6 +1645,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
       pCxt->groupId = pUnit->pCtx->groupId + 1;
     }
   }
+  TAOS_CHECK_EXIT(planAppendCorrelationTemplates(pState));
   TAOS_CHECK_EXIT(planAppendRetainedSubqueryPlans(pState));
 
   *pPlan = pState->rootUnit.pPhysiPlan;
@@ -1094,9 +1822,9 @@ int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) { return nodesSt
 
 int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   if (NULL == pSubplan) {
-    return terrno = TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_INVALID_PARA;
   }
-  
+
   if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
     *pLen = insert->size;
@@ -1104,11 +1832,75 @@ int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
     insert->pData = NULL;
     return TSDB_CODE_SUCCESS;
   }
-  return nodesNodeToMsg((const SNode*)pSubplan, pStr, pLen);
+
+  int32_t code = nodesNodeToMsg((const SNode*)pSubplan, pStr, pLen);
+  if (TSDB_CODE_SUCCESS != code || !pSubplan->requiresAncestorContext) {
+    return code;
+  }
+
+  // The outer TLV type is deliberately unknown to older nodes, which must reject this plan before execution.
+  const int32_t envelopeLen = sizeof(int16_t) + sizeof(int32_t);
+  if (*pLen > INT32_MAX - envelopeLen) {
+    taosMemoryFreeClear(*pStr);
+    *pLen = 0;
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  char* pWrapped = taosMemoryMalloc(envelopeLen + *pLen);
+  if (NULL == pWrapped) {
+    code = terrno;
+    taosMemoryFreeClear(*pStr);
+    *pLen = 0;
+    return code;
+  }
+  int16_t type = htons(INT16_MAX);
+  int32_t length = htonl(*pLen);
+  memcpy(pWrapped, &type, sizeof(type));
+  memcpy(pWrapped + sizeof(type), &length, sizeof(length));
+  memcpy(pWrapped + envelopeLen, *pStr, *pLen);
+  taosMemoryFree(*pStr);
+  *pStr = pWrapped;
+  *pLen += envelopeLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan) {
-  return nodesMsgToNode(pStr, len, (SNode**)pSubplan);
+  if (NULL == pStr || NULL == pSubplan || len <= 0) {
+    return TSDB_CODE_QRY_INVALID_MSG;
+  }
+
+  const int32_t envelopeLen = sizeof(int16_t) + sizeof(int32_t);
+  bool wrapped = false;
+  if (len >= sizeof(int16_t)) {
+    int16_t type = 0;
+    memcpy(&type, pStr, sizeof(type));
+    wrapped = INT16_MAX == ntohs(type);
+  }
+  if (wrapped) {
+    if (len < envelopeLen) {
+      return TSDB_CODE_QRY_INVALID_MSG;
+    }
+    int32_t length = 0;
+    memcpy(&length, pStr + sizeof(int16_t), sizeof(length));
+    if (ntohl(length) != len - envelopeLen) {
+      return TSDB_CODE_QRY_INVALID_MSG;
+    }
+    pStr += envelopeLen;
+    len -= envelopeLen;
+  }
+
+  int32_t code = nodesMsgToNode(pStr, len, (SNode**)pSubplan);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (NULL == *pSubplan) {
+    return TSDB_CODE_QRY_INVALID_MSG;
+  }
+  if (wrapped != (*pSubplan)->requiresAncestorContext) {
+    nodesDestroyNode((SNode*)*pSubplan);
+    *pSubplan = NULL;
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 SQueryPlan* qStringToQueryPlan(const char* pStr) {

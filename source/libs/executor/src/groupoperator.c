@@ -927,7 +927,7 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
   while (1) {
     doBuildResultDatablockByHash(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
 
-    code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    code = doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL, pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = doGroupResultSlimit(pRes, pLimitInfo);

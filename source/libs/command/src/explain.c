@@ -42,6 +42,8 @@ static int32_t qExplainGenerateResNode(SSubplan *plan, SPhysiNode *pNode, SExpla
 static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *level, bool singleChannel);
 static int32_t qExplainAppendGroupResRowsByVgIds(void *pCtx, int32_t groupId, int32_t *level,
                                                  bool grpSingleChannel, const SArray* pVgIds);
+static int32_t qExplainAppendCorrelationPlan(const SCorrelationTemplateNode* pTemplate, SExplainCtx* pCtx,
+                                             int32_t level);
 
 static void qExplainStripRemoteSqlAliasPattern(char *sql, const char *quoteToken) {
   if (sql == NULL || quoteToken == NULL || quoteToken[0] == '\0') {
@@ -2894,6 +2896,221 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SExplainCorrelationExpr {
+  const SCorrelatedSubqueryNode* pCall;
+  const char*                   stage;
+} SExplainCorrelationExpr;
+
+typedef struct SExplainCorrelationCollectContext {
+  SArray*     pCalls;
+  const char* stage;
+  int32_t     code;
+} SExplainCorrelationCollectContext;
+
+static const SCorrelationTemplateNode* qExplainFindCorrelationTemplate(const SNodeList* pTemplates,
+                                                                        int32_t templateId) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pTemplates) {
+    const SCorrelationTemplateNode* pTemplate = (const SCorrelationTemplateNode*)pNode;
+    if (pTemplate->templateId == templateId) {
+      return pTemplate;
+    }
+  }
+  return NULL;
+}
+
+static EDealRes qExplainCollectCorrelationCall(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_CORRELATED_SUBQUERY != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SExplainCorrelationCollectContext* pCxt = pContext;
+  const SCorrelatedSubqueryNode* pCall = (const SCorrelatedSubqueryNode*)pNode;
+  for (int32_t i = 0; i < taosArrayGetSize(pCxt->pCalls); ++i) {
+    const SExplainCorrelationExpr* pEntry = taosArrayGet(pCxt->pCalls, i);
+    if (pEntry->pCall->templateId == pCall->templateId) {
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+  SExplainCorrelationExpr entry = {.pCall = pCall, .stage = pCxt->stage};
+  if (NULL == taosArrayPush(pCxt->pCalls, &entry)) {
+    pCxt->code = terrno;
+    return DEAL_RES_ERROR;
+  }
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static int32_t qExplainAppendCorrelationRows(SExplainResNode* pResNode, SExplainCtx* ctx, int32_t level) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tlen = 0;
+  char*   tbuf = ctx->tbuf;
+  bool    isVerboseLine = true;
+  SArray* pCalls = taosArrayInit(2, sizeof(SExplainCorrelationExpr));
+  QUERY_CHECK_NULL(pCalls, code, lino, _return, terrno);
+  SExplainCorrelationCollectContext cxt = {.pCalls = pCalls, .stage = "Filter", .code = TSDB_CODE_SUCCESS};
+  SPhysiNode* pNode = pResNode->pNode;
+  nodesWalkExpr(pNode->pConditions, qExplainCollectCorrelationCall, &cxt);
+  cxt.stage = "Limit";
+  nodesWalkExpr(pNode->pLimit, qExplainCollectCorrelationCall, &cxt);
+  nodesWalkExpr(pNode->pSlimit, qExplainCollectCorrelationCall, &cxt);
+
+  switch (nodeType((SNode*)pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      cxt.stage = "Projection";
+      nodesWalkExprs(((SProjectPhysiNode*)pNode)->pProjections, qExplainCollectCorrelationCall, &cxt);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
+      SAggPhysiNode* pAgg = (SAggPhysiNode*)pNode;
+      cxt.stage = "Aggregate Input";
+      nodesWalkExprs(pAgg->pExprs, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Group";
+      nodesWalkExprs(pAgg->pGroupKeys, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Aggregate";
+      nodesWalkExprs(pAgg->pAggFuncs, qExplainCollectCorrelationCall, &cxt);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT: {
+      SSortPhysiNode* pSort = (SSortPhysiNode*)pNode;
+      cxt.stage = "Sort Input";
+      nodesWalkExprs(pSort->pExprs, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Sort";
+      nodesWalkExprs(pSort->pSortKeys, qExplainCollectCorrelationCall, &cxt);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
+      SPartitionPhysiNode* pPart = (SPartitionPhysiNode*)pNode;
+      cxt.stage = "Partition Input";
+      nodesWalkExprs(pPart->pExprs, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Partition";
+      nodesWalkExprs(pPart->pPartitionKeys, qExplainCollectCorrelationCall, &cxt);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {
+      SHashJoinPhysiNode* pJoin = (SHashJoinPhysiNode*)pNode;
+      cxt.stage = "Join Left";
+      nodesWalkExpr(pJoin->pLeftOnCond, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Join Right";
+      nodesWalkExpr(pJoin->pRightOnCond, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Join Pair";
+      nodesWalkExpr(pJoin->pFullOnCond, qExplainCollectCorrelationCall, &cxt);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
+      SSortMergeJoinPhysiNode* pJoin = (SSortMergeJoinPhysiNode*)pNode;
+      cxt.stage = "Join Column";
+      nodesWalkExpr(pJoin->pColOnCond, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Join Pair";
+      nodesWalkExpr(pJoin->pFullOnCond, qExplainCollectCorrelationCall, &cxt);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL: {
+      SWindowPhysiNode* pWindow = (SWindowPhysiNode*)pNode;
+      cxt.stage = "Window Input";
+      nodesWalkExprs(pWindow->pExprs, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Window";
+      nodesWalkExprs(pWindow->pFuncs, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Window Projection";
+      nodesWalkExprs(pWindow->pProjs, qExplainCollectCorrelationCall, &cxt);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC: {
+      SWindowFuncPhysiNode* pWindow = (SWindowFuncPhysiNode*)pNode;
+      cxt.stage = "Window Input";
+      nodesWalkExprs(pWindow->pExprs, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Window Partition";
+      nodesWalkExprs(pWindow->pPartitionKeys, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Window Order";
+      nodesWalkExprs(pWindow->pOrderKeys, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Window";
+      nodesWalkExprs(pWindow->pFuncs, qExplainCollectCorrelationCall, &cxt);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC: {
+      SIndefRowsFuncPhysiNode* pFunc = (SIndefRowsFuncPhysiNode*)pNode;
+      cxt.stage = "Function Input";
+      nodesWalkExprs(pFunc->pExprs, qExplainCollectCorrelationCall, &cxt);
+      cxt.stage = "Function";
+      nodesWalkExprs(pFunc->pFuncs, qExplainCollectCorrelationCall, &cxt);
+      break;
+    }
+    default:
+      break;
+  }
+  QRY_ERR_JRET(cxt.code);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pCalls); ++i) {
+    const SExplainCorrelationExpr* pEntry = taosArrayGet(pCalls, i);
+    const SCorrelatedSubqueryNode* pCall = pEntry->pCall;
+    QUERY_CHECK_NULL(ctx->pCurrPlanCtx, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    const SCorrelationTemplateNode* pTemplate =
+        qExplainFindCorrelationTemplate(ctx->pCurrPlanCtx->pCorrelationTemplates, pCall->templateId);
+    QUERY_CHECK_NULL(pTemplate, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    const char* typeName = isValidDataType(pCall->node.resType.type)
+                               ? tDataTypes[pCall->node.resType.type].name : "unknown";
+    EXPLAIN_ROW_NEW(level + 1, "Correlated Scalar Subquery (template: %d, stage: %s, type: %s)",
+                    pCall->templateId, pEntry->stage, typeName);
+    EXPLAIN_ROW_END();
+    QRY_ERR_JRET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+    SNode* pBindingNode = NULL;
+    FOREACH(pBindingNode, pCall->pParamBindings) {
+      const SCorrelationParamBindingNode* pBinding = (const SCorrelationParamBindingNode*)pBindingNode;
+      if (CORRELATION_SOURCE_BLOCK == pBinding->sourceKind) {
+        EXPLAIN_ROW_NEW(level + 2, "Param %d: scope %d, block %" PRId64 ", slot %d",
+                        pBinding->paramId, pBinding->scopeId, pBinding->sourceBlockId, pBinding->sourceSlotId);
+      } else if (CORRELATION_SOURCE_INHERITED == pBinding->sourceKind) {
+        EXPLAIN_ROW_NEW(level + 2, "Param %d: inherited param %d from scope %d",
+                        pBinding->paramId, pBinding->inheritedParamId, pBinding->scopeId);
+      } else {
+        EXPLAIN_ROW_NEW(level + 2, "Param %d: binding %" PRId64 " from scope %d",
+                        pBinding->paramId, pBinding->bindingId, pBinding->scopeId);
+      }
+      EXPLAIN_ROW_END();
+      QRY_ERR_JRET(qExplainResAppendRow(ctx, tbuf, tlen, level + 2));
+    }
+
+    if (EXPLAIN_MODE_ANALYZE == ctx->mode && NULL != pResNode->pExecInfo) {
+      SExplainCorrelationStat total = {0};
+      for (int32_t j = 0; j < taosArrayGetSize(pResNode->pExecInfo); ++j) {
+        const SExplainExecInfo* pExec = taosArrayGet(pResNode->pExecInfo, j);
+        for (uint32_t k = 0; k < pExec->correlationStatNum; ++k) {
+          const SExplainCorrelationStat* pStat = &pExec->pCorrelationStats[k];
+          if (pStat->templateId == pCall->templateId) {
+            total.inputRows += pStat->inputRows;
+            total.calls += pStat->calls;
+            total.elapsedUs += pStat->elapsedUs;
+          }
+        }
+      }
+      EXPLAIN_ROW_NEW(level + 2, "Input Rows: %" PRIu64 ", Calls: %" PRIu64 ", Time: %.3f ms",
+                      total.inputRows, total.calls, total.elapsedUs / 1000.0);
+      EXPLAIN_ROW_END();
+      QRY_ERR_JRET(qExplainResAppendRow(ctx, tbuf, tlen, level + 2));
+    }
+
+    EXPLAIN_ROW_NEW(level + 2, "Subquery Plan");
+    EXPLAIN_ROW_END();
+    QRY_ERR_JRET(qExplainResAppendRow(ctx, tbuf, tlen, level + 2));
+    QRY_ERR_JRET(qExplainAppendCorrelationPlan(pTemplate, ctx, level + 3));
+  }
+
+_return:
+  taosArrayDestroy(pCalls);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (lino > 0) {
+      qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    } else {
+      qError("%s failed since %s", __func__, tstrerror(code));
+    }
+  }
+  return code;
+}
+
 static int32_t qExplainResNodeToRows(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t *level) {
   if (NULL == pResNode) {
     qError("explain res node is NULL");
@@ -2902,6 +3119,7 @@ static int32_t qExplainResNodeToRows(SExplainResNode *pResNode, SExplainCtx *ctx
 
   int32_t code = 0;
   QRY_ERR_RET(qExplainResNodeToRowsImpl(pResNode, ctx, level));
+  QRY_ERR_RET(qExplainAppendCorrelationRows(pResNode, ctx, *level));
 
   SNode *pNode = NULL;
   FOREACH(pNode, pResNode->pChildren) { 
@@ -3065,6 +3283,8 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     QRY_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
+  pCtx->pCorrelationTemplates = pDag->pCorrelationTemplates;
+
   int32_t levelNum = (int32_t)LIST_LENGTH(pDag->pSubplans);
   if (levelNum <= 0) {
     qError("invalid level num:%d", levelNum);
@@ -3140,6 +3360,102 @@ _return:
   }
   
   QRY_RET(code);
+}
+
+static int32_t qExplainAppendStaticQueryPlan(SQueryPlan* pPlan, const SNodeList* pCorrelationTemplates,
+                                             SExplainCtx* pCtx, int32_t level) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int32_t          tlen = 0;
+  char*            tbuf = NULL;
+  bool             isVerboseLine = true;
+  bool             contextChanged = false;
+  SExplainPlanCtx  planCtx = {0};
+  SExplainPlanCtx* pSavedPlanCtx = NULL;
+  int32_t          savedPlanId = -1;
+  EExplainMode     savedMode = EXPLAIN_MODE_DISABLE;
+
+  QUERY_CHECK_NULL(pPlan, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_NULL(pCtx, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QRY_ERR_JRET(qExplainBuildPlanCtx(pPlan, &planCtx));
+  if (NULL != pCorrelationTemplates) {
+    planCtx.pCorrelationTemplates = pCorrelationTemplates;
+  }
+
+  pSavedPlanCtx = pCtx->pCurrPlanCtx;
+  savedPlanId = pCtx->currPlanId;
+  savedMode = pCtx->mode;
+  pCtx->pCurrPlanCtx = &planCtx;
+  pCtx->currPlanId = -1;
+  pCtx->mode = EXPLAIN_MODE_STATIC;
+  contextChanged = true;
+
+  QRY_ERR_JRET(qExplainAppendGroupResRows(pCtx, planCtx.rootGroupId, &level, false));
+
+  if (NULL != pPlan->pChildren) {
+    for (int32_t i = LIST_LENGTH(pPlan->pChildren) - 1; i >= 0; --i) {
+      SQueryPlan* pChild = (SQueryPlan*)nodesListGetNode(pPlan->pChildren, i);
+      QUERY_CHECK_NULL(pChild, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+
+      tbuf = pCtx->tbuf;
+      EXPLAIN_ROW_NEW(level, "InitPlan %d", i + 1);
+      EXPLAIN_ROW_END();
+      QRY_ERR_JRET(qExplainResAppendRow(pCtx, tbuf, tlen, level));
+
+      const SNodeList* pChildTemplates = NULL != pChild->pCorrelationTemplates
+                                             ? pChild->pCorrelationTemplates
+                                             : planCtx.pCorrelationTemplates;
+      QRY_ERR_JRET(qExplainAppendStaticQueryPlan(pChild, pChildTemplates, pCtx, level + 2));
+    }
+  }
+
+_return:
+  if (contextChanged) {
+    pCtx->pCurrPlanCtx = pSavedPlanCtx;
+    pCtx->currPlanId = savedPlanId;
+    pCtx->mode = savedMode;
+  }
+  qExplainFreePlanCtx(&planCtx, false);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (lino > 0) {
+      qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    } else {
+      qError("%s failed since %s", __func__, tstrerror(code));
+    }
+  }
+  return code;
+}
+
+static int32_t qExplainAppendCorrelationPlan(const SCorrelationTemplateNode* pTemplate, SExplainCtx* pCtx,
+                                             int32_t level) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SNode*  pDecoded = NULL;
+  char*   pPlan = NULL;
+
+  QUERY_CHECK_NULL(pTemplate, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_CONDITION(NULL != pTemplate->pPlan && pTemplate->planLen > 0, code, lino, _return,
+                        TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  pPlan = taosMemoryMalloc(pTemplate->planLen);
+  QUERY_CHECK_NULL(pPlan, code, lino, _return, terrno);
+  (void)memcpy(pPlan, pTemplate->pPlan, pTemplate->planLen);
+  QRY_ERR_JRET(nodesMsgToNode(pPlan, pTemplate->planLen, &pDecoded));
+  QUERY_CHECK_NULL(pDecoded, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_CONDITION(QUERY_NODE_PHYSICAL_PLAN == nodeType(pDecoded), code, lino, _return,
+                        TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QRY_ERR_JRET(qExplainAppendStaticQueryPlan((SQueryPlan*)pDecoded, pTemplate->pNestedTemplates, pCtx, level));
+
+_return:
+  taosMemoryFree(pPlan);
+  nodesDestroyNode(pDecoded);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (lino > 0) {
+      qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    } else {
+      qError("%s failed since %s", __func__, tstrerror(code));
+    }
+  }
+  return code;
 }
 
 static int32_t qExplainBuildCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {

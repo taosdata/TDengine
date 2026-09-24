@@ -112,6 +112,37 @@ class PlannerTestBaseImpl {
     run(sql, false, nullptr, nullptr);
   }
 
+  void runFullPlan(const string& sql, const function<void(const SQueryPlan*)>& inspect) {
+    int64_t allocatorId = 0;
+    if (g_useNodeAllocator) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCreateAllocator(sqlNo_, 32 * 1024, &allocatorId));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesAcquireAllocator(allocatorId));
+    }
+
+    reset();
+    tsQueryPolicy = QUERY_POLICY_VNODE;
+    try {
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      doParseSql(sql, query.get());
+
+      SPlanContext cxt = {0};
+      setPlanContext(*query.get(), &cxt);
+      unique_ptr<SArray, void (*)(SArray*)> execNodeList(
+          (SArray*)taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr)), (void (*)(SArray*))taosArrayDestroy);
+      SQueryPlan* pPlan = nullptr;
+      DO_WITH_THROW(qCreateQueryPlan, &cxt, &pPlan, execNodeList.get());
+      unique_ptr<SQueryPlan, void (*)(SQueryPlan*)> plan(pPlan, (void (*)(SQueryPlan*))nodesDestroyNode);
+      inspect(plan.get());
+    } catch (...) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesReleaseAllocator(allocatorId));
+      nodesDestroyAllocator(allocatorId);
+      throw;
+    }
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesReleaseAllocator(allocatorId));
+    nodesDestroyAllocator(allocatorId);
+  }
+
   void runStreamCalc(const string& sql) {
     run(sql, true, nullptr, nullptr);
   }
@@ -877,9 +908,12 @@ void PlannerTestBase::runWithPostSplitHooks(const std::string& sql,
   impl_->runWithPostSplitHooks(sql, before, after);
 }
 
-void PlannerTestBase::runStreamCalc(const std::string& sql) {
-  impl_->runStreamCalc(sql);
+void PlannerTestBase::runFullPlan(const std::string& sql,
+                                  const std::function<void(const SQueryPlan*)>& inspect) {
+  impl_->runFullPlan(sql, inspect);
 }
+
+void PlannerTestBase::runStreamCalc(const std::string& sql) { impl_->runStreamCalc(sql); }
 
 bool PlannerTestBase::findPlanNode(const std::string& nodeName) const { return impl_->findPlanNode(nodeName); }
 
