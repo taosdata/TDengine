@@ -220,6 +220,8 @@ typedef struct SQWTaskCtx {
   void      *taskHandle;
   void      *sinkHandle;
   SArray    *tbInfo; // STbVerInfo
+  char       extErrMsg[512];  // survives taskHandle destruction on executor error
+  SRWLatch   extErrLock;      // guards extErrMsg only; NEVER nested inside ctx->lock
 
   int64_t    lastAckTs;
 

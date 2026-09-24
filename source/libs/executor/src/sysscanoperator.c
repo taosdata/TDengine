@@ -271,6 +271,252 @@ static int32_t sysTableUserColsFillOneVirtualTableCol(const char* dbname, int32_
 static int32_t sysTableScanApplyVtbRefReqParam(SOperatorInfo* pOperator);
 static SSDataBlock* sysTableScanUserVcColsByReqs(SOperatorInfo* pOperator);
 
+// ---------------------------------------------------------------------------
+// ins_virtual_tables_referencing err_msg enrichment: failure context carried
+// through the whole ref-resolution chain so the row can name the failing
+// db/table/column and the full hop chain instead of a bare strerror text.
+// ---------------------------------------------------------------------------
+typedef struct SVtbRefFailure {
+  int32_t errCode;      // same value as the err_code column; never changed by this enhancement
+  char    failDb[TSDB_DB_NAME_LEN];
+  char    failTb[TSDB_TABLE_NAME_LEN];
+  char    failCol[TSDB_COL_NAME_LEN];
+  char    chain[TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR];  // hop chain; valid string is chain+chainOff
+  int32_t chainLen;     // bytes in use starting at chainOff
+  int32_t chainOff;     // 0 until tail-preserving truncation shifts the window
+  bool    useGenericMsg;  // keep the stock strerror text (e.g. no-RPC-channel path)
+} SVtbRefFailure;
+
+static void vtbRefFailSet(SVtbRefFailure* pFail, int32_t errCode, const char* db, const char* tb, const char* col) {
+  if (pFail == NULL) {
+    return;
+  }
+  pFail->errCode = errCode;
+  if (db != NULL) {
+    tstrncpy(pFail->failDb, db, sizeof(pFail->failDb));
+  }
+  if (tb != NULL) {
+    tstrncpy(pFail->failTb, tb, sizeof(pFail->failTb));
+  }
+  if (col != NULL) {
+    tstrncpy(pFail->failCol, col, sizeof(pFail->failCol));
+  }
+}
+
+// Append one hop ("db.tb.col", prefixed with " -> " unless it is the seed) to
+// the chain. On overflow the OLDEST hops are dropped and "..." is prefixed so
+// the hops closest to the failure survive; the failure sentence itself is
+// formatted separately and is therefore never truncated.
+static void vtbRefChainAppendHop(SVtbRefFailure* pFail, const char* db, const char* tb, const char* col) {
+  if (pFail == NULL || db == NULL || tb == NULL || col == NULL) {
+    return;
+  }
+  char    hop[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 8] = {0};
+  int32_t n = snprintf(hop, sizeof(hop), "%s%s.%s.%s", (pFail->chainLen == 0) ? "" : " -> ", db, tb, col);
+  if (n <= 0) {
+    return;
+  }
+  if (n >= (int32_t)sizeof(hop)) {
+    n = (int32_t)sizeof(hop) - 1;  // name lengths are bounded, defensive only
+  }
+
+  // reserve the last byte for the terminating NUL written after each append;
+  // the truncation branch's avail = cap - 3 - n inherits the same reservation
+  int32_t cap = (int32_t)sizeof(pFail->chain) - 1;
+  if (pFail->chainOff + pFail->chainLen + n <= cap) {
+    memcpy(pFail->chain + pFail->chainOff + pFail->chainLen, hop, n);
+    pFail->chainLen += n;
+    // keep the logical tail NUL-terminated: later consumers treat chain as a C string
+    pFail->chain[pFail->chainOff + pFail->chainLen] = '\0';
+    return;
+  }
+
+  int32_t avail = cap - 3 - n;  // bytes we may keep after reserving "..." + the new hop
+  if (avail < 0) {
+    return;  // cannot happen with bounded names; guard anyway
+  }
+  int32_t keep = (pFail->chainLen < avail) ? pFail->chainLen : avail;
+  const char* src = pFail->chain + pFail->chainOff + pFail->chainLen - keep;
+  if (keep > 0) {
+    // align the kept window forward to a " -> " boundary so it opens at a whole hop;
+    // a plain byte-count cut can start mid-name and leave unreadable fragments
+    for (const char* q = src; q + 4 < src + keep; ++q) {
+      if (memcmp(q, " -> ", 4) == 0 && q + 4 < src + keep) {
+        keep -= (int32_t)(q + 4 - src);
+        src = q + 4;
+        break;
+      }
+    }
+    memmove(pFail->chain + 3, src, keep);
+  }
+  pFail->chain[0] = '.';
+  pFail->chain[1] = '.';
+  pFail->chain[2] = '.';
+  pFail->chainOff = 3;
+  pFail->chainLen = keep;
+  memcpy(pFail->chain + pFail->chainOff + pFail->chainLen, hop, n);
+  pFail->chainLen += n;
+  pFail->chain[pFail->chainOff + pFail->chainLen] = '\0';
+}
+
+static SVtbRefFailure* vtbRefFailClone(const SVtbRefFailure* pFail) {
+  SVtbRefFailure* pClone = taosMemoryMalloc(sizeof(SVtbRefFailure));
+  if (pClone != NULL) {
+    memcpy(pClone, pFail, sizeof(SVtbRefFailure));
+  }
+  return pClone;
+}
+
+// Destroy the parallel failure array (NULL entries for successful refs).
+static void vtbRefFailuresDestroy(SArray* pFailures) {
+  if (pFailures == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pFailures); ++i) {
+    SVtbRefFailure** pp = taosArrayGet(pFailures, i);
+    if (pp != NULL && *pp != NULL) {
+      taosMemoryFree(*pp);
+    }
+  }
+  taosArrayDestroy(pFailures);
+}
+
+// Push one (errCode, failure) pair; pFail points at the caller's stack slot and
+// is heap-cloned only when the ref actually failed. On OOM after the errCode
+// push the arrays go out of alignment, but that is a fatal error which aborts
+// the whole fill (both arrays are then destroyed without being read).
+static int32_t vtbRefPushValidateResult(SArray* pResult, SArray* pFailures, int32_t errCode, SVtbRefFailure* pFail) {
+  if (NULL == taosArrayPush(pResult, &errCode)) {
+    return terrno;
+  }
+  SVtbRefFailure* pClone = NULL;
+  if (pFail != NULL && pFail->errCode != TSDB_CODE_SUCCESS) {
+    pClone = vtbRefFailClone(pFail);
+    if (pClone == NULL) {
+      return terrno;
+    }
+  }
+  if (NULL == taosArrayPush(pFailures, &pClone)) {
+    taosMemoryFree(pClone);
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Format the enriched err_msg. buf receives the plain text, errMsg receives the
+// VARSTR-encoded value ready for colDataSetVal.
+static int32_t buildVtbRefErrMsg(const SVtbRefFailure* pFail, char* errMsg, int32_t cap) {
+  if (errMsg == NULL || cap <= VARSTR_HEADER_SIZE) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pFail == NULL || pFail->errCode == TSDB_CODE_SUCCESS) {
+    STR_TO_VARSTR(errMsg, "");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char    buf[TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR] = {0};
+  int32_t n = 0;
+  if (pFail->useGenericMsg) {
+    n = snprintf(buf, sizeof(buf), "%s", tstrerror(pFail->errCode));
+  } else {
+    switch (pFail->errCode) {
+      case TSDB_CODE_MND_DB_NOT_EXIST:
+        if (pFail->failTb[0] == 0) {
+          n = snprintf(buf, sizeof(buf), "source database \"%s\" does not exist", pFail->failDb);
+        }
+        break;
+      case TSDB_CODE_PAR_TABLE_NOT_EXIST:
+        if (pFail->failTb[0] != 0) {
+          n = snprintf(buf, sizeof(buf), "source table \"%s.%s\" does not exist", pFail->failDb, pFail->failTb);
+        }
+        break;
+      case TSDB_CODE_PAR_INVALID_REF_COLUMN:
+        if (pFail->failCol[0] != 0) {
+          n = snprintf(buf, sizeof(buf), "source column \"%s.%s.%s\" not found", pFail->failDb, pFail->failTb,
+                       pFail->failCol);
+        }
+        break;
+      case TSDB_CODE_VTABLE_INVALID_REF_COLUMN:
+        // only the cycle sites map to this code inside the resolve chain
+        n = snprintf(buf, sizeof(buf), "circular reference detected");
+        break;
+      case TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED:
+        n = snprintf(buf, sizeof(buf), "reference depth exceeds limit %d", TSDB_MAX_VTABLE_REF_DEPTH);
+        break;
+      default:
+        break;
+    }
+  }
+  if (n <= 0) {
+    // fallback: stock strerror text plus the failure point when known
+    if (pFail->failCol[0] != 0) {
+      n = snprintf(buf, sizeof(buf), "%s on \"%s.%s.%s\"", tstrerror(pFail->errCode), pFail->failDb, pFail->failTb,
+                   pFail->failCol);
+    } else if (pFail->failTb[0] != 0) {
+      n = snprintf(buf, sizeof(buf), "%s on \"%s.%s\"", tstrerror(pFail->errCode), pFail->failDb, pFail->failTb);
+    } else if (pFail->failDb[0] != 0) {
+      n = snprintf(buf, sizeof(buf), "%s on \"%s\"", tstrerror(pFail->errCode), pFail->failDb);
+    } else {
+      n = snprintf(buf, sizeof(buf), "%s", tstrerror(pFail->errCode));
+    }
+  }
+  if (pFail->chainLen > 0 && n < (int32_t)sizeof(buf)) {
+    // The "..." marker and the hop window are contiguous at chain[0] once
+    // append-time truncation has kicked in, so print from chain[0].
+    int32_t len = pFail->chainOff + pFail->chainLen;
+    int32_t room = (int32_t)sizeof(buf) - n - (int32_t)strlen(" (chain: ") - 2;  // ')' + '\0'
+    if (len <= room) {
+      n += snprintf(buf + n, sizeof(buf) - n, " (chain: %.*s)", len, pFail->chain);
+    } else if (room > 3) {
+      // The failure sentence leaves less room than the chain: drop whole OLDEST
+      // hops (a bare snprintf cut would eat the newest hops, i.e. the ones
+      // closest to the failure) and mark the cut with "...".
+      const char* end = pFail->chain + len;
+      const char* p = pFail->chain + pFail->chainOff;
+      while (p < end && 3 + (int32_t)(end - p) > room) {
+        const char* sep = strstr(p, " -> ");
+        if (sep == NULL || sep + 4 >= end) {
+          p = end;  // a single hop does not fit; fall back to a bounded cut
+          break;
+        }
+        p = sep + 4;
+      }
+      if (p < end) {
+        n += snprintf(buf + n, sizeof(buf) - n, " (chain: ...%.*s)", (int32_t)(end - p), p);
+      } else {
+        // not even a single hop fits: keep the TAIL (the hops closest to the
+        // failure), not the head, and mark the cut with "...". The 3 bytes of
+        // "..." must come out of the same room budget, otherwise snprintf
+        // re-truncates the tail and eats the newest hop characters and the
+        // closing ')'.
+        int32_t tailLen = room - 3;
+        const char* tail = pFail->chain + len - tailLen;
+        n += snprintf(buf + n, sizeof(buf) - n, " (chain: ...%.*s)", tailLen, tail);
+      }
+    }
+  }
+  if (n >= (int32_t)sizeof(buf)) {
+    buf[sizeof(buf) - 1] = 0;  // snprintf already bounded; keep paranoia local
+  }
+  STR_TO_VARSTR(errMsg, buf);
+  return TSDB_CODE_SUCCESS;
+}
+
+// Copy a VARSTR field (pRef->vDbName etc.) into a plain NUL-terminated buffer.
+static void vtbRefVarStrToPlain(char* dst, int32_t dstCap, const char* varStr) {
+  if (dst == NULL || dstCap <= 0 || varStr == NULL) {
+    return;
+  }
+  int32_t len = varDataLen(varStr);
+  if (len > dstCap - 1) {
+    len = dstCap - 1;
+  }
+  if (len > 0) {
+    memcpy(dst, varDataVal(varStr), len);
+  }
+  dst[len] = 0;
+}
+
 
 // static int32_t sysTableFillOneVirtualTableRef(const SSysTableScanInfo* pInfo, const char* dbname, int32_t*
 // pNumOfRows,
@@ -294,7 +540,7 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
 static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, const char* refDbName,
                                            const char* refTableName, const char* refColName, SHashObj* pDbVgInfoCache,
                                            SHashObj* pTableCache, int32_t localVgId, SHashObj* pSeenRefs,
-                                           int32_t depth, int32_t* pErrCode);
+                                           int32_t depth, SVtbRefFailure* pFail);
 
 int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   SSTabFltArg* pArg = arg;
@@ -3809,6 +4055,8 @@ static int32_t findVirtualTableColIndex(SSchemaWrapper* schemaRow, const char* c
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
+static bool vtbRefColExistsInSchema(SSchema* pSchemas, int32_t numOfCols, int32_t numOfTags, const char* colName);
+
 static int32_t sysTableScanFillRequestedVirtualTableCol(SOperatorInfo* pOperator, const SSysTableScanVtbRefReq* pReq,
                                                         const SSDataBlock* dataBlock, int32_t* pNumOfRows) {
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -3830,9 +4078,58 @@ static int32_t sysTableScanFillRequestedVirtualTableCol(SOperatorInfo* pOperator
   pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
   smrTableInited = true;
   code = pAPI->metaReaderFn.getTableEntryByName(&smrTable, pReq->tbName);
+  if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST || code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    // This fill only serves virtual-table ref resolution, so a missing table
+    // here is by construction a broken vtable dependency: upgrade to the
+    // dedicated code so clients can tell it from a plain missing table, and
+    // name the missing source in the client-visible detail text.
+    qError("virtual table ref resolution failed since source table %s.%s (col %s) does not exist, code:%s; "
+           "run SHOW VTABLE VALIDATE for details",
+           pReq->dbName, pReq->tbName, pReq->colName, tstrerror(code));
+    (void)snprintf(pTaskInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg), "%s: %s.%s",
+                   tstrerror(TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST), pReq->dbName, pReq->tbName);
+    code = TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST;
+  }
   QUERY_CHECK_CODE(code, lino, _return);
 
   if (smrTable.me.type != TSDB_VIRTUAL_NORMAL_TABLE && smrTable.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+    // Physical terminal of the ref chain. The requested column must still
+    // exist on it: a dropped source column is otherwise silently read back as
+    // NULLs by the source scan instead of failing the query.
+    SSchemaWrapper* pRowSchema = NULL;
+    SSchemaWrapper* pTagSchema = NULL;
+    if (smrTable.me.type == TSDB_NORMAL_TABLE) {
+      pRowSchema = &smrTable.me.ntbEntry.schemaRow;
+      pTagSchema = &smrTable.me.ntbEntry.schemaTag;
+    } else if (smrTable.me.type == TSDB_SUPER_TABLE) {
+      pRowSchema = &smrTable.me.stbEntry.schemaRow;
+      pTagSchema = &smrTable.me.stbEntry.schemaTag;
+    } else if (smrTable.me.type == TSDB_CHILD_TABLE) {
+      // smrTable already holds the meta read lock; re-acquiring META_READER_LOCK here would self-deadlock
+      // (non-recursive writer-priority rwlock vs. a waiting writer). Rely on smrTable's held lock.
+      pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn,
+                                    pInfo->readHandle.txnId);
+      smrSuperTableInited = true;
+      code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, smrTable.me.ctbEntry.suid);
+      QUERY_CHECK_CODE(code, lino, _return);
+      pRowSchema = &smrSuperTable.me.stbEntry.schemaRow;
+      pTagSchema = &smrSuperTable.me.stbEntry.schemaTag;
+    }
+    if (pRowSchema != NULL && pRowSchema->pSchema != NULL) {
+      bool found = vtbRefColExistsInSchema(pRowSchema->pSchema, pRowSchema->nCols, 0, pReq->colName);
+      if (!found && pTagSchema != NULL && pTagSchema->pSchema != NULL && pTagSchema->nCols > 0) {
+        found = vtbRefColExistsInSchema(pTagSchema->pSchema, pTagSchema->nCols, 0, pReq->colName);
+      }
+      if (!found) {
+        qError("virtual table ref resolution failed since source column %s.%s.%s not found; "
+               "run SHOW VTABLE VALIDATE for details",
+               pReq->dbName, pReq->tbName, pReq->colName);
+        (void)snprintf(pTaskInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg), "%s: %s.%s.%s",
+                       tstrerror(TSDB_CODE_VTABLE_SRC_COL_NOT_FOUND), pReq->dbName, pReq->tbName, pReq->colName);
+        code = TSDB_CODE_VTABLE_SRC_COL_NOT_FOUND;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+    }
     goto _return;
   }
 
@@ -4822,7 +5119,7 @@ static int32_t vtbRefValidateLocal(const SSysTableScanInfo* pInfo, SStorageAPI* 
 static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_t acctId, const char* refDbName,
                                     const char* refTableName, const char* refColName, uint64_t reqId,
                                     SExecTaskInfo* pTaskInfo, SHashObj* pDbVgInfoCache,
-                                    SHashObj* pTableCache, int32_t localVgId, int32_t* pErrCode) {
+                                    SHashObj* pTableCache, int32_t localVgId, SVtbRefFailure* pFail) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SDBVgInfo*    pDbVgInfo = NULL;
@@ -4836,8 +5133,8 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   } else {
     code = vtbRefGetDbVgInfo(clientRpc, pMnodeEpSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
     if (code != TSDB_CODE_SUCCESS) {
-      // DB doesn't exist or network error
-      *pErrCode = TSDB_CODE_MND_DB_NOT_EXIST;
+      // DB doesn't exist or network error (existing err_code semantics kept)
+      vtbRefFailSet(pFail, TSDB_CODE_MND_DB_NOT_EXIST, refDbName, NULL, NULL);
       code = TSDB_CODE_SUCCESS;  // not a fatal error for validation
       goto _return;
     }
@@ -4856,7 +5153,7 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
 
   code = vtbRefGetVgId(pDbVgInfo, dbFName, refTableName, &vgId, &vnodeEpSet);
   if (code != TSDB_CODE_SUCCESS) {
-    *pErrCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    vtbRefFailSet(pFail, TSDB_CODE_PAR_TABLE_NOT_EXIST, refDbName, refTableName, NULL);
     code = TSDB_CODE_SUCCESS;
     goto _return;
   }
@@ -4864,7 +5161,7 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   // If the target vnode is the same as the local vnode, the table was already
   // checked locally (and not found). Skip the RPC to avoid self-deadlock.
   if (vgId == localVgId) {
-    *pErrCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    vtbRefFailSet(pFail, TSDB_CODE_PAR_TABLE_NOT_EXIST, refDbName, refTableName, NULL);
     code = TSDB_CODE_SUCCESS;
     goto _return;
   }
@@ -4874,13 +5171,15 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   metaRspInited = true;
   if (code != TSDB_CODE_SUCCESS) {
     // Table doesn't exist on the target vnode
-    *pErrCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    vtbRefFailSet(pFail, TSDB_CODE_PAR_TABLE_NOT_EXIST, refDbName, refTableName, NULL);
     code = TSDB_CODE_SUCCESS;
     goto _return;
   }
 
   bool found = vtbRefColExistsInSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags, refColName);
-  *pErrCode = found ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_INVALID_REF_COLUMN;
+  if (!found) {
+    vtbRefFailSet(pFail, TSDB_CODE_PAR_INVALID_REF_COLUMN, refDbName, refTableName, refColName);
+  }
 
   if (pTableCache != NULL) {
     SVtbRefTableCacheEntry* pNewEntry = taosMemoryCalloc(1, sizeof(SVtbRefTableCacheEntry));
@@ -4917,59 +5216,58 @@ _return:
 
 
 static int32_t vtbRefResolveEntryColumn(const SSysTableScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
-                                        const SVtbRefTableCacheEntry* pEntry, const char* refColName, SHashObj* pDbVgInfoCache,
+                                        const SVtbRefTableCacheEntry* pEntry, const char* refDbName,
+                                        const char* refTableName, const char* refColName, SHashObj* pDbVgInfoCache,
                                         SHashObj* pTableCache, int32_t localVgId, SHashObj* pSeenRefs,
-                                        int32_t depth, int32_t* pErrCode) {
-  if (pErrCode == NULL) {
+                                        int32_t depth, SVtbRefFailure* pFail) {
+  if (pFail == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   if (pEntry == NULL) {
-    *pErrCode = TSDB_CODE_PAR_INVALID_REF_COLUMN;
+    vtbRefFailSet(pFail, TSDB_CODE_PAR_INVALID_REF_COLUMN, refDbName, refTableName, refColName);
     return TSDB_CODE_SUCCESS;
   }
 
   if (pEntry->errCode != TSDB_CODE_SUCCESS) {
-    *pErrCode = (pEntry->errCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) ? TSDB_CODE_PAR_TABLE_NOT_EXIST : pEntry->errCode;
+    int32_t errCode = (pEntry->errCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) ? TSDB_CODE_PAR_TABLE_NOT_EXIST : pEntry->errCode;
+    vtbRefFailSet(pFail, errCode, refDbName, refTableName, NULL);
     return TSDB_CODE_SUCCESS;
   }
 
   if (pEntry->pSchemaCache == NULL || !vtbRefCheckColumnInCache(pEntry->pSchemaCache, refColName)) {
-    *pErrCode = TSDB_CODE_PAR_INVALID_REF_COLUMN;
+    vtbRefFailSet(pFail, TSDB_CODE_PAR_INVALID_REF_COLUMN, refDbName, refTableName, refColName);
     return TSDB_CODE_SUCCESS;
   }
 
   if (!vtbRefIsVirtualTableType(pEntry->tableType)) {
-    *pErrCode = TSDB_CODE_SUCCESS;
     return TSDB_CODE_SUCCESS;
   }
 
   const SColRef* pRef = vtbRefFindColumnRefInEntry(pEntry, refColName);
   if (pRef == NULL || !pRef->hasRef) {
-    *pErrCode = TSDB_CODE_SUCCESS;
     return TSDB_CODE_SUCCESS;
   }
 
   // External-source refs are validated by FederatedScan/runtime metadata checks,
   // not by local/remote vnode schema traversal.
   if (pRef->refSourceName[0] != 0) {
-    *pErrCode = TSDB_CODE_SUCCESS;
     return TSDB_CODE_SUCCESS;
   }
 
   if (pRef->refDbName[0] == 0 || pRef->refTableName[0] == 0 || pRef->refColName[0] == 0) {
-    *pErrCode = TSDB_CODE_PAR_INVALID_REF_COLUMN;
+    vtbRefFailSet(pFail, TSDB_CODE_PAR_INVALID_REF_COLUMN, refDbName, refTableName, refColName);
     return TSDB_CODE_SUCCESS;
   }
 
   return vtbRefResolveSrcColumnChain(pInfo, pTaskInfo, pRef->refDbName, pRef->refTableName, pRef->refColName, pDbVgInfoCache,
-                                     pTableCache, localVgId, pSeenRefs, depth + 1, pErrCode);
+                                     pTableCache, localVgId, pSeenRefs, depth + 1, pFail);
 }
 
 static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, const char* refDbName,
                                            const char* refTableName, const char* refColName, SHashObj* pDbVgInfoCache,
                                            SHashObj* pTableCache, int32_t localVgId, SHashObj* pSeenRefs,
-                                           int32_t depth, int32_t* pErrCode) {
+                                           int32_t depth, SVtbRefFailure* pFail) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   char                     refKey[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 3] = {0};
   int8_t                   seenMark = 1;
@@ -4977,24 +5275,28 @@ static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExec
   SVtbRefTableCacheEntry*  pEntry = NULL;
   SStorageAPI*             pAPI = &pTaskInfo->storageAPI;
 
-  if (pErrCode == NULL) {
+  if (pFail == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  // Record this hop BEFORE the depth/seen checks so a cycle shows the repeated
+  // hop (a -> b -> a) and a depth failure names the hop that tipped over.
+  vtbRefChainAppendHop(pFail, refDbName, refTableName, refColName);
+
   if (depth >= TSDB_MAX_VTABLE_REF_DEPTH) {
-    *pErrCode = TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED;
+    vtbRefFailSet(pFail, TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED, refDbName, refTableName, refColName);
     return TSDB_CODE_SUCCESS;
   }
 
   (void)snprintf(refKey, sizeof(refKey), "%s.%s.%s", refDbName, refTableName, refColName);
   if (taosHashGet(pSeenRefs, refKey, strlen(refKey)) != NULL) {
-    *pErrCode = TSDB_CODE_VTABLE_INVALID_REF_COLUMN;
+    vtbRefFailSet(pFail, TSDB_CODE_VTABLE_INVALID_REF_COLUMN, refDbName, refTableName, refColName);
     return TSDB_CODE_SUCCESS;
   }
 
   code = taosHashPut(pSeenRefs, refKey, strlen(refKey), &seenMark, sizeof(seenMark));
   if (code == TSDB_CODE_DUP_KEY) {
-    *pErrCode = TSDB_CODE_VTABLE_INVALID_REF_COLUMN;
+    vtbRefFailSet(pFail, TSDB_CODE_VTABLE_INVALID_REF_COLUMN, refDbName, refTableName, refColName);
     return TSDB_CODE_SUCCESS;
   }
   if (code != TSDB_CODE_SUCCESS) {
@@ -5008,36 +5310,38 @@ static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExec
   }
 
   if (pEntry != NULL && pEntry->errCode == TSDB_CODE_SUCCESS) {
-    code = vtbRefResolveEntryColumn(pInfo, pTaskInfo, pEntry, refColName, pDbVgInfoCache, pTableCache, localVgId,
-                                    pSeenRefs, depth, pErrCode);
+    code = vtbRefResolveEntryColumn(pInfo, pTaskInfo, pEntry, refDbName, refTableName, refColName, pDbVgInfoCache,
+                                    pTableCache, localVgId, pSeenRefs, depth, pFail);
     goto _return;
   }
 
   if (pEntry != NULL && pEntry->errCode != TSDB_CODE_TDB_TABLE_NOT_EXIST) {
-    *pErrCode = pEntry->errCode;
+    vtbRefFailSet(pFail, pEntry->errCode, refDbName, refTableName, NULL);
     goto _return;
   }
 
   if (pInfo->readHandle.pMsgCb == NULL || pInfo->readHandle.pMsgCb->clientRpc == NULL) {
-    *pErrCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    // No RPC channel: keep the stock err_code/text, do not claim the table is gone
+    vtbRefFailSet(pFail, TSDB_CODE_PAR_TABLE_NOT_EXIST, refDbName, refTableName, NULL);
+    pFail->useGenericMsg = true;
     goto _return;
   }
 
   pEntry = NULL;
   code = vtbRefValidateRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId,
                               refDbName, refTableName, refColName, pTaskInfo->id.queryId,
-                              pTaskInfo, pDbVgInfoCache, pTableCache, localVgId, pErrCode);
+                              pTaskInfo, pDbVgInfoCache, pTableCache, localVgId, pFail);
   if (code != TSDB_CODE_SUCCESS) {
     goto _return;
   }
 
   // After remote validation succeeds, check if the target is a virtual table
   // and recursively resolve its reference chain
-  if (*pErrCode == TSDB_CODE_SUCCESS) {
+  if (pFail->errCode == TSDB_CODE_SUCCESS) {
     SVtbRefTableCacheEntry* pRemoteEntry = vtbRefGetRemoteCacheEntry(pTableCache, refDbName, refTableName);
     if (pRemoteEntry != NULL && vtbRefIsVirtualTableType(pRemoteEntry->tableType)) {
-      code = vtbRefResolveEntryColumn(pInfo, pTaskInfo, pRemoteEntry, refColName, pDbVgInfoCache, pTableCache, localVgId,
-                                      pSeenRefs, depth, pErrCode);
+      code = vtbRefResolveEntryColumn(pInfo, pTaskInfo, pRemoteEntry, refDbName, refTableName, refColName,
+                                      pDbVgInfoCache, pTableCache, localVgId, pSeenRefs, depth, pFail);
       goto _return;
     }
   }
@@ -5050,14 +5354,21 @@ _return:
 }
 
 static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, SSchemaWrapper* pSchema,
-                                      SColRefWrapper* pColRef, SArray* pResult) {
+                                      SColRefWrapper* pColRef, const SVirtualTableRefInfo* pRef, SArray* pResult,
+                                      SArray* pFailures) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
-  if (pSchema == NULL || pColRef == NULL || pResult == NULL) {
+  if (pSchema == NULL || pColRef == NULL || pResult == NULL || pFailures == NULL || pRef == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+
+  // seed-hop names for the failure chain (the virtual table's own column)
+  char vDbName[TSDB_DB_NAME_LEN] = {0};
+  char vTbName[TSDB_TABLE_NAME_LEN] = {0};
+  vtbRefVarStrToPlain(vDbName, sizeof(vDbName), pRef->vDbName);
+  vtbRefVarStrToPlain(vTbName, sizeof(vTbName), pRef->vTableName);
 
   int32_t localVgId = 0;
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, &localVgId, NULL, NULL);
@@ -5082,13 +5393,12 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
   }
 
   for (int32_t i = 0; i < pSchema->nCols; ++i) {
-    int32_t errCode = TSDB_CODE_SUCCESS;
+    SVtbRefFailure fail;
+    memset(&fail, 0, sizeof(fail));
 
     if (i == 0 || pColRef == NULL || i >= pColRef->nCols || !pColRef->pColRef[i].hasRef) {
-      if (NULL == taosArrayPush(pResult, &errCode)) {
-        code = terrno;
-        goto _cleanup;
-      }
+      code = vtbRefPushValidateResult(pResult, pFailures, TSDB_CODE_SUCCESS, NULL);
+      QUERY_CHECK_CODE(code, lino, _cleanup);
       continue;
     }
 
@@ -5096,10 +5406,8 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
            pColRef->pColRef[i].refDbName, pColRef->pColRef[i].refTableName, pColRef->pColRef[i].refColName);
 
     if (pColRef->pColRef[i].refSourceName[0] != 0) {
-      if (NULL == taosArrayPush(pResult, &errCode)) {
-        code = terrno;
-        goto _cleanup;
-      }
+      code = vtbRefPushValidateResult(pResult, pFailures, TSDB_CODE_SUCCESS, NULL);
+      QUERY_CHECK_CODE(code, lino, _cleanup);
       continue;
     }
 
@@ -5107,25 +5415,23 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
     const char* refTableName = pColRef->pColRef[i].refTableName;
     const char* refColName = pColRef->pColRef[i].refColName;
 
+    vtbRefChainAppendHop(&fail, vDbName, vTbName, pSchema->pSchema[i].name);
     code = vtbRefResolveSrcColumnChain(pInfo, pTaskInfo, refDbName, refTableName, refColName,
-                                       pDbVgInfoCache, pTableCache, localVgId, pSeenRefs, 0, &errCode);
+                                       pDbVgInfoCache, pTableCache, localVgId, pSeenRefs, 0, &fail);
     QUERY_CHECK_CODE(code, lino, _cleanup);
 
-    if (NULL == taosArrayPush(pResult, &errCode)) {
-      code = terrno;
-      goto _cleanup;
-    }
+    code = vtbRefPushValidateResult(pResult, pFailures, fail.errCode, &fail);
+    QUERY_CHECK_CODE(code, lino, _cleanup);
   }
 
   // Validate tag-ref chains
   for (int32_t i = 0; i < pColRef->nTagRefs; ++i) {
-    int32_t errCode = TSDB_CODE_SUCCESS;
+    SVtbRefFailure fail;
+    memset(&fail, 0, sizeof(fail));
 
     if (!pColRef->pTagRef[i].hasRef) {
-      if (NULL == taosArrayPush(pResult, &errCode)) {
-        code = terrno;
-        goto _cleanup;
-      }
+      code = vtbRefPushValidateResult(pResult, pFailures, TSDB_CODE_SUCCESS, NULL);
+      QUERY_CHECK_CODE(code, lino, _cleanup);
       continue;
     }
 
@@ -5133,10 +5439,8 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
            pColRef->pTagRef[i].refDbName, pColRef->pTagRef[i].refTableName, pColRef->pTagRef[i].refColName);
 
     if (pColRef->pTagRef[i].refSourceName[0] != 0) {
-      if (NULL == taosArrayPush(pResult, &errCode)) {
-        code = terrno;
-        goto _cleanup;
-      }
+      code = vtbRefPushValidateResult(pResult, pFailures, TSDB_CODE_SUCCESS, NULL);
+      QUERY_CHECK_CODE(code, lino, _cleanup);
       continue;
     }
 
@@ -5144,14 +5448,13 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
     const char* refTableName = pColRef->pTagRef[i].refTableName;
     const char* refColName = pColRef->pTagRef[i].refColName;
 
+    vtbRefChainAppendHop(&fail, vDbName, vTbName, pColRef->pTagRef[i].colName);
     code = vtbRefResolveSrcColumnChain(pInfo, pTaskInfo, refDbName, refTableName, refColName,
-                                       pDbVgInfoCache, pTableCache, localVgId, pSeenRefs, 0, &errCode);
+                                       pDbVgInfoCache, pTableCache, localVgId, pSeenRefs, 0, &fail);
     QUERY_CHECK_CODE(code, lino, _cleanup);
 
-    if (NULL == taosArrayPush(pResult, &errCode)) {
-      code = terrno;
-      goto _cleanup;
-    }
+    code = vtbRefPushValidateResult(pResult, pFailures, fail.errCode, &fail);
+    QUERY_CHECK_CODE(code, lino, _cleanup);
   }
 
 _cleanup:
@@ -5180,20 +5483,6 @@ _cleanup:
   return code;
 }
 
-static int32_t getErrMsgFromCode(int32_t code, char* errMsg, int32_t cap) {
-  if (errMsg == NULL || cap <= 0) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (code != 0) {
-    char buf[128] = {0};
-    snprintf(buf, sizeof(buf), "%s", tstrerror(code));
-    STR_TO_VARSTR(errMsg, buf);
-  } else {
-    STR_TO_VARSTR(errMsg, "");
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
                                                   const char* dbname, int32_t* pNumOfRows, const SSDataBlock* dataBlock,
                                                   SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag,
@@ -5208,19 +5497,27 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
 
   int32_t numOfCols = schemaRow->nCols;
 
+  // destroyed at _end: must read NULL on every path that reaches _end before init
+  SArray* pFailures = NULL;
   SArray* pResult = taosArrayInit(numOfCols, sizeof(int32_t));
   if (pResult == NULL) {
     QUERY_CHECK_CODE(code = terrno, lino, _end);
   }
+  // Parallel to pResult: heap failure detail per validated ref, NULL on success.
+  pFailures = taosArrayInit(numOfCols, POINTER_BYTES);
+  if (pFailures == NULL) {
+    QUERY_CHECK_CODE(code = terrno, lino, _end);
+  }
   // Only validate if pColRef is valid, otherwise just fill with error codes
   if (pColRef != NULL) {
-    code = validateSrcTableColRef(pInfo, pTaskInfo, schemaRow, pColRef, pResult);
+    code = validateSrcTableColRef(pInfo, pTaskInfo, schemaRow, pColRef, pRef, pResult, pFailures);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
     // Fill pResult with success codes for all columns (columns without refs)
     for (int32_t i = 0; i < numOfCols; ++i) {
       int32_t errCode = TSDB_CODE_SUCCESS;
-      if (NULL == taosArrayPush(pResult, &errCode)) {
+      SVtbRefFailure* pNone = NULL;
+      if (NULL == taosArrayPush(pResult, &errCode) || NULL == taosArrayPush(pFailures, &pNone)) {
         code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -5315,9 +5612,9 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
     QUERY_CHECK_CODE(code, lino, _end);
 
     // err_msg
-    char    errMsg[TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR + VARSTR_HEADER_SIZE] = {0};
-    int32_t colErrCode = pColErrCode ? *pColErrCode : 0;
-    code = getErrMsgFromCode(colErrCode, errMsg, sizeof(errMsg));
+    char             errMsg[TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR + VARSTR_HEADER_SIZE] = {0};
+    SVtbRefFailure** ppColFail = (SVtbRefFailure**)taosArrayGet(pFailures, i);
+    code = buildVtbRefErrMsg((ppColFail != NULL && *ppColFail != NULL) ? *ppColFail : NULL, errMsg, sizeof(errMsg));
     QUERY_CHECK_CODE(code, lino, _end);
 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
@@ -5420,9 +5717,9 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
       QUERY_CHECK_CODE(code, lino, _end);
 
       // err_msg
-      char    errMsg[TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR + VARSTR_HEADER_SIZE] = {0};
-      int32_t tagErrCode = pTagErrCode ? *pTagErrCode : 0;
-      code = getErrMsgFromCode(tagErrCode, errMsg, sizeof(errMsg));
+      char             errMsg[TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR + VARSTR_HEADER_SIZE] = {0};
+      SVtbRefFailure** ppTagFail = (SVtbRefFailure**)taosArrayGet(pFailures, numOfCols + i);
+      code = buildVtbRefErrMsg((ppTagFail != NULL && *ppTagFail != NULL) ? *ppTagFail : NULL, errMsg, sizeof(errMsg));
       QUERY_CHECK_CODE(code, lino, _end);
 
       pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
@@ -5438,6 +5735,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+  vtbRefFailuresDestroy(pFailures);
   taosArrayDestroy(pResult);
   return code;
 }
