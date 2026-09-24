@@ -761,6 +761,45 @@ _exit:
 
 void tFreeSMDrainXnodeReq(SMDrainXnodeReq *pReq) { FREESQL(); }
 
+int32_t tSerializeSMRestartXnodeReq(void *buf, int32_t bufLen, SMRestartXnodeReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMRestartXnodeReq(void *buf, int32_t bufLen, SMRestartXnodeReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSMRestartXnodeReq(SMRestartXnodeReq *pReq) { FREESQL(); }
+
 int32_t tSerializeSMUpdateXnodeReq(void *buf, int32_t bufLen, SMUpdateXnodeReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;

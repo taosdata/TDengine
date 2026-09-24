@@ -1359,6 +1359,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DRAIN_XNODE_STMT:
       code = makeNode(type, sizeof(SDrainXnodeStmt), &pNode);
       break;
+    case QUERY_NODE_RESTART_XNODE_STMT:
+      code = makeNode(type, sizeof(SRestartXnodeStmt), &pNode);
+      break;
     case QUERY_NODE_ALTER_XNODE_STMT:
       code = makeNode(type, sizeof(SAlterXnodeStmt), &pNode);
       break;

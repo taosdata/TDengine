@@ -110,6 +110,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq);
+static int32_t mndProcessRestartXnodeReq(SRpcMsg *pReq);
 static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextXnode(SMnode *pMnode, void *pIter);
 
@@ -174,8 +175,8 @@ static int32_t mndRetrieveXnodeAgents(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
 static void    mndCancelGetNextXnodeAgent(SMnode *pMnode, void *pIter);
 
 /** @section xnoded mgmt */
-void mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const char *token);
-void mndRestartXnoded(SMnode *pMnode);
+int32_t mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const char *token);
+int32_t mndRestartXnoded(SMnode *pMnode);
 
 /** @section others */
 static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLen);
@@ -272,6 +273,7 @@ int32_t mndInitXnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_XNODE, mndProcessUpdateXnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_XNODE, mndProcessDropXnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DRAIN_XNODE, mndProcessDrainXnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RESTART_XNODE, mndProcessRestartXnodeReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_XNODES, mndRetrieveXnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_XNODES, mndCancelGetNextXnode);
 
@@ -771,6 +773,7 @@ _OVER:
 static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = 0, lino = 0;
+  int32_t          startCode = 0;
   SXnodeObj       *pObj = NULL;
   SMCreateXnodeReq createReq = {0};
   char            *pToken = NULL;
@@ -799,7 +802,10 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
         lino = __LINE__;
         goto _OVER;
       }
-      mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
+      startCode = mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
+      if (startCode != TSDB_CODE_SUCCESS) {
+        mError("xnode:%s, failed to start xnoded after create since %s", createReq.url, tstrerror(startCode));
+      }
     } else if (createReq.user != NULL) {
       TAOS_CHECK_GOTO(xnodeCheckPasswordFmt(createReq.pass), &lino, _OVER);
       (void)mndCreateXnode(pMnode, NULL, &createReq);
@@ -808,7 +814,10 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
         lino = __LINE__;
         goto _OVER;
       }
-      mndStartXnoded(pMnode, createReq.user, createReq.pass, NULL);
+      startCode = mndStartXnoded(pMnode, createReq.user, createReq.pass, NULL);
+      if (startCode != TSDB_CODE_SUCCESS) {
+        mError("xnode:%s, failed to start xnoded after create since %s", createReq.url, tstrerror(startCode));
+      }
     } else {
       code = mndXnodeCreateDefaultToken(pReq, &pToken);
       if (code == TSDB_CODE_MND_TOKEN_ALREADY_EXIST) {
@@ -821,7 +830,10 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
       (void)mndCreateXnode(pMnode, NULL, &createReq);
       createReq.token = xCreateCowStr(strlen(pToken), pToken, false);
       (void)mndStoreXnodeUserPassToken(pMnode, NULL, &createReq);
-      mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
+      startCode = mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
+      if (startCode != TSDB_CODE_SUCCESS) {
+        mError("xnode:%s, failed to start xnoded after create since %s", createReq.url, tstrerror(startCode));
+      }
     }
   } else {
     code = mndCreateXnode(pMnode, pReq, &createReq);
@@ -928,6 +940,7 @@ _OVER:
 static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq) {
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = 0;
+  int32_t          restartCode = 0;
   SXnodeObj       *pObj = NULL;
   SMUpdateXnodeReq updateReq = {0};
   bool             isSuperUser = false;
@@ -944,7 +957,11 @@ static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq) {
     if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
       goto _OVER;
     }
-    mndRestartXnoded(pMnode);
+    restartCode = mndRestartXnoded(pMnode);
+    if (restartCode != TSDB_CODE_SUCCESS) {
+      mError("xnode:%d, failed to restart xnoded after credential update since %s", updateReq.id,
+             tstrerror(restartCode));
+    }
   }
 
 _OVER:
@@ -953,6 +970,33 @@ _OVER:
   }
   mndReleaseXnode(pMnode, pObj);
   tFreeSMUpdateXnodeReq(&updateReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessRestartXnodeReq(SRpcMsg *pReq) {
+  SMnode             *pMnode = pReq->info.node;
+  int32_t             code = 0;
+  SMRestartXnodeReq   restartReq = {0};
+  int64_t             startMs = taosGetTimestampMs();
+
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_RESTART_XNODE);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for restart xnode, code:%s", tstrerror(code));
+    goto _OVER;
+  }
+  TAOS_CHECK_GOTO(tDeserializeSMRestartXnodeReq(pReq->pCont, pReq->contLen, &restartReq), NULL, _OVER);
+
+  code = mndRestartXnoded(pMnode);
+  if (code == TSDB_CODE_SUCCESS) {
+    double duration = (double)(taosGetTimestampMs() - startMs) / 1000.0;
+    auditRecord(pReq, pMnode->clusterId, "restartXnode", "", "", restartReq.sql, restartReq.sqlLen, duration, 0);
+  }
+
+_OVER:
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("xnode restart failed since %s", tstrerror(code));
+  }
+  tFreeSMRestartXnodeReq(&restartReq);
   TAOS_RETURN(code);
 }
 
@@ -6603,6 +6647,7 @@ static int32_t mndValidateXnodePermissions(SMnode *pMnode, SRpcMsg *pReq, EOperT
     case MND_OPER_CREATE_XNODE:        privType = PRIV_NODE_CREATE; break;
     case MND_OPER_UPDATE_XNODE:        privType = PRIV_NODE_ALTER; break;
     case MND_OPER_DRAIN_XNODE:         privType = PRIV_NODE_ALTER; break;
+    case MND_OPER_RESTART_XNODE:       privType = PRIV_NODE_ALTER; break;
     case MND_OPER_DROP_XNODE:          privType = PRIV_NODE_DROP; break;
     case MND_OPER_CREATE_XNODE_AGENT:  privType = PRIV_NODE_CREATE; break;
     case MND_OPER_UPDATE_XNODE_AGENT:  privType = PRIV_NODE_ALTER; break;
@@ -7659,13 +7704,13 @@ static void mndCancelGetNextXnodeAgent(SMnode *pMnode, void *pIter) {
 
 /** xnoded mgmt section **/
 
-void mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const char *token) {
+int32_t mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const char *token) {
   int32_t   code = 0;
   SXnodeOpt pOption = {0};
 
   if ((user == NULL || pass == NULL) && token == NULL) {
     mError("xnode failed to start xnoded, dnode:%d", pMnode->selfDnodeId);
-    return;
+    return TSDB_CODE_MND_XNODE_NEED_USER_PASS;
   }
 
   pOption.dnodeId = pMnode->selfDnodeId;
@@ -7674,7 +7719,7 @@ void mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const ch
   SEpSet epset = mndGetDnodeEpsetById(pMnode, pMnode->selfDnodeId);
   if (epset.numOfEps == 0) {
     mError("xnode failed to start xnoded, dnode:%d", pMnode->selfDnodeId);
-    return;
+    return TSDB_CODE_MND_XNODE_INVALID_MSG;
   }
   pOption.ep = epset.eps[0];
   // add user password
@@ -7688,8 +7733,10 @@ void mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const ch
   }
   if ((code = mndOpenXnd(&pOption)) != 0) {
     mError("xnode failed to open xnd since %s, dnodeId:%d", tstrerror(code), pOption.dnodeId);
-    return;
+    return code;
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void mndXnodeHandleBecomeLeader(SMnode *pMnode) {
@@ -7700,7 +7747,7 @@ void mndXnodeHandleBecomeLeader(SMnode *pMnode) {
     return;
   }
 
-  mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);
+  (void)mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);
   mndReleaseXnodeUserPass(pMnode, pObj);
 }
 
@@ -7709,18 +7756,25 @@ void mndXnodeHandleBecomeNotLeader() {
   mndCloseXnd();
 }
 
-void mndRestartXnoded(SMnode *pMnode) {
+int32_t mndRestartXnoded(SMnode *pMnode) {
   mInfo("mndxnode restart xnoded");
-  mndCloseXnd();
-
-  taosMsleep(200);
   SXnodeUserPassObj *pObj = mndAcquireFirstXnodeUserPass(pMnode);
   if (pObj == NULL) {
     mInfo("mndXnode restart found no xnoded user pass");
-    return;
+    return TSDB_CODE_MND_XNODE_USER_PASS_NOT_EXIST;
   }
-  mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);
+
+  mndCloseXnd();
+
+  // The stop path has already joined the xnoded watchdog thread. Give the
+  // forked xnoded process a short grace period to release its resources before
+  // starting the new instance.
+  taosMsleep(200);
+  int32_t code = mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);
   mndReleaseXnodeUserPass(pMnode, pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   mInfo("mndxnode xnoded restarted");
-  return;
+  return TSDB_CODE_SUCCESS;
 }

@@ -137,6 +137,7 @@ typedef enum {
   MND_OPER_ALLOC_TXN_SEQ,
   MND_OPER_BACKUP,  // cluster-level CREATE/KILL BACKUP
   MND_OPER_FLUSH_MNODE,
+  MND_OPER_RESTART_XNODE,
   MND_OPER_MAX  // the max operation type
 } EOperType;
 

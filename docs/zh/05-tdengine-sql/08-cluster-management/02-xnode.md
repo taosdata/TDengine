@@ -57,6 +57,24 @@ ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn
 ALTER XNODE SET USER root PASS 'taosdata';
 ```
 
+### 重启守护进程
+
+重启当前 mnode leader 所在 dnode 上的守护进程 `xnoded`。该命令不会重启远端 `taosx` 数据面进程。
+
+该操作需要 `NODE ALTER` 权限，会短暂中断 `xnoded` 守护进程，请勿在短时间内高频执行。
+
+**语法**
+
+```sql
+RESTART XNODE
+```
+
+**示例**
+
+```sql
+RESTART XNODE;
+```
+
 ### 查看节点
 
 **语法**
