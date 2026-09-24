@@ -48,6 +48,7 @@ typedef struct SObjPool {
 
 int32_t taosObjPoolInit(SObjPool *pPool, int64_t cap, size_t objSize);
 int32_t taosObjPoolEnsureCap(SObjPool *pPool, int64_t newCap);
+int32_t taosObjPoolShrinkEmpty(SObjPool *pPool, int64_t newCap);
 void    taosObjPoolDestroy(SObjPool *pPool);
 
 typedef struct SObjList {

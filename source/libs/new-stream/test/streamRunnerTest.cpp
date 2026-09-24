@@ -173,6 +173,7 @@ std::vector<int32_t>     gRunnerDestroyEvents;
 SStreamRuntimeInfo      *gRunnerDestroyRuntime = nullptr;
 bool                     gRunnerDestroySawOwners = false;
 bool                     gRunnerMultiGroupJoinProtocol = true;
+constexpr int64_t        kMockExecutorMemoryBytes = 4096;
 
 struct RunnerRotationInterleave {
   int32_t                   calls = 0;
@@ -199,6 +200,17 @@ void captureRunnerDebugLog(const char *, int32_t, int32_t, const char *format, .
 void captureRunnerUndeploy(void *) { ++gRunnerUndeployCalls; }
 
 int32_t mockQAsyncKillTask(qTaskInfo_t, int32_t) { return TSDB_CODE_SUCCESS; }
+
+std::atomic<int32_t> gRunnerMemorySampleCalls{0};
+int32_t gRunnerMemorySampleCode = TSDB_CODE_SUCCESS;
+
+int32_t mockQGetTaskMemorySize(qTaskInfo_t task, int64_t *pBytes) {
+  ++gRunnerMemorySampleCalls;
+  if (task == nullptr || pBytes == nullptr) return TSDB_CODE_INVALID_PARA;
+  if (gRunnerMemorySampleCode != TSDB_CODE_SUCCESS) return gRunnerMemorySampleCode;
+  *pBytes = kMockExecutorMemoryBytes;
+  return TSDB_CODE_SUCCESS;
+}
 
 void mockStreamDestroyExecTask(qTaskInfo_t) {
   gRunnerDestroyEvents.push_back(1);
@@ -233,6 +245,18 @@ class ScopedRunnerDebugLogCapture {
  private:
   Stub    stub_;
   int32_t previousDebugFlag_;
+};
+
+class ScopedQueryDebugFlag {
+ public:
+  explicit ScopedQueryDebugFlag(bool enable) : previousFlag_(qDebugFlag) {
+    qDebugFlag = enable ? (previousFlag_ | DEBUG_DEBUG) : (previousFlag_ & ~DEBUG_DEBUG);
+  }
+
+  ~ScopedQueryDebugFlag() { qDebugFlag = previousFlag_; }
+
+ private:
+  int32_t previousFlag_;
 };
 
 SSDataBlock             *gRunnerResultBlock = nullptr;
@@ -503,6 +527,15 @@ int32_t mockQSetTaskId(qTaskInfo_t, uint64_t, uint64_t) {
 }
 
 bool mockQTaskUsesMultiGroupJoinProtocol(qTaskInfo_t) { return gRunnerMultiGroupJoinProtocol; }
+
+/* Mimics the failure semantics of qCreateStreamExecTaskInfo(): it destroys the task it created and
+ * then reports the failure, so a caller can still be handed the handle of a destroyed task. */
+int32_t mockQCreateStreamExecTaskInfoFailedBuild(qTaskInfo_t *ppInfo, void *, SReadHandle *,
+                                                 SStreamInserterParam *, int32_t, int32_t) {
+  ++gCalls.buildCalls;
+  *ppInfo = &gRunnerBuiltExecutor;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
 
 int32_t mockStreamCalcOutputTbName(SNode *, char *tbname, SStreamRuntimeFuncInfo *pRuntime) {
   if (pRuntime == nullptr) return TSDB_CODE_INVALID_PARA;
@@ -1174,6 +1207,8 @@ class StreamRunnerTest : public ::testing::Test {
     gRunnerPeriodLogEntered.store(false);
     gBlockRunnerExecute.store(false);
     gRunnerExecuteEntered.store(false);
+    gRunnerMemorySampleCalls.store(0);
+    gRunnerMemorySampleCode = TSDB_CODE_SUCCESS;
     gRunnerUndeployCalls.store(0);
     gRunnerQuitTask = nullptr;
     gRunnerQuitAfterExecuteCalls = 0;
@@ -1202,9 +1237,12 @@ class StreamRunnerTest : public ::testing::Test {
     stub_.set(streamBuildBlockResultNotifyContent, mockStreamBuildBlockResultNotifyContent);
     stub_.set(streamTaskGetMonotonicUs, mockStreamTaskGetMonotonicUs);
     stub_.set(qTaskUsesMultiGroupJoinProtocol, mockQTaskUsesMultiGroupJoinProtocol);
+    stub_.set(qGetTaskMemorySize, mockQGetTaskMemorySize);
 
     ASSERT_EQ(taosThreadMutexInit(&task_.execMgr.lock, nullptr), TSDB_CODE_SUCCESS);
     task_.execMgr.lockInited = true;
+    ASSERT_EQ(taosThreadMutexInit(&task_.execMgr.stateLock, nullptr), TSDB_CODE_SUCCESS);
+    task_.execMgr.stateLockInited = true;
     task_.execMgr.pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
     task_.execMgr.pRunningExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
     ASSERT_NE(task_.execMgr.pFreeExecs, nullptr);
@@ -1214,6 +1252,9 @@ class StreamRunnerTest : public ::testing::Test {
     auto *pExec = static_cast<SStreamRunnerTaskExecution *>(tdListReserve(task_.execMgr.pFreeExecs));
     ASSERT_NE(pExec, nullptr);
     pExec->pExecutor = &executorSentinel_;
+    pExec->outputMemoryValid = true;
+    pExec->executorMemoryValid = true;
+    pExec->executorMemoryBytes = kMockExecutorMemoryBytes;
     pExec->pSinkHandle = &sinkSentinel_;
     pExec->runtimeInfo.execId = 7;
     tstrncpy(pExec->tbname, "out_zero_window", sizeof(pExec->tbname));
@@ -1291,6 +1332,9 @@ class StreamRunnerTest : public ::testing::Test {
     }
     if (task_.execMgr.lockInited) {
       EXPECT_EQ(taosThreadMutexDestroy(&task_.execMgr.lock), TSDB_CODE_SUCCESS);
+    }
+    if (task_.execMgr.stateLockInited) {
+      EXPECT_EQ(taosThreadMutexDestroy(&task_.execMgr.stateLock), TSDB_CODE_SUCCESS);
     }
     taosArrayDestroy(task_.notification.pNotifyAddrUrls);
     taosArrayDestroy(task_.forceOutCols);
@@ -1529,6 +1573,7 @@ class StreamRunnerTest : public ::testing::Test {
     task_.execMgr.pRunningExecs = nullptr;
     task_.execMgr.pFreeExecs = nullptr;
     task_.execMgr.lockInited = false;
+    task_.execMgr.stateLockInited = false;
     task_.notification.pNotifyAddrUrls = nullptr;
     gCalls.pRuntimeInfo = nullptr;
   }
@@ -1587,6 +1632,135 @@ TEST_F(StreamRunnerTest, RunnerPeriodUsesSameCountsAsMinuteSnapshot) {
   EXPECT_NE(line.find("result_latency_max_ms=5.000"), std::string::npos);
   EXPECT_NE(line.find("result_latency_lifetime_max_ms=5.000"), std::string::npos);
   EXPECT_NE(line.find("result_latency_lifetime_max_at=3000"), std::string::npos);
+  EXPECT_NE(line.find("executor_memory_bytes_estimate=4096"), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodUsesCachedMemoryWhileExecutionIsActive) {
+  ScopedQueryDebugFlag scopedQueryDebug(true);
+  SetWindows(1);
+  auto* pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->executorMemoryBytes = 8192;
+  gCalls.monotonicUs = 2000000;
+  gBlockRunnerExecute.store(true);
+  int32_t executeCode = TSDB_CODE_FAILED;
+  std::thread worker([&] { executeCode = stRunnerTaskExecute(&task_, &request_, 1000); });
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (!gRunnerExecuteEntered.load() && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+  const bool entered = gRunnerExecuteEntered.load();
+  if (entered) {
+    const std::string line = EmitRunnerDebugPeriod(EmptyRunnerSnapshot());
+    EXPECT_NE(line.find("executor_memory_bytes_estimate=8192"), std::string::npos);
+    EXPECT_EQ(gRunnerMemorySampleCalls.load(), 0);
+  }
+  gBlockRunnerExecute.store(false);
+  worker.join();
+
+  EXPECT_TRUE(entered);
+  EXPECT_EQ(executeCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 1);
+  EXPECT_EQ(pExec->executorMemoryBytes, kMockExecutorMemoryBytes);
+  EXPECT_TRUE(pExec->memorySnapshotPublished);
+  EXPECT_TRUE(pExec->outputMemoryValid);
+  EXPECT_TRUE(pExec->executorMemoryValid);
+}
+
+TEST_F(StreamRunnerTest, RunnerMemorySamplingIsThrottledAndHandlesClockRollback) {
+  ScopedQueryDebugFlag scopedQueryDebug(true);
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 1);
+
+  gCalls.monotonicUs = 2999999;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 1);
+  gCalls.monotonicUs = 3000000;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 2);
+  gCalls.monotonicUs = 1000000;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 3);
+}
+
+TEST_F(StreamRunnerTest, RunnerMemorySampleFailureDoesNotFailCalculationAndCanRecover) {
+  ScopedQueryDebugFlag scopedQueryDebug(true);
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  gRunnerMemorySampleCode = TSDB_CODE_OUT_OF_MEMORY;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_NE(EmitRunnerDebugPeriod(EmptyRunnerSnapshot()).find("executor_memory_bytes_estimate=NA"),
+            std::string::npos);
+
+  gCalls.monotonicUs += 1000000;
+  gRunnerMemorySampleCode = TSDB_CODE_SUCCESS;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_NE(EmitRunnerDebugPeriod(EmptyRunnerSnapshot()).find("executor_memory_bytes_estimate=4096"),
+            std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerExecutorMemoryWalkIsSkippedWithoutQueryDebug) {
+  ScopedQueryDebugFlag scopedQueryDebug(false);
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 0);
+
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  EXPECT_TRUE(pExec->memorySnapshotPublished);
+  EXPECT_TRUE(pExec->outputMemoryValid);
+  EXPECT_TRUE(pExec->executorMemoryValid);
+  EXPECT_EQ(pExec->executorMemoryBytes, kMockExecutorMemoryBytes);
+}
+
+TEST_F(StreamRunnerTest, RunnerExecutorMemoryIsUnavailableUntilSampled) {
+  ScopedQueryDebugFlag scopedQueryDebug(false);
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  ASSERT_TRUE(pExec->executorMemoryValid);  // fresh exec: no executor yet, so 0 bytes is accurate
+  pExec->pExecutor = nullptr;               // force the executor creation path
+  stub_.set(qCreateStreamExecTaskInfo, mockQCreateStreamExecTaskInfo);
+  stub_.set(qSetTaskId, mockQSetTaskId);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  // An executor now exists but was never sampled, so the initial 0 bytes must not be published as
+  // a real estimate while the walk stays disabled.
+  EXPECT_EQ(gCalls.buildCalls, 1);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 0);
+  EXPECT_FALSE(pExec->executorMemoryValid);
+  EXPECT_EQ(pExec->executorMemoryBytes, 0);
+  EXPECT_NE(EmitRunnerDebugPeriod(EmptyRunnerSnapshot()).find("executor_memory_bytes_estimate=NA"),
+            std::string::npos);
+  EXPECT_NE(EmitRunnerDebugPeriod(EmptyRunnerSnapshot()).find("runner_owned_memory_bytes_estimate="),
+            std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerDropsExecutorDestroyedByFailedBuild) {
+  ScopedQueryDebugFlag scopedQueryDebug(true);  // the sample is the read that would touch the stale handle
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->pExecutor = nullptr;  // force the executor creation path
+  stub_.set(qCreateStreamExecTaskInfo, mockQCreateStreamExecTaskInfoFailedBuild);
+
+  EXPECT_NE(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  // The failed build reported the handle of a task it already destroyed.  Keeping it would let the
+  // cleanup path sample that freed memory (and reset it on the multi-group path).
+  EXPECT_EQ(gCalls.buildCalls, 1);
+  EXPECT_EQ(gCalls.setTaskIdCalls, 0);
+  EXPECT_EQ(pExec->pExecutor, nullptr);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 0);
+  // The exec was released through the cleanup path that performs the sampling.
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
 }
 
 TEST_F(StreamRunnerTest, RunnerPeriodPrintsNoResultAndThreeFailureClasses) {
@@ -1721,6 +1895,8 @@ TEST_F(StreamRunnerTest, RunnerLoggerEntryReadPreventsTeardownUntilExecSnapshotC
   runner.parallelExecutionNun = 2;
   ASSERT_EQ(taosThreadMutexInit(&runner.execMgr.lock, nullptr), TSDB_CODE_SUCCESS);
   runner.execMgr.lockInited = true;
+  ASSERT_EQ(taosThreadMutexInit(&runner.execMgr.stateLock, nullptr), TSDB_CODE_SUCCESS);
+  runner.execMgr.stateLockInited = true;
   runner.execMgr.pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
   runner.execMgr.pRunningExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
   ASSERT_NE(runner.execMgr.pFreeExecs, nullptr);
@@ -1764,6 +1940,7 @@ TEST_F(StreamRunnerTest, RunnerLoggerEntryReadPreventsTeardownUntilExecSnapshotC
     tdListFreeP(runner.execMgr.pRunningExecs, nullptr);
     tdListFreeP(runner.execMgr.pFreeExecs, nullptr);
     TAOS_UNUSED(taosThreadMutexDestroy(&runner.execMgr.lock));
+    TAOS_UNUSED(taosThreadMutexDestroy(&runner.execMgr.stateLock));
   }
 }
 
@@ -1822,6 +1999,8 @@ TEST_F(StreamRunnerTest, RunnerPeriodContainsCommonIdentity) {
       "last_calc_at=",
       "last_result_at=",
       "last_output_at=",
+      "runner_owned_memory_bytes_estimate=",
+      "executor_memory_bytes_estimate=",
   };
   for (const char *field : requiredFields) EXPECT_NE(line.find(field), std::string::npos) << field;
 }

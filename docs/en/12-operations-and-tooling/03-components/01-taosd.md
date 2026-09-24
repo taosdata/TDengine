@@ -490,6 +490,7 @@ When `CACHEMODEL` is not `none`, in addition to the in-memory LRU cache, each `v
 | streamSinkDataRate      |                   | Supported, effective after restart | Internal parameter, used to control the write speed of stream computing results |
 | streamNotifyMessageSize | After 3.3.6.0     | Supported, effective after restart | Internal parameter, controls the message size for event notifications, default value is 8192 |
 | streamNotifyFrameSize   | After 3.3.6.0     | Supported, effective after restart | Internal parameter, controls the underlying frame size when sending event notification messages, default value is 256 |
+| streamTriggerMaxPendingParams | After 3.4.3.0 | Supported, effective immediately | Upper bound (count, not bytes) of pending calculation parameters a stream trigger can accumulate; when reached, the trigger pauses accumulating new parameters so that realtime/history calculation requests do not pile up and consume excessive memory. Default value is 1048576 |
 | adapterFqdn             | After 3.3.6.0     | Not supported                      | Internal parameter, The address of the taosadapter services, default value is localhost |
 | adapterPort             | After 3.3.6.0     | Not supported                      | Internal parameter, The port of the taosadapter services, default value is 6041 |
 | adapterToken            | After 3.3.6.0     | Not supported                      | Internal parameter, The string obtained by Base64-encoding `{username}:{password}`, default value is `cm9vdDp0YW9zZGF0YQ==` |
