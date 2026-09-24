@@ -355,5 +355,3 @@ _return:
   
   return code;
 }
-
-

@@ -275,6 +275,7 @@ typedef struct SSchJobAttr {
   bool         needFetch;
   bool         needFlowCtrl;
   bool         localExec;
+  bool         inlineTaskLaunch;
 } SSchJobAttr;
 
 typedef struct {
@@ -330,6 +331,7 @@ typedef struct SSchJob {
   // SExecResult::numTouchedObjects for the client's per-object txn DDL accounting.
   int32_t              resNumTouchedObjects;
   SSchResInfo          userRes;
+  void (*cbParamFreeFp)(void*);
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
@@ -339,6 +341,14 @@ typedef struct SSchJob {
   int64_t              phaseStartTime; // When current phase started (ms)
   int64_t              txnId;          // batch meta txn ID for same-txn visibility
   int8_t               firstDayOfWeek; /* 0-6, resolved by client before dispatch */
+  SCorrelationExecution correlation;
+  SArray              *pCorrelationParamDefs;
+  SArray              *pCorrelationParamValues;
+  char                *pCorrelationTemplates;
+  uint32_t             correlationTemplatesLen;
+  char                *pCorrelationTimeInit;
+  uint32_t             correlationTimeInitLen;
+  SArray              *pExternalSubquerySources;  // Owned SDownstreamSourceNode* entries on the parent job.
 } SSchJob;
 
 typedef struct SSchTaskCtx {
@@ -641,6 +651,7 @@ void     schCleanClusterHb(void *pTrans);
 int32_t  schLaunchTask(SSchJob *job, SSchTask *task);
 int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType, void *param);
+int32_t  schBuildSubJobEndpoints(SSchTask *task, SArray** ppRes, SSchJob* target);
 int32_t  schAcquireJob(int64_t refId, SSchJob **ppJob);
 int32_t  schReleaseJob(int64_t refId);
 int32_t  schReleaseJobEx(int64_t refId, int32_t *released);

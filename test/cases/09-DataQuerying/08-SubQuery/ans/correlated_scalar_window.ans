@@ -1,0 +1,190 @@
+
+taos> use correlated_scalar_positions;
+Database changed.
+
+taos> select sum(r.v) as total, (select count(*) from thresholds t where t.lim < sum(r.v)) as below_total from readings r interval(1m) order by _wstart;
+         total         |      below_total      |
+================================================
+                    30 |                     2 |
+                    70 |                     3 |
+
+taos> select sum(r.v) as total, (select max(t.lim) from thresholds t where t.lim < sum(r.v) ) as result from readings r interval(1m) order by _wstart;
+         total         |   result    |
+======================================
+                    30 |          25 |
+                    70 |          50 |
+
+taos> select sum(r.v) as total, (select count(*) from thresholds t where t.lim < sum(r.v) ) as result from readings r interval(1m) order by _wstart;
+         total         |        result         |
+================================================
+                    30 |                     2 |
+                    70 |                     3 |
+
+taos> select sum(r.v) as total, (select min(t.lim) from thresholds t where t.lim < sum(r.v) ) as result from readings r interval(1m) order by _wstart;
+         total         |   result    |
+======================================
+                    30 |          15 |
+                    70 |          15 |
+
+taos> select sum(r.v) as total, (select sum(t.lim) from thresholds t where t.lim < sum(r.v) ) as result from readings r interval(1m) order by _wstart;
+         total         |        result         |
+================================================
+                    30 |                    40 |
+                    70 |                    90 |
+
+taos> select sum(r.v) as total, (select t.lim from thresholds t where t.lim < sum(r.v) order by t.ts desc limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |   result    |
+======================================
+                    30 |          25 |
+                    70 |          50 |
+
+taos> select max(r.v) as max_v, (select max(t.lim) from thresholds t where t.lim < max(r.v) ) as result from readings r interval(1m) order by _wstart;
+    max_v    |   result    |
+============================
+          20 |          15 |
+          40 |          25 |
+
+taos> select max(r.v) as max_v, (select count(*) from thresholds t where t.lim < max(r.v) ) as result from readings r interval(1m) order by _wstart;
+    max_v    |        result         |
+======================================
+          20 |                     1 |
+          40 |                     2 |
+
+taos> select max(r.v) as max_v, (select min(t.lim) from thresholds t where t.lim < max(r.v) ) as result from readings r interval(1m) order by _wstart;
+    max_v    |   result    |
+============================
+          20 |          15 |
+          40 |          15 |
+
+taos> select max(r.v) as max_v, (select sum(t.lim) from thresholds t where t.lim < max(r.v) ) as result from readings r interval(1m) order by _wstart;
+    max_v    |        result         |
+======================================
+          20 |                    15 |
+          40 |                    40 |
+
+taos> select max(r.v) as max_v, (select t.lim from thresholds t where t.lim < max(r.v) order by t.ts desc limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |   result    |
+============================
+          20 |          15 |
+          40 |          25 |
+
+taos> select sum(r.v) as total, (select (select max(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |   result    |
+======================================
+                    30 |          25 |
+                    70 |          50 |
+
+taos> select sum(r.v) as total, (select (select count(*) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |        result         |
+================================================
+                    30 |                     2 |
+                    70 |                     3 |
+
+taos> select sum(r.v) as total, (select (select min(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |   result    |
+======================================
+                    30 |          15 |
+                    70 |          15 |
+
+taos> select sum(r.v) as total, (select (select sum(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |        result         |
+================================================
+                    30 |                    40 |
+                    70 |                    90 |
+
+taos> select sum(r.v) as total, (select (select t.lim from thresholds t where t.lim < sum(r.v) order by t.ts desc limit 1) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |   result    |
+======================================
+                    30 |          25 |
+                    70 |          50 |
+
+taos> select max(r.v) as max_v, (select (select max(t.lim) from thresholds t where t.lim < max(r.v) ) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |   result    |
+============================
+          20 |          15 |
+          40 |          25 |
+
+taos> select max(r.v) as max_v, (select (select count(*) from thresholds t where t.lim < max(r.v) ) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |        result         |
+======================================
+          20 |                     1 |
+          40 |                     2 |
+
+taos> select max(r.v) as max_v, (select (select min(t.lim) from thresholds t where t.lim < max(r.v) ) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |   result    |
+============================
+          20 |          15 |
+          40 |          15 |
+
+taos> select max(r.v) as max_v, (select (select sum(t.lim) from thresholds t where t.lim < max(r.v) ) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |        result         |
+======================================
+          20 |                    15 |
+          40 |                    40 |
+
+taos> select max(r.v) as max_v, (select (select t.lim from thresholds t where t.lim < max(r.v) order by t.ts desc limit 1) from thresholds m limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |   result    |
+============================
+          20 |          15 |
+          40 |          25 |
+
+taos> select sum(r.v) as total, (select (select (select max(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |   result    |
+======================================
+                    30 |          25 |
+                    70 |          50 |
+
+taos> select sum(r.v) as total, (select (select (select count(*) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |        result         |
+================================================
+                    30 |                     2 |
+                    70 |                     3 |
+
+taos> select sum(r.v) as total, (select (select (select min(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |   result    |
+======================================
+                    30 |          15 |
+                    70 |          15 |
+
+taos> select sum(r.v) as total, (select (select (select sum(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |        result         |
+================================================
+                    30 |                    40 |
+                    70 |                    90 |
+
+taos> select sum(r.v) as total, (select (select (select t.lim from thresholds t where t.lim < sum(r.v) order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+         total         |   result    |
+======================================
+                    30 |          25 |
+                    70 |          50 |
+
+taos> select max(r.v) as max_v, (select (select (select max(t.lim) from thresholds t where t.lim < max(r.v) ) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |   result    |
+============================
+          20 |          15 |
+          40 |          25 |
+
+taos> select max(r.v) as max_v, (select (select (select count(*) from thresholds t where t.lim < max(r.v) ) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |        result         |
+======================================
+          20 |                     1 |
+          40 |                     2 |
+
+taos> select max(r.v) as max_v, (select (select (select min(t.lim) from thresholds t where t.lim < max(r.v) ) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |   result    |
+============================
+          20 |          15 |
+          40 |          15 |
+
+taos> select max(r.v) as max_v, (select (select (select sum(t.lim) from thresholds t where t.lim < max(r.v) ) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |        result         |
+======================================
+          20 |                    15 |
+          40 |                    40 |
+
+taos> select max(r.v) as max_v, (select (select (select t.lim from thresholds t where t.lim < max(r.v) order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) as result from readings r interval(1m) order by _wstart;
+    max_v    |   result    |
+============================
+          20 |          15 |
+          40 |          25 |
+

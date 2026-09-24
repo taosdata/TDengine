@@ -480,6 +480,37 @@ TEST(columnTest, blob_column_supported_predicates) {
   DestroyRegexCache();
 }
 
+TEST(columnTest, null_value_uses_scalar_filter) {
+  int32_t values[] = {1, 2};
+  SNode *pColumn = NULL;
+  SNode *pValue = NULL;
+  SNode *pPredicate = NULL;
+  SFilterInfo *pFilter = NULL;
+  SSDataBlock *pBlock = NULL;
+
+  ASSERT_EQ(flttMakeColumnNode(&pColumn, &pBlock, TSDB_DATA_TYPE_INT, sizeof(int32_t), 2, values),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_VALUE, &pValue), TSDB_CODE_SUCCESS);
+  ((SValueNode *)pValue)->node.resType = ((SExprNode *)pColumn)->resType;
+  ((SValueNode *)pValue)->isNull = true;
+  ASSERT_EQ(flttMakeOpNode(&pPredicate, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, pColumn, pValue), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(filterInitFromNode(pPredicate, &pFilter, 0, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(pFilter->scalarMode);
+  SFilterColumnParam param = {(int32_t)taosArrayGetSize(pBlock->pDataBlock), pBlock->pDataBlock};
+  ASSERT_EQ(filterSetDataFromSlotId(pFilter, &param), TSDB_CODE_SUCCESS);
+  SColumnInfoData *pResult = NULL;
+  int32_t resultStatus = 0;
+  ASSERT_EQ(filterExecute(pFilter, pBlock, &pResult, NULL, param.numOfCols, &resultStatus), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(resultStatus, FILTER_RESULT_NONE_QUALIFIED);
+
+  colDataDestroy(pResult);
+  taosMemoryFree(pResult);
+  filterFreeInfo(pFilter);
+  nodesDestroyNode(pPredicate);
+  blockDataDestroy(pBlock);
+}
+
 TEST(columnTest, blob_column_comparator_scope) {
   struct SBlobComparatorCase {
     EOperatorType opType;

@@ -31,6 +31,111 @@ extern "C" {
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tsimplehash.h"
+#include "ttypes.h"
+
+// Only pointers cross this interface; keep qcom independent of Nodes headers.
+typedef struct SNodeList SNodeList;
+typedef struct SValueNode SValueNode;
+
+// Correlation runtime objects are implemented in node management. Qworker and
+// Executor use this interface without depending on Scheduler's concrete types.
+typedef struct SCorrelationRuntime SCorrelationRuntime;
+typedef struct SCorrelationTaskSession SCorrelationTaskSession;
+typedef struct SCorrelationCall SCorrelationCall;
+typedef struct SMemPoolJob SMemPoolJob;
+
+typedef struct SCorrelationTaskKey {
+  uint64_t queryId;
+  uint64_t clientId;
+  uint64_t taskId;
+  int32_t  execId;
+  uint64_t seriesId;
+} SCorrelationTaskKey;
+
+typedef struct SCorrelationRootKey {
+  uint64_t executionId;  // New for each SQL execution/retry, including STMT.
+  uint64_t queryId;
+  uint64_t clientId;
+  uint64_t generation;
+} SCorrelationRootKey;
+
+typedef struct SCorrelationParamValue {
+  int32_t   paramId;
+  SDataType dataType;
+  bool      isNull;
+  int32_t   length;
+  // Owned native value storage, independent of source blocks and RPC buffers.
+  // Variable values include their existing varstr/blob header; length is the
+  // total stored byte count. NULL has length 0 and pData NULL. P06 encodes the
+  // typed contents, never this process-local pointer or source block/slot IDs.
+  void*     pData;
+} SCorrelationParamValue;
+
+typedef struct SCorrelationCallKey {
+  SCorrelationRootKey root;
+  SCorrelationTaskKey parent;
+  int32_t             templateId;
+  uint64_t            sequence;
+} SCorrelationCallKey;
+
+typedef struct SCorrelationTaskContext {
+  SCorrelationRootKey root;
+  SCorrelationTaskKey task;
+  int32_t             queryPolicy;
+  int64_t             txnId;  // Inherit unchanged; zero does not start a txn.
+  int8_t              firstDayOfWeek;
+  char                user[TSDB_USER_LEN];
+  char                db[TSDB_DB_FNAME_LEN];
+  const char*         pTimezoneName;
+  const char*         pCharsetName;
+  const SNodeList*    pTemplates;
+  const SArray*       pInheritedParams;  // SCorrelationParamValue entries.
+  const SArray*       pNodeList;         // SQueryNodeLoad candidates for nested jobs.
+  void*               pWorkerCb;
+  SMemPoolJob*        pMemPoolJob;
+} SCorrelationTaskContext;
+
+typedef struct SCorrelationWaitHooks {
+  void*   pContext;
+  // Return TSDB_CODE_SUCCESS after entering the blocking state. Any other
+  // value aborts the wait and is propagated without calling the recovery hook.
+  int32_t (*beforeBlocking)(void* pContext);
+  // Called exactly once after each successful beforeBlocking invocation.
+  void    (*afterRecoverFromBlocking)(void* pContext);
+} SCorrelationWaitHooks;
+
+typedef struct SCorrelationScalarRequest {
+  int32_t               templateId;
+  const SArray*         pParams;  // SCorrelationParamValue entries.
+  const SArray*         pSubquerySources;  // Borrowed SDownstreamSourceNode* entries.
+  SCorrelationWaitHooks wait;
+} SCorrelationScalarRequest;
+
+typedef struct SCorrelationRuntimeOps {
+  // Borrow pContext only during creation. The session copies parameters and
+  // names and holds immutable template references until its last release.
+  // Failure leaves *ppSession NULL and releases partially acquired resources.
+  int32_t (*createTaskSession)(SCorrelationRuntime* pRuntime,
+                               const SCorrelationTaskContext* pContext,
+                               SCorrelationTaskSession** ppSession);
+  void (*retainTaskSession)(SCorrelationTaskSession* pSession);
+  void (*releaseTaskSession)(SCorrelationTaskSession* pSession);
+  // Each call creates an independent job. Request storage and wait hooks are
+  // borrowed until return; asynchronous users must copy/retain their inputs.
+  // Success transfers one owned QUERY_NODE_VALUE (including typed NULL).
+  // Failure leaves *ppResult NULL and preserves the original error code.
+  // Return only after invocation resources/callbacks have drained. Pair every
+  // successful beforeBlocking with one afterRecoverFromBlocking before return.
+  int32_t (*invokeScalar)(SCorrelationTaskSession* pSession,
+                          const SCorrelationScalarRequest* pRequest,
+                          SValueNode** ppResult);
+  const SArray* (*getInheritedParams)(const SCorrelationTaskSession* pSession);
+  int32_t (*reserveResultMemory)(SCorrelationTaskSession* pSession, int64_t bytes);
+  void (*releaseResultMemory)(SCorrelationTaskSession* pSession, int64_t bytes);
+  // Idempotently reject new calls, cancel children and wake waiters. Never
+  // drain callbacks while holding a task lock; references keep callbacks safe.
+  void (*closeTaskSession)(SCorrelationTaskSession* pSession, int32_t code);
+} SCorrelationRuntimeOps;
 
 typedef enum {
   JOB_TASK_STATUS_NULL = 0,

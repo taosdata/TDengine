@@ -19,6 +19,7 @@
 #include "function.h"
 #include "functionMgt.h"
 #include "os.h"
+#include "query.h"
 #include "querynodes.h"
 #include "tfill.h"
 #include "tname.h"
@@ -199,6 +200,12 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   (*pTaskInfo)->enableExplain = enableExplain;
   (*pTaskInfo)->txnId = pHandle->txnId;
+  if (NULL != pHandle->pCorrelationSession && NULL != pHandle->pMsgCb &&
+      NULL != pHandle->pMsgCb->pCorrelationOps) {
+    (*pTaskInfo)->pCorrelationOps = pHandle->pMsgCb->pCorrelationOps;
+    (*pTaskInfo)->pCorrelationSession = pHandle->pCorrelationSession;
+    (*pTaskInfo)->pCorrelationOps->retainTaskSession((*pTaskInfo)->pCorrelationSession);
+  }
 
   if (subEndPoints && taosArrayGetSize(*subEndPoints) > 0) {
     code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
@@ -437,6 +444,12 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
     tDestroyStRtFuncInfo(pRt);
     taosMemoryFreeClear(pTaskInfo->pStreamRuntimeInfo);
   }
+  if (NULL != pTaskInfo->pCorrelationSession && NULL != pTaskInfo->pCorrelationOps) {
+    pTaskInfo->pCorrelationOps->closeTaskSession(pTaskInfo->pCorrelationSession, pTaskInfo->code);
+    pTaskInfo->pCorrelationOps->releaseTaskSession(pTaskInfo->pCorrelationSession);
+    pTaskInfo->pCorrelationSession = NULL;
+  }
+  taosArrayDestroy(pTaskInfo->pCorrelationStats);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);

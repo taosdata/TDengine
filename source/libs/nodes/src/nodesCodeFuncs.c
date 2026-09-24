@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cJSON.h"
 #include "cmdnodes.h"
 #include "nodes.h"
 #include "nodesUtil.h"
@@ -32,11 +33,25 @@ static int32_t nodeToJson(const void* pObj, SJson* pJson);
 static int32_t jsonToNode(const SJson* pJson, void* pObj);
 static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** pNode);
 static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode);
+static int32_t correlationJsonList(const SJson* pJson, const char* pName, SNodeList** pList, ENodeType elementType);
+static int32_t correlationJsonObject(const SJson* pJson);
 static int32_t nameToJson(const void* pObj, SJson* pJson);
 static int32_t jsonToName(const SJson* pJson, void* pObj);
 
 const char* nodesNodeName(ENodeType type) {
   switch (type) {
+    case QUERY_NODE_OUTER_REF:
+      return "OuterRef";
+    case QUERY_NODE_CORRELATION_PARAM:
+      return "CorrelationParam";
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      return "CorrelationParamBinding";
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      return "CorrelatedSubquery";
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+      return "CorrelationTemplate";
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      return "CorrelationTimeRangeInit";
     case QUERY_NODE_COLUMN:
       return "Column";
     case QUERY_NODE_VALUE:
@@ -6613,6 +6628,7 @@ static const char* jkSubplanParent = "Parent";
 static const char* jkSubplanChildren = "Child";
 static const char* jkSubplanUser = "User";
 static const char* jkSubplanNodeAddr = "NodeAddr";
+static const char* jkSubplanExecNodeTableNum = "ExecNodeTableNum";
 static const char* jkSubplanRootNode = "RootNode";
 static const char* jkSubplanDataSink = "DataSink";
 static const char* jkSubplanSubQ = "SubQ";
@@ -6652,6 +6668,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSubplanNodeAddr, queryNodeAddrToJson, &pNode->execNode);
+  }
+  if (TSDB_CODE_SUCCESS == code && 0 != pNode->execNodeStat.tableNum) {
+    code = tjsonAddIntegerToObject(pJson, jkSubplanExecNodeTableNum, pNode->execNodeStat.tableNum);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkSubplanChildren, pNode->pChildren);
@@ -6824,6 +6843,9 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, jkSubplanNodeAddr, jsonToQueryNodeAddr, &pNode->execNode);
   }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkSubplanExecNodeTableNum)) {
+    code = tjsonGetIntValue(pJson, jkSubplanExecNodeTableNum, &pNode->execNodeStat.tableNum);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSubplanChildren, &pNode->pChildren);
   }
@@ -6909,6 +6931,13 @@ static const char* jkPlanSubplanLinkParent = "Parent";
 static const char* jkPlanSubplanLinkChild = "Child";
 static const char* jkPlanSubQueriesNum = "SubQueriesNum";
 static const char* jkPlanSubQueries = "SubQueries";
+static const char* jkPlanSubQType = "SubQType";
+static const char* jkPlanSubSql = "SubSql";
+static const char* jkPlanExplainMode = "ExplainMode";
+static const char* jkPlanExplainVerbose = "ExplainVerbose";
+static const char* jkPlanExplainRatio = "ExplainRatio";
+static const char* jkPlanHasFederatedScan = "HasFederatedScan";
+static const char* jkPlanHasScan = "HasScan";
 
 static int32_t subplanLevelsToJson(const SQueryPlan* pPlan, SJson* pJson) {
   SJson* pJsonLevels = tjsonAddArrayToObject(pJson, jkPlanSubplanLevels);
@@ -7032,8 +7061,28 @@ static int32_t subplanLinksToJson(const SQueryPlan* pPlan, SJson* pJson) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extendedPlanToJson(const SQueryPlan* pPlan, SJson* pJson) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  NODES_ERR_JRET(tjsonAddIntegerToObject(pJson, jkPlanSubQType, pPlan->subQType));
+  NODES_ERR_JRET(tjsonAddIntegerToObject(pJson, jkPlanExplainMode, pPlan->explainInfo.mode));
+  NODES_ERR_JRET(tjsonAddBoolToObject(pJson, jkPlanExplainVerbose, pPlan->explainInfo.verbose));
+  NODES_ERR_JRET(tjsonAddDoubleToObject(pJson, jkPlanExplainRatio, pPlan->explainInfo.ratio));
+  NODES_ERR_JRET(tjsonAddBoolToObject(pJson, jkPlanHasFederatedScan, pPlan->hasFederatedScan));
+  NODES_ERR_JRET(tjsonAddBoolToObject(pJson, jkPlanHasScan, pPlan->hasScan));
+  NODES_ERR_JRET(subplanLevelsToJson(pPlan, pJson));
+  NODES_ERR_JRET(subplanLinksToJson(pPlan, pJson));
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t planToJson(const void* pObj, SJson* pJson) {
   const SQueryPlan* pNode = (const SQueryPlan*)pObj;
+  bool extended = NULL != pNode->pCorrelationTemplates || LIST_LENGTH(pNode->pSubplans) > 1;
   char tmpBuf[64] = {0};
   SNode* pTmp = NULL;
   int32_t i = 0;
@@ -7042,7 +7091,13 @@ static int32_t planToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkPlanNumOfSubplans, pNode->numOfSubplans);
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pNode->subSql) {
+    code = tjsonAddStringToObject(pJson, jkPlanSubSql, pNode->subSql);
+  }
+  if (TSDB_CODE_SUCCESS == code && extended) {
+    code = extendedPlanToJson(pNode, pJson);
+  }
+  if (TSDB_CODE_SUCCESS == code && !extended) {
     code = tjsonAddObject(pJson, jkPlanSubplans, nodeToJson, nodesListGetNode(pNode->pSubplans, 0));
   }
   if (TSDB_CODE_SUCCESS == code && pNode->pChildren) {
@@ -7057,6 +7112,12 @@ static int32_t planToJson(const void* pObj, SJson* pJson) {
     }
   }
   
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesValidateCorrelationNode((const SNode*)pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, "CorrelationTemplates", pNode->pCorrelationTemplates);
+  }
   return code;
 }
 
@@ -7206,81 +7267,40 @@ static int32_t restoreSubplanLinks(const SJson* pJson, SQueryPlan* pQueryPlan) {
     return TSDB_CODE_NOT_FOUND;
   }
 
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   subplanNum = 0;
-  SHashObj* pSubplanMap = NULL;
-  SNode*    pLevelNode = NULL;
-
-  FOREACH(pLevelNode, pQueryPlan->pSubplans) {
-    if (QUERY_NODE_NODE_LIST != nodeType(pLevelNode)) {
-      nodesError("invalid subplan level node type %d", nodeType(pLevelNode));
-      return TSDB_CODE_INVALID_JSON_FORMAT;
-    }
-    subplanNum += LIST_LENGTH(((SNodeListNode*)pLevelNode)->pNodeList);
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t linkNum = tjsonGetArraySize(pJsonLinks);
+  if (linkNum < 0) {
+    return TSDB_CODE_INVALID_JSON_FORMAT;
   }
-
-  pSubplanMap = taosHashInit(subplanNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  if (NULL == pSubplanMap) {
+  SArray* pLinks = taosArrayInit(linkNum, sizeof(SSubplanLink));
+  if (NULL == pLinks) {
     return terrno;
   }
 
-  FOREACH(pLevelNode, pQueryPlan->pSubplans) {
-    SNode* pSubplanNode = NULL;
-    FOREACH(pSubplanNode, ((SNodeListNode*)pLevelNode)->pNodeList) {
-      if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pSubplanNode)) {
-        nodesError("invalid subplan node type %d", nodeType(pSubplanNode));
-        code = TSDB_CODE_INVALID_JSON_FORMAT;
-        goto _exit;
-      }
-
-      SSubplan* pSubplan = (SSubplan*)pSubplanNode;
-      if (NULL != taosHashGet(pSubplanMap, &pSubplan->id, sizeof(pSubplan->id))) {
-        nodesError("duplicated subplan id, queryId:%" PRIu64 ", groupId:%d, subplanId:%d", pSubplan->id.queryId,
-                   pSubplan->id.groupId, pSubplan->id.subplanId);
-        code = TSDB_CODE_INVALID_JSON_FORMAT;
-        goto _exit;
-      }
-      if (TSDB_CODE_SUCCESS !=
-          (code = taosHashPut(pSubplanMap, &pSubplan->id, sizeof(pSubplan->id), &pSubplan, POINTER_BYTES))) {
-        goto _exit;
-      }
-    }
-  }
-
-  int32_t linkNum = tjsonGetArraySize(pJsonLinks);
   for (int32_t i = 0; i < linkNum; ++i) {
-    SJson*      pJsonLink = tjsonGetArrayItem(pJsonLinks, i);
-    SSubplanId  parentId = {0};
-    SSubplanId  childId = {0};
-    SSubplan**  ppParent = NULL;
-    SSubplan**  ppChild = NULL;
-
-    if (NULL == pJsonLink || TSDB_CODE_SUCCESS != (code = tjsonToObject(pJsonLink, jkPlanSubplanLinkParent,
-                                                                         jsonToSubplanId, &parentId)) ||
-        TSDB_CODE_SUCCESS != (code = tjsonToObject(pJsonLink, jkPlanSubplanLinkChild, jsonToSubplanId, &childId))) {
+    SJson* pJsonLink = tjsonGetArrayItem(pJsonLinks, i);
+    if (NULL == pJsonLink) {
       code = TSDB_CODE_INVALID_JSON_FORMAT;
       goto _exit;
     }
-
-    ppParent = taosHashGet(pSubplanMap, &parentId, sizeof(parentId));
-    ppChild = taosHashGet(pSubplanMap, &childId, sizeof(childId));
-    if (NULL == ppParent || NULL == ppChild) {
-      nodesError("subplan link not found, parent:(%" PRIu64 ",%d,%d), child:(%" PRIu64 ",%d,%d)", parentId.queryId,
-                 parentId.groupId, parentId.subplanId, childId.queryId, childId.groupId, childId.subplanId);
-      code = TSDB_CODE_INVALID_JSON_FORMAT;
+    SSubplanLink link = {0};
+    code = tjsonToObject(pJsonLink, jkPlanSubplanLinkParent, jsonToSubplanId, &link.parentId);
+    if (TSDB_CODE_SUCCESS != code) {
       goto _exit;
     }
-
-    if (TSDB_CODE_SUCCESS != (code = nodesListMakeAppend(&(*ppParent)->pChildren, (SNode*)*ppChild))) {
+    code = tjsonToObject(pJsonLink, jkPlanSubplanLinkChild, jsonToSubplanId, &link.childId);
+    if (TSDB_CODE_SUCCESS != code) {
       goto _exit;
     }
-    if (TSDB_CODE_SUCCESS != (code = nodesListMakeAppend(&(*ppChild)->pParents, (SNode*)*ppParent))) {
+    if (NULL == taosArrayPush(pLinks, &link)) {
+      code = terrno;
       goto _exit;
     }
   }
+  code = nodesRestoreSubplanDag(pQueryPlan, pLinks);
 
 _exit:
-  taosHashCleanup(pSubplanMap);
+  taosArrayDestroy(pLinks);
   return code;
 }
 
@@ -7293,6 +7313,36 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
   bool    hasSubplanLinks = false;
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkPlanNumOfSubplans, &numOfSubplan);
+    pNode->numOfSubplans = numOfSubplan;
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkPlanSubQType)) {
+    code = tjsonGetIntValue(pJson, jkPlanSubQType, (int32_t*)&pNode->subQType);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkPlanExplainMode)) {
+    code = tjsonGetIntValue(pJson, jkPlanExplainMode, (int32_t*)&pNode->explainInfo.mode);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkPlanExplainVerbose)) {
+    code = tjsonGetBoolValue(pJson, jkPlanExplainVerbose, &pNode->explainInfo.verbose);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkPlanExplainRatio)) {
+    code = tjsonGetDoubleValue(pJson, jkPlanExplainRatio, &pNode->explainInfo.ratio);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkPlanHasFederatedScan)) {
+    code = tjsonGetBoolValue(pJson, jkPlanHasFederatedScan, &pNode->hasFederatedScan);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkPlanHasScan)) {
+    code = tjsonGetBoolValue(pJson, jkPlanHasScan, &pNode->hasScan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    const char* pSql = tjsonGetStringPointer(pJson, jkPlanSubSql);
+    if (NULL != pSql) {
+      pNode->subSql = taosStrdup(pSql);
+      if (NULL == pNode->subSql) {
+        code = terrno;
+      } else {
+        pNode->ownsSubSql = true;
+      }
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     hasSubplanLevels = (NULL != tjsonGetObjectItem(pJson, jkPlanSubplanLevels));
@@ -7365,6 +7415,10 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
     }
   }
   
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonList(pJson, "CorrelationTemplates", &pNode->pCorrelationTemplates, QUERY_NODE_CORRELATION_TEMPLATE);
+  }
+  if (TSDB_CODE_SUCCESS == code) code = nodesValidateCorrelationNode((const SNode*)pNode);
   return code;
 }
 
@@ -9688,6 +9742,7 @@ static const char* jkDownstreamSourceTaskId = "TaskId";
 static const char* jkDownstreamSourceSeriousId = "SeriousId";
 static const char* jkDownstreamSourceExecId = "ExecId";
 static const char* jkDownstreamSourceFetchMsgType = "FetchMsgType";
+static const char* jkDownstreamSourceProducerQueryId = "ProducerQueryId";
 
 static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
   const SDownstreamSourceNode* pNode = (const SDownstreamSourceNode*)pObj;
@@ -9707,6 +9762,9 @@ static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceFetchMsgType, pNode->fetchMsgType);
+  }
+  if (TSDB_CODE_SUCCESS == code && 0 != pNode->producerQueryId) {
+    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceProducerQueryId, pNode->producerQueryId);
   }
 
   return code;
@@ -9730,6 +9788,9 @@ static int32_t jsonToDownstreamSourceNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkDownstreamSourceFetchMsgType, &pNode->fetchMsgType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkDownstreamSourceProducerQueryId, &pNode->producerQueryId);
   }
   return code;
 }
@@ -13414,8 +13475,602 @@ static int32_t jsonToDropTSMAStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+
+// Correlation contracts are new wire formats: reject missing, duplicated or
+// ill-typed fields here without changing legacy JSON decoding defaults.
+static int32_t correlationJsonObject(const SJson* pJson) {
+  if (!cJSON_IsObject((const cJSON*)pJson)) return TSDB_CODE_INVALID_JSON_FORMAT;
+  const cJSON* pField = NULL;
+  cJSON_ArrayForEach(pField, (const cJSON*)pJson) {
+    for (const cJSON* pOther = pField->next; pOther != NULL; pOther = pOther->next) {
+      if (strcasecmp(pField->string, pOther->string) == 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationJsonInteger(const SJson* pJson, const char* pName, int64_t min, int64_t max,
+                                      int64_t* pValue) {
+  const char* pText = tjsonGetStringPointer(pJson, pName);
+  if (NULL == pText || '\0' == *pText) return TSDB_CODE_INVALID_JSON_FORMAT;
+  bool negative = (*pText == '-');
+  if (negative) ++pText;
+  if ('\0' == *pText) return TSDB_CODE_INVALID_JSON_FORMAT;
+  uint64_t limit = negative ? (uint64_t)INT64_MAX + 1 : INT64_MAX;
+  uint64_t value = 0;
+  for (; *pText != '\0'; ++pText) {
+    if (*pText < '0' || *pText > '9' || value > (limit - (*pText - '0')) / 10) {
+      return TSDB_CODE_INVALID_JSON_FORMAT;
+    }
+    value = value * 10 + (*pText - '0');
+  }
+  int64_t result = negative ? (value == (uint64_t)INT64_MAX + 1 ? INT64_MIN : -(int64_t)value) : (int64_t)value;
+  if (result < min || result > max) return TSDB_CODE_INVALID_JSON_FORMAT;
+  *pValue = result;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationJsonString(const SJson* pJson, const char* pName, char* pValue, size_t capacity) {
+  const char* pText = tjsonGetStringPointer(pJson, pName);
+  if (NULL == pText || strlen(pText) >= capacity) return TSDB_CODE_INVALID_JSON_FORMAT;
+  memcpy(pValue, pText, strlen(pText) + 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationJsonDynString(const SJson* pJson, const char* pName, char** pValue) {
+  const char* pText = tjsonGetStringPointer(pJson, pName);
+  if (NULL == pText || strlen(pText) >= INT32_MAX) return TSDB_CODE_INVALID_JSON_FORMAT;
+  *pValue = taosStrdup(pText);
+  return NULL == *pValue ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationJsonBool(const SJson* pJson, const char* pName, bool* pValue) {
+  const cJSON* pItem = tjsonGetObjectItem(pJson, pName);
+  if (!cJSON_IsBool(pItem)) return TSDB_CODE_INVALID_JSON_FORMAT;
+  *pValue = cJSON_IsTrue(pItem);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationJsonNodeType(const SJson* pJson, ENodeType expectedType, ENodeType alternateType) {
+  int32_t code = correlationJsonObject(pJson);
+  int64_t type = 0;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonInteger(pJson, "NodeType", 1, INT16_MAX, &type);
+  }
+  if (TSDB_CODE_SUCCESS == code && type != expectedType && type != alternateType) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+  }
+  return code;
+}
+
+static int32_t correlationJsonSource(const SJson* pJson, SNode** ppSource) {
+  const SJson* pSource = tjsonGetObjectItem(pJson, "Source");
+  if (NULL == pSource) return TSDB_CODE_SUCCESS;
+  int32_t code = correlationJsonNodeType(pSource, QUERY_NODE_COLUMN, QUERY_NODE_OUTER_REF);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = makeNodeByJson(pSource, ppSource);
+  }
+  return code;
+}
+
+// elementType 0 reserves an empty list until P05 defines range descriptors.
+// Reject unexpected node types before entering any existing node decoder.
+static int32_t correlationJsonList(const SJson* pJson, const char* pName, SNodeList** pList, ENodeType elementType) {
+  if (!cJSON_IsObject((const cJSON*)pJson)) return TSDB_CODE_INVALID_JSON_FORMAT;
+  const SJson* pArray = tjsonGetObjectItem(pJson, pName);
+  if (NULL == pArray) return TSDB_CODE_SUCCESS;
+  if (!tjsonIsArray(pArray)) return TSDB_CODE_INVALID_JSON_FORMAT;
+  const cJSON* pField = NULL;
+  int32_t count = 0;
+  cJSON_ArrayForEach(pField, (const cJSON*)pJson) {
+    if (strcasecmp(pField->string, pName) == 0 && ++count > 1) return TSDB_CODE_INVALID_JSON_FORMAT;
+  }
+  int32_t size = tjsonGetArraySize(pArray);
+  if (elementType == 0 && size != 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+  for (int32_t i = 0; i < size; ++i) {
+    int32_t code = correlationJsonNodeType(tjsonGetArrayItem(pArray, i), elementType, elementType);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  return jsonToNodeListImpl(pArray, pList);
+}
+
+static int32_t correlationStringToJson(SJson* pJson, const char* pName, const char* pValue, size_t capacity) {
+  if (NULL == pValue || strnlen(pValue, capacity) == capacity) return TSDB_CODE_INVALID_PARA;
+  return tjsonAddStringToObject(pJson, pName, pValue);
+}
+
+static int32_t correlationPlanToJson(const SCorrelationTemplateNode* pNode, SJson* pJson) {
+  if (pNode->planLen > (INT32_MAX - 1) / 2) return TSDB_CODE_INVALID_PARA;
+  char* pHex = taosMemoryMalloc((size_t)pNode->planLen * 2 + 1);
+  if (NULL == pHex) return terrno;
+  static const char digits[] = "0123456789abcdef";
+  for (int32_t i = 0; i < pNode->planLen; ++i) {
+    uint8_t value = (uint8_t)pNode->pPlan[i];
+    pHex[2 * i] = digits[value >> 4];
+    pHex[2 * i + 1] = digits[value & 15];
+  }
+  pHex[2 * pNode->planLen] = '\0';
+  int32_t code = tjsonAddStringToObject(pJson, "PlanBytes", pHex);
+  taosMemoryFree(pHex);
+  return code;
+}
+
+static int32_t correlationJsonPlan(const SJson* pJson, SCorrelationTemplateNode* pNode) {
+  const char* pHex = tjsonGetStringPointer(pJson, "PlanBytes");
+  if (NULL == pHex || pNode->planLen < 0 || pNode->planLen > (INT32_MAX - 1) / 2 ||
+      strlen(pHex) != (size_t)pNode->planLen * 2) return TSDB_CODE_INVALID_JSON_FORMAT;
+  if (pNode->planLen == 0) return TSDB_CODE_SUCCESS;
+  pNode->pPlan = taosMemoryMalloc(pNode->planLen);
+  if (NULL == pNode->pPlan) return terrno;
+  for (int32_t i = 0; i < pNode->planLen; ++i) {
+    uint8_t value = 0;
+    for (int32_t j = 0; j < 2; ++j) {
+      char digit = pHex[2 * i + j];
+      if (digit >= '0' && digit <= '9') value = (value << 4) | (digit - '0');
+      else if (digit >= 'a' && digit <= 'f') value = (value << 4) | (digit - 'a' + 10);
+      else return TSDB_CODE_INVALID_JSON_FORMAT;
+    }
+    pNode->pPlan[i] = (char)value;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationJsonDataType(const SJson* pJson, SDataType* pNode) {
+  int32_t code = correlationJsonObject(pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    int64_t value = 0;
+    code = correlationJsonInteger(pJson, "Type", INT8_MIN, INT8_MAX, &value);
+    if (TSDB_CODE_SUCCESS == code) pNode->type = value;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    int64_t value = 0;
+    code = correlationJsonInteger(pJson, "Precision", 0, UINT8_MAX, &value);
+    if (TSDB_CODE_SUCCESS == code) pNode->precision = value;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    int64_t value = 0;
+    code = correlationJsonInteger(pJson, "Scale", 0, UINT8_MAX, &value);
+    if (TSDB_CODE_SUCCESS == code) pNode->scale = value;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    int64_t value = 0;
+    code = correlationJsonInteger(pJson, "Bytes", INT32_MIN, INT32_MAX, &value);
+    if (TSDB_CODE_SUCCESS == code) pNode->bytes = value;
+  }
+  return code;
+}
+
+static int32_t correlationExprToJson(const SExprNode* pNode, SJson* pJson) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, "DataType", dataTypeToJson, &pNode->resType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToJson(pJson, "AliasName", pNode->aliasName, sizeof(pNode->aliasName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToJson(pJson, "UserAlias", pNode->userAlias, sizeof(pNode->userAlias));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationStringToJson(pJson, "SrcTable", pNode->srcTable, sizeof(pNode->srcTable));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "AsAlias", pNode->asAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "AsParam", pNode->asParam);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "AsPosition", pNode->asPosition);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "JoinSrc", pNode->joinSrc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "HasNull", pNode->hasNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "ProjIdx", pNode->projIdx);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "RelatedTo", pNode->relatedTo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "BindExprID", pNode->bindExprID);
+  }
+  return code;
+}
+
+static int32_t correlationJsonExpr(const SJson* pJson, SExprNode* pNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonDataType(tjsonGetObjectItem(pJson, "DataType"), &pNode->resType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonString(pJson, "AliasName", pNode->aliasName, sizeof(pNode->aliasName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonString(pJson, "UserAlias", pNode->userAlias, sizeof(pNode->userAlias));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonString(pJson, "SrcTable", pNode->srcTable, sizeof(pNode->srcTable));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonBool(pJson, "AsAlias", &pNode->asAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonBool(pJson, "AsParam", &pNode->asParam);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonBool(pJson, "AsPosition", &pNode->asPosition);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonBool(pJson, "JoinSrc", &pNode->joinSrc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = correlationJsonBool(pJson, "HasNull", &pNode->hasNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    int64_t value = 0;
+    code = correlationJsonInteger(pJson, "ProjIdx", INT32_MIN, INT32_MAX, &value);
+    if (TSDB_CODE_SUCCESS == code) pNode->projIdx = value;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    int64_t value = 0;
+    code = correlationJsonInteger(pJson, "RelatedTo", INT32_MIN, INT32_MAX, &value);
+    if (TSDB_CODE_SUCCESS == code) pNode->relatedTo = value;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    int64_t value = 0;
+    code = correlationJsonInteger(pJson, "BindExprID", INT32_MIN, INT32_MAX, &value);
+    if (TSDB_CODE_SUCCESS == code) pNode->bindExprID = value;
+  }
+  return code;
+}
+
+static int32_t correlationNodeToJson(const void* pObj, SJson* pJson) {
+  int32_t code = nodesValidateCorrelationNode(pObj);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  switch (nodeType(pObj)) {
+    case QUERY_NODE_OUTER_REF: {
+      const SOuterRefNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationExprToJson(&pNode->node, pJson);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "ScopeId", pNode->scopeId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "BindingId", pNode->bindingId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "TableRefId", pNode->tableRefId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationStringToJson(pJson, "TableAlias", pNode->tableAlias, sizeof(pNode->tableAlias));
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationStringToJson(pJson, "ColName", pNode->colName, sizeof(pNode->colName));
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_PARAM: {
+      const SCorrelationParamNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationExprToJson(&pNode->node, pJson);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "ParamId", pNode->paramId);
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_PARAM_BINDING: {
+      const SCorrelationParamBindingNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "ParamId", pNode->paramId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddObject(pJson, "DataType", dataTypeToJson, &pNode->dataType);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "SourceKind", pNode->sourceKind);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "ScopeId", pNode->scopeId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "BindingId", pNode->bindingId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "TableRefId", pNode->tableRefId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "SourceBlockId", pNode->sourceBlockId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "SourceSlotId", pNode->sourceSlotId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "InheritedParamId", pNode->inheritedParamId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddObject(pJson, "Source", nodeToJson, pNode->pSource);
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATED_SUBQUERY: {
+      const SCorrelatedSubqueryNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationExprToJson(&pNode->node, pJson);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "TemplateId", pNode->templateId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "ExprId", pNode->exprId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "ScopeId", pNode->scopeId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "ParentScopeId", pNode->parentScopeId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodeListToJson(pJson, "ParamBindings", pNode->pParamBindings);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationStringToJson(pJson, "SubquerySql", pNode->pSubquerySql, INT32_MAX);
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_TEMPLATE: {
+      const SCorrelationTemplateNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "TemplateId", pNode->templateId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "ScopeId", pNode->scopeId);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddObject(pJson, "ResultType", dataTypeToJson, &pNode->resultType);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationStringToJson(pJson, "ResultName", pNode->resultName, sizeof(pNode->resultName));
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodeListToJson(pJson, "Params", pNode->pParams);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodeListToJson(pJson, "NestedTemplates", pNode->pNestedTemplates);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodeListToJson(pJson, "TimeRangeInit", pNode->pTimeRangeInit);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddIntegerToObject(pJson, "PlanLen", pNode->planLen);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationPlanToJson(pNode, pJson);
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT: {
+      const SCorrelationTimeRangeInitNode* pNode = pObj;
+      code = tjsonAddIntegerToObject(pJson, "ScopeId", pNode->scopeId);
+      if (TSDB_CODE_SUCCESS == code) code = tjsonAddIntegerToObject(pJson, "Precision", pNode->precision);
+      if (TSDB_CODE_SUCCESS == code) code = tjsonAddIntegerToObject(pJson, "InterpRange", pNode->interpRange);
+      if (TSDB_CODE_SUCCESS == code) code = tjsonAddIntegerToObject(pJson, "AllowNoTimeRange", pNode->allowNoTimeRange);
+      if (TSDB_CODE_SUCCESS == code) code = tjsonAddObject(pJson, "TargetSubplanId", subplanIdToJson, &pNode->targetSubplanId);
+      if (TSDB_CODE_SUCCESS == code) code = tjsonAddIntegerToObject(pJson, "TargetBlockId", pNode->targetBlockId);
+      if (TSDB_CODE_SUCCESS == code) code = tjsonAddIntegerToObject(pJson, "TargetNodeType", pNode->targetNodeType);
+      if (TSDB_CODE_SUCCESS == code) code = tjsonAddObject(pJson, "RangeExpr", nodeToJson, pNode->pRangeExpr);
+      break;
+    }
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+  return code;
+}
+
+static int32_t jsonToCorrelationNode(const SJson* pJson, void* pObj) {
+  int32_t code = correlationJsonObject(pJson);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  switch (nodeType(pObj)) {
+    case QUERY_NODE_OUTER_REF: {
+      SOuterRefNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonExpr(pJson, &pNode->node);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "ScopeId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->scopeId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "BindingId", INT64_MIN, INT64_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->bindingId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "TableRefId", INT64_MIN, INT64_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->tableRefId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonString(pJson, "TableAlias", pNode->tableAlias, sizeof(pNode->tableAlias));
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonString(pJson, "ColName", pNode->colName, sizeof(pNode->colName));
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_PARAM: {
+      SCorrelationParamNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonExpr(pJson, &pNode->node);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "ParamId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->paramId = value;
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_PARAM_BINDING: {
+      SCorrelationParamBindingNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "ParamId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->paramId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonDataType(tjsonGetObjectItem(pJson, "DataType"), &pNode->dataType);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "SourceKind", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->sourceKind = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "ScopeId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->scopeId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "BindingId", INT64_MIN, INT64_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->bindingId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "TableRefId", INT64_MIN, INT64_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->tableRefId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "SourceBlockId", INT64_MIN, INT64_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->sourceBlockId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "SourceSlotId", INT16_MIN, INT16_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->sourceSlotId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "InheritedParamId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->inheritedParamId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonSource(pJson, &pNode->pSource);
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATED_SUBQUERY: {
+      SCorrelatedSubqueryNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonExpr(pJson, &pNode->node);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "TemplateId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->templateId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "ExprId", INT64_MIN, INT64_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->exprId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "ScopeId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->scopeId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "ParentScopeId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->parentScopeId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonList(pJson, "ParamBindings", &pNode->pParamBindings, QUERY_NODE_CORRELATION_PARAM_BINDING);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonDynString(pJson, "SubquerySql", &pNode->pSubquerySql);
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_TEMPLATE: {
+      SCorrelationTemplateNode* pNode = pObj;
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "TemplateId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->templateId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "ScopeId", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->scopeId = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonDataType(tjsonGetObjectItem(pJson, "ResultType"), &pNode->resultType);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonString(pJson, "ResultName", pNode->resultName, sizeof(pNode->resultName));
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonList(pJson, "Params", &pNode->pParams, QUERY_NODE_CORRELATION_PARAM);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonList(pJson, "NestedTemplates", &pNode->pNestedTemplates, QUERY_NODE_CORRELATION_TEMPLATE);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonList(pJson, "TimeRangeInit", &pNode->pTimeRangeInit,
+                                   QUERY_NODE_CORRELATION_TIME_RANGE_INIT);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int64_t value = 0;
+        code = correlationJsonInteger(pJson, "PlanLen", INT32_MIN, INT32_MAX, &value);
+        if (TSDB_CODE_SUCCESS == code) pNode->planLen = value;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = correlationJsonPlan(pJson, pNode);
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT: {
+      SCorrelationTimeRangeInitNode* pNode = pObj;
+      int64_t value = 0;
+      code = correlationJsonInteger(pJson, "ScopeId", 1, INT32_MAX, &value);
+      if (TSDB_CODE_SUCCESS == code) pNode->scopeId = value;
+      if (TSDB_CODE_SUCCESS == code) code = correlationJsonInteger(pJson, "Precision", 0, TSDB_TIME_PRECISION_NANO, &value);
+      if (TSDB_CODE_SUCCESS == code) pNode->precision = value;
+      if (TSDB_CODE_SUCCESS == code) code = correlationJsonInteger(pJson, "InterpRange", 0, 1, &value);
+      if (TSDB_CODE_SUCCESS == code) pNode->interpRange = value;
+      if (TSDB_CODE_SUCCESS == code) code = correlationJsonInteger(pJson, "AllowNoTimeRange", 0, 1, &value);
+      if (TSDB_CODE_SUCCESS == code) pNode->allowNoTimeRange = value;
+      if (TSDB_CODE_SUCCESS == code) code = tjsonToObject(pJson, "TargetSubplanId", jsonToSubplanId, &pNode->targetSubplanId);
+      if (TSDB_CODE_SUCCESS == code) code = correlationJsonInteger(pJson, "TargetBlockId", 0, INT64_MAX, &value);
+      if (TSDB_CODE_SUCCESS == code) pNode->targetBlockId = value;
+      if (TSDB_CODE_SUCCESS == code) code = correlationJsonInteger(pJson, "TargetNodeType", 0, INT32_MAX, &value);
+      if (TSDB_CODE_SUCCESS == code) pNode->targetNodeType = value;
+      if (TSDB_CODE_SUCCESS == code) code = jsonToNodeObject(pJson, "RangeExpr", &pNode->pRangeExpr);
+      break;
+    }
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+  return TSDB_CODE_SUCCESS == code ? nodesValidateCorrelationNode(pObj) : code;
+}
+
 static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
   switch (nodeType(pObj)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      return correlationNodeToJson(pObj, pJson);
     case QUERY_NODE_COLUMN:
       return columnNodeToJson(pObj, pJson);
     case QUERY_NODE_VALUE:
@@ -13986,6 +14641,13 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
   switch (nodeType(pObj)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      return jsonToCorrelationNode(pJson, pObj);
     case QUERY_NODE_COLUMN:
       return jsonToColumnNode(pJson, pObj);
     case QUERY_NODE_VALUE:
@@ -14544,6 +15206,16 @@ static int32_t nodeToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToNode(const SJson* pJson, void* pObj) {
   SNode* pNode = (SNode*)pObj;
+
+  if (pNode->type >= QUERY_NODE_OUTER_REF && pNode->type <= QUERY_NODE_CORRELATION_TIME_RANGE_INIT) {
+    int32_t code = correlationJsonObject(pJson);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    int64_t type = 0;
+    code = correlationJsonInteger(pJson, jkNodeType, QUERY_NODE_OUTER_REF, QUERY_NODE_CORRELATION_TIME_RANGE_INIT,
+                                  &type);
+    if (TSDB_CODE_SUCCESS != code || type != pNode->type) return TSDB_CODE_INVALID_JSON_FORMAT;
+    return jsonToCorrelationNode(tjsonGetObjectItem(pJson, nodesNodeName(pNode->type)), pNode);
+  }
 
   int32_t code;
   tjsonGetNumberValue(pJson, jkNodeType, pNode->type, code);

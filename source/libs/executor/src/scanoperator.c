@@ -701,7 +701,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   if (pOperator->exprSupp.pFilterInfo != NULL) {
     int64_t st = taosGetTimestampUs();
-    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pTableScanInfo->matchInfo, NULL);
+    code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo,
+                                       &pTableScanInfo->matchInfo, NULL, pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     double  el = (taosGetTimestampUs() - st) / 1000.0;
     pTableScanInfo->readRecorder.filterTime += el;
@@ -3883,7 +3884,8 @@ static int32_t processBlock(STmqQueryScanInfo* pInfo) {
   int32_t         lino = 0;
   SOperatorInfo*  pOperator = pInfo->pTmqScanOp;
 
-  code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  code = doFilterWithTaskCorrelation(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                     pOperator->pTaskInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);

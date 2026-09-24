@@ -74,6 +74,7 @@ typedef struct {
   void*              streamRtInfo;
   bool               cacheSttStatis;
   int64_t            txnId;  // batch meta txn ID for same-txn visibility
+  SCorrelationTaskSession* pCorrelationSession;
 } SReadHandle;
 
 typedef struct STrueForInfo {
@@ -240,6 +241,11 @@ void qRemoveOperatorParam(qTaskInfo_t tinfo, void* pParam);
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
                         EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain);
+// Call on the receiving task's private subplan after its correlation parameters are bound,
+// before qCreateExecTask builds operators. Descriptors for other subplans are ignored.
+int32_t qInitCorrelationTimeRange(SSubplan* pSubplan, const SNodeList* pTimeRangeInit);
+int32_t qBindCorrelationSubplan(SSubplan* pSubplan, const SArray* pDefs, const SArray* pValues,
+                               SNodeList* pTimeRangeInit);
 
 /**
  *

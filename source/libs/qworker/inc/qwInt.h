@@ -200,6 +200,8 @@ typedef struct SQWTaskCtx {
   int32_t       level;
   int32_t       dynExecId;
   uint64_t      sId;
+  SCorrelationExecution correlation;
+  SCorrelationTaskSession* pCorrelationSession;
 
   bool    queryGotData;
   bool    queryRsped;
@@ -603,7 +605,8 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 void    qwReleaseTaskCtx(SQWorker *mgmt, void *ctx);
-int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode);
+void    qwCloseTaskCorrelation(SQWorker *mgmt, SQWTaskCtx *ctx, int32_t code);
+int32_t qwKillTaskHandle(SQWorker *mgmt, SQWTaskCtx *ctx, int32_t rspCode);
 int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status, bool dynamicTask);
 int32_t qwDropTask(QW_FPARAMS_DEF);
 int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx);

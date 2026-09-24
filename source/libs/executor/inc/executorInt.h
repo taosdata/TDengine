@@ -915,6 +915,21 @@ int32_t     getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, int64_t* def
 extern void doDestroyExchangeOperatorInfo(void* param);
 
 int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet);
+int32_t doFilterWithCorrelation(SSDataBlock* pBlock, SFilterInfo* pFilterInfo,
+                                SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet,
+                                const SCorrelationEvalContext* pCorrelation);
+// Initializes caller-owned storage and returns pCorrelation as a borrowed alias.
+// pCorrelation and pWait must be non-NULL and remain valid while the returned context is used.
+const SCorrelationEvalContext* initTaskCorrelationEvalContext(SExecTaskInfo* pTaskInfo,
+                                                              SCorrelationEvalContext* pCorrelation,
+                                                              SCorrelationWaitHooks* pWait);
+int32_t doFilterWithTaskCorrelation(SSDataBlock* pBlock, SFilterInfo* pFilterInfo,
+                                    SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet,
+                                    SExecTaskInfo* pTaskInfo);
+int32_t filterExecuteWithTaskCorrelation(SFilterInfo* pFilterInfo, SSDataBlock* pBlock,
+                                         SColumnInfoData** ppResult, SColumnDataAgg* pStatis,
+                                         int16_t numOfCols, int32_t* pResultStatus,
+                                         SExecTaskInfo* pTaskInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
 

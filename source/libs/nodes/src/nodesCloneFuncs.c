@@ -137,6 +137,83 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t outerRefNodeCopy(const SOuterRefNode* pSrc, SOuterRefNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  COPY_SCALAR_FIELD(scopeId);
+  COPY_SCALAR_FIELD(bindingId);
+  COPY_SCALAR_FIELD(tableRefId);
+  COPY_CHAR_ARRAY_FIELD(tableAlias);
+  COPY_CHAR_ARRAY_FIELD(colName);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationParamNodeCopy(const SCorrelationParamNode* pSrc, SCorrelationParamNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  COPY_SCALAR_FIELD(paramId);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationParamBindingNodeCopy(const SCorrelationParamBindingNode* pSrc,
+                                              SCorrelationParamBindingNode* pDst) {
+  COPY_SCALAR_FIELD(paramId);
+  COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
+  COPY_SCALAR_FIELD(sourceKind);
+  COPY_SCALAR_FIELD(scopeId);
+  COPY_SCALAR_FIELD(bindingId);
+  COPY_SCALAR_FIELD(tableRefId);
+  COPY_SCALAR_FIELD(sourceBlockId);
+  COPY_SCALAR_FIELD(sourceSlotId);
+  COPY_SCALAR_FIELD(inheritedParamId);
+  CLONE_NODE_FIELD(pSource);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlatedSubqueryNodeCopy(const SCorrelatedSubqueryNode* pSrc, SCorrelatedSubqueryNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  COPY_SCALAR_FIELD(templateId);
+  COPY_SCALAR_FIELD(exprId);
+  COPY_SCALAR_FIELD(scopeId);
+  COPY_SCALAR_FIELD(parentScopeId);
+  CLONE_NODE_LIST_FIELD(pParamBindings);
+  COPY_CHAR_POINT_FIELD(pSubquerySql);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationTemplateNodeCopy(const SCorrelationTemplateNode* pSrc, SCorrelationTemplateNode* pDst) {
+  if (pSrc->planLen < 0 || ((pSrc->planLen > 0) != (NULL != pSrc->pPlan))) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  COPY_SCALAR_FIELD(templateId);
+  COPY_SCALAR_FIELD(scopeId);
+  COPY_OBJECT_FIELD(resultType, sizeof(SDataType));
+  COPY_CHAR_ARRAY_FIELD(resultName);
+  CLONE_NODE_LIST_FIELD(pParams);
+  CLONE_NODE_LIST_FIELD(pNestedTemplates);
+  CLONE_NODE_LIST_FIELD(pTimeRangeInit);
+  if (pSrc->planLen > 0) {
+    pDst->pPlan = taosMemoryMalloc(pSrc->planLen);
+    if (NULL == pDst->pPlan) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memcpy(pDst->pPlan, pSrc->pPlan, pSrc->planLen);
+    COPY_SCALAR_FIELD(planLen);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t correlationTimeRangeInitNodeCopy(const SCorrelationTimeRangeInitNode* pSrc,
+                                                SCorrelationTimeRangeInitNode* pDst) {
+  COPY_SCALAR_FIELD(scopeId);
+  COPY_SCALAR_FIELD(precision);
+  COPY_SCALAR_FIELD(interpRange);
+  COPY_SCALAR_FIELD(allowNoTimeRange);
+  COPY_OBJECT_FIELD(targetSubplanId, sizeof(SSubplanId));
+  COPY_SCALAR_FIELD(targetBlockId);
+  COPY_SCALAR_FIELD(targetNodeType);
+  CLONE_NODE_FIELD(pRangeExpr);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(tableId);
@@ -1899,6 +1976,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   COPY_SCALAR_FIELD(execId);
   COPY_SCALAR_FIELD(fetchMsgType);
   COPY_SCALAR_FIELD(localExec);
+  COPY_SCALAR_FIELD(producerQueryId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1940,6 +2018,9 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(isSubquery);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   CLONE_NODE_FIELD(pTimeRange);
+  COPY_SCALAR_FIELD(timeRangeParamDependent);
+  COPY_SCALAR_FIELD(interpRangeParamDependent);
+  COPY_SCALAR_FIELD(deferredFillAllowNoTimeRange);
   CLONE_NODE_LIST_FIELD(pSubQueries);
   COPY_SCALAR_FIELD(selectFuncNum);
   COPY_SCALAR_FIELD(returnRows);
@@ -2258,6 +2339,26 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
   }
 
   switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+      code = outerRefNodeCopy((const SOuterRefNode*)pNode, (SOuterRefNode*)pDst);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM:
+      code = correlationParamNodeCopy((const SCorrelationParamNode*)pNode, (SCorrelationParamNode*)pDst);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      code = correlationParamBindingNodeCopy((const SCorrelationParamBindingNode*)pNode,
+                                            (SCorrelationParamBindingNode*)pDst);
+      break;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      code = correlatedSubqueryNodeCopy((const SCorrelatedSubqueryNode*)pNode, (SCorrelatedSubqueryNode*)pDst);
+      break;
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+      code = correlationTemplateNodeCopy((const SCorrelationTemplateNode*)pNode, (SCorrelationTemplateNode*)pDst);
+      break;
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      code = correlationTimeRangeInitNodeCopy((const SCorrelationTimeRangeInitNode*)pNode,
+                                              (SCorrelationTimeRangeInitNode*)pDst);
+      break;
     case QUERY_NODE_COLUMN:
       code = columnNodeCopy((const SColumnNode*)pNode, (SColumnNode*)pDst);
       break;

@@ -219,6 +219,8 @@ TEST(NodesCodeTest, queryPlanJsonRoundTripPreservesAllSubplanLevels) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[0]->pChildren, (SNode*)subplans[2]));
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[1]->pParents, (SNode*)subplans[0]));
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[2]->pParents, (SNode*)subplans[0]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&subplans[0]->pDataSink));
 
   char* pJson = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString((SNode*)pPlan, false, &pJson, nullptr));
@@ -242,6 +244,9 @@ TEST(NodesCodeTest, queryPlanJsonRoundTripPreservesAllSubplanLevels) {
       ((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 1))->pNodeList, 0);
   SSubplan* pRoundTripChild2 = (SSubplan*)nodesListGetNode(
       ((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 1))->pNodeList, 1);
+  ASSERT_NE(nullptr, pRoundTripParent);
+  ASSERT_NE(nullptr, pRoundTripParent->pDataSink);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, nodeType(pRoundTripParent->pDataSink));
   ASSERT_EQ((SNode*)pRoundTripChild1, nodesListGetNode(pRoundTripParent->pChildren, 0));
   ASSERT_EQ((SNode*)pRoundTripChild2, nodesListGetNode(pRoundTripParent->pChildren, 1));
   ASSERT_EQ((SNode*)pRoundTripParent, nodesListGetNode(pRoundTripChild1->pParents, 0));

@@ -42,6 +42,9 @@ SQWorkerMgmt gQwMgmt = {
 TdThreadOnce gQueryPoolInit = PTHREAD_ONCE_INIT;
 SQueryMgmt   gQueryMgmt = {0};
 
+static int32_t qwDecodeCorrelationTemplates(const SQWMsg* pMsg, SNodeListNode** ppTemplates);
+static int32_t qwDecodeCorrelationTimeInit(const SQWMsg* pMsg, SNode** ppNode);
+
 
 int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   int32_t         code = 0;
@@ -1109,6 +1112,17 @@ _return:
 int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SQWTaskCtx *ctx = NULL;
+  SNodeListNode* pTemplates = NULL;
+  SNode* pTimeInit = NULL;
+
+  QW_ERR_JRET(tValidateCorrelationParams(qwMsg->pCorrelationParamDefs, qwMsg->pCorrelationParamValues));
+  QW_ERR_JRET(qwDecodeCorrelationTemplates(qwMsg, &pTemplates));
+  QW_ERR_JRET(qwDecodeCorrelationTimeInit(qwMsg, &pTimeInit));
+  if ((NULL != pTemplates || NULL != pTimeInit || NULL != qwMsg->pCorrelationParamDefs ||
+       NULL != qwMsg->pCorrelationParamValues) &&
+      (NULL == qwMsg->pCorrelation || 0 == qwMsg->pCorrelation->rootExecutionId)) {
+    QW_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
+  }
 
   QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
 
@@ -1125,6 +1139,9 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   ctx->subQuery = TEST_SUBQUERY_MASK(qwMsg->msgMask);
   ctx->subQType = qwMsg->subQType;
+  if (NULL != qwMsg->pCorrelation) {
+    ctx->correlation = *qwMsg->pCorrelation;
+  }
   ctx->ctrlConnInfo = qwMsg->connInfo;
   ctx->sId = sId;
   ctx->phase = -1;
@@ -1138,6 +1155,9 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwSendQueryRsp(QW_FPARAMS(), qwMsg->msgType + 1, ctx, code, true));
 
 _return:
+
+  nodesDestroyNode((SNode*)pTemplates);
+  nodesDestroyNode(pTimeInit);
 
   QW_TASK_DLOG("task preprocess %s, code:%s, subQuery:%d", code ? "failed": "succeed", tstrerror(code), ctx ? ctx->subQuery : 0);
 
@@ -1154,6 +1174,206 @@ _return:
   return code;
 }
 
+static int32_t qwDecodeCorrelationTemplates(const SQWMsg* pMsg, SNodeListNode** ppTemplates) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char*   pCopy = NULL;
+  SNode*  pNode = NULL;
+  QUERY_CHECK_NULL(pMsg, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+  QUERY_CHECK_NULL(ppTemplates, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+  *ppTemplates = NULL;
+  if (0 == pMsg->correlationTemplatesLen) {
+    QUERY_CHECK_CONDITION(NULL == pMsg->pCorrelationTemplates, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+    goto _return;
+  }
+  QUERY_CHECK_NULL(pMsg->pCorrelationTemplates, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+  pCopy = taosMemoryMalloc(pMsg->correlationTemplatesLen);
+  QUERY_CHECK_NULL(pCopy, code, lino, _return, terrno);
+  memcpy(pCopy, pMsg->pCorrelationTemplates, pMsg->correlationTemplatesLen);
+  QW_ERR_JRET(nodesMsgToNode(pCopy, pMsg->correlationTemplatesLen, &pNode));
+  QUERY_CHECK_NULL(pNode, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+  QUERY_CHECK_CONDITION(QUERY_NODE_NODE_LIST == nodeType(pNode), code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+
+  SNode* pTemplate = NULL;
+  FOREACH(pTemplate, ((SNodeListNode*)pNode)->pNodeList) {
+    QUERY_CHECK_CONDITION(QUERY_NODE_CORRELATION_TEMPLATE == nodeType(pTemplate), code, lino, _return,
+                          TSDB_CODE_QRY_INVALID_MSG);
+  }
+  *ppTemplates = (SNodeListNode*)pNode;
+  pNode = NULL;
+
+_return:
+  nodesDestroyNode(pNode);
+  taosMemoryFree(pCopy);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (lino > 0) {
+      qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    } else {
+      qError("%s failed since %s", __func__, tstrerror(code));
+    }
+  }
+  return code;
+}
+
+static int32_t qwDecodeCorrelationTimeInit(const SQWMsg* pMsg, SNode** ppNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char*   pCopy = NULL;
+  QUERY_CHECK_NULL(pMsg, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+  QUERY_CHECK_NULL(ppNode, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+  *ppNode = NULL;
+  if (0 == pMsg->correlationTimeInitLen) {
+    QUERY_CHECK_CONDITION(NULL == pMsg->pCorrelationTimeInit, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+    goto _return;
+  }
+  QUERY_CHECK_NULL(pMsg->pCorrelationTimeInit, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+  pCopy = taosMemoryMalloc(pMsg->correlationTimeInitLen);
+  QUERY_CHECK_NULL(pCopy, code, lino, _return, terrno);
+  memcpy(pCopy, pMsg->pCorrelationTimeInit, pMsg->correlationTimeInitLen);
+  QW_ERR_JRET(nodesMsgToNode(pCopy, pMsg->correlationTimeInitLen, ppNode));
+  QUERY_CHECK_NULL(*ppNode, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+  QUERY_CHECK_CONDITION(QUERY_NODE_NODE_LIST == nodeType(*ppNode), code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+
+  SNode* pDescriptor = NULL;
+  FOREACH(pDescriptor, ((SNodeListNode*)*ppNode)->pNodeList) {
+    QUERY_CHECK_CONDITION(QUERY_NODE_CORRELATION_TIME_RANGE_INIT == nodeType(pDescriptor), code, lino, _return,
+                          TSDB_CODE_QRY_INVALID_MSG);
+  }
+
+_return:
+  taosMemoryFree(pCopy);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (NULL != ppNode) {
+      nodesDestroyNode(*ppNode);
+      *ppNode = NULL;
+    }
+    if (lino > 0) {
+      qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    } else {
+      qError("%s failed since %s", __func__, tstrerror(code));
+    }
+  }
+  return code;
+}
+
+static void qwFreeCorrelationParamValue(void* pValue) {
+  SCorrelationParamValue* pParam = pValue;
+  taosMemoryFreeClear(pParam->pData);
+}
+
+static int32_t qwCopyCorrelationParamValues(const SArray* pSource, SArray** ppValues) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* pValues = NULL;
+  QUERY_CHECK_NULL(ppValues, code, lino, _return, TSDB_CODE_QRY_INVALID_INPUT);
+  *ppValues = NULL;
+  if (NULL == pSource) {
+    goto _return;
+  }
+
+  pValues = taosArrayInit(taosArrayGetSize(pSource), sizeof(SCorrelationParamValue));
+  QUERY_CHECK_NULL(pValues, code, lino, _return, terrno);
+  for (int32_t i = 0; i < taosArrayGetSize(pSource); ++i) {
+    const SCorrelationWireValue* pWire = taosArrayGet(pSource, i);
+    QUERY_CHECK_NULL(pWire, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+    SCorrelationParamValue value = {
+        .paramId = pWire->paramId,
+        .dataType = pWire->dataType,
+        .isNull = pWire->isNull,
+        .length = pWire->dataLen,
+    };
+    if (pWire->dataLen > 0) {
+      value.pData = taosMemoryMalloc(pWire->dataLen);
+      QUERY_CHECK_NULL(value.pData, code, lino, _return, terrno);
+      memcpy(value.pData, pWire->pData, pWire->dataLen);
+    }
+    if (NULL == taosArrayPush(pValues, &value)) {
+      taosMemoryFree(value.pData);
+      code = terrno;
+      lino = __LINE__;
+      goto _return;
+    }
+  }
+
+  *ppValues = pValues;
+  pValues = NULL;
+
+_return:
+  taosArrayDestroyEx(pValues, qwFreeCorrelationParamValue);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t qwCreateCorrelationTaskSession(QW_FPARAMS_DEF, SQWMsg* pMsg, SQWTaskCtx* pCtx) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SNodeListNode* pTemplates = NULL;
+  SArray*        pInheritedParams = NULL;
+  QUERY_CHECK_NULL(pMsg, code, lino, _return, TSDB_CODE_QRY_INVALID_INPUT);
+  QUERY_CHECK_NULL(pCtx, code, lino, _return, TSDB_CODE_QRY_INVALID_INPUT);
+  if (0 == pMsg->correlationTemplatesLen || NULL != pCtx->pCorrelationSession) {
+    goto _return;
+  }
+
+  QUERY_CHECK_NULL(mgmt->msgCb.pCorrelationRuntime, code, lino, _return,
+                   TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_NULL(mgmt->msgCb.pCorrelationOps, code, lino, _return,
+                   TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_NULL(mgmt->msgCb.pCorrelationOps->createTaskSession, code, lino, _return,
+                   TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  code = qwDecodeCorrelationTemplates(pMsg, &pTemplates);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = qwCopyCorrelationParamValues(pMsg->pCorrelationParamValues, &pInheritedParams);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  const SCorrelationExecution* pCorrelation = pMsg->pCorrelation;
+  QUERY_CHECK_NULL(pCorrelation, code, lino, _return, TSDB_CODE_QRY_INVALID_MSG);
+  SReadHandle* pReadHandle = pMsg->node;
+  QUERY_CHECK_NULL(pReadHandle, code, lino, _return, TSDB_CODE_QRY_INVALID_INPUT);
+  SCorrelationTaskContext context = {
+      .root = {.executionId = pCorrelation->rootExecutionId,
+               .queryId = pCorrelation->rootQueryId,
+               .clientId = pCorrelation->rootClientId,
+               .generation = pCorrelation->executionGeneration},
+      .task = {.queryId = qId, .clientId = cId, .taskId = tId, .execId = eId, .seriesId = sId},
+      .queryPolicy = tsQueryPolicy,
+      .txnId = pMsg->txnId,
+      .firstDayOfWeek = pMsg->firstDayOfWeek,
+      .pTimezoneName = pCorrelation->timezoneName,
+      .pCharsetName = pCorrelation->charsetName,
+      .pTemplates = pTemplates->pNodeList,
+      .pInheritedParams = pInheritedParams,
+      .pNodeList = pMsg->pCorrelationNodeList,
+      .pWorkerCb = pReadHandle->pWorkerCb,
+      .pMemPoolJob = NULL != pCtx->pJobInfo ? pCtx->pJobInfo->memInfo : NULL,
+  };
+  tstrncpy(context.user, pCorrelation->user, sizeof(context.user));
+  tstrncpy(context.db, pCorrelation->dbFName, sizeof(context.db));
+  code = mgmt->msgCb.pCorrelationOps->createTaskSession(
+      mgmt->msgCb.pCorrelationRuntime, &context, &pCtx->pCorrelationSession);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  nodesDestroyNode((SNode*)pTemplates);
+  taosArrayDestroyEx(pInheritedParams, qwFreeCorrelationParamValue);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static bool qwCorrelationRootMatches(const SCorrelationExecution* pCorrelation, const SQWTaskCtx* pCtx) {
+  if (NULL == pCorrelation) {
+    return 0 == pCtx->correlation.rootExecutionId;
+  }
+  return pCtx->correlation.rootExecutionId == pCorrelation->rootExecutionId &&
+         pCtx->correlation.rootQueryId == pCorrelation->rootQueryId &&
+         pCtx->correlation.rootClientId == pCorrelation->rootClientId &&
+         pCtx->correlation.executionGeneration == pCorrelation->executionGeneration;
+}
+
 int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   int32_t        code = 0;
   SSubplan      *plan = NULL;
@@ -1166,11 +1386,21 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
 
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
+  if (!qwCorrelationRootMatches(qwMsg->pCorrelation, ctx)) {
+    QW_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
+  }
+  QW_ERR_JRET(tValidateCorrelationParams(qwMsg->pCorrelationParamDefs, qwMsg->pCorrelationParamValues));
+
   ctx->taskType = qwMsg->msgInfo.taskType;
   ctx->explain = qwMsg->msgInfo.explain;
   ctx->needFetch = qwMsg->msgInfo.needFetch;
   ctx->queryMsgType = qwMsg->msgType;
   ctx->localExec = false;
+
+  QW_ERR_JRET(qwCreateCorrelationTaskSession(QW_FPARAMS(), qwMsg, ctx));
+  if (NULL != ctx->pCorrelationSession) {
+    ((SReadHandle*)qwMsg->node)->pCorrelationSession = ctx->pCorrelationSession;
+  }
 
   taosEnableMemPoolUsage(ctx->memPoolSession);
   code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
@@ -1186,9 +1416,28 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
   }
 
+  if (plan->requiresAncestorContext &&
+      (NULL == qwMsg->pCorrelation || 0 == qwMsg->pCorrelation->rootExecutionId)) {
+    nodesDestroyNode((SNode*)plan);
+    QW_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  }
+
   code = grantCheckQuery(atomic_load_32(&tsGrant), plan);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode *)plan);
+    nodesDestroyNode((SNode*)plan);
+    QW_ERR_JRET(code);
+  }
+
+  SNode* pTimeInitNode = NULL;
+  code = qwDecodeCorrelationTimeInit(qwMsg, &pTimeInitNode);
+  if (TSDB_CODE_SUCCESS == code &&
+      (plan->requiresAncestorContext || NULL != qwMsg->pCorrelationParamDefs || NULL != pTimeInitNode)) {
+    code = qBindCorrelationSubplan(plan, qwMsg->pCorrelationParamDefs, qwMsg->pCorrelationParamValues,
+                                   NULL == pTimeInitNode ? NULL : ((SNodeListNode*)pTimeInitNode)->pNodeList);
+  }
+  nodesDestroyNode(pTimeInitNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)plan);
     QW_ERR_JRET(code);
   }
 
@@ -1229,7 +1478,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
 
   QW_ERR_JRET(qwSaveTbVersionInfo(pTaskInfo, ctx));
 
-  if (!ctx->dynamicTask) {
+  if (!ctx->dynamicTask || 0 != ctx->correlation.rootExecutionId) {
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL, false));
   } else {
     ctx->queryExecDone = true;
@@ -1545,8 +1794,10 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     QW_ERR_JRET(TSDB_CODE_QRY_DUPLICATED_OPERATION);
   }
 
+  qwCloseTaskCorrelation(mgmt, ctx, TSDB_CODE_TSC_QUERY_CANCELLED);
+
   if (QW_QUERY_RUNNING(ctx)) {
-    QW_ERR_JRET(qwKillTaskHandle(ctx, TSDB_CODE_TSC_QUERY_CANCELLED));
+    QW_ERR_JRET(qwKillTaskHandle(mgmt, ctx, TSDB_CODE_TSC_QUERY_CANCELLED));
     QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROP, ctx->dynamicTask));
   } else if (QW_QUICK_FETCH_RUNNING(ctx)) {
     QW_TASK_WLOG("defer direct drop while quick fetch is running, sinkHandle:%p, thread:%" PRId64, ctx->sinkHandle,
@@ -1599,8 +1850,10 @@ int32_t qwProcessNotify(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   locked = true;
 
+  qwCloseTaskCorrelation(mgmt, ctx, TSDB_CODE_TSC_QUERY_CANCELLED);
+
   if (QW_QUERY_RUNNING(ctx)) {
-    QW_ERR_JRET(qwKillTaskHandle(ctx, TSDB_CODE_TSC_QUERY_CANCELLED));
+    QW_ERR_JRET(qwKillTaskHandle(mgmt, ctx, TSDB_CODE_TSC_QUERY_CANCELLED));
     QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
   }
 

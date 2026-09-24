@@ -28,6 +28,9 @@ extern "C" {
 typedef struct SRpcMsg        SRpcMsg;
 typedef struct SMgmtWrapper   SMgmtWrapper;
 typedef struct SRpcHandleInfo SRpcHandleInfo;
+typedef struct SCorrelationRuntime     SCorrelationRuntime;
+typedef struct SCorrelationRuntimeOps  SCorrelationRuntimeOps;
+typedef struct SCorrelationTaskSession SCorrelationTaskSession;
 
 typedef enum {
   QUERY_QUEUE,
@@ -67,6 +70,9 @@ typedef struct {
   void*                   serverRpc;
   void*                   statusRpc;
   void*                   syncRpc;
+  // Borrowed from SDnode. Both fields are NULL or valid together; SMsgCb never releases them.
+  SCorrelationRuntime*          pCorrelationRuntime;
+  const SCorrelationRuntimeOps* pCorrelationOps;
   PutToQueueFp            putToQueueFp;
   GetQueueSizeFp          qsizeFp;
   SendReqFp               sendReqFp;

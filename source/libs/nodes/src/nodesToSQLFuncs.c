@@ -166,6 +166,41 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
 
 int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *len, bool longFormat) {
   switch (pNode->type) {
+    case QUERY_NODE_OUTER_REF: {
+      SOuterRefNode *pRef = (SOuterRefNode *)pNode;
+      if (NULL == buf || NULL == len || *len < 0 || *len >= bufSize) {
+        return TSDB_CODE_OUT_OF_BUFFER;
+      }
+      int32_t written = pRef->tableAlias[0]
+                            ? snprintf(buf + *len, bufSize - *len, "`%s`.`%s`", pRef->tableAlias, pRef->colName)
+                            : snprintf(buf + *len, bufSize - *len, "`%s`", pRef->colName);
+      if (written < 0 || written >= bufSize - *len) {
+        return TSDB_CODE_OUT_OF_BUFFER;
+      }
+      *len += written;
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_CORRELATED_SUBQUERY: {
+      SCorrelatedSubqueryNode *pSubquery = (SCorrelatedSubqueryNode *)pNode;
+      if (NULL == pSubquery->pSubquerySql || '\0' == pSubquery->pSubquerySql[0]) {
+        return TSDB_CODE_OPS_NOT_SUPPORT;
+      }
+      if (NULL == buf || NULL == len || *len < 0 || *len >= bufSize) {
+        return TSDB_CODE_OUT_OF_BUFFER;
+      }
+      int32_t written = snprintf(buf + *len, bufSize - *len, "(%s)", pSubquery->pSubquerySql);
+      if (written < 0 || written >= bufSize - *len) {
+        return TSDB_CODE_OUT_OF_BUFFER;
+      }
+      *len += written;
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      // Internal parameters and templates have no user SQL placeholder syntax.
+      return TSDB_CODE_OPS_NOT_SUPPORT;
     case QUERY_NODE_COLUMN: {
       SColumnNode *colNode = (SColumnNode *)pNode;
       if (colNode->dbName[0]) {

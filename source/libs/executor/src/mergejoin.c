@@ -201,6 +201,7 @@ _return:
 }
 
 
+
 static int32_t mOuterJoinMergeFullCart(SMJoinMergeCtx* pCtx) {
   int32_t rowsLeft = pCtx->finBlk->info.capacity - pCtx->finBlk->info.rows;
   SMJoinTableCtx* probe = pCtx->pJoin->probe;
@@ -332,9 +333,11 @@ static int32_t mOuterJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
 
       if (pCtx->midBlk->info.rows > 0) {
         if (build->rowBitmapSize > 0) {
-          MJ_ERR_RET(mJoinFilterAndMarkRows(pCtx->midBlk, pCtx->pJoin->pFPreFilter, build, startGrpIdx, startRowIdx));
+          MJ_ERR_RET(mJoinFilterAndMarkRows(pCtx->midBlk, pCtx->pJoin->pFPreFilter, build,
+                                            startGrpIdx, startRowIdx, pCtx->pJoin->pOperator->pTaskInfo));
         } else {
-          MJ_ERR_RET(doFilter(pCtx->midBlk, pCtx->pJoin->pFPreFilter, NULL, NULL));
+          MJ_ERR_RET(doFilterWithTaskCorrelation(pCtx->midBlk, pCtx->pJoin->pFPreFilter, NULL, NULL,
+                                                 pCtx->pJoin->pOperator->pTaskInfo));
         }
 
         if (pCtx->midBlk->info.rows > 0) {
@@ -401,9 +404,11 @@ static int32_t mOuterJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, bool* contLoop)
 
     if (pCtx->midBlk->info.rows > 0) {
       if (build->rowBitmapSize > 0) {
-        MJ_ERR_RET(mJoinFilterAndMarkHashRows(pCtx->midBlk, pCtx->pJoin->pPreFilter, build, startRowIdx));
+        MJ_ERR_RET(mJoinFilterAndMarkHashRows(pCtx->midBlk, pCtx->pJoin->pPreFilter, build,
+                                              startRowIdx, pCtx->pJoin->pOperator->pTaskInfo));
       } else {
-        MJ_ERR_RET(doFilter(pCtx->midBlk, pCtx->pJoin->pPreFilter, NULL, NULL));
+        MJ_ERR_RET(doFilterWithTaskCorrelation(pCtx->midBlk, pCtx->pJoin->pPreFilter, NULL, NULL,
+                                               pCtx->pJoin->pOperator->pTaskInfo));
       }
       if (pCtx->midBlk->info.rows > 0) {
         probeGrp->readMatch = true;
@@ -1374,7 +1379,8 @@ static int32_t mSemiJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, SMJoinGrpRows* p
     MJ_ERR_RET(mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build, NULL));
 
     if (pCtx->midBlk->info.rows > 0) {
-      MJ_ERR_RET(mJoinFilterAndKeepSingleRow(pCtx->midBlk, pCtx->pJoin->pPreFilter));
+      MJ_ERR_RET(mJoinFilterAndKeepSingleRow(pCtx->midBlk, pCtx->pJoin->pPreFilter,
+                                             pCtx->pJoin->pOperator->pTaskInfo));
     }
 
     if (pCtx->midBlk->info.rows <= 0) {
@@ -1507,7 +1513,8 @@ static int32_t mSemiJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
       }
 
       if (pCtx->midBlk->info.rows > 0) {
-        MJ_ERR_RET(mJoinFilterAndKeepSingleRow(pCtx->midBlk, pCtx->pJoin->pFPreFilter));
+        MJ_ERR_RET(mJoinFilterAndKeepSingleRow(pCtx->midBlk, pCtx->pJoin->pFPreFilter,
+                                               pCtx->pJoin->pOperator->pTaskInfo));
       } 
 
       if (0 == pCtx->midBlk->info.rows) {
@@ -1729,7 +1736,8 @@ static int32_t mAntiJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, SMJoinGrpRows* p
     MJ_ERR_RET(mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build, NULL));
 
     if (pCtx->midBlk->info.rows > 0) {
-      MJ_ERR_RET(mJoinFilterAndNoKeepRows(pCtx->midBlk, pCtx->pJoin->pPreFilter));
+      MJ_ERR_RET(mJoinFilterAndNoKeepRows(pCtx->midBlk, pCtx->pJoin->pPreFilter,
+                                          pCtx->pJoin->pOperator->pTaskInfo));
     } 
 
     if (pCtx->midBlk->info.rows) {
@@ -1836,7 +1844,8 @@ static int32_t mAntiJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
       }
 
       if (pCtx->midBlk->info.rows > 0) {
-        MJ_ERR_RET(mJoinFilterAndNoKeepRows(pCtx->midBlk, pCtx->pJoin->pFPreFilter));
+        MJ_ERR_RET(mJoinFilterAndNoKeepRows(pCtx->midBlk, pCtx->pJoin->pFPreFilter,
+                                            pCtx->pJoin->pOperator->pTaskInfo));
       } 
 
       if (pCtx->midBlk->info.rows > 0) {

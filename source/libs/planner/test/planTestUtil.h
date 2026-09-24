@@ -19,6 +19,7 @@
 #define PLAN_TEST_UTIL_H
 
 #include <gtest/gtest.h>
+#include <functional>
 
 #define ALLOW_FORBID_FUNC
 
@@ -38,6 +39,7 @@ class PlannerTestBase : public testing::Test {
   void    runWithPostSplitHooks(const std::string& sql,
                                 FLogicPlanHook before,
                                 FLogicPlanHook after);
+  void    runFullPlan(const std::string& sql, const std::function<void(const SQueryPlan*)>& inspect);
   void    runStreamCalc(const std::string& sql);
   bool    findPlanNode(const std::string& nodeName) const;
   int32_t countPlanNode(const std::string& nodeName) const;

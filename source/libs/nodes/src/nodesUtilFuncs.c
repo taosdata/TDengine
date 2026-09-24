@@ -59,6 +59,98 @@ static int32_t                     g_allocatorReqRefPool = -1;
 static threadlocal bool g_nodesTestStrictAppendFailOnce = false;
 #endif
 
+int32_t nodesRestoreSubplanDag(SQueryPlan* pPlan, const SArray* pLinks) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  SHashObj* pById = NULL;
+  QUERY_CHECK_NULL(pPlan, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+  QUERY_CHECK_NULL(pLinks, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+  if (0 == pPlan->numOfSubplans && 0 == taosArrayGetSize(pLinks) && 0 == LIST_LENGTH(pPlan->pSubplans)) {
+    goto _return;
+  }
+  QUERY_CHECK_NULL(pPlan->pSubplans, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+  QUERY_CHECK_CONDITION(LIST_LENGTH(pPlan->pSubplans) > 0, code, lino, _return,
+                        TSDB_CODE_PLAN_INTERNAL_ERROR);
+
+  int32_t count = 0;
+  SNode* pLevel = NULL;
+  FOREACH(pLevel, pPlan->pSubplans) {
+    QUERY_CHECK_CONDITION(QUERY_NODE_NODE_LIST == nodeType(pLevel), code, lino, _return,
+                          TSDB_CODE_PLAN_INTERNAL_ERROR);
+    int32_t levelCount = LIST_LENGTH(((SNodeListNode*)pLevel)->pNodeList);
+    QUERY_CHECK_CONDITION(levelCount >= 0 && count <= INT32_MAX - levelCount, code, lino, _return,
+                          TSDB_CODE_PLAN_INTERNAL_ERROR);
+    count += levelCount;
+  }
+  QUERY_CHECK_CONDITION(count > 0 && count == pPlan->numOfSubplans, code, lino, _return,
+                        TSDB_CODE_PLAN_INTERNAL_ERROR);
+
+  pById = taosHashInit(count, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pById, code, lino, _return, terrno);
+
+  int32_t level = 0;
+  FOREACH(pLevel, pPlan->pSubplans) {
+    SNode* pEntity = NULL;
+    FOREACH(pEntity, ((SNodeListNode*)pLevel)->pNodeList) {
+      QUERY_CHECK_CONDITION(QUERY_NODE_PHYSICAL_SUBPLAN == nodeType(pEntity), code, lino, _return,
+                            TSDB_CODE_PLAN_INTERNAL_ERROR);
+      SSubplan* pSubplan = (SSubplan*)pEntity;
+      QUERY_CHECK_CONDITION(pSubplan->level == level &&
+                                (0 != level || NULL != pSubplan->pNode || NULL != pSubplan->pDataSink) &&
+                                NULL == taosHashGet(pById, &pSubplan->id, sizeof(pSubplan->id)),
+                            code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+      SNode* pChild = NULL;
+      FOREACH(pChild, pSubplan->pChildren) {
+        QUERY_CHECK_CONDITION(QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pChild), code, lino, _return,
+                              TSDB_CODE_PLAN_INTERNAL_ERROR);
+      }
+      code = taosHashPut(pById, &pSubplan->id, sizeof(pSubplan->id), &pSubplan, POINTER_BYTES);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    ++level;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pLinks); ++i) {
+    const SSubplanLink* pLink = taosArrayGet(pLinks, i);
+    QUERY_CHECK_NULL(pLink, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+    SSubplan** ppParent = taosHashGet(pById, &pLink->parentId, sizeof(pLink->parentId));
+    SSubplan** ppChild = taosHashGet(pById, &pLink->childId, sizeof(pLink->childId));
+    QUERY_CHECK_NULL(ppParent, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+    QUERY_CHECK_NULL(ppChild, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+    QUERY_CHECK_CONDITION((*ppChild)->level == (*ppParent)->level + 1, code, lino, _return,
+                          TSDB_CODE_PLAN_INTERNAL_ERROR);
+    SNode* pExisting = NULL;
+    FOREACH(pExisting, (*ppParent)->pChildren) {
+      QUERY_CHECK_CONDITION(pExisting != (SNode*)*ppChild, code, lino, _return,
+                            TSDB_CODE_PLAN_INTERNAL_ERROR);
+    }
+    code = nodesListMakeAppend(&(*ppParent)->pChildren, (SNode*)*ppChild);
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = nodesListMakeAppend(&(*ppChild)->pParents, (SNode*)*ppParent);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  level = 0;
+  FOREACH(pLevel, pPlan->pSubplans) {
+    SNode* pEntity = NULL;
+    FOREACH(pEntity, ((SNodeListNode*)pLevel)->pNodeList) {
+      if (level > 0) {
+        QUERY_CHECK_NULL(((SSubplan*)pEntity)->pParents, code, lino, _return,
+                         TSDB_CODE_PLAN_INTERNAL_ERROR);
+      }
+    }
+    ++level;
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("%s failed at line %d since %s, queryId:%" PRIu64, __func__, lino, tstrerror(code),
+               NULL == pPlan ? 0 : pPlan->queryId);
+  }
+  taosHashCleanup(pById);
+  return code;
+}
+
 int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, int32_t bufSize,
                                void** pTimezone, bool* pOwnsTimezone) {
   if (pTimezoneName == NULL || pTimezoneName[0] == '\0') {
@@ -444,6 +536,43 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
   SNode*  pNode = NULL;
   int32_t code = 0;
   switch (type) {
+    case QUERY_NODE_OUTER_REF:
+      code = makeNode(type, sizeof(SOuterRefNode), &pNode);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM:
+      code = makeNode(type, sizeof(SCorrelationParamNode), &pNode);
+      if (TSDB_CODE_SUCCESS == code) {
+        ((SCorrelationParamNode*)pNode)->paramId = -1;
+      }
+      break;
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      code = makeNode(type, sizeof(SCorrelationParamBindingNode), &pNode);
+      if (TSDB_CODE_SUCCESS == code) {
+        SCorrelationParamBindingNode* pBinding = (SCorrelationParamBindingNode*)pNode;
+        pBinding->paramId = -1;
+        pBinding->sourceBlockId = -1;
+        pBinding->sourceSlotId = -1;
+        pBinding->inheritedParamId = -1;
+      }
+      break;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      code = makeNode(type, sizeof(SCorrelatedSubqueryNode), &pNode);
+      if (TSDB_CODE_SUCCESS == code) {
+        ((SCorrelatedSubqueryNode*)pNode)->templateId = -1;
+      }
+      break;
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+      code = makeNode(type, sizeof(SCorrelationTemplateNode), &pNode);
+      if (TSDB_CODE_SUCCESS == code) {
+        ((SCorrelationTemplateNode*)pNode)->templateId = -1;
+      }
+      break;
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      code = makeNode(type, sizeof(SCorrelationTimeRangeInitNode), &pNode);
+      if (TSDB_CODE_SUCCESS == code) {
+        ((SCorrelationTimeRangeInitNode*)pNode)->targetBlockId = -1;
+      }
+      break;
     case QUERY_NODE_COLUMN:
       code = makeNode(type, sizeof(SColumnNode), &pNode);
       break;
@@ -1605,6 +1734,31 @@ void nodesDestroyNode(SNode* pNode) {
   }
 
   switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+      destroyExprNode((SExprNode*)pNode);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      nodesDestroyNode(((SCorrelationParamBindingNode*)pNode)->pSource);
+      break;
+    case QUERY_NODE_CORRELATED_SUBQUERY: {
+      SCorrelatedSubqueryNode* pSubquery = (SCorrelatedSubqueryNode*)pNode;
+      destroyExprNode(&pSubquery->node);
+      nodesDestroyList(pSubquery->pParamBindings);
+      taosMemoryFreeClear(pSubquery->pSubquerySql);
+      break;
+    }
+    case QUERY_NODE_CORRELATION_TEMPLATE: {
+      SCorrelationTemplateNode* pTemplate = (SCorrelationTemplateNode*)pNode;
+      nodesDestroyList(pTemplate->pParams);
+      nodesDestroyList(pTemplate->pNestedTemplates);
+      nodesDestroyList(pTemplate->pTimeRangeInit);
+      taosMemoryFreeClear(pTemplate->pPlan);
+      break;
+    }
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      nodesDestroyNode(((SCorrelationTimeRangeInitNode*)pNode)->pRangeExpr);
+      break;
     case QUERY_NODE_COLUMN:
       destroyExprNode((SExprNode*)pNode);
       break;
@@ -3199,6 +3353,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN:
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
       nodesDestroyList(((SQueryPlan*)pNode)->pChildren);
+      nodesDestroyList(((SQueryPlan*)pNode)->pCorrelationTemplates);
+      if (((SQueryPlan*)pNode)->ownsSubSql) {
+        taosMemoryFree(((SQueryPlan*)pNode)->subSql);
+      }
       break;
     case QUERY_NODE_XNODE_TASK_SOURCE_OPT:
       xFreeTaskSource(&((SXTaskSource*)pNode)->source);
@@ -4530,7 +4688,173 @@ bool nodesIsExprNode(const SNode* pNode) {
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type ||
           QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type || QUERY_NODE_CASE_WHEN == type ||
           QUERY_NODE_REMOTE_VALUE == type || QUERY_NODE_SELECT_STMT == type || QUERY_NODE_SET_OPERATOR == type ||
-          QUERY_NODE_REMOTE_VALUE_LIST == type || QUERY_NODE_REMOTE_ROW == type || QUERY_NODE_REMOTE_ZERO_ROWS == type);
+          QUERY_NODE_REMOTE_VALUE_LIST == type || QUERY_NODE_REMOTE_ROW == type || QUERY_NODE_REMOTE_ZERO_ROWS == type ||
+          QUERY_NODE_OUTER_REF == type || QUERY_NODE_CORRELATION_PARAM == type || QUERY_NODE_CORRELATED_SUBQUERY == type);
+}
+
+static bool correlationDataTypeValid(const SDataType* pType) {
+  if (!isValidDataType(pType->type) || pType->bytes <= 0) {
+    return false;
+  }
+  if (!IS_VAR_DATA_TYPE(pType->type) && pType->bytes != tDataTypes[pType->type].bytes) {
+    return false;
+  }
+  if (IS_DECIMAL_TYPE(pType->type)) {
+    uint8_t maxPrecision = (TSDB_DATA_TYPE_DECIMAL64 == pType->type) ? TSDB_DECIMAL64_MAX_PRECISION
+                                                                 : TSDB_DECIMAL128_MAX_PRECISION;
+    return pType->precision > 0 && pType->precision <= maxPrecision && pType->scale <= pType->precision;
+  }
+  if (TSDB_DATA_TYPE_TIMESTAMP == pType->type) {
+    return pType->precision <= TSDB_TIME_PRECISION_NANO && 0 == pType->scale;
+  }
+  return true;
+}
+
+// The codec owns recursive validation; this checks only the list contract at its owner.
+static bool correlationListValid(const SNodeList* pList, ENodeType type, bool uniqueParams) {
+  if (NULL == pList) {
+    return true;
+  }
+  for (const SListCell* pCell = pList->pHead; NULL != pCell; pCell = pCell->pNext) {
+    const SNode* pNode = pCell->pNode;
+    if (NULL == pNode || type != nodeType(pNode)) {
+      return false;
+    }
+    if (uniqueParams) {
+      int32_t paramId = (QUERY_NODE_CORRELATION_PARAM == type)
+                            ? ((const SCorrelationParamNode*)pNode)->paramId
+                            : ((const SCorrelationParamBindingNode*)pNode)->paramId;
+      if (paramId < 0) {
+        return false;
+      }
+      for (const SListCell* pPrevious = pList->pHead; pPrevious != pCell; pPrevious = pPrevious->pNext) {
+        int32_t previousId = (QUERY_NODE_CORRELATION_PARAM == type)
+                                 ? ((const SCorrelationParamNode*)pPrevious->pNode)->paramId
+                                 : ((const SCorrelationParamBindingNode*)pPrevious->pNode)->paramId;
+        if (previousId == paramId) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+int32_t nodesValidateCorrelationNode(const SNode* pNode) {
+  if (NULL == pNode) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF: {
+      const SOuterRefNode* pRef = (const SOuterRefNode*)pNode;
+      if (!correlationDataTypeValid(&pRef->node.resType) || pRef->scopeId <= 0 || pRef->bindingId <= 0 ||
+          pRef->tableRefId < 0 || NULL == memchr(pRef->tableAlias, 0, sizeof(pRef->tableAlias)) ||
+          NULL == memchr(pRef->colName, 0, sizeof(pRef->colName))) {
+        return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_PARAM: {
+      const SCorrelationParamNode* pParam = (const SCorrelationParamNode*)pNode;
+      if (!correlationDataTypeValid(&pParam->node.resType) || pParam->paramId < 0) {
+        return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_PARAM_BINDING: {
+      const SCorrelationParamBindingNode* pBinding = (const SCorrelationParamBindingNode*)pNode;
+      if (!correlationDataTypeValid(&pBinding->dataType) || pBinding->paramId < 0 || pBinding->scopeId <= 0 ||
+          pBinding->bindingId <= 0 || pBinding->tableRefId < 0) {
+        return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      }
+      switch (pBinding->sourceKind) {
+        case CORRELATION_SOURCE_LOGICAL:
+          if (pBinding->sourceBlockId != -1 || pBinding->sourceSlotId != -1 || pBinding->inheritedParamId != -1 ||
+              NULL == pBinding->pSource || (QUERY_NODE_COLUMN != nodeType(pBinding->pSource) &&
+                                            QUERY_NODE_OUTER_REF != nodeType(pBinding->pSource))) {
+            return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+          }
+          break;
+        case CORRELATION_SOURCE_BLOCK:
+          if (pBinding->sourceBlockId < 0 || pBinding->sourceSlotId < 0 || pBinding->inheritedParamId != -1 ||
+              NULL == pBinding->pSource || QUERY_NODE_COLUMN != nodeType(pBinding->pSource)) {
+            return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+          }
+          break;
+        case CORRELATION_SOURCE_INHERITED:
+          if (pBinding->sourceBlockId != -1 || pBinding->sourceSlotId != -1 || pBinding->inheritedParamId < 0 ||
+              NULL != pBinding->pSource) {
+            return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+          }
+          break;
+        default:
+          return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      }
+      if (NULL != pBinding->pSource) {
+        const SDataType* pSourceType = &((const SExprNode*)pBinding->pSource)->resType;
+        if (!correlationDataTypeValid(pSourceType) || pSourceType->type != pBinding->dataType.type ||
+            pSourceType->bytes != pBinding->dataType.bytes ||
+            pSourceType->precision != pBinding->dataType.precision || pSourceType->scale != pBinding->dataType.scale) {
+          return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+        }
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATED_SUBQUERY: {
+      const SCorrelatedSubqueryNode* pSubquery = (const SCorrelatedSubqueryNode*)pNode;
+      if (!correlationDataTypeValid(&pSubquery->node.resType) || pSubquery->templateId < 0 ||
+          pSubquery->exprId <= 0 || pSubquery->scopeId <= 0 || pSubquery->parentScopeId <= 0 ||
+          !correlationListValid(pSubquery->pParamBindings, QUERY_NODE_CORRELATION_PARAM_BINDING, true)) {
+        return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_TEMPLATE: {
+      const SCorrelationTemplateNode* pTemplate = (const SCorrelationTemplateNode*)pNode;
+      if (!correlationDataTypeValid(&pTemplate->resultType) || pTemplate->templateId < 0 ||
+          pTemplate->scopeId <= 0 || pTemplate->planLen < 0 ||
+          ((pTemplate->planLen > 0) != (NULL != pTemplate->pPlan)) ||
+          NULL == memchr(pTemplate->resultName, 0, sizeof(pTemplate->resultName)) ||
+          !correlationListValid(pTemplate->pParams, QUERY_NODE_CORRELATION_PARAM, true) ||
+          !correlationListValid(pTemplate->pNestedTemplates, QUERY_NODE_CORRELATION_TEMPLATE, false) ||
+          !correlationListValid(pTemplate->pTimeRangeInit, QUERY_NODE_CORRELATION_TIME_RANGE_INIT, false)) {
+        return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      }
+      break;
+    }
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT: {
+      const SCorrelationTimeRangeInitNode* pInit = (const SCorrelationTimeRangeInitNode*)pNode;
+      if (pInit->scopeId <= 0 || pInit->precision > TSDB_TIME_PRECISION_NANO ||
+          pInit->targetSubplanId.queryId == 0 || pInit->targetBlockId < 0 || NULL == pInit->pRangeExpr) {
+        return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      }
+      switch (pInit->targetNodeType) {
+        case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+        case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+        case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+        case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
+        case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+        case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+        case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
+        case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+        case QUERY_NODE_PHYSICAL_PLAN_FILL:
+          break;
+        default:
+          return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN: {
+      const SQueryPlan* pPlan = (const SQueryPlan*)pNode;
+      if (!correlationListValid(pPlan->pCorrelationTemplates, QUERY_NODE_CORRELATION_TEMPLATE, false)) {
+        return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp) {
@@ -5019,6 +5343,37 @@ bool nodesExprsHasColumn(SNodeList* pList) {
   bool hasCol = false;
   nodesWalkExprsPostOrder(pList, hasColumn, &hasCol);
   return hasCol;
+}
+
+static EDealRes hasCorrelation(SNode* pNode, void* pContext) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    case QUERY_NODE_VALUE:
+      if (((SValueNode*)pNode)->flag & VALUE_FLAG_DEFERRED_QUERY_TIME) {
+        *(bool*)pContext = true;
+        return DEAL_RES_END;
+      }
+      return DEAL_RES_CONTINUE;
+    default:
+      return DEAL_RES_CONTINUE;
+  }
+}
+
+bool nodesExprHasCorrelation(SNode* pNode) {
+  bool found = false;
+  nodesWalkExpr(pNode, hasCorrelation, &found);
+  return found;
+}
+
+bool nodesExprsHasCorrelation(SNodeList* pList) {
+  bool found = false;
+  nodesWalkExprs(pList, hasCorrelation, &found);
+  return found;
 }
 
 char* nodesGetFillModeString(EFillMode mode) {

@@ -34,6 +34,7 @@
 #include "tmsg.h"
 #include "tmsgtype.h"
 #include "ttimer.h"
+#include "tuuid.h"
 #include "tpagedbuf.h"
 #include "tref.h"
 #include "tsched.h"
@@ -1765,6 +1766,44 @@ _return:
   return code;
 }
 
+static bool queryPlanHasCorrelationTemplates(const SQueryPlan* pPlan) {
+  if (NULL == pPlan) {
+    return false;
+  }
+  if (LIST_LENGTH(pPlan->pCorrelationTemplates) > 0) {
+    return true;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pPlan->pChildren) {
+    if (queryPlanHasCorrelationTemplates((const SQueryPlan*)pChild)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static SCorrelationExecution initCorrelationExecution(const SRequestObj* pRequest, const SQueryPlan* pDag) {
+  SCorrelationExecution correlation = {0};
+  if (!queryPlanHasCorrelationTemplates(pDag)) {
+    return correlation;
+  }
+
+  correlation.rootExecutionId = (uint64_t)tGenIdPI64();
+  correlation.rootQueryId = pRequest->requestId;
+  correlation.rootClientId = pRequest->pTscObj->connId;
+  correlation.executionGeneration = pRequest->retry + 1;
+
+  const char* pUser = NULL != pRequest->effectiveUser ? pRequest->effectiveUser : pRequest->pTscObj->user;
+  const char* pDb = NULL != pRequest->pDb ? pRequest->pDb : pRequest->pTscObj->db;
+  const char* pCharset = taosConvCharset(pRequest->pTscObj->optionInfo.charsetCxt);
+  tstrncpy(correlation.user, pUser, sizeof(correlation.user));
+  tstrncpy(correlation.dbFName, pDb, sizeof(correlation.dbFName));
+  tstrncpy(correlation.timezoneName, pRequest->pTscObj->optionInfo.timezoneName,
+           sizeof(correlation.timezoneName));
+  tstrncpy(correlation.charsetName, pCharset, sizeof(correlation.charsetName));
+  return correlation;
+}
+
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
 
@@ -1793,6 +1832,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
          .pWorkerCb = getTaskPoolWorkerCb(),
          .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
          .txnId = pRequest->pTscObj->txnId,
+         .correlation = initCorrelationExecution(pRequest, pDag),
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
@@ -3469,6 +3509,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
              .pWorkerCb = getTaskPoolWorkerCb(),
              .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
              .txnId = pRequest->pTscObj->txnId,
+             .correlation = initCorrelationExecution(pRequest, pDag),
       };
 
       if (TSDB_CODE_SUCCESS == code) {

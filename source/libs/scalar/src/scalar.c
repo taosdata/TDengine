@@ -777,7 +777,8 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     case QUERY_NODE_FUNCTION:
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_CASE_WHEN: {
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_CORRELATED_SUBQUERY: {
       SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, &node, POINTER_BYTES);
       if (NULL == res) {
         sclError("no result for node, type:%d, node:%p", nodeType(node), node);
@@ -1368,6 +1369,7 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
     case QUERY_NODE_WHEN_THEN: {
       SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, &pNode, POINTER_BYTES);
       if (NULL == res) {
@@ -3062,11 +3064,300 @@ EDealRes sclWalkRemoteValue(SNode *pNode, SScalarCtx *ctx) {
   return DEAL_RES_CONTINUE;
 }
 
+static void sclFreeCorrelationParamValue(void *pElement) {
+  SCorrelationParamValue *pValue = pElement;
+  taosMemoryFree(pValue->pData);
+}
 
+static const SCorrelationParamValue *sclFindInheritedParam(const SArray *pParams, int32_t paramId) {
+  if (NULL == pParams) {
+    return NULL;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pParams); ++i) {
+    const SCorrelationParamValue *pValue = taosArrayGet(pParams, i);
+    if (NULL != pValue && pValue->paramId == paramId) {
+      return pValue;
+    }
+  }
+  return NULL;
+}
+
+static int32_t sclCorrelationParamFromBlock(const SCorrelationParamBindingNode *pBinding, const SScalarCtx *pCtx,
+                                            int32_t row, SCorrelationParamValue *pValue) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SSDataBlock*     pBlock = NULL;
+  SColumnInfoData* pColumn = NULL;
+  QUERY_CHECK_NULL(pCtx->pBlockList, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pCtx->pBlockList); ++i) {
+    SSDataBlock *pCandidate = taosArrayGetP(pCtx->pBlockList, i);
+    QUERY_CHECK_NULL(pCandidate, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    if (pCandidate->info.id.blockId == pBinding->sourceBlockId) {
+      pBlock = pCandidate;
+      break;
+    }
+  }
+  QUERY_CHECK_NULL(pBlock, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_CONDITION(pBinding->sourceSlotId >= 0 &&
+                            pBinding->sourceSlotId < taosArrayGetSize(pBlock->pDataBlock),
+                        code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  pColumn = taosArrayGet(pBlock->pDataBlock, pBinding->sourceSlotId);
+  QUERY_CHECK_NULL(pColumn, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_CONDITION(pColumn->info.type == pBinding->dataType.type &&
+                            (IS_VAR_DATA_TYPE(pColumn->info.type) ||
+                             pColumn->info.bytes == pBinding->dataType.bytes) &&
+                            pColumn->info.precision == pBinding->dataType.precision &&
+                            pColumn->info.scale == pBinding->dataType.scale && row >= 0 && row < pBlock->info.rows,
+                        code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+
+  pValue->isNull = colDataIsNull(pColumn, pBlock->info.rows, row, NULL);
+  if (!pValue->isNull) {
+    const void *pData = colDataGetData(pColumn, row);
+    QUERY_CHECK_NULL(pData, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    pValue->length = IS_STR_DATA_BLOB(pColumn->info.type)
+                         ? blobDataTLen(pData)
+                         : (IS_VAR_DATA_TYPE(pColumn->info.type) ? varDataTLen(pData) : pBinding->dataType.bytes);
+    QUERY_CHECK_CONDITION(pValue->length > 0 && pValue->length <= pBinding->dataType.bytes, code, lino, _return,
+                          TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    pValue->pData = taosMemoryMalloc(pValue->length);
+    QUERY_CHECK_NULL(pValue->pData, code, lino, _return, terrno);
+    (void)memcpy(pValue->pData, pData, pValue->length);
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    sclError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t sclBuildCorrelationParams(const SCorrelatedSubqueryNode *pNode, const SScalarCtx *pCtx,
+                                         int32_t row, SArray **ppParams) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray *pParams = NULL;
+  QUERY_CHECK_NULL(ppParams, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  *ppParams = NULL;
+  pParams = taosArrayInit(TMAX(1, LIST_LENGTH(pNode->pParamBindings)), sizeof(SCorrelationParamValue));
+  QUERY_CHECK_NULL(pParams, code, lino, _return, terrno);
+
+  SNode *pBindingNode = NULL;
+  FOREACH(pBindingNode, pNode->pParamBindings) {
+    QUERY_CHECK_CONDITION(QUERY_NODE_CORRELATION_PARAM_BINDING == nodeType(pBindingNode), code, lino, _return,
+                          TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    const SCorrelationParamBindingNode *pBinding = (const SCorrelationParamBindingNode *)pBindingNode;
+    SCorrelationParamValue value = {.paramId = pBinding->paramId, .dataType = pBinding->dataType};
+    if (CORRELATION_SOURCE_INHERITED == pBinding->sourceKind) {
+      const SArray *pInheritedParams = pCtx->pCorrelation->pInheritedParams;
+      if (NULL == pInheritedParams && NULL != pCtx->pCorrelation->pOps->getInheritedParams) {
+        pInheritedParams = pCtx->pCorrelation->pOps->getInheritedParams(pCtx->pCorrelation->pSession);
+      }
+      const SCorrelationParamValue *pInherited =
+          sclFindInheritedParam(pInheritedParams, pBinding->inheritedParamId);
+      QUERY_CHECK_NULL(pInherited, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+      QUERY_CHECK_CONDITION(pInherited->dataType.type == value.dataType.type &&
+                                pInherited->dataType.bytes == value.dataType.bytes &&
+                                pInherited->dataType.precision == value.dataType.precision &&
+                                pInherited->dataType.scale == value.dataType.scale,
+                            code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+      value.isNull = pInherited->isNull;
+      value.length = pInherited->length;
+      QUERY_CHECK_CONDITION(value.length >= 0 && value.length <= value.dataType.bytes &&
+                                (!value.isNull || (0 == value.length && NULL == pInherited->pData)),
+                            code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+      if (!value.isNull) {
+        QUERY_CHECK_CONDITION(value.length > 0 && NULL != pInherited->pData, code, lino, _return,
+                              TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+        value.pData = taosMemoryMalloc(value.length);
+        QUERY_CHECK_NULL(value.pData, code, lino, _return, terrno);
+        (void)memcpy(value.pData, pInherited->pData, value.length);
+      }
+    } else if (CORRELATION_SOURCE_BLOCK == pBinding->sourceKind) {
+      int32_t sourceRow = row;
+      const SCorrelationEvalContext *pCorrelation = pCtx->pCorrelation;
+      if (pCorrelation->hasJoinRows) {
+        if (pBinding->sourceBlockId == pCorrelation->leftBlockId) {
+          sourceRow = pCorrelation->leftRow;
+        } else if (pBinding->sourceBlockId == pCorrelation->rightBlockId) {
+          sourceRow = pCorrelation->rightRow;
+        } else {
+          code = TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+          lino = __LINE__;
+          goto _return;
+        }
+      }
+      code = sclCorrelationParamFromBlock(pBinding, pCtx, sourceRow, &value);
+      if (TSDB_CODE_SUCCESS != code) {
+        taosMemoryFree(value.pData);
+        goto _return;
+      }
+    } else {
+      code = TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+      lino = __LINE__;
+      goto _return;
+    }
+    if (NULL == taosArrayPush(pParams, &value)) {
+      taosMemoryFree(value.pData);
+      code = terrno;
+      lino = __LINE__;
+      goto _return;
+    }
+  }
+
+  *ppParams = pParams;
+  pParams = NULL;
+
+_return:
+  taosArrayDestroyEx(pParams, sclFreeCorrelationParamValue);
+  if (TSDB_CODE_SUCCESS != code) {
+    sclError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int64_t sclCorrelationVectorBytes(const SScalarParam *pOutput) {
+  const SColumnInfoData *pColumn = pOutput->columnData;
+  if (NULL == pColumn) {
+    return 0;
+  }
+  int64_t bytes = sizeof(*pColumn);
+  if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
+    bytes += (int64_t)pOutput->numOfRows * sizeof(int32_t);
+    bytes += pColumn->varmeta.allocLen;
+  } else {
+    bytes += BitmapLen(pOutput->numOfRows);
+    bytes += (int64_t)pOutput->numOfRows * pColumn->info.bytes;
+  }
+  return bytes;
+}
+
+static int32_t sclChargeCorrelationVector(SScalarCtx *pCtx, const SScalarParam *pOutput,
+                                          int64_t *pChargedBytes) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  const SCorrelationEvalContext *pCorrelation = pCtx->pCorrelation;
+  QUERY_CHECK_NULL(pCorrelation->pOps->reserveResultMemory, code, lino, _return,
+                   TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_NULL(pCorrelation->pOps->releaseResultMemory, code, lino, _return,
+                   TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  int64_t bytes = sclCorrelationVectorBytes(pOutput);
+  QUERY_CHECK_CONDITION(bytes >= 0 && bytes <= INT64_MAX - pCtx->correlationChargedBytes, code, lino, _return,
+                        TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  if (bytes > *pChargedBytes) {
+    code = pCorrelation->pOps->reserveResultMemory(pCorrelation->pSession, bytes - *pChargedBytes);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else if (bytes < *pChargedBytes) {
+    pCorrelation->pOps->releaseResultMemory(pCorrelation->pSession, *pChargedBytes - bytes);
+  }
+  pCtx->correlationChargedBytes += bytes - *pChargedBytes;
+  *pChargedBytes = bytes;
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    sclError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t sclExecCorrelatedSubquery(const SCorrelatedSubqueryNode *pNode, SScalarCtx *pCtx,
+                                         SScalarParam *pOutput) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SArray*                        pParams = NULL;
+  SValueNode*                    pResult = NULL;
+  const SCorrelationEvalContext *pCorrelation = pCtx->pCorrelation;
+  int64_t                        chargedBytes = 0;
+
+  QUERY_CHECK_NULL(pCorrelation, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_NULL(pCorrelation->pSession, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_NULL(pCorrelation->pOps, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  QUERY_CHECK_NULL(pCorrelation->pOps->invokeScalar, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+
+  SDataType resultType = pNode->node.resType;
+  code = sclCreateColumnInfoData(&resultType, pCtx->correlationRows, pOutput);
+  QUERY_CHECK_CODE(code, lino, _return);
+  if (pOutput->numOfRows > 0) {
+    colDataSetNNULL(pOutput->columnData, 0, pOutput->numOfRows);
+  }
+  code = sclChargeCorrelationVector(pCtx, pOutput, &chargedBytes);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  for (int32_t row = pCtx->correlationStart; row <= pCtx->correlationEnd; ++row) {
+    bool        called = false;
+    int64_t     elapsedUs = 0;
+    code = sclBuildCorrelationParams(pNode, pCtx, row, &pParams);
+    QUERY_CHECK_CODE(code, lino, _return);
+    SCorrelationScalarRequest request = {.templateId = pNode->templateId,
+                                         .pParams = pParams,
+                                         .pSubquerySources = pCorrelation->pSubquerySources};
+    if (NULL != pCorrelation->pWait) {
+      request.wait = *pCorrelation->pWait;
+    }
+    int64_t startUs = taosGetTimestampUs();
+    called = true;
+    code = pCorrelation->pOps->invokeScalar(pCorrelation->pSession, &request, &pResult);
+    QUERY_CHECK_CODE(code, lino, _return);
+    elapsedUs = taosGetTimestampUs() - startUs;
+    if (NULL != pCorrelation->recordStats) {
+      code = pCorrelation->recordStats(pCorrelation->pStatsContext, pNode->templateId, called, elapsedUs);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    taosArrayDestroyEx(pParams, sclFreeCorrelationParamValue);
+    if (NULL == pResult || pResult->node.resType.type != pNode->node.resType.type ||
+        pResult->node.resType.bytes != pNode->node.resType.bytes ||
+        pResult->node.resType.precision != pNode->node.resType.precision ||
+        pResult->node.resType.scale != pNode->node.resType.scale) {
+      code = TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    } else {
+      code = colDataSetVal(pOutput->columnData, row, nodesGetValueFromNode(pResult), pResult->isNull);
+    }
+    QUERY_CHECK_CODE(code, lino, _return);
+    nodesDestroyNode((SNode*)pResult);
+    code = sclChargeCorrelationVector(pCtx, pOutput, &chargedBytes);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    pParams = NULL;
+    pResult = NULL;
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    if (pParams) {
+      taosArrayDestroyEx(pParams, sclFreeCorrelationParamValue);
+    }
+    if (pResult) {
+      nodesDestroyNode((SNode*)pResult);
+    }
+    sclFreeParam(pOutput);
+    sclError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static EDealRes sclWalkCorrelatedSubquery(SNode *pNode, SScalarCtx *pCtx) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SScalarParam output = {0};
+
+  code = sclExecCorrelatedSubquery((const SCorrelatedSubqueryNode *)pNode, pCtx, &output);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = taosHashPut(pCtx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output));
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  return DEAL_RES_CONTINUE;
+
+_return:
+  pCtx->code = code;
+  sclFreeParam(&output);
+  sclError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return DEAL_RES_ERROR;
+}
 
 EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) ||
       QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_LEFT_VALUE == nodeType(pNode) ||
+      QUERY_NODE_CORRELATION_PARAM_BINDING == nodeType(pNode) ||
       QUERY_NODE_WHEN_THEN == nodeType(pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pNode) ||
       QUERY_NODE_REMOTE_ROW == nodeType(pNode) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(pNode) ||
       QUERY_NODE_REMOTE_TABLE == nodeType(pNode)) {
@@ -3087,6 +3378,8 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
       return sclWalkCaseWhen(pNode, ctx);
     case QUERY_NODE_REMOTE_VALUE:
       return sclWalkRemoteValue(pNode, ctx);
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      return sclWalkCorrelatedSubquery(pNode, ctx);
     default:
       break;
   }
@@ -3099,6 +3392,11 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
 int32_t sclCalcConstants(SNode *pNode, bool dual, bool remoteIncluded, bool nullResExpected, SNode **pRes, SScalarExtraInfo* pExtra) {
   if (NULL == pNode) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  if (nodesExprHasCorrelation(pNode)) {
+    *pRes = pNode;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t    code = 0;
@@ -3311,6 +3609,28 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
     gTaskScalarExtra.pTaskInfo    = pExtra->pTaskInfo;
     gTaskScalarExtra.isTaskKilled = pExtra->isTaskKilled;
     ctx.streamGen = pExtra->streamGen;
+    ctx.pCorrelation = pExtra->pCorrelation;
+  }
+
+  if (NULL != ctx.pCorrelation) {
+    if (NULL == pBlockList || 0 == taosArrayGetSize(pBlockList)) {
+      SCL_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    }
+    SSDataBlock *pBlock = taosArrayGetP(pBlockList, 0);
+    if (NULL == pBlock || pBlock->info.rows < 0) {
+      SCL_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+    }
+    ctx.correlationRows = pBlock->info.rows;
+    ctx.correlationStart = 0;
+    ctx.correlationEnd = ctx.correlationRows - 1;
+    if (ctx.pCorrelation->hasRowRange && ctx.correlationRows > 0) {
+      if (ctx.pCorrelation->rowStart < 0 || ctx.pCorrelation->rowEnd < ctx.pCorrelation->rowStart ||
+          ctx.pCorrelation->rowEnd >= ctx.correlationRows) {
+        SCL_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+      }
+      ctx.correlationStart = ctx.pCorrelation->rowStart;
+      ctx.correlationEnd = ctx.pCorrelation->rowEnd;
+    }
   }
   
   // TODO: OPT performance
@@ -3344,13 +3664,37 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
       pDst->numOfRows = res->numOfRows;
       pDst->numOfQualified = res->numOfQualified;
     } else if (1 == res->numOfRows && srcRows > 0) {
-      SCL_ERR_JRET(sclExtendResRowsRange(pDst, rowStartIdx, rowEndIdx, res, pBlockList));
+      int32_t start = NULL != ctx.pCorrelation && ctx.pCorrelation->hasRowRange ? ctx.correlationStart : rowStartIdx;
+      int32_t end = NULL != ctx.pCorrelation && ctx.pCorrelation->hasRowRange ? ctx.correlationEnd : rowEndIdx;
+      if (NULL != ctx.pCorrelation && ctx.pCorrelation->hasRowRange && pDst->numOfRows < srcRows) {
+        SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, srcRows, true));
+        colDataSetNNULL(pDst->columnData, 0, srcRows);
+      }
+      SCL_ERR_JRET(sclExtendResRowsRange(pDst, start, end, res, pBlockList));
     } else {
       if (NULL == res->columnData) {
         SCL_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
-      SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows, true));
-      SCL_ERR_JRET(colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL));
+      bool preserveExistingRange = NULL != ctx.pCorrelation && ctx.pCorrelation->hasRowRange &&
+                                   pDst->numOfRows >= res->numOfRows &&
+                                   (IS_VAR_DATA_TYPE(pDst->columnData->info.type)
+                                        ? NULL != pDst->columnData->varmeta.offset
+                                        : NULL != pDst->columnData->pData && NULL != pDst->columnData->nullbitmap);
+      if (!preserveExistingRange) {
+        SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows, true));
+        if (NULL != ctx.pCorrelation && ctx.pCorrelation->hasRowRange) {
+          colDataSetNNULL(pDst->columnData, 0, res->numOfRows);
+        }
+      }
+      if (NULL != ctx.pCorrelation && ctx.pCorrelation->hasRowRange) {
+        for (int32_t row = ctx.correlationStart; row <= ctx.correlationEnd; ++row) {
+          bool isNull = colDataIsNull(res->columnData, res->numOfRows, row, NULL);
+          SCL_ERR_JRET(colDataSetVal(pDst->columnData, row,
+                                    isNull ? NULL : colDataGetData(res->columnData, row), isNull));
+        }
+      } else {
+        SCL_ERR_JRET(colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL));
+      }
       pDst->numOfRows = res->numOfRows;
       pDst->numOfQualified = res->numOfQualified;
     }
@@ -3362,7 +3706,13 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
 _return:
   gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
   gTaskScalarExtra.isTaskKilled = savedIsKilled;
-  sclFreeRes(ctx.pRes);
+  if (NULL != ctx.pRes) {
+    sclFreeRes(ctx.pRes);
+  }
+  if (NULL != ctx.pCorrelation && ctx.correlationChargedBytes > 0 &&
+      NULL != ctx.pCorrelation->pOps && NULL != ctx.pCorrelation->pOps->releaseResultMemory) {
+    ctx.pCorrelation->pOps->releaseResultMemory(ctx.pCorrelation->pSession, ctx.correlationChargedBytes);
+  }
   return code;
 }
 

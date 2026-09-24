@@ -183,17 +183,21 @@ int32_t schUpdateTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int3
 }
 
 int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, uint64_t seriesId, int32_t execId) {
+  if (seriesId != pTask->seriesId || seriesId <= pTask->failedSeriesId) {
+    SCH_TASK_DLOG("handle not updated since seriesId:0x%" PRIx64 " is not current seriesId:0x%" PRIx64,
+                  seriesId, pTask->seriesId);
+    SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
+  }
+
   if (dropExecNode) {
     SCH_RET(schDropTaskExecNode(pJob, pTask, handle, execId));
   }
 
   SCH_ERR_RET(schUpdateTaskExecNode(pJob, pTask, handle, execId));
 
-  if ((seriesId != pTask->seriesId || seriesId <= pTask->failedSeriesId) || 
-      (execId != pTask->execId || execId <= pTask->failedExecId) || pTask->waitRetry) {  // ignore it
-    SCH_TASK_DLOG("handle not updated since seriesId:0x%" PRIx64 " or execId:%d is not latest,"
-                  "current seriesId:0x%" PRIx64 " execId %d, failedSeriesId:0x%" PRIx64 " failedExecId:%d, waitRetry %d", 
-                  seriesId, execId, pTask->seriesId, pTask->execId, pTask->failedSeriesId, pTask->failedExecId, pTask->waitRetry);
+  if (execId != pTask->execId || execId <= pTask->failedExecId || pTask->waitRetry) {  // ignore it
+    SCH_TASK_DLOG("handle not updated since execId:%d is not latest, current execId:%d, failedExecId:%d, waitRetry:%d",
+                  execId, pTask->execId, pTask->failedExecId, pTask->waitRetry);
     SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
@@ -347,6 +351,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         .addr = pTask->succeedAddr,
         .fetchMsgType = SCH_FETCH_TYPE(pTask),
         .localExec = SCH_IS_LOCAL_EXEC_TASK(pJob, pTask),
+        .producerQueryId = pJob->queryId,
     };
 
     code = qSetSubplanExecutionNode(pParent->plan, pTask->plan->id.groupId, &source);
@@ -1289,7 +1294,7 @@ int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   param->subJobId = pJob->subJobId;
   param->pTask = pTask;
 
-  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM && !pJob->attr.inlineTaskLaunch) {
     param->asyncLaunch = true;
     SCH_ERR_RET(taosAsyncExec(schLaunchTaskImpl, param, NULL));
   } else {

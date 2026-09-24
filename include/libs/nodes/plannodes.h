@@ -1435,6 +1435,33 @@ typedef struct SExplainInfo {
   timezone_t   tz;       /* session timezone for formatting timestamps */
 } SExplainInfo;
 
+typedef struct SCorrelationTimeRangeInitNode {
+  ENodeType  type;
+  int32_t    scopeId;
+  uint8_t    precision;
+  bool       interpRange;
+  bool       allowNoTimeRange;
+  SSubplanId targetSubplanId;
+  int64_t    targetBlockId;
+  ENodeType  targetNodeType;
+  SNode*     pRangeExpr;
+} SCorrelationTimeRangeInitNode;
+
+typedef struct SCorrelationTemplateNode {
+  ENodeType  type;
+  int32_t    templateId;
+  int32_t    scopeId;
+  SDataType  resultType;
+  char       resultName[TSDB_COL_NAME_LEN];
+  SNodeList* pParams;           // Owned SCorrelationParamNode definitions.
+  SNodeList* pNestedTemplates;  // Owned templates, separate from pChildren jobs.
+  SNodeList* pTimeRangeInit;    // Owned SCorrelationTimeRangeInitNode descriptors.
+  // Owned complete-DAG TLV bytes, immutable once frozen by P06. Copy bytes;
+  // never call nodesCloneNode(SQueryPlan) to instantiate a template.
+  int32_t    planLen;
+  char*      pPlan;
+} SCorrelationTemplateNode;
+
 typedef struct SQueryPlan {
   ENodeType     type;
   ESubQueryType subQType;
@@ -1443,10 +1470,12 @@ typedef struct SQueryPlan {
   SNodeList*    pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
   SNodeList*    pChildren;  // Element is SQueryPlan*
   char*         subSql;
+  bool          ownsSubSql;  // Decoded plans own a copy; planner plans borrow AST SQL.
   SExplainInfo  explainInfo;
   void*         pPostPlan;
   bool          hasFederatedScan;  // true when plan contains at least one SCAN_TYPE_EXTERNAL node
   bool          hasScan;           // true when plan contains at least one local (vnode) scan
+  SNodeList*    pCorrelationTemplates;  // Owned; not auto-started child jobs.
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);

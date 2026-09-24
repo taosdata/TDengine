@@ -39,6 +39,34 @@ class FederatedFlagGuard {
   bool previous_;
 };
 
+class QueryPolicyGuard {
+ public:
+  explicit QueryPolicyGuard(int32_t policy) : previous_(tsQueryPolicy) { tsQueryPolicy = policy; }
+  ~QueryPolicyGuard() { tsQueryPolicy = previous_; }
+
+ private:
+  int32_t previous_;
+};
+
+struct OuterRefSummary {
+  int32_t count = 0;
+  int64_t bindingId = 0;
+  int64_t tableRefId = 0;
+  int32_t scopeId = 0;
+};
+
+EDealRes collectOuterRefs(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_OUTER_REF == nodeType(pNode)) {
+    OuterRefSummary* summary = static_cast<OuterRefSummary*>(pContext);
+    SOuterRefNode*   ref = reinterpret_cast<SOuterRefNode*>(pNode);
+    ++summary->count;
+    summary->bindingId = ref->bindingId;
+    summary->tableRefId = ref->tableRefId;
+    summary->scopeId = ref->scopeId;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 void registerUnknownExternalColumn(const std::string& sourceName, int8_t sourceType,
                                    const std::string& timestampType, const std::string& integerType) {
   std::vector<MockCatalogService::MockExtColDef> columns;
@@ -66,6 +94,336 @@ void registerExternalTimelineTable(const std::string& sourceName) {
 }
 
 }  // namespace
+
+TEST_F(ParserSelectDdlTest, correlatedScalarBindsOuterColumn) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType((SNode*)outer));
+    ASSERT_EQ(1, LIST_LENGTH(outer->pProjectionList));
+    const SCorrelatedSubqueryNode* correlated = reinterpret_cast<const SCorrelatedSubqueryNode*>(
+        nodesListGetNode(outer->pProjectionList, 0));
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType((SNode*)correlated));
+    ASSERT_EQ(1, LIST_LENGTH(correlated->pParamBindings));
+    const SCorrelationParamBindingNode* binding = reinterpret_cast<const SCorrelationParamBindingNode*>(
+        nodesListGetNode(correlated->pParamBindings, 0));
+    EXPECT_EQ(0, binding->paramId);
+    EXPECT_EQ(CORRELATION_SOURCE_LOGICAL, binding->sourceKind);
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(binding->pSource));
+    EXPECT_STREQ("r", reinterpret_cast<const SColumnNode*>(binding->pSource)->tableAlias);
+    EXPECT_STREQ("c2", reinterpret_cast<const SColumnNode*>(binding->pSource)->colName);
+
+    ASSERT_NE(nullptr, outer->pSubQueries);
+    const SNode* inner = nodesListGetNode(outer->pSubQueries, correlated->templateId);
+    ASSERT_NE(nullptr, inner);
+    OuterRefSummary refs;
+    nodesWalkSelectStmt((SSelectStmt*)inner, SQL_CLAUSE_FROM, collectOuterRefs, &refs);
+    EXPECT_EQ(1, refs.count);
+    EXPECT_EQ(binding->bindingId, refs.bindingId);
+    EXPECT_EQ(binding->tableRefId, refs.tableRefId);
+    EXPECT_EQ(binding->scopeId, refs.scopeId);
+  });
+  run("SELECT (SELECT AVG(h.c1) FROM st1s1 h WHERE h.c2 = r.c2) FROM t1 r");
+}
+
+TEST_F(ParserSelectDdlTest, correlatedTimeRangeKeepsQueryStartDeferred) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType(nodesListGetNode(outer->pProjectionList, 0)));
+    ASSERT_NE(nullptr, outer->pSubQueries);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(nodesListGetNode(outer->pSubQueries, 0)));
+    const SSelectStmt* inner = reinterpret_cast<const SSelectStmt*>(nodesListGetNode(outer->pSubQueries, 0));
+    ASSERT_NE(nullptr, inner);
+    EXPECT_TRUE(inner->timeRangeParamDependent);
+    const SNode* pProjection = nodesListGetNode(inner->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+    EXPECT_NE(0, reinterpret_cast<const SValueNode*>(pProjection)->flag & VALUE_FLAG_DEFERRED_QSTART);
+  });
+  run("SELECT (SELECT _qstart FROM st1s1 h WHERE h.ts >= r.ts LIMIT 1) FROM t1 r");
+}
+
+TEST_F(ParserSelectDdlTest, constantTimeRangeDurationReference) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    EXPECT_EQ(1000, select->timeRange.skey);
+    EXPECT_EQ(100999, select->timeRange.ekey);
+    const SValueNode* duration = reinterpret_cast<const SValueNode*>(nodesListGetNode(select->pProjectionList, 0));
+    ASSERT_NE(nullptr, duration);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType((const SNode*)duration));
+    EXPECT_EQ(100000, duration->datum.i);
+  });
+  run("SELECT _qduration FROM st1s1 h WHERE h.ts >= 1000 AND h.ts < 101000 LIMIT 1");
+}
+
+TEST_F(ParserSelectDdlTest, emptyTimeRangeDurationReference) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    const SValueNode* duration = reinterpret_cast<const SValueNode*>(nodesListGetNode(select->pProjectionList, 0));
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType((const SNode*)duration));
+    EXPECT_EQ(INT64_MAX, select->timeRange.skey);
+    EXPECT_EQ(INT64_MIN, select->timeRange.ekey);
+    // Unsigned subtraction wraps once: INT64_MIN - INT64_MAX + 1 == 2.
+    EXPECT_EQ(2, duration->datum.i);
+    EXPECT_FALSE(duration->isNull);
+  });
+  run("SELECT _qduration FROM st1s1 h WHERE h.ts >= 2000 AND h.ts < 1000 LIMIT 1");
+}
+
+TEST_F(ParserSelectDdlTest, correlatedIntervalKeepsAutoAndDefersFillRange) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    const SSelectStmt* inner = reinterpret_cast<const SSelectStmt*>(nodesListGetNode(outer->pSubQueries, 0));
+    ASSERT_NE(nullptr, inner);
+    ASSERT_TRUE(inner->timeRangeParamDependent);
+    ASSERT_EQ(QUERY_NODE_INTERVAL_WINDOW, nodeType(inner->pWindow));
+    const SIntervalWindowNode* interval = reinterpret_cast<const SIntervalWindowNode*>(inner->pWindow);
+    ASSERT_NE(nullptr, interval->pOffset);
+    EXPECT_EQ(AUTO_DURATION_VALUE, reinterpret_cast<const SValueNode*>(interval->pOffset)->datum.i);
+    ASSERT_NE(nullptr, interval->pFill);
+  });
+  run("SELECT (SELECT COUNT(*) FROM st1s1 h WHERE h.ts >= r.ts AND h.ts < r.ts + 100000 "
+      "INTERVAL(10s, AUTO) FILL(PREV) LIMIT 1) FROM t1 r");
+}
+
+TEST_F(ParserSelectDdlTest, correlatedInterpDefersRangeFill) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType(nodesListGetNode(outer->pProjectionList, 0)));
+    const SSelectStmt* inner = reinterpret_cast<const SSelectStmt*>(nodesListGetNode(outer->pSubQueries, 0));
+    ASSERT_NE(nullptr, inner);
+    EXPECT_TRUE(inner->interpRangeParamDependent);
+    ASSERT_NE(nullptr, inner->pRange);
+    ASSERT_NE(nullptr, inner->pFill);
+  });
+  run("SELECT (SELECT INTERP(h.c1) FROM st1s1 h RANGE(r.ts, r.ts + 100000) "
+      "EVERY(10s) FILL(LINEAR) LIMIT 1) FROM t1 r");
+}
+
+TEST_F(ParserSelectDdlTest, correlatedScalarPropagatesAncestorBinding) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    const SCorrelatedSubqueryNode* first = reinterpret_cast<const SCorrelatedSubqueryNode*>(
+        nodesListGetNode(outer->pProjectionList, 0));
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType((SNode*)first));
+    const SCorrelationParamBindingNode* firstBinding = reinterpret_cast<const SCorrelationParamBindingNode*>(
+        nodesListGetNode(first->pParamBindings, 0));
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(firstBinding->pSource));
+
+    const SSelectStmt* middle = reinterpret_cast<const SSelectStmt*>(
+        nodesListGetNode(outer->pSubQueries, first->templateId));
+    const SCorrelatedSubqueryNode* second = reinterpret_cast<const SCorrelatedSubqueryNode*>(
+        nodesListGetNode(middle->pProjectionList, 0));
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType((SNode*)second));
+    const SCorrelationParamBindingNode* secondBinding = reinterpret_cast<const SCorrelationParamBindingNode*>(
+        nodesListGetNode(second->pParamBindings, 0));
+    ASSERT_EQ(QUERY_NODE_OUTER_REF, nodeType(secondBinding->pSource));
+    EXPECT_EQ(firstBinding->bindingId, secondBinding->bindingId);
+    EXPECT_EQ(firstBinding->scopeId, secondBinding->scopeId);
+  });
+  run("SELECT (SELECT (SELECT r.c1 + 1)) FROM t1 r");
+}
+
+TEST_F(ParserSelectDdlTest, correlatedSetOperatorMergesBranchBindings) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    const SCorrelatedSubqueryNode* correlated = reinterpret_cast<const SCorrelatedSubqueryNode*>(
+        nodesListGetNode(outer->pProjectionList, 0));
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType((SNode*)correlated));
+    ASSERT_EQ(1, LIST_LENGTH(correlated->pParamBindings));
+    const SCorrelationParamBindingNode* binding = reinterpret_cast<const SCorrelationParamBindingNode*>(
+        nodesListGetNode(correlated->pParamBindings, 0));
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(binding->pSource));
+    EXPECT_STREQ("r", reinterpret_cast<const SColumnNode*>(binding->pSource)->tableAlias);
+    EXPECT_STREQ("c2", reinterpret_cast<const SColumnNode*>(binding->pSource)->colName);
+  });
+  run("SELECT (SELECT h.c1 FROM st1s1 h WHERE h.c2 = r.c2 "
+      "UNION ALL SELECT x.c1 FROM st1s2 x WHERE x.c2 = r.c2 LIMIT 1) FROM t1 r");
+}
+
+TEST_F(ParserSelectDdlTest, correlatedAggregateUsesOwningScope) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_TRUE(outer->hasAggFuncs);
+    ASSERT_EQ(1, LIST_LENGTH(outer->pProjectionBindList));
+    const SNode* aggregate = nodesListGetNode(outer->pProjectionBindList, 0);
+    ASSERT_EQ(QUERY_NODE_FUNCTION, nodeType(aggregate));
+    EXPECT_STREQ("sum", reinterpret_cast<const SFunctionNode*>(aggregate)->functionName);
+
+    const SCorrelatedSubqueryNode* correlated = reinterpret_cast<const SCorrelatedSubqueryNode*>(
+        nodesListGetNode(outer->pProjectionList, LIST_LENGTH(outer->pProjectionList) - 1));
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType((SNode*)correlated));
+    const SCorrelationParamBindingNode* binding = reinterpret_cast<const SCorrelationParamBindingNode*>(
+        nodesListGetNode(correlated->pParamBindings, 0));
+    ASSERT_EQ(QUERY_NODE_OUTER_REF, nodeType(binding->pSource));
+    EXPECT_EQ(0, binding->tableRefId);
+
+    const SSelectStmt* inner = reinterpret_cast<const SSelectStmt*>(
+        nodesListGetNode(outer->pSubQueries, correlated->templateId));
+    ASSERT_NE(nullptr, inner->pLimit);
+    ASSERT_EQ(QUERY_NODE_OUTER_REF, nodeType(nodesListGetNode(inner->pProjectionList, 0)));
+  });
+  run("SELECT (SELECT SUM(r.c1) FROM st1s1 h LIMIT 1) FROM t1 r");
+  run("SELECT r.c2, (SELECT SUM(r.c1) FROM st1s1 h LIMIT 1) FROM t1 r GROUP BY r.c2");
+  run("SELECT (SELECT SUM(r.c1) FROM st1s1 h WHERE h.c1 > 100 LIMIT 1) "
+      "FROM t1 r WHERE r.c1 > 100");
+}
+
+TEST_F(ParserSelectDdlTest, correlatedAggregateOwnershipErrors) {
+  useDb("root", "test");
+  run("SELECT r.c1 FROM t1 r WHERE (SELECT COUNT(r.c1) FROM st1s1 h) > 2",
+      TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+  run("SELECT SUM((SELECT COUNT(r.c1) FROM st1s1 h LIMIT 1)) FROM t1 r",
+      TSDB_CODE_PAR_AGG_FUNC_NESTING);
+  run("SELECT r.c2, (SELECT r.c1 FROM st1s1 h LIMIT 1) FROM t1 r GROUP BY r.c2",
+      TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+}
+
+TEST_F(ParserSelectDdlTest, mixedAggregateRemainsInInnerScope) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    EXPECT_EQ(0, LIST_LENGTH(outer->pProjectionBindList));
+    const SCorrelatedSubqueryNode* correlated = reinterpret_cast<const SCorrelatedSubqueryNode*>(
+        nodesListGetNode(outer->pProjectionList, 0));
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType((SNode*)correlated));
+    const SSelectStmt* inner = reinterpret_cast<const SSelectStmt*>(
+        nodesListGetNode(outer->pSubQueries, correlated->templateId));
+    const SNode* projection = nodesListGetNode(inner->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_FUNCTION, nodeType(projection));
+    EXPECT_STREQ("avg", reinterpret_cast<const SFunctionNode*>(projection)->functionName);
+  });
+  run("SELECT (SELECT AVG(ABS(h.c1 - r.c1)) FROM st1s1 h) FROM t1 r");
+}
+
+TEST_F(ParserSelectDdlTest, correlatedLocalAggregatesStayInInnerScope) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    EXPECT_EQ(0, LIST_LENGTH(outer->pProjectionBindList));
+    const SCorrelatedSubqueryNode* correlated = reinterpret_cast<const SCorrelatedSubqueryNode*>(
+        nodesListGetNode(outer->pProjectionList, 0));
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType((SNode*)correlated));
+    const SSelectStmt* inner = reinterpret_cast<const SSelectStmt*>(
+        nodesListGetNode(outer->pSubQueries, correlated->templateId));
+    ASSERT_EQ(QUERY_NODE_FUNCTION, nodeType(nodesListGetNode(inner->pProjectionList, 0)));
+    EXPECT_TRUE(inner->hasAggFuncs);
+  });
+  run("SELECT (SELECT COUNT(*) FROM st1s1 h WHERE h.c2 = r.c2) FROM t1 r");
+  run("SELECT (SELECT SUM(1) FROM st1s1 h WHERE h.c2 = r.c2) FROM t1 r");
+}
+
+TEST_F(ParserSelectDdlTest, correlatedAggregateUsesNearestReferencedScope) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(nodesListGetNode(outer->pProjectionList, 0)));
+    EXPECT_EQ(0, LIST_LENGTH(outer->pProjectionBindList));
+    const SRemoteValueNode* remote = reinterpret_cast<const SRemoteValueNode*>(
+        nodesListGetNode(outer->pProjectionList, 0));
+    const SSelectStmt* middle = reinterpret_cast<const SSelectStmt*>(
+        nodesListGetNode(outer->pSubQueries, remote->subQIdx));
+    ASSERT_EQ(1, LIST_LENGTH(middle->pProjectionBindList));
+    const SFunctionNode* aggregate = reinterpret_cast<const SFunctionNode*>(
+        nodesListGetNode(middle->pProjectionBindList, 0));
+    ASSERT_EQ(QUERY_NODE_FUNCTION, nodeType((SNode*)aggregate));
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(nodesListGetNode(aggregate->pParameterList, 0)));
+    EXPECT_STREQ("m", reinterpret_cast<const SColumnNode*>(
+                          nodesListGetNode(aggregate->pParameterList, 0))->tableAlias);
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType(nodesListGetNode(middle->pProjectionList, 0)));
+  });
+  run("SELECT (SELECT (SELECT SUM(m.c1) FROM st1s2 h LIMIT 1) "
+      "FROM st1s1 m LIMIT 1) FROM t1 r");
+}
+
+TEST_F(ParserSelectTest, correlatedNameResolutionStopsAtNearestScope) {
+  useDb("root", "test");
+  run("SELECT (SELECT r.c3 FROM st1s1 r) FROM t1 r", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT (SELECT c3 FROM st1s1 h) FROM t1 r");
+  run("SELECT (SELECT c1 FROM st1s1 h JOIN st1s2 x ON h.ts = x.ts LIMIT 1) FROM t1 r",
+      TSDB_CODE_PAR_AMBIGUOUS_COLUMN);
+  run("SELECT (SELECT missing.c1 FROM st1s1 h) FROM t1 r", TSDB_CODE_PAR_TABLE_NOT_EXIST);
+}
+
+TEST_F(ParserSelectTest, correlatedStaticChecksRunBeforePlanning) {
+  useDb("root", "test");
+  run("SELECT (SELECT r.c1, h.c1 FROM st1s1 h LIMIT 1) FROM t1 r",
+      TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS);
+  run("SELECT r.c1 FROM t1 r WHERE r.c1 IN (SELECT h.c1 FROM st1s1 h WHERE h.c1 = r.c1)",
+      TSDB_CODE_PAR_INVALID_EXPR_SUBQ);
+  QueryPolicyGuard policy(QUERY_POLICY_CLIENT);
+  run("SELECT (SELECT h.c1 FROM st1s1 h WHERE h.c1 = r.c1 LIMIT 1) FROM t1 r",
+      TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_POLICY);
+}
+
+TEST_F(ParserSelectTest, correlatedExternalSourceIsRejected) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "test");
+  FederatedFlagGuard guard;
+  registerExternalTimelineTable("ext_correlated");
+
+  runAsyncOnly("SELECT (SELECT e.id FROM ext_correlated.metrics e WHERE e.id = r.c1) FROM t1 r",
+               TSDB_CODE_PAR_INVALID_EXPR_SUBQ);
+#endif
+}
+
+TEST_F(ParserSelectDdlTest, nonCorrelatedAggregateKeepsRemoteValue) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* outer = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    EXPECT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(nodesListGetNode(outer->pProjectionList, 0)));
+    EXPECT_FALSE(outer->hasAggFuncs);
+  });
+  run("SELECT (SELECT SUM(1) FROM st1s1 h) FROM t1 r");
+}
 
 TEST_F(ParserSelectDdlTest, externalColumnFilterValidation) {
   FederatedFlagGuard guard;

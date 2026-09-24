@@ -951,6 +951,20 @@ SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
 SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 ```
 
+## Correlated Scalar Subqueries
+
+A correlated scalar subquery refers to a column in an outer query block. The inner query runs when the containing expression is evaluated, using the values at that position. For example:
+
+```sql
+SELECT r.ts, r.c1,
+       (SELECT h.c1 FROM history h WHERE h.device_id = r.device_id ORDER BY h.ts DESC LIMIT 1)
+FROM readings r;
+```
+
+The inner query must return one column. Zero rows produce a typed `NULL`; one row produces its value; multiple rows cause an error. Use `LIMIT 1` when the result must contain at most one row. A correlated reference can target the immediate outer query block or another ancestor query block.
+
+Correlated scalar subqueries are supported in queries and in the query part of `INSERT INTO ... SELECT`. Non-correlated subqueries in the same statement retain their independent execution and result reuse. Correlated `IN`, `EXISTS`, `ANY`, `ALL`, row subqueries, and references to outer columns from derived tables in `FROM` are not supported. This does not restrict existing non-correlated subqueries. Stream processing, subscriptions, DDL, and other DML statements do not support correlated scalar subqueries.
+
 ## Subquery expression
 
 Starting from version 3.4.1.0, TDengine TSDB supports the following subquery expressions. These subqueries must be non-correlated and are currently supported in query statements and stream computing, but not yet in subscriptions, DDL (Data Definition Language), or DML (Data Manipulation Language) statements (except for INSERT INTO ... SELECT).

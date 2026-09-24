@@ -2025,6 +2025,9 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   pWrapper->exchangeId = pExchangeInfo->self;
   pWrapper->sourceIndex = sourceIndex;
   pWrapper->seqId = pExchangeInfo->seqId;
+  uint64_t queryId = pTaskInfo->pStreamRuntimeInfo == NULL && pSource->producerQueryId != 0
+                         ? pSource->producerQueryId
+                         : pTaskInfo->id.queryId;
 
   if (pSource->localExec) {
     // vtable two-pass phase-2 runs over the RPC fetch path only: the rescan directive
@@ -2040,7 +2043,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       QUERY_CHECK_CODE(code, lino, _end);
     }
     SDataBuf pBuf = {0};
-    code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, pTaskInfo->id.queryId,
+    code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, queryId,
                                        pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
                                        pTaskInfo->localFetch.explainRes);
     if (code == TSDB_CODE_SUCCESS && pBuf.pData != NULL) {
@@ -2068,7 +2071,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.sId = pSource->sId;
     req.clientId = pSource->clientId;
     req.taskId = pSource->taskId;
-    req.queryId = pTaskInfo->id.queryId;
+    req.queryId = queryId;
     req.execId = pSource->execId;
     if (pTaskInfo->pStreamRuntimeInfo) {
       req.dynTbname = pExchangeInfo->dynTbname;
