@@ -551,6 +551,7 @@ char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udf
 char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int32_t tsStreamBufferSize = 0;       // MB
+int32_t tsStreamTriggerMaxPendingParams = 1 * 1024 * 1024;
 int64_t tsStreamBufferSizeBytes = 0;  // bytes
 bool    tsStreamPerfLogEnabled = false;
 bool    tsFilterScalarMode = false;
@@ -1278,6 +1279,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "compressor", tsCompressor, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL,CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamBufferSize", tsStreamBufferSize, 128, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL,CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamTriggerMaxPendingParams", tsStreamTriggerMaxPendingParams, 1, INT32_MAX,
+                               CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssEnabled", tsSsEnabled, 0, 2, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "ssAccessString", tsSsAccessString, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssAutoMigrateIntervalSec", tsSsAutoMigrateIntervalSec, 600, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -2492,6 +2495,11 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsStreamBufferSize = pItem->i32;
   tsStreamBufferSizeBytes = tsStreamBufferSize * 1048576L;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamTriggerMaxPendingParams");
+  tsStreamTriggerMaxPendingParams = pItem->i32;
+  uDebug("stream trigger pending parameter high watermark configured, streamTriggerMaxPendingParams:%d",
+         tsStreamTriggerMaxPendingParams);
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfMnodeStreamMgmtThreads");
   tsNumOfMnodeStreamMgmtThreads = pItem->i32;
 
@@ -3446,6 +3454,13 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   if (strcasecmp(name, "streamBufferSize") == 0) {
     tsStreamBufferSize = pItem->i32;
     atomic_store_64(&tsStreamBufferSizeBytes, tsStreamBufferSize * 1048576);
+    goto _exit;
+  }
+
+  if (strcasecmp(name, "streamTriggerMaxPendingParams") == 0) {
+    int32_t oldValue = tsStreamTriggerMaxPendingParams;
+    tsStreamTriggerMaxPendingParams = pItem->i32;
+    uInfo("%s set from %d to %d", name, oldValue, tsStreamTriggerMaxPendingParams);
     goto _exit;
   }
 

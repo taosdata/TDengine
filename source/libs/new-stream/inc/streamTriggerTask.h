@@ -384,9 +384,20 @@ typedef enum EStreamTriggerDebugGauge {
   STREAM_TRIGGER_GAUGE_TABLE_UID_POOL = 1ULL << 14,
   STREAM_TRIGGER_GAUGE_WINDOW_POOL = 1ULL << 15,
   STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL = 1ULL << 16,
+  STREAM_TRIGGER_GAUGE_POOL_MEMORY = 1ULL << 17,
+  STREAM_TRIGGER_GAUGE_RECALC_MEMORY = 1ULL << 18,
 } EStreamTriggerDebugGauge;
 
+typedef struct SStreamTriggerRecalcMemory {
+  int64_t requestCount;
+  int64_t requestBytes;
+  int64_t versionHashBytes;
+  int64_t readyQueueBytes;
+  int64_t totalBytes;
+} SStreamTriggerRecalcMemory;
+
 typedef struct SStreamTriggerDebugGauges {
+  SStreamTriggerRecalcMemory recalcMemory;
   int64_t  realtimeSessionCount;
   int64_t  historySessionCount;
   int64_t  activeRecalcCount;
@@ -411,11 +422,13 @@ typedef struct SStreamTriggerDebugGauges {
   int64_t  calcParamPoolUsed;
   int64_t  calcParamPoolCapacity;
   int64_t  calcParamPoolBytes;
+  int64_t  poolMemoryBytes;
   int32_t  historyProgressPct;
   uint64_t validMask;
 } SStreamTriggerDebugGauges;
 
 typedef struct SStreamTriggerCommonDebugGauges {
+  SStreamTriggerRecalcMemory recalcMemory;
   int64_t  activeRecalcCount;
   int64_t  pendingRecalcRequestCount;
   int32_t  historyProgressPct;
@@ -423,6 +436,7 @@ typedef struct SStreamTriggerCommonDebugGauges {
 } SStreamTriggerCommonDebugGauges;
 
 typedef struct SStreamTriggerRealtimeDebugGauges {
+  SStreamTriggerRecalcMemory recalcMemory;
   bool     present;
   int64_t  pendingPullRetryCount;
   int64_t  pendingCalcRetryCount;
@@ -447,6 +461,7 @@ typedef struct SStreamTriggerRealtimeDebugGauges {
 } SStreamTriggerRealtimeDebugGauges;
 
 typedef struct SStreamTriggerHistoryDebugGauges {
+  SStreamTriggerRecalcMemory recalcMemory;
   bool     present;
   int64_t  pendingPullRetryCount;
   int64_t  pendingCalcRetryCount;
@@ -597,6 +612,7 @@ struct SSTriggerRealtimeContext {
   SObjPool              tableUidPool;   // SObjPool<{uid, vgId}>
   SObjPool              windowPool;     // SObjPool<SSTriggerWindow>
   SObjPool              calcParamPool;  // SObjPool<SSTriggerCalcParam>
+  int64_t               lastCalcParamPoolShrinkMonoUs;
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
@@ -682,6 +698,7 @@ typedef struct SSTriggerHistoryContext {
   SArray                   *pInitWindows;   // for sliding trigger and session window trigger
   SArray                   *pNotifyParams;  // SArray<SSTriggerCalcParam>
   SObjPool                  calcParamPool;  // SObjPool<SSTriggerCalcParam>
+  int64_t                   lastCalcParamPoolShrinkMonoUs;
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
@@ -760,6 +777,9 @@ typedef struct SStreamTriggerTask {
   SStreamTriggerCommonDebugGauges   commonDebugGauges;
   SStreamTriggerRealtimeDebugGauges realtimeDebugGauges;
   SStreamTriggerHistoryDebugGauges  historyDebugGauges;
+  int64_t                           realtimeDebugGaugesAtMonoUs;
+  int64_t                           commonDebugGaugesAtMonoUs;
+  bool                              commonDebugGaugesSampled;
 
   // trigger options
   EStreamTriggerType triggerType;

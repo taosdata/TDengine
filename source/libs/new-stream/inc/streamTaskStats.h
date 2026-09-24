@@ -41,6 +41,7 @@ typedef enum EStreamReaderGauge {
   STREAM_READER_GAUGE_ACTIVE_CONTEXTS = 1ULL << 2,
   STREAM_READER_GAUGE_TABLE_COUNT = 1ULL << 3,
   STREAM_READER_GAUGE_CACHE_ENTRIES = 1ULL << 4,
+  STREAM_READER_GAUGE_SHALLOW_MEMORY = 1ULL << 5,
 } EStreamReaderGauge;
 
 typedef enum EStreamTriggerEvent {
@@ -91,6 +92,7 @@ typedef struct SStreamReaderGaugeSnapshot {
   int64_t  activeScanContexts;
   int64_t  tableCount;
   int64_t  cacheEntries;
+  int64_t  shallowMemoryBytesEstimate;
   uint64_t validMask;
 } SStreamReaderGaugeSnapshot;
 
@@ -164,6 +166,7 @@ void    stTaskStatsRecordReaderResult(SStreamTaskStats *pStats, EStreamReaderRes
 void    stTaskStatsSetReaderGauges(SStreamTaskStats *pStats, int64_t lastReturnedWalVer, int64_t lastSuccessAtMs,
                                    int64_t activeScanContexts, int64_t tableCount, int64_t cacheEntries,
                                    uint64_t validGaugeMask);
+void    stTaskStatsSetReaderShallowMemoryEstimate(SStreamTaskStats *pStats, int64_t bytes, bool valid);
 void    stTaskStatsRecordTriggerInput(SStreamTaskStats *pStats, uint64_t rows, int64_t nowMonoUs);
 void    stTaskStatsRecordTriggerCheck(SStreamTaskStats *pStats, bool history, uint64_t durationUs, int64_t nowMonoUs,
                                       int64_t nowWallMs);

@@ -39,6 +39,7 @@
 #include "tdataformat.h"
 #include "tglobal.h"
 #include "thash.h"
+#include "tlockfree.h"
 #include "tmsg.h"
 #include "tqueue.h"
 
@@ -46,6 +47,103 @@ extern SDataSinkStat gDataSinkStat;
 SHashObj*            gStreamGrpTableHash = NULL;
 
 #define STREAM_GRP_TABLE_HASH_CAPACITY 8192
+
+typedef struct SStreamInsertSchema {
+  STSchema* pSchema;
+  int64_t   refCount;
+} SStreamInsertSchema;
+
+static SHashObj* gStreamInsertSchemaHash = NULL;
+static SRWLatch  gStreamInsertSchemaLatch = 0;
+static SRWLatch  gStreamInsertTableLatch = 0;
+
+static void streamInsertTableKey(int64_t streamId, int64_t groupId, int8_t tbType, int64_t key[2]) {
+  key[0] = streamId;
+  key[1] = tbType == TSDB_NORMAL_TABLE ? 0 : groupId;
+}
+
+static int32_t shareStreamInsertSchema(SInsertTableInfo* pInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  size_t schemaSize = sizeof(STSchema) + sizeof(STColumn) * pInfo->pSchema->numOfCols;
+  taosWLockLatch(&gStreamInsertSchemaLatch);
+  if (gStreamInsertSchemaHash == NULL) {
+    gStreamInsertSchemaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (gStreamInsertSchemaHash == NULL) {
+      code = terrno;
+      goto _end;
+    }
+  }
+
+  SStreamInsertSchema** ppShared = taosHashGet(gStreamInsertSchemaHash, pInfo->pSchema, schemaSize);
+  if (ppShared != NULL) {
+    ++(*ppShared)->refCount;
+    tDestroyTSchema(pInfo->pSchema);
+    pInfo->pSharedSchema = *ppShared;
+    pInfo->pSchema = (*ppShared)->pSchema;
+    stTrace("reused stream insert schema, version:%d, columns:%d, references:%" PRId64,
+            pInfo->pSchema->version, pInfo->pSchema->numOfCols, (*ppShared)->refCount);
+    goto _end;
+  }
+
+  SStreamInsertSchema* pShared = taosMemoryCalloc(1, sizeof(SStreamInsertSchema));
+  if (pShared == NULL) {
+    code = terrno;
+    goto _end;
+  }
+  pShared->pSchema = pInfo->pSchema;
+  pShared->refCount = 1;
+  code = taosHashPut(gStreamInsertSchemaHash, pInfo->pSchema, schemaSize, &pShared, sizeof(pShared));
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pShared);
+    goto _end;
+  }
+  pInfo->pSharedSchema = pShared;
+  stDebug("cached shared stream insert schema, version:%d, columns:%d, bytes:%zu",
+          pInfo->pSchema->version, pInfo->pSchema->numOfCols, schemaSize);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    if (gStreamInsertSchemaHash != NULL && taosHashGetSize(gStreamInsertSchemaHash) == 0) {
+      taosHashCleanup(gStreamInsertSchemaHash);
+      gStreamInsertSchemaHash = NULL;
+    }
+    stError("failed to share stream insert schema, code:%d (%s)", code, tstrerror(code));
+  }
+  taosWUnLockLatch(&gStreamInsertSchemaLatch);
+  return code;
+}
+
+static void releaseStreamInsertSchema(SStreamInsertSchema* pShared) {
+  taosWLockLatch(&gStreamInsertSchemaLatch);
+  if (--pShared->refCount == 0) {
+    size_t schemaSize = sizeof(STSchema) + sizeof(STColumn) * pShared->pSchema->numOfCols;
+    int32_t code = taosHashRemove(gStreamInsertSchemaHash, pShared->pSchema, schemaSize);
+    if (code == TSDB_CODE_SUCCESS) {
+      stDebug("released shared stream insert schema, version:%d, columns:%d, bytes:%zu",
+              pShared->pSchema->version, pShared->pSchema->numOfCols, schemaSize);
+      tDestroyTSchema(pShared->pSchema);
+      taosMemoryFree(pShared);
+      if (taosHashGetSize(gStreamInsertSchemaHash) == 0) {
+        taosHashCleanup(gStreamInsertSchemaHash);
+        gStreamInsertSchemaHash = NULL;
+      }
+    } else {
+      stError("failed to remove shared stream insert schema, code:%d (%s)", code, tstrerror(code));
+    }
+  }
+  taosWUnLockLatch(&gStreamInsertSchemaLatch);
+}
+
+static int32_t removeStreamInsertTableInfo(int64_t streamId, int64_t groupId, int8_t tbType) {
+  int64_t key[2] = {0};
+  streamInsertTableKey(streamId, groupId, tbType, key);
+  taosWLockLatch(&gStreamInsertTableLatch);
+  int32_t code = taosHashRemove(gStreamGrpTableHash, key, sizeof(key));
+  taosWUnLockLatch(&gStreamInsertTableLatch);
+  stDebug("removed stream insert table cache entry, streamId:%" PRIx64 ", groupId:%" PRId64 ", code:%d",
+          streamId, key[1], code);
+  return code;
+}
 
 typedef struct SSubmitRes {
   int64_t      affectedRows;
@@ -158,7 +256,11 @@ static void freeCacheTbInfo(void* pp) {
     taosMemFree(pTbInfo->tbname);
     pTbInfo->tbname = NULL;
   }
-  if (pTbInfo->pSchema) {
+  if (pTbInfo->pSharedSchema) {
+    releaseStreamInsertSchema(pTbInfo->pSharedSchema);
+    pTbInfo->pSharedSchema = NULL;
+    pTbInfo->pSchema = NULL;
+  } else if (pTbInfo->pSchema) {
     tDestroyTSchema(pTbInfo->pSchema);
     pTbInfo->pSchema = NULL;
   }
@@ -188,8 +290,8 @@ void destroyInserterGrpInfo() {
   }
 }
 
-static int32_t checkResAndResetTableInfo(const SSubmitRes* pSubmitRes, SInsertTableInfo* res,
-                                         bool* pSchemaChaned) {
+static int32_t checkInsertTableResponse(const SSubmitRes* pSubmitRes, const SInsertTableInfo* res,
+                                       bool* pTableChanged) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pSubmitRes->pRsp) {
     stError("create table response is NULL");
@@ -209,15 +311,14 @@ static int32_t checkResAndResetTableInfo(const SSubmitRes* pSubmitRes, SInsertTa
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
 
-  *pSchemaChaned = false;
-  res->vgid = pCreateTbRsp->pMeta->vgId;
-  res->uid = pCreateTbRsp->pMeta->tuid;
-
-  if (pCreateTbRsp->pMeta->sversion != 0 && res->version != pCreateTbRsp->pMeta->sversion) {
-    *pSchemaChaned = true;
+  *pTableChanged = false;
+  if (res->vgid != pCreateTbRsp->pMeta->vgId || res->uid != pCreateTbRsp->pMeta->tuid ||
+      (pCreateTbRsp->pMeta->sversion != 0 && res->version != pCreateTbRsp->pMeta->sversion)) {
+    *pTableChanged = true;
   }
 
-  stDebug("inserter callback, uid:%" PRId64 "  vgid: %" PRId64 ", version: %d", res->uid, res->vgid, res->version);
+  stDebug("checked stream insert table response, uid:%" PRIu64 ", vgid:%d, version:%d, changed:%d",
+          pCreateTbRsp->pMeta->tuid, pCreateTbRsp->pMeta->vgId, pCreateTbRsp->pMeta->sversion, *pTableChanged);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -241,67 +342,77 @@ static int32_t createNewInsertTbInfo(const SSubmitRes* pSubmitRes, SInsertTableI
     return terrno;
   }
 
-  res->vgid = pCreateTbRsp->pMeta->vgId;
-
   res->uid = pCreateTbRsp->pMeta->tuid;
   res->vgid = pCreateTbRsp->pMeta->vgId;
 
-  res->version = pCreateTbRsp->pMeta->sversion;
-  res->pSchema = tBuildTSchema(pCreateTbRsp->pMeta->pSchemas, pCreateTbRsp->pMeta->numOfColumns, res->version);
-  if (res->pSchema == NULL) {
-    stError("failed to build schema for table:%s, uid:%" PRId64 ", vgid:%" PRId64 ", version:%d", res->tbname, res->uid,
-            res->vgid, res->version);
-    return terrno;
+  res->version = pCreateTbRsp->pMeta->sversion != 0 ? pCreateTbRsp->pMeta->sversion : pOldInsertTbInfo->version;
+  if (res->version == pOldInsertTbInfo->version && pOldInsertTbInfo->pSharedSchema != NULL) {
+    taosWLockLatch(&gStreamInsertSchemaLatch);
+    res->pSharedSchema = pOldInsertTbInfo->pSharedSchema;
+    ++res->pSharedSchema->refCount;
+    res->pSchema = res->pSharedSchema->pSchema;
+    taosWUnLockLatch(&gStreamInsertSchemaLatch);
+  } else {
+    res->pSchema = tBuildTSchema(pCreateTbRsp->pMeta->pSchemas, pCreateTbRsp->pMeta->numOfColumns, res->version);
+    int32_t code = res->pSchema == NULL ? terrno : shareStreamInsertSchema(res);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("failed to build shared schema for table:%s, version:%d, code:%d (%s)",
+              res->tbname, res->version, code, tstrerror(code));
+      freeCacheTbInfo(&res);
+      return code;
+    }
   }
   *ppNewInsertTbInfo = res;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t updateInsertGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, const SSubmitRes* pSubmitRes) {
+static int32_t updateInsertGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, const SSubmitRes* pSubmitRes,
+                                       int8_t tbType) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
-  int64_t            key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+  int64_t            key[2] = {0};
+  streamInsertTableKey(pInserterInfo->streamId, pInserterInfo->groupId, tbType, key);
+  taosWLockLatch(&gStreamInsertTableLatch);
   SInsertTableInfo** ppTbRes = taosHashAcquire(gStreamGrpTableHash, key, sizeof(key));
   if (NULL == ppTbRes || *ppTbRes == NULL) {
-    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    code = TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    goto _exit;
   }
 
-  bool schemaChanged = false;
-  code = checkResAndResetTableInfo(pSubmitRes, *ppTbRes, &schemaChanged);
+  bool tableChanged = false;
+  code = checkInsertTableResponse(pSubmitRes, *ppTbRes, &tableChanged);
   QUERY_CHECK_CODE(code, lino, _exit);
 
-  if (schemaChanged) {
+  if (tableChanged) {
     SInsertTableInfo* pNewInfo = NULL;
     code = createNewInsertTbInfo(pSubmitRes, *ppTbRes, &pNewInfo);
     QUERY_CHECK_CODE(code, lino, _exit);
 
-    TAOS_UNUSED(taosHashRemove(gStreamGrpTableHash, key, sizeof(key)));
-
+    code = taosHashRemove(gStreamGrpTableHash, key, sizeof(key));
+    if (code != TSDB_CODE_SUCCESS) {
+      freeCacheTbInfo(&pNewInfo);
+      QUERY_CHECK_CODE(code, lino, _exit);
+    }
     code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &pNewInfo, sizeof(SInsertTableInfo*));
 
-    if (code == TSDB_CODE_DUP_KEY) {
-      freeCacheTbInfo(&pNewInfo);
-      code = TSDB_CODE_SUCCESS;
-      goto _exit;
-    } else if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS) {
       freeCacheTbInfo(&pNewInfo);
       stError("failed to put new insert tbInfo for streamId:%" PRIx64 ", groupId:%" PRIx64 ", code:%d",
               pInserterInfo->streamId, pInserterInfo->groupId, code);
       QUERY_CHECK_CODE(code, lino, _exit);
     }
 
-    stInfo("update table info for streamId:%" PRIx64 ", groupId:%" PRIx64 ", uid:%" PRId64 ", vgid:%" PRId64
+    stDebug("update table info for streamId:%" PRIx64 ", groupId:%" PRId64 ", uid:%" PRId64 ", vgid:%" PRId64
            ", version:%d",
            pInserterInfo->streamId, pInserterInfo->groupId, pNewInfo->uid, pNewInfo->vgid, pNewInfo->version);
   }
-  return TSDB_CODE_SUCCESS;
-
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to check and reset table info for streamId:%" PRIx64 ", groupId:%" PRIx64 ", code:%d",
             pInserterInfo->streamId, pInserterInfo->groupId, code);
   }
   taosHashRelease(gStreamGrpTableHash, ppTbRes);
+  taosWUnLockLatch(&gStreamInsertTableLatch);
   return code;
 }
 
@@ -309,20 +420,24 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
 static int32_t initTableInfo(SDataInserterHandle* pInserter, SStreamDataInserterInfo* pInserterInfo) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
-  int64_t           key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+  int64_t           key[2] = {0};
+  SStreamInserterParam* pInsertParam = pInserter->pParam->streamInserterParam;
+  streamInsertTableKey(pInserterInfo->streamId, pInserterInfo->groupId, pInsertParam->tbType, key);
+  taosWLockLatch(&gStreamInsertTableLatch);
   
   // Check if key already exists to avoid unnecessary allocation
   SInsertTableInfo** ppExisting = taosHashGet(gStreamGrpTableHash, key, sizeof(key));
   if (ppExisting != NULL && *ppExisting != NULL) {
+    taosWUnLockLatch(&gStreamInsertTableLatch);
     return TSDB_CODE_SUCCESS;
   }
 
   SInsertTableInfo* res = taosMemoryCalloc(1, sizeof(SInsertTableInfo));
   if (res == NULL) {
-    return terrno;
+    code = terrno;
+    goto _return;
   }
 
-  SStreamInserterParam* pInsertParam = pInserter->pParam->streamInserterParam;
   res->uid = 0;
   if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
     res->version = 1;
@@ -332,18 +447,19 @@ static int32_t initTableInfo(SDataInserterHandle* pInserter, SStreamDataInserter
 
   res->tbname = taosStrdup(pInserterInfo->tbName);
   if (res->tbname == NULL) {
-    taosMemoryFree(res);
-    stError("failed to allocate memory for table name");
-    return terrno;
+    code = terrno;
+    goto _return;
   }
 
   code = buildTSchmaFromInserter(pInserter->pParam->streamInserterParam, &res->pSchema);
   QUERY_CHECK_CODE(code, lino, _return);
+  code = shareStreamInsertSchema(res);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableInfo*));
-  if (code == TSDB_CODE_DUP_KEY) {
-    freeCacheTbInfo(&res);
-    return TSDB_CODE_SUCCESS;
+  if (code == TSDB_CODE_SUCCESS) {
+    stDebug("cached stream insert table, streamId:%" PRIx64 ", groupId:%" PRId64 ", table:%s, version:%d",
+            key[0], key[1], res->tbname, res->version);
   }
 
 _return:
@@ -352,8 +468,33 @@ _return:
             pInserterInfo->streamId, pInserterInfo->groupId, code);
     freeCacheTbInfo(&res);
   }
+  taosWUnLockLatch(&gStreamInsertTableLatch);
   return code;
 }
+
+#ifdef BUILD_TEST
+int32_t dataInserterTestInitTableInfo(SStreamInserterParam* pParam, SStreamDataInserterInfo* pInfo) {
+  SInserterParam param = {.streamInserterParam = pParam};
+  SDataInserterHandle inserter = {.pParam = &param};
+  return initTableInfo(&inserter, pInfo);
+}
+
+int32_t dataInserterTestUpdateTableInfo(SStreamDataInserterInfo* pInfo, SSubmitRsp2* pRsp, int8_t tbType) {
+  SSubmitRes response = {.pRsp = pRsp};
+  return updateInsertGrpTableInfo(pInfo, &response, tbType);
+}
+
+int32_t dataInserterTestRemoveTableInfo(int64_t streamId, int64_t groupId, int8_t tbType) {
+  return removeStreamInsertTableInfo(streamId, groupId, tbType);
+}
+
+int64_t dataInserterTestSharedSchemaCount(void) {
+  taosRLockLatch(&gStreamInsertSchemaLatch);
+  int64_t count = gStreamInsertSchemaHash == NULL ? 0 : taosHashGetSize(gStreamInsertSchemaHash);
+  taosRUnLockLatch(&gStreamInsertSchemaLatch);
+  return count;
+}
+#endif
 
 static bool colsIsSupported(const STableMetaRsp* pTableMetaRsp, const SStreamInserterParam* pInserterParam) {
   SArray* pCreatingFields = pInserterParam->pFields;
@@ -459,7 +600,7 @@ static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle*     pInsertha
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
 
-  return updateInsertGrpTableInfo(pInserterInfo, pSubmitRes);
+  return updateInsertGrpTableInfo(pInserterInfo, pSubmitRes, tbType);
 }
 
 int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
@@ -511,7 +652,8 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
 
     if (pParam->putParam != NULL && ((SStreamDataInserterInfo*)pParam->putParam)->isAutoCreateTable) {
-      code2 = updateInsertGrpTableInfo((SStreamDataInserterInfo*)pParam->putParam, &pInserter->submitRes);
+      code2 = updateInsertGrpTableInfo((SStreamDataInserterInfo*)pParam->putParam, &pInserter->submitRes,
+                                     pInserter->pParam->streamInserterParam->tbType);
     }
 
     pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
@@ -1681,10 +1823,14 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
   return code;
 }
 
-int32_t getStreamInsertTableInfo(int64_t streamId, int64_t groupId, SInsertTableInfo*** ppTbInfo) {
-  int64_t            key[2] = {streamId, groupId};
+int32_t getStreamInsertTableInfo(int64_t streamId, int64_t groupId, int8_t tbType, SInsertTableInfo*** ppTbInfo) {
+  int64_t            key[2] = {0};
+  streamInsertTableKey(streamId, groupId, tbType, key);
+  taosRLockLatch(&gStreamInsertTableLatch);
   SInsertTableInfo** pTmp = taosHashAcquire(gStreamGrpTableHash, key, sizeof(key));
+  taosRUnLockLatch(&gStreamInsertTableLatch);
   if (NULL == pTmp || *pTmp == NULL) {
+    taosHashRelease(gStreamGrpTableHash, pTmp);
     return TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
   }
 
@@ -2159,7 +2305,7 @@ int32_t buildStreamSubmitReqFromBlock(SStreamRunnerTask* pTask, SDataInserterHan
     }
   }
 
-  code = getStreamInsertTableInfo(pInserterInfo->streamId, pInserterInfo->groupId, &ppTbInfo);
+  code = getStreamInsertTableInfo(pInserterInfo->streamId, pInserterInfo->groupId, pInsertParam->tbType, &ppTbInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   pTbInfo =  *ppTbInfo;
@@ -2334,7 +2480,9 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
 static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInputData* pInput) {
   SInsertTableInfo** ppTbInfo = NULL;
-  int32_t           code = getStreamInsertTableInfo(pInput->pStreamDataInserterInfo->streamId, pInput->pStreamDataInserterInfo->groupId, &ppTbInfo);
+  int32_t code = getStreamInsertTableInfo(pInput->pStreamDataInserterInfo->streamId,
+                                        pInput->pStreamDataInserterInfo->groupId,
+                                        pInserter->pParam->streamInserterParam->tbType, &ppTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2816,7 +2964,7 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
 
   pDropReq = taosArrayGet(req.pArray, 0);
 
-  code = getStreamInsertTableInfo(pReq->streamId, pReq->gid, &ppTbInfo);
+  code = getStreamInsertTableInfo(pReq->streamId, pReq->gid, pOutput->outTblType, &ppTbInfo);
   if (TSDB_CODE_SUCCESS == code) {
     pDropReq->name = taosStrdup((*ppTbInfo)->tbname);
     pDropReq->suid = (*ppTbInfo)->uid;
@@ -2824,8 +2972,7 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
     pDropReq->igNotExists = true;
     vgId = (*ppTbInfo)->vgid;
 
-    int64_t key[2] = {pReq->streamId, pReq->gid};
-    TAOS_UNUSED(taosHashRemove(gStreamGrpTableHash, key, sizeof(key)));
+    TAOS_UNUSED(removeStreamInsertTableInfo(pReq->streamId, pReq->gid, pOutput->outTblType));
   } else {
     code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
   }
@@ -2888,8 +3035,7 @@ int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDr
   pDropReq->name = tbName;
   pDropReq->igNotExists = true;
 
-  int64_t key[2] = {pReq->streamId, pReq->gid};
-  TAOS_UNUSED(taosHashRemove(gStreamGrpTableHash, key, sizeof(key)));
+  TAOS_UNUSED(removeStreamInsertTableInfo(pReq->streamId, pReq->gid, pOutput->outTblType));
 
   SVgroupInfo vgInfo = {0};
   code = getDbVgInfoForExec(pMsgCb->clientRpc, pOutput->outDbFName, pDropReq->name, &vgInfo);
