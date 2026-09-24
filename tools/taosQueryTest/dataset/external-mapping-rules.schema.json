@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["version", "dataset_schema", "targets"],
+  "properties": {
+    "version": {"const": 1},
+    "dataset_schema": {"const": "taosQueryTest-default-v1"},
+    "targets": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "script", "namespace", "tables", "primary_key", "timezone", "time_precision", "null_semantics", "cleanup", "type_mapping"],
+        "properties": {
+          "target": {"enum": ["mysql", "pg", "influx"]},
+          "script": {"type": "string"},
+          "namespace": {"const": "fq_default"},
+          "tables": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "string"}},
+          "primary_key": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "string"}},
+          "timezone": {"const": "UTC"},
+          "time_precision": {"enum": ["us", "ns"]},
+          "null_semantics": {"enum": ["sql_null", "missing_field"]},
+          "cleanup": {"enum": ["drop_owned_databases", "drop_owned_database", "delete_owned_buckets"]},
+          "type_mapping": {"type": "string"}
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
