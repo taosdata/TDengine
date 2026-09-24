@@ -475,6 +475,7 @@ The reserved keywords are listed below:
 | `REPLICA`        | |
 | `REPLICAS`       | `v3.3.7.0`+ |
 | `RESET`          | |
+| `RESTART`        | |
 | `RESTORE`        | |
 | `RESTRICT`       | |
 | `RESUME`         | |

@@ -63,6 +63,25 @@ taos> ALTER XNODE SET USER root PASS 'taosdata';
 Query OK, 0 row(s) affected (0.025161s)
 ```
 
+### Restart Daemon
+
+Restart the `xnoded` daemon on the dnode hosting the current mnode leader. This command does not restart the remote `taosx` data-plane process.
+
+This operation requires the `NODE ALTER` privilege and briefly interrupts the `xnoded` daemon. Avoid issuing it repeatedly in a short period.
+
+**Syntax**
+
+```sql
+RESTART XNODE
+```
+
+**Example**
+
+```sql
+taos> RESTART XNODE;
+Query OK, 0 row(s) affected (0.028153s)
+```
+
 ### View Xnodes
 
 **Syntax**

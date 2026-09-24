@@ -499,10 +499,21 @@ static void xnodeMgmtXnodedStopAsyncCb(uv_async_t *async) {
   uv_stop(&pData->loop);
 }
 
+static void xnodeMgmtXnodedDrainLoop(SXnodedData *pData) {
+  uv_walk(&pData->loop, xnodeMgmtXnodedCloseWalkCb, NULL);
+  int32_t num = uv_run(&pData->loop, UV_RUN_DEFAULT);
+  xndInfo("xnoded loop exit with %d active handles, line:%d", num, __LINE__);
+  if (uv_loop_close(&pData->loop) != 0) {
+    xndError("xnoded loop close failed, lino:%d", __LINE__);
+  }
+}
+
 static void xnodeMgmtWatchXnoded(void *args) {
   TAOS_XNODED_MGMT_CHECK_PTR_RVOID(args);
   SXnodedData *pData = args;
+  bool loopInitialized = false;
   TAOS_UV_CHECK_ERRNO(uv_loop_init(&pData->loop));
+  loopInitialized = true;
   TAOS_UV_CHECK_ERRNO(uv_async_init(&pData->loop, &pData->stopAsync, xnodeMgmtXnodedStopAsyncCb));
   pData->stopAsync.data = pData;
   TAOS_UV_CHECK_ERRNO(xnodeMgmtSpawnXnoded(pData));
@@ -511,23 +522,23 @@ static void xnodeMgmtWatchXnoded(void *args) {
   int32_t num = uv_run(&pData->loop, UV_RUN_DEFAULT);
   xndInfo("xnoded loop exit with %d active handles, line:%d", num, __LINE__);
 
-  uv_walk(&pData->loop, xnodeMgmtXnodedCloseWalkCb, NULL);
-  num = uv_run(&pData->loop, UV_RUN_DEFAULT);
-  xndInfo("xnoded loop exit with %d active handles, line:%d", num, __LINE__);
-  if (uv_loop_close(&pData->loop) != 0) {
-    xndError("xnoded loop close failed, lino:%d", __LINE__);
-  }
+  xnodeMgmtXnodedDrainLoop(pData);
   return;
 
 _exit:
   if (terrno != 0) {
+    int32_t failCode = terrno;
+    int32_t failLine = terrln;
     (void)uv_barrier_wait(&pData->barrier);
-    atomic_store_32(&pData->spawnErr, terrno);
-    if (uv_loop_close(&pData->loop) != 0) {
-      xndError("xnoded loop close failed, lino:%d", __LINE__);
+    atomic_store_32(&pData->spawnErr, failCode);
+    // Any handle initialized before failure (stopAsync, ctrlPipe from a
+    // partial xnodeMgmtSpawnXnoded) must be closed and drained, otherwise
+    // uv_loop_close fails and leaks the loop's internal state.
+    if (loopInitialized) {
+      xnodeMgmtXnodedDrainLoop(pData);
     }
 
-    xndError("xnoded thread exit with code:%d lino:%d", terrno, __LINE__);
+    xndError("xnoded thread exit with code:%d lino:%d", failCode, failLine);
     terrno = TSDB_CODE_XNODE_UV_EXEC_FAILURE;
   }
 }
@@ -539,6 +550,7 @@ _exit:
  */
 int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   int32_t code = 0, lino = 0;
+  bool    barrierInitialized = false;
 
   SXnodedData *pData = &xnodedGlobal;
   pData->leaderEp = pXnode->ep;
@@ -558,12 +570,14 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   memcpy(pData->token, pXnode->token, TSDB_TOKEN_LEN);
 
   TAOS_CHECK_GOTO(uv_barrier_init(&pData->barrier, 2), &lino, _exit);
+  barrierInitialized = true;
   TAOS_CHECK_GOTO(uv_thread_create(&pData->thread, xnodeMgmtWatchXnoded, pData), &lino, _exit);
   (void)uv_barrier_wait(&pData->barrier);
   uv_sleep(100);
   int32_t err = atomic_load_32(&pData->spawnErr);
   if (err != 0) {
     uv_barrier_destroy(&pData->barrier);
+    barrierInitialized = false;
     if (uv_async_send(&pData->stopAsync) != 0) {
       xndError("start xnoded: failed to send stop async");
     }
@@ -577,8 +591,16 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
     pData->needCleanUp = true;
     atomic_store_32(&pData->isStopped, 0);
   }
+
+  return 0;
+
 _exit:
+  if (barrierInitialized) {
+    uv_barrier_destroy(&pData->barrier);
+  }
   if (code != 0) {
+    pData->isStarted = false;
+    pData->needCleanUp = false;
     xndError("xnoded start failed with lino:%d, code:%d, error: %s", code, lino, uv_strerror(code));
   }
   return code;
