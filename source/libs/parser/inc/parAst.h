@@ -485,6 +485,7 @@ SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType
 SNode* createAlterXnodeStmt(SAstCreateContext* pCxt, const SToken* pToken, const SToken* pUser, const SToken* pPass);
 SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool force);
 SNode* createDrainXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode);
+SNode* createRestartXnodeStmt(SAstCreateContext* pCxt);
 
 SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
                                   SNode* pB, SNode* pC, SNode* pNode);

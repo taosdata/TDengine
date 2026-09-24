@@ -780,6 +780,10 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
+} SRestartXnodeStmt;
+
+typedef struct {
+  ENodeType type;
   int32_t            id;
   CowStr             url;
   CowStr             token;

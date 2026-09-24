@@ -523,8 +523,37 @@ class TestXnodePriv:
 
         tdLog.success("Test 1.6 passed: GRANT ALTER NODE allows drain")
 
+    def test_restart_xnode_no_privilege(self):
+        """Test case 1.7: Non-superuser cannot restart xnode without privilege
+
+        1. Create test user
+        2. Try to restart xnode as test user without privilege
+        3. Verify privilege error is returned
+
+        Since: v3.4.2.8
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-09-21 Created
+        """
+        self._create_test_user()
+        self._cleanup_xnode_resources()
+
+        result = self._expect_privilege_error(
+            "RESTART XNODE",
+            user=self.test_user,
+            passwd=self.test_pass,
+        )
+        assert result, "Expected privilege error for RESTART XNODE"
+
+        self._cleanup_xnode_resources()
+        tdLog.success("Test 1.7 passed: Non-privileged user cannot restart xnode")
+
     def test_drop_xnode_no_privilege(self):
-        """Test case 1.7: Non-superuser cannot drop xnode without privilege
+        """Test case 1.8: Non-superuser cannot drop xnode without privilege
 
         1. Create xnode as superuser
         2. Try to drop xnode as test user without privilege
@@ -554,10 +583,10 @@ class TestXnodePriv:
         assert result, "Expected privilege error when dropping xnode without permission"
 
         self._cleanup_xnode_resources()
-        tdLog.success("Test 1.7 passed: Non-privileged user cannot drop xnode")
+        tdLog.success("Test 1.8 passed: Non-privileged user cannot drop xnode")
 
     def test_grant_drop_xnode(self):
-        """Test case 1.8: GRANT DROP NODE allows dropping xnode
+        """Test case 1.9: GRANT DROP NODE allows dropping xnode
 
         1. Create xnode as superuser
         2. Grant DROP NODE to test user
@@ -590,10 +619,10 @@ class TestXnodePriv:
         self._cleanup_xnode_resources()
         tdSql.execute(f"REVOKE DROP NODE FROM {self.test_user}", queryTimes=1)
 
-        tdLog.success("Test 1.8 passed: GRANT DROP NODE works correctly")
+        tdLog.success("Test 1.9 passed: GRANT DROP NODE works correctly")
 
     def test_superuser_xnode_operations(self):
-        """Test case 1.9: Superuser can always execute all xnode operations
+        """Test case 1.10: Superuser can always execute all xnode operations
 
         1. Create xnode as superuser
         2. Alter xnode as superuser
@@ -623,10 +652,10 @@ class TestXnodePriv:
         tdSql.execute(f"DRAIN XNODE {xnode_id}", queryTimes=1)
         tdSql.execute("DROP XNODE 'localhost:6055'", queryTimes=1)
 
-        tdLog.success("Test 1.9 passed: Superuser can execute all xnode operations")
+        tdLog.success("Test 1.10 passed: Superuser can execute all xnode operations")
 
     def test_grant_show_xnodes(self):
-        """Test case 1.10: GRANT SHOW NODES allows viewing xnode list
+        """Test case 1.11: GRANT SHOW NODES allows viewing xnode list
 
         1. Create xnode as superuser
         2. Grant SHOW NODES to test user
@@ -661,7 +690,7 @@ class TestXnodePriv:
         self._cleanup_xnode_resources()
         tdSql.execute(f"REVOKE SHOW NODES FROM {self.test_user}", queryTimes=1)
 
-        tdLog.success("Test 1.10 passed: GRANT SHOW NODES works correctly")
+        tdLog.success("Test 1.11 passed: GRANT SHOW NODES works correctly")
 
     # =============================================================================
     # Section 2: System-level Privileges - XNode Agent Management

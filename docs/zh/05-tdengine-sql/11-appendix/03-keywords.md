@@ -475,6 +475,7 @@ description: 保留关键字列表
 | `REPLICA`        | |
 | `REPLICAS`       | `v3.3.7.0`+ |
 | `RESET`          | |
+| `RESTART`        | |
 | `RESTORE`        | |
 | `RESTRICT`       | |
 | `RESUME`         | |
