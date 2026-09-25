@@ -75,6 +75,14 @@ cors = true
 # cloud open api.
 # cloud_open_api = "https://cloud.taosdata.com/openapi"
 
+# Local path of the shared RSA-2048 private key file (PKCS#8 PEM)
+# used to decrypt protected SHOW XNODE TASKS/JOBS output.
+# Empty (default) means no private key configured; only plaintext DSN values
+# produced while protection is disabled can be processed in that case.
+# Not re-loadable at runtime; restart Explorer after changing this value or
+# replacing the key file.
+# xnode_dsn_private_key_file = "/etc/taos/xnode-dsn-private.pem"
+
 # Enable ssl
 # If the following two files exist, enable ssl protocol
 #

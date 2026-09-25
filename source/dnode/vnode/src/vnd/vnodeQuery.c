@@ -1579,7 +1579,7 @@ void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
                             "nBatchInsertSuccess");
 }
 
-void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables) {
+void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, SVnodeTableNums *pNums) {
   SVnode    *pVnodeObj = pVnode;
   SVnodeCfg *pConf = &pVnodeObj->config;
 
@@ -1591,14 +1591,11 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *num
     *vgId = TD_VID(pVnodeObj);
   }
 
-  if (numOfTables) {
-    *numOfTables = pConf->vndStats.numOfNTables + pConf->vndStats.numOfCTables +
-                   pConf->vndStats.numOfVTables + pConf->vndStats.numOfVCTables;
-  }
-
-  if (numOfNormalTables) {
-    *numOfNormalTables = pConf->vndStats.numOfNTables +
-                         pConf->vndStats.numOfVTables;
+  if (pNums) {
+    pNums->ntb = pConf->vndStats.numOfNTables;
+    pNums->ctb = pConf->vndStats.numOfCTables;
+    pNums->vtb = pConf->vndStats.numOfVTables;
+    pNums->vctb = pConf->vndStats.numOfVCTables;
   }
 }
 

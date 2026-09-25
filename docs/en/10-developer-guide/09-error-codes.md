@@ -883,6 +883,7 @@ Below are the business error codes for each module.
 | 0x80008024 | No privilege to access xnode                          | No privilege to create/alter/drop/show xnode                | Check whether the current user has permission to operate xnode |
 | 0x80008025 | No privilege to access xnode task                     | No privilege to create/alter/drop/show xnode task           | Check whether the current user has permission to operate xnode tasks |
 | 0x80008026 | Xnode DSN protection failed                           | Xnode DSN protection check failed                           | Check the DSN configuration and data source protection policy, then retry |
+| 0x80008027 | Connection info changed, please re-enter the password and other sensitive values | Connection info changed, please re-enter the password and other sensitive values | Re-enter the password and other sensitive values after changing connection fields such as the address, then save again |
 
 #### backup/restore
 

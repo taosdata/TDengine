@@ -465,6 +465,7 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 - `serve.ssl_ca`：是 SSL/TLS 根证书。
 - `serve.request_timeout`：全局接口 API 超时时间。
 - `serve.grpc`：是 `taosX` gRPC 服务监听地址，默认值为 `0.0.0.0:6055`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
+- `serve.xnode_dsn_private_key_file`：XNODE DSN 保护使用的共享私钥文件（PKCS#8 PEM 格式，RSA-2048）的本地路径，用于解密 `xnoded` 下发的运行时 DSN 密文。默认为空，表示未配置私钥；修改后须重启服务生效，详见 [安全加固指南 · XNODE DSN 保护](../../11-security-guide/08-security-hardening.md#xnode-dsn-protection)。
 - `rest_api_threads`：rest api 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
 - `grpc_threads`：grpc 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
 - `scheduler_threads`：scheduler 任务服务的运行时线程数。默认线程数为`当前服务器内核*2`。
@@ -533,6 +534,14 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 
 # number of threads used for scheduler service, default to 0 (means cores * 2)
 #scheduler_threads = 0
+
+# Local path of the shared RSA-2048 private key file (PKCS#8 PEM)
+# used to decrypt XNODE DSN runtime envelopes delivered from xnoded.
+# Empty (default) means no private key configured; only plaintext DSN values
+# produced while protection is disabled can be processed in that case.
+# Not re-loadable at runtime; restart taosX after changing this value or
+# replacing the key file.
+#xnode_dsn_private_key_file = "/etc/taos/xnode-dsn-private.pem"
 
 [monitor]
 # FQDN of taosKeeper service, no default value

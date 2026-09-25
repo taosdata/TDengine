@@ -496,6 +496,25 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
+  if (pVnode->config.rebuildVTableStats) {
+    vInfo("vgId:%d, rebuild virtual table stats since vnode config predates persisted vtable counters",
+          TD_VID(pVnode));
+    if (metaRebuildVTableStats(pVnode->pMeta) == 0) {
+      pVnode->config.rebuildVTableStats = false;
+      if (!mounted) {
+        info.config.rebuildVTableStats = false;
+        info.config.vndStats.numOfVTables = pVnode->config.vndStats.numOfVTables;
+        info.config.vndStats.numOfVCTables = pVnode->config.vndStats.numOfVCTables;
+        if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
+          vError("vgId:%d, failed to save vnode info after virtual table stats rebuild since %s", TD_VID(pVnode),
+                 tstrerror(terrno));
+        }
+      }
+    } else {
+      vError("vgId:%d, failed to rebuild virtual table stats since %s", TD_VID(pVnode), tstrerror(terrno));
+    }
+  }
+
   // init txn manager and rebuild in-memory txn state from B+ tree
   vInfo("vgId:%d, start to init vnode txn manager", TD_VID(pVnode));
   if (vnodeTxnInit(pVnode) < 0) {

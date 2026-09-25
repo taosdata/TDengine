@@ -604,6 +604,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiLastRowScan";
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
       return "PhysiTableCountScan";
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
+      return "PhysiTableCountScanByType";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
       return "PhysiMergeEventWindow";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
@@ -3016,6 +3018,7 @@ static const char* jkLastRowScanPhysiPlanTargets = "Targets";
 static const char* jkLastRowScanPhysiPlanFuncType = "FuncType";
 static const char* jkLastRowScanPhysiPlanFuncTypes = "FuncTypes";
 static const char* jkLastRowScanPhysiPlanIgnoreNull = "IgnoreNull";
+static const char* jkLastRowScanPhysiPlanTbCountType = "TbCountType";
 
 static int32_t funcTypeToJson(const void* pObj, SJson* pJson) {
   const int32_t* pNode = (const int32_t*)pObj;
@@ -3050,6 +3053,9 @@ static int32_t physiLastRowScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkLastRowScanPhysiPlanIgnoreNull, pNode->ignoreNull);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkLastRowScanPhysiPlanTbCountType, pNode->tbCountType);
+  }
 
   return code;
 }
@@ -3072,6 +3078,9 @@ static int32_t jsonToPhysiLastRowScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkLastRowScanPhysiPlanIgnoreNull, &pNode->ignoreNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkLastRowScanPhysiPlanTbCountType, &pNode->tbCountType);
   }
 
   return code;
@@ -14524,6 +14533,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
       return physiLastRowScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
@@ -15084,6 +15094,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
       return jsonToPhysiScanNode(pJson, pObj);
+    // BY_TYPE carries tbCountType in the shared last-row-scan struct; routing it
+    // to the base scan decoder would silently drop the type filter on a JSON
+    // round-trip (stream/TMQ plans serialize via qSubPlanToString).
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return jsonToPhysiLastRowScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:

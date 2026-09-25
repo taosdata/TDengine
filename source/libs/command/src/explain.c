@@ -2210,7 +2210,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN: {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE: {
       STableCountScanPhysiNode *pLastRowNode = (STableCountScanPhysiNode *)pNode;
       char *dbname = pLastRowNode->scan.tableName.dbname;
       char *tbname = pLastRowNode->scan.tableName.tname;
