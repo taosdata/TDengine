@@ -327,7 +327,7 @@ Return result
         [
             "c3",
             "BLOB",
-            4194304
+            16777216
         ]
     ],
     "data": [
@@ -343,6 +343,7 @@ Return result
 ```
 
 - `010100000000000000000059400000000000005940` is the [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/) format for `point(100 100)`
+- The length shown in `column_meta` for a `BLOB` column is returned by the server; refer to the actual response
 
 #### Errors
 
