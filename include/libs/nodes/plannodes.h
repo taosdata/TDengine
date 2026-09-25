@@ -181,6 +181,9 @@ typedef struct SScanLogicNode {
   // gets pConditions=NULL. Physical plan creation puts these into the leaf's pConditions
   // for nodesRemotePlanToSQL, but NOT into the outer scan operator.
   SNode*      pPushedConditions;
+  // --- table count scan extension (valid only when scanType == SCAN_TYPE_TABLE_COUNT) ---
+  // ins_tables row type filter (TSDB_* table entry type); 0 = no filter.
+  int8_t      tbCountType;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -745,6 +748,9 @@ typedef struct SLastRowScanPhysiNode {
   bool           ignoreNull;
   SNodeList*     pTargets;
   SArray*        pFuncTypes;
+  // Valid only for TABLE_COUNT_SCAN (BY_TYPE): ins_tables row type filter, 0 = no filter.
+  // The struct is shared with LAST_ROW_SCAN, where this stays 0 and is still serialized.
+  int8_t         tbCountType;
 } SLastRowScanPhysiNode;
 
 typedef SLastRowScanPhysiNode STableCountScanPhysiNode;

@@ -3383,7 +3383,8 @@ enum {
   PHY_LAST_ROW_SCAN_CODE_GROUP_SORT,
   PHY_LAST_ROW_SCAN_CODE_IGNULL,
   PHY_LAST_ROW_SCAN_CODE_TARGETS,
-  PHY_LAST_ROW_SCAN_CODE_FUNCTYPES
+  PHY_LAST_ROW_SCAN_CODE_FUNCTYPES,
+  PHY_LAST_ROW_SCAN_CODE_TBCOUNT_TYPE
 };
 
 static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3404,6 +3405,9 @@ static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_LAST_ROW_SCAN_CODE_FUNCTYPES, SArrayToMsg, pNode->pFuncTypes);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_LAST_ROW_SCAN_CODE_TBCOUNT_TYPE, pNode->tbCountType);
   }
 
   return code;
@@ -3433,6 +3437,9 @@ static int32_t msgToPhysiLastRowScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_LAST_ROW_SCAN_CODE_FUNCTYPES:
         code = msgToSArray(pTlv, (void**)&pNode->pFuncTypes);
+        break;
+      case PHY_LAST_ROW_SCAN_CODE_TBCOUNT_TYPE:
+        code = tlvDecodeI8(pTlv, &pNode->tbCountType);
         break;
 
       default:
@@ -6797,6 +6804,7 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
       code = physiLastRowScanNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
@@ -7009,6 +7017,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
       code = msgToPhysiLastRowScanNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:

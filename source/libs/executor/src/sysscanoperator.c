@@ -301,7 +301,7 @@ int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   void*        pVnode = pArg->pVnode;
 
   const char* db = NULL;
-  pArg->pAPI->metaFn.getBasicInfo(pVnode, &db, NULL, NULL, NULL);
+  pArg->pAPI->metaFn.getBasicInfo(pVnode, &db, NULL, NULL);
 
   SName   sn = {0};
   char    dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -337,7 +337,7 @@ int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
   void*        pVnode = ((SSTabFltArg*)arg)->pVnode;
 
   int64_t vgId = 0;
-  pArg->pAPI->metaFn.getBasicInfo(pVnode, NULL, (int32_t*)&vgId, NULL, NULL);
+  pArg->pAPI->metaFn.getBasicInfo(pVnode, NULL, (int32_t*)&vgId, NULL);
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -934,7 +934,7 @@ int32_t doExtractDbName(char* dbname, SSysTableScanInfo* pInfo, SStorageAPI* pAP
   SName       sn = {0};
   const char* db = NULL;
   int32_t     vgId = 0;
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL);
   code = tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -1931,7 +1931,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2740,7 +2740,7 @@ static int32_t resolveTagRefLocalHop(SRefChainCtx* pCtx, char* curDb, char* curT
   // (if a path ever reports a BARE db name, strchr finds no '.' and the fallback below
   // compares the whole string, which is still the bare local db name -- same result).
   const char* localDbFName = NULL;
-  pAPI->metaFn.getBasicInfo(pCtx->vnode, &localDbFName, NULL, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pCtx->vnode, &localDbFName, NULL, NULL);
   if (localDbFName != NULL) {
     const char* sep = strchr(localDbFName, '.');
     const char* localDb = (sep != NULL) ? (sep + 1) : localDbFName;
@@ -5060,7 +5060,7 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
   }
 
   int32_t localVgId = 0;
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, &localVgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, &localVgId, NULL);
 
   SHashObj* pDbVgInfoCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pDbVgInfoCache == NULL) {
@@ -5881,7 +5881,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -6007,7 +6007,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   const char* db = NULL;
   int32_t     vgId = 0;
   int32_t     dbSecLevel = pAPI->metaFn.getSecurityLevel(pInfo->readHandle.vnode);
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -6369,7 +6369,7 @@ static int32_t buildVgDiskUsage(SOperatorInfo* pOperator, SDbSizeStatisInfo* pSt
   SSysTableScanInfo* pInfo = pOperator->info;
   int32_t            vgId = 0;
   const char*        db = NULL;
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &pStaticsInfo->dbname, &vgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &pStaticsInfo->dbname, &vgId, NULL);
 
   pStaticsInfo->vgId = vgId;
 
@@ -6690,7 +6690,7 @@ static SSDataBlock* sysTableBuildLastCacheStats(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL);
   if (db == NULL) {
     code = TSDB_CODE_INVALID_PARA;
     QUERY_CHECK_CODE(code, lino, _end);
@@ -6904,7 +6904,7 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
   // ---- extract db_name & vgroup_id from vnode ----
   const char* db = NULL;
   int32_t     vgId = 0;
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -7235,7 +7235,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};

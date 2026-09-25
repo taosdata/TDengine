@@ -80,7 +80,7 @@ void    vnodeStop(SVnode *pVnode);
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 int32_t vnodeSetWalKeepVersion(SVnode *pVnode, int64_t keepVersion);
-void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables);
+void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, SVnodeTableNums *pNums);
 int8_t    vnodeGetSecurityLevel(void *pVnode);
 bool      vnodeHasPendingTxnEntries(void *pVnode);
 int32_t   vnodeGetTableList(void *pVnode, int8_t type, SArray *pList);
@@ -407,6 +407,9 @@ struct SVnodeCfg {
   int8_t      allowDrop;
   int8_t      secureDelete;
   int8_t      securityLevel;
+  // runtime only, never persisted: set when the loaded config predates the
+  // persisted virtual-table counters, requesting a one-time rebuild at open
+  bool        rebuildVTableStats;
 };
 
 #define TABLE_ROLLUP_ON         ((int8_t)0x1)
