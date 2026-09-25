@@ -155,6 +155,9 @@ toc_max_heading_level: 4
 | udfdResFuncs | taosd | 用于统计用量 |
 | udfdLdLibPath | taosd | 用于统计用量 |
 | enableStrongPassword | taosd | 密码要符合一个要求：至少包含大写字母、小写字母、数字、特殊字符中的三类 |
+| `xnodeDsnProtection` | `taosd` | XNODE DSN 保护总开关，开启后 `SHOW XNODE TASKS` 和 `SHOW XNODE JOBS` 输出的 DSN 敏感值以 `******` 脱敏 |
+| `xnodeDsnPublicKeyFile` | `taosd` | `mnode` 加载的共享公钥文件路径，仅在 `xnodeDsnProtection` 为 `1` 时读取和校验 |
+| `xnodedDsnPrivateKeyFile` | `taosd` | `taosd` 转交给 `xnoded` 子进程的共享私钥文件路径，`taosd` 只转交路径，不读取私钥内容 |
 | **流计算参数** | | |
 | numOfMnodeStreamMgmtThreads | taosd | mnode 流计算管理线程个数 |
 | numOfStreamMgmtThreads | taosd | snode 流计算管理线程个数 |

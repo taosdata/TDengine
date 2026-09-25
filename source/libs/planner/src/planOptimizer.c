@@ -8949,7 +8949,36 @@ typedef struct STbCntScanOptInfo {
   SAggLogicNode*  pAgg;
   SScanLogicNode* pScan;
   SName           table;
+  int8_t          tbCountType;  // ins_tables row type filter (TSDB_* table entry type); 0 = no filter
 } STbCntScanOptInfo;
+
+/**
+  Map an ins_tables type string to the TSDB_* table entry type.
+  Only exact uppercase matches are eligible: the comparison against the
+  type column is case sensitive, so any other value would produce a
+  different result than the full scan. Returns 0 if not eligible.
+*/
+static int8_t tbCntScanOptTableTypeFromStr(const char* pType) {
+  if (0 == strcmp(pType, "NORMAL_TABLE")) {
+    return TSDB_NORMAL_TABLE;
+  }
+  if (0 == strcmp(pType, "CHILD_TABLE")) {
+    return TSDB_CHILD_TABLE;
+  }
+  if (0 == strcmp(pType, "VIRTUAL_NORMAL_TABLE")) {
+    return TSDB_VIRTUAL_NORMAL_TABLE;
+  }
+  if (0 == strcmp(pType, "VIRTUAL_CHILD_TABLE")) {
+    return TSDB_VIRTUAL_CHILD_TABLE;
+  }
+  if (0 == strcmp(pType, "SUPER_TABLE")) {
+    return TSDB_SUPER_TABLE;
+  }
+  if (0 == strcmp(pType, "SYSTEM_TABLE")) {
+    return TSDB_SYSTEM_TABLE;
+  }
+  return 0;
+}
 
 /**
   Check whether the group keys are eligible 
@@ -9045,7 +9074,12 @@ static bool tbCntScanOptGetColValFromCond(SOperatorNode* pOper, SColumnNode** pC
 /**
   Check whether the logic condition is eligible for optimization.
   The condition should be in the form of:
-    db_name = 'xxx' AND stable_name = 'yyy'
+    db_name = 'xxx' AND stable_name = 'yyy',
+  or
+    db_name = 'xxx' AND type = 'zzz'
+  Note: stable_name combined with type is not eligible, since the child
+  table counter of a virtual super table would not match a CHILD_TABLE
+  filter.
 */
 static bool tbCntScanOptIsEligibleLogicCond(STbCntScanOptInfo* pInfo, 
                                             SLogicConditionNode* pCond) {
@@ -9055,6 +9089,7 @@ static bool tbCntScanOptIsEligibleLogicCond(STbCntScanOptInfo* pInfo,
 
   bool         hasDbCond = false;
   bool         hasStbCond = false;
+  bool         hasTypeCond = false;
   SColumnNode* pCol = NULL;
   SValueNode*  pVal = NULL;
   SNode*       pNode = NULL;
@@ -9069,11 +9104,18 @@ static bool tbCntScanOptIsEligibleLogicCond(STbCntScanOptInfo* pInfo,
     } else if (!hasStbCond && 0 == strcmp(pCol->colName, "stable_name")) {
       hasStbCond = true;
       tstrncpy(pInfo->table.tname, pVal->literal, TSDB_TABLE_NAME_LEN);
+    } else if (!hasTypeCond && 0 == strcmp(pCol->colName, "type")) {
+      int8_t tbCountType = tbCntScanOptTableTypeFromStr(pVal->literal);
+      if (0 == tbCountType) {
+        return false;
+      }
+      hasTypeCond = true;
+      pInfo->tbCountType = tbCountType;
     } else {
       return false;
     }
   }
-  return hasDbCond && hasStbCond;
+  return hasDbCond && ((hasStbCond && !hasTypeCond) || (hasTypeCond && !hasStbCond));
 }
 
 /**
@@ -9082,7 +9124,9 @@ static bool tbCntScanOptIsEligibleLogicCond(STbCntScanOptInfo* pInfo,
   The condition should be in the form of:
     db_name = 'xxx',
   or
-    stable_name = 'yyy'
+    stable_name = 'yyy',
+  or
+    type = 'zzz'
 */
 static bool tbCntScanOptIsEligibleOpCond(STbCntScanOptInfo* pInfo,
                                          SOperatorNode* pCond) {
@@ -9099,6 +9143,14 @@ static bool tbCntScanOptIsEligibleOpCond(STbCntScanOptInfo* pInfo,
     tstrncpy(pInfo->table.tname, pVal->literal, TSDB_TABLE_NAME_LEN);
     return true;
   }
+  if (0 == strcmp(pCol->colName, "type")) {
+    int8_t tbCountType = tbCntScanOptTableTypeFromStr(pVal->literal);
+    if (0 == tbCountType) {
+      return false;
+    }
+    pInfo->tbCountType = tbCountType;
+    return true;
+  }
   return false;
 }
 
@@ -9108,9 +9160,13 @@ static bool tbCntScanOptIsEligibleOpCond(STbCntScanOptInfo* pInfo,
   The conditions should be in the form of:
     db_name = 'xxx' AND stable_name = 'yyy',
   or
+    db_name = 'xxx' AND type = 'zzz',
+  or
     db_name = 'xxx',
   or
-    stable_name = 'yyy'
+    stable_name = 'yyy',
+  or
+    type = 'zzz'
 */
 static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo,
                                         SNode* pConditions) {
@@ -9188,6 +9244,7 @@ static int32_t tbCntScanOptCreateTableCountFunc(SNode** ppNode) {
 */
 static int32_t tbCntScanOptRewriteScan(STbCntScanOptInfo* pInfo) {
   pInfo->pScan->scanType = SCAN_TYPE_TABLE_COUNT;
+  pInfo->pScan->tbCountType = pInfo->tbCountType;
   tstrncpy(pInfo->pScan->tableName.dbname,
            pInfo->table.dbname, TSDB_DB_NAME_LEN);
   tstrncpy(pInfo->pScan->tableName.tname,

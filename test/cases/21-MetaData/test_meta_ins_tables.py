@@ -47,10 +47,12 @@ class TestMetaSysDb2:
         4. Check table count scan with group by db_name and stable_name
         5. Check table count scan after taosd restart
         6. Check count(distinct ...) function succeeds on ins_tables
+        7. Check count with table type filter on ins_tables
 
         Since: v3.3.6
 
         Labels: common,ci,integration,functional
+
         Jira: TS-7600
 
         History:
@@ -58,9 +60,11 @@ class TestMetaSysDb2:
             - 2025-11-27 Tony Zhang add check_ins_tables_count and check_count_distinct
             - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_odbc.py
             - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_table_count_scan.py
+            - 2026-09-21 add check_ins_tables_count_by_type for type-filtered count scan
 
         """
         self.check_ins_tables_count()
+        self.check_ins_tables_count_by_type()
         self.check_table_type()
         self.check_count_distinct()
         self.do_odbc()
@@ -212,6 +216,92 @@ class TestMetaSysDb2:
         tdSql.checkData(0, 0, 0)
 
         tdLog.info("Table count scan optimization check passed for all eligible tables.")
+
+    def check_ins_tables_count_by_type(self):
+        tdLog.info("Checking count-by-type plan for 'information_schema.ins_tables'")
+
+        # create a database with every table entry type, with asymmetric counts
+        tdSql.execute("drop database if exists test_type_count_db", show=1)
+        tdSql.execute("create database test_type_count_db vgroups 1", show=1)
+        tdSql.execute("use test_type_count_db")
+        # 3 normal tables
+        for i in range(1, 4):
+            tdSql.execute(f"create table ntb{i} (ts timestamp, v int)", show=1)
+        # 2 stables with 2 + 3 child tables
+        tdSql.execute("create stable stb_a (ts timestamp, v int) tags (t1 int)", show=1)
+        tdSql.execute("create stable stb_b (ts timestamp, v int) tags (t1 int)", show=1)
+        tdSql.execute("create table ctb_a1 using stb_a tags (1)", show=1)
+        tdSql.execute("create table ctb_a2 using stb_a tags (2)", show=1)
+        tdSql.execute("create table ctb_b1 using stb_b tags (1)", show=1)
+        tdSql.execute("create table ctb_b2 using stb_b tags (2)", show=1)
+        tdSql.execute("create table ctb_b3 using stb_b tags (3)", show=1)
+        # 1 virtual stable with 1 virtual child, 1 virtual normal table
+        tdSql.execute("create stable vstb (ts timestamp, v int) tags (t1 int) virtual 1", show=1)
+        tdSql.execute("create vtable vc1 (v from ntb1.v) using vstb tags (1)", show=1)
+        tdSql.execute("create vtable vntb1 (ts timestamp, v int from ntb2.v)", show=1)
+
+        expect_plan = 'Table Count Scan'
+        expected = {
+            'NORMAL_TABLE': 3,
+            'CHILD_TABLE': 5,
+            'VIRTUAL_NORMAL_TABLE': 1,
+            'VIRTUAL_CHILD_TABLE': 1,
+        }
+
+        ## 1. count with type filter uses the optimized plan and returns the right value
+        for t, cnt in expected.items():
+            tdSql.query(f"explain select count(*) from information_schema.ins_tables \
+                        where db_name='test_type_count_db' and type='{t}'", show=1)
+            scan_plan = tdSql.getColData(0)[-1]
+            assert expect_plan in scan_plan, \
+                f"expected '{expect_plan}' in plan for type='{t}', got: {scan_plan}"
+            tdSql.query(f"select count(*) from information_schema.ins_tables \
+                        where db_name='test_type_count_db' and type='{t}'", show=1)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, cnt)
+
+        ## 2. super tables are not ins_tables rows, count must be 0
+        tdSql.query("select count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' and type='SUPER_TABLE'", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        ## 3. type counts match the full-scan ground truth (group by type)
+        tdSql.query("select type, count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' group by type", show=1)
+        actual = {}
+        for i in range(tdSql.getRows()):
+            actual[tdSql.getData(i, 0)] = tdSql.getData(i, 1)
+        assert actual == expected, f"type counts {actual} != expected {expected}"
+
+        ## 4. type filter combined with group by must stay correct (falls back to full scan)
+        tdSql.query("select count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' and type='NORMAL_TABLE' group by db_name", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, expected['NORMAL_TABLE'])
+
+        tdSql.query("select stable_name, count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' and type='CHILD_TABLE' group by stable_name", show=1)
+        stable_counts = {}
+        for i in range(tdSql.getRows()):
+            stable_counts[tdSql.getData(i, 0)] = tdSql.getData(i, 1)
+        assert stable_counts == {'stb_a': 2, 'stb_b': 3}, \
+            f"child counts per stable {stable_counts} != expected"
+
+        tdSql.query("select stable_name, count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' and type='VIRTUAL_CHILD_TABLE' group by stable_name", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'vstb')
+        tdSql.checkData(0, 1, 1)
+
+        ## 5. total count still covers all four entry types
+        tdSql.query("select count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db'", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, sum(expected.values()))
+
+        tdSql.execute("drop database test_type_count_db", show=1)
+        tdLog.info("Table count scan by type check passed.")
 
     def check_count_distinct(self):
         tdSql.query("select count(distinct table_name) from information_schema.ins_tables", show=1)

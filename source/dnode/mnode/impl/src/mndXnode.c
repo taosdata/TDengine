@@ -1781,13 +1781,13 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
     code = terrno;
     goto _OVER;
   }
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "from", srcDsn), NULL, _OVER);
-
   sinkDsn = taosStrndupi(pCreateReq->sink.cstr.ptr, (int64_t)pCreateReq->sink.cstr.len);
   if (sinkDsn == NULL) {
     code = terrno;
     goto _OVER;
   }
+  TAOS_CHECK_GOTO(mndXnodeProtectHttpTaskDsns(&srcDsn, &sinkDsn), NULL, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "from", srcDsn), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "to", sinkDsn), NULL, _OVER);
 
   if (pCreateReq->xnodeId > 0) {
@@ -1912,19 +1912,18 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
+// Builds the POST body for starting pObj. Local failures (allocation, JSON,
+// DSN envelope encryption) are deterministic and fail-closed: the caller must
+// surface them before committing the desired-state transaction.
+static int32_t httpBuildStartXnodeTaskBody(const SXnodeTaskObj *pObj, char **ppContStr) {
   int32_t code = 0;
   struct {
-    char   xnodeUrl[TSDB_XNODE_URL_LEN + 1];
     SJson *postContent;
-    SJson *pJson;
-    char  *pContStr;
     char  *srcDsn;
     char  *sinkDsn;
     char  *parser;
   } req = {0};
 
-  snprintf(req.xnodeUrl, TSDB_XNODE_URL_LEN + 1, "%s/task/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
   req.postContent = tjsonCreateObject();
   if (req.postContent == NULL) {
     code = terrno;
@@ -1935,13 +1934,13 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
     code = terrno;
     goto _OVER;
   }
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "from", req.srcDsn), NULL, _OVER);
-
   req.sinkDsn = taosStrndupi(pObj->sinkDsn, (int64_t)pObj->sinkDsnLen);
   if (req.sinkDsn == NULL) {
     code = terrno;
     goto _OVER;
   }
+  TAOS_CHECK_GOTO(mndXnodeProtectHttpTaskDsns(&req.srcDsn, &req.sinkDsn), NULL, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "from", req.srcDsn), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "to", req.sinkDsn), NULL, _OVER);
 
   if (pObj->parserLen > 0) {
@@ -1969,22 +1968,30 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
     TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "labels", pObj->labels), NULL, _OVER);
   }
 
-  req.pContStr = tjsonToUnformattedString(req.postContent);
-  if (req.pContStr == NULL) {
+  *ppContStr = tjsonToUnformattedString(req.postContent);
+  if (*ppContStr == NULL) {
     code = terrno;
     goto _OVER;
   }
-  mDebug("start xnode task:%d, request bytes:%zu", pObj->id, strlen(req.pContStr));
-  req.pJson = mndSendReqRetJson(req.xnodeUrl, HTTP_TYPE_POST, defaultTimeout, req.pContStr, strlen(req.pContStr));
+  mDebug("start xnode task:%d, request bytes:%zu", pObj->id, strlen(*ppContStr));
 
 _OVER:
-  if (req.pContStr != NULL) taosMemoryFreeClear(req.pContStr);
   if (req.postContent != NULL) tjsonDelete(req.postContent);
-  if (req.pJson != NULL) tjsonDelete(req.pJson);
   if (req.srcDsn != NULL) taosMemoryFreeClear(req.srcDsn);
   if (req.sinkDsn != NULL) taosMemoryFreeClear(req.sinkDsn);
   if (req.parser != NULL) taosMemoryFreeClear(req.parser);
   TAOS_RETURN(code);
+}
+
+// Fire-and-forget start notification: the desired state is already committed,
+// so a failed send only delays the notification and is intentionally not
+// surfaced to the client.
+static void httpStartXnodeTask(const SXnodeTaskObj *pObj, const char *pContStr) {
+  char   xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
+  SJson *pJson = NULL;
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN + 1, "%s/task/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, pContStr, strlen(pContStr));
+  if (pJson != NULL) tjsonDelete(pJson);
 }
 
 static int32_t mndUpdateXnodeTaskDesiredState(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTaskObj *pObj,
@@ -2004,6 +2011,7 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
   SXnodeTaskObj      *pObj = NULL;
   SMStartXnodeTaskReq startReq = {0};
   SXnodeTaskObj      *pObjClone = NULL;
+  char               *pStartBody = NULL;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_START_XNODE_TASK);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2032,14 +2040,21 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
     mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
+  // Build the (possibly envelope-encrypted) start body before committing the
+  // desired-state transaction: local build failures (allocation, JSON, DSN
+  // envelope encryption) are deterministic and must reach the client without
+  // leaving a committed running intent behind.
+  code = httpBuildStartXnodeTaskBody(pObj, &pStartBody);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
   code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pObj, XNODE_TASK_DESIRED_STATE_RUNNING);
   if (code != TSDB_CODE_SUCCESS) goto _OVER;
-  (void)httpStartXnodeTask(pObj);
+  httpStartXnodeTask(pObj, pStartBody);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("xnode task:%d, failed to start since %s", startReq.tid, tstrerror(code));
   }
+  if (pStartBody != NULL) taosMemoryFreeClear(pStartBody);
   tFreeSMStartXnodeTaskReq(&startReq);
   if (pObj != NULL) {
     mndReleaseXnodeTask(pMnode, pObj);
@@ -3051,6 +3066,63 @@ static int32_t mndXnodeEncryptDsnForShow(SShowObj *pShow, const char *dsn, int32
 #endif
 }
 
+// When xnodeDsnProtection=1, the mnode->xnoded HTTP control channel carries
+// ciphertext: each non-NULL DSN string is replaced in place with its V1
+// envelope, encrypted under one request-level batch with the shared public
+// key, so xnoded marks the fields Encrypted and re-encrypts them on the
+// outbound RPC. Protection=0 passes the strings through unchanged. Any
+// failure is fail-closed: the originals are left untouched and the caller
+// must abort the request without sending it.
+int32_t mndXnodeProtectHttpTaskDsns(char **fromDsn, char **toDsn) {
+#ifdef WINDOWS
+  if (tsXnodeDsnProtection != 0) return mndXnodeProtectionError();
+  return TSDB_CODE_SUCCESS;
+#else
+  if (tsXnodeDsnProtection == 0) return TSDB_CODE_SUCCESS;
+  if (fromDsn == NULL || toDsn == NULL) return mndXnodeProtectionError();
+  if (*fromDsn == NULL && *toDsn == NULL) return TSDB_CODE_SUCCESS;
+
+  const SEnvelopePublicKey *key = taosGetXnodeDsnPublicKey();
+  SEnvelopeBatch           *batch = NULL;
+  if (key == NULL || envelopeBatchBegin(key, &batch) != ENVELOPE_CRYPTO_SUCCESS) {
+    return mndXnodeProtectionError();
+  }
+
+  struct {
+    char    **input;
+    uint32_t  cap;
+    char     *encoded;
+    uint32_t  encodedLen;
+  } fields[2] = {{fromDsn, TSDB_XNODE_TASK_SOURCE_LEN, NULL, 0}, {toDsn, TSDB_XNODE_TASK_SINK_LEN, NULL, 0}};
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < 2; ++i) {
+    if (*fields[i].input == NULL) continue;
+    if (envelopeBatchEncryptField(batch, (const uint8_t *)(*fields[i].input), (uint32_t)strlen(*fields[i].input),
+                                  fields[i].cap, &fields[i].encoded, &fields[i].encodedLen) !=
+        ENVELOPE_CRYPTO_SUCCESS) {
+      code = mndXnodeProtectionError();
+      break;
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS && envelopeBatchFinish(&batch) != ENVELOPE_CRYPTO_SUCCESS) {
+    code = mndXnodeProtectionError();
+  }
+  (void)envelopeBatchAbort(&batch);  // no-op after a successful finish; releases the batch on failure
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(fields[0].encoded);
+    taosMemoryFree(fields[1].encoded);
+    return code;
+  }
+  for (int32_t i = 0; i < 2; ++i) {
+    if (fields[i].encoded == NULL) continue;
+    taosMemoryFreeClear(*fields[i].input);  // wipe the plaintext copy before swapping in the envelope
+    *fields[i].input = fields[i].encoded;
+  }
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
 // Decodes one top-level from/to string span and rewrites it for the show output
 // mode (masked + re-escaped, or envelope-encrypted). Failures are logged with the
 // show id and the failing stage; the config content itself is never logged.
@@ -3286,13 +3358,19 @@ static int32_t mndXnodeSetDsnShowColumn(SShowObj *pShow, SColumnInfoData *pColIn
 // object regardless of the client entry point. When the protection is
 // disabled the merge is skipped entirely and a six-star value is stored as an
 // ordinary credential. The sixStarError out-parameters carry the stable
-// cross-language registry mapping (EXnodeSixStarError); the SQL-visible error
-// stays TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED and never embeds the
-// candidate DSN, the old secret, or the six-star marker itself.
+// cross-language registry mapping (EXnodeSixStarError). The SQL-visible error
+// is TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED for every rejection except
+// CONNECTION_CHANGED, which maps to TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED
+// so clients (Explorer UI) can tell "re-enter the sensitive values" apart from
+// other protection failures; neither code's message ever embeds the candidate
+// DSN, the old secret, or the six-star marker itself.
 // ---------------------------------------------------------------------------
 
 static int32_t mndXnodeSixStarError(int32_t *pSixStarError, int32_t sixStarCode) {
   if (pSixStarError != NULL) *pSixStarError = sixStarCode;
+  if (sixStarCode == XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED) {
+    return TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED;
+  }
   return mndXnodeProtectionError();
 }
 

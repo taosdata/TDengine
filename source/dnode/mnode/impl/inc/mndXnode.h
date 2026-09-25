@@ -37,6 +37,7 @@ int32_t mndXnodeProjectJobConfigForShow(SShowObj *pShow, const char *config, int
                                         int32_t *projectedLen);
 int32_t mndXnodeFinishShowProtection(SShowObj *pShow);
 void    mndXnodeCleanupShowProtection(SShowObj *pShow);
+int32_t mndXnodeProtectHttpTaskDsns(char **fromDsn, char **toDsn);
 
 // Six-star write semantics for CREATE/ALTER XNODE TASK/JOB (xnodeDsnProtection=1).
 // The numeric values are the C mapping of the stable cross-language six-star error

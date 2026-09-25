@@ -328,6 +328,44 @@ typedef struct SStoreSnapshotFn {
   int32_t (*getTableInfoFromSnapshot)(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid);
 } SStoreSnapshotFn;
 
+// Per-type table counters maintained by vnode meta (vndStats).
+typedef struct SVnodeTableNums {
+  int64_t ntb;   // TSDB_NORMAL_TABLE
+  int64_t ctb;   // TSDB_CHILD_TABLE
+  int64_t vtb;   // TSDB_VIRTUAL_NORMAL_TABLE
+  int64_t vctb;  // TSDB_VIRTUAL_CHILD_TABLE
+} SVnodeTableNums;
+
+// Total number of table rows visible in information_schema.ins_tables.
+static inline int64_t vnodeTbNumsTotal(const SVnodeTableNums* pNums) {
+  if (pNums == NULL) return 0;
+  return pNums->ntb + pNums->ctb + pNums->vtb + pNums->vctb;
+}
+
+// Number of tables without a super table (normal + virtual normal).
+static inline int64_t vnodeTbNumsStandalone(const SVnodeTableNums* pNums) {
+  if (pNums == NULL) return 0;
+  return pNums->ntb + pNums->vtb;
+}
+
+// Number of ins_tables rows for the given TSDB_* table entry type.
+// Returns 0 for types that never appear as ins_tables rows (e.g. TSDB_SUPER_TABLE).
+static inline int64_t vnodeTbNumsByType(const SVnodeTableNums* pNums, int8_t type) {
+  if (pNums == NULL) return 0;
+  switch (type) {
+    case TSDB_NORMAL_TABLE:
+      return pNums->ntb;
+    case TSDB_CHILD_TABLE:
+      return pNums->ctb;
+    case TSDB_VIRTUAL_NORMAL_TABLE:
+      return pNums->vtb;
+    case TSDB_VIRTUAL_CHILD_TABLE:
+      return pNums->vctb;
+    default:
+      return 0;
+  }
+}
+
 typedef struct SStoreMeta {
   SMTbCursor* (*openTableMetaCursor)(void* pVnode);                                 // metaOpenTbCursor
   void (*closeTableMetaCursor)(SMTbCursor* pTbCur);                                 // metaCloseTbCursor
@@ -379,8 +417,7 @@ typedef struct SStoreMeta {
   int32_t (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);
   int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema);
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols, int8_t* flags);
-  void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
-                       int64_t* numOfNormalTables);
+  void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, SVnodeTableNums* pNums);
   int8_t (*getSecurityLevel)(void* pVnode);
   int32_t (*getDBSize)(void* pVnode, SDbSizeStatisInfo* pInfo);
   int32_t (*getLastCacheStats)(void* pVnode, SLastCacheStats* pStats);

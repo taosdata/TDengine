@@ -1120,6 +1120,8 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pFqJoinTables);
   CLONE_NODE_FIELD(pRemoteLogicPlan);
   CLONE_NODE_FIELD(pPushedConditions);
+  // --- table count scan extension ---
+  COPY_SCALAR_FIELD(tbCountType);
   return TSDB_CODE_SUCCESS;
 }
 
