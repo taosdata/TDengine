@@ -949,3 +949,17 @@ TEST(EnvelopeCryptoTest, NonNullOutputInvalidatesBatchAndClearsLength) {
 }
 
 }  // namespace
+
+// Defined in emitC2RVectors.cpp (same target); see that file for the contract.
+int emitC2RVectors(const char *path);
+
+int main(int argc, char **argv) {
+  for (int index = 1; index < argc; ++index) {
+    const char *emit_prefix = "--emit-c2r-vectors=";
+    if (strncmp(argv[index], emit_prefix, strlen(emit_prefix)) == 0) {
+      return emitC2RVectors(argv[index] + strlen(emit_prefix));
+    }
+  }
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

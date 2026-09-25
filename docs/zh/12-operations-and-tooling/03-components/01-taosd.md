@@ -2110,6 +2110,35 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 - 动态修改：支持通过 SQL 修改，立即生效
 - 支持版本：`v3.4.0.11` 引入
 
+#### xnodeDsnProtection
+
+- 说明：XNODE DSN 保护总开关 **`企业版参数`**；`0`：关闭，`SHOW XNODE TASKS` 和 `SHOW XNODE JOBS` 返回明文 DSN；`1`：开启，上述 `SHOW` 输出中的 DSN 敏感值以 `******` 脱敏返回。详见 [安全加固指南 · XNODE DSN 保护](../../11-security-guide/08-security-hardening.md#xnode-dsn-protection)
+- 类型：整数；`0`：关闭，`1`：开启
+- 默认值：`0`
+- 最小值：`0`
+- 最大值：`1`
+- 参数类型：全局配置参数
+- 动态修改：不支持
+- 支持版本：`v3.4.3.0` 引入
+
+#### xnodeDsnPublicKeyFile
+
+- 说明：共享公钥文件（X.509 SubjectPublicKeyInfo PEM 格式，RSA-2048）的本地路径 **`企业版参数`**；仅在 `xnodeDsnProtection` 为 `1` 时由 `mnode` 加载和校验，用于加密 `SHOW` 输出的 DSN，保护开启时文件缺失、不可读或非法将导致 `taosd` 启动失败，保护关闭时不读取
+- 类型：字符串
+- 默认值：空
+- 参数类型：局部配置参数
+- 动态修改：不支持
+- 支持版本：`v3.4.3.0` 引入
+
+#### xnodedDsnPrivateKeyFile
+
+- 说明：共享私钥文件（PKCS#8 PEM 格式，RSA-2048）的本地路径 **`企业版参数`**；由 `taosd` 转交给其启动的 `xnoded` 子进程，`taosd` 只转交路径，不读取私钥内容
+- 类型：字符串
+- 默认值：空
+- 参数类型：局部配置参数
+- 动态修改：不支持
+- 支持版本：`v3.4.3.0` 引入
+
 ### 流计算参数 {#流计算参数}
 
 流式计算的语法与运维说明见 [流式计算](../../07-stream-processing/index.md)。下列为与流式计算相关的 `taosd` 配置参数。

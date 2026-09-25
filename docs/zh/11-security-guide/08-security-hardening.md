@@ -281,6 +281,55 @@ labels:
 - 中间件 `check-header`：配置自定义 Headers 检查。外部访问必须添加自定义 Header 并匹配 Header 值，避免非法访问。这在提供 API 访问时是一个非常简单有效的安全机制。
 - 中间件 `tdengine-ipwhitelist`：配置 IP 白名单。仅允许指定 IP 访问，使用 CIDR 路由规则进行匹配，可以设置内网及外网 IP 地址。
 
+## XNODE DSN 保护 {#xnode-dsn-protection}
+
+自 `v3.4.3.0` 起，TDengine 企业版提供 XNODE DSN 保护能力。XNODE 任务和作业配置中的 DSN 可能包含数据源的用户名、密码等敏感信息。开启保护后，`SHOW XNODE TASKS` 和 `SHOW XNODE JOBS` 输出中的 DSN 敏感值以 `******` 脱敏返回。
+
+`ALTER XNODE TASK`/`ALTER XNODE JOB` 以 `******` 提交的敏感字段表示保持原有值不变，不会被当作真实凭据写入。
+
+本能力保护 `SHOW` 输出与运行时下发链路，不改变 DSN 在服务器上的存储方式。
+
+### 配置项
+
+| 组件 | 配置项 | 说明 |
+| --- | --- | --- |
+| `taosd` | `taos.cfg` 的 `xnodeDsnProtection` | 保护总开关，`0`（默认）关闭，`1` 开启 |
+| `taosd` | `taos.cfg` 的 `xnodeDsnPublicKeyFile` | 共享公钥文件（X.509 SubjectPublicKeyInfo PEM，RSA-2048）的本地路径 |
+| `taosd` | `taos.cfg` 的 `xnodedDsnPrivateKeyFile` | 共享私钥文件（PKCS#8 PEM，RSA-2048）的本地路径，`taosd` 只将路径转交给其启动的 `xnoded` 子进程，不读取私钥内容 |
+| taosExplorer | `explorer.toml` 的 `xnode_dsn_private_key_file` | 共享私钥文件的本地路径 |
+| taosX | `taosx.toml` 的 `[serve].xnode_dsn_private_key_file` | 共享私钥文件的本地路径 |
+
+上述配置项的默认值均为关闭或空，且都不支持运行期热加载，修改配置或替换密钥文件后必须重启对应服务。各参数的详细说明见 [taosd 配置参数](../12-operations-and-tooling/03-components/01-taosd.md)、[taosX 配置](../12-operations-and-tooling/03-components/06-taosx.md) 与 [taosExplorer 配置](../12-operations-and-tooling/03-components/04-explorer.md)。
+
+### 部署与启用
+
+1. 生成一套共享的 RSA-2048 密钥对：
+
+    ```bash
+    # 生成私钥（PKCS#8 PEM）
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out xnode-dsn-private.pem
+    # 导出公钥（X.509 SubjectPublicKeyInfo PEM）
+    openssl pkey -in xnode-dsn-private.pem -pubout -out xnode-dsn-public.pem
+    ```
+
+2. 分发密钥：将公钥部署到所有可能运行 `mnode` 的 `taosd` 节点；将同一私钥部署到所有 `taosExplorer` 节点、所有可能由 `taosd` 启动 `xnoded` 的节点以及所有 taosX 节点。各实例可以使用不同的本地路径，但密钥内容必须一致。私钥文件须按最小权限部署（如 `chmod 600`，属主为对应服务账户）；安装包与配置模板不包含真实密钥，也不会在节点之间自动复制私钥。
+
+3. 配置各组件：`taos.cfg` 设置 `xnodeDsnPublicKeyFile` 与 `xnodedDsnPrivateKeyFile`，`explorer.toml` 设置 `xnode_dsn_private_key_file`，`taosx.toml` 的 `[serve]` 段设置 `xnode_dsn_private_key_file`。
+
+4. 在维护窗口内将所有 `mnode` 节点的 `xnodeDsnProtection` 置为 `1`，重启所有 `taosd`（连带 `xnoded`）、`taosExplorer` 和 taosX 服务，并重新加载浏览器页面。
+
+### 回退
+
+在维护窗口内将所有 `mnode` 节点的 `xnodeDsnProtection` 统一恢复为 `0`，重启所有 `taosd`（连带 `xnoded`）、`taosExplorer` 和 taosX 服务，并重新加载浏览器页面。不支持只回退部分组件。
+
+### 注意事项
+
+- 保护开关与密钥路径均不支持运行期动态修改和热加载，变更后必须重启对应服务。
+- 所有相关组件（`taosd`、`taosExplorer`、`xnoded`、taosX）必须在同一维护窗口统一升级到同一版本，不支持混合版本运行。
+- 本能力暂不支持 Windows 平台；在 Windows 上显式开启保护会返回 `TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS` 错误。
+- 密钥轮换只能在维护窗口内统一进行：向所有实例部署同一新密钥并更新配置后统一重启，不支持在线轮换或仅轮换部分实例，轮换前须排空进行中的管理操作。
+- 私钥内容的读取方仅为 `taosExplorer`、`xnoded` 和 taosX，`taosd` 不读取私钥；任一私钥副本泄露都会使整个共享信任域的保护失效，请妥善保管。
+
 ## 总结
 
 数据安全是 TDengine 产品的一项关键指标，这些措施旨在保护 TDengine 部署免受未经授权的访问和数据泄露，同时保持性能和功能。但 TDengine 自身的安全配置不是生产中的唯一保障，结合业务系统制定更加匹配需求的解决方案更加重要。已知漏洞与修复版本见 [安全公告](./09-security-advisories.md)。

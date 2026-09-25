@@ -409,6 +409,7 @@ Build with `--features swagger-ui` to provide Swagger UI at `/swagger-ui/`. Buil
 - `serve.ssl_ca`: SSL/TLS certificate authority (CA) certificates.
 - `serve.request_timeout`: Global interface API timeout.
 - `serve.grpc`:`taosX` gRPC listening address, default value is `0.0.0.0:6055`. Supports IPv6 and multiple comma-separated addresses with the same port.
+- `serve.xnode_dsn_private_key_file`: Local path of the shared RSA-2048 private key file (PKCS#8 PEM) used to decrypt XNODE DSN runtime envelopes delivered from `xnoded`. Default is empty, meaning no private key is configured; restart the service after modification. See [Security Hardening](../../11-security-guide/08-security-hardening.md#xnode-dsn-protection).
 - `rest_api_threads`: Runtime worker threads for rest api service, default value is `current server cores*2`.
 - `grpc_threads`: Runtime worker threads for grpc service, default value is `current server cores*2`.
 - `scheduler_threads`: Runtime worker threads for scheduler service, default value is `current server cores*2`.
@@ -477,6 +478,14 @@ As shown below:
 
 # number of threads used for scheduler service, default to 0 (means cores * 2)
 #scheduler_threads = 0
+
+# Local path of the shared RSA-2048 private key file (PKCS#8 PEM)
+# used to decrypt XNODE DSN runtime envelopes delivered from xnoded.
+# Empty (default) means no private key configured; only plaintext DSN values
+# produced while protection is disabled can be processed in that case.
+# Not re-loadable at runtime; restart taosX after changing this value or
+# replacing the key file.
+#xnode_dsn_private_key_file = "/etc/taos/xnode-dsn-private.pem"
 
 [monitor]
 # FQDN of taosKeeper service, no default value

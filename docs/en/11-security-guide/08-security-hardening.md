@@ -281,6 +281,53 @@ The startup parameters configure the `default` TLS certificate resolver and auto
 - Middleware `check-header`: Configure custom header checks. External access must add custom headers and match header values to prevent unauthorized access. This is a very simple and effective security mechanism when providing API access.
 - Middleware `tdengine-ipwhitelist`: Configure IP whitelist. Only allow specified IPs to access, using CIDR routing rules for matching, and can set internal and external IP addresses.
 
+## XNODE DSN Protection {#xnode-dsn-protection}
+
+Starting from `v3.4.3.0`, TDengine Enterprise provides XNODE DSN protection. DSNs in XNODE task and job configurations may contain sensitive information such as data source usernames and passwords. When protection is enabled, sensitive DSN values in the output of `SHOW XNODE TASKS` and `SHOW XNODE JOBS` are masked as `******`.
+
+A sensitive field submitted as `******` through `ALTER XNODE TASK`/`ALTER XNODE JOB` keeps its existing value and is not written as a real credential.
+
+This capability protects `SHOW` output and the runtime delivery link; it does not change how DSNs are stored on the server.
+
+### Configuration Items
+
+| Component | Configuration Item | Description |
+| --- | --- | --- |
+| `taosd` | `xnodeDsnProtection` in `taos.cfg` | Master switch for protection; `0` (default) disables it, `1` enables it |
+| `taosd` | `xnodeDsnPublicKeyFile` in `taos.cfg` | Local path of the shared public key file (X.509 SubjectPublicKeyInfo PEM, RSA-2048) |
+| `taosd` | `xnodedDsnPrivateKeyFile` in `taos.cfg` | Local path of the shared private key file (PKCS#8 PEM, RSA-2048); `taosd` only passes the path to the `xnoded` child process it starts and never reads the key content |
+| taosExplorer | `xnode_dsn_private_key_file` in `explorer.toml` | Local path of the shared private key file |
+| taosX | `[serve].xnode_dsn_private_key_file` in `taosx.toml` | Local path of the shared private key file |
+
+All of the above items default to disabled or empty, and none of them can be reloaded at runtime; after modifying a configuration item or replacing a key file, you must restart the corresponding service. For details, see [taosd Configuration Parameters](../12-operations-and-tooling/03-components/01-taosd.md), [taosX Configuration](../12-operations-and-tooling/03-components/06-taosx.md), and [taosExplorer Configuration](../12-operations-and-tooling/03-components/04-explorer.md).
+
+### Deployment and Enablement
+
+1. Generate a shared RSA-2048 key pair:
+
+    ```bash
+    # Generate the private key (PKCS#8 PEM)
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out xnode-dsn-private.pem
+    # Export the public key (X.509 SubjectPublicKeyInfo PEM)
+    openssl pkey -in xnode-dsn-private.pem -pubout -out xnode-dsn-public.pem
+    ```
+
+2. Distribute the keys: deploy the public key to all `taosd` nodes that may run `mnode`, and deploy the same private key to all `taosExplorer` nodes, all nodes where `taosd` may start `xnoded`, and all taosX nodes. Instances may use different local paths, but the key material must be identical. Deploy private key files with minimal permissions (for example, `chmod 600` with the corresponding service account as owner); installation packages and configuration templates do not contain real keys and never copy private keys across nodes automatically.
+3. Configure the components: set `xnodeDsnPublicKeyFile` and `xnodedDsnPrivateKeyFile` in `taos.cfg`, set `xnode_dsn_private_key_file` in `explorer.toml`, and set `xnode_dsn_private_key_file` in the `[serve]` section of `taosx.toml`.
+4. During a maintenance window, set `xnodeDsnProtection` to `1` on all nodes running `mnode`, restart all `taosd` processes (together with `xnoded`), `taosExplorer`, and taosX services, and reload the browser pages.
+
+### Rollback
+
+During a maintenance window, set `xnodeDsnProtection` back to `0` on all nodes running `mnode`, restart all `taosd` processes (together with `xnoded`), `taosExplorer`, and taosX services, and reload the browser pages. Rolling back only some components is not supported.
+
+### Notes
+
+- Neither the protection switch nor the key paths support runtime modification or hot reload; any change requires restarting the corresponding service.
+- All related components (`taosd`, `taosExplorer`, `xnoded`, taosX) must be upgraded to the same version within the same maintenance window; running mixed versions is not supported.
+- This capability is not supported on Windows; explicitly enabling protection on Windows returns the `TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS` error.
+- Key rotation can only be performed uniformly during a maintenance window: deploy the same new key to all instances, update the configuration, and restart together; online rotation or rotating only some instances is not supported, and in-progress management operations must be drained before rotation.
+- The private key content is read only by `taosExplorer`, `xnoded`, and taosX; `taosd` never reads it. Leakage of any private key copy invalidates the protection of the entire shared trust domain, so keep it safe.
+
 ## Summary
 
 Data security is a key indicator of the TDengine product. These measures are designed to protect TDengine deployments from unauthorized access and data breaches while maintaining performance and functionality. However, TDengine configuration alone is not sufficient; deployments must be secured together with the surrounding business system. For known vulnerabilities and fixed versions, see [Security Advisories](./09-security-advisories.md).
