@@ -153,6 +153,9 @@ This document compares the configuration parameters of taosd (server-side) and t
 | udfdResFuncs | taosd | Internal parameter, for setting UDF result sets |
 | udfdLdLibPath | taosd | Internal parameter, indicates the library path for loading UDF |
 | enableStrongPassword | taosd | Password requirements for strong password validation |
+| `xnodeDsnProtection` | `taosd` | Master switch for XNODE DSN protection; when enabled, sensitive DSN values in `SHOW XNODE TASKS` and `SHOW XNODE JOBS` output are masked as `******` |
+| `xnodeDsnPublicKeyFile` | `taosd` | Local path of the shared public key file loaded by `mnode`, read and verified only when `xnodeDsnProtection` is `1` |
+| `xnodedDsnPrivateKeyFile` | `taosd` | Local path of the shared private key file handed over by `taosd` to the `xnoded` child process; `taosd` only passes the path through and never reads the key content |
 | **Stream Computing Parameters** | | |
 | numOfMnodeStreamMgmtThreads | taosd | Number of mnode stream computing management threads |
 | numOfStreamMgmtThreads | taosd | Number of snode stream computing management threads |

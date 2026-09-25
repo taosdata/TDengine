@@ -346,8 +346,11 @@ int32_t envelopeLoadPublicKeyBytes(const uint8_t *pem, int32_t pem_len, SEnvelop
   }
 
   pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
-  if (pkey == NULL || !envelopeBioHasOnlyWhitespace(bio) || EVP_PKEY_is_a(pkey, "RSA") != 1 ||
-      EVP_PKEY_get_bits(pkey) != ENVELOPE_CRYPTO_RSA_BITS || EVP_PKEY_get_size(pkey) != ENVELOPE_CRYPTO_RSA_BYTES) {
+  /* Use the pre-3.0 EVP_PKEY accessors: the c2r-emitter CI gate compiles this
+     file against the system OpenSSL, which may be 1.1 (the bundled 3.x headers
+     map these names onto the EVP_PKEY_get_* variants). */
+  if (pkey == NULL || !envelopeBioHasOnlyWhitespace(bio) || EVP_PKEY_base_id(pkey) != EVP_PKEY_RSA ||
+      EVP_PKEY_bits(pkey) != ENVELOPE_CRYPTO_RSA_BITS || EVP_PKEY_size(pkey) != ENVELOPE_CRYPTO_RSA_BYTES) {
     goto cleanup;
   }
   if (BIO_free(bio) != 1) {

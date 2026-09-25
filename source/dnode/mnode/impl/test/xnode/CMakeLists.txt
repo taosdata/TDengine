@@ -300,7 +300,7 @@ else()
     COPYONLY
   )
 
-  add_executable(envelopeCryptoTest "envelopeCryptoTest.cpp")
+  add_executable(envelopeCryptoTest "envelopeCryptoTest.cpp" "emitC2RVectors.cpp")
   DEP_ext_gtest(envelopeCryptoTest)
   DEP_ext_ssl(envelopeCryptoTest)
   target_compile_definitions(

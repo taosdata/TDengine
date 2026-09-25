@@ -677,6 +677,18 @@ TEST_F(XnodeSixStarWriteTest, LoadsWholeFixtureWithoutRejection) {
   EXPECT_EQ(loadError, "");
   EXPECT_GT(fixture.scanCases.size(), 0u);
   EXPECT_GT(fixture.mergeCases.size(), 0u);
+
+  // T14 interop gate: emit the load-validated manifest digest so the release
+  // report can compare it against the Rust side's report line.
+  cJSON *root = cJSON_Parse(fixtureText.c_str());
+  if (root != nullptr) {
+    cJSON *manifest = cJSON_GetObjectItem(root, "case_manifest");
+    cJSON *digest = manifest == nullptr ? nullptr : cJSON_GetObjectItem(manifest, "case_ids_sha256_b64url");
+    if (digest != nullptr && cJSON_IsString(digest)) {
+      printf("XNODE_SIXSTAR_CASE_IDS_SHA256=%s\n", digest->valuestring);
+    }
+    cJSON_Delete(root);
+  }
 }
 
 // Phase 2 (execute): every case runs; a failed case is recorded by the
@@ -713,7 +725,13 @@ TEST_F(XnodeSixStarWriteTest, ExecutesAllScanCases) {
         }
       }
     } else {
-      EXPECT_EQ(code, TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED);
+      // CONNECTION_CHANGED carries its own SQL-visible code so clients can
+      // tell "re-enter the sensitive values" apart from other rejections.
+      if (scanCase.errorId == "SIXSTAR_CONNECTION_CHANGED") {
+        EXPECT_EQ(code, TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED);
+      } else {
+        EXPECT_EQ(code, TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED);
+      }
       EXPECT_EQ(SixStarErrorName(sixStarError), scanCase.errorId);
       EXPECT_EQ(numSlots, 0);
       EXPECT_EQ(slots, nullptr);
@@ -762,7 +780,13 @@ TEST_F(XnodeSixStarWriteTest, ExecutesAllMergeCases) {
         }
       }
     } else {
-      EXPECT_EQ(code, TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED);
+      // CONNECTION_CHANGED carries its own SQL-visible code so clients can
+      // tell "re-enter the sensitive values" apart from other rejections.
+      if (mergeCase.errorId == "SIXSTAR_CONNECTION_CHANGED") {
+        EXPECT_EQ(code, TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED);
+      } else {
+        EXPECT_EQ(code, TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED);
+      }
       EXPECT_EQ(SixStarErrorName(sixStarError), mergeCase.errorId);
       EXPECT_EQ(output.from, nullptr);
       EXPECT_EQ(output.to, nullptr);
@@ -952,6 +976,55 @@ TEST_F(XnodeSixStarWriteTest, KeepsJobSecretWhenViaIsOmitted) {
   EXPECT_EQ(mndXnodeSixStarMerge(&input, &output, &sixStarError), TSDB_CODE_SUCCESS);
   EXPECT_EQ(std::string(output.config, output.configLen), expectedConfig);
   mndXnodeSixStarMergeOutputFree(&output);
+}
+
+TEST_F(XnodeSixStarWriteTest, ConnectionChangedMapsToDistinctSqlError) {
+  // KEEP while relocating the connection is rejected with
+  // TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED (not the generic protection
+  // code) so clients can prompt for the sensitive values to be re-entered.
+  SXnodeSixStarMergeInput input = {0};
+  std::string             oldFrom = "taos://u:old-password@from-host/db";
+  std::string             candFrom = "taos://u:******@other-host/db";
+  input.protectionEnabled = true;
+  input.oldFrom = {oldFrom.data(), static_cast<int32_t>(oldFrom.size())};
+  input.candidateFrom = {candFrom.data(), static_cast<int32_t>(candFrom.size())};
+  input.maxFromLen = TSDB_XNODE_TASK_SOURCE_LEN;
+  SXnodeSixStarMergeOutput output = {0};
+  int32_t                  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  EXPECT_EQ(mndXnodeSixStarMerge(&input, &output, &sixStarError),
+            TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED);
+  EXPECT_EQ(sixStarError, XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED);
+  mndXnodeSixStarMergeOutputFree(&output);
+
+  // An explicit route change under KEEP takes the same distinct code (the
+  // connection fields themselves stay identical here).
+  std::string keepFrom = "taos://u:******@from-host/db";
+  SXnodeSixStarMergeInput viaInput = {0};
+  viaInput.protectionEnabled = true;
+  viaInput.oldVia = 7;
+  viaInput.candidateVia = 9;
+  viaInput.oldFrom = {oldFrom.data(), static_cast<int32_t>(oldFrom.size())};
+  viaInput.candidateFrom = {keepFrom.data(), static_cast<int32_t>(keepFrom.size())};
+  viaInput.maxFromLen = TSDB_XNODE_TASK_SOURCE_LEN;
+  SXnodeSixStarMergeOutput viaOutput = {0};
+  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  EXPECT_EQ(mndXnodeSixStarMerge(&viaInput, &viaOutput, &sixStarError),
+            TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED);
+  EXPECT_EQ(sixStarError, XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED);
+  mndXnodeSixStarMergeOutputFree(&viaOutput);
+
+  // Other rejection reasons keep the generic protection code.
+  SXnodeSixStarMergeInput createInput = {0};
+  createInput.create = true;
+  createInput.protectionEnabled = true;
+  createInput.candidateFrom = {candFrom.data(), static_cast<int32_t>(candFrom.size())};
+  createInput.maxFromLen = TSDB_XNODE_TASK_SOURCE_LEN;
+  SXnodeSixStarMergeOutput createOutput = {0};
+  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  EXPECT_EQ(mndXnodeSixStarMerge(&createInput, &createOutput, &sixStarError),
+            TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED);
+  EXPECT_EQ(sixStarError, XNODE_SIXSTAR_ERROR_CREATE_MASKED);
+  mndXnodeSixStarMergeOutputFree(&createOutput);
 }
 
 TEST_F(XnodeSixStarWriteTest, TreatsPercentEncodedSixStarAsControlMarker) {
