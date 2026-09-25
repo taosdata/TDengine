@@ -550,6 +550,114 @@ TEST_F(XnodeShowProtectionTest, EncryptsJobConfigDsnValuesWithRealKey) {
   ASSERT_EQ(unlink(keyFile.path), 0);
   keyFile.path[0] = 0;  // disarm on the happy path; the guard covers early returns
 }
+
+// mnode->xnoded HTTP DSN pass-through with protection off: the helper must not
+// touch the strings and must not require a key.
+TEST_F(XnodeShowProtectionTest, HttpTaskDsnsPassThroughWhenProtectionOff) {
+  ASSERT_EQ(osDefaultInit(), TSDB_CODE_SUCCESS);
+  taosCleanupCfg();
+  CfgStateGuard cfgGuard;
+  cfgGuard.args = taosArrayInit(1, sizeof(SConfigPair));
+  ASSERT_NE(cfgGuard.args, nullptr);
+  SConfigPair dataDir = {.name = "dataDir", .value = TD_TMP_DIR_PATH};
+  ASSERT_NE(taosArrayPush(cfgGuard.args, &dataDir), nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, cfgGuard.args, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, cfgGuard.args, false), TSDB_CODE_SUCCESS);
+
+  char *from = taosStrdup("tmq+ws://root:secret-pw@127.0.0.1:6041/topic");
+  char *to = taosStrdup("taos+ws://root:secret-pw@127.0.0.1:6041/db");
+  ASSERT_NE(from, nullptr);
+  ASSERT_NE(to, nullptr);
+  EXPECT_EQ(mndXnodeProtectHttpTaskDsns(&from, &to), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(from, "tmq+ws://root:secret-pw@127.0.0.1:6041/topic");
+  EXPECT_STREQ(to, "taos+ws://root:secret-pw@127.0.0.1:6041/db");
+  taosMemoryFree(from);
+  taosMemoryFree(to);
+}
+
+// End-to-end coverage for mnode->xnoded HTTP DSN encryption with a real RSA
+// public key: check/start request bodies must carry V1 envelopes when
+// protection is on, and failures must close without touching the originals.
+TEST_F(XnodeShowProtectionTest, ProtectsHttpTaskDsnsWithRealKey) {
+  static const char kPublicKeyPem[] =
+      "-----BEGIN PUBLIC KEY-----\n"
+      "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs8qSvvNIiSkYqTFJ+s/R\n"
+      "m2tMKilFWV8CiZ7iZ4S4+v/77zFpQNHm0zLwOK8hbf0RRP3mdQhPSINdKTl4lbmi\n"
+      "pVL86oVQzIuiBw+xpeYfufOSsuI59xq71l3om5iliWOxRsxZkCK7E1h12mLfjYWz\n"
+      "x5R2OEVySN8/1pBIIMvAYPIC8p6iyExYSw6dNTjFdKWX4eAdZkX0c9aCZXlC1fcJ\n"
+      "SgNSyCV1wWdtdcYV1v0VuxzDkPGGudrHunoDXO6Fe2OdOqTe34XPSk1DnhZuSIVl\n"
+      "fZkhNTV3ezdoAgUBxfwjRjh94llBRjY+9mN78sdiU6hnZQUkXjmHzVPAVa4B7qmv\n"
+      "CQIDAQAB\n"
+      "-----END PUBLIC KEY-----\n";
+  TempKeyFileGuard keyFile;
+  memcpy(keyFile.path, "/tmp/taos-xnode-http-pub-XXXXXX", sizeof("/tmp/taos-xnode-http-pub-XXXXXX"));
+  const int fd = mkstemp(keyFile.path);
+  ASSERT_GE(fd, 0);
+  ASSERT_EQ(write(fd, kPublicKeyPem, sizeof(kPublicKeyPem) - 1),
+            static_cast<ssize_t>(sizeof(kPublicKeyPem) - 1));
+  ASSERT_EQ(close(fd), 0);
+
+  ASSERT_EQ(osDefaultInit(), TSDB_CODE_SUCCESS);
+  taosCleanupCfg();
+  CfgStateGuard cfgGuard;
+  cfgGuard.args = taosArrayInit(1, sizeof(SConfigPair));
+  ASSERT_NE(cfgGuard.args, nullptr);
+  SConfigPair dataDir = {.name = "dataDir", .value = TD_TMP_DIR_PATH};
+  ASSERT_NE(taosArrayPush(cfgGuard.args, &dataDir), nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, cfgGuard.args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", keyFile.path, CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, cfgGuard.args, false), TSDB_CODE_SUCCESS);
+  ASSERT_NE(taosGetXnodeDsnPublicKey(), nullptr);
+
+  // Both fields become V1 envelopes under one request-level batch; the
+  // plaintext copies are wiped by the in-place swap.
+  char *from = taosStrdup("tmq+ws://root:secret-pw@127.0.0.1:6041/topic");
+  char *to = taosStrdup("taos+ws://root:secret-pw@127.0.0.1:6041/db");
+  ASSERT_NE(from, nullptr);
+  ASSERT_NE(to, nullptr);
+  ASSERT_EQ(mndXnodeProtectHttpTaskDsns(&from, &to), TSDB_CODE_SUCCESS);
+  const std::string fromOut(from);
+  const std::string toOut(to);
+  taosMemoryFree(from);
+  taosMemoryFree(to);
+  EXPECT_EQ(fromOut.rfind("XNODE_DSN_V1:", 0), 0);
+  EXPECT_EQ(toOut.rfind("XNODE_DSN_V1:", 0), 0);
+  EXPECT_EQ(fromOut.find("secret-pw"), std::string::npos);
+  EXPECT_EQ(toOut.find("secret-pw"), std::string::npos);
+
+  // A missing field stays NULL while the present field is still encrypted.
+  char *onlyFrom = taosStrdup("taos://u:p@h/db");
+  char *nullTo = nullptr;
+  ASSERT_NE(onlyFrom, nullptr);
+  ASSERT_EQ(mndXnodeProtectHttpTaskDsns(&onlyFrom, &nullTo), TSDB_CODE_SUCCESS);
+  const std::string onlyFromOut(onlyFrom);
+  taosMemoryFree(onlyFrom);
+  EXPECT_EQ(onlyFromOut.rfind("XNODE_DSN_V1:", 0), 0);
+  EXPECT_EQ(nullTo, nullptr);
+
+  // Both fields absent: no batch is begun and the call is a no-op.
+  char *nullFrom = nullptr;
+  EXPECT_EQ(mndXnodeProtectHttpTaskDsns(&nullFrom, &nullTo), TSDB_CODE_SUCCESS);
+
+  // Over-cap input fails closed with the canonical protection code; the
+  // originals stay untouched so no half-encrypted request can be sent.
+  const std::string oversized(TSDB_XNODE_TASK_SOURCE_LEN + 1, 'a');
+  char *capFrom = taosStrdup(oversized.c_str());
+  char *capTo = taosStrdup("taos://u:p@h/db");
+  ASSERT_NE(capFrom, nullptr);
+  ASSERT_NE(capTo, nullptr);
+  EXPECT_EQ(mndXnodeProtectHttpTaskDsns(&capFrom, &capTo), TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED);
+  EXPECT_STREQ(capFrom, oversized.c_str());
+  EXPECT_STREQ(capTo, "taos://u:p@h/db");
+  taosMemoryFree(capFrom);
+  taosMemoryFree(capTo);
+
+  ASSERT_EQ(unlink(keyFile.path), 0);
+  keyFile.path[0] = 0;  // disarm on the happy path; the guard covers early returns
+}
 #endif
 
 }  // namespace
