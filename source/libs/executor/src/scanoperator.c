@@ -6414,7 +6414,7 @@ int32_t tblCountScanGetInputs(SNodeList* groupTags, SName* tableName, STableCoun
 }
 
 int32_t getTableCountScanSupp(SNodeList* groupTags, SName* tableName, SNodeList* scanCols, SNodeList* pseudoCols,
-                              STableCountScanSupp* supp, SExecTaskInfo* taskInfo) {
+                              int8_t tbCountType, STableCountScanSupp* supp, SExecTaskInfo* taskInfo) {
   int32_t code = 0;
   code = tblCountScanGetInputs(groupTags, tableName, supp);
   if (code != TSDB_CODE_SUCCESS) {
@@ -6425,6 +6425,7 @@ int32_t getTableCountScanSupp(SNodeList* groupTags, SName* tableName, SNodeList*
   supp->dbNameSlotId = -1;
   supp->stbNameSlotId = -1;
   supp->tbCountSlotId = -1;
+  supp->tbCountType = tbCountType;
 
   code = tblCountScanGetGroupTagsSlotId(scanCols, supp);
   if (code != TSDB_CODE_SUCCESS) {
@@ -6466,8 +6467,8 @@ int32_t createTableCountScanOperatorInfo(SReadHandle* readHandle, STableCountSca
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = getTableCountScanSupp(pTblCountScanNode->pGroupTags, &pTblCountScanNode->scan.tableName,
-                               pTblCountScanNode->scan.pScanCols, pTblCountScanNode->scan.pScanPseudoCols, &pInfo->supp,
-                               pTaskInfo);
+                               pTblCountScanNode->scan.pScanCols, pTblCountScanNode->scan.pScanPseudoCols,
+                               pTblCountScanNode->tbCountType, &pInfo->supp, pTaskInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   setOperatorInfo(pOperator, "TableCountScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN, false, OP_NOT_OPENED,
@@ -6562,6 +6563,10 @@ static void buildSysDbFilterTableCount(SOperatorInfo* pOperator, STableCountScan
   if (strlen(pSupp->stbNameFilter) != 0) {
     // sys dbs do not contain any stable, so the count is always 0
     code = fillTableCountScanDataBlock(pSupp, "", "", 0, pRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if (pSupp->tbCountType != 0 && pSupp->tbCountType != TSDB_SYSTEM_TABLE) {
+    // sys dbs only contain SYSTEM_TABLE rows, so any other type filter yields 0
+    code = fillTableCountScanDataBlock(pSupp, pSupp->dbNameFilter, "", 0, pRes);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (strcmp(pSupp->dbNameFilter, TSDB_INFORMATION_SCHEMA_DB) == 0) {
     code = fillTableCountScanDataBlock(pSupp, TSDB_INFORMATION_SCHEMA_DB, "", infodbTableNum, pRes);
@@ -6671,7 +6676,7 @@ static int32_t buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCountScanO
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
   // get dbname
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL);
   SName sn = {0};
 
   code = tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
@@ -6728,9 +6733,9 @@ static int32_t buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCount
     uint64_t groupId = calcGroupId(dbName, strlen(dbName));
     pRes->info.id.groupId = groupId;
 
-    int64_t dbTableCount = 0;
-    pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, &dbTableCount, NULL);
-    code = fillTableCountScanDataBlock(pSupp, dbName, "", dbTableCount, pRes);
+    SVnodeTableNums tbNums = {0};
+    pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, &tbNums);
+    code = fillTableCountScanDataBlock(pSupp, dbName, "", vnodeTbNumsTotal(&tbNums), pRes);
     QUERY_CHECK_CODE(code, lino, _end);
     setOperatorCompleted(pOperator);
   }
@@ -6772,8 +6777,11 @@ static int32_t buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountSc
       QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {
-    int64_t tbNumVnode = 0;
-    pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, &tbNumVnode, NULL);
+    SVnodeTableNums tbNums = {0};
+    pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, &tbNums);
+    // A SUPER_TABLE filter yields 0 since ins_tables contains no super-table rows
+    int64_t tbNumVnode = (pSupp->tbCountType != 0) ? vnodeTbNumsByType(&tbNums, pSupp->tbCountType)
+                                                   : vnodeTbNumsTotal(&tbNums);
     code = fillTableCountScanDataBlock(pSupp, dbName, "", tbNumVnode, pRes);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -6800,9 +6808,10 @@ static int32_t buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
 
-  int64_t numOfTables = 0;
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, NULL, &numOfTables);
+  SVnodeTableNums tbNums = {0};
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, &tbNums);
 
+  int64_t numOfTables = vnodeTbNumsStandalone(&tbNums);
   if (numOfTables != 0) {
     code = fillTableCountScanDataBlock(pSupp, dbName, "", numOfTables, pRes);
   }

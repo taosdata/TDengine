@@ -179,6 +179,14 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.stables", pCfg->vndStats.numOfSTables));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.ctables", pCfg->vndStats.numOfCTables));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.ntables", pCfg->vndStats.numOfNTables));
+  // Keep the virtual-table counters absent when the loaded config predates them
+  // (rebuildVTableStats): re-encoding the zeroed counters (e.g. from
+  // vnodeAlterReplica/vnodeAlterHashRange, which never rebuild) would mask the
+  // one-time rebuild at vnode open and silently stick the counters at 0.
+  if (!pCfg->rebuildVTableStats) {
+    TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.vtables", pCfg->vndStats.numOfVTables));
+    TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.vctables", pCfg->vndStats.numOfVCTables));
+  }
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.timeseries", pCfg->vndStats.numOfTimeSeries));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.rsmas", pCfg->vndStats.numOfRSMAs));
@@ -377,6 +385,15 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "vndStats.ntables", pCfg->vndStats.numOfNTables, code);
   if (code) return code;
+  tjsonGetNumberValue(pJson, "vndStats.vtables", pCfg->vndStats.numOfVTables, code);
+  tjsonGetNumberValue(pJson, "vndStats.vctables", pCfg->vndStats.numOfVCTables, code);
+  // configs written before the virtual-table counters were persisted lack these
+  // keys; request a one-time rebuild from meta at vnode open (the getters above
+  // do not report missing keys, so check presence explicitly)
+  if (tjsonGetObjectItem(pJson, "vndStats.vtables") == NULL ||
+      tjsonGetObjectItem(pJson, "vndStats.vctables") == NULL) {
+    pCfg->rebuildVTableStats = true;
+  }
   tjsonGetNumberValue(pJson, "vndStats.timeseries", pCfg->vndStats.numOfTimeSeries, code);
   if (code) return code;
   tjsonGetNumberValue(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries, code);
