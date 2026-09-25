@@ -589,6 +589,7 @@ typedef struct STableCountScanSupp {
   bool    groupByStbName;
   char    dbNameFilter[TSDB_DB_NAME_LEN];
   char    stbNameFilter[TSDB_TABLE_NAME_LEN];
+  int8_t  tbCountType;  // ins_tables row type filter (TSDB_* table entry type); 0 = no filter
 } STableCountScanSupp;
 
 typedef struct SOptrBasicInfo {

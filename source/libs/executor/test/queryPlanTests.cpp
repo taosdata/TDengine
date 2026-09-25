@@ -293,6 +293,7 @@ SQPTPlan qptPlans[] = {
   {QUERY_NODE_PHYSICAL_SUBPLAN, QPT_PLAN_SUBPLAN, "subplan", qptCreateSubplanNode},
   {QUERY_NODE_PHYSICAL_PLAN, QPT_PLAN_PLAN, "plan", qptCreateQueryPlanNode},
   {QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN, QPT_PLAN_PHYSIC, "tableCountScan", qptCreateTableCountScanPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE, QPT_PLAN_PHYSIC, "tableCountScanByType", qptCreateTableCountScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, QPT_PLAN_PHYSIC, "eventWindow", qptCreateMergeEventPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, QPT_PLAN_PHYSIC, "hashJoin", qptCreateHashJoinPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, QPT_PLAN_PHYSIC, "groupCache", qptCreateGroupCachePhysiNode},
@@ -2187,7 +2188,15 @@ SNode* qptCreateLastRowScanPhysiNode(int32_t nodeType) {
 }
 
 SNode* qptCreateTableCountScanPhysiNode(int32_t nodeType) {
-  return qptCreateLastRowScanPhysiNode(nodeType);
+  SNode* pNode = qptCreateLastRowScanPhysiNode(nodeType);
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE == nodeType) {
+    // BY_TYPE exists to carry a nonzero tbCountType filter; leaving it 0 would
+    // make the node indistinguishable from a plain table count scan.
+    static const int8_t kTypes[] = {TSDB_CHILD_TABLE, TSDB_NORMAL_TABLE, TSDB_VIRTUAL_NORMAL_TABLE,
+                                    TSDB_VIRTUAL_CHILD_TABLE};
+    ((STableCountScanPhysiNode*)pNode)->tbCountType = kTypes[taosRand() % (int32_t)(sizeof(kTypes) / sizeof(kTypes[0]))];
+  }
+  return pNode;
 }
 
 
@@ -3110,6 +3119,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
       qptCtx.result.code = createTableCountScanOperatorInfo(pReadHandle, (STableCountScanPhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
@@ -3639,6 +3649,36 @@ TEST(PlanNodeExtensionTest, PhysicalScanTriggerTableListRouteSurvivesCloneJsonAn
 
   SNode* pTlvNode = qptTlvRoundTrip((SNode*)pPhysical);
   ASSERT_TRUE(((STableScanPhysiNode*)pTlvNode)->scan.useTriggerTableList);
+  nodesDestroyNode(pTlvNode);
+
+  nodesDestroyNode((SNode*)pPhysical);
+}
+
+TEST(PlanNodeExtensionTest, TableCountScanByTypeJsonRoundTripKeepsTbCountType) {
+  STableCountScanPhysiNode* pPhysical = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE, (SNode**)&pPhysical));
+  pPhysical->tbCountType = TSDB_VIRTUAL_CHILD_TABLE;
+
+  // JSON round-trip must preserve the type filter (stream/TMQ plans serialize
+  // via qSubPlanToString/qStringToSubplan).
+  SNode* pJsonNode = qptJsonRoundTrip((SNode*)pPhysical);
+  ASSERT_NE(nullptr, pJsonNode);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE, nodeType(pJsonNode));
+  ASSERT_EQ(TSDB_VIRTUAL_CHILD_TABLE, ((STableCountScanPhysiNode*)pJsonNode)->tbCountType);
+  nodesDestroyNode(pJsonNode);
+
+  // A plan string written before TbCountType existed still decodes, as 0 (no
+  // filter), so old peers remain compatible.
+  const char* pFields[] = {"TbCountType"};
+  SNode*      pOldJsonNode = qptJsonRoundTripWithoutFields((SNode*)pPhysical, pFields, 1);
+  ASSERT_NE(nullptr, pOldJsonNode);
+  ASSERT_EQ(0, ((STableCountScanPhysiNode*)pOldJsonNode)->tbCountType);
+  nodesDestroyNode(pOldJsonNode);
+
+  SNode* pTlvNode = qptTlvRoundTrip((SNode*)pPhysical);
+  ASSERT_NE(nullptr, pTlvNode);
+  ASSERT_EQ(TSDB_VIRTUAL_CHILD_TABLE, ((STableCountScanPhysiNode*)pTlvNode)->tbCountType);
   nodesDestroyNode(pTlvNode);
 
   nodesDestroyNode((SNode*)pPhysical);

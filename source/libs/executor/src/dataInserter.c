@@ -2530,7 +2530,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, SDataSinkNode** ppDataSin
     goto _return;
   }
 
-  pManager->pAPI->metaFn.getBasicInfo(inserter->pParam->readHandle->vnode, &inserter->dbFName, NULL, NULL, NULL);
+  pManager->pAPI->metaFn.getBasicInfo(inserter->pParam->readHandle->vnode, &inserter->dbFName, NULL, NULL);
 
   if (pInserterNode->tableType == TSDB_SUPER_TABLE) {
     inserter->isStbInserter = true;
