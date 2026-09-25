@@ -819,6 +819,10 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE,
   QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER, // deprecated
   QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN,  // federated query scan operator
+  // Same plan as TABLE_COUNT_SCAN plus an ins_tables row type filter (tbCountType). Emitted only when
+  // the filter is present so that older vnodes reject the unknown node type instead of silently
+  // ignoring the filter and returning an unfiltered (too large) count during rolling upgrades.
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE,
   // xnode
   QUERY_NODE_CREATE_XNODE_STMT = 1200,  // Xnode
   QUERY_NODE_DROP_XNODE_STMT,

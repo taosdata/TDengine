@@ -1046,8 +1046,12 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
 
 static int32_t createTableCountScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
                                              SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
-  STableCountScanPhysiNode* pScan = (STableCountScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
-                                                                             QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN);
+  // A dedicated node type carries the row type filter: older vnodes fail loudly on the unknown node
+  // type instead of silently ignoring the filter and returning an unfiltered count.
+  ENodeType nodeType = (0 != pScanLogicNode->tbCountType) ? QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE
+                                                          : QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN;
+  STableCountScanPhysiNode* pScan =
+      (STableCountScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode, nodeType);
   if (NULL == pScan) {
     return terrno;
   }
@@ -1060,6 +1064,7 @@ static int32_t createTableCountScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
   }
 
   pScan->groupSort = pScanLogicNode->groupSort;
+  pScan->tbCountType = pScanLogicNode->tbCountType;
   if (pScanLogicNode->pVgroupList) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   }

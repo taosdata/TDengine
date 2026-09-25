@@ -165,6 +165,7 @@ typedef struct SMStbCursor SMStbCursor;
 
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
 int             metaUpgrade(SVnode* pVnode, SMeta** ppMeta);
+int32_t         metaRebuildVTableStats(SMeta* pMeta);
 void            metaClose(SMeta** pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
 TXN*            metaGetTxn(SMeta* pMeta);
