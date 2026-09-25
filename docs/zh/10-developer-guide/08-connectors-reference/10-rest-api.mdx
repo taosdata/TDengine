@@ -330,7 +330,7 @@ curl --location 'http://<fqdn>:<port>/rest/sql' \
         [
             "c3",
             "BLOB",
-            4194304
+            16777216
         ]
     ],
     "data": [
@@ -346,6 +346,7 @@ curl --location 'http://<fqdn>:<port>/rest/sql' \
 ```
 
 - `010100000000000000000059400000000000005940` 为 `point(100 100)` 的 [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  格式
+- `column_meta` 中 BLOB 列的长度由服务端返回，请以实际返回为准
 
 #### 错误
 
