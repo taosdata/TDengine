@@ -46,6 +46,7 @@ int32_t vnodeCalculateNodeGroupReadRange(STimeRangeNode *node, SStreamRuntimeFun
 int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
                                       int64_t walVer, SSTriggerWalNewRsp *pRsp);
 int32_t streamCollectTagCidsFromPartitionCols(SNodeList *partitionCols, SArray **ppTagCids);
+bool streamVTableInfoHasColumnRef(const SStreamMsgVTableInfo *pVTableInfo);
 int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInfo *sStreamReaderInfo,
                                          int64_t uid, uint64_t gid, int64_t ver, SArray *cids,
                                          SVTableResolveResult *pRes, SMetaReader *metaReader,
