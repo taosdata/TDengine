@@ -119,6 +119,7 @@ typedef struct SStreamTriggerReaderInfo {
   int8_t       tableType;
   int8_t       isVtableStream;  // whether is virtual table stream
   int8_t       isVtableOnlyTs;
+  int8_t       vTableReady;
   int8_t       deleteReCalc;
   int8_t       deleteOutTbl;
   SNode*       pTagCond;
