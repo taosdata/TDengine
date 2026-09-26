@@ -27973,7 +27973,7 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeReaderErrorKeepsLega
   tdListEmpty(&realtime_.retryPullReqs);
 }
 
-TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingTaskRetriesUntilBudgetThenFails) {
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingReaderReportsTriggerForRecovery) {
   ExpectNoManualRecalcJobs();
   ASSERT_EQ(ProcessRealtimeStart(), TSDB_CODE_SUCCESS);
   ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
@@ -27982,32 +27982,12 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingTaskRetriesUn
   ASSERT_NE(nullptr, request);
   EXPECT_EQ(ahandle->sessionId, kRealtimeSessionId);
   EXPECT_EQ(ahandle->manualAttempt.chainId, 0U);
-  const int64_t readerTaskId = request->readerTaskId;
-  const uint32_t retryLimit = STREAM_PULL_TASK_NOT_EXIST_RETRY_LIMIT;
-
-  for (uint32_t i = 1; i <= retryLimit; ++i) {
-    int64_t errorTaskId = 0;
-    EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
-    EXPECT_EQ(errorTaskId, readerTaskId);
-    EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 1);
-    EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
-    EXPECT_EQ(gManualStreamErrorCalls, 0);
-    ExpectNoManualRecalcJobs();
-
-    ASSERT_EQ(TSDB_CODE_SUCCESS, ProcessRealtimeStart());
-    ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
-    ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
-    request = static_cast<SSTriggerPullRequest*>(ahandle->param);
-    ASSERT_NE(nullptr, request);
-    EXPECT_EQ(ahandle->sessionId, kRealtimeSessionId);
-    EXPECT_EQ(ahandle->manualAttempt.chainId, 0U);
-    EXPECT_EQ(request->readerTaskId, readerTaskId);
-  }
+  ASSERT_NE(request->readerTaskId, task_.task.taskId);
 
   int64_t errorTaskId = 0;
   EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId),
             TSDB_CODE_STREAM_TASK_NOT_EXIST);
-  EXPECT_EQ(errorTaskId, readerTaskId);
+  EXPECT_EQ(errorTaskId, task_.task.taskId);
   EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 0);
   EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
   EXPECT_EQ(gManualStreamErrorCalls, 0);

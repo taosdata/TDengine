@@ -10892,13 +10892,11 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
         }
         bool missingTask = pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST;
         if (missingTask) {
-          *pErrTaskId = pReq->readerTaskId;
-        }
-        if (missingTask && !stTriggerTaskConsumeMissingTaskRetry(pReq)) {
+          *pErrTaskId = pStreamTask->taskId;
           code = pRsp->code;
-          ST_TASK_DLOG("retry pull request exceeded missing reader task retry budget, readerTaskId:%" PRIx64
-                       ", retryCount:%u",
-                       pReq->readerTaskId, pReq->retryCount);
+          ST_TASK_WLOG("reader task is missing, report trigger failure for recovery, readerTaskId:%" PRIx64
+                       ", triggerTaskId:%" PRIx64 ", retryCount:%u",
+                       pReq->readerTaskId, pStreamTask->taskId, pReq->retryCount);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         bool addWait = false;
