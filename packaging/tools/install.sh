@@ -647,7 +647,12 @@ function install_lib() {
     # macOS specific linking
     ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.3.dylib
     ln -sf ${lib_link_dir}/libtaos.3.dylib ${lib_link_dir}/libtaos.dylib
-    ln -sf ${driver_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.3.dylib
+    # Match only versioned payloads, including when reinstalling local aliases.
+    for native_lib in "${driver_dir}"/libtaosnative.[0-9]*.dylib; do
+      [ -f "$native_lib" ] || continue
+      ln -sf "$(basename "$native_lib")" "${driver_dir}/libtaosnative.dylib"
+    done
+    ln -sf ${driver_dir}/libtaosnative.[0-9]*.dylib ${lib_link_dir}/libtaosnative.3.dylib
     ln -sf ${lib_link_dir}/libtaosnative.3.dylib ${lib_link_dir}/libtaosnative.dylib
 
     for f in ${driver_dir}/libtaosws.dylib.*; do

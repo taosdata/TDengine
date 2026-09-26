@@ -563,6 +563,11 @@ function install_lib() {
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaosnative.dylib \
       ${install_main_dir}/driver/libtaosnative.${verNumber}.dylib && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
+    # libtaos re-exports @loader_path/libtaosnative.dylib. Keep that name
+    # beside the versioned payload; a link in /usr/local/lib is insufficient.
+    ${csudo}ln -sf "libtaosnative.${verNumber}.dylib" \
+      "${install_main_dir}/driver/libtaosnative.dylib"
+
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib \
       ${lib_link_dir}/libtaos.1.dylib > /dev/null 2>&1 || :
 
