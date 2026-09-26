@@ -82,6 +82,34 @@ int32_t streamCollectTagCidsFromPartitionCols(SNodeList *partitionCols, SArray *
   return 0;
 }
 
+// Whether any column or tag of the given virtual tables maps a source table.
+// A virtual table that maps nothing has no source table to read and therefore
+// nothing to be configured by the set table request of a vtable stream reader.
+bool streamVTableInfoHasColumnRef(const SStreamMsgVTableInfo *pVTableInfo) {
+  if (pVTableInfo == NULL || pVTableInfo->infos == NULL) {
+    return false;
+  }
+
+  int32_t nInfos = taosArrayGetSize(pVTableInfo->infos);
+  for (int32_t i = 0; i < nInfos; ++i) {
+    const VTableInfo *pInfo = taosArrayGet(pVTableInfo->infos, i);
+    if (pInfo == NULL) {
+      continue;
+    }
+    for (int32_t j = 0; j < pInfo->cols.nCols; ++j) {
+      if (pInfo->cols.pColRef[j].hasRef) {
+        return true;
+      }
+    }
+    for (int32_t j = 0; j < pInfo->cols.nTagRefs; ++j) {
+      if (pInfo->cols.pTagRef[j].hasRef) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // For a single resolved uid, fill one VTableInfo entry: copy each requested cid's
 // resolved terminal SColResolveItem into pColRef[i] (hasRef + ref{Db,Table,Col}Name);
 // id is the virtual cid itself. version is taken from metaReader if available.
