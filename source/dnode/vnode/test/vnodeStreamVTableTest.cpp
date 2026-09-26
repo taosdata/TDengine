@@ -31,6 +31,7 @@
 #include "functionMgt.h"
 #include "streamMsg.h"
 #include "streamReader.h"
+#include "stub.h"
 #include "tarray.h"
 #include "thash.h"
 #include "vnodeStreamVTable.h"
@@ -752,6 +753,154 @@ TEST(VnodeStreamVTableHelpers, streamBatchTryCacheAndDedup_CacheHitsAndDedup) {
   taosArrayDestroy(dedupItems);
   taosHashCleanup(dedupMap);
   freeCache(pCache);
+}
+
+// A virtual table that maps no source column at all has nothing to be configured by the set table
+// request, so a vtable stream reader treats itself as ready (see vnodeProcessStreamVTableInfoReq).
+TEST(VnodeStreamVTableHelpers, streamVTableInfoHasColumnRefOnlyForMappedSources) {
+  EXPECT_FALSE(streamVTableInfoHasColumnRef(nullptr));
+  SStreamMsgVTableInfo info = {};
+  EXPECT_FALSE(streamVTableInfoHasColumnRef(&info));
+
+  info.infos = taosArrayInit(1, sizeof(VTableInfo));
+  ASSERT_NE(nullptr, info.infos);
+  auto *pInfo = (VTableInfo *)taosArrayReserve(info.infos, 1);
+  ASSERT_NE(nullptr, pInfo);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tInitDefaultSColRefWrapperByCols(&pInfo->cols, 2));
+  EXPECT_FALSE(streamVTableInfoHasColumnRef(&info));
+
+  pInfo->cols.pColRef[1].hasRef = true;
+  EXPECT_TRUE(streamVTableInfoHasColumnRef(&info));
+  pInfo->cols.pColRef[1].hasRef = false;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tInitDefaultSColRefWrapperByTags(&pInfo->cols, 1, 100));
+  EXPECT_FALSE(streamVTableInfoHasColumnRef(&info));
+  pInfo->cols.pTagRef[0].hasRef = true;
+  EXPECT_TRUE(streamVTableInfoHasColumnRef(&info));
+
+  tDestroySStreamMsgVTableInfo(&info);
+}
+
+namespace {
+
+SStreamTriggerReaderInfo *gPullReaderInfo = nullptr;
+int32_t gPullResponseCode = TSDB_CODE_SUCCESS;
+int32_t gPullResponseCount = 0;
+
+bool readyForStreamRead(int64_t) { return true; }
+
+void *getPullReaderInfo(int64_t, int64_t, void **taskAddr) {
+  *taskAddr = nullptr;
+  return gPullReaderInfo;
+}
+
+void capturePullResponse(SRpcMsg *response) {
+  gPullResponseCode = response->code;
+  ++gPullResponseCount;
+  rpcFreeCont(response->pCont);
+}
+
+int32_t failBuildVTableList(SStreamTriggerReaderInfo *) {
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+class VnodeStreamSetTableTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    task_.task.streamId = 101;
+    task_.task.taskId = 202;
+    reader_.pTask = &task_;
+    reader_.isVtableStream = true;
+    vnode_.config.vgId = 7;
+    gPullReaderInfo = &reader_;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, initStreamTableListInfo(&reader_.tableList, UIDMAP_SINGLE));
+    stub_.set(syncIsReadyForRead, readyForStreamRead);
+    stub_.set(qStreamGetReaderInfo, getPullReaderInfo);
+    stub_.set(tmsgSendRsp, capturePullResponse);
+  }
+
+  void TearDown() override {
+    qStreamDestroyTableInfo(&reader_.tableList);
+    qStreamDestroyTableInfo(&reader_.vSetTableList);
+    tSimpleHashCleanup(reader_.uidHashTrigger);
+    tSimpleHashCleanup(reader_.uidHashCalc);
+    gPullReaderInfo = nullptr;
+  }
+
+  int32_t pull(int32_t type) {
+    SSTriggerPullRequestUnion request = {};
+    request.base.type = static_cast<decltype(request.base.type)>(type);
+    request.base.streamId = task_.task.streamId;
+    request.base.readerTaskId = task_.task.taskId;
+    int32_t length = tSerializeSTriggerPullRequest(nullptr, 0, &request.base);
+    EXPECT_GT(length, 0);
+    if (length <= 0) return TSDB_CODE_INVALID_MSG;
+    std::vector<char> content(sizeof(SMsgHead) + length);
+    EXPECT_EQ(length, tSerializeSTriggerPullRequest(content.data() + sizeof(SMsgHead), length, &request.base));
+    SRpcMsg message = {};
+    message.msgType = TDMT_STREAM_TRIGGER_PULL;
+    message.pCont = content.data();
+    message.contLen = static_cast<int32_t>(content.size());
+    gPullResponseCode = TSDB_CODE_SUCCESS;
+    gPullResponseCount = 0;
+    int32_t code = vnodeProcessStreamReaderMsg(&vnode_, &message, nullptr);
+    EXPECT_EQ(1, gPullResponseCount);
+    EXPECT_EQ(code, gPullResponseCode);
+    return code;
+  }
+
+  Stub stub_;
+  SVnode vnode_ = {};
+  SStreamReaderTask task_ = {};
+  SStreamTriggerReaderInfo reader_ = {};
+};
+
+TEST_F(VnodeStreamSetTableTest, RejectsLastTimestampBeforeSetTable) {
+  EXPECT_EQ(TSDB_CODE_STREAM_TASK_NOT_EXIST, pull(STRIGGER_PULL_LAST_TS));
+}
+
+TEST_F(VnodeStreamSetTableTest, RejectsMetadataContinuationBeforeSetTable) {
+  EXPECT_EQ(TSDB_CODE_STREAM_TASK_NOT_EXIST, pull(STRIGGER_PULL_TSDB_META_NEXT));
+}
+
+TEST_F(VnodeStreamSetTableTest, RejectsDataRequestsBeforeSetTable) {
+  const int32_t requestTypes[] = {
+      STRIGGER_PULL_FIRST_TS, STRIGGER_PULL_TSDB_META, STRIGGER_PULL_TSDB_TS_DATA,
+      STRIGGER_PULL_TSDB_TRIGGER_DATA, STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,
+      STRIGGER_PULL_TSDB_CALC_DATA, STRIGGER_PULL_TSDB_CALC_DATA_NEXT,
+      STRIGGER_PULL_TSDB_DATA, STRIGGER_PULL_TSDB_DATA_NEXT,
+      STRIGGER_PULL_WAL_META_NEW, STRIGGER_PULL_WAL_DATA_NEW,
+      STRIGGER_PULL_WAL_META_DATA_NEW, STRIGGER_PULL_WAL_CALC_DATA_NEW};
+  for (int32_t type : requestTypes) {
+    SCOPED_TRACE(type);
+    EXPECT_EQ(TSDB_CODE_STREAM_TASK_NOT_EXIST, pull(type));
+  }
+}
+
+TEST_F(VnodeStreamSetTableTest, AllowsLastTimestampAfterEmptySetTable) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pull(STRIGGER_PULL_SET_TABLE));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, pull(STRIGGER_PULL_LAST_TS));
+}
+
+TEST_F(VnodeStreamSetTableTest, FailedSetTableInvalidatesPreviousState) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pull(STRIGGER_PULL_SET_TABLE));
+  stub_.set(qBuildVTableList, failBuildVTableList);
+  ASSERT_EQ(TSDB_CODE_OUT_OF_MEMORY, pull(STRIGGER_PULL_SET_TABLE));
+  EXPECT_EQ(TSDB_CODE_STREAM_TASK_NOT_EXIST, pull(STRIGGER_PULL_LAST_TS));
+  stub_.reset(qBuildVTableList);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pull(STRIGGER_PULL_SET_TABLE));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, pull(STRIGGER_PULL_LAST_TS));
+}
+
+TEST_F(VnodeStreamSetTableTest, NormalTableDoesNotRequireSetTable) {
+  reader_.isVtableStream = false;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, pull(STRIGGER_PULL_LAST_TS));
+}
+
+TEST_F(VnodeStreamSetTableTest, GroupColumnsDoNotRequireSetTable) {
+  EXPECT_EQ(TSDB_CODE_STREAM_NO_CONTEXT, pull(STRIGGER_PULL_GROUP_COL_VALUE));
+}
+
 }
 
 int main(int argc, char **argv) {
