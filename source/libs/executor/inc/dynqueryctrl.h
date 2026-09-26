@@ -90,6 +90,8 @@ typedef struct {
   int32_t  tagCondLen;
 } SColRefInfo;
 
+typedef struct SDynVtbRefResolveCtx SDynVtbRefResolveCtx;
+
 typedef struct SVtbScanDynCtrlInfo {
   bool             batchProcessChild;
   bool             scanAllCols;
@@ -123,6 +125,8 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        childTableMap;
   SHashObj*        dbVgInfoMap;
   SHashObj*        resolvedColRefMap; // key: root db.table.col ref, value: SDynResolvedColRef*
+  // Owns transient ref-resolution state if a downstream scan longjmps.
+  SDynVtbRefResolveCtx* pRefResolveCtx;
   SHashObj*        existOrgTbVg; // key: vgId, value: NULL
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
   SMsgCb*          pMsgCb;
