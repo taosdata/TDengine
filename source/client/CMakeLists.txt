@@ -68,7 +68,19 @@ if(TD_LINUX)
         "LINKER:-u,base58_decode"
         "LINKER:-u,base58_encode"
         "LINKER:-u,taosDesDecode"
-        "LINKER:-u,taosDesEncode")
+        "LINKER:-u,taosDesEncode"
+        # Same case again for the terminal-mode helpers: only the shell and
+        # taosdump call them.  osSystem.c.o currently lands in the library by
+        # accident -- nothing in the engine references it either, and it is
+        # pulled in for taosOpenCmd through the crash-report path (tlog.c ->
+        # tmisce.c -> osSysinfo.c).  In a configuration where that chain is
+        # absent the member is never archived in, and the tools fail to link
+        # with exactly these four undefined symbols.  Force it in instead of
+        # depending on that accident.
+        "LINKER:-u,taosSetConsoleEcho"
+        "LINKER:-u,taosSetTerminalMode"
+        "LINKER:-u,taosGetOldTerminalMode"
+        "LINKER:-u,taosResetTerminalMode")
 
     # A version script is not a link dependency: without this, editing
     # taosnative.ver does not relink the library and the change looks like it had
@@ -89,6 +101,13 @@ elseif(TD_DARWIN)
         "LINKER:-u,_taosThreadRunning"
         "LINKER:-u,_taosSetSignal"
         "LINKER:-u,_taosIgnSignal"
+        # See the Linux branch above: the shell/taosdump are the only users of
+        # the terminal-mode helpers, so force osSystem.o in rather than rely on
+        # an indirect reference to pull it in.
+        "LINKER:-u,_taosSetConsoleEcho"
+        "LINKER:-u,_taosSetTerminalMode"
+        "LINKER:-u,_taosGetOldTerminalMode"
+        "LINKER:-u,_taosResetTerminalMode"
         # See the Linux branch above: libgrant's machine_*.o needs these.
         "LINKER:-u,_base58_decode"
         "LINKER:-u,_base58_encode"

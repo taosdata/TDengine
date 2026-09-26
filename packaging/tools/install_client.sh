@@ -193,7 +193,12 @@ function install_lib() {
     else
         ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo}ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
-        ${csudo}ln -s ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.1.dylib
+        # Preserve the loader-relative dependency inside the installed driver directory.
+        for native_lib in "${install_main_dir}/driver"/libtaosnative.[0-9]*.dylib; do
+            [ -f "$native_lib" ] || continue
+            ${csudo}ln -sf "$(basename "$native_lib")" "${install_main_dir}/driver/libtaosnative.dylib"
+        done
+        ${csudo}ln -s ${install_main_dir}/driver/libtaosnative.[0-9]*.dylib ${lib_link_dir}/libtaosnative.1.dylib
         ${csudo}ln -s ${lib_link_dir}/libtaosnative.1.dylib ${lib_link_dir}/libtaosnative.dylib
 
         # Check if libtaosws.dylib.* files exist using ls instead of -f with glob
