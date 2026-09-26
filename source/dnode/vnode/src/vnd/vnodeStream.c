@@ -4432,6 +4432,7 @@ static int32_t vnodeProcessStreamSetTableReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
                 tSimpleHashGetSize(req->setTableReq.uidInfoTrigger), tSimpleHashGetSize(req->setTableReq.uidInfoCalc), pVnode->state.applied);
 
   taosWLockLatch(&sStreamReaderInfo->lock);
+  atomic_store_8(&sStreamReaderInfo->vTableReady, 0);
   TSWAP(sStreamReaderInfo->uidHashTrigger, req->setTableReq.uidInfoTrigger);
   TSWAP(sStreamReaderInfo->uidHashCalc, req->setTableReq.uidInfoCalc);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->uidHashTrigger, TSDB_CODE_INVALID_PARA);
@@ -4440,6 +4441,8 @@ static int32_t vnodeProcessStreamSetTableReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   qStreamClearTableInfo(&sStreamReaderInfo->vSetTableList);
   STREAM_CHECK_RET_GOTO(initStreamTableListInfo(&sStreamReaderInfo->vSetTableList, UIDMAP_SINGLE));
   STREAM_CHECK_RET_GOTO(qBuildVTableList(sStreamReaderInfo));
+  atomic_store_8(&sStreamReaderInfo->vTableReady, 1);
+  ST_TASK_DLOG("vgId:%d virtual table reader is ready after set table", TD_VID(pVnode));
 end:
   taosWUnLockLatch(&sStreamReaderInfo->lock);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
@@ -5515,6 +5518,15 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   ST_TASK_DLOG("vgId:%d %s end, size:%"PRIzu, TD_VID(pVnode), __func__, taosArrayGetSize(vTableInfo.infos));
   STREAM_CHECK_RET_GOTO(buildVTableInfoRsp(&vTableInfo, &buf, &size));
 
+  // A virtual table that maps no source column at all has nothing to be configured by the set table request.
+  // Its reader is ready to serve the following pull requests as soon as the (empty) table list is resolved,
+  // otherwise every pull request would be rejected and, since the trigger skips the set table request when
+  // no orig table is referenced, the stream would never be able to run.
+  if (fullScan && !streamVTableInfoHasColumnRef(&vTableInfo)) {
+    atomic_store_8(&sStreamReaderInfo->vTableReady, 1);
+    ST_TASK_DLOG("vgId:%d virtual table reader is ready, no source table is referenced", TD_VID(pVnode));
+  }
+
   int32_t rc = streamCacheCommitResolved(sStreamReaderInfo->vtbCache, fullScan, cids, tagCids, &uid2Result);
   if (rc != 0) { code = rc; goto end; }
 
@@ -5986,6 +5998,21 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueInfo *p
             TD_VID(pVnode), __func__, req.base.type, req.base.streamId, req.base.readerTaskId, req.base.sessionId, pVnode->state.applied);
     sStreamReaderInfo = qStreamGetReaderInfo(req.base.streamId, req.base.readerTaskId, &taskAddr);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
+    if (sStreamReaderInfo->isVtableStream && !atomic_load_8(&sStreamReaderInfo->vTableReady)) {
+      switch (req.base.type) {
+        case STRIGGER_PULL_SET_TABLE:
+        case STRIGGER_PULL_GROUP_COL_VALUE:
+        case STRIGGER_PULL_VTABLE_INFO:
+        case STRIGGER_PULL_VTABLE_PSEUDO_COL:
+        case STRIGGER_PULL_OTABLE_INFO:
+          break;
+        default:
+          stWarn("vgId:%d virtual table reader is not ready, type:%d, streamId:%" PRIx64
+                 ", readerTaskId:%" PRIx64 ", sessionId:%" PRIx64 ", set table is required",
+                 TD_VID(pVnode), req.base.type, req.base.streamId, req.base.readerTaskId, req.base.sessionId);
+          STREAM_CHECK_RET_GOTO(TSDB_CODE_STREAM_TASK_NOT_EXIST);
+      }
+    }
     STREAM_CHECK_RET_GOTO(initTableList(sStreamReaderInfo, pVnode));
     sendRsp = true;
     switch (req.base.type) {

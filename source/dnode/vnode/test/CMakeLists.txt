@@ -218,6 +218,10 @@ ENDIF()
 IF(NOT TD_WINDOWS)
     add_executable(vnodeStreamVTableTest vnodeStreamVTableTest.cpp)
     DEP_ext_gtest(vnodeStreamVTableTest)
+    # The vtable-stream cases patch vnode/stream helpers through `Stub`, so the
+    # target needs the cppstub header search path (ext_cppstub is the only
+    # provider of `stub.h`).
+    DEP_ext_cppstub(vnodeStreamVTableTest)
     target_include_directories(vnodeStreamVTableTest
         PUBLIC
         "${TD_SOURCE_DIR}/include/common"
