@@ -51,6 +51,17 @@ typedef struct SDynResolvedColRef {
   col_id_t leafColId;
 } SDynResolvedColRef;
 
+struct SDynVtbRefResolveCtx {
+  SHashObj* pPendingMap;
+  SArray*   pRootRefs;
+  SHashObj* pEdgeMap;
+  SHashObj* pReqByVg;
+  SHashObj* pSeenRef;
+  SHashObj* pHitMap;
+  SHashObj* pNextRefMap;
+  SHashObj* pNextPending;
+};
+
 typedef struct SDynRefKey {
   char colRef[DYN_COL_REF_NAME_LEN];
 } SDynRefKey;
@@ -135,6 +146,40 @@ static void destroyResolvedColRef(void* info) {
   if (pResolved) {
     taosMemoryFree(pResolved);
   }
+}
+
+static void cleanupVtbRefResolveLayerCtx(SDynVtbRefResolveCtx* pCtx) {
+  if (pCtx == NULL) {
+    return;
+  }
+
+  taosHashCleanup(pCtx->pReqByVg);
+  pCtx->pReqByVg = NULL;
+  taosHashCleanup(pCtx->pSeenRef);
+  pCtx->pSeenRef = NULL;
+  taosHashCleanup(pCtx->pHitMap);
+  pCtx->pHitMap = NULL;
+  taosHashCleanup(pCtx->pNextRefMap);
+  pCtx->pNextRefMap = NULL;
+  taosHashCleanup(pCtx->pNextPending);
+  pCtx->pNextPending = NULL;
+}
+
+static void destroyVtbRefResolveCtx(SDynVtbRefResolveCtx* pCtx) {
+  if (pCtx == NULL) {
+    return;
+  }
+
+  cleanupVtbRefResolveLayerCtx(pCtx);
+  taosHashCleanup(pCtx->pEdgeMap);
+  taosHashCleanup(pCtx->pPendingMap);
+  taosArrayDestroy(pCtx->pRootRefs);
+  taosMemoryFree(pCtx);
+}
+
+static void cleanupVtbRefResolveCtx(SVtbScanDynCtrlInfo* pVtbScan) {
+  destroyVtbRefResolveCtx(pVtbScan->pRefResolveCtx);
+  pVtbScan->pRefResolveCtx = NULL;
 }
 
 static void destroyStbJoinTableList(SStbJoinTableList* pListHead) {
@@ -257,6 +302,7 @@ void destroyVtbUidTagListMap(void *info) {
 }
 
 static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
+  cleanupVtbRefResolveCtx(pVtbScan);
   taosHashCleanup(pVtbScan->extTableMetaCache);
   if (pVtbScan->dbName) {
     taosMemoryFreeClear(pVtbScan->dbName);
@@ -4275,53 +4321,54 @@ _return:
 /*
  * Collect current-layer request maps from unresolved refs.
  *
- * @param pOperator   dyn operator context
- * @param pPendingMap unresolved refs keyed by root ref, value current ref
- * @param ppReqByVg   output request map keyed by vgId
+ * @param pOperator dyn operator context
+ * @param pCtx      ref-resolution context owned by the dyn operator
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
-static int32_t dynBuildSysScanLayerReqs(SOperatorInfo* pOperator, SHashObj* pPendingMap, SHashObj** ppReqByVg) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int32_t            line = 0;
-  SHashObj*          pReqByVg = NULL;       // key: vgId, value: SArray<SSysTableScanVtbRefReq>*
-  SHashObj*          pSeenRef = NULL;       // key: currentRef, value: uint8_t marker for dedup inside this layer
-  void*              pIter = NULL;
+static int32_t dynBuildSysScanLayerReqs(SOperatorInfo* pOperator, SDynVtbRefResolveCtx* pCtx) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   line = 0;
+  void*     pIter = NULL;
+  SHashObj* pPendingMap = pCtx->pPendingMap;
 
-  pReqByVg = taosHashInit(taosHashGetSize(pPendingMap), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pReqByVg, code, line, _return, terrno);
-  taosHashSetFreeFp(pReqByVg, destroySysScanReqArray);
+  pCtx->pReqByVg = taosHashInit(taosHashGetSize(pPendingMap),
+                                taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pCtx->pReqByVg, code, line, _return, terrno);
+  taosHashSetFreeFp(pCtx->pReqByVg, destroySysScanReqArray);
 
-  pSeenRef = taosHashInit(taosHashGetSize(pPendingMap), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pSeenRef, code, line, _return, terrno);
+  pCtx->pSeenRef = taosHashInit(taosHashGetSize(pPendingMap),
+                               taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pCtx->pSeenRef, code, line, _return, terrno);
 
   while ((pIter = taosHashIterate(pPendingMap, pIter)) != NULL) {
     SDynRefKey* pCurrentRef = (SDynRefKey*)pIter;
     uint8_t     seen = 1;
 
-    if (taosHashGet(pSeenRef, pCurrentRef->colRef, strlen(pCurrentRef->colRef)) == NULL) {
+    if (taosHashGet(pCtx->pSeenRef, pCurrentRef->colRef, strlen(pCurrentRef->colRef)) == NULL) {
       int32_t vgId = 0;
 
       if (dynIsExternalColRefName(pCurrentRef->colRef)) {
         continue;
       }
 
-      code = taosHashPut(pSeenRef, pCurrentRef->colRef, strlen(pCurrentRef->colRef), &seen, sizeof(seen));
+      code = taosHashPut(pCtx->pSeenRef, pCurrentRef->colRef, strlen(pCurrentRef->colRef), &seen, sizeof(seen));
       QUERY_CHECK_CODE(code, line, _return);
       code = dynGetRefVgId(pOperator, pCurrentRef->colRef, &vgId);
       QUERY_CHECK_CODE(code, line, _return);
-      code = dynAddSysScanReqToMap(pReqByVg, vgId, pCurrentRef->colRef);
+      code = dynAddSysScanReqToMap(pCtx->pReqByVg, vgId, pCurrentRef->colRef);
       QUERY_CHECK_CODE(code, line, _return);
     }
   }
 
-  *ppReqByVg = pReqByVg;
-  pReqByVg = NULL;
-
 _return:
   taosHashCancelIterate(pPendingMap, pIter);
-  taosHashCleanup(pSeenRef);
-  taosHashCleanup(pReqByVg);
+  taosHashCleanup(pCtx->pSeenRef);
+  pCtx->pSeenRef = NULL;
+  if (code != TSDB_CODE_SUCCESS) {
+    taosHashCleanup(pCtx->pReqByVg);
+    pCtx->pReqByVg = NULL;
+  }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
   }
@@ -4501,38 +4548,37 @@ _return:
 /*
  * Resolve one pending-ref layer through systable scan and advance the frontier.
  *
- * @param pOperator   dyn operator context
- * @param pTargetOp   operator used to read `ins_vc_cols`
- * @param pPendingMap unresolved refs keyed by root ref, value current ref
- * @param pEdgeMap    discovered ref graph, key current ref, value next ref or terminal
+ * @param pOperator dyn operator context
+ * @param pTargetOp operator used to read `ins_vc_cols`
+ * @param pCtx      ref-resolution context owned by the dyn operator
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
 static int32_t dynResolvePendingColRefsLayerBySysScan(SOperatorInfo* pOperator, SOperatorInfo* pTargetOp,
-                                                      SHashObj* pPendingMap, SHashObj* pEdgeMap) {
+                                                      SDynVtbRefResolveCtx* pCtx) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   line = 0;
-  SHashObj* pReqByVg = NULL;
-  SHashObj* pHitMap = NULL;
-  SHashObj* pNextRefMap = NULL;
-  SHashObj* pNextPending = NULL;
+  SHashObj* pPendingMap = pCtx->pPendingMap;
+  SHashObj* pEdgeMap = pCtx->pEdgeMap;
   void*     pIter = NULL;
   SHashObj* pIterHash = NULL;
   size_t    pendingSize = taosHashGetSize(pPendingMap);
 
-  code = dynBuildSysScanLayerReqs(pOperator, pPendingMap, &pReqByVg);
+  code = dynBuildSysScanLayerReqs(pOperator, pCtx);
   QUERY_CHECK_CODE(code, line, _return);
 
-  pHitMap = taosHashInit(pendingSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pHitMap, code, line, _return, terrno);
+  pCtx->pHitMap = taosHashInit(pendingSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pCtx->pHitMap, code, line, _return, terrno);
 
-  pNextRefMap = taosHashInit(pendingSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pNextRefMap, code, line, _return, terrno);
+  pCtx->pNextRefMap =
+      taosHashInit(pendingSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pCtx->pNextRefMap, code, line, _return, terrno);
 
-  pNextPending = taosHashInit(pendingSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pNextPending, code, line, _return, terrno);
+  pCtx->pNextPending =
+      taosHashInit(pendingSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pCtx->pNextPending, code, line, _return, terrno);
 
-  code = dynCollectSysScanNextRefs(pTargetOp, pReqByVg, pHitMap, pNextRefMap);
+  code = dynCollectSysScanNextRefs(pTargetOp, pCtx->pReqByVg, pCtx->pHitMap, pCtx->pNextRefMap);
   QUERY_CHECK_CODE(code, line, _return);
 
   pIterHash = pPendingMap;
@@ -4543,18 +4589,19 @@ static int32_t dynResolvePendingColRefsLayerBySysScan(SOperatorInfo* pOperator, 
     SDynRefEdge* pEdge = NULL;
     SDynRefEdge  terminalEdge = {0};
 
-    pEdge = (SDynRefEdge*)taosHashGet(pNextRefMap, pCurrentRef->colRef, strlen(pCurrentRef->colRef));
+    pEdge = (SDynRefEdge*)taosHashGet(pCtx->pNextRefMap, pCurrentRef->colRef, strlen(pCurrentRef->colRef));
     if (pEdge != NULL) {
       code = taosHashPut(pEdgeMap, pCurrentRef->colRef, strlen(pCurrentRef->colRef), pEdge, sizeof(*pEdge));
       QUERY_CHECK_CODE(code, line, _return);
 
       if (!dynIsExternalColRefName(pEdge->nextRef.colRef)) {
-        code = taosHashPut(pNextPending, rootRef, keyLen, &pEdge->nextRef, sizeof(pEdge->nextRef));
+        code = taosHashPut(pCtx->pNextPending, rootRef, keyLen, &pEdge->nextRef, sizeof(pEdge->nextRef));
         QUERY_CHECK_CODE(code, line, _return);
       }
     } else {
       // A returned virtual column with a NULL source is an unbound leaf, not a raw table reference.
-      terminalEdge.isNullRef = taosHashGet(pHitMap, pCurrentRef->colRef, strlen(pCurrentRef->colRef)) != NULL;
+      terminalEdge.isNullRef =
+          taosHashGet(pCtx->pHitMap, pCurrentRef->colRef, strlen(pCurrentRef->colRef)) != NULL;
       QUERY_CHECK_CONDITION(!terminalEdge.isNullRef || NULL == pOperator->pTaskInfo->pStreamRuntimeInfo,
                             code, line, _return, TSDB_CODE_VTABLE_INVALID_REF_COLUMN);
       code = taosHashPut(pEdgeMap, pCurrentRef->colRef, strlen(pCurrentRef->colRef), &terminalEdge,
@@ -4565,22 +4612,19 @@ static int32_t dynResolvePendingColRefsLayerBySysScan(SOperatorInfo* pOperator, 
 
   taosHashClear(pPendingMap);
 
-  pIterHash = pNextPending;
-  pIter = taosHashIterate(pNextPending, NULL);
+  pIterHash = pCtx->pNextPending;
+  pIter = taosHashIterate(pCtx->pNextPending, NULL);
   while (pIter != NULL) {
     size_t keyLen = 0;
     char*  key = taosHashGetKey(pIter, &keyLen);
     code = taosHashPut(pPendingMap, key, keyLen, pIter, sizeof(SDynRefKey));
     QUERY_CHECK_CODE(code, line, _return);
-    pIter = taosHashIterate(pNextPending, pIter);
+    pIter = taosHashIterate(pCtx->pNextPending, pIter);
   }
 
 _return:
   taosHashCancelIterate(pIterHash, pIter);
-  taosHashCleanup(pReqByVg);
-  taosHashCleanup(pHitMap);
-  taosHashCleanup(pNextRefMap);
-  taosHashCleanup(pNextPending);
+  cleanupVtbRefResolveLayerCtx(pCtx);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
   }
@@ -4590,21 +4634,20 @@ _return:
 /*
  * Resolve all pending refs layer by layer through repeated systable scans.
  *
- * @param pOperator   dyn operator context
- * @param pTargetOp   operator used to read `ins_vc_cols`
- * @param pPendingMap unresolved refs keyed by root ref, value current ref
- * @param pRootRefs   all root refs that must be resolved
+ * @param pOperator dyn operator context
+ * @param pTargetOp operator used to read `ins_vc_cols`
+ * @param pCtx      ref-resolution context owned by the dyn operator
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
 static int32_t dynResolvePendingColRefsBySysScan(SOperatorInfo* pOperator, SOperatorInfo* pTargetOp,
-                                                 SHashObj* pPendingMap, SArray* pRootRefs) {
+                                                 SDynVtbRefResolveCtx* pCtx) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   line = 0;
-  SHashObj* pEdgeMap = NULL;  // key: currentRef, value: SDynRefEdge; empty nextRef means terminal raw ref
+  SHashObj* pPendingMap = pCtx->pPendingMap;
 
-  pEdgeMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pEdgeMap, code, line, _return, terrno);
+  pCtx->pEdgeMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pCtx->pEdgeMap, code, line, _return, terrno);
 
   for (int32_t depth = 0; taosHashGetSize(pPendingMap) > 0; ++depth) {
     if (depth >= TSDB_MAX_VTABLE_REF_DEPTH) {
@@ -4612,15 +4655,16 @@ static int32_t dynResolvePendingColRefsBySysScan(SOperatorInfo* pOperator, SOper
       QUERY_CHECK_CODE(code, line, _return);
     }
 
-    code = dynResolvePendingColRefsLayerBySysScan(pOperator, pTargetOp, pPendingMap, pEdgeMap);
+    code = dynResolvePendingColRefsLayerBySysScan(pOperator, pTargetOp, pCtx);
     QUERY_CHECK_CODE(code, line, _return);
   }
 
-  code = dynBuildResolvedColRefsFromEdgeMap(pOperator, pEdgeMap, pRootRefs);
+  code = dynBuildResolvedColRefsFromEdgeMap(pOperator, pCtx->pEdgeMap, pCtx->pRootRefs);
   QUERY_CHECK_CODE(code, line, _return);
 
 _return:
-  taosHashCleanup(pEdgeMap);
+  taosHashCleanup(pCtx->pEdgeMap);
+  pCtx->pEdgeMap = NULL;
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
   }
@@ -4704,32 +4748,36 @@ _return:
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
 static int32_t dynResolveColRefArrayBySysScan(SOperatorInfo* pOperator, SOperatorInfo* pTargetOp, SArray* pColRefInfo) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   line = 0;
-  SHashObj* pPendingMap =
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = &pInfo->vtbScan;
+  SDynVtbRefResolveCtx*      pCtx = taosMemoryCalloc(1, sizeof(*pCtx));
+  QUERY_CHECK_NULL(pCtx, code, line, _return, terrno);
+
+  pVtbScan->pRefResolveCtx = pCtx;
+  pCtx->pPendingMap =
       taosHashInit(TMAX(taosArrayGetSize(pColRefInfo), 8), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                    HASH_NO_LOCK);
-  SArray*   pRootRefs = NULL;
-  QUERY_CHECK_NULL(pPendingMap, code, line, _return, terrno);
-  pRootRefs = taosArrayInit(TMAX(taosArrayGetSize(pColRefInfo), 1), sizeof(SDynRefKey));
-  QUERY_CHECK_NULL(pRootRefs, code, line, _return, terrno);
+  QUERY_CHECK_NULL(pCtx->pPendingMap, code, line, _return, terrno);
+  pCtx->pRootRefs = taosArrayInit(TMAX(taosArrayGetSize(pColRefInfo), 1), sizeof(SDynRefKey));
+  QUERY_CHECK_NULL(pCtx->pRootRefs, code, line, _return, terrno);
 
   for (int32_t i = 0; i < taosArrayGetSize(pColRefInfo); ++i) {
     SColRefInfo* pColRef = taosArrayGet(pColRefInfo, i);
     QUERY_CHECK_NULL(pColRef, code, line, _return, terrno);
 
-    code = dynAddPendingRootRef(pOperator, pPendingMap, pRootRefs, pColRef->colrefName);
+    code = dynAddPendingRootRef(pOperator, pCtx->pPendingMap, pCtx->pRootRefs, pColRef->colrefName);
     QUERY_CHECK_CODE(code, line, _return);
   }
 
-  if (taosHashGetSize(pPendingMap) > 0) {
-    code = dynResolvePendingColRefsBySysScan(pOperator, pTargetOp, pPendingMap, pRootRefs);
+  if (taosHashGetSize(pCtx->pPendingMap) > 0) {
+    code = dynResolvePendingColRefsBySysScan(pOperator, pTargetOp, pCtx);
     QUERY_CHECK_CODE(code, line, _return);
   }
 
 _return:
-  taosArrayDestroy(pRootRefs);
-  taosHashCleanup(pPendingMap);
+  cleanupVtbRefResolveCtx(pVtbScan);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
   }
@@ -4748,19 +4796,23 @@ static int32_t dynResolveChildTableRefsBySysScan(SOperatorInfo* pOperator, SOper
   int32_t                    code = TSDB_CODE_SUCCESS;
   int32_t                    line = 0;
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
-  SHashObj*                  pPendingMap = NULL;
-  SArray*                    pRootRefs = NULL;
+  SVtbScanDynCtrlInfo*       pVtbScan = &pInfo->vtbScan;
+  SDynVtbRefResolveCtx*      pCtx = NULL;
 
   if (taosArrayGetSize(pInfo->vtbScan.childTableList) == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pPendingMap = taosHashInit(taosArrayGetSize(pInfo->vtbScan.childTableList),
-                             taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pPendingMap, code, line, _return, terrno);
+  pCtx = taosMemoryCalloc(1, sizeof(*pCtx));
+  QUERY_CHECK_NULL(pCtx, code, line, _return, terrno);
+  pVtbScan->pRefResolveCtx = pCtx;
 
-  pRootRefs = taosArrayInit(TMAX((int32_t)taosArrayGetSize(pInfo->vtbScan.childTableList), 1), sizeof(SDynRefKey));
-  QUERY_CHECK_NULL(pRootRefs, code, line, _return, terrno);
+  pCtx->pPendingMap = taosHashInit(taosArrayGetSize(pVtbScan->childTableList),
+                                   taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pCtx->pPendingMap, code, line, _return, terrno);
+
+  pCtx->pRootRefs = taosArrayInit(TMAX((int32_t)taosArrayGetSize(pVtbScan->childTableList), 1), sizeof(SDynRefKey));
+  QUERY_CHECK_NULL(pCtx->pRootRefs, code, line, _return, terrno);
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->vtbScan.childTableList); ++i) {
     SArray* pColRefArray = taosArrayGetP(pInfo->vtbScan.childTableList, i);
@@ -4770,19 +4822,18 @@ static int32_t dynResolveChildTableRefsBySysScan(SOperatorInfo* pOperator, SOper
       SColRefInfo* pColRef = taosArrayGet(pColRefArray, j);
       QUERY_CHECK_NULL(pColRef, code, line, _return, terrno);
 
-      code = dynAddPendingRootRef(pOperator, pPendingMap, pRootRefs, pColRef->colrefName);
+      code = dynAddPendingRootRef(pOperator, pCtx->pPendingMap, pCtx->pRootRefs, pColRef->colrefName);
       QUERY_CHECK_CODE(code, line, _return);
     }
   }
 
-  if (taosHashGetSize(pPendingMap) > 0) {
-    code = dynResolvePendingColRefsBySysScan(pOperator, pTargetOp, pPendingMap, pRootRefs);
+  if (taosHashGetSize(pCtx->pPendingMap) > 0) {
+    code = dynResolvePendingColRefsBySysScan(pOperator, pTargetOp, pCtx);
     QUERY_CHECK_CODE(code, line, _return);
   }
 
 _return:
-  taosArrayDestroy(pRootRefs);
-  taosHashCleanup(pPendingMap);
+  cleanupVtbRefResolveCtx(pVtbScan);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
   }
