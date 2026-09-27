@@ -278,10 +278,14 @@ class TestTwWeighted:
         7. INTERVAL windows with fill(none/null/prev/linear)
 
         Since: v3.4.3.0
+
         Labels: common,ci,integration,functional
+
         Jira: None
+
         History:
             - 2026-06-18 Added with the time-weighted aggregate function family.
+
         """
         self._setup_ref()
         self._values()

@@ -106,6 +106,7 @@ class TestClusterBackupRestore3Mnode(BackupRestoreTestBase):
         Since: v3.4.3.0
 
         Labels: common,ci,integration,functional,cluster
+
         Jira: None
 
         History:

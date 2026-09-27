@@ -390,6 +390,7 @@ class TestInformationSchema:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:
@@ -398,6 +399,7 @@ class TestInformationSchema:
         History:
             - xxx
             - xxx
+
         """
         self.prepare_data()
         self.count_check()

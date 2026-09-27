@@ -1078,11 +1078,14 @@ class TestFq16MultiTableParity(ParityTestBase):
     def test_fq_mt_parity_disorder(self):
         """Re-run all positive cases after inserting data in shuffled order.
 
+        Re-run all positive cases after inserting data in shuffled order.
+
         Catalog: - Query:FederatedResultParity
 
         Since: v3.4.0.0
 
         Labels: common,ci
+
         """
         self._ensure_session_timezone()
         # Filter positive parity cases

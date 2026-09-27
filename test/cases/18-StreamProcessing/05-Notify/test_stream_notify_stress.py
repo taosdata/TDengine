@@ -1088,6 +1088,8 @@ class TestStreamNotifyStress:
     def test_stress_50_streams_10k_rows(self):
         """Stress test: 50 streams × 10,000 rows, async notify worker throughput.
 
+        Stress test: 50 streams × 10,000 rows, async notify worker throughput.
+
         Catalog:
             - Stream
 
@@ -1099,6 +1101,7 @@ class TestStreamNotifyStress:
 
         History:
             - 2026-06-17 Created
+
         """
         self._run_benchmark(
             n_streams=N_STREAMS,

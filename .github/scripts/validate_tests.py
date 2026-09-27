@@ -199,6 +199,43 @@ def validate_shell_test_file(file_path):
     
     return True
 
+def _local_test_methods(class_node):
+    return [
+        node for node in class_node.body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith('test_')
+    ]
+
+
+def _inherited_test_methods(class_node, class_map, seen_classes=None, seen_names=None):
+    """Depth-first collection of test_ methods defined on same-file bases."""
+    if seen_classes is None:
+        seen_classes = set()
+    if seen_names is None:
+        seen_names = set()
+    methods = []
+    for base in class_node.bases:
+        if not isinstance(base, ast.Name) or base.id not in class_map:
+            continue
+        if base.id in seen_classes:
+            continue
+        seen_classes.add(base.id)
+        parent = class_map[base.id]
+        for node in _local_test_methods(parent):
+            if node.name in seen_names:
+                continue
+            seen_names.add(node.name)
+            methods.append(node)
+        methods.extend(_inherited_test_methods(parent, class_map, seen_classes, seen_names))
+    return methods
+
+
+def _resolve_test_methods(class_node, class_map):
+    local = _local_test_methods(class_node)
+    if local:
+        return local
+    return _inherited_test_methods(class_node, class_map)
+
+
 def validate_test_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         content = file.read()
@@ -217,12 +254,16 @@ def validate_test_file(file_path):
         print(f"File {file_path} does not contain a class named 'Test...'.")
         return False
 
+    class_map = {node.name: node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)}
+
     for class_node in test_classes:
-        # Check for methods prefixed with 'test_'
-        test_methods = [node for node in class_node.body if isinstance(node, ast.FunctionDef) and node.name.startswith('test_')]
+        # Check for methods prefixed with 'test_'. Methods may live on a
+        # same-file base or mixin; pytest collects those through inheritance.
+        test_methods = _resolve_test_methods(class_node, class_map)
         if not test_methods:
             print(f"Class {class_node.name} in {file_path} does not contain a method named 'test_'.")
-            return False
+            has_errors = True
+            continue
 
         for method_node in test_methods:
             # Extract the docstring

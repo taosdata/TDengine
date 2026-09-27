@@ -674,6 +674,9 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
 
         Verifies the HTTP query path returns the same rows as the Flight SQL
         path for the configured InfluxDB version(s).
+
+        Since: v3.4.0.0
+
         """
         for ver_cfg in ExtSrcEnv.influx_version_configs():
             tag = ver_cfg.version.replace(".", "")

@@ -3092,6 +3092,13 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
     def test_fq_ext_src_framework(self):
         # FQ_CASES="009,012" → only run CASE-009 and CASE-012
+        """Fq ext src framework
+
+        FQ_CASES="009,012" → only run CASE-009 and CASE-012
+
+        Since: v3.4.0.0
+
+        """
         _only = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None
         blocks: List[str] = []

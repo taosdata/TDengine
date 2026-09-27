@@ -542,6 +542,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
     def test_svc_s02_pg_kill_query_bounded(self):
         """S02-PG: SIGKILL PostgreSQL → query fails within wall-clock bound.
 
+        S02-PG: SIGKILL PostgreSQL → query fails within wall-clock bound.
+
         Catalog: - Query:FederatedServiceDisruption
 
         Since: v3.4.0.0
@@ -689,6 +691,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
 
     def test_svc_s03_pg_restart_recovery(self):
         """S03-PG: stop → errors → restart → automatic reconnect + correct result.
+
+        S03-PG: stop → errors → restart → automatic reconnect + correct result.
 
         Catalog: - Query:FederatedServiceDisruption
 
@@ -839,6 +843,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
     def test_svc_s04_pg_burst_all_bounded(self):
         """S04-PG: stop mid-burst → all queries complete within wall-clock bound.
 
+        S04-PG: stop mid-burst → all queries complete within wall-clock bound.
+
         Catalog: - Query:FederatedServiceDisruption
 
         Since: v3.4.0.0
@@ -972,6 +978,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
 
     def test_svc_s05_pg_schema_down_bounded(self):
         """S05-PG: getTableSchema while PG is down → fails fast.
+
+        S05-PG: getTableSchema while PG is down → fails fast.
 
         Catalog: - Query:FederatedServiceDisruption
 
@@ -1175,6 +1183,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
 
     def test_svc_s07_pg_repeated_cycles(self):
         """S07-PG: 3× stop/start cycles → query always succeeds after restart.
+
+        S07-PG: 3× stop/start cycles → query always succeeds after restart.
 
         Catalog: - Query:FederatedServiceDisruption
 

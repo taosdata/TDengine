@@ -238,8 +238,7 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
         tdLog.info("concurrent writer joined")
 
     def test_backup_with_concurrent_write(self):
-        """Backup/restore with concurrent writes, multi-replica, multi-vgroup,
-        and a stream.
+        """Backup/restore with concurrent writes, multi-replica, multi-vgroup, and a stream.
 
         1. Create a snode
         2. Write 50M rows (10000 child tables x 5000 rows) into the meters
@@ -256,6 +255,7 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
         Since: v3.4.3.0
 
         Labels: common,ci,integration,functional,cluster
+
         Jira: None
 
         History:

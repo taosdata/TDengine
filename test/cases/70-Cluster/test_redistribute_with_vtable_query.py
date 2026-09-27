@@ -91,6 +91,7 @@ class TestRedistributeWithVtableQuery(RedistributeConcurrentBase):
         Since: v3.3.6.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

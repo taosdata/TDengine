@@ -741,9 +741,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         tdSql.checkRows(0)
 
     def test_fq_06_005(self):
-        """FQ-06-005: EXT_TABLE_NOT_EXIST — remote table dropped while cached, triggers
-        REFRESH path (catalogRemoveExtSource + restartAsyncQuery), exhausts retries,
-        returns EXT_TABLE_NOT_EXIST to user.
+        """FQ-06-005: EXT_TABLE_NOT_EXIST — remote table dropped while cached, triggers REFRESH path (catalogRemoveExtSource + restartAsyncQuery), exhausts retries, returns EXT_TABLE_NOT_EXIST to user.
 
         DS §5.3.10 NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR:
           On EXT_TABLE_NOT_EXIST the client:
@@ -1007,8 +1005,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_06_008(self):
-        """FQ-06-008: EXT_SOURCE_CHANGED — ALTER EXTERNAL SOURCE triggers REFRESH path;
-        client clears catalog cache and re-plans; query succeeds with updated metadata.
+        """FQ-06-008: EXT_SOURCE_CHANGED — ALTER EXTERNAL SOURCE triggers REFRESH path; client clears catalog cache and re-plans; query succeeds with updated metadata.
 
         DS §5.3.10 NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR:
           EXT_SOURCE_CHANGED causes the client to:

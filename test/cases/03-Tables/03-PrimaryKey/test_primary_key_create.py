@@ -192,10 +192,10 @@ class TestCompositePrimaryKeyCreate:
         6. Mutiple pk & pk not defined as sencod column
         7. Add/update/delete pk column is not support
 
-
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

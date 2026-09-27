@@ -428,6 +428,13 @@ class TestVtableCreateExtSource:
 
     def test_create_legal_references(self):
         # (a) Single source, all PG types mapped and DESCRIBE verified.
+        """Create legal references
+
+        (a) Single source, all PG types mapped and DESCRIBE verified.
+
+        Since: v3.4.0.0
+
+        """
         tbl = "t_single"
         create_pg_remote_table(tbl, _PG_TYPE_MATRIX)
         cols = ", ".join(
@@ -542,6 +549,13 @@ class TestVtableCreateExtSource:
 
     def test_type_compatibility_matrix(self):
         # (a) PG type matrix: 32 remote types × 17 TDengine local types.
+        """Type compatibility matrix
+
+        (a) PG type matrix: 32 remote types × 17 TDengine local types.
+
+        Since: v3.4.0.0
+
+        """
         create_pg_remote_table("t_typematrix_pg", _PG_TYPE_MATRIX)
         self._check_type_compat_matrix(
             "pg", _PG_COMPAT,
@@ -614,6 +628,13 @@ class TestVtableCreateExtSource:
 
     def test_illegal_references_and_segment_parsing(self):
         # (a) Unknown source.
+        """Illegal references and segment parsing
+
+        (a) Unknown source.
+
+        Since: v3.4.0.0
+
+        """
         tdSql.error(
             "CREATE VTABLE v_unk_src (ts timestamp, "
             "v int FROM no_such_source.no_db.no_tbl.v)")
@@ -736,7 +757,13 @@ class TestVtableCreateExtSource:
         tdSql.execute("DROP VTABLE v_3mix4")
 
     def test_reject_remote_views_for_normal_and_child_vtables(self):
-        """Remote views cannot back virtual table external refs."""
+        """Remote views cannot back virtual table external refs.
+
+        Remote views cannot back virtual table external refs.
+
+        Since: v3.4.0.0
+
+        """
         create_pg_table(_PG_DB, "view_base_pg",
                         "ts TIMESTAMP PRIMARY KEY, v INTEGER",
                         ["('2024-01-01 00:00:00', 1)"])
@@ -781,7 +808,13 @@ class TestVtableCreateExtSource:
         tdSql.execute("DROP STABLE IF EXISTS vstb_view_bad")
 
     def test_pg_source_schema_mismatch_blocks_existing_vtable_query(self):
-        """Existing vtable query fails while source schema mismatches the saved ref."""
+        """Existing vtable query fails while source schema mismatches the saved ref.
+
+        Existing vtable query fails while source schema mismatches the saved ref.
+
+        Since: v3.4.0.0
+
+        """
         create_pg_table(_PG_DB, "schema_base",
                         "ts TIMESTAMP PRIMARY KEY, v INTEGER",
                         ["('2024-01-01 00:00:00', 11)"])
@@ -822,7 +855,13 @@ class TestVtableCreateExtSource:
             tdSql.execute("DROP VTABLE IF EXISTS v_pg_schema_analytics")
 
     def test_quoted_remote_identifiers_in_vtable_refs(self):
-        """Quoted PG identifiers survive create, query, and metadata display."""
+        """Quoted PG identifiers survive create, query, and metadata display.
+
+        Quoted PG identifiers survive create, query, and metadata display.
+
+        Since: v3.4.0.0
+
+        """
         ExtSrcEnv.pg_exec(_PG_DB, [
             'DROP TABLE IF EXISTS public."CaseTable"',
             'CREATE TABLE public."CaseTable" (ts TIMESTAMP PRIMARY KEY, "MixedValue" INTEGER)',
@@ -855,6 +894,9 @@ class TestVtableCreateExtSource:
 
         Covers: patent-core heterogeneous children creation and negative paths
         (missing vstb, duplicate child, tag/type mismatch).
+
+        Since: v3.4.0.0
+
         """
         # --- §3.1: Patent-core heterogeneous children ---
         tdLog.info("§3.1: patent-core heterogeneous children create")

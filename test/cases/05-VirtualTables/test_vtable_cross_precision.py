@@ -225,8 +225,13 @@ class TestVtableCrossPrecision:
             tdSql.execute(f"drop database if exists {db};")
 
     def test_create_cross_precision_vtable(self):
-        """DDL: creating a virtual table that references tables of other precisions
-        must now succeed (previously rejected)."""
+        """DDL: creating a virtual table that references tables of other precisions must now succeed (previously rejected).
+
+        DDL: creating a virtual table that references tables of other precisions must now succeed (previously rejected).
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute("drop database if exists cp_vtb_ms;")
         tdSql.execute("create database cp_vtb_ms precision 'ms' vgroups 1 buffer 3;")
         tdSql.execute("use cp_vtb_ms;")
@@ -242,9 +247,13 @@ class TestVtableCrossPrecision:
         tdLog.info("cross-precision vtable creation succeeded.")
 
     def test_single_ref_precision_normalized(self):
-        """T4/T10: single-reference vtable — output ts must be in the vtable (ms)
-        precision, not the source (us/ns) precision. This exercises the path where
-        the vtable scan would otherwise be eliminated."""
+        """T4/T10: single-reference vtable — output ts must be in the vtable (ms) precision, not the source (us/ns) precision. This exercises the path where the vtable scan would otherwise be eliminated.
+
+        T4/T10: single-reference vtable — output ts must be in the vtable (ms) precision, not the source (us/ns) precision. This exercises the path where the vtable scan would otherwise be eliminated.
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute("use cp_vtb_ms;")
 
         # us source -> ms vtable
@@ -262,9 +271,13 @@ class TestVtableCrossPrecision:
         tdSql.checkData(0, 1, 30)
 
     def test_multi_source_merge_alignment(self):
-        """T7: multi-source vtable across us+ns sources. The same physical instant
-        from both sources must align onto a single vtable-precision timestamp row,
-        and ordering must be correct (not scrambled by raw-value magnitude)."""
+        """T7: multi-source vtable across us+ns sources. The same physical instant from both sources must align onto a single vtable-precision timestamp row, and ordering must be correct (not scrambled by raw-value magnitude).
+
+        T7: multi-source vtable across us+ns sources. The same physical instant from both sources must align onto a single vtable-precision timestamp row, and ordering must be correct (not scrambled by raw-value magnitude).
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute("use cp_vtb_ms;")
 
         tdSql.query("select ts, v_us, v_ns from v_multi order by ts;")
@@ -279,8 +292,13 @@ class TestVtableCrossPrecision:
         tdSql.checkData(1, 2, 31)
 
     def test_where_timerange_pushdown(self):
-        """T5: a WHERE time range expressed in vtable (ms) precision must filter the
-        source data correctly after being converted to the source precision."""
+        """T5: a WHERE time range expressed in vtable (ms) precision must filter the source data correctly after being converted to the source precision.
+
+        T5: a WHERE time range expressed in vtable (ms) precision must filter the source data correctly after being converted to the source precision.
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute("use cp_vtb_ms;")
 
         # Only the first instant; upper bound between the two instants (ms).
@@ -303,8 +321,13 @@ class TestVtableCrossPrecision:
         tdSql.checkData(0, 0, self.TS_MS)
 
     def test_vtable_us_and_ns_targets(self):
-        """T1/T2 variants: vtable precision us/ns referencing ms sources — output ts
-        scales up to the vtable precision."""
+        """T1/T2 variants: vtable precision us/ns referencing ms sources — output ts scales up to the vtable precision.
+
+        T1/T2 variants: vtable precision us/ns referencing ms sources — output ts scales up to the vtable precision.
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute("drop database if exists cp_vtb_us;")
         tdSql.execute("create database cp_vtb_us precision 'us' vgroups 1 buffer 3;")
         tdSql.execute("create vtable cp_vtb_us.v_from_ms (ts timestamp, v int from cp_ms.t0.v);")
@@ -426,8 +449,7 @@ class TestVtableCrossPrecision:
         print("partition by tag interval ..................... [ passed ]")
 
     def test_default_merge_order(self):
-        """Default (no ORDER BY) output of a multi-source cross-precision vtable
-        must be globally ascending and deduped.
+        """Default (no ORDER BY) output of a multi-source cross-precision vtable must be globally ascending and deduped.
 
         The merge operator converts every source to the vtable precision BEFORE
         the sort queue, so the emitted order is correct without an explicit ORDER
@@ -445,6 +467,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-15 Created
+
         """
         tdLog.info("=== merge order without ORDER BY ===")
         tdSql.execute("drop database if exists cp_ord_vtb;")
@@ -553,6 +576,9 @@ class TestVtableCrossPrecision:
         bug where eliminateVirtualScan was incorrectly blocked for us/ns
         same-precision vtables due to pNode->precision being unset (0) while
         the source scan had precision 1 or 2.
+
+        Since: v3.4.2.0
+
         """
         # ms -> ms
         tdSql.execute("drop database if exists cp_vtb_same;")
@@ -588,9 +614,7 @@ class TestVtableCrossPrecision:
         tdSql.checkData(1, 1, 31)
 
     def test_subsecond_interval_window_boundary(self):
-        """Sub-second INTERVAL on a us->ms vtable: window granularity near the
-        conversion scale is where rounding/scaling bugs surface (interval(1s) is
-        too coarse to expose them).
+        """Sub-second INTERVAL on a us->ms vtable: window granularity near the conversion scale is where rounding/scaling bugs surface (interval(1s) is too coarse to expose them).
 
         Source (us) rows at .000, .100, .250, .600, 1.300 seconds past a 1s base.
         us->ms keeps full ms resolution, so with interval(100a) (=100ms) windows:
@@ -613,6 +637,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-18 Created
+
         """
         tdLog.info("=== sub-second interval window boundary ===")
         tdSql.execute("create table cp_win_src.sub0 (ts timestamp, v int);")
@@ -667,8 +692,7 @@ class TestVtableCrossPrecision:
         print("_wend / _wduration precision .................. [ passed ]")
 
     def test_session_window_gap_precision(self):
-        """SESSION window gap tolerance applies to the CONVERTED (vtable-precision)
-        timestamps. Classic cross-precision trap: the gap value is in vtable units.
+        """SESSION window gap tolerance applies to the CONVERTED (vtable-precision) timestamps. Classic cross-precision trap: the gap value is in vtable units.
 
         us source rows at 0, +0.3s, +0.7s, +2.0s (relative). After us->ms convert,
         session(ts, 500a) (=500ms gap) groups rows whose ms gap <= 500ms:
@@ -687,6 +711,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-18 Created
+
         """
         tdLog.info("=== session window gap precision ===")
         tdSql.execute("create table cp_win_src.ses0 (ts timestamp, v int);")
@@ -706,9 +731,7 @@ class TestVtableCrossPrecision:
         print("session window gap precision ................. [ passed ]")
 
     def test_interval_sliding_offset_precision(self):
-        """INTERVAL with SLIDING and an offset on a us->ms vtable. SLIDING and the
-        interval offset are precision-bearing parameters; they must operate in the
-        vtable precision against the converted timestamps.
+        """INTERVAL with SLIDING and an offset on a us->ms vtable. SLIDING and the interval offset are precision-bearing parameters; they must operate in the vtable precision against the converted timestamps.
 
         interval(1s) sliding(500a): overlapping 1s windows every 500ms. Rows (us)
         at .000, .400, .900, 1.400 convert to ms .000/.400/.900/1400 and must fall
@@ -725,6 +748,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-18 Created
+
         """
         tdLog.info("=== interval + sliding precision ===")
         tdSql.execute("create table cp_win_src.sld0 (ts timestamp, v int);")
@@ -751,8 +775,7 @@ class TestVtableCrossPrecision:
         print("interval + sliding precision ................. [ passed ]")
 
     def test_fill_synthetic_ts_precision(self):
-        """INTERVAL ... FILL generates synthetic rows for empty windows; their
-        _wstart must be in vtable precision and spaced by the interval in ms units.
+        """INTERVAL ... FILL generates synthetic rows for empty windows; their _wstart must be in vtable precision and spaced by the interval in ms units.
 
         us source has rows only in window 1 and window 3 (2s apart). interval(1s)
         fill(value, 0) must synthesize the empty window 2 at the correct ms _wstart.
@@ -768,6 +791,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-18 Created
+
         """
         tdLog.info("=== fill synthetic ts precision ===")
         tdSql.execute("create table cp_win_src.fill0 (ts timestamp, v int);")
@@ -790,9 +814,9 @@ class TestVtableCrossPrecision:
         print("fill synthetic ts precision .................. [ passed ]")
 
     def test_order_by_ts_desc(self):
-        """Descending ORDER BY on a multi-source cross-precision vtable: the merge
-        converts before ordering, so desc output must be globally descending in
-        vtable precision (mirror of the default-asc merge test).
+        """Descending ORDER BY on a multi-source cross-precision vtable: the merge converts before ordering, so desc output must be globally descending in vtable precision (mirror of the default-asc merge test).
+
+        Descending ORDER BY on a multi-source cross-precision vtable: the merge converts before ordering, so desc output must be globally descending in vtable precision (mirror of the default-asc merge test).
 
         Catalog:
             - VirtualTable
@@ -805,6 +829,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-18 Created
+
         """
         tdLog.info("=== order by ts desc ===")
         tdSql.execute(
@@ -821,9 +846,7 @@ class TestVtableCrossPrecision:
         print("order by ts desc ............................. [ passed ]")
 
     def test_full_precision_matrix_vct(self):
-        """Full 3x3 source->vtable precision matrix on the standalone virtual-table
-        (VCT) scan path, plus the multi-source mixed-precision combinations the
-        earlier cases left out.
+        """Full 3x3 source->vtable precision matrix on the standalone virtual-table (VCT) scan path, plus the multi-source mixed-precision combinations the earlier cases left out.
 
         The earlier single-source cases only covered us/ns -> ms (narrowing) and
         ms -> us/ns (widening). This case sweeps every (source, vtable) precision
@@ -852,6 +875,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-23 Created
+
         """
         tdLog.info("=== full precision matrix (standalone vtable) ===")
         vtb_db = {"ms": "cp_mtx_ms", "us": "cp_mtx_us", "ns": "cp_mtx_ns"}
@@ -930,8 +954,7 @@ class TestVtableCrossPrecision:
         print("full precision matrix (vct) .................. [ passed ]")
 
     def test_full_precision_matrix_vstb(self):
-        """Full 3x3 source->vtable precision matrix on the virtual SUPER-table
-        (VSTB) scan path.
+        """Full 3x3 source->vtable precision matrix on the virtual SUPER-table (VSTB) scan path.
 
         The standalone-vtable cases exercise the VCT scan; the super-table
         expansion is a separate path (each virtual child table is scanned and
@@ -951,6 +974,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-23 Created
+
         """
         tdLog.info("=== full precision matrix (virtual super-table) ===")
         vtb_db = {"ms": "cp_mtxs_ms", "us": "cp_mtxs_us", "ns": "cp_mtxs_ns"}
@@ -984,8 +1008,7 @@ class TestVtableCrossPrecision:
         print("full precision matrix (vstb) ................. [ passed ]")
 
     def test_time_functions_precision_matrix(self):
-        """Time-bearing scalar functions over a cross-precision vtable must operate
-        in the VTABLE precision against the converted timestamps.
+        """Time-bearing scalar functions over a cross-precision vtable must operate in the VTABLE precision against the converted timestamps.
 
         For each vtable precision a single-source vtable is built over the us
         source. cast(ts as bigint) must return the epoch in vtable units, and
@@ -1003,6 +1026,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-23 Created
+
         """
         tdLog.info("=== time functions across precision ===")
         vtb_db = {"ms": "cp_tf_ms", "us": "cp_tf_us", "ns": "cp_tf_ns"}
@@ -1030,8 +1054,7 @@ class TestVtableCrossPrecision:
         print("time functions precision matrix .............. [ passed ]")
 
     def test_vstb_multi_precision_sources(self):
-        """VSTB path: each virtual child table references columns from TWO databases
-        with different precisions.
+        """VSTB path: each virtual child table references columns from TWO databases with different precisions.
 
         Earlier VSTB tests (test_full_precision_matrix_vstb) only bind each child
         to a single source precision. This case verifies that within the super-table
@@ -1053,6 +1076,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-25 Created
+
         """
         tdLog.info("=== VSTB child vtable with mixed-precision sources ===")
         vtb_db = {"ms": "cp_vstb_mix_ms", "us": "cp_vstb_mix_us", "ns": "cp_vstb_mix_ns"}
@@ -1594,9 +1618,7 @@ class TestVtableCrossPrecision:
         print("scalar time functions multi-precision ........ [ passed ]")
 
     def test_state_window_multi_source_external_window(self):
-        """
-        VCT state_window where the state column (s) and aggregate column (a) come
-        from DIFFERENT source tables.
+        """VCT state_window where the state column (s) and aggregate column (a) come from DIFFERENT source tables.
 
         vtableWindowOptimize detects the us→ms precision mismatch and routes to the
         trimmed-VirtualScan branch (sameOrigin forced false).  The aggregate first(a)
@@ -1620,6 +1642,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-26 Created
+
         """
         tdLog.info("=== state_window multi-source ExternalWindow bypass path ===")
 
@@ -2371,8 +2394,7 @@ class TestVtableCrossPrecision:
         print("VSTB interval+sliding cross-precision .......... [ passed ]")
 
     def test_vstb_interval_fill_cross_precision(self):
-        """VSTB INTERVAL+FILL with cross-precision source emits vtable-precision _wstart for
-        both real and fill-synthesised rows.
+        """VSTB INTERVAL+FILL with cross-precision source emits vtable-precision _wstart for both real and fill-synthesised rows.
 
         The optimizer guard keeps VirtualScan so ts conversion happens before window slot
         computation.  FILL runs on the window output (already vtable precision), so fill-
@@ -2395,6 +2417,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-06-26 Created
+
         """
         tdLog.info("=== VSTB interval+fill cross-precision (us→ms) ===")
 
@@ -3237,6 +3260,9 @@ class TestVtableCrossPrecision:
         Source data in us precision. If the optimizer incorrectly pushes
         the STATE window past VirtualTableScan, us timestamps are treated
         as ms → wildly wrong window boundaries → wrong results.
+
+        Since: v3.4.2.0
+
         """
         tdSql.execute("drop database if exists cp_vct_sw_src;")
         tdSql.execute("create database cp_vct_sw_src precision 'us' vgroups 1 buffer 3;")
@@ -3740,8 +3766,7 @@ class TestVtableCrossPrecision:
         print("mixed 3-precision interval window .............. [ passed ]")
 
     def test_mixed_precision_state_window_cross_src(self):
-        """STATE window whose state and aggregate columns come from DIFFERENT
-        precision sources.
+        """STATE window whose state and aggregate columns come from DIFFERENT precision sources.
 
         Unlike test_state_window_multi_source_external_window (where both
         source tables are us precision), here the state column s is read from
@@ -3761,6 +3786,7 @@ class TestVtableCrossPrecision:
 
         History:
             - 2026-07-13 Created
+
         """
         tdLog.info("=== mixed-precision state window (s from us, a from ns) ===")
         b_us = self.TS_US

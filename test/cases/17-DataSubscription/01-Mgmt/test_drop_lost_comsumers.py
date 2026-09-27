@@ -325,11 +325,13 @@ class TestDropLostConsumers:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2024-10-23 chenhaoran Created
             - 2025-5-13 Huo Hong Migrated to new test framework
+
         """
 
         self.consumer_instance = TaosConsumer()

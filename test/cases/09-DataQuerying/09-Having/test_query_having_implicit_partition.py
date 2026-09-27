@@ -553,6 +553,7 @@ class TestQueryHavingImplicitPartition:
         Since: v3.4.2.0
 
         Labels: common,ci
+
         Jira: None
 
         History:

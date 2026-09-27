@@ -194,19 +194,43 @@ class TestVTableQueryExtSourceSeries:
     # === Test methods ===
 
     def test_describe_shows_filter(self):
-        """DESCRIBE shows the series filter in the ref column."""
+        """DESCRIBE shows the series filter in the ref column.
+
+        DESCRIBE shows the series filter in the ref column.
+
+        Since: v3.4.3.0
+
+        """
         self._test_describe_shows_filter()
 
     def test_vtable_queryable(self):
-        """Virtual tables with SERIES clause are queryable."""
+        """Virtual tables with SERIES clause are queryable.
+
+        Virtual tables with SERIES clause are queryable.
+
+        Since: v3.4.3.0
+
+        """
         self._test_vtable_queryable()
 
     def test_mixed_series_queryable(self):
-        """Multi-SERIES vtable is queryable."""
+        """Multi-SERIES vtable is queryable.
+
+        Multi-SERIES vtable is queryable.
+
+        Since: v3.4.3.0
+
+        """
         self._test_mixed_series_queryable()
 
     def test_series_isolation(self):
-        """Each vtable returns only its pinned series data."""
+        """Each vtable returns only its pinned series data.
+
+        Each vtable returns only its pinned series data.
+
+        Since: v3.4.3.0
+
+        """
         self._test_series_isolation()
 
     def _test_describe_shows_filter(self):

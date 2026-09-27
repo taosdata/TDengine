@@ -125,7 +125,13 @@ class TestVtableQueryExtSourceResilience:
         tdSql.execute(f"USE {_LOCAL_DB}")
 
     def test_pg_normal_vtable_query_fails_when_backend_down_and_recovers(self):
-        """PostgreSQL-backed normal vtable query fails while backend is down and recovers after restart."""
+        """PostgreSQL-backed normal vtable query fails while backend is down and recovers after restart.
+
+        PostgreSQL-backed normal vtable query fails while backend is down and recovers after restart.
+
+        Since: v3.4.3.0
+
+        """
         _check_count("SELECT count(*) FROM v_pg_normal", 2)
         ExtSrcEnv.stop_pg_instance(_pg_ver())
         try:
@@ -137,7 +143,13 @@ class TestVtableQueryExtSourceResilience:
         _check_count("SELECT count(*) FROM v_pg_normal", 2)
 
     def test_influx_normal_vtable_query_fails_when_backend_down_and_recovers(self):
-        """InfluxDB-backed normal vtable query fails while backend is down and recovers after restart."""
+        """InfluxDB-backed normal vtable query fails while backend is down and recovers after restart.
+
+        InfluxDB-backed normal vtable query fails while backend is down and recovers after restart.
+
+        Since: v3.4.3.0
+
+        """
         _check_count("SELECT count(*) FROM v_inf_normal", 2)
         ExtSrcEnv.stop_influx_instance(_influx_ver())
         try:
@@ -149,7 +161,13 @@ class TestVtableQueryExtSourceResilience:
         _check_count("SELECT count(*) FROM v_inf_normal", 2)
 
     def test_vstable_query_fails_when_one_child_backend_down_and_recovers(self):
-        """Virtual stable query fails if one child backend is down; it must not return partial rows."""
+        """Virtual stable query fails if one child backend is down; it must not return partial rows.
+
+        Virtual stable query fails if one child backend is down; it must not return partial rows.
+
+        Since: v3.4.3.0
+
+        """
         _check_count("SELECT count(*) FROM vstb_runtime", 4)
         _check_count("SELECT count(*) FROM vctb_inf", 2)
 
