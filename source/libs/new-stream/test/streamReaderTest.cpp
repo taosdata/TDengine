@@ -20,6 +20,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -32,7 +33,88 @@
 #include "stub.h"
 #include "tmsg.h"
 
+extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
+
 namespace {
+
+SNode *gExternalReaderPlan = nullptr;
+int32_t gExternalReaderOpenCalls = 0;
+
+int32_t cloneExternalReaderPlan(const char *, SNode **ppNode) {
+  return nodesCloneNode(gExternalReaderPlan, ppNode);
+}
+
+int32_t stopExternalReaderOpen(void *, const SStreamTask *, void **) {
+  ++gExternalReaderOpenCalls;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+void buildExternalReaderPlan(SNode **ppNode, bool matchingRoot) {
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN, ppNode), TSDB_CODE_SUCCESS);
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(*ppNode);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, &scan->pRemotePlan), TSDB_CODE_SUCCESS);
+  auto *remote = reinterpret_cast<SLogicNode *>(scan->pRemotePlan);
+  SNode *hint = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_HINT, &hint), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeAppend(&remote->pHint, hint), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_EXTERNAL_TABLE, &scan->pExtTable), TSDB_CODE_SUCCESS);
+  auto *table = reinterpret_cast<SExtTableNode *>(scan->pExtTable);
+  tstrncpy(table->sourceName, matchingRoot ? "remote" : "other", sizeof(table->sourceName));
+  tstrncpy(table->table.dbName, "metrics", sizeof(table->table.dbName));
+
+  if (!matchingRoot) {
+    SNode *child = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN, &child), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesListMakeAppend(&scan->node.pChildren, child), TSDB_CODE_SUCCESS);
+    scan = reinterpret_cast<SFederatedScanPhysiNode *>(child);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_EXTERNAL_TABLE, &scan->pExtTable), TSDB_CODE_SUCCESS);
+    table = reinterpret_cast<SExtTableNode *>(scan->pExtTable);
+    tstrncpy(table->sourceName, "remote", sizeof(table->sourceName));
+    tstrncpy(table->table.dbName, "metrics", sizeof(table->table.dbName));
+  }
+
+  SNode *column = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &column), TSDB_CODE_SUCCESS);
+  auto *columnInfo = reinterpret_cast<SColumnNode *>(column);
+  tstrncpy(columnInfo->colName, "cpu", sizeof(columnInfo->colName));
+  columnInfo->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+  columnInfo->node.resType.bytes = sizeof(double);
+  ASSERT_EQ(nodesListMakeAppend(&scan->pScanCols, column), TSDB_CODE_SUCCESS);
+}
+
+TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysicalNodes) {
+  for (bool matchingRoot : {true, false}) {
+    buildExternalReaderPlan(&gExternalReaderPlan, matchingRoot);
+    ASSERT_NE(gExternalReaderPlan, nullptr);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> plan(gExternalReaderPlan, nodesDestroyNode);
+    SStreamReaderTask task = {};
+    SStreamExtTriggerSpec spec = {};
+    tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
+    SStreamReaderDeployMsg message = {};
+    message.pExtSpec = &spec;
+    message.msg.calc.calcScanPlan = const_cast<char *>("external-reader-plan");
+    gExternalReaderOpenCalls = 0;
+    Stub stub;
+    stub.set(nodesStringToNode, cloneExternalReaderPlan);
+    stub.set(stExtReaderOpen, stopExternalReaderOpen);
+
+    EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_OPS_NOT_SUPPORT);
+    EXPECT_EQ(gExternalReaderOpenCalls, 1);
+    EXPECT_STREQ(spec.extDb, "metrics");
+    EXPECT_EQ(spec.numCalcMappings, 1);
+    if (taosArrayGetSize(spec.calcColumns) == 1) {
+      EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec.calcColumns, 0)), "cpu");
+    } else {
+      ADD_FAILURE() << "Missing external calculation column";
+    }
+    stub.reset(stExtReaderOpen);
+    stub.reset(nodesStringToNode);
+    streamTaskStatsHandleLifecycle(&task.pStats, STREAM_TASK_STATS_OWNER_DESTROYED);
+    taosArrayDestroy(spec.calcColumns);
+    taosMemoryFree(spec.pCalcMappings);
+    gExternalReaderPlan = nullptr;
+  }
+}
 
 void releaseStackReaderTask(void *pParam) {
   auto **ppTask = static_cast<SStreamReaderTask **>(pParam);

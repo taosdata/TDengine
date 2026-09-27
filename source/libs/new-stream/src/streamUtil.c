@@ -2674,6 +2674,7 @@ static void streamNotifyWorkerPoolPrepareShutdown(SStreamNotifyWorkerPool* pPool
     streamNotifyWorkerPoolMarkQueueDestroy(pPool, pQueue);
 
     if (hasStreamId) {
+      stDebug("[notify] streamId:%" PRIx64 " remove notify queue from map during shutdown", streamId);
       if (taosHashRemove(pPool->queueMap, &streamId, sizeof(streamId)) != TSDB_CODE_SUCCESS) {
         stError("[notify] streamId:%" PRIx64 " not found in queue map during shutdown", streamId);
       }
@@ -2723,6 +2724,7 @@ static void streamNotifyWorkerPoolPurgeQueues(SStreamNotifyWorkerPool* pPool) {
     taosHashCancelIterate(pPool->queueMap, pIter);
 
     if (hasStreamId) {
+      stDebug("[notify] streamId:%" PRIx64 " purge notify queue from map", streamId);
       if (taosHashRemove(pPool->queueMap, &streamId, sizeof(streamId)) != TSDB_CODE_SUCCESS) {
         stError("[notify] streamId:%" PRIx64 " not found in queue map", streamId);
       }
@@ -2919,8 +2921,11 @@ static bool streamNotifyQueueDestroyIfReady(SStreamNotifyQueue* pQueue) {
   return true;
 }
 
-// queueMap stores borrowed queue pointers. pendingDestroy and refCount own queue lifetime.
-static void streamNotifyQueueHashFree(void* pHashData) { (void)pHashData; }
+// taosHash freeFp receives the hash node's data slot (stores SStreamNotifyQueue*), not the queue itself.
+static void streamNotifyQueueHashFree(void* pHashData) {
+  (void)pHashData;
+  // The hash node only stores a borrowed queue pointer. Queue lifetime is controlled by pendingDestroy and refCount.
+}
 
 static SArray* streamNotifyUrlsDeepCopy(const SArray* pNotifyAddrUrls) {
   int32_t urlCount = (int32_t)taosArrayGetSize(pNotifyAddrUrls);

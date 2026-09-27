@@ -1126,19 +1126,19 @@ int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
     }
   }
   // Federated query: export ext table meta requests from meta cache
-  if (TSDB_CODE_SUCCESS == code && NULL != pMetaCache->pExtTableMeta) {
-    // pExtTableMeta values are SExtTableMetaReq stored by value in the hash
-    pCatalogReq->pExtTableMeta = taosArrayInit(taosHashGetSize(pMetaCache->pExtTableMeta),
+  if (TSDB_CODE_SUCCESS == code && NULL != pMetaCache->pExtTableMetaReq) {
+    // pExtTableMetaReq values are SExtTableMetaReq stored by value in the hash
+    pCatalogReq->pExtTableMeta = taosArrayInit(taosHashGetSize(pMetaCache->pExtTableMetaReq),
                                                sizeof(SExtTableMetaReq));
     if (NULL == pCatalogReq->pExtTableMeta) {
       code = terrno;
     } else {
-      SExtTableMetaReq* pReq = taosHashIterate(pMetaCache->pExtTableMeta, NULL);
+      SExtTableMetaReq* pReq = taosHashIterate(pMetaCache->pExtTableMetaReq, NULL);
       while (pReq && TSDB_CODE_SUCCESS == code) {
         if (NULL == taosArrayPush(pCatalogReq->pExtTableMeta, pReq)) {
           code = terrno;
         }
-        pReq = taosHashIterate(pMetaCache->pExtTableMeta, pReq);
+        pReq = taosHashIterate(pMetaCache->pExtTableMetaReq, pReq);
       }
     }
   }
@@ -1532,12 +1532,12 @@ int32_t reserveExtSourceInCache(const char* sourceName, SParseMetaCache* pMetaCa
 int32_t reserveExtTableMetaInCache(const char* sourceName,
                                    const char* mid0, const char* mid1,
                                    const char* tableName, SParseMetaCache* pMetaCache) {
-  if (NULL == pMetaCache->pExtTableMeta) {
-    pMetaCache->pExtTableMeta = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
-                                             true, HASH_NO_LOCK);
-    if (NULL == pMetaCache->pExtTableMeta) return terrno;
+  if (NULL == pMetaCache->pExtTableMetaReq) {
+    pMetaCache->pExtTableMetaReq = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+                                                true, HASH_NO_LOCK);
+    if (NULL == pMetaCache->pExtTableMetaReq) return terrno;
   }
-  // Store SExtTableMetaReq by value so buildCatalogReq can iterate and export it
+  // Store SExtTableMetaReq by value so buildCatalogReq can iterate and export it.
   SExtTableMetaReq req = {0};
   tstrncpy(req.sourceName, sourceName ? sourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
   if (mid0) tstrncpy(req.rawMidSegs[0], mid0, TSDB_DB_NAME_LEN);
@@ -1546,7 +1546,7 @@ int32_t reserveExtTableMetaInCache(const char* sourceName,
   char    key[TSDB_TABLE_NAME_LEN * 2 + TSDB_DB_NAME_LEN * 2 + 16];
   int32_t keyLen = buildExtTableMetaKey(sourceName, mid0, mid1, tableName,
                                         key, (int32_t)sizeof(key));
-  return taosHashPut(pMetaCache->pExtTableMeta, key, keyLen, &req, sizeof(SExtTableMetaReq));
+  return taosHashPut(pMetaCache->pExtTableMetaReq, key, keyLen, &req, sizeof(SExtTableMetaReq));
 }
 
 int32_t getExtTableMetaFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
@@ -2037,6 +2037,8 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
   // Federated query: both phases use simple taosHashCleanup (no inner pointers to free)
   taosHashCleanup(pMetaCache->pExtSources);
   pMetaCache->pExtSources = NULL;
+  taosHashCleanup(pMetaCache->pExtTableMetaReq);
+  pMetaCache->pExtTableMetaReq = NULL;
   taosHashCleanup(pMetaCache->pExtTableMeta);
   pMetaCache->pExtTableMeta = NULL;
 }

@@ -39,9 +39,14 @@ extern "C" {
 // kind=TAG: chain ends at a child table tag value (carried by STagValue elsewhere).
 typedef struct SColResolveItem {
   bool    hasRef;
+  int8_t  refType;
+  char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char    refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
   char    refDbName   [TSDB_DB_NAME_LEN];
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName  [TSDB_COL_NAME_LEN];
+  int32_t tagCondLen;
+  char   *tagCondJson;  // Owned by the resolve result and freed with the item.
 } SColResolveItem;
 
 typedef struct STagValue {

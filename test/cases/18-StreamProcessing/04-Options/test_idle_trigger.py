@@ -53,6 +53,7 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:
@@ -96,6 +97,7 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:
@@ -143,6 +145,7 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:
@@ -196,6 +199,7 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:
@@ -293,6 +297,7 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:
@@ -340,6 +345,7 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:
@@ -431,6 +437,7 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:
@@ -469,11 +476,15 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:
             - 2026-03-17 Created
         """
+        self.do_idle_resume_cycle()
+
+    def do_idle_resume_cycle(self):
         tdLog.info("=== Test: Multiple idle-resume cycles ===")
 
         self.init_test_database("idle_resume_cycle")
@@ -487,26 +498,21 @@ class TestStreamIdleTrigger:
             f"sliding(1s) from st partition by tbname "
             f"stream_options(idle_timeout(2s) | event_type(idle|resume)) "
             f"into out_cycles "
-            f"as select cast(_tidlestart/1000000 as timestamp), cast(_tidleend/1000000 as timestamp), tbname from st"
+            f"as select cast(_tidleend/1000000 as timestamp) as event_time, "
+            f"cast(_tidlestart/1000000 as timestamp) as idle_start, tbname from st"
         )
 
-        # Cycle 1: IDLE -> RESUME
         tdSql.execute("insert into d001 values (now, 1)")
-        time.sleep(5)  # IDLE
-        tdSql.execute("insert into d001 values (now, 2)")  # RESUME
+        for cycle in range(1, 4):
+            tdLog.debug(f"Idle-resume cycle {cycle}: waiting for idle timeout before resuming")
+            time.sleep(5)
+            tdSql.execute(f"insert into d001 values (now, {cycle + 1})")
+            tdLog.debug(f"Idle-resume cycle {cycle}: resume data inserted")
 
-        # Cycle 2: IDLE -> RESUME
-        time.sleep(5)  # IDLE again
-        tdSql.execute("insert into d001 values (now, 3)")  # RESUME again
-
-        # Cycle 3: IDLE -> RESUME
-        time.sleep(5)  # IDLE again
-        tdSql.execute("insert into d001 values (now, 4)")  # RESUME again
-
-        # Wait for all 3 cycles (3 IDLE + 3 RESUME)
         tdSql.checkResultsByFunc(
-            sql="select * from out_cycles",
-            func=lambda: tdSql.getRows() >= 3,
+            sql="select idle_start, count(*) from out_cycles group by idle_start having count(*) = 2",
+            func=lambda: tdSql.getRows() == 3,
+            retry=60,
         )
         tdLog.success("✓ Multiple idle-resume cycles work correctly")
 
@@ -519,6 +525,7 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:
@@ -553,6 +560,7 @@ class TestStreamIdleTrigger:
         Since: v3.3.4.0
 
         Labels: ci,idle-trigger,stream,integration,functional
+
         Jira: None
 
         History:

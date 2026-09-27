@@ -32,8 +32,8 @@ from federated_query_common import (  # noqa: E402
     FederatedQueryTestMixin,
 )
 
-sys.path.insert(0, "cases/18-StreamProcessing/federated")
-from test_fs_common import (  # noqa: E402
+sys.path.insert(0, "cases/18-StreamProcessing/99-Others")
+from fs_common import (  # noqa: E402
     ensure_snode,
     get_stream_ext_meta,
 )
@@ -75,7 +75,14 @@ class TestFsRuntimeErrors(FederatedQueryTestMixin):
 
     # FS-RERR-001 ext source unreachable ---------------------------------
     def test_rerr_001_unreachable_host(self):
-        """Stream that points at an unreachable host accumulates ext_error_count."""
+        """Handle a stream whose external source host is unreachable.
+
+        Verify that stream creation or runtime polling reports the expected
+        external-source failure without leaving the test stream behind.
+
+        Since: v3.4.2.0
+
+        """
         src = "rerr001_m"
         db = "rerr001_mdb"
         self._cleanup_src(src)
@@ -107,7 +114,14 @@ class TestFsRuntimeErrors(FederatedQueryTestMixin):
 
     # FS-RERR-003 schema mismatch ----------------------------------------
     def test_rerr_003_type_mismatch(self):
-        """Changing ext table column type under a running stream -> TYPE_MISMATCH."""
+        """Report a type mismatch after an external schema change.
+
+        Verify that changing a remote column type while the stream is running
+        produces an external runtime error.
+
+        Since: v3.4.2.0
+
+        """
         prefix = "rerr003"
         src = f"{prefix}_m"
         db = f"{prefix}_mdb"

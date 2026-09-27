@@ -34,8 +34,23 @@
 #include "streamMsg.h"
 #include "tcommon.h"
 #include "systable.h"
+#include "tdatablock.h"
+#include "tjson.h"
 #include "tmsg.h"
 #include "tsimplehash.h"
+
+struct SExtColTypeMapping {
+  char      extTypeName[64];
+  SDataType tdType;
+  int8_t    tsPrecision;
+  char      colName[65];
+};
+
+extern "C" {
+int32_t tEncodeSStreamReaderDeployMsg(SEncoder* pEncoder, const SStreamReaderDeployMsg* pMsg);
+int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg* pMsg);
+void    tFreeSStreamReaderDeployMsg(SStreamReaderDeployMsg* pMsg);
+}
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -3193,6 +3208,678 @@ TEST(td_msg_test, vtb_tag_cond_codec) {
   tDestroySVTagCondRsp(&rspOut);    // deep free decoded copies
 }
 
+TEST(td_msg_test, ext_orig_tbl_reader_management_protocol_roundtrips_and_validates_bindings) {
+  SStreamExtOrigTblReaderReq req = {0};
+  req.registryEntryId = 1001;
+  req.deploymentGeneration = 7;
+  req.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START |
+                     STREAM_EXT_ORIGTBL_READER_CAP_PATCH | STREAM_EXT_ORIGTBL_READER_CAP_RECOVER;
+  req.sourceType = EXT_SOURCE_MYSQL;
+  req.sourceConfigVersion = 17;
+  tstrncpy(req.identity.sourceName, "mysql-source", sizeof(req.identity.sourceName));
+  tstrncpy(req.identity.dbName, "metrics", sizeof(req.identity.dbName));
+  tstrncpy(req.identity.schemaName, "public", sizeof(req.identity.schemaName));
+  tstrncpy(req.identity.tableName, "cpu", sizeof(req.identity.tableName));
+  req.tagCondJson = taosStrdup("{\\\"host\\\":\\\"node-a\\\"}");
+  ASSERT_NE(req.tagCondJson, nullptr);
+  req.tagCondLen = (int32_t)strlen(req.tagCondJson);
+  req.bindings = taosArrayInit(2, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(req.bindings, nullptr);
+
+  SStreamExtOrigTblReaderBinding binding = {0};
+  binding.bindingId = 91;
+  binding.virtualUid = 3001;
+  binding.virtualGid = 44;
+  binding.virtualSlot = 2;
+  binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+  tstrncpy(binding.externalColumn, "usage", sizeof(binding.externalColumn));
+  binding.expectedType = TSDB_DATA_TYPE_DOUBLE;
+  binding.resultColumnSlot = 5;
+  ASSERT_NE(taosArrayPush(req.bindings, &binding), nullptr);
+
+  SStreamExtOrigTblReaderBinding calcBinding = {0};
+  calcBinding.bindingId = 92;
+  calcBinding.virtualUid = 3001;
+  calcBinding.virtualGid = 44;
+  calcBinding.virtualSlot = 6;
+  calcBinding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_CALC;
+  tstrncpy(calcBinding.externalColumn, "voltage", sizeof(calcBinding.externalColumn));
+  calcBinding.expectedType = TSDB_DATA_TYPE_FLOAT;
+  calcBinding.resultColumnSlot = 9;
+  ASSERT_NE(taosArrayPush(req.bindings, &calcBinding), nullptr);
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderReq(&encoder, &req), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(len, 0);
+
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderReq(&encoder, &req), 0);
+  tEncoderClear(&encoder);
+
+  SStreamExtOrigTblReaderReq out = {0};
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamExtOrigTblReaderReq(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+  ASSERT_EQ(out.registryEntryId, req.registryEntryId);
+  ASSERT_EQ(out.deploymentGeneration, req.deploymentGeneration);
+  ASSERT_EQ(out.protocolVersion, STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION);
+  ASSERT_EQ(out.capabilities, req.capabilities);
+  ASSERT_EQ(out.sourceType, EXT_SOURCE_MYSQL);
+  ASSERT_EQ(out.sourceConfigVersion, req.sourceConfigVersion);
+  ASSERT_STREQ(out.identity.sourceName, "mysql-source");
+  ASSERT_STREQ(out.identity.dbName, "metrics");
+  ASSERT_EQ((int32_t)taosArrayGetSize(out.bindings), 2);
+  ASSERT_STREQ(out.tagCondJson, req.tagCondJson);
+  SStreamExtOrigTblReaderBinding* outBinding =
+      (SStreamExtOrigTblReaderBinding*)taosArrayGet(out.bindings, 0);
+  ASSERT_EQ(outBinding->bindingId, binding.bindingId);
+  ASSERT_EQ(outBinding->virtualUid, binding.virtualUid);
+  ASSERT_EQ(outBinding->virtualGid, binding.virtualGid);
+  ASSERT_EQ(outBinding->virtualSlot, binding.virtualSlot);
+  ASSERT_EQ(outBinding->kind, STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER);
+  ASSERT_STREQ(outBinding->externalColumn, "usage");
+  ASSERT_EQ(outBinding->expectedType, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_EQ(outBinding->resultColumnSlot, binding.resultColumnSlot);
+  SStreamExtOrigTblReaderBinding* outCalcBinding =
+      (SStreamExtOrigTblReaderBinding*)taosArrayGet(out.bindings, 1);
+  ASSERT_EQ(outCalcBinding->bindingId, calcBinding.bindingId);
+  ASSERT_EQ(outCalcBinding->virtualUid, calcBinding.virtualUid);
+  ASSERT_EQ(outCalcBinding->virtualGid, calcBinding.virtualGid);
+  ASSERT_EQ(outCalcBinding->virtualSlot, calcBinding.virtualSlot);
+  ASSERT_EQ(outCalcBinding->kind, STREAM_EXT_ORIGTBL_READER_BINDING_CALC);
+  ASSERT_STREQ(outCalcBinding->externalColumn, "voltage");
+  ASSERT_EQ(outCalcBinding->expectedType, calcBinding.expectedType);
+  ASSERT_EQ(outCalcBinding->resultColumnSlot, calcBinding.resultColumnSlot);
+
+  SStreamExtOrigTblReaderReq* clone = NULL;
+  ASSERT_EQ(tCloneSStreamExtOrigTblReaderReq(&out, &clone), 0);
+  ASSERT_NE(clone, nullptr);
+  outBinding->bindingId = 92;
+  ASSERT_EQ(((SStreamExtOrigTblReaderBinding*)taosArrayGet(clone->bindings, 0))->bindingId, 91);
+  ASSERT_EQ(((SStreamExtOrigTblReaderBinding*)taosArrayGet(clone->bindings, 1))->kind,
+            STREAM_EXT_ORIGTBL_READER_BINDING_CALC);
+
+  SStreamExtOrigTblReaderRsp rsp = {0};
+  rsp.registryEntryId = req.registryEntryId;
+  rsp.deploymentGeneration = req.deploymentGeneration;
+  rsp.protocolVersion = req.protocolVersion;
+  rsp.capabilities = req.capabilities;
+  rsp.identity = req.identity;
+  rsp.readerTaskAddr.taskId = 901;
+  rsp.readerTaskAddr.nodeId = 7;
+  rsp.acceptedTriggerBindingCount = 1;
+  rsp.acceptedCalcBindingCount = 1;
+  rsp.code = TSDB_CODE_SUCCESS;
+  rsp.results = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderResult));
+  ASSERT_NE(rsp.results, nullptr);
+  SStreamExtOrigTblReaderResult result = {0};
+  result.binding = binding;
+  result.actualType = TSDB_DATA_TYPE_DOUBLE;
+  result.code = TSDB_CODE_SUCCESS;
+  ASSERT_NE(taosArrayPush(rsp.results, &result), nullptr);
+  SStreamExtOrigTblReaderResult calcResult = {0};
+  calcResult.binding = calcBinding;
+  calcResult.actualType = TSDB_DATA_TYPE_FLOAT;
+  calcResult.code = TSDB_CODE_SUCCESS;
+  ASSERT_NE(taosArrayPush(rsp.results, &calcResult), nullptr);
+
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderRsp(&encoder, &rsp), 0);
+  len = encoder.pos;
+  tEncoderClear(&encoder);
+  buf.assign(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderRsp(&encoder, &rsp), 0);
+  tEncoderClear(&encoder);
+
+  SStreamExtOrigTblReaderRsp rspOut = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamExtOrigTblReaderRsp(&decoder, &rspOut), 0);
+  tDecoderClear(&decoder);
+  ASSERT_EQ((int32_t)taosArrayGetSize(rspOut.results), 2);
+  ASSERT_EQ(rspOut.readerTaskAddr.taskId, rsp.readerTaskAddr.taskId);
+  ASSERT_EQ(rspOut.readerTaskAddr.nodeId, rsp.readerTaskAddr.nodeId);
+  ASSERT_EQ(rspOut.acceptedTriggerBindingCount, 1);
+  ASSERT_EQ(rspOut.acceptedCalcBindingCount, 1);
+  ASSERT_EQ(rspOut.code, TSDB_CODE_SUCCESS);
+  SStreamExtOrigTblReaderResult* outResult =
+      (SStreamExtOrigTblReaderResult*)taosArrayGet(rspOut.results, 0);
+  ASSERT_EQ(outResult->binding.bindingId, binding.bindingId);
+  ASSERT_EQ(outResult->binding.virtualUid, binding.virtualUid);
+  ASSERT_EQ(outResult->binding.virtualGid, binding.virtualGid);
+  ASSERT_EQ(outResult->binding.virtualSlot, binding.virtualSlot);
+  ASSERT_EQ(outResult->binding.kind, STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER);
+  ASSERT_STREQ(outResult->binding.externalColumn, "usage");
+  ASSERT_EQ(outResult->binding.expectedType, binding.expectedType);
+  ASSERT_EQ(outResult->binding.resultColumnSlot, binding.resultColumnSlot);
+  ASSERT_EQ(outResult->actualType, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_EQ(outResult->code, TSDB_CODE_SUCCESS);
+  SStreamExtOrigTblReaderResult* outCalcResult =
+      (SStreamExtOrigTblReaderResult*)taosArrayGet(rspOut.results, 1);
+  ASSERT_EQ(outCalcResult->binding.bindingId, calcBinding.bindingId);
+  ASSERT_EQ(outCalcResult->binding.virtualUid, calcBinding.virtualUid);
+  ASSERT_EQ(outCalcResult->binding.virtualGid, calcBinding.virtualGid);
+  ASSERT_EQ(outCalcResult->binding.virtualSlot, calcBinding.virtualSlot);
+  ASSERT_EQ(outCalcResult->binding.kind, STREAM_EXT_ORIGTBL_READER_BINDING_CALC);
+  ASSERT_STREQ(outCalcResult->binding.externalColumn, "voltage");
+  ASSERT_EQ(outCalcResult->binding.expectedType, calcBinding.expectedType);
+  ASSERT_EQ(outCalcResult->binding.resultColumnSlot, calcBinding.resultColumnSlot);
+  ASSERT_EQ(outCalcResult->actualType, TSDB_DATA_TYPE_FLOAT);
+  ASSERT_STREQ(rspOut.identity.sourceName, "mysql-source");
+  ASSERT_STREQ(rspOut.identity.dbName, "metrics");
+  ASSERT_STREQ(rspOut.identity.schemaName, "public");
+  ASSERT_STREQ(rspOut.identity.tableName, "cpu");
+
+  SStreamMgmtReq mgmtReq = {0};
+  mgmtReq.reqId = 123;
+  mgmtReq.type = STREAM_MGMT_REQ_TRIGGER_EXT_ORIGTBL_READER;
+  mgmtReq.cont.pExtOrigTblReader = &req;
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamMgmtReq(&encoder, &mgmtReq), 0);
+  len = encoder.pos;
+  tEncoderClear(&encoder);
+  buf.assign(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamMgmtReq(&encoder, &mgmtReq), 0);
+  tEncoderClear(&encoder);
+  SStreamMgmtReq mgmtReqOut = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamMgmtReq(&decoder, &mgmtReqOut), 0);
+  tDecoderClear(&decoder);
+  ASSERT_EQ(mgmtReqOut.reqId, mgmtReq.reqId);
+  ASSERT_STREQ(mgmtReqOut.cont.pExtOrigTblReader->identity.sourceName, "mysql-source");
+  tFreeSStreamMgmtReq(&mgmtReqOut);
+
+  SStreamMgmtRsp mgmtRsp = {};
+  mgmtRsp.header.msgType = STREAM_MSG_EXT_ORIGTBL_READER_INFO;
+  mgmtRsp.reqId = mgmtReq.reqId;
+  mgmtRsp.cont.pExtOrigTblReader = &rsp;
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamMgmtRsp(&encoder, &mgmtRsp), 0);
+  len = encoder.pos;
+  tEncoderClear(&encoder);
+  buf.assign(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamMgmtRsp(&encoder, &mgmtRsp), 0);
+  tEncoderClear(&encoder);
+  SStreamMgmtRsp mgmtRspOut = {};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamMgmtRsp(&decoder, &mgmtRspOut), 0);
+  tDecoderClear(&decoder);
+  ASSERT_EQ(mgmtRspOut.header.msgType, STREAM_MSG_EXT_ORIGTBL_READER_INFO);
+  ASSERT_STREQ(mgmtRspOut.cont.pExtOrigTblReader->identity.sourceName, "mysql-source");
+  tFreeSStreamMgmtRsp(&mgmtRspOut);
+
+  SStreamMgmtReq mixedReq = {};
+  mixedReq.reqId = 124;
+  mixedReq.type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+  mixedReq.cont.pReqs = taosArrayInit(1, sizeof(SStreamDbTableName));
+  ASSERT_NE(mixedReq.cont.pReqs, nullptr);
+  SStreamDbTableName internal = {};
+  tstrncpy(internal.dbFName, "1.db", sizeof(internal.dbFName));
+  tstrncpy(internal.tbName, "meters", sizeof(internal.tbName));
+  ASSERT_NE(taosArrayPush(mixedReq.cont.pReqs, &internal), nullptr);
+  mixedReq.cont.pExtOrigTblReaders = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderReq));
+  ASSERT_NE(mixedReq.cont.pExtOrigTblReaders, nullptr);
+  ASSERT_NE(taosArrayPush(mixedReq.cont.pExtOrigTblReaders, &req), nullptr);
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamMgmtReq(&encoder, &mixedReq), 0);
+  len = encoder.pos;
+  tEncoderClear(&encoder);
+  buf.assign(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamMgmtReq(&encoder, &mixedReq), 0);
+  tEncoderClear(&encoder);
+  SStreamMgmtReq mixedOut = {};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamMgmtReq(&decoder, &mixedOut), 0);
+  tDecoderClear(&decoder);
+  ASSERT_EQ(mixedOut.type, STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER);
+  ASSERT_EQ((int32_t)taosArrayGetSize(mixedOut.cont.pReqs), 1);
+  ASSERT_EQ((int32_t)taosArrayGetSize(mixedOut.cont.pExtOrigTblReaders), 1);
+  ASSERT_STREQ(((SStreamDbTableName*)taosArrayGet(mixedOut.cont.pReqs, 0))->tbName, "meters");
+  ASSERT_STREQ(((SStreamExtOrigTblReaderReq*)taosArrayGet(mixedOut.cont.pExtOrigTblReaders, 0))->tagCondJson,
+               req.tagCondJson);
+  tFreeSStreamMgmtReq(&mixedOut);
+
+  SStreamMgmtReq* mixedClone = nullptr;
+  ASSERT_EQ(tCloneSStreamMgmtReq(&mixedReq, &mixedClone), 0);
+  ASSERT_NE(mixedClone, nullptr);
+  ASSERT_EQ((int32_t)taosArrayGetSize(mixedClone->cont.pExtOrigTblReaders), 1);
+  SStreamExtOrigTblReaderReq* clonedExtReq =
+      (SStreamExtOrigTblReaderReq*)taosArrayGet(mixedClone->cont.pExtOrigTblReaders, 0);
+  ASSERT_NE(clonedExtReq->bindings, req.bindings);
+  ASSERT_EQ((int32_t)taosArrayGetSize(clonedExtReq->bindings), 2);
+  ASSERT_STREQ(clonedExtReq->tagCondJson, req.tagCondJson);
+  tFreeSStreamMgmtReq(mixedClone);
+  taosMemoryFree(mixedClone);
+
+  taosArrayDestroy(mixedReq.cont.pReqs);
+  taosArrayDestroy(mixedReq.cont.pExtOrigTblReaders);
+
+  SStreamMgmtRsp mixedRsp = {};
+  mixedRsp.header.msgType = STREAM_MSG_MIXED_ORIGTBL_READER_INFO;
+  mixedRsp.cont.vgIds = taosArrayInit(1, sizeof(int32_t));
+  mixedRsp.cont.readerList = taosArrayInit(1, sizeof(SStreamTaskAddr));
+  mixedRsp.cont.pExtOrigTblReaders = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderRsp));
+  ASSERT_NE(mixedRsp.cont.vgIds, nullptr);
+  ASSERT_NE(mixedRsp.cont.readerList, nullptr);
+  ASSERT_NE(mixedRsp.cont.pExtOrigTblReaders, nullptr);
+  int32_t vgId = 7;
+  SStreamTaskAddr internalReader = {.taskId = 101, .nodeId = 8};
+  SStreamExtOrigTblReaderRsp externalReader = {};
+  externalReader.registryEntryId = 99;
+  externalReader.readerTaskAddr.taskId = 202;
+  externalReader.readerTaskAddr.nodeId = 9;
+  externalReader.acceptedTriggerBindingCount = 1;
+  externalReader.code = TSDB_CODE_SUCCESS;
+  ASSERT_NE(taosArrayPush(mixedRsp.cont.vgIds, &vgId), nullptr);
+  ASSERT_NE(taosArrayPush(mixedRsp.cont.readerList, &internalReader), nullptr);
+  ASSERT_NE(taosArrayPush(mixedRsp.cont.pExtOrigTblReaders, &externalReader), nullptr);
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamMgmtRsp(&encoder, &mixedRsp), 0);
+  len = encoder.pos;
+  tEncoderClear(&encoder);
+  buf.assign(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamMgmtRsp(&encoder, &mixedRsp), 0);
+  tEncoderClear(&encoder);
+  SStreamMgmtRsp mixedRspOut = {};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamMgmtRsp(&decoder, &mixedRspOut), 0);
+  tDecoderClear(&decoder);
+  ASSERT_EQ((int32_t)taosArrayGetSize(mixedRspOut.cont.vgIds), 1);
+  ASSERT_EQ(((int32_t*)taosArrayGet(mixedRspOut.cont.vgIds, 0))[0], vgId);
+  ASSERT_EQ((int32_t)taosArrayGetSize(mixedRspOut.cont.readerList), 1);
+  ASSERT_EQ(((SStreamTaskAddr*)taosArrayGet(mixedRspOut.cont.readerList, 0))->taskId, internalReader.taskId);
+  ASSERT_EQ((int32_t)taosArrayGetSize(mixedRspOut.cont.pExtOrigTblReaders), 1);
+  ASSERT_EQ(((SStreamExtOrigTblReaderRsp*)taosArrayGet(mixedRspOut.cont.pExtOrigTblReaders, 0))->registryEntryId,
+            externalReader.registryEntryId);
+  ASSERT_EQ(((SStreamExtOrigTblReaderRsp*)taosArrayGet(mixedRspOut.cont.pExtOrigTblReaders, 0))->readerTaskAddr.taskId,
+            externalReader.readerTaskAddr.taskId);
+  tFreeSStreamMgmtRsp(&mixedRspOut);
+  tFreeSStreamMgmtRsp(&mixedRsp);
+
+  SStreamExtOrigTblReaderReq invalidCloneReq = {};
+  memset(invalidCloneReq.identity.sourceName, 'x', sizeof(invalidCloneReq.identity.sourceName));
+  SStreamMgmtReq invalidMgmtReq = {0};
+  invalidMgmtReq.type = STREAM_MGMT_REQ_TRIGGER_EXT_ORIGTBL_READER;
+  invalidMgmtReq.cont.pExtOrigTblReader = &invalidCloneReq;
+  SStreamMgmtReq* invalidMgmtClone = NULL;
+  ASSERT_NE(tCloneSStreamMgmtReq(&invalidMgmtReq, &invalidMgmtClone), 0);
+  ASSERT_EQ(invalidMgmtClone, nullptr);
+  ASSERT_EQ(invalidMgmtReq.cont.pExtOrigTblReader, &invalidCloneReq);
+
+  std::vector<uint8_t> invalid(4, 0);
+  int32_t invalidCount = STREAM_EXT_ORIGTBL_READER_MAX_BINDINGS + 1;
+  memcpy(invalid.data(), &invalidCount, sizeof(invalidCount));
+  SStreamExtOrigTblReaderReq invalidOut = {0};
+  tDecoderInit(&decoder, invalid.data(), invalid.size());
+  ASSERT_NE(tDecodeSStreamExtOrigTblReaderBindings(&decoder, &invalidOut.bindings), 0);
+  tDecoderClear(&decoder);
+
+  tFreeSStreamExtOrigTblReaderReq(&req);
+  tFreeSStreamExtOrigTblReaderReq(&out);
+  tFreeSStreamExtOrigTblReaderReq(clone);
+  taosMemoryFree(clone);
+  tFreeSStreamExtOrigTblReaderRsp(&rsp);
+  tFreeSStreamExtOrigTblReaderRsp(&rspOut);
+}
+
+TEST(td_msg_test, ext_orig_reader_many_virtual_bindings_roundtrip) {
+  const int32_t virtualCount = TSDB_MAX_COLUMNS_NON_VIRTUAL + 1;
+  SStreamExtOrigTblReaderReq request = {};
+  request.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  request.bindings = taosArrayInit(2 * virtualCount, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(request.bindings, nullptr);
+  SStreamExtOrigTblReaderRsp response = {};
+  response.results = taosArrayInit(2 * virtualCount, sizeof(SStreamExtOrigTblReaderResult));
+  ASSERT_NE(response.results, nullptr);
+  for (int32_t virtualIndex = 0; virtualIndex < virtualCount; ++virtualIndex) {
+    for (int8_t kind : {STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER, STREAM_EXT_ORIGTBL_READER_BINDING_CALC}) {
+      SStreamExtOrigTblReaderResult result = {};
+      result.binding.bindingId = 2 * virtualIndex + kind;
+      result.binding.virtualUid = virtualIndex + 1;
+      result.binding.virtualGid = virtualIndex + 1;
+      result.binding.virtualSlot = 1;
+      result.binding.kind = kind;
+      result.binding.resultColumnSlot = 1;
+      result.binding.expectedType = TSDB_DATA_TYPE_INT;
+      tstrncpy(result.binding.externalColumn, "shared_value", sizeof(result.binding.externalColumn));
+      ASSERT_NE(taosArrayPush(request.bindings, &result.binding), nullptr);
+      ASSERT_NE(taosArrayPush(response.results, &result), nullptr);
+    }
+  }
+  SStreamExtOrigTblReaderReq* requestClone = nullptr;
+  ASSERT_EQ(tCloneSStreamExtOrigTblReaderReq(&request, &requestClone), TSDB_CODE_SUCCESS);
+  ASSERT_NE(requestClone, nullptr);
+  EXPECT_EQ(taosArrayGetSize(requestClone->bindings), 2 * virtualCount);
+  tFreeSStreamExtOrigTblReaderReq(requestClone);
+  taosMemoryFree(requestClone);
+  SStreamExtOrigTblReaderRsp* responseClone = nullptr;
+  ASSERT_EQ(tCloneSStreamExtOrigTblReaderRsp(&response, &responseClone), TSDB_CODE_SUCCESS);
+  ASSERT_NE(responseClone, nullptr);
+  EXPECT_EQ(taosArrayGetSize(responseClone->results), 2 * virtualCount);
+  tFreeSStreamExtOrigTblReaderRsp(responseClone);
+  taosMemoryFree(responseClone);
+
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, nullptr, 0);
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderReq(&encoder, &request), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderRsp(&encoder, &response), TSDB_CODE_SUCCESS);
+  std::vector<uint8_t> buffer(encoder.pos);
+  tEncoderClear(&encoder);
+  tEncoderInit(&encoder, buffer.data(), buffer.size());
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderReq(&encoder, &request), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderRsp(&encoder, &response), TSDB_CODE_SUCCESS);
+  tEncoderClear(&encoder);
+
+  SDecoder decoder = {};
+  SStreamExtOrigTblReaderReq decodedRequest = {};
+  SStreamExtOrigTblReaderRsp decodedResponse = {};
+  tDecoderInit(&decoder, buffer.data(), buffer.size());
+  ASSERT_EQ(tDecodeSStreamExtOrigTblReaderReq(&decoder, &decodedRequest), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tDecodeSStreamExtOrigTblReaderRsp(&decoder, &decodedResponse), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosArrayGetSize(decodedRequest.bindings), 2 * virtualCount);
+  ASSERT_EQ(taosArrayGetSize(decodedResponse.results), 2 * virtualCount);
+  for (int32_t bindingIndex = 0; bindingIndex < 2 * virtualCount; ++bindingIndex) {
+    auto* binding = static_cast<SStreamExtOrigTblReaderBinding*>(taosArrayGet(decodedRequest.bindings, bindingIndex));
+    auto* result = static_cast<SStreamExtOrigTblReaderResult*>(taosArrayGet(decodedResponse.results, bindingIndex));
+    EXPECT_EQ(binding->bindingId, bindingIndex);
+    EXPECT_EQ(binding->virtualUid, bindingIndex / 2 + 1);
+    EXPECT_EQ(result->binding.bindingId, bindingIndex);
+    EXPECT_EQ(result->binding.resultColumnSlot, 1);
+  }
+  tDecoderClear(&decoder);
+  tFreeSStreamExtOrigTblReaderReq(&decodedRequest);
+  tFreeSStreamExtOrigTblReaderRsp(&decodedResponse);
+  tFreeSStreamExtOrigTblReaderReq(&request);
+  tFreeSStreamExtOrigTblReaderRsp(&response);
+}
+
+TEST(td_msg_test, ext_orig_reader_rejects_truncated_binding_counts) {
+  for (int32_t count : {-1, 1, TSDB_MAX_COLUMNS_NON_VIRTUAL + 1,
+                        STREAM_EXT_ORIGTBL_READER_MAX_BINDINGS, STREAM_EXT_ORIGTBL_READER_MAX_BINDINGS + 1}) {
+    uint8_t buffer[sizeof(int32_t)] = {};
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, buffer, sizeof(buffer));
+    ASSERT_EQ(tEncodeI32(&encoder, count), TSDB_CODE_SUCCESS);
+    tEncoderClear(&encoder);
+    SDecoder decoder = {};
+    SArray* bindings = nullptr;
+    tDecoderInit(&decoder, buffer, sizeof(buffer));
+    EXPECT_EQ(tDecodeSStreamExtOrigTblReaderBindings(&decoder, &bindings), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(bindings, nullptr);
+    tDecoderClear(&decoder);
+  }
+}
+
+TEST(td_msg_test, mixed_orig_reader_rejects_excessive_internal_count_before_allocation) {
+  for (int32_t count : {-1, static_cast<int32_t>(TSDB_MAX_MSG_SIZE / sizeof(SStreamDbTableName)) + 1, 1}) {
+    uint8_t buffer[32] = {};
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, buffer, sizeof(buffer));
+    ASSERT_EQ(tEncodeI64(&encoder, 1), 0);
+    ASSERT_EQ(tEncodeI32(&encoder, STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER), 0);
+    ASSERT_EQ(tEncodeI32(&encoder, count), 0);
+    int32_t length = encoder.pos;
+    tEncoderClear(&encoder);
+
+    SDecoder decoder = {};
+    SStreamMgmtReq decoded = {};
+    tDecoderInit(&decoder, buffer, length);
+    EXPECT_EQ(tDecodeSStreamMgmtReq(&decoder, &decoded), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(decoded.cont.pReqs, nullptr) << "count=" << count;
+    tDecoderClear(&decoder);
+    tFreeSStreamMgmtReq(&decoded);
+  }
+}
+
+TEST(td_msg_test, ext_orig_reader_rejects_unsupported_protocol_versions) {
+  for (int32_t version : {0, STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION - 1,
+                          STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION,
+                          STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION + 1}) {
+    SStreamExtOrigTblReaderReq request = {};
+    request.protocolVersion = version;
+    request.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+    tstrncpy(request.identity.sourceName, "remote", sizeof(request.identity.sourceName));
+    uint8_t buffer[1024] = {};
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, buffer, sizeof(buffer));
+    ASSERT_EQ(tEncodeSStreamExtOrigTblReaderReq(&encoder, &request), 0);
+    int32_t length = encoder.pos;
+    tEncoderClear(&encoder);
+
+    SDecoder decoder = {};
+    SStreamExtOrigTblReaderReq decoded = {};
+    tDecoderInit(&decoder, buffer, length);
+    int32_t expected = version == STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION ? TSDB_CODE_SUCCESS
+                                                                           : TSDB_CODE_INVALID_MSG;
+    EXPECT_EQ(tDecodeSStreamExtOrigTblReaderReq(&decoder, &decoded), expected) << "version=" << version;
+    tDecoderClear(&decoder);
+    tFreeSStreamExtOrigTblReaderReq(&decoded);
+  }
+}
+
+TEST(td_msg_test, mixed_orig_reader_internal_count_budget_preserves_valid_batches) {
+  const int32_t maxCount = TSDB_MAX_MSG_SIZE / sizeof(SStreamDbTableName);
+  for (int32_t count : {0, 1, TSDB_MAX_COLUMNS_NON_VIRTUAL + 1, maxCount}) {
+    SStreamMgmtReq request = {};
+    request.type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+    if (count > 0) {
+      request.cont.pReqs = taosArrayInit_s(sizeof(SStreamDbTableName), count);
+      ASSERT_NE(request.cont.pReqs, nullptr);
+      for (int32_t entryIndex = 0; entryIndex < count; ++entryIndex) {
+        auto *name = static_cast<SStreamDbTableName *>(taosArrayGet(request.cont.pReqs, entryIndex));
+        tstrncpy(name->dbFName, "1.metrics", sizeof(name->dbFName));
+        tstrncpy(name->tbName, "cpu", sizeof(name->tbName));
+      }
+    }
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, nullptr, 0);
+    ASSERT_EQ(tEncodeSStreamMgmtReq(&encoder, &request), TSDB_CODE_SUCCESS);
+    std::vector<uint8_t> buffer(encoder.pos);
+    tEncoderClear(&encoder);
+    tEncoderInit(&encoder, buffer.data(), buffer.size());
+    ASSERT_EQ(tEncodeSStreamMgmtReq(&encoder, &request), TSDB_CODE_SUCCESS);
+    tEncoderClear(&encoder);
+
+    SDecoder decoder = {};
+    SStreamMgmtReq decoded = {};
+    tDecoderInit(&decoder, buffer.data(), buffer.size());
+    EXPECT_EQ(tDecodeSStreamMgmtReq(&decoder, &decoded), TSDB_CODE_SUCCESS) << "count=" << count;
+    EXPECT_EQ(taosArrayGetSize(decoded.cont.pReqs), count);
+    tDecoderClear(&decoder);
+    tFreeSStreamMgmtReq(&decoded);
+    tFreeSStreamMgmtReq(&request);
+  }
+
+  SArray oversized = {};
+  oversized.size = maxCount + 1;
+  SStreamMgmtReq request = {};
+  request.type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+  request.cont.pReqs = &oversized;
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, nullptr, 0);
+  EXPECT_EQ(tEncodeSStreamMgmtReq(&encoder, &request), TSDB_CODE_INVALID_MSG);
+  tEncoderClear(&encoder);
+}
+
+TEST(td_msg_test, ext_orig_tbl_reader_string_codec_validates_wire_terminators) {
+  SStreamExtOrigTblReaderReq req = {0};
+  req.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  memset(req.identity.sourceName, 's', sizeof(req.identity.sourceName) - 1);
+  tstrncpy(req.identity.dbName, "db", sizeof(req.identity.dbName));
+  tstrncpy(req.identity.schemaName, "schema", sizeof(req.identity.schemaName));
+  tstrncpy(req.identity.tableName, "table", sizeof(req.identity.tableName));
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderReq(&encoder, &req), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamExtOrigTblReaderReq(&encoder, &req), 0);
+  tEncoderClear(&encoder);
+
+  SStreamExtOrigTblReaderReq decoded = {0};
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamExtOrigTblReaderReq(&decoder, &decoded), 0);
+  tDecoderClear(&decoder);
+  ASSERT_STREQ(decoded.identity.sourceName, req.identity.sourceName);
+  tFreeSStreamExtOrigTblReaderReq(&decoded);
+
+  const char malformed[] = {'x'};
+  for (int32_t wireStringLength : {0, 1}) {
+    std::vector<uint8_t> malformedBuf(128, 0);
+    tEncoderInit(&encoder, malformedBuf.data(), malformedBuf.size());
+    ASSERT_EQ(tEncodeI64(&encoder, 0), 0);
+    ASSERT_EQ(tEncodeI64(&encoder, 0), 0);
+    ASSERT_EQ(tEncodeI32(&encoder, STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION), 0);
+    ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+    ASSERT_EQ(tEncodeI8(&encoder, EXT_SOURCE_MYSQL), 0);
+    ASSERT_EQ(tEncodeI64(&encoder, 0), 0);
+    ASSERT_EQ(tEncodeBinary(&encoder, (const uint8_t*)malformed, wireStringLength), 0);
+    ASSERT_EQ(tEncodeCStr(&encoder, "db"), 0);
+    ASSERT_EQ(tEncodeCStr(&encoder, "schema"), 0);
+    ASSERT_EQ(tEncodeCStr(&encoder, "table"), 0);
+    ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+    int32_t malformedLen = encoder.pos;
+    tEncoderClear(&encoder);
+
+    SStreamExtOrigTblReaderReq malformedDecoded = {0};
+    tDecoderInit(&decoder, malformedBuf.data(), malformedLen);
+    ASSERT_NE(tDecodeSStreamExtOrigTblReaderReq(&decoder, &malformedDecoded), 0);
+    tDecoderClear(&decoder);
+    tFreeSStreamExtOrigTblReaderReq(&malformedDecoded);
+  }
+}
+
+TEST(td_msg_test, ext_source_identity_lookup_roundtrip_preserves_source_type_and_tag_condition) {
+  SStreamExtSourceIdentityReq req = {};
+  tstrncpy(req.sourceName, "mysql-source", sizeof(req.sourceName));
+  tstrncpy(req.schemaName, "public", sizeof(req.schemaName));
+  tstrncpy(req.dbName, "metrics", sizeof(req.dbName));
+  tstrncpy(req.tableName, "cpu", sizeof(req.tableName));
+  const char tagCondition[] = "{\"host\":\"edge-a\"}";
+  req.tagCondLen = sizeof(tagCondition) - 1;
+  req.tagCondJson = const_cast<char*>(tagCondition);
+
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamExtSourceIdentityReq(&encoder, &req), 0);
+  const int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(len, 0);
+
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamExtSourceIdentityReq(&encoder, &req), 0);
+  tEncoderClear(&encoder);
+
+  SStreamExtSourceIdentityReq decodedReq = {};
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamExtSourceIdentityReq(&decoder, &decodedReq), 0);
+  tDecoderClear(&decoder);
+  ASSERT_STREQ(decodedReq.sourceName, req.sourceName);
+  ASSERT_STREQ(decodedReq.schemaName, req.schemaName);
+  ASSERT_STREQ(decodedReq.dbName, req.dbName);
+  ASSERT_STREQ(decodedReq.tableName, req.tableName);
+  ASSERT_EQ(decodedReq.tagCondLen, req.tagCondLen);
+  ASSERT_EQ(memcmp(decodedReq.tagCondJson, req.tagCondJson, req.tagCondLen), 0);
+
+  SStreamExtSourceIdentityRsp rsp = {};
+  rsp.req = req;
+  rsp.sourceType = EXT_SOURCE_POSTGRESQL;
+  rsp.sourceConfigVersion = 1234;
+  rsp.code = TSDB_CODE_SUCCESS;
+
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamExtSourceIdentityRsp(&encoder, &rsp), 0);
+  const int32_t rspLen = encoder.pos;
+  tEncoderClear(&encoder);
+  buf.assign(rspLen, 0);
+  tEncoderInit(&encoder, buf.data(), rspLen);
+  ASSERT_EQ(tEncodeSStreamExtSourceIdentityRsp(&encoder, &rsp), 0);
+  tEncoderClear(&encoder);
+
+  SStreamExtSourceIdentityRsp decodedRsp = {};
+  tDecoderInit(&decoder, buf.data(), rspLen);
+  ASSERT_EQ(tDecodeSStreamExtSourceIdentityRsp(&decoder, &decodedRsp), 0);
+  tDecoderClear(&decoder);
+  ASSERT_STREQ(decodedRsp.req.sourceName, req.sourceName);
+  ASSERT_EQ(decodedRsp.sourceType, EXT_SOURCE_POSTGRESQL);
+  ASSERT_EQ(decodedRsp.sourceConfigVersion, rsp.sourceConfigVersion);
+  ASSERT_EQ(decodedRsp.code, TSDB_CODE_SUCCESS);
+
+  tFreeSStreamExtSourceIdentityReq(&decodedReq);
+  tFreeSStreamExtSourceIdentityRsp(&decodedRsp);
+}
+
+TEST(td_msg_test, ext_source_identity_lookup_rejects_invalid_tag_condition) {
+  SStreamExtSourceIdentityReq req = {};
+  tstrncpy(req.sourceName, "mysql-source", sizeof(req.sourceName));
+  tstrncpy(req.schemaName, "public", sizeof(req.schemaName));
+  tstrncpy(req.dbName, "metrics", sizeof(req.dbName));
+  tstrncpy(req.tableName, "cpu", sizeof(req.tableName));
+
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, NULL, 0);
+  req.tagCondLen = 1;
+  ASSERT_EQ(tEncodeSStreamExtSourceIdentityReq(&encoder, &req), TSDB_CODE_INVALID_MSG);
+
+  req.tagCondLen = STREAM_EXT_SOURCE_IDENTITY_MAX_TAG_COND_LEN + 1;
+  req.tagCondJson = const_cast<char*>("x");
+  ASSERT_EQ(tEncodeSStreamExtSourceIdentityReq(&encoder, &req), TSDB_CODE_INVALID_MSG);
+  tEncoderClear(&encoder);
+}
+
+TEST(td_msg_test, ext_source_identity_lookup_management_request_roundtrip) {
+  SStreamMgmtReq req = {};
+  req.reqId = 42;
+  req.type = STREAM_MGMT_REQ_TRIGGER_EXT_SOURCE_IDENTITY;
+  req.cont.pExtSourceIdentity = (SStreamExtSourceIdentityReq*)taosMemoryCalloc(1, sizeof(SStreamExtSourceIdentityReq));
+  ASSERT_NE(req.cont.pExtSourceIdentity, nullptr);
+  tstrncpy(req.cont.pExtSourceIdentity->sourceName, "mysql-source", sizeof(req.cont.pExtSourceIdentity->sourceName));
+  tstrncpy(req.cont.pExtSourceIdentity->schemaName, "public", sizeof(req.cont.pExtSourceIdentity->schemaName));
+  tstrncpy(req.cont.pExtSourceIdentity->dbName, "metrics", sizeof(req.cont.pExtSourceIdentity->dbName));
+  tstrncpy(req.cont.pExtSourceIdentity->tableName, "cpu", sizeof(req.cont.pExtSourceIdentity->tableName));
+
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamMgmtReq(&encoder, &req), 0);
+  const int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamMgmtReq(&encoder, &req), 0);
+  tEncoderClear(&encoder);
+
+  SStreamMgmtReq decoded = {};
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamMgmtReq(&decoder, &decoded), 0);
+  tDecoderClear(&decoder);
+  ASSERT_EQ(decoded.reqId, req.reqId);
+  ASSERT_EQ(decoded.type, req.type);
+  ASSERT_NE(decoded.cont.pExtSourceIdentity, nullptr);
+  ASSERT_STREQ(decoded.cont.pExtSourceIdentity->sourceName, "mysql-source");
+
+  tFreeSStreamMgmtReq(&decoded);
+  tFreeSStreamMgmtReq(&req);
+}
+
 TEST(td_msg_test, vtb_tag_cond_rsp_decodes_legacy_payload_without_filter_extension) {
   std::vector<uint8_t> buf(256, 0);
   SEncoder             encoder = {0};
@@ -3317,6 +4004,215 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   taosMemoryFree(pOut);
 }
 
+TEST(td_msg_test, stream_create_ext_spec_precision_roundtrip) {
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    for (bool legacy : {false, true}) {
+      SCOPED_TRACE(::testing::Message() << "precision=" << (int)precision << " legacy=" << legacy);
+      SCMCreateStreamReq req = {};
+      req.triggerType = WINDOW_TYPE_INTERVAL;
+      req.triggerPrec = (precision + 1) % 3;
+      SStreamExtTriggerSpec spec = {};
+      spec.precision = precision;
+      tstrncpy(spec.sourceName, "mysql_a", sizeof(spec.sourceName));
+      SStreamExtTriggerSpec* pSpec = &spec;
+      req.extSpecs = taosArrayInit(1, POINTER_BYTES);
+      ASSERT_NE(req.extSpecs, nullptr);
+      ASSERT_NE(taosArrayPush(req.extSpecs, &pSpec), nullptr);
+      req.numOfExtSpecs = 1;
+
+      char* json = nullptr;
+      int32_t jsonLen = 0;
+      int32_t code = scmCreateStreamReqToJson(&req, false, &json, &jsonLen);
+      taosArrayDestroy(req.extSpecs);
+      ASSERT_EQ(code, 0);
+      SJson* parsed = tjsonParse(json);
+      taosMemoryFree(json);
+      ASSERT_NE(parsed, nullptr);
+      if (legacy) {
+        SJson* item = tjsonGetArrayItem(tjsonGetObjectItem(parsed, "extSpecs"), 0);
+        ASSERT_NE(item, nullptr);
+        tjsonDeleteItemFromObject(item, "precision");
+      }
+
+      SCMCreateStreamReq decoded = {};
+      code = jsonToSCMCreateStreamReq(parsed, &decoded);
+      tjsonDelete(parsed);
+      EXPECT_EQ(code, 0);
+      EXPECT_EQ(taosArrayGetSize(decoded.extSpecs), 1);
+      if (code == 0 && taosArrayGetSize(decoded.extSpecs) == 1) {
+        auto* actual = *(SStreamExtTriggerSpec**)taosArrayGet(decoded.extSpecs, 0);
+        EXPECT_EQ(actual->precision, legacy ? req.triggerPrec : precision);
+      }
+      tFreeSCMCreateStreamReq(&decoded);
+    }
+  }
+}
+
+TEST(td_msg_test, stream_ext_pull_timestamp_precision_roundtrip) {
+  SSTriggerExtPullRsp rsp = {};
+  rsp.pullType = STRIGGER_PULL_CALC_DATA_EXT;
+  ASSERT_EQ(createDataBlock(&rsp.pMetaBlock), 0);
+  ASSERT_EQ(createDataBlock(&rsp.pDataBlock), 0);
+  const int8_t types[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BIGINT,
+                          TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_TIMESTAMP};
+  const int8_t precisions[] = {TSDB_TIME_PRECISION_MILLI, 0,
+                               TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO};
+  const int64_t values[] = {1740960000000LL, 42, 1740960000000000LL, 1740960000000000000LL};
+  for (SSDataBlock* block : {rsp.pMetaBlock, rsp.pDataBlock}) {
+    for (int32_t col = 0; col < 4; ++col) {
+      SColumnInfoData column = createColumnInfoData(types[col], sizeof(int64_t), col + 1);
+      column.info.precision = precisions[col];
+      ASSERT_EQ(blockDataAppendColInfo(block, &column), 0);
+    }
+    ASSERT_EQ(blockDataEnsureCapacity(block, 2), 0);
+    for (int32_t col = 0; col < 4; ++col) {
+      auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, col));
+      ASSERT_EQ(colDataSetVal(column, 0, reinterpret_cast<const char*>(&values[col]), false), 0);
+      ASSERT_EQ(colDataSetVal(column, 1, nullptr, true), 0);
+    }
+    block->info.rows = 2;
+  }
+  const int32_t len = tSerializeSSTriggerExtPullRsp(nullptr, 0, &rsp);
+  ASSERT_GT(len, 0);
+  std::vector<uint8_t> buf(len);
+  ASSERT_EQ(tSerializeSSTriggerExtPullRsp(buf.data(), len, &rsp), len);
+  SSTriggerExtPullRsp decoded = {};
+  ASSERT_EQ(tDeserializeSSTriggerExtPullRsp(buf.data(), len, &decoded), 0);
+  for (SSDataBlock* block : {decoded.pMetaBlock, decoded.pDataBlock}) {
+    ASSERT_NE(block, nullptr);
+    ASSERT_EQ(block->info.rows, 2);
+    for (int32_t col = 0; col < 4; ++col) {
+      SCOPED_TRACE(col);
+      auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, col));
+      EXPECT_EQ(column->info.type, types[col]);
+      EXPECT_EQ(column->info.precision, precisions[col]);
+      EXPECT_EQ(*reinterpret_cast<const int64_t*>(colDataGetData(column, 0)), values[col]);
+      EXPECT_TRUE(colDataIsNull_s(column, 1));
+    }
+  }
+  tDestroySSTriggerExtPullRsp(&decoded);
+
+  SDecoder frameDecoder = {};
+  tDecoderInit(&frameDecoder, buf.data(), len);
+  int32_t frameLen = 0;
+  ASSERT_EQ(tDecodeI32(&frameDecoder, &frameLen), 0);
+  tDecoderClear(&frameDecoder);
+  const int32_t legacyLen = len - 6;
+  SEncoder frameEncoder = {};
+  tEncoderInit(&frameEncoder, buf.data(), legacyLen);
+  ASSERT_EQ(tEncodeI32(&frameEncoder, frameLen - 6), 0);
+  tEncoderClear(&frameEncoder);
+  decoded = {};
+  ASSERT_EQ(tDeserializeSSTriggerExtPullRsp(buf.data(), legacyLen, &decoded), 0);
+  for (SSDataBlock* block : {decoded.pMetaBlock, decoded.pDataBlock}) {
+    ASSERT_NE(block, nullptr);
+    ASSERT_EQ(block->info.rows, 2);
+    for (int32_t col = 0; col < 4; ++col) {
+      auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, col));
+      EXPECT_EQ(*reinterpret_cast<const int64_t*>(colDataGetData(column, 0)), values[col]);
+    }
+  }
+  tDestroySSTriggerExtPullRsp(&decoded);
+  tDestroySSTriggerExtPullRsp(&rsp);
+}
+
+TEST(td_msg_test, stream_reader_deploy_ext_spec_column_mapping_roundtrip) {
+  SStreamReaderDeployMsg msg = {};
+  msg.triggerReader = 1;
+  msg.pExtSpec = (SStreamExtTriggerSpec*)taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec));
+  ASSERT_NE(msg.pExtSpec, nullptr);
+
+  SStreamExtTriggerSpec* spec = msg.pExtSpec;
+  tstrncpy(spec->sourceName, "mysql_a", sizeof(spec->sourceName));
+  spec->sourceType = 1;
+  tstrncpy(spec->extDb, "remote_db", sizeof(spec->extDb));
+  tstrncpy(spec->extTable, "same_t", sizeof(spec->extTable));
+  tstrncpy(spec->tsColumn, "ts", sizeof(spec->tsColumn));
+  spec->precision = TSDB_TIME_PRECISION_MILLI;
+  tstrncpy(spec->host, "127.0.0.1", sizeof(spec->host));
+  spec->port = 3306;
+  tstrncpy(spec->user, "stream_user", sizeof(spec->user));
+  spec->connCfgVersion = 7;
+  spec->tagCondJson = taosStrdup("{\"region\":\"cn\"}");
+  ASSERT_NE(spec->tagCondJson, nullptr);
+  spec->tagCondLen = (int32_t)strlen(spec->tagCondJson);
+
+  spec->triggerColumns = taosArrayInit(2, TSDB_COL_NAME_LEN);
+  spec->calcColumns = taosArrayInit(3, TSDB_COL_NAME_LEN);
+  ASSERT_NE(spec->triggerColumns, nullptr);
+  ASSERT_NE(spec->calcColumns, nullptr);
+  const char triggerCol0[TSDB_COL_NAME_LEN] = "ts";
+  const char triggerCol1[TSDB_COL_NAME_LEN] = "value_a";
+  const char calcCol0[TSDB_COL_NAME_LEN] = "ts";
+  const char calcCol1[TSDB_COL_NAME_LEN] = "value_a";
+  const char calcCol2[TSDB_COL_NAME_LEN] = "value_b";
+  ASSERT_NE(taosArrayPush(spec->triggerColumns, triggerCol0), nullptr);
+  ASSERT_NE(taosArrayPush(spec->triggerColumns, triggerCol1), nullptr);
+  ASSERT_NE(taosArrayPush(spec->calcColumns, calcCol0), nullptr);
+  ASSERT_NE(taosArrayPush(spec->calcColumns, calcCol1), nullptr);
+  ASSERT_NE(taosArrayPush(spec->calcColumns, calcCol2), nullptr);
+
+  spec->numColMappings = 2;
+  spec->numCalcMappings = 3;
+  spec->pColMappings = (SExtColTypeMapping*)taosMemoryCalloc(spec->numColMappings, sizeof(SExtColTypeMapping));
+  spec->pCalcMappings = (SExtColTypeMapping*)taosMemoryCalloc(spec->numCalcMappings, sizeof(SExtColTypeMapping));
+  ASSERT_NE(spec->pColMappings, nullptr);
+  ASSERT_NE(spec->pCalcMappings, nullptr);
+
+  tstrncpy(spec->pColMappings[0].extTypeName, "TIMESTAMP", sizeof(spec->pColMappings[0].extTypeName));
+  spec->pColMappings[0].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  spec->pColMappings[0].tdType.precision = TSDB_TIME_PRECISION_MILLI;
+  spec->pColMappings[0].tdType.bytes = 8;
+  spec->pColMappings[0].tsPrecision = TSDB_TIME_PRECISION_MILLI;
+  tstrncpy(spec->pColMappings[0].colName, "ts", sizeof(spec->pColMappings[0].colName));
+  tstrncpy(spec->pColMappings[1].extTypeName, "DOUBLE", sizeof(spec->pColMappings[1].extTypeName));
+  spec->pColMappings[1].tdType.type = TSDB_DATA_TYPE_DOUBLE;
+  spec->pColMappings[1].tdType.bytes = 8;
+  tstrncpy(spec->pColMappings[1].colName, "value_a", sizeof(spec->pColMappings[1].colName));
+
+  memcpy(spec->pCalcMappings, spec->pColMappings, sizeof(SExtColTypeMapping) * spec->numColMappings);
+  tstrncpy(spec->pCalcMappings[2].extTypeName, "BIGINT", sizeof(spec->pCalcMappings[2].extTypeName));
+  spec->pCalcMappings[2].tdType.type = TSDB_DATA_TYPE_BIGINT;
+  spec->pCalcMappings[2].tdType.bytes = 8;
+  tstrncpy(spec->pCalcMappings[2].colName, "value_b", sizeof(spec->pCalcMappings[2].colName));
+
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSStreamReaderDeployMsg(&encoder, &msg), 0);
+  const int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(len, 0);
+
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tEncodeSStreamReaderDeployMsg(&encoder, &msg), 0);
+  tEncoderClear(&encoder);
+
+  SStreamReaderDeployMsg decoded = {};
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDecodeSStreamReaderDeployMsg(&decoder, &decoded), 0);
+  tDecoderClear(&decoder);
+
+  ASSERT_NE(decoded.pExtSpec, nullptr);
+  ASSERT_EQ((int32_t)taosArrayGetSize(decoded.pExtSpec->triggerColumns), 2);
+  ASSERT_EQ((int32_t)taosArrayGetSize(decoded.pExtSpec->calcColumns), 3);
+  ASSERT_STREQ((const char*)taosArrayGet(decoded.pExtSpec->triggerColumns, 1), "value_a");
+  ASSERT_STREQ((const char*)taosArrayGet(decoded.pExtSpec->calcColumns, 2), "value_b");
+  ASSERT_EQ(decoded.pExtSpec->precision, TSDB_TIME_PRECISION_MILLI);
+  ASSERT_EQ(decoded.pExtSpec->numColMappings, 2);
+  ASSERT_EQ(decoded.pExtSpec->numCalcMappings, 3);
+  ASSERT_STREQ(decoded.pExtSpec->tagCondJson, spec->tagCondJson);
+  ASSERT_EQ(decoded.pExtSpec->tagCondLen, spec->tagCondLen);
+  ASSERT_STREQ(decoded.pExtSpec->pColMappings[1].colName, "value_a");
+  ASSERT_EQ(decoded.pExtSpec->pColMappings[1].tdType.type, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_STREQ(decoded.pExtSpec->pCalcMappings[2].colName, "value_b");
+  ASSERT_EQ(decoded.pExtSpec->pCalcMappings[2].tdType.type, TSDB_DATA_TYPE_BIGINT);
+
+  tFreeSStreamReaderDeployMsg(&decoded);
+  tFreeSStreamReaderDeployMsg(&msg);
+}
+
 TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   SForeignScanOperatorParam fsParam = {FOREIGN_SCAN_PARAM_BATCH};
   tstrncpy(fsParam.sourceName, "pg_prod", sizeof(fsParam.sourceName));
@@ -3377,6 +4273,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
 
   std::vector<uint8_t> buf(len, 0);
   tEncoderInit(&encoder, buf.data(), len);
+
   ASSERT_EQ(tSerializeSOperatorParam(&encoder, &param), 0);
   tEncoderClear(&encoder);
 
@@ -3839,6 +4736,129 @@ TEST(td_msg_test, retrieve_table_req_rejects_invalid_xnode_combinations) {
 
 TEST(td_msg_test, retrieve_table_req_validate_rejects_null) {
   EXPECT_EQ(tValidateSRetrieveTableReq(NULL), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(td_msg_test, clone_mixed_stream_management_request_keeps_source_ownership) {
+  SStreamMgmtReq source = {};
+  source.type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+  source.cont.pExtOrigTblReaders = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderReq), 0);
+  ASSERT_NE(source.cont.pExtOrigTblReaders, nullptr);
+
+  SStreamMgmtReq* clone = nullptr;
+  ASSERT_EQ(tCloneSStreamMgmtReq(&source, &clone), TSDB_CODE_SUCCESS);
+  ASSERT_NE(clone, nullptr);
+  EXPECT_EQ(clone->cont.pReqs, nullptr);
+  EXPECT_EQ(clone->cont.pExtOrigTblReaders, nullptr);
+
+  // Freeing the clone must not release the source's empty-but-owned array.
+  tFreeSStreamMgmtReq(clone);
+  taosMemoryFree(clone);
+  EXPECT_EQ(taosArrayGetSize(source.cont.pExtOrigTblReaders), 0);
+  tFreeSStreamMgmtReq(&source);
+}
+
+static SArray* failMixedRequestArrayDup(const SArray*, __array_item_dup_fn_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+TEST(td_msg_test, clone_mixed_stream_management_request_failure_keeps_source_ownership) {
+  SStreamMgmtReq source = {};
+  source.type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+  source.cont.pReqs = taosArrayInit_s(sizeof(int32_t), 1);
+  source.cont.pExtOrigTblReaders = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderReq), 1);
+  ASSERT_NE(source.cont.pReqs, nullptr);
+  ASSERT_NE(source.cont.pExtOrigTblReaders, nullptr);
+  *static_cast<int32_t*>(taosArrayGet(source.cont.pReqs, 0)) = 42;
+  auto* external = static_cast<SStreamExtOrigTblReaderReq*>(taosArrayGet(source.cont.pExtOrigTblReaders, 0));
+  external->tagCondJson = taosStrdup("{\"device\":1}");
+  ASSERT_NE(external->tagCondJson, nullptr);
+  external->tagCondLen = strlen(external->tagCondJson);
+  SStreamMgmtReq* clone = nullptr;
+  {
+    Stub stub;
+    stub.set(taosArrayDup, failMixedRequestArrayDup);
+    EXPECT_EQ(tCloneSStreamMgmtReq(&source, &clone), TSDB_CODE_OUT_OF_MEMORY);
+  }
+  EXPECT_EQ(clone, nullptr);
+  EXPECT_EQ(*static_cast<int32_t*>(taosArrayGet(source.cont.pReqs, 0)), 42);
+  EXPECT_EQ(taosArrayGetSize(source.cont.pExtOrigTblReaders), 1);
+  EXPECT_STREQ(external->tagCondJson, "{\"device\":1}");
+  tFreeSStreamMgmtReq(&source);
+}
+
+TEST(tmsgTest, vtable_resolve_response_preserves_series_conditions_and_legacy_prefix) {
+  SVTableRefResolveRsp source = {};
+  source.items = taosArrayInit(2, sizeof(SVTableRefResolveRspItem));
+  ASSERT_NE(source.items, nullptr);
+  SVTableRefResolveRspItem item = {};
+  item.terminated = true;
+  item.nextRef.kind = STREAM_VREF_KIND_COL;
+  item.nextRef.hasRef = true;
+  item.nextRef.refType = 1;
+  strcpy(item.nextRef.refSourceName, "ext_source");
+  strcpy(item.nextRef.refTableName, "metrics");
+  item.nextRef.tagCondJson = taosStrdup("{\"device\":\"one\"}");
+  item.nextRef.tagCondLen = strlen(item.nextRef.tagCondJson);
+  ASSERT_NE(taosArrayPush(source.items, &item), nullptr);
+  item.nextRef.tagCondJson = nullptr;
+  item.nextRef.tagCondLen = 0;
+  ASSERT_NE(taosArrayPush(source.items, &item), nullptr);
+
+  int32_t size = tSerializeSVTableRefResolveRsp(nullptr, 0, &source);
+  ASSERT_GT(size, 0);
+  vector<uint8_t> bytes(size);
+  ASSERT_EQ(tSerializeSVTableRefResolveRsp(bytes.data(), size, &source), size);
+  SVTableRefResolveRsp decoded = {};
+  ASSERT_EQ(tDeserializeSVTableRefResolveRsp(bytes.data(), size, &decoded), 0);
+  auto* first = static_cast<SVTableRefResolveRspItem*>(taosArrayGet(decoded.items, 0));
+  auto* second = static_cast<SVTableRefResolveRspItem*>(taosArrayGet(decoded.items, 1));
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(second, nullptr);
+  EXPECT_STREQ(first->nextRef.tagCondJson, "{\"device\":\"one\"}");
+  EXPECT_EQ(second->nextRef.tagCondJson, nullptr);
+  tFreeSVTableRefResolveRsp(&decoded);
+
+  // Decode the legacy prefix, then rebuild a frame without the optional tail.
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, bytes.data(), size);
+  ASSERT_EQ(tStartDecode(&decoder), 0);
+  int32_t count = 0;
+  ASSERT_EQ(tDecodeI32(&decoder, &count), 0);
+  ASSERT_EQ(count, 2);
+  for (int32_t i = 0; i < count; ++i) {
+    int32_t value32 = 0;
+    int8_t value8 = 0;
+    bool flag = false;
+    char* value = nullptr;
+    ASSERT_EQ(tDecodeI32(&decoder, &value32), 0);
+    ASSERT_EQ(tDecodeI8(&decoder, &value8), 0);
+    ASSERT_EQ(tDecodeI8(&decoder, &value8), 0);
+    ASSERT_EQ(tDecodeBool(&decoder, &flag), 0);
+    ASSERT_EQ(tDecodeI8(&decoder, &value8), 0);
+    for (int32_t j = 0; j < 5; ++j) ASSERT_EQ(tDecodeCStr(&decoder, &value), 0);
+    ASSERT_EQ(tDecodeI8(&decoder, &value8), 0);
+    ASSERT_EQ(tDecodeI32(&decoder, &value32), 0);
+    EXPECT_EQ(value32, 0);
+  }
+  int32_t prefixSize = decoder.pos;
+  vector<uint8_t> legacy(sizeof(int32_t) + prefixSize);
+  memcpy(legacy.data(), &prefixSize, sizeof(prefixSize));
+  memcpy(legacy.data() + sizeof(int32_t), decoder.data, prefixSize);
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  ASSERT_EQ(tDeserializeSVTableRefResolveRsp(legacy.data(), legacy.size(), &decoded), 0);
+  EXPECT_EQ(taosArrayGetSize(decoded.items), 2);
+  EXPECT_EQ(static_cast<SVTableRefResolveRspItem*>(taosArrayGet(decoded.items, 0))->nextRef.tagCondLen, 0);
+  tFreeSVTableRefResolveRsp(&decoded);
+
+  // A truncated extension must fail and release all partially decoded items.
+  bytes.pop_back();
+  int32_t truncatedSize = bytes.size() - sizeof(int32_t);
+  memcpy(bytes.data(), &truncatedSize, sizeof(truncatedSize));
+  EXPECT_LT(tDeserializeSVTableRefResolveRsp(bytes.data(), bytes.size(), &decoded), 0);
+  EXPECT_EQ(decoded.items, nullptr);
+  tFreeSVTableRefResolveRsp(&source);
 }
 
 TEST(td_msg_test, explain_correlation_stats_round_trip) {

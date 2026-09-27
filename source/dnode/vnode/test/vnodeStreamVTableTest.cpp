@@ -35,6 +35,7 @@
 #include "tarray.h"
 #include "thash.h"
 #include "vnodeStreamVTable.h"
+#include "vnodeInt.h"
 
 // Stub: dmNotifyHdl is defined in mgmt_dnode which is not linked in this unit
 // test binary. Provide a minimal definition so the vnode object files resolve.
@@ -64,6 +65,7 @@ void freeCache(SStreamVTableInfoCache *pCache) {
     while ((p = taosHashIterate(pCache->tblRefCache, p)) != nullptr) {
       auto *item = (SVTableRefResolveRspItem *)p;
       if (item->tagData != nullptr) taosMemoryFree(item->tagData);
+      if (item->nextRef.tagCondJson != nullptr) taosMemoryFree(item->nextRef.tagCondJson);
     }
     (void)it;
     taosHashCleanup(pCache->tblRefCache);
@@ -205,6 +207,117 @@ void appendNodeGroupRangeContext(SStreamRuntimeFuncInfo *runtime, int64_t gid, i
 }
 
 }  // namespace
+
+class VnodeStreamVTableMetadataTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    readerInfo_.pTask = &task_;
+    readerInfo_.storageApi.metaReaderFn.getTableEntryByVersionUid = [](SMetaReader *reader, int64_t, tb_uid_t uid) {
+      return uid == 1 ? loadMeta(reader) : TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    };
+    readerInfo_.storageApi.metaReaderFn.getTableEntryByUid = [](SMetaReader *reader, tb_uid_t uid) {
+      return uid == 2 ? loadMeta(reader) : TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    };
+    cids_ = taosArrayInit(1, sizeof(col_id_t));
+    infos_ = taosArrayInit(3, sizeof(VTableInfo));
+    result_.colMap = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+    ASSERT_NE(nullptr, cids_);
+    ASSERT_NE(nullptr, infos_);
+    ASSERT_NE(nullptr, result_.colMap);
+    col_id_t cid = 2;
+    ASSERT_NE(nullptr, taosArrayPush(cids_, &cid));
+    item_.hasRef = true;
+    item_.refType = 1;
+    item_.tagCondJson = const_cast<char *>("resolved-series");
+    item_.tagCondLen = strlen(item_.tagCondJson);
+    SColResolveItem *item = &item_;
+    ASSERT_EQ(0, tSimpleHashPut(result_.colMap, &cid, sizeof(cid), &item, sizeof(item)));
+  }
+
+  void TearDown() override {
+    for (size_t index = 0; index < taosArrayGetSize(infos_); ++index) {
+      auto *info = static_cast<VTableInfo *>(taosArrayGet(infos_, index));
+      for (int32_t column = 0; column < info->cols.nCols; ++column) {
+        taosMemoryFree(info->cols.pColRef[column].tagCondJson);
+      }
+      taosMemoryFree(info->cols.pColRef);
+    }
+    taosArrayDestroy(infos_);
+    taosArrayDestroy(cids_);
+    tSimpleHashCleanup(result_.colMap);
+    tDecoderClear(&metaReader_.coder);
+  }
+
+  static int32_t loadMeta(SMetaReader *reader) {
+    reader->me.name = const_cast<char *>("vtable");
+    reader->me.colRef.version = 7;
+    reader->me.colRef.nCols = 1;
+    reader->me.colRef.pColRef = static_cast<SColRef *>(tDecoderMalloc(&reader->coder, sizeof(SColRef)));
+    if (reader->me.colRef.pColRef == nullptr) return TSDB_CODE_OUT_OF_MEMORY;
+    reader->me.colRef.pColRef[0].id = 2;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t fill(int64_t uid, SArray *cids) {
+    return streamFillVTableInfoFromResolved(&vnode_, &readerInfo_, uid, 1, 1, cids, &result_, &metaReader_, infos_);
+  }
+
+  SVnode vnode_ = {};
+  SStreamTask task_ = {};
+  SStreamTriggerReaderInfo readerInfo_ = {};
+  SMetaReader metaReader_ = {};
+  SVTableResolveResult result_ = {};
+  SColResolveItem item_ = {};
+  SArray *cids_ = nullptr;
+  SArray *infos_ = nullptr;
+};
+
+TEST_F(VnodeStreamVTableMetadataTest, MissingMetadataAfterDecoderReleaseUsesOwnedResolvedCondition) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fill(1, cids_));
+  EXPECT_EQ(nullptr, metaReader_.coder.mList);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fill(3, cids_));
+  auto *info = static_cast<VTableInfo *>(taosArrayGet(infos_, 1));
+  ASSERT_EQ(1, info->cols.nCols);
+  EXPECT_EQ(0, info->cols.version);
+  EXPECT_STREQ("resolved-series", info->cols.pColRef[0].tagCondJson);
+}
+
+TEST_F(VnodeStreamVTableMetadataTest, UidFallbackLoadsVersionAndAllColumnsAndReleasesDecoder) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fill(2, nullptr));
+  auto *info = static_cast<VTableInfo *>(taosArrayGet(infos_, 0));
+  ASSERT_EQ(1, info->cols.nCols);
+  EXPECT_EQ(7, info->cols.version);
+  EXPECT_STREQ("vtable", info->tbName);
+  EXPECT_STREQ("resolved-series", info->cols.pColRef[0].tagCondJson);
+  EXPECT_EQ(nullptr, metaReader_.coder.mList);
+}
+
+TEST(VnodeStreamVTableHelpers, RejectsExternalWhereBeforeConditionIsDiscarded) {
+  SColRef ref = {};
+  ref.hasRef = true;
+  ref.refType = 1;
+  ref.filterCondJson = const_cast<char *>("external-filter");
+  ref.filterCondLen = strlen(ref.filterCondJson);
+  EXPECT_EQ(TSDB_CODE_OPS_NOT_SUPPORT, streamValidateVTableColRef(&ref));
+  ref.filterCondLen = 0;
+  EXPECT_EQ(TSDB_CODE_OPS_NOT_SUPPORT, streamValidateVTableColRef(&ref));
+  ref.filterCondJson = nullptr;
+  ref.filterCondLen = 1;
+  EXPECT_EQ(TSDB_CODE_OPS_NOT_SUPPORT, streamValidateVTableColRef(&ref));
+}
+
+TEST(VnodeStreamVTableHelpers, AllowsExternalSeriesAndUnfilteredReferences) {
+  SColRef ref = {};
+  ref.hasRef = true;
+  ref.refType = 1;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, streamValidateVTableColRef(&ref));
+  ref.tagCondJson = const_cast<char *>("series-condition");
+  ref.tagCondLen = strlen(ref.tagCondJson);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, streamValidateVTableColRef(&ref));
+  ref.refType = 0;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, streamValidateVTableColRef(&ref));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, streamValidateVTableColRef(nullptr));
+}
 
 // ---------------------------------------------------------------------------
 // tagValueEqual
@@ -530,6 +643,26 @@ TEST(VnodeStreamVTableHelpers, streamBuildTblColKey_DistinctKeysForDistinctInput
   EXPECT_NE(l1, 0);
   EXPECT_TRUE(l1 != l2 || std::memcmp(k1, k2, l1) != 0);
   EXPECT_TRUE(l1 != l3 || std::memcmp(k1, k3, l1) != 0);
+}
+
+TEST(VnodeStreamVTableHelpers, streamBuildRefKey_ExternalSourceIdentityPreventsCollision) {
+  SResolveWorkItem sourceA = mkWorkItem("db", "metrics", "value");
+  SResolveWorkItem sourceB = mkWorkItem("db", "metrics", "value");
+  sourceA.refType = 1;
+  sourceB.refType = 1;
+  std::snprintf(sourceA.refSourceName, TSDB_EXT_SOURCE_NAME_LEN, "%s", "source_a");
+  std::snprintf(sourceB.refSourceName, TSDB_EXT_SOURCE_NAME_LEN, "%s", "source_b");
+  std::snprintf(sourceA.refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN, "%s", "public");
+  std::snprintf(sourceB.refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN, "%s", "public");
+
+  char keyA[512] = {0};
+  char keyB[512] = {0};
+  int32_t lenA = 0;
+  int32_t lenB = 0;
+  streamBuildRefKey(&sourceA, keyA, &lenA);
+  streamBuildRefKey(&sourceB, keyB, &lenB);
+
+  EXPECT_TRUE(lenA != lenB || std::memcmp(keyA, keyB, lenA) != 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -906,4 +1039,57 @@ TEST_F(VnodeStreamSetTableTest, GroupColumnsDoNotRequireSetTable) {
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+TEST(VnodeStreamVTableHelpers, SeriesConditionsOwnStorageAndSeparateCacheEntries) {
+  auto* cache = makeEmptyCache();
+  ASSERT_NE(cache, nullptr);
+  SVTableRefResolveRspItem source{};
+  source.nextRef.tagCondJson = taosStrdup("{\"device\":1}");
+  source.nextRef.tagCondLen = strlen(source.nextRef.tagCondJson);
+  source.nextRef.refType = 1;
+  source.nextRef.hasRef = true;
+  source.terminated = true;
+  streamTblRefCacheInsertEx(cache, "db", "vt", "value", STREAM_VREF_KIND_COL, "one", 3, &source);
+  streamTblRefCacheInsertEx(cache, "db", "vt", "value", STREAM_VREF_KIND_COL, "two", 3, &source);
+  taosMemoryFreeClear(source.nextRef.tagCondJson);
+  auto* first = streamTblRefCacheLookupEx(cache, "db", "vt", "value", STREAM_VREF_KIND_COL, "one", 3);
+  auto* second = streamTblRefCacheLookupEx(cache, "db", "vt", "value", STREAM_VREF_KIND_COL, "two", 3);
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(second, nullptr);
+  EXPECT_NE(first->nextRef.tagCondJson, second->nextRef.tagCondJson);
+  SVTableRefResolveRspItem copied{};
+  ASSERT_EQ(streamWriteRspItemDeepCopy(first, &copied), 0);
+  EXPECT_NE(first->nextRef.tagCondJson, copied.nextRef.tagCondJson);
+  freeCache(cache);
+  EXPECT_STREQ(copied.nextRef.tagCondJson, "{\"device\":1}");
+  taosMemoryFreeClear(copied.nextRef.tagCondJson);
+}
+
+TEST(VnodeStreamVTableHelpers, ColResolveItemEqualityIncludesSeriesCondition) {
+  SColResolveItem first{};
+  first.hasRef = true;
+  first.refType = 1;
+  std::snprintf(first.refSourceName, sizeof(first.refSourceName), "%s", "source");
+  std::snprintf(first.refSchemaName, sizeof(first.refSchemaName), "%s", "schema");
+  std::snprintf(first.refDbName, sizeof(first.refDbName), "%s", "db");
+  std::snprintf(first.refTableName, sizeof(first.refTableName), "%s", "table");
+  std::snprintf(first.refColName, sizeof(first.refColName), "%s", "value");
+  first.tagCondJson = const_cast<char*>("{\"device\":\"d1\"}");
+  first.tagCondLen = static_cast<int32_t>(std::strlen(first.tagCondJson));
+  SColResolveItem second = first;
+  second.tagCondJson = const_cast<char*>("{\"device\":\"d2\"}");
+  EXPECT_FALSE(streamColResolveItemEqual(&first, &second));
+
+  char sameCondition[] = "{\"device\":\"d1\"}";
+  second.tagCondJson = sameCondition;
+  EXPECT_TRUE(streamColResolveItemEqual(&first, &second));
+
+  second.tagCondJson = nullptr;
+  EXPECT_FALSE(streamColResolveItemEqual(&first, &second));
+  second.tagCondLen = 0;
+  EXPECT_FALSE(streamColResolveItemEqual(&first, &second));
+  first.tagCondJson = nullptr;
+  first.tagCondLen = 0;
+  EXPECT_TRUE(streamColResolveItemEqual(&first, &second));
 }

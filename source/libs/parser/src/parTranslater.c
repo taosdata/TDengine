@@ -22611,7 +22611,7 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
                                    "alter tag reference only available for virtual child table");
   }
 
-#if 0 // rename column of stb is supported since 3.4.3.0 
+#if 0 // rename column of stb is supported since 3.4.3.0
   if (TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME == pStmt->alterType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                    "Rename column only available for normal table");
@@ -29689,6 +29689,9 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
      * attached at reader-task deploy time (P1 B5). */
 
     if (trigSourceName != NULL && strcmp(trigSourceName, sourceName) == 0) {
+      pSpec->precision = pReq->triggerPrec;
+      parserDebug("buildExtSpecs: trigger source=%s precision=%d",
+                  sourceName, (int)pSpec->precision);
       if (trigExtTable   != NULL) tstrncpy(pSpec->extTable,  trigExtTable,   sizeof(pSpec->extTable));
       if (trigTsColumn   != NULL) tstrncpy(pSpec->tsColumn,  trigTsColumn,   sizeof(pSpec->tsColumn));
       /* Override extSchema from the ext-table node so that PostgreSQL uses
@@ -40074,7 +40077,7 @@ static SSeriesDeclNode* findRefSeriesNode(char* refTableName, SNodeList* pSeries
   SNode* pSeriesNode = NULL;
   FOREACH(pSeriesNode, pSeriesList) {
     SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSeriesNode;
-    if (0 == strcmp(refTableName, pDecl->alias)) {
+    if (0 == strcasecmp(refTableName, pDecl->alias)) {
       return pDecl;
     }
   }
@@ -40117,11 +40120,16 @@ static int32_t expandSeriesAliasInColOptions(STranslateContext* pCxt, SNodeList*
     if (!pOpts->hasRef || pOpts->refType != 0 || pOpts->refSourceName[0] != '\0') {
       continue;
     }
+    parserDebug("expand series alias in column options, col:%s refDb:%s refTable:%s refCol:%s",
+                pCol->colName, pOpts->refDb, pOpts->refTable, pOpts->refColumn);
     // Check if refTable matches a series alias. We deliberately do NOT gate on refDb being empty:
     // for 2-seg refs like `FROM s1.cpu`, createColumnRefNodeByName auto-fills refDb with the current
     // USE'd database, so a non-empty refDb does not mean the user wrote a 3-seg ref.
     SSeriesDeclNode* pSeries = findRefSeriesNode(pOpts->refTable, pSeriesList);
     if (pSeries) {
+      parserDebug("matched series alias in column options, col:%s alias:%s source:%s db:%s table:%s",
+                  pCol->colName, pSeries->alias, pSeries->sourceName, pSeries->dbName,
+                  pSeries->measurementName);
       pOpts->refType = 1;
       pOpts->refDb[0] = '\0';
       tstrncpy(pOpts->refSourceName, pSeries->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
@@ -40152,10 +40160,15 @@ static int32_t expandSeriesAliasInColRefs(STranslateContext* pCxt, SNodeList* pC
     if (pRef->refType != 0 || pRef->refSourceName[0] != '\0') {
       continue;  // already external
     }
+    parserDebug("expand series alias in column ref, col:%s refDb:%s refTable:%s refCol:%s",
+                pRef->colName, pRef->refDbName, pRef->refTableName, pRef->refColName);
     // Check if refTableName matches a series alias. Like expandSeriesAliasInColOptions, we do not
     // gate on refDbName being empty  -  2-seg refs auto-fill the current USE'd db.
     SSeriesDeclNode* pSeries = findRefSeriesNode(pRef->refTableName, pSeriesList);
     if (pSeries) {
+      parserDebug("matched series alias in column ref, col:%s alias:%s source:%s db:%s table:%s",
+                  pRef->colName, pSeries->alias, pSeries->sourceName, pSeries->dbName,
+                  pSeries->measurementName);
       pRef->refType = 1;
       pRef->refDbName[0] = '\0';
       tstrncpy(pRef->refSourceName, pSeries->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
@@ -40779,6 +40792,7 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
   // Expand SERIES alias refs before column validation
   PAR_ERR_JRET(expandSeriesAliasInColRefs(pCxt, pStmt->pSpecificColRefs, pStmt->pSeriesList));
   PAR_ERR_JRET(expandSeriesAliasInColRefs(pCxt, pStmt->pColRefs, pStmt->pSeriesList));
+  PAR_ERR_JRET(expandSeriesAliasInColOptions(pCxt, pStmt->pColDefs, pStmt->pSeriesList));
 
   if (pStmt->pSpecificColRefs) {
     FOREACH(pCol, pStmt->pSpecificColRefs) {

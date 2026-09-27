@@ -61,6 +61,21 @@ extern "C" int32_t msmBuildTriggerDeployInfo(SMnode *pMnode, SStmStatus *pInfo, 
                                              SStreamObj *pStream);
 extern "C" void    msmStopStreamByError(int64_t streamId, SStmStatus *pStatus, int32_t errCode, int64_t currTs);
 extern "C" int32_t msmNormalHandleHbMsg(SStmGrpCtx *pCtx);
+extern "C" int32_t msmHandleTaskMgmtReq(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask);
+#ifdef TD_ENTERPRISE
+extern "C" int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
+                                                  const SStreamExtOrigTblReaderReq *pReq,
+                                                  const SExtTableMeta *pMeta,
+                                                  SStreamExtTriggerSpec **ppSpec,
+                                                  SStreamExtOrigTblReaderRsp *pRsp);
+extern "C" int32_t msmDeployExtOrigTblReaderFromMeta(SStmGrpCtx *pCtx,
+                                                       SStmStatus *pStatus,
+                                                       SStreamObj *pStream,
+                                                       const SExtSourceObj *pSource,
+                                                       const SStreamExtOrigTblReaderReq *pReq,
+                                                       const SExtTableMeta *pMeta,
+                                                       SStreamExtOrigTblReaderRsp *pRsp);
+#endif
 extern "C" int32_t msmNormalHandleStatusUpdate(SStmGrpCtx *pCtx);
 extern "C" int32_t msmDeployTriggerOrigReader(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask);
 extern "C" int32_t msmCheckDeployTrigReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, SStmTaskStatusMsg *pTask,
@@ -319,6 +334,18 @@ void destroyRecoveredRunnerLists(SStmStatus *pStatus) {
   }
 }
 
+void destroyTrigOReaders(SStmStatus *pStatus) {
+  if (pStatus == nullptr || pStatus->trigOReaders == nullptr) {
+    return;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pStatus->trigOReaders); ++i) {
+    SArray *readerList = static_cast<SArray *>(taosArrayGetP(pStatus->trigOReaders, i));
+    taosArrayDestroy(readerList);
+  }
+  taosArrayDestroy(pStatus->trigOReaders);
+  pStatus->trigOReaders = nullptr;
+}
+
 class MndStreamActionQueueTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -398,6 +425,56 @@ class MndStreamHeartbeatTest : public ::testing::Test {
   int32_t      savedToDeploySnodeTaskNum_ = 0;
   int64_t      savedCurrentTs_ = 0;
 };
+
+#ifdef TD_ENTERPRISE
+class MndStreamExtReaderRuntimeTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    savedTaskMap_ = mStreamMgmt.taskMap;
+    savedSnodeMap_ = mStreamMgmt.snodeMap;
+    savedToDeploySnodeMap_ = mStreamMgmt.toDeploySnodeMap;
+    savedToDeploySnodeTaskNum_ = mStreamMgmt.toDeploySnodeTaskNum;
+    savedLastTaskId_ = mStreamMgmt.lastTaskId;
+
+    mStreamMgmt.taskMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    ASSERT_NE(mStreamMgmt.taskMap, nullptr);
+    mStreamMgmt.snodeMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    ASSERT_NE(mStreamMgmt.snodeMap, nullptr);
+    taosHashSetFreeFp(mStreamMgmt.snodeMap, mstDestroySStmSnodeStatus);
+    mStreamMgmt.toDeploySnodeMap =
+        taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+    ASSERT_NE(mStreamMgmt.toDeploySnodeMap, nullptr);
+    taosHashSetFreeFp(mStreamMgmt.toDeploySnodeMap, mstDestroySStmSnodeTasksDeploy);
+    mStreamMgmt.toDeploySnodeTaskNum = 0;
+    mStreamMgmt.lastTaskId = 1;
+
+    SStmSnodeStatus snode = {};
+    ASSERT_EQ(taosHashPut(mStreamMgmt.snodeMap, &snodeId_, sizeof(snodeId_), &snode, sizeof(snode)),
+              TSDB_CODE_SUCCESS);
+    }
+
+  void TearDown() override {
+    taosHashCleanup(mStreamMgmt.taskMap);
+    taosHashCleanup(mStreamMgmt.snodeMap);
+    taosHashCleanup(mStreamMgmt.toDeploySnodeMap);
+
+    mStreamMgmt.taskMap = savedTaskMap_;
+    mStreamMgmt.snodeMap = savedSnodeMap_;
+    mStreamMgmt.toDeploySnodeMap = savedToDeploySnodeMap_;
+    mStreamMgmt.toDeploySnodeTaskNum = savedToDeploySnodeTaskNum_;
+    mStreamMgmt.lastTaskId = savedLastTaskId_;
+  }
+
+  int32_t snodeId_ = 7;
+
+ private:
+  SHashObj *savedTaskMap_ = nullptr;
+  SHashObj *savedSnodeMap_ = nullptr;
+  SHashObj *savedToDeploySnodeMap_ = nullptr;
+  int32_t   savedToDeploySnodeTaskNum_ = 0;
+  int64_t   savedLastTaskId_ = 0;
+};
+#endif
 
 SStreamTaskMetricsEntry makeMetricEntry(int32_t index, int64_t streamId, int64_t taskId, int64_t seriousId,
                                         uint64_t outputRows = 7) {
@@ -8796,6 +8873,931 @@ TEST(MndStreamWatchTest, TriggerDeployBuilderPropagatesRunnerTargetError) {
   taosArrayDestroy(deploy.msg.trigger.runnerList);
   taosArrayDestroy(status.trigReaders);
 }
+
+#ifdef TD_ENTERPRISE
+extern "C" int32_t msmGrpAddActionUndeploy(SStmGrpCtx *pCtx, int64_t streamId, SStreamTask *pTask);
+
+namespace {
+SStreamObj gMixedReaderAcquiredStream = {};
+int32_t gMixedReaderReleaseCalls = 0;
+
+int32_t acquireMixedReaderStream(SMnode *, int64_t, SStreamObj **ppStream) {
+  *ppStream = &gMixedReaderAcquiredStream;
+  return TSDB_CODE_SUCCESS;
+}
+
+void releaseMixedReaderStream(SMnode *, SStreamObj *pStream) {
+  EXPECT_EQ(pStream, &gMixedReaderAcquiredStream);
+  ++gMixedReaderReleaseCalls;
+}
+
+void *failMixedReaderResponsePush(SArray *, const void *, int32_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+int32_t acceptMixedReaderUndeploy(SStmGrpCtx *, int64_t, SStreamTask *) {
+  return TSDB_CODE_SUCCESS;
+}
+}
+
+TEST_F(MndStreamHeartbeatTest, MixedReaderResponsePushFailureReleasesAcquiredStream) {
+  SStreamMgmtReq *request = static_cast<SStreamMgmtReq *>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
+  ASSERT_NE(request, nullptr);
+  request->type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+  request->cont.pExtOrigTblReaders = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderReq), 1);
+  ASSERT_NE(request->cont.pExtOrigTblReaders, nullptr);
+  SStmTaskStatusMsg task = {};
+  task.streamId = 1;
+  task.pMgmtReq = request;
+  SMnode mnode = {};
+  SMStreamHbRspMsg response = {};
+  SStmGrpCtx context = {};
+  context.pMnode = &mnode;
+  context.pRsp = &response;
+  gMixedReaderReleaseCalls = 0;
+  Stub stub;
+  stub.set(mndAcquireStreamById, acquireMixedReaderStream);
+  stub.set(mndReleaseStream, releaseMixedReaderStream);
+  stub.set(taosArrayAddBatch, failMixedReaderResponsePush);
+  stub.set(msmGrpAddActionUndeploy, acceptMixedReaderUndeploy);
+
+  EXPECT_EQ(msmHandleTaskMgmtReq(&context, &task), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(gMixedReaderReleaseCalls, 1);
+  EXPECT_EQ(task.pMgmtReq, nullptr);
+
+  stub.reset(msmGrpAddActionUndeploy);
+  stub.reset(taosArrayAddBatch);
+  stub.reset(mndReleaseStream);
+  stub.reset(mndAcquireStreamById);
+  tFreeSMStreamHbRspMsg(&response);
+}
+#endif
+
+TEST_F(MndStreamHeartbeatTest, MixedInternalAndExternalReaderRequestPreservesBothOutcomes) {
+  SStreamDbTableName internalReq = {};
+  tstrncpy(internalReq.dbFName, "acct.metrics", sizeof(internalReq.dbFName));
+  tstrncpy(internalReq.tbName, "cpu", sizeof(internalReq.tbName));
+
+  SStreamExtOrigTblReaderReq extReq = {};
+  extReq.registryEntryId = 101;
+  extReq.deploymentGeneration = 7;
+  extReq.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  extReq.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE;
+  tstrncpy(extReq.identity.sourceName, "remote", sizeof(extReq.identity.sourceName));
+  tstrncpy(extReq.identity.dbName, "metrics", sizeof(extReq.identity.dbName));
+  tstrncpy(extReq.identity.tableName, "cpu", sizeof(extReq.identity.tableName));
+
+  SStreamMgmtReq *mgmtReq = static_cast<SStreamMgmtReq *>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
+  ASSERT_NE(mgmtReq, nullptr);
+  mgmtReq->reqId = 9;
+  mgmtReq->type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+  mgmtReq->cont.pReqs = taosArrayInit(1, sizeof(SStreamDbTableName));
+  ASSERT_NE(mgmtReq->cont.pReqs, nullptr);
+  ASSERT_NE(taosArrayPush(mgmtReq->cont.pReqs, &internalReq), nullptr);
+  mgmtReq->cont.pExtOrigTblReaders = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderReq));
+  ASSERT_NE(mgmtReq->cont.pExtOrigTblReaders, nullptr);
+  ASSERT_NE(taosArrayPush(mgmtReq->cont.pExtOrigTblReaders, &extReq), nullptr);
+
+  SStmTaskStatusMsg task = {};
+  task.streamId = 1;
+  task.pMgmtReq = mgmtReq;
+  SMStreamHbRspMsg hbRsp = {};
+  SStmGrpCtx ctx = {};
+  ctx.pRsp = &hbRsp;
+
+  EXPECT_EQ(msmHandleTaskMgmtReq(&ctx, &task), TSDB_CODE_SUCCESS);
+  ASSERT_NE(hbRsp.rsps.rspList, nullptr);
+  ASSERT_EQ(taosArrayGetSize(hbRsp.rsps.rspList), 1);
+  SStreamMgmtRsp *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(hbRsp.rsps.rspList, 0));
+  ASSERT_NE(rsp, nullptr);
+  EXPECT_EQ(rsp->header.msgType, STREAM_MSG_MIXED_ORIGTBL_READER_INFO);
+  EXPECT_EQ(rsp->code, TSDB_CODE_MND_STREAM_NOT_RUNNING);
+  ASSERT_NE(rsp->cont.pExtOrigTblReaders, nullptr);
+  ASSERT_EQ(taosArrayGetSize(rsp->cont.pExtOrigTblReaders), 1);
+  SStreamExtOrigTblReaderRsp *extRsp =
+      static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(rsp->cont.pExtOrigTblReaders, 0));
+  ASSERT_NE(extRsp, nullptr);
+  EXPECT_EQ(extRsp->registryEntryId, extReq.registryEntryId);
+#ifdef TD_ENTERPRISE
+  EXPECT_EQ(extRsp->code, TSDB_CODE_MND_STREAM_NOT_RUNNING);
+#else
+  EXPECT_EQ(extRsp->code, TSDB_CODE_OPS_NOT_SUPPORT);
+#endif
+
+  tFreeSMStreamHbRspMsg(&hbRsp);
+}
+
+TEST_F(MndStreamHeartbeatTest, ExternalOnlyReaderRequestReturnsDedicatedResponseWhenStreamNotRunning) {
+  const int64_t registryEntryId = 202;
+  const int64_t deploymentGeneration = 13;
+  SStreamExtOrigTblReaderReq *extReq =
+      static_cast<SStreamExtOrigTblReaderReq *>(taosMemoryCalloc(1, sizeof(SStreamExtOrigTblReaderReq)));
+  ASSERT_NE(extReq, nullptr);
+  extReq->registryEntryId = registryEntryId;
+  extReq->deploymentGeneration = deploymentGeneration;
+  extReq->protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  extReq->capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE;
+  extReq->sourceType = EXT_SOURCE_MYSQL;
+  tstrncpy(extReq->identity.sourceName, "remote", sizeof(extReq->identity.sourceName));
+  tstrncpy(extReq->identity.dbName, "metrics", sizeof(extReq->identity.dbName));
+  tstrncpy(extReq->identity.tableName, "cpu", sizeof(extReq->identity.tableName));
+
+  SStreamMgmtReq *mgmtReq = static_cast<SStreamMgmtReq *>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
+  ASSERT_NE(mgmtReq, nullptr);
+  mgmtReq->reqId = 10;
+  mgmtReq->type = STREAM_MGMT_REQ_TRIGGER_EXT_ORIGTBL_READER;
+  mgmtReq->cont.pExtOrigTblReader = extReq;
+
+  SStmTaskStatusMsg task = {};
+  task.streamId = 2;
+  task.pMgmtReq = mgmtReq;
+  SMStreamHbRspMsg hbRsp = {};
+  SStmGrpCtx ctx = {};
+  ctx.pRsp = &hbRsp;
+
+  EXPECT_EQ(msmHandleTaskMgmtReq(&ctx, &task), TSDB_CODE_SUCCESS);
+  ASSERT_NE(hbRsp.rsps.rspList, nullptr);
+  ASSERT_EQ(taosArrayGetSize(hbRsp.rsps.rspList), 1);
+  SStreamMgmtRsp *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(hbRsp.rsps.rspList, 0));
+  ASSERT_NE(rsp, nullptr);
+  EXPECT_EQ(rsp->header.msgType, STREAM_MSG_EXT_ORIGTBL_READER_INFO);
+  EXPECT_EQ(rsp->reqId, 10);
+  ASSERT_NE(rsp->cont.pExtOrigTblReader, nullptr);
+  EXPECT_EQ(rsp->cont.pExtOrigTblReader->registryEntryId, registryEntryId);
+  EXPECT_EQ(rsp->cont.pExtOrigTblReader->deploymentGeneration, deploymentGeneration);
+#ifdef TD_ENTERPRISE
+  EXPECT_EQ(rsp->cont.pExtOrigTblReader->code, TSDB_CODE_MND_STREAM_NOT_RUNNING);
+#else
+  EXPECT_EQ(rsp->cont.pExtOrigTblReader->code, TSDB_CODE_OPS_NOT_SUPPORT);
+#endif
+
+  tFreeSMStreamHbRspMsg(&hbRsp);
+}
+
+#ifdef TD_ENTERPRISE
+class MndStreamExtReaderSchemaTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    source_.type = EXT_SOURCE_MYSQL;
+    req_.sourceType = EXT_SOURCE_MYSQL;
+    tstrncpy(columns_[0].colName, "device", sizeof(columns_[0].colName));
+    tstrncpy(columns_[0].extTypeName, "varchar", sizeof(columns_[0].extTypeName));
+    columns_[0].isRemotePrimaryKey = true;
+    tstrncpy(columns_[1].colName, "ts", sizeof(columns_[1].colName));
+    tstrncpy(columns_[1].extTypeName, "timestamp", sizeof(columns_[1].extTypeName));
+    columns_[1].isRemotePrimaryKey = true;
+    tstrncpy(columns_[2].colName, "value", sizeof(columns_[2].colName));
+    tstrncpy(columns_[2].extTypeName, "int", sizeof(columns_[2].extTypeName));
+    meta_.pCols = columns_;
+    meta_.numOfCols = 3;
+    req_.bindings = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderBinding));
+    ASSERT_NE(nullptr, req_.bindings);
+    SStreamExtOrigTblReaderBinding binding = {};
+    binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+    binding.expectedType = TSDB_DATA_TYPE_INT;
+    tstrncpy(binding.externalColumn, "value", sizeof(binding.externalColumn));
+    ASSERT_NE(nullptr, taosArrayPush(req_.bindings, &binding));
+  }
+
+  void TearDown() override {
+    tFreeSStreamExtOrigTblReaderRsp(&rsp_);
+    tFreeSStreamExtTriggerSpec(spec_);
+    tFreeSStreamExtOrigTblReaderReq(&req_);
+  }
+
+  int32_t build() { return msmBuildExtOrigTblReaderSpec(&source_, &req_, &meta_, &spec_, &rsp_); }
+
+  SExtSourceObj source_ = {};
+  SExtColumnDef columns_[3] = {};
+  SExtTableMeta meta_ = {};
+  SStreamExtOrigTblReaderReq req_ = {};
+  SStreamExtOrigTblReaderRsp rsp_ = {};
+  SStreamExtTriggerSpec *spec_ = nullptr;
+};
+
+TEST_F(MndStreamExtReaderSchemaTest, SelectsTimestampAfterNonTimestampCompositePrimaryKeyMember) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("ts", spec_->tsColumn);
+  EXPECT_EQ(TSDB_DATA_TYPE_TIMESTAMP, spec_->pColMappings[0].tdType.type);
+  EXPECT_EQ(TSDB_DATA_TYPE_TIMESTAMP, spec_->pCalcMappings[0].tdType.type);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, RejectsPrimaryKeyWithoutTimestamp) {
+  columns_[1].isRemotePrimaryKey = false;
+  EXPECT_EQ(TSDB_CODE_EXT_NO_TS_PRIMARY_KEY, build());
+  EXPECT_EQ(nullptr, spec_);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, RejectsAmbiguousTimestampPrimaryKey) {
+  tstrncpy(columns_[0].extTypeName, "timestamp", sizeof(columns_[0].extTypeName));
+  EXPECT_EQ(TSDB_CODE_EXT_NO_TS_PRIMARY_KEY, build());
+  EXPECT_EQ(nullptr, spec_);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, SharedBindingsReusePhysicalColumnSlotsPerKind) {
+  columns_[0].isRemotePrimaryKey = false;
+  for (int32_t index = 1; index <= STREAM_EXT_ORIGTBL_READER_MAX_COLUMNS; ++index) {
+    SStreamExtOrigTblReaderBinding binding =
+        *static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0));
+    binding.bindingId = index;
+    binding.virtualUid = index;
+    binding.kind = index % 2 ? STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER : STREAM_EXT_ORIGTBL_READER_BINDING_CALC;
+    ASSERT_NE(nullptr, taosArrayPush(req_.bindings, &binding));
+  }
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_EQ(2, spec_->numColMappings);
+  EXPECT_EQ(2, spec_->numCalcMappings);
+  EXPECT_EQ(2, taosArrayGetSize(spec_->triggerColumns));
+  EXPECT_EQ(2, taosArrayGetSize(spec_->calcColumns));
+  ASSERT_EQ(STREAM_EXT_ORIGTBL_READER_MAX_COLUMNS + 1, taosArrayGetSize(rsp_.results));
+  EXPECT_EQ(STREAM_EXT_ORIGTBL_READER_MAX_COLUMNS + 1,
+            rsp_.acceptedTriggerBindingCount + rsp_.acceptedCalcBindingCount);
+  for (int32_t index = 0; index <= STREAM_EXT_ORIGTBL_READER_MAX_COLUMNS; ++index) {
+    auto *result = static_cast<SStreamExtOrigTblReaderResult *>(taosArrayGet(rsp_.results, index));
+    EXPECT_EQ(TSDB_CODE_SUCCESS, result->code);
+    EXPECT_EQ(index, result->binding.virtualUid);
+    EXPECT_EQ(1, result->binding.resultColumnSlot);
+  }
+}
+
+TEST(MndStreamExtReaderDeployTest, BuildsSpecAndConfirmsCompatibleBindingsFromSchema) {
+  SExtSourceObj source = {};
+  tstrncpy(source.sourceName, "remote", sizeof(source.sourceName));
+  source.type = EXT_SOURCE_MYSQL;
+  tstrncpy(source.host, "127.0.0.1", sizeof(source.host));
+  source.port = 3306;
+  tstrncpy(source.user, "reader", sizeof(source.user));
+  tstrncpy(source.defaultDatabase, "metrics", sizeof(source.defaultDatabase));
+  source.metaVersion = 12;
+
+  SExtColumnDef columns[3] = {};
+  tstrncpy(columns[0].colName, "ts", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "timestamp", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "cpu", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "double", sizeof(columns[1].extTypeName));
+  tstrncpy(columns[2].colName, "voltage", sizeof(columns[2].colName));
+  tstrncpy(columns[2].extTypeName, "float", sizeof(columns[2].extTypeName));
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 3;
+  meta.tsPrecision = TSDB_TIME_PRECISION_MICRO;
+
+  SStreamExtOrigTblReaderBinding binding = {};
+  binding.bindingId = 11;
+  binding.virtualUid = 101;
+  binding.virtualSlot = 3;
+  binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+  binding.expectedType = TSDB_DATA_TYPE_DOUBLE;
+  binding.resultColumnSlot = 3;
+  tstrncpy(binding.externalColumn, "cpu", sizeof(binding.externalColumn));
+
+  SStreamExtOrigTblReaderBinding calcBinding = {};
+  calcBinding.bindingId = 12;
+  calcBinding.virtualUid = 101;
+  calcBinding.virtualSlot = 4;
+  calcBinding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_CALC;
+  calcBinding.expectedType = TSDB_DATA_TYPE_FLOAT;
+  calcBinding.resultColumnSlot = 4;
+  tstrncpy(calcBinding.externalColumn, "voltage", sizeof(calcBinding.externalColumn));
+
+  SStreamExtOrigTblReaderReq req = {};
+  req.registryEntryId = 99;
+  req.sourceType = EXT_SOURCE_MYSQL;
+  req.sourceConfigVersion = source.metaVersion;
+  tstrncpy(req.identity.sourceName, "remote", sizeof(req.identity.sourceName));
+  tstrncpy(req.identity.dbName, "metrics", sizeof(req.identity.dbName));
+  tstrncpy(req.identity.tableName, "cpu", sizeof(req.identity.tableName));
+  req.bindings = taosArrayInit(2, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(req.bindings, nullptr);
+  ASSERT_NE(taosArrayPush(req.bindings, &binding), nullptr);
+  ASSERT_NE(taosArrayPush(req.bindings, &calcBinding), nullptr);
+
+  SStreamExtTriggerSpec *spec = nullptr;
+  SStreamExtOrigTblReaderRsp rsp = {};
+  ASSERT_EQ(msmBuildExtOrigTblReaderSpec(&source, &req, &meta, &spec, &rsp), TSDB_CODE_SUCCESS);
+  ASSERT_NE(spec, nullptr);
+  EXPECT_STREQ(spec->sourceName, "remote");
+  EXPECT_STREQ(spec->extDb, "metrics");
+  EXPECT_STREQ(spec->extTable, "cpu");
+  EXPECT_STREQ(spec->tsColumn, "ts");
+  ASSERT_NE(spec->triggerColumns, nullptr);
+  ASSERT_EQ(taosArrayGetSize(spec->triggerColumns), 2);
+  EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec->triggerColumns, 0)), "ts");
+  EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec->triggerColumns, 1)), "cpu");
+  ASSERT_NE(spec->pColMappings, nullptr);
+  EXPECT_EQ(spec->numColMappings, 2);
+  EXPECT_EQ(spec->pColMappings[0].tdType.type, TSDB_DATA_TYPE_TIMESTAMP);
+  EXPECT_EQ(spec->pColMappings[1].tdType.type, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_NE(spec->calcColumns, nullptr);
+  ASSERT_EQ(taosArrayGetSize(spec->calcColumns), 2);
+  EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec->calcColumns, 0)), "ts");
+  EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec->calcColumns, 1)), "voltage");
+  ASSERT_NE(spec->pCalcMappings, nullptr);
+  EXPECT_EQ(spec->numCalcMappings, 2);
+  EXPECT_EQ(spec->pCalcMappings[0].tdType.type, TSDB_DATA_TYPE_TIMESTAMP);
+  EXPECT_EQ(spec->pCalcMappings[1].tdType.type, TSDB_DATA_TYPE_FLOAT);
+  EXPECT_EQ(rsp.acceptedTriggerBindingCount, 1);
+  EXPECT_EQ(rsp.acceptedCalcBindingCount, 1);
+  ASSERT_NE(rsp.results, nullptr);
+  ASSERT_EQ(taosArrayGetSize(rsp.results), 2);
+  const SStreamExtOrigTblReaderResult *result =
+      static_cast<const SStreamExtOrigTblReaderResult *>(taosArrayGet(rsp.results, 0));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result->code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result->binding.resultColumnSlot, 1);
+  EXPECT_EQ(result->actualType, TSDB_DATA_TYPE_DOUBLE);
+  const SStreamExtOrigTblReaderResult *calcResult =
+      static_cast<const SStreamExtOrigTblReaderResult *>(taosArrayGet(rsp.results, 1));
+  ASSERT_NE(calcResult, nullptr);
+  EXPECT_EQ(calcResult->code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(calcResult->binding.kind, STREAM_EXT_ORIGTBL_READER_BINDING_CALC);
+  EXPECT_EQ(calcResult->binding.resultColumnSlot, 1);
+  EXPECT_EQ(calcResult->actualType, TSDB_DATA_TYPE_FLOAT);
+
+  tFreeSStreamExtOrigTblReaderRsp(&rsp);
+  tFreeSStreamExtTriggerSpec(spec);
+  tFreeSStreamExtOrigTblReaderReq(&req);
+}
+
+TEST_F(MndStreamExtReaderRuntimeTest, DeploysAndReusesExternalOriginalReaderFromSchema) {
+  char streamName[] = "test.ext_stream";
+  char triggerTbl[] = "vmeters";
+  SCMCreateStreamReq createReq = {};
+  createReq.name = streamName;
+  createReq.streamId = 7001;
+  createReq.triggerTblName = triggerTbl;
+  createReq.triggerTblType = TSDB_VIRTUAL_NORMAL_TABLE;
+
+  SStreamObj stream = {};
+  stream.pCreate = &createReq;
+  stream.mainSnodeId = snodeId_;
+
+  SStmStatus status = {};
+  status.streamName = streamName;
+  status.pCreate = &createReq;
+
+  SStmTaskStatus triggerTask = {};
+  triggerTask.id.taskId = 8001;
+  triggerTask.id.nodeId = snodeId_;
+  triggerTask.type = STREAM_TRIGGER_TASK;
+  status.triggerTask = &triggerTask;
+
+  SExtSourceObj source = {};
+  tstrncpy(source.sourceName, "remote", sizeof(source.sourceName));
+  source.type = EXT_SOURCE_MYSQL;
+  tstrncpy(source.host, "127.0.0.1", sizeof(source.host));
+  source.port = 3306;
+  tstrncpy(source.user, "reader", sizeof(source.user));
+  tstrncpy(source.defaultDatabase, "metrics", sizeof(source.defaultDatabase));
+  source.metaVersion = 12;
+
+  SExtColumnDef columns[2] = {};
+  tstrncpy(columns[0].colName, "ts", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "timestamp", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "cpu", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "double", sizeof(columns[1].extTypeName));
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 2;
+
+  SStreamExtOrigTblReaderBinding binding = {};
+  binding.bindingId = 11;
+  binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+  binding.virtualUid = 101;
+  binding.virtualSlot = 3;
+  binding.expectedType = TSDB_DATA_TYPE_DOUBLE;
+  binding.resultColumnSlot = 3;
+  tstrncpy(binding.externalColumn, "cpu", sizeof(binding.externalColumn));
+
+  SStreamExtOrigTblReaderReq req = {};
+  req.registryEntryId = 99;
+  req.deploymentGeneration = 5;
+  req.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  req.sourceType = EXT_SOURCE_MYSQL;
+  req.sourceConfigVersion = source.metaVersion;
+  tstrncpy(req.identity.sourceName, "remote", sizeof(req.identity.sourceName));
+  tstrncpy(req.identity.dbName, "metrics", sizeof(req.identity.dbName));
+  tstrncpy(req.identity.tableName, "cpu", sizeof(req.identity.tableName));
+  req.bindings = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(req.bindings, nullptr);
+  ASSERT_NE(taosArrayPush(req.bindings, &binding), nullptr);
+
+  SStmGrpCtx ctx = {};
+  ctx.currTs = 1000;
+  SStreamExtOrigTblReaderRsp firstRsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &firstRsp),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(firstRsp.code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(firstRsp.readerTaskAddr.nodeId, snodeId_);
+  EXPECT_NE(firstRsp.readerTaskAddr.taskId, 0);
+  EXPECT_EQ(firstRsp.acceptedTriggerBindingCount, 1);
+  ASSERT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
+
+  SStmSnodeTasksDeploy *deploy = static_cast<SStmSnodeTasksDeploy *>(
+      taosHashGet(mStreamMgmt.toDeploySnodeMap, &snodeId_, sizeof(snodeId_)));
+  ASSERT_NE(deploy, nullptr);
+  ASSERT_NE(deploy->calcReaderList, nullptr);
+  ASSERT_EQ(taosArrayGetSize(deploy->calcReaderList), 1);
+  SStmTaskToDeployExt *deployTask =
+      static_cast<SStmTaskToDeployExt *>(taosArrayGet(deploy->calcReaderList, 0));
+  ASSERT_NE(deployTask, nullptr);
+  EXPECT_TRUE(deployTask->ownsExtSpec);
+  ASSERT_NE(deployTask->deploy.msg.reader.pExtSpec, nullptr);
+  EXPECT_TRUE(deployTask->deploy.msg.reader.ownsExtSpec);
+
+  SStreamExtOrigTblReaderRsp secondRsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &secondRsp),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(secondRsp.readerTaskAddr.taskId, firstRsp.readerTaskAddr.taskId);
+  EXPECT_EQ(secondRsp.readerTaskAddr.nodeId, firstRsp.readerTaskAddr.nodeId);
+  EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
+
+  tFreeSStreamExtOrigTblReaderRsp(&firstRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&secondRsp);
+  tFreeSStreamExtOrigTblReaderReq(&req);
+  destroyTrigOReaders(&status);
+}
+
+TEST_F(MndStreamExtReaderRuntimeTest, RejectsExternalOriginalReaderWhenCreateStartCapabilityIsMissing) {
+  char streamName[] = "test.ext_cap_stream";
+  char triggerTbl[] = "vmeters";
+  SCMCreateStreamReq createReq = {};
+  createReq.name = streamName;
+  createReq.streamId = 7006;
+  createReq.triggerTblName = triggerTbl;
+  createReq.triggerTblType = TSDB_VIRTUAL_NORMAL_TABLE;
+
+  SStreamObj stream = {};
+  stream.pCreate = &createReq;
+  stream.mainSnodeId = snodeId_;
+
+  SStmStatus status = {};
+  status.streamName = streamName;
+  status.pCreate = &createReq;
+
+  SStmTaskStatus triggerTask = {};
+  triggerTask.id.taskId = 8006;
+  triggerTask.id.nodeId = snodeId_;
+  triggerTask.type = STREAM_TRIGGER_TASK;
+  status.triggerTask = &triggerTask;
+
+  SExtSourceObj source = {};
+  tstrncpy(source.sourceName, "remote", sizeof(source.sourceName));
+  source.type = EXT_SOURCE_MYSQL;
+  tstrncpy(source.defaultDatabase, "metrics", sizeof(source.defaultDatabase));
+  source.metaVersion = 12;
+
+  SExtColumnDef columns[2] = {};
+  tstrncpy(columns[0].colName, "ts", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "timestamp", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "cpu", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "double", sizeof(columns[1].extTypeName));
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 2;
+
+  SStreamExtOrigTblReaderBinding binding = {};
+  binding.bindingId = 61;
+  binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+  binding.virtualUid = 601;
+  binding.virtualSlot = 1;
+  binding.expectedType = TSDB_DATA_TYPE_DOUBLE;
+  tstrncpy(binding.externalColumn, "cpu", sizeof(binding.externalColumn));
+
+  SStreamExtOrigTblReaderReq req = {};
+  req.registryEntryId = 399;
+  req.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  req.capabilities = 0;
+  req.sourceType = EXT_SOURCE_MYSQL;
+  req.sourceConfigVersion = source.metaVersion;
+  tstrncpy(req.identity.sourceName, "remote", sizeof(req.identity.sourceName));
+  tstrncpy(req.identity.dbName, "metrics", sizeof(req.identity.dbName));
+  tstrncpy(req.identity.tableName, "cpu", sizeof(req.identity.tableName));
+  req.bindings = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(req.bindings, nullptr);
+  ASSERT_NE(taosArrayPush(req.bindings, &binding), nullptr);
+
+  SStmGrpCtx ctx = {};
+  ctx.currTs = 1000;
+  SStreamExtOrigTblReaderRsp rsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &rsp),
+            TSDB_CODE_OPS_NOT_SUPPORT);
+  EXPECT_EQ(rsp.code, TSDB_CODE_OPS_NOT_SUPPORT);
+  EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 0);
+  EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 0);
+
+  tFreeSStreamExtOrigTblReaderRsp(&rsp);
+  tFreeSStreamExtOrigTblReaderReq(&req);
+  destroyTrigOReaders(&status);
+}
+
+TEST_F(MndStreamExtReaderRuntimeTest, PatchRedeploysExistingExternalOriginalReader) {
+  char streamName[] = "test.ext_patch_stream";
+  char triggerTbl[] = "vmeters";
+  SCMCreateStreamReq createReq = {};
+  createReq.name = streamName;
+  createReq.streamId = 7004;
+  createReq.triggerTblName = triggerTbl;
+  createReq.triggerTblType = TSDB_VIRTUAL_NORMAL_TABLE;
+
+  SStreamObj stream = {};
+  stream.pCreate = &createReq;
+  stream.mainSnodeId = snodeId_;
+  SStmStatus status = {};
+  status.streamName = streamName;
+  status.pCreate = &createReq;
+  SStmTaskStatus triggerTask = {};
+  triggerTask.id.taskId = 8004;
+  triggerTask.id.nodeId = snodeId_;
+  triggerTask.type = STREAM_TRIGGER_TASK;
+  status.triggerTask = &triggerTask;
+
+  SExtSourceObj source = {};
+  tstrncpy(source.sourceName, "remote", sizeof(source.sourceName));
+  source.type = EXT_SOURCE_MYSQL;
+  tstrncpy(source.defaultDatabase, "metrics", sizeof(source.defaultDatabase));
+  source.metaVersion = 12;
+  SExtColumnDef columns[2] = {};
+  tstrncpy(columns[0].colName, "ts", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "timestamp", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "cpu", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "double", sizeof(columns[1].extTypeName));
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 2;
+
+  SStreamExtOrigTblReaderBinding binding = {};
+  binding.bindingId = 41;
+  binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+  binding.virtualUid = 401;
+  binding.virtualSlot = 1;
+  tstrncpy(binding.externalColumn, "cpu", sizeof(binding.externalColumn));
+  SStreamExtOrigTblReaderReq req = {};
+  req.registryEntryId = 199;
+  req.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  req.sourceType = EXT_SOURCE_MYSQL;
+  req.sourceConfigVersion = source.metaVersion;
+  tstrncpy(req.identity.sourceName, "remote", sizeof(req.identity.sourceName));
+  tstrncpy(req.identity.dbName, "metrics", sizeof(req.identity.dbName));
+  tstrncpy(req.identity.tableName, "cpu", sizeof(req.identity.tableName));
+  req.bindings = taosArrayInit(2, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(req.bindings, nullptr);
+  ASSERT_NE(taosArrayPush(req.bindings, &binding), nullptr);
+
+  SStmGrpCtx ctx = {};
+  ctx.currTs = 1000;
+  SStreamExtOrigTblReaderRsp firstRsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &firstRsp),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(firstRsp.readerTaskAddr.taskId, 0);
+
+  taosHashCleanup(mStreamMgmt.toDeploySnodeMap);
+  mStreamMgmt.toDeploySnodeMap =
+      taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+  ASSERT_NE(mStreamMgmt.toDeploySnodeMap, nullptr);
+  taosHashSetFreeFp(mStreamMgmt.toDeploySnodeMap, mstDestroySStmSnodeTasksDeploy);
+  mStreamMgmt.toDeploySnodeTaskNum = 0;
+
+  SStreamExtOrigTblReaderBinding added = binding;
+  added.bindingId = 42;
+  added.virtualUid = 402;
+  ASSERT_NE(taosArrayPush(req.bindings, &added), nullptr);
+  req.capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+  SMStreamHbRspMsg hbRsp = {};
+  ctx.pRsp = &hbRsp;
+  SStreamExtOrigTblReaderRsp patchRsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &patchRsp),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(patchRsp.readerTaskAddr.taskId, firstRsp.readerTaskAddr.taskId);
+  EXPECT_EQ(patchRsp.acceptedTriggerBindingCount, 2);
+  EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
+  ASSERT_NE(hbRsp.undeploy.taskList, nullptr);
+  ASSERT_EQ(taosArrayGetSize(hbRsp.undeploy.taskList), 1);
+  auto* undeploy = static_cast<SStreamTaskUndeploy*>(taosArrayGet(hbRsp.undeploy.taskList, 0));
+  ASSERT_NE(undeploy, nullptr);
+  EXPECT_EQ(undeploy->task.taskId, firstRsp.readerTaskAddr.taskId);
+  EXPECT_FALSE(undeploy->undeployMsg.doCheckpoint);
+  EXPECT_TRUE(undeploy->undeployMsg.doCleanup);
+
+  tFreeSMStreamHbRspMsg(&hbRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&firstRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&patchRsp);
+  tFreeSStreamExtOrigTblReaderReq(&req);
+  destroyTrigOReaders(&status);
+}
+
+TEST_F(MndStreamExtReaderRuntimeTest, CleanupPatchUndeploysAndDoesNotReuseReader) {
+  char streamName[] = "test.ext_cleanup_stream";
+  char triggerTbl[] = "vmeters";
+  SCMCreateStreamReq createReq = {};
+  createReq.name = streamName;
+  createReq.streamId = 7005;
+  createReq.triggerTblName = triggerTbl;
+  createReq.triggerTblType = TSDB_VIRTUAL_NORMAL_TABLE;
+
+  SStreamObj stream = {};
+  stream.pCreate = &createReq;
+  stream.mainSnodeId = snodeId_;
+  SStmStatus status = {};
+  status.streamName = streamName;
+  status.pCreate = &createReq;
+  SStmTaskStatus triggerTask = {};
+  triggerTask.id.taskId = 8005;
+  triggerTask.id.nodeId = snodeId_;
+  triggerTask.type = STREAM_TRIGGER_TASK;
+  status.triggerTask = &triggerTask;
+
+  SExtSourceObj source = {};
+  tstrncpy(source.sourceName, "remote", sizeof(source.sourceName));
+  source.type = EXT_SOURCE_MYSQL;
+  tstrncpy(source.defaultDatabase, "metrics", sizeof(source.defaultDatabase));
+  source.metaVersion = 13;
+  SExtColumnDef columns[2] = {};
+  tstrncpy(columns[0].colName, "ts", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "timestamp", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "cpu", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "double", sizeof(columns[1].extTypeName));
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 2;
+
+  SStreamExtOrigTblReaderBinding binding = {};
+  binding.bindingId = 51;
+  binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+  binding.virtualUid = 501;
+  binding.virtualSlot = 1;
+  tstrncpy(binding.externalColumn, "cpu", sizeof(binding.externalColumn));
+  SStreamExtOrigTblReaderReq req = {};
+  req.registryEntryId = 299;
+  req.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  req.sourceType = EXT_SOURCE_MYSQL;
+  req.sourceConfigVersion = source.metaVersion;
+  tstrncpy(req.identity.sourceName, "remote", sizeof(req.identity.sourceName));
+  tstrncpy(req.identity.dbName, "metrics", sizeof(req.identity.dbName));
+  tstrncpy(req.identity.tableName, "cpu", sizeof(req.identity.tableName));
+  req.bindings = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(req.bindings, nullptr);
+  ASSERT_NE(taosArrayPush(req.bindings, &binding), nullptr);
+
+  SStmGrpCtx ctx = {};
+  ctx.currTs = 1000;
+  SStreamExtOrigTblReaderRsp firstRsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &firstRsp),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(firstRsp.readerTaskAddr.taskId, 0);
+
+  taosHashCleanup(mStreamMgmt.toDeploySnodeMap);
+  mStreamMgmt.toDeploySnodeMap =
+      taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+  ASSERT_NE(mStreamMgmt.toDeploySnodeMap, nullptr);
+  taosHashSetFreeFp(mStreamMgmt.toDeploySnodeMap, mstDestroySStmSnodeTasksDeploy);
+  mStreamMgmt.toDeploySnodeTaskNum = 0;
+
+  taosArrayClear(req.bindings);
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+  SMStreamHbRspMsg hbRsp = {};
+  ctx.pRsp = &hbRsp;
+  SStreamExtOrigTblReaderRsp cleanupRsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &cleanupRsp),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cleanupRsp.readerTaskAddr.taskId, firstRsp.readerTaskAddr.taskId);
+  EXPECT_EQ(cleanupRsp.acceptedTriggerBindingCount, 0);
+  EXPECT_EQ(cleanupRsp.acceptedCalcBindingCount, 0);
+  EXPECT_EQ(cleanupRsp.results, nullptr);
+  EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 0);
+  ASSERT_NE(hbRsp.undeploy.taskList, nullptr);
+  ASSERT_EQ(taosArrayGetSize(hbRsp.undeploy.taskList), 1);
+  auto* undeploy = static_cast<SStreamTaskUndeploy*>(taosArrayGet(hbRsp.undeploy.taskList, 0));
+  ASSERT_NE(undeploy, nullptr);
+  EXPECT_EQ(undeploy->task.taskId, firstRsp.readerTaskAddr.taskId);
+  EXPECT_FALSE(undeploy->undeployMsg.doCheckpoint);
+  EXPECT_TRUE(undeploy->undeployMsg.doCleanup);
+  auto* snodeStatus = static_cast<SStmSnodeStatus*>(
+      taosHashGet(mStreamMgmt.snodeMap, &snodeId_, sizeof(snodeId_)));
+  ASSERT_NE(snodeStatus, nullptr);
+  auto* streamStatus = static_cast<SStmSnodeStreamStatus*>(
+      taosHashGet(snodeStatus->streamTasks, &createReq.streamId, sizeof(createReq.streamId)));
+  ASSERT_NE(streamStatus, nullptr);
+  EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 1);
+
+  ASSERT_NE(taosArrayPush(req.bindings, &binding), nullptr);
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  SStreamExtOrigTblReaderRsp recreateRsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &recreateRsp),
+            TSDB_CODE_SUCCESS);
+  EXPECT_NE(recreateRsp.readerTaskAddr.taskId, firstRsp.readerTaskAddr.taskId);
+  EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
+  EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 2);
+  auto* readerList = static_cast<SArray*>(taosArrayGetP(status.trigOReaders, 0));
+  ASSERT_NE(readerList, nullptr);
+  ASSERT_GE(taosArrayGetSize(readerList), 1);
+  auto* reader = static_cast<SStmTaskStatus*>(taosArrayGet(readerList, taosArrayGetSize(readerList) - 1));
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->id.taskId, recreateRsp.readerTaskAddr.taskId);
+
+  tFreeSMStreamHbRspMsg(&hbRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&firstRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&cleanupRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&recreateRsp);
+  tFreeSStreamExtOrigTblReaderReq(&req);
+  destroyTrigOReaders(&status);
+}
+
+TEST_F(MndStreamExtReaderRuntimeTest, FailedBindingDoesNotCreateAdditionalExternalOriginalReader) {
+  char streamName[] = "test.ext_stream";
+  char triggerTbl[] = "vmeters";
+  SCMCreateStreamReq createReq = {};
+  createReq.name = streamName;
+  createReq.streamId = 7002;
+  createReq.triggerTblName = triggerTbl;
+  createReq.triggerTblType = TSDB_VIRTUAL_NORMAL_TABLE;
+
+  SStreamObj stream = {};
+  stream.pCreate = &createReq;
+  stream.mainSnodeId = snodeId_;
+
+  SStmStatus status = {};
+  status.streamName = streamName;
+  status.pCreate = &createReq;
+
+  SStmTaskStatus triggerTask = {};
+  triggerTask.id.taskId = 8002;
+  triggerTask.id.nodeId = snodeId_;
+  triggerTask.type = STREAM_TRIGGER_TASK;
+  status.triggerTask = &triggerTask;
+
+  SExtSourceObj source = {};
+  tstrncpy(source.sourceName, "remote", sizeof(source.sourceName));
+  source.type = EXT_SOURCE_MYSQL;
+  tstrncpy(source.host, "127.0.0.1", sizeof(source.host));
+  source.port = 3306;
+  tstrncpy(source.user, "reader", sizeof(source.user));
+  tstrncpy(source.defaultDatabase, "metrics", sizeof(source.defaultDatabase));
+  source.metaVersion = 12;
+
+  SExtColumnDef columns[2] = {};
+  tstrncpy(columns[0].colName, "ts", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "timestamp", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "cpu", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "double", sizeof(columns[1].extTypeName));
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 2;
+
+  SStreamExtOrigTblReaderBinding binding = {};
+  binding.bindingId = 11;
+  binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+  binding.virtualUid = 101;
+  binding.virtualSlot = 3;
+  binding.expectedType = TSDB_DATA_TYPE_DOUBLE;
+  binding.resultColumnSlot = 3;
+  tstrncpy(binding.externalColumn, "cpu", sizeof(binding.externalColumn));
+
+  SStreamExtOrigTblReaderReq goodReq = {};
+  goodReq.registryEntryId = 99;
+  goodReq.deploymentGeneration = 5;
+  goodReq.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  goodReq.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  goodReq.sourceType = EXT_SOURCE_MYSQL;
+  goodReq.sourceConfigVersion = source.metaVersion;
+  tstrncpy(goodReq.identity.sourceName, "remote", sizeof(goodReq.identity.sourceName));
+  tstrncpy(goodReq.identity.dbName, "metrics", sizeof(goodReq.identity.dbName));
+  tstrncpy(goodReq.identity.tableName, "cpu", sizeof(goodReq.identity.tableName));
+  goodReq.bindings = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(goodReq.bindings, nullptr);
+  ASSERT_NE(taosArrayPush(goodReq.bindings, &binding), nullptr);
+
+  SStmGrpCtx ctx = {};
+  ctx.currTs = 1000;
+  SStreamExtOrigTblReaderRsp goodRsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &goodReq, &meta, &goodRsp),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(goodRsp.code, TSDB_CODE_SUCCESS);
+  ASSERT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 1);
+  ASSERT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
+
+  SStreamExtOrigTblReaderBinding badBinding = binding;
+  badBinding.bindingId = 12;
+  tstrncpy(badBinding.externalColumn, "missing_col", sizeof(badBinding.externalColumn));
+
+  SStreamExtOrigTblReaderReq badReq = goodReq;
+  badReq.registryEntryId = 100;
+  badReq.bindings = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(badReq.bindings, nullptr);
+  ASSERT_NE(taosArrayPush(badReq.bindings, &badBinding), nullptr);
+
+  SStreamExtOrigTblReaderRsp badRsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &badReq, &meta, &badRsp),
+            TSDB_CODE_EXT_COLUMN_NOT_EXIST);
+  EXPECT_EQ(badRsp.code, TSDB_CODE_EXT_COLUMN_NOT_EXIST);
+  EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 1);
+  EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
+
+  tFreeSStreamExtOrigTblReaderRsp(&goodRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&badRsp);
+  tFreeSStreamExtOrigTblReaderReq(&goodReq);
+  tFreeSStreamExtOrigTblReaderReq(&badReq);
+  destroyTrigOReaders(&status);
+}
+
+TEST_F(MndStreamExtReaderRuntimeTest, RollsBackExternalOriginalReaderWhenSnodeRegistrationFails) {
+  char streamName[] = "test.ext_stream";
+  char triggerTbl[] = "vmeters";
+  SCMCreateStreamReq createReq = {};
+  createReq.name = streamName;
+  createReq.streamId = 7003;
+  createReq.triggerTblName = triggerTbl;
+  createReq.triggerTblType = TSDB_VIRTUAL_NORMAL_TABLE;
+
+  SStreamObj stream = {};
+  stream.pCreate = &createReq;
+  stream.mainSnodeId = snodeId_;
+
+  SStmStatus status = {};
+  status.streamName = streamName;
+  status.pCreate = &createReq;
+
+  SStmTaskStatus triggerTask = {};
+  triggerTask.id.taskId = 8003;
+  triggerTask.id.nodeId = snodeId_;
+  triggerTask.type = STREAM_TRIGGER_TASK;
+  status.triggerTask = &triggerTask;
+
+  SExtSourceObj source = {};
+  tstrncpy(source.sourceName, "remote", sizeof(source.sourceName));
+  source.type = EXT_SOURCE_MYSQL;
+  tstrncpy(source.host, "127.0.0.1", sizeof(source.host));
+  source.port = 3306;
+  tstrncpy(source.user, "reader", sizeof(source.user));
+  tstrncpy(source.defaultDatabase, "metrics", sizeof(source.defaultDatabase));
+  source.metaVersion = 12;
+
+  SExtColumnDef columns[2] = {};
+  tstrncpy(columns[0].colName, "ts", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "timestamp", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "cpu", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "double", sizeof(columns[1].extTypeName));
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 2;
+
+  SStreamExtOrigTblReaderBinding binding = {};
+  binding.bindingId = 11;
+  binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+  binding.virtualUid = 101;
+  binding.virtualSlot = 3;
+  binding.expectedType = TSDB_DATA_TYPE_DOUBLE;
+  binding.resultColumnSlot = 3;
+  tstrncpy(binding.externalColumn, "cpu", sizeof(binding.externalColumn));
+
+  SStreamExtOrigTblReaderReq req = {};
+  req.registryEntryId = 99;
+  req.deploymentGeneration = 5;
+  req.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  req.sourceType = EXT_SOURCE_MYSQL;
+  req.sourceConfigVersion = source.metaVersion;
+  tstrncpy(req.identity.sourceName, "remote", sizeof(req.identity.sourceName));
+  tstrncpy(req.identity.dbName, "metrics", sizeof(req.identity.dbName));
+  tstrncpy(req.identity.tableName, "cpu", sizeof(req.identity.tableName));
+  req.bindings = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderBinding));
+  ASSERT_NE(req.bindings, nullptr);
+  ASSERT_NE(taosArrayPush(req.bindings, &binding), nullptr);
+
+  ASSERT_EQ(taosHashRemove(mStreamMgmt.snodeMap, &snodeId_, sizeof(snodeId_)), TSDB_CODE_SUCCESS);
+
+  SStmGrpCtx ctx = {};
+  ctx.currTs = 1000;
+  SStreamExtOrigTblReaderRsp rsp = {};
+  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &rsp),
+            TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 0);
+  EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 0);
+
+  SStmSnodeTasksDeploy *deploy = static_cast<SStmSnodeTasksDeploy *>(
+      taosHashGet(mStreamMgmt.toDeploySnodeMap, &snodeId_, sizeof(snodeId_)));
+  if (deploy != nullptr && deploy->triggerList != nullptr) {
+    EXPECT_EQ(taosArrayGetSize(deploy->triggerList), 0);
+  }
+
+  tFreeSStreamExtOrigTblReaderRsp(&rsp);
+  tFreeSStreamExtOrigTblReaderReq(&req);
+  destroyTrigOReaders(&status);
+}
+#endif
 
 TEST_F(MndStreamHeartbeatTest, SnapshotDeployWriterWaitsForPostingHeartbeatReader) {
   constexpr int64_t streamId = 42;

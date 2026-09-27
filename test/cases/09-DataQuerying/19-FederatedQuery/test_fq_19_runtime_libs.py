@@ -38,6 +38,33 @@ _PROVIDER_PLUGIN_PATTERNS = {
 _PROVIDER_RESOLVED_DEP_PREFIXES = {
     "influxdb": ("libarrow", "libparquet"),
 }
+_EXT_ENV_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ensure_ext_env.sh")
+
+
+def _check_pymysql_dependency(tmp_path, module_available=True, python_available=True):
+    module = tmp_path / "pymysql.py"
+    module.write_text("" if module_available else "raise ImportError('PyMySQL unavailable')\n")
+    env = _fq_subprocess_env()
+    env["FQ_PYTHON"] = sys.executable if python_available else str(tmp_path / "missing-python")
+    env["PYTHONPATH"] = str(tmp_path)
+    tdLog.debug(
+        f"checking PyMySQL dependency: module_available={module_available}, "
+        f"python_available={python_available}"
+    )
+    return subprocess.run(
+        [
+            "bash",
+            "-c",
+            'FQ_SOURCE_ONLY=1 source "$1"; '
+            '_check_pymysql_dependency',
+            "bash",
+            _EXT_ENV_SCRIPT,
+        ],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
 
 
 def _apply_runtime_exports(output):
@@ -88,6 +115,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         tdLog.debug(f"start to execute {__file__}")
 
     def test_prepare_runtime_libs_sanitizes_shell_helper_env(self, monkeypatch):
+        """Sanitize inherited loader and sanitizer variables before setup.
+
+        Verify that external-source setup does not inherit TDengine runtime
+        overrides that could affect foreign binaries.
+
+        Since: v3.4.2.0
+
+        """
         for name in ("LD_PRELOAD", "ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"):
             monkeypatch.setenv(name, f"poison-{name}")
         for name in (
@@ -114,7 +149,62 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         for name in ("LD_PRELOAD", "ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"):
             assert name not in captured["env"]
 
+    def do_accept_available_pymysql(self, tmp_path):
+        result = _check_pymysql_dependency(tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        print("accept available PyMySQL dependency ......... [ passed ]")
+
+    def do_report_missing_pymysql(self, tmp_path):
+        result = _check_pymysql_dependency(tmp_path, module_available=False)
+
+        assert result.returncode != 0
+        assert "MySQL setup requires the pymysql module" in result.stderr
+        assert f"{sys.executable} -m pip install pymysql" in result.stderr
+        print("report missing PyMySQL dependency .......... [ passed ]")
+
+    def do_report_missing_python_interpreter(self, tmp_path):
+        result = _check_pymysql_dependency(tmp_path, python_available=False)
+
+        assert result.returncode != 0
+        assert "MySQL setup requires Python, but the interpreter was not found" in result.stderr
+        assert "Set FQ_PYTHON to the Python interpreter used by pytest" in result.stderr
+        print("report missing Python interpreter .......... [ passed ]")
+
+    def test_pymysql_dependency(self, tmp_path):
+        """Check the Python dependencies used by MySQL setup
+
+        1. Accept PyMySQL in the configured Python interpreter
+        2. Report installation instructions when PyMySQL cannot be imported
+        3. Report configuration instructions when the interpreter is missing
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-08-06 Wang Mingming Add MySQL client fallback coverage
+            - 2026-09-22 Wang Mingming Cover the retained PyMySQL dependency path
+
+        """
+        self.do_accept_available_pymysql(tmp_path)
+        self.do_report_missing_pymysql(tmp_path)
+        self.do_report_missing_python_interpreter(tmp_path)
+
     def test_taos_cli_env_disables_leak_detection_for_asan_child(self, monkeypatch):
+        """Disable leak detection for ASan child processes.
+
+        Verify that the taos CLI environment preserves preload settings while
+        disabling leak detection in ASan and LSan options.
+
+        Since: v3.4.2.0
+
+        """
         monkeypatch.setenv("CI_ASAN_BUILD", "1")
         monkeypatch.setenv("LD_PRELOAD", "/usr/lib/libasan.so /usr/lib/libstdc++.so")
         monkeypatch.setenv("ASAN_OPTIONS", "detect_odr_violation=0:detect_leaks=1")
@@ -129,6 +219,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert "detect_leaks=0" in env["LSAN_OPTIONS"].split(":")
 
     def test_missing_runtime_moves_normal_provider_libs(self, monkeypatch, tmp_path):
+        """Restore normal provider libraries after a missing-runtime check.
+
+        Verify that provider libraries are moved out of the runtime directory
+        during the check and restored afterward.
+
+        Since: v3.4.2.0
+
+        """
         lib = tmp_path / "libmariadb.so.3"
         subdir = tmp_path / "mariadb"
         subdir.mkdir()
@@ -145,6 +243,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert nested_lib.read_text() == "nested mysql runtime"
 
     def test_missing_influx_runtime_moves_arrow_third_party_libs(self, monkeypatch, tmp_path):
+        """Restore InfluxDB plugin and Arrow dependencies after a runtime check.
+
+        Verify that direct and resolved third-party libraries are hidden during
+        the missing-runtime check and restored afterward.
+
+        Since: v3.4.2.0
+
+        """
         plugin = tmp_path / "libtaos_ext_influx_arrow.so"
         arrow = tmp_path / "libarrow.so.1900"
         parquet = tmp_path / "libparquet.so.1900"
@@ -173,6 +279,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert resolved_arrow.read_text() == resolved_arrow.name
 
     def test_existing_source_query_missing_uses_provider_error(self, monkeypatch, tmp_path):
+        """Report the provider error when an existing source lacks runtime libraries.
+
+        Verify that source creation and query failures use the provider-specific
+        error code and that the daemon is restarted with the original runtime.
+
+        Since: v3.4.2.0
+
+        """
         build = tmp_path / "debug" / "build"
         bin_dir = build / "bin"
         lib_dir = build / "lib"
@@ -234,6 +348,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         ]
 
     def test_influx_http_uses_runtime_missing_query_check(self, monkeypatch):
+        """Use the runtime-missing query check for HTTP InfluxDB sources.
+
+        Verify that an HTTP InfluxDB source uses the same provider-error path as
+        other external-source runtime checks.
+
+        Since: v3.4.2.0
+
+        """
         calls = []
 
         class Cfg:

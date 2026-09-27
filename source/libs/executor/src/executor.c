@@ -2310,8 +2310,12 @@ int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t
     taosArrayDestroy(pBlockList);
   }
   nodesDestroyList(pList);
-  destroyExprInfo(pExprInfo, numOfExprs);
-  taosMemoryFreeClear(pExprInfo);
+  if (pExprInfo != NULL) {
+    destroyExprInfo(pExprInfo, numOfExprs);
+    taosMemoryFreeClear(pExprInfo);
+  } else if (code != TSDB_CODE_SUCCESS) {
+    qDebug("skip cleanup for null stream scalar expr info, code:%s, numOfExprs:%d", tstrerror(code), numOfExprs);
+  }
   return code;
 }
 

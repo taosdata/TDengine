@@ -49,6 +49,11 @@ extern "C" {
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
+typedef enum EStreamExtBindingKind {
+  STRIGGER_EXT_BINDING_TRIGGER = 0,
+  STRIGGER_EXT_BINDING_CALC = 1,
+} EStreamExtBindingKind;
+
 typedef struct SStreamTaskStats SStreamTaskStats;
 
 typedef struct SStreamReaderTask {
@@ -87,6 +92,9 @@ typedef struct SSTriggerAHandle {
   int64_t streamId;
   int64_t taskId;
   int64_t sessionId;
+  int32_t requestType;
+  int64_t requestGeneration;
+  int64_t requestGid;
   int8_t  paramType; /* ESTriggerAHandleParamType */
   void   *param;
   void   *pullOwner; /* borrowed owner for pull requests that require terminal cleanup */
@@ -375,6 +383,10 @@ void    smUndeploySnodeTasks(bool cleanup);
 int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
 int32_t stTriggerTaskGetDelay(SStreamTask *pTask, int64_t *pDelay, bool *pFillHisFinished);
+int32_t stStreamExtRegistryEntryId(int8_t sourceType, const SStreamExtSourceIdentityReq *pIdentity,
+                                   int64_t *pRegistryEntryId);
+int64_t stStreamExtBindingId(int64_t registryEntryId, int64_t virtualUid, int64_t virtualGid,
+                             EStreamExtBindingKind kind, int32_t virtualSlot, const char *pExternalColumn);
 
 #ifdef __cplusplus
 }

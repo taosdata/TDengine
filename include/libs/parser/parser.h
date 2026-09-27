@@ -319,8 +319,9 @@ typedef struct SParseMetaCache {
   bool      dnodeRequired;
   bool      forceFetchViewMeta;
   // Federated query ext source metadata (populated by collectMetaKey / putMetaDataToCache)
-  SHashObj* pExtSources;   // key is sourceName (varchar), element is SMetaRes*  ->  SExtSourceInfo*
-  SHashObj* pExtTableMeta; // key is ext-table composite key, element is SMetaRes*  ->  SExtTableMeta*
+  SHashObj* pExtSources;      // key is sourceName (varchar), element is SMetaRes* -> SExtSourceInfo*
+  SHashObj* pExtTableMetaReq; // key is ext-table composite key, element is SExtTableMetaReq
+  SHashObj* pExtTableMeta;    // key is ext-table composite key, element is SMetaRes* -> SExtTableMeta*
 } SParseMetaCache;
 
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);

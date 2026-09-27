@@ -8658,7 +8658,7 @@ TEST_F(ParserStreamTest, TestFederatedStreamExtPartitionByRejected) {
 //   3. With 2-seg path "ext_pg.metrics" the parser treats ext_pg as a local db
 //      and reports TSDB_CODE_PAR_TABLE_NOT_EXIST, not EXT_FEDERATED_DISABLED.
 // The real validation of this behavior belongs in an E2E pytest under
-// test/cases/18-StreamProcessing/federated/ that can flip the global cfg and
+// test/cases/18-StreamProcessing/99-Others/ that can flip the global cfg and
 // exercise the full authentication+parse pipeline.
 TEST_F(ParserStreamTest, TestFederatedStreamExtDisabledCheck) {
   GTEST_SKIP() << "[pt-followup deferred] Parser unit test cannot reach "

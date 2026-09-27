@@ -383,8 +383,9 @@ _fq_mysql_ld_path() {
 # inherit TDengine's loader overrides.
 _fq_mysql_run() {
     local base="$1"; shift
+    local executable="${1:-}"
     local _ldlp; _ldlp="$(_fq_mysql_ld_path "$base")"
-    if [[ -n "$_ldlp" ]]; then
+    if [[ -n "$_ldlp" && "$executable" == "${base}/"* ]]; then
         _fq_env_clean env LD_LIBRARY_PATH="$_ldlp" "$@"
     else
         _fq_env_clean "$@"
@@ -1814,7 +1815,6 @@ _mysql_start() {
 
 _mysql_setup_auth() {
     local ver="$1" port="$2" base="$3"
-    local mysql_bin="${base}/bin/mysql"
     local socket="${base}/run/mysqld.sock"
     local major; major="$(echo "$ver" | cut -d. -f1)"
 
@@ -1867,12 +1867,6 @@ _mysql_setup_auth() {
         tail -10 "${base}/log/error.log" | while IFS= read -r _line; do
             echo "[fq-env]   $_line"
         done
-    fi
-    # Also try with skip-grant-tables approach: just TCP no-password
-    if _fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" -u root \
-            --connect-timeout=5 -e "$auth_sql" 2>/dev/null; then
-        info "MySQL ${ver}: auth configured via TCP (no-password)."
-        return 0
     fi
     warn "MySQL ${ver}: could not configure auth automatically (socket=${socket})."
     return 1
@@ -3402,7 +3396,6 @@ _final_probe_mysql() {
     local port; port="$(mysql_port "$ver")"
     local base="${FQ_BASE_DIR}/mysql/${ver}"
     local log_file="${base}/log/error.log"
-
     local ok=0 i=0
     while [[ $i -lt 30 ]]; do
         # Require consecutive successful probes to avoid transient false-ready.

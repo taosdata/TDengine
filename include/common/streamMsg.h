@@ -477,6 +477,9 @@ typedef enum SStreamMsgType {
   STREAM_MSG_UPDATE_RUNNER,
   STREAM_MSG_USER_RECALC,
   STREAM_MSG_RUNNER_ORIGTBL_READER,
+  STREAM_MSG_EXT_ORIGTBL_READER_INFO,
+  STREAM_MSG_EXT_SOURCE_IDENTITY_INFO,
+  STREAM_MSG_MIXED_ORIGTBL_READER_INFO,
 } SStreamMsgType;
 
 typedef struct SStreamMsg {
@@ -538,6 +541,7 @@ typedef struct SStreamExtTriggerSpec {
   char        extSchema[TSDB_EXT_SOURCE_SCHEMA_LEN]; // Default schema (PG only; empty for MySQL/InfluxDB)
   char        extTable[TSDB_TABLE_NAME_LEN];         // External table name
   char        tsColumn[TSDB_COL_NAME_LEN];           // Resolved ts column
+  int8_t      precision;                             // Stream trigger table precision for returned timestamp columns
   SArray*     triggerColumns;                        // col names referenced by trigger (SArray<char[TSDB_COL_NAME_LEN]>)
   // Column type mappings for triggerColumns: one SExtColTypeMapping entry per
   // triggerColumns element, in the same order.  Built from SColumnNode.resType
@@ -565,6 +569,8 @@ typedef struct SStreamExtTriggerSpec {
   // path).  NULL/empty means no pre-filter for the trigger reader.
   // Null-terminated C string; its length is self-describing via strlen.
   char*       triggerPrefilter;
+  int32_t     tagCondLen;
+  char*       tagCondJson;
   // --- Connection snapshot (sized via the SCreateExtSourceReq / SGetExtSourceRsp
   //     field set in tmsg.h:235-248) ---
   char        host[TSDB_EXT_SOURCE_HOST_LEN];        // External source host/IP
@@ -636,8 +642,124 @@ void    tFreeSStreamExtTriggerSpec(SStreamExtTriggerSpec* pSpec);
 #define INFLUXDB_PARTITION_BY_TBNAME "__tbname__"
 typedef enum SStreamMgmtReqType {
   STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER = 0,
-  STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER
+  STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER,
+  STREAM_MGMT_REQ_TRIGGER_EXT_ORIGTBL_READER,
+  STREAM_MGMT_REQ_TRIGGER_EXT_SOURCE_IDENTITY,
+  STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER,
 } SStreamMgmtReqType;
+
+#define STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION 2
+#define STREAM_EXT_ORIGTBL_READER_MAX_COLUMNS TSDB_MAX_COLUMNS_NON_VIRTUAL
+#define STREAM_EXT_SOURCE_IDENTITY_MAX_TAG_COND_LEN TSDB_MAX_JSON_TAG_LEN
+
+typedef struct SStreamExtSourceIdentityReq {
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    dbName[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  int32_t tagCondLen;
+  char*   tagCondJson;
+} SStreamExtSourceIdentityReq;
+
+typedef struct SStreamExtSourceIdentityRsp {
+  SStreamExtSourceIdentityReq req;
+  int8_t                      sourceType;
+  int64_t                     sourceConfigVersion;
+  int32_t                     code;
+} SStreamExtSourceIdentityRsp;
+
+void    tFreeSStreamExtSourceIdentityReq(SStreamExtSourceIdentityReq* pReq);
+void    tFreeSStreamExtSourceIdentityRsp(SStreamExtSourceIdentityRsp* pRsp);
+int32_t tCloneSStreamExtSourceIdentityReq(const SStreamExtSourceIdentityReq* pSrc, SStreamExtSourceIdentityReq** ppDst);
+int32_t tCloneSStreamExtSourceIdentityRsp(const SStreamExtSourceIdentityRsp* pSrc, SStreamExtSourceIdentityRsp** ppDst);
+int32_t tEncodeSStreamExtSourceIdentityReq(SEncoder* pEncoder, const SStreamExtSourceIdentityReq* pReq);
+int32_t tDecodeSStreamExtSourceIdentityReq(SDecoder* pDecoder, SStreamExtSourceIdentityReq* pReq);
+int32_t tEncodeSStreamExtSourceIdentityRsp(SEncoder* pEncoder, const SStreamExtSourceIdentityRsp* pRsp);
+int32_t tDecodeSStreamExtSourceIdentityRsp(SDecoder* pDecoder, SStreamExtSourceIdentityRsp* pRsp);
+
+typedef enum EStreamExtOrigTblReaderCapability {
+  STREAM_EXT_ORIGTBL_READER_CAP_CREATE = 1 << 0,
+  STREAM_EXT_ORIGTBL_READER_CAP_START = 1 << 1,
+  STREAM_EXT_ORIGTBL_READER_CAP_PATCH = 1 << 2,
+  STREAM_EXT_ORIGTBL_READER_CAP_RECOVER = 1 << 3,
+} EStreamExtOrigTblReaderCapability;
+
+typedef struct SStreamExtOrigTblReaderIdentity {
+  char sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char dbName[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+} SStreamExtOrigTblReaderIdentity;
+
+typedef struct SStreamTaskAddr {
+  int64_t taskId;
+  int32_t nodeId;
+  SEpSet  epset;
+} SStreamTaskAddr;
+
+int32_t tDecodeSStreamTaskAddr(SDecoder* pDecoder, SStreamTaskAddr* pMsg);
+int32_t tEncodeSStreamTaskAddr(SEncoder* pEncoder, const SStreamTaskAddr* pMsg);
+
+typedef enum EStreamExtOrigTblReaderBindingKind {
+  STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER = 0,
+  STREAM_EXT_ORIGTBL_READER_BINDING_CALC = 1,
+} EStreamExtOrigTblReaderBindingKind;
+
+typedef struct SStreamExtOrigTblReaderBinding {
+  int64_t bindingId;
+  int64_t virtualUid;
+  int64_t virtualGid;
+  int32_t virtualSlot;
+  int8_t  kind;  // EStreamExtOrigTblReaderBindingKind
+  char    externalColumn[TSDB_COL_NAME_LEN];
+  int8_t  expectedType;
+  int32_t resultColumnSlot;
+} SStreamExtOrigTblReaderBinding;
+
+typedef struct SStreamExtOrigTblReaderResult {
+  SStreamExtOrigTblReaderBinding binding;
+  int8_t                          actualType;
+  int32_t                         code;
+} SStreamExtOrigTblReaderResult;
+
+#define STREAM_EXT_ORIGTBL_READER_MAX_BINDINGS \
+  ((int32_t)(TSDB_MAX_MSG_SIZE / sizeof(SStreamExtOrigTblReaderResult)))
+
+typedef struct SStreamExtOrigTblReaderReq {
+  int64_t                         registryEntryId;
+  int64_t                         deploymentGeneration;
+  int32_t                         protocolVersion;
+  int32_t                         capabilities;
+  int8_t                          sourceType;
+  int64_t                         sourceConfigVersion;
+  SStreamExtOrigTblReaderIdentity identity;
+  int32_t                         tagCondLen;
+  char                           *tagCondJson;
+  SArray*                         bindings;  // SArray<SStreamExtOrigTblReaderBinding>
+} SStreamExtOrigTblReaderReq;
+
+typedef struct SStreamExtOrigTblReaderRsp {
+  int64_t                         registryEntryId;
+  int64_t                         deploymentGeneration;
+  int32_t                         protocolVersion;
+  int32_t                         capabilities;
+  SStreamExtOrigTblReaderIdentity identity;
+  SStreamTaskAddr                 readerTaskAddr;
+  int32_t                         acceptedTriggerBindingCount;
+  int32_t                         acceptedCalcBindingCount;
+  int32_t                         code;
+  SArray*                         results;  // SArray<SStreamExtOrigTblReaderResult>
+} SStreamExtOrigTblReaderRsp;
+
+void    tFreeSStreamExtOrigTblReaderReq(SStreamExtOrigTblReaderReq* pReq);
+void    tFreeSStreamExtOrigTblReaderRsp(SStreamExtOrigTblReaderRsp* pRsp);
+int32_t tCloneSStreamExtOrigTblReaderReq(const SStreamExtOrigTblReaderReq* pSrc, SStreamExtOrigTblReaderReq** ppDst);
+int32_t tCloneSStreamExtOrigTblReaderRsp(const SStreamExtOrigTblReaderRsp* pSrc, SStreamExtOrigTblReaderRsp** ppDst);
+int32_t tEncodeSStreamExtOrigTblReaderReq(SEncoder* pEncoder, const SStreamExtOrigTblReaderReq* pReq);
+int32_t tDecodeSStreamExtOrigTblReaderReq(SDecoder* pDecoder, SStreamExtOrigTblReaderReq* pReq);
+int32_t tEncodeSStreamExtOrigTblReaderRsp(SEncoder* pEncoder, const SStreamExtOrigTblReaderRsp* pRsp);
+int32_t tDecodeSStreamExtOrigTblReaderRsp(SDecoder* pDecoder, SStreamExtOrigTblReaderRsp* pRsp);
+int32_t tDecodeSStreamExtOrigTblReaderBindings(SDecoder* pDecoder, SArray** ppBindings);
 
 typedef struct SStreamDbTableName {
   char dbFName[TSDB_DB_FNAME_LEN];
@@ -659,6 +781,9 @@ typedef struct SStreamOReaderDeployRsp {
 typedef struct SStreamMgmtReqCont {
   SArray*            pReqs;  // for trigger SArray<SStreamDbTableName>, full table names of the original tables
                              // for runner  SArray<SStreamOReaderDeployReq>, original tables groups
+  SStreamExtOrigTblReaderReq* pExtOrigTblReader;
+  SArray*                     pExtOrigTblReaders;  // SArray<SStreamExtOrigTblReaderReq>
+  SStreamExtSourceIdentityReq* pExtSourceIdentity;
 } SStreamMgmtReqCont;
 
 typedef struct SStreamMgmtReq {
@@ -669,6 +794,8 @@ typedef struct SStreamMgmtReq {
 
 void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq);
 int32_t tCloneSStreamMgmtReq(SStreamMgmtReq* pSrc, SStreamMgmtReq** ppDst);
+int32_t tEncodeSStreamMgmtReq(SEncoder* pEncoder, const SStreamMgmtReq* pReq);
+int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq);
 void tFreeRunnerOReaderDeployReq(void* param);
 
 typedef void (*taskUndeplyCallback)(void*);
@@ -718,6 +845,15 @@ typedef struct SStreamMgmtRspCont {
 
   // FOR STREAM_MSG_RUNNER_ORIGTBL_READER
   SArray*    execRspList;  // SArray<SStreamOReaderDeployRsp>
+
+  // FOR STREAM_MSG_EXT_ORIGTBL_READER_INFO
+  SStreamExtOrigTblReaderRsp* pExtOrigTblReader;
+
+  // FOR STREAM_MSG_EXT_SOURCE_IDENTITY_INFO
+  SStreamExtSourceIdentityRsp* pExtSourceIdentity;
+
+  // FOR STREAM_MSG_MIXED_ORIGTBL_READER_INFO
+  SArray*                      pExtOrigTblReaders;  // SArray<SStreamExtOrigTblReaderRsp>
 } SStreamMgmtRspCont;
 
 typedef struct SStreamMgmtRsp {
@@ -727,6 +863,9 @@ typedef struct SStreamMgmtRsp {
   SStreamTask        task;
   SStreamMgmtRspCont cont;
 } SStreamMgmtRsp;
+
+int32_t tEncodeSStreamMgmtRsp(SEncoder* pEncoder, const SStreamMgmtRsp* pRsp);
+int32_t tDecodeSStreamMgmtRsp(SDecoder* pDecoder, SStreamMgmtRsp* pRsp);
 
 typedef struct SStreamRecalcReq {
   int64_t recalcId;
@@ -875,18 +1014,10 @@ typedef union {
 
 typedef struct SStreamReaderDeployMsg {
   int8_t                 triggerReader;
+  bool                   ownsExtSpec;  // true when mnode allocated a transient external reader spec
   SStreamExtTriggerSpec* pExtSpec;  // P1 B5: non-NULL for federated (EXT-source) reader tasks
   SStreamReaderDeploy    msg;
 } SStreamReaderDeployMsg;
-
-typedef struct SStreamTaskAddr {
-  int64_t taskId;
-  int32_t nodeId;
-  SEpSet  epset;
-} SStreamTaskAddr;
-
-int32_t tDecodeSStreamTaskAddr(SDecoder* pDecoder, SStreamTaskAddr* pMsg);
-int32_t tEncodeSStreamTaskAddr(SEncoder* pEncoder, const SStreamTaskAddr* pMsg);
 
 typedef struct SStreamRunnerTarget {
   SStreamTaskAddr addr;
@@ -1332,9 +1463,14 @@ typedef enum {
 typedef struct SVTableRefResolveItem {
   int8_t  kind;                                  // EStreamVRefKind
   bool    hasRef;                                // false => triple is NULL/empty (no ref); true => triple is a real ref
+  int8_t  refType;                               // 0=internal, 1=external terminal
+  char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char    refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
   char    refDbName   [TSDB_DB_NAME_LEN];
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName  [TSDB_COL_NAME_LEN];
+  int32_t tagCondLen;                              // serialized SERIES condition length, excluding NUL
+  char   *tagCondJson;                             // owned by resolve responses; NULL for no condition
 } SVTableRefResolveItem;
 
 // Per-column spec within a table-grouped request item.
@@ -1418,6 +1554,7 @@ typedef struct SExtIndexEntry {
  */
 typedef struct SSTriggerExtPullReq {
   SSTriggerPullRequest base;           /* base.type = STRIGGER_PULL_*_EXT   */
+  int64_t deploymentGeneration;        /* echoed by SSTriggerExtPullRsp for stale response filtering */
   /* Trigger always carries the full uid->maxTs watermark map so the reader
    * can use it directly without maintaining local state.
    * pUidMaxTs is SSHashObj<int64_t uid, int64_t maxTs>; borrowed ref. */
@@ -1444,6 +1581,7 @@ typedef struct SSTriggerExtPullReq {
 typedef struct SSTriggerExtPullRsp {
   ESTriggerPullType pullType;
   int32_t           code;       /* TSDB_CODE_SUCCESS or error */
+  int64_t           deploymentGeneration; /* copied from SSTriggerExtPullReq */
   /* LAST_TS_EXT response */
   SArray           *pLastTsArr; /* SArray<SExtLastTsInfo>; owned, caller frees */
   /* META_EXT / META_DATA_EXT response */
@@ -1689,6 +1827,7 @@ typedef struct STsInfo {
 typedef struct VTableInfo {
   int64_t        gId;      // group id
   int64_t        uid;      // table uid
+  char           tbName[TSDB_TABLE_NAME_LEN];
   SColRefWrapper cols;
 } VTableInfo;
 
