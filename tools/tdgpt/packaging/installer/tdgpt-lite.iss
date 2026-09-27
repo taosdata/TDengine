@@ -44,6 +44,7 @@ SetupIconFile={#MyAppIco}
 UninstallDisplayIcon={app}\favicon.ico
 Compression=lzma
 SolidCompression=yes
+WizardStyle=modern
 CloseApplications=no
 DisableDirPage=yes
 Uninstallable=yes
@@ -54,6 +55,10 @@ ExtraDiskSpaceRequired=2147483648
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Messages]
+UninstallAppFullTitle={#MyAppName} {#MyAppVersion} Uninstall
+ConfirmUninstall=Are you sure you want to uninstall {#MyAppName}?
 
 [Files]
 Source: "{#MyAppIco}"; DestDir: "{app}"; DestName: "favicon.ico"; Flags: ignoreversion
@@ -79,7 +84,7 @@ Name: "{app}\data\pids"; Permissions: everyone-modify; Flags: uninsneveruninstal
 Name: "{app}\data\resource"; Permissions: everyone-modify; Flags: uninsneveruninstall
 
 [Run]
-Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "View the installation log now (clear this checkbox to skip opening it)"; Flags: postinstall nowait skipifsilent
+Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "View the installation log"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C call ""{app}\uninstall.bat"""; Flags: runhidden waituntilterminated
@@ -100,6 +105,21 @@ const
   PostInstallTimeoutMilliseconds = 45 * 60 * 1000;
   InstallMetadataKey = 'Software\taosdata\TDgpt';
   ServiceRegistryKey = 'SYSTEM\CurrentControlSet\Services\Taosanode';
+  SM_CXSMICON = 49;
+  SM_CXPADDEDBORDER = 92;
+  DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+  WM_SETICON = $80;
+  ICON_SMALL = 0;
+  ICON_BIG = 1;
+  GWL_EXSTYLE = -20;
+  WS_EX_DLGMODALFRAME = $00000001;
+  SWP_NOSIZE = $0001;
+  SWP_NOMOVE = $0002;
+  SWP_NOZORDER = $0004;
+  SWP_FRAMECHANGED = $0020;
+  IMAGE_ICON = 1;
+  LR_LOADFROMFILE = $10;
+  LR_DEFAULTSIZE = $40;
 
 var
   OfflinePackagePage: TInputFileWizardPage;
@@ -114,6 +134,127 @@ procedure ExitProcess(ExitCode: Integer);
 
 function GetTickCount(): Cardinal;
   external 'GetTickCount@kernel32.dll stdcall';
+
+function GetSystemMetrics(nIndex: Integer): Integer;
+  external 'GetSystemMetrics@user32.dll stdcall';
+function ClientToScreen(hWnd: Longint; var lpPoint: TPoint): Boolean;
+  external 'ClientToScreen@user32.dll stdcall';
+function GetWindowRect(hWnd: Longint; var lpRect: TRect): Boolean;
+  external 'GetWindowRect@user32.dll stdcall';
+function DwmGetWindowAttribute(hWnd: Longint; dwAttribute: Cardinal; var pvAttribute: TRect; cbAttribute: Cardinal): Integer;
+  external 'DwmGetWindowAttribute@dwmapi.dll stdcall';
+function SendMessageCard(hWnd: Longint; Msg: Cardinal; wParam, lParam: Cardinal): Longint;
+  external 'SendMessageW@user32.dll stdcall';
+function GetWindowLong(hWnd: Longint; nIndex: Integer): Longint;
+  external 'GetWindowLongW@user32.dll stdcall';
+function SetWindowLong(hWnd: Longint; nIndex: Integer; dwNewLong: Longint): Longint;
+  external 'SetWindowLongW@user32.dll stdcall';
+function SetWindowPos(hWnd, hWndInsertAfter: Longint; X, Y, cx, cy: Integer; uFlags: Cardinal): Boolean;
+  external 'SetWindowPos@user32.dll stdcall';
+function LoadImageCard(hInst: Cardinal; lpszName: String; uType, cxDesired, cyDesired: Integer; fuLoad: Cardinal): Cardinal;
+  external 'LoadImageW@user32.dll stdcall';
+
+function ControlClientLeft(Control: TControl): Integer;
+var
+  ParentControl: TControl;
+begin
+  Result := Control.Left;
+  ParentControl := Control.Parent;
+  while (ParentControl <> nil) and not (ParentControl is TSetupForm) do
+  begin
+    Result := Result + ParentControl.Left;
+    ParentControl := ParentControl.Parent;
+  end;
+end;
+
+procedure MoveControlToClientX(Control: TControl; ClientX: Integer);
+var
+  Delta: Integer;
+begin
+  Delta := ControlClientLeft(Control) - ClientX;
+  Control.Left := Control.Left - Delta;
+  Control.Width := Control.Width + Delta;
+end;
+
+function CaptionTextLeft(Wnd: Longint): Integer;
+var
+  Origin: TPoint;
+  WindowRect: TRect;
+  Border, Pad: Integer;
+begin
+  Origin.X := 0;
+  Origin.Y := 0;
+  ClientToScreen(Wnd, Origin);
+  WindowRect.Left := 0;
+  WindowRect.Top := 0;
+  WindowRect.Right := 0;
+  WindowRect.Bottom := 0;
+  if DwmGetWindowAttribute(Wnd, DWMWA_EXTENDED_FRAME_BOUNDS, WindowRect, 16) <> 0 then
+    GetWindowRect(Wnd, WindowRect);
+  Border := Origin.X - WindowRect.Left;
+  Pad := GetSystemMetrics(SM_CXPADDEDBORDER);
+  if Pad < ScaleX(8) then
+    Pad := ScaleX(8);
+  Result := Pad + GetSystemMetrics(SM_CXSMICON) + ScaleX(8) - Border;
+  if Result < 0 then
+    Result := 0;
+end;
+
+procedure ShowUninstallTitleIcon(Wnd: Longint);
+var
+  ExStyle: Longint;
+  IconFile: String;
+  SmallIcon, LargeIcon: Cardinal;
+begin
+  ExStyle := GetWindowLong(Wnd, GWL_EXSTYLE);
+  SetWindowLong(Wnd, GWL_EXSTYLE, ExStyle and not WS_EX_DLGMODALFRAME);
+  SetWindowPos(Wnd, 0, 0, 0, 0, 0,
+    SWP_NOMOVE or SWP_NOSIZE or SWP_NOZORDER or SWP_FRAMECHANGED);
+  IconFile := ExpandConstant('{app}\favicon.ico');
+  if not FileExists(IconFile) then
+    exit;
+  SmallIcon := LoadImageCard(0, IconFile, IMAGE_ICON,
+    GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CXSMICON), LR_LOADFROMFILE);
+  LargeIcon := LoadImageCard(0, IconFile, IMAGE_ICON, 0, 0, LR_LOADFROMFILE or LR_DEFAULTSIZE);
+  if SmallIcon <> 0 then
+    SendMessageCard(Wnd, WM_SETICON, ICON_SMALL, SmallIcon);
+  if LargeIcon <> 0 then
+    SendMessageCard(Wnd, WM_SETICON, ICON_BIG, LargeIcon);
+end;
+
+procedure AlignInstallContentToCaption;
+var
+  CaptionX: Integer;
+begin
+  CaptionX := CaptionTextLeft(WizardForm.Handle) + ScaleX(4);
+  WizardForm.WizardBitmapImage.Visible := False;
+  WizardForm.WizardBitmapImage2.Visible := False;
+  WizardForm.WizardSmallBitmapImage.Visible := False;
+  MoveControlToClientX(WizardForm.PageNameLabel, CaptionX);
+  MoveControlToClientX(WizardForm.PageDescriptionLabel, CaptionX);
+  MoveControlToClientX(WizardForm.InnerNotebook, CaptionX);
+  MoveControlToClientX(WizardForm.WelcomeLabel1, CaptionX);
+  MoveControlToClientX(WizardForm.WelcomeLabel2, CaptionX);
+  MoveControlToClientX(WizardForm.FinishedHeadingLabel, CaptionX);
+  MoveControlToClientX(WizardForm.FinishedLabel, CaptionX);
+  MoveControlToClientX(FinishNotesLabel, CaptionX);
+  MoveControlToClientX(WizardForm.RunList, CaptionX);
+  MoveControlToClientX(WizardForm.YesRadio, CaptionX);
+  MoveControlToClientX(WizardForm.NoRadio, CaptionX);
+end;
+
+procedure AlignUninstallContentToCaption;
+var
+  CaptionX: Integer;
+begin
+  UninstallProgressForm.WizardSmallBitmapImage.Visible := False;
+  ShowUninstallTitleIcon(UninstallProgressForm.Handle);
+  CaptionX := CaptionTextLeft(UninstallProgressForm.Handle);
+  MoveControlToClientX(UninstallProgressForm.PageNameLabel, CaptionX);
+  MoveControlToClientX(UninstallProgressForm.PageDescriptionLabel, CaptionX);
+  MoveControlToClientX(UninstallProgressForm.StatusLabel, CaptionX);
+  MoveControlToClientX(UninstallProgressForm.ProgressBar, CaptionX);
+end;
 
 procedure LogTdgpt(MessageText: String);
 begin
@@ -571,29 +712,32 @@ end;
 
 procedure InitializeWizard();
 begin
+  WizardForm.Caption := '{#MyAppName} {#MyAppVersion} Setup';
   EnforceLockedInstallDir();
   PostInstallCompleted := False;
   OfflinePackagePage := CreateInputFilePage(
     wpWelcome,
-    'TDGPT Lite offline venv',
-    'Select the TDGPT Lite main venv package',
-    'TDGPT Lite imports only its main venv. Models and model runtimes are loaded separately after installation.');
-  OfflinePackagePage.Add('Lite main venv package:', 'ZIP archives|*.zip|All files|*.*', '.zip');
+    'Python environment',
+    'Select the TDgpt Lite offline environment package.',
+    'This package sets up the Python environment for TDgpt Lite. Models and their runtime environments can be installed separately after setup.');
+  OfflinePackagePage.Add('Offline environment package (.zip):', 'ZIP archives|*.zip|All files|*.*', '.zip');
   PopulateOfflinePackage();
 
   InstallProgressPage := CreateOutputProgressPage(
     'Installing {#MyAppName}',
-    'Preparing the Lite Python environment and registering the Windows service');
+    'Preparing the Python environment and registering the Windows service.');
 
   FinishNotesLabel := TNewStaticText.Create(WizardForm.FinishedPage);
   FinishNotesLabel.Parent := WizardForm.FinishedPage;
   FinishNotesLabel.Left := WizardForm.FinishedLabel.Left;
   FinishNotesLabel.Top := WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(6);
-  FinishNotesLabel.Width := ScaleX(420);
+  FinishNotesLabel.Width := WizardForm.FinishedLabel.Width;
   FinishNotesLabel.Height := ScaleY(110);
   FinishNotesLabel.AutoSize := False;
   FinishNotesLabel.WordWrap := True;
+  FinishNotesLabel.ShowAccelChar := False;
   FinishNotesLabel.Visible := False;
+  AlignInstallContentToCaption;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -603,12 +747,12 @@ begin
   begin
     if Trim(OfflinePackagePage.Values[0]) = '' then
     begin
-      MsgBox('Select a TDGPT Lite main venv ZIP package.', mbError, MB_OK);
+      MsgBox('Select a TDgpt Lite offline environment package (.zip).', mbError, MB_OK);
       Result := False;
     end
     else if not FileExists(OfflinePackagePage.Values[0]) then
     begin
-      MsgBox('The selected TDGPT Lite main venv package does not exist.', mbError, MB_OK);
+      MsgBox('The selected offline environment package could not be found. Select an existing ZIP file.', mbError, MB_OK);
       Result := False;
     end;
   end;
@@ -741,17 +885,25 @@ end;
 
 procedure CurPageChanged(CurPageID: Integer);
 begin
+  FinishNotesLabel.Visible := False;
   if CurPageID = wpFinished then
   begin
-    WizardForm.FinishedHeadingLabel.Caption := '{#MyAppName} installation completed';
-    FinishNotesLabel.Caption := 'Lite main venv: ' + Trim(OfflinePackagePage.Values[0]) + #13#10 +
-      'Models are not installed by this package.' + #13#10 +
+    { Keep the standard restart instructions and radio buttons when required. }
+    if WizardForm.YesRadio.Visible then
+      exit;
+    WizardForm.FinishedHeadingLabel.Caption := 'Installation complete';
+    WizardForm.FinishedLabel.Caption := '{#MyAppName} has been installed successfully.';
+    WizardForm.AdjustLabelHeight(WizardForm.FinishedLabel);
+    FinishNotesLabel.Top := WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(12);
+    FinishNotesLabel.Caption :=
+      'The Python environment is ready. Models can be installed separately.' + #13#10 + #13#10 +
       'Installation log: ' + ExpandConstant('{app}\log\install.log') + #13#10 +
       'Service status: ' + ExpandConstant('{app}\bin\status-taosanode.bat');
+    WizardForm.AdjustLabelHeight(FinishNotesLabel);
+    WizardForm.RunList.Top := FinishNotesLabel.Top + FinishNotesLabel.Height + ScaleY(12);
+    WizardForm.RunList.Height := WizardForm.FinishedPage.Height - WizardForm.RunList.Top - ScaleY(8);
     FinishNotesLabel.Visible := True;
-  end
-  else
-    FinishNotesLabel.Visible := False;
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -765,8 +917,25 @@ begin
     RemoveStaleUninstallFiles();
 end;
 
+procedure InitializeUninstallProgressForm;
+begin
+  UninstallProgressForm.Caption := '{#MyAppName} {#MyAppVersion} Uninstall';
+  UninstallProgressForm.PageNameLabel.Caption := 'Uninstalling {#MyAppName}';
+  UninstallProgressForm.PageDescriptionLabel.Caption :=
+    'Please wait while {#MyAppName} is removed from your computer.';
+  UninstallProgressForm.StatusLabel.Caption := 'Preparing to uninstall...';
+  AlignUninstallContentToCaption;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
+  if CurUninstallStep = usUninstall then
+  begin
+    { UninstallRun entry callbacks execute during setup, not uninstallation.
+      Keep the helper in UninstallRun and update its status from this event. }
+    UninstallProgressForm.StatusLabel.Caption := 'Stopping services and removing application files...';
+    UninstallProgressForm.Refresh;
+  end;
   if (CurUninstallStep = usPostUninstall) and FileExists(ExpandConstant('{app}\taosanode.pid')) then
     DeleteFile(ExpandConstant('{app}\taosanode.pid'));
 end;

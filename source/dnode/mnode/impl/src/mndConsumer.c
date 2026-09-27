@@ -26,6 +26,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tcompare.h"
+#include "tlogKeyOp.h"
 #include "tname.h"
 
 #define MND_CONSUMER_VER_NUMBER   4
@@ -781,6 +782,8 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     }
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
+  mInfo(KEYOP("tmq-subscribe", "START") "consumer:0x%" PRIx64 " unSubscribe:%d topicNum:%d", subscribe.consumerId,
+        unSubscribe, (int32_t)taosArrayGetSize(subscribe.topicNames));
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
                           (unSubscribe ? TRN_CONFLICT_NOTHING :TRN_CONFLICT_DB_INSIDE),
                           pMsg, "subscribe");
@@ -801,9 +804,11 @@ END:
              ? 0
              : code;
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS){
-    mError("tmq subscribe request from consumer:0x%" PRIx64 " failed, code:%d", subscribe.consumerId, code);
+    mError(KEYOP("tmq-subscribe", "FAIL") "tmq subscribe request from consumer:0x%" PRIx64 " failed, code:%d",
+           subscribe.consumerId, code);
   } else {
-    mInfo("tmq subscribe request from consumer:0x%" PRIx64 " processed, code:%d", subscribe.consumerId, code);
+    mInfo(KEYOP("tmq-subscribe", "END") "tmq subscribe request from consumer:0x%" PRIx64 " processed, code:%d",
+          subscribe.consumerId, code);
   }
   return code;
 }

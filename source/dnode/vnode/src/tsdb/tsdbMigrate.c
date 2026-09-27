@@ -21,6 +21,7 @@
 #include "tsdbFSet2.h"
 #include "vnd.h"
 #include "tsdbInt.h"
+#include "tlogKeyOp.h"
 
 extern int32_t tsdbAsyncCompact(STsdb* tsdb, const STimeWindow* tw, ETsdbOpType type, bool force);
 
@@ -523,7 +524,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   tsdbRemoveSsGarbageFiles(vid, rtner->fset);
 
   setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SUCCEEDED);
-  tsdbInfo("vgId:%d, fid:%d, leader migration succeeded", vid, f->fid);
+  tsdbInfo(KEYOP("ss-migrate", "END") "vgId:%d, fid:%d, leader migration succeeded", vid, f->fid);
 
   // no new chunks generated, no need to copy the last chunk
   if (totalChunks == lcn) {
@@ -861,7 +862,7 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     return code;
   }
 
-  tsdbInfo("vgId:%d, fid:%d, data file downloaded", vid, fset->fid);
+  tsdbInfo(KEYOP("ss-migrate", "END") "vgId:%d, fid:%d, data file downloaded", vid, fset->fid);
   tsdbTFileSetClear(&pRemoteFset);
   return 0;
 }
@@ -933,6 +934,9 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
 
 
 int32_t tsdbDoSsMigrate(SRTNer *rtner) {
+  tsdbInfo(KEYOP("ss-migrate", "START") "vgId:%d, fid:%d, start ss migration", TD_VID(rtner->tsdb->pVnode),
+           rtner->fset->fid);
+
   // note: leader is decided when the task is scheduled, the actual leader may change after that,
   // but this is ok.
   if (rtner->nodeId == vnodeNodeId(rtner->tsdb->pVnode)) {
