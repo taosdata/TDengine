@@ -68,6 +68,7 @@
 #include "mndExtSource.h"
 #include "mndXnode.h"
 #include "tencrypt.h"
+#include "tlogKeyOp.h"
 
 #define UPGRADE_INTERVAL 10
 
@@ -1022,9 +1023,16 @@ void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     int32_t code = 0;
     // TODO check return value
+    mInfo(KEYOP("mnode-leader-transfer", "START") "vgId:1, transferring leader before close");
     code = syncLeaderTransfer(pMnode->syncMgmt.sync);
     if (code < 0) {
       mError("failed to transfer leader since %s", tstrerror(code));
+      mInfo(KEYOP("mnode-leader-transfer", "FAIL") "vgId:1, since:%s", tstrerror(code));
+    } else {
+      // syncLeaderTransfer only submits the transfer proposal to the raft log; the actual
+      // leader switch happens asynchronously, so this is not a completion (END), just a
+      // successfully-requested step.
+      mInfo(KEYOP("mnode-leader-transfer", "STEP") "vgId:1, leader transfer requested successfully");
     }
     syncPreStop(pMnode->syncMgmt.sync);
     code = sdbWriteFile(pMnode->pSdb, 0);

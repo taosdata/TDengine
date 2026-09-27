@@ -16,6 +16,7 @@
  */
 
 #include "vnd.h"
+#include "tlogKeyOp.h"
 
 extern int32_t tsdbAsyncRetention(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType);
 extern int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray *fidArr);
@@ -154,6 +155,8 @@ int32_t vnodeAsyncSsMigrateFileSet(SVnode *pVnode, SSsMigrateFileSetReq *pReq) {
   // async migration
 #ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
+    vInfo(KEYOP("ss-migrate", "START") "vgId:%d, ssMigrateId:%d, fid:%d, scheduling ss migrate file set",
+          TD_VID(pVnode), pReq->ssMigrateId, pReq->fid);
     return tsdbAsyncSsMigrateFileSet(pVnode->pTsdb, pReq);
   }
 #endif
@@ -176,6 +179,8 @@ int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SSsMigrateProgress *pReq) {
 
 extern int32_t vnodeKillSsMigrate(SVnode *pVnode, SVnodeKillSsMigrateReq *pReq) {
 #ifdef USE_SHARED_STORAGE
+  vInfo(KEYOP("ss-migrate", "KILLED") "vgId:%d, ssMigrateId:%d, kill ss migrate requested", TD_VID(pVnode),
+        pReq->ssMigrateId);
   tsdbStopSsMigrateTask(pVnode->pTsdb, pReq->ssMigrateId);
   return TSDB_CODE_SUCCESS;
 #else
