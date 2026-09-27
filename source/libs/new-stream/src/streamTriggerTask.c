@@ -8859,8 +8859,9 @@ static int32_t stTriggerTaskValidateDeployNodes(const SStreamTriggerDeployMsg *p
     QUERY_CHECK_CODE(code, lino, _end);
     code = nodesStringToNode(pMsg->trigger.event.endCond, &pEnd);
     QUERY_CHECK_CODE(code, lino, _end);
-    QUERY_CHECK_CONDITION(pStart != NULL && (nodeType(pStart) == QUERY_NODE_NODE_LIST || pEnd != NULL), code, lino,
-                          _end, TSDB_CODE_INVALID_PARA);
+    QUERY_CHECK_CONDITION(pStart != NULL && (nodeType(pStart) == QUERY_NODE_NODE_LIST ||
+                                             nodeType(pStart) == QUERY_NODE_EVENT_START_LEAF || pEnd != NULL),
+                          code, lino, _end, TSDB_CODE_INVALID_PARA);
   }
   if (pMsg->isTriggerTblVirt) {
     const char *plans[] = {pMsg->triggerScanPlan, pMsg->calcCacheScanPlan};
@@ -8967,8 +8968,9 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       QUERY_CHECK_NULL(pRawStartCond, code, lino, _end, TSDB_CODE_INVALID_PARA);
       code = nodesStringToNode(pEvent->endCond, &pTask->pEndCond);
       QUERY_CHECK_CODE(code, lino, _end);
-      QUERY_CHECK_CONDITION(nodeType(pRawStartCond) == QUERY_NODE_NODE_LIST || pTask->pEndCond != NULL, code, lino,
-                            _end, TSDB_CODE_INVALID_PARA);
+      QUERY_CHECK_CONDITION(nodeType(pRawStartCond) == QUERY_NODE_NODE_LIST ||
+                                nodeType(pRawStartCond) == QUERY_NODE_EVENT_START_LEAF || pTask->pEndCond != NULL,
+                            code, lino, _end, TSDB_CODE_INVALID_PARA);
       pTask->eventTrueForInfo.trueForType = pEvent->trueForType;
       pTask->eventTrueForInfo.count = pEvent->trueForCount;
       pTask->eventTrueForInfo.duration = pEvent->trueForDuration;
@@ -27684,6 +27686,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
     uint8_t *ps = useEventTree ? NULL : (uint8_t *)psCol->pData;
     uint8_t *pe = (uint8_t *)peCol->pData;
     bool     checkSubEvent = (nodeType(pTask->pStartCond) == QUERY_NODE_NODE_LIST);
+    bool     singleWithoutEnd = !checkSubEvent && pTask->pEndCond == NULL;
     for (int32_t i = startIdx; i < endIdx; i++) {
       int32_t targetLeaf = -1;
       int32_t candidateLeaf = -1;
@@ -27727,7 +27730,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           stEventTreeResetLeafStreaksAfter(pGroup->leafStreaks, targetLeaf);
           code = stEventTreeAdvanceOpenNodeWindows(pGroup->openNodeWindows, pTsData[i], true);
           QUERY_CHECK_CODE(code, lino, _end);
-        } else if (!checkSubEvent && pGroup->activeLeaf >= 0) {
+        } else if (!checkSubEvent && !singleWithoutEnd && pGroup->activeLeaf >= 0) {
           code = stEventTreeAdvanceOpenNodeWindows(pGroup->openNodeWindows, pTsData[i], true);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -27744,7 +27747,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
             closeNow = stEventTreeEndTrueForSatisfied(&pTask->endTrueForInfo, true, pTsData[i], &pGroup->endCondCount,
                                                       &pGroup->endCondFirstTs, &closeTs);
           }
-        } else if (checkSubEvent && pGroup->activeLeaf >= 0 && candidateLeaf < 0) {
+        } else if ((checkSubEvent || singleWithoutEnd) && pGroup->activeLeaf >= 0 && candidateLeaf < 0) {
           closeNow = true;
         } else if (!checkSubEvent) {
           stEventTreeResetEndStreak(&pGroup->endCondCount, &pGroup->endCondFirstTs);
@@ -27845,17 +27848,20 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         continue;
       }
 
-      pWin->wrownum++;
-      pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+      bool implicitClose = singleWithoutEnd && !psValue;
+      if (!implicitClose) {
+        pWin->wrownum++;
+        pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+      }
       if (checkSubEvent) {
         pGroup->parentWindow.wrownum++;
         pGroup->parentWindow.range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
       }
       // End-condition streak tracking and close decision
       // _ekey: the window's official close timestamp.
-      // For end-streak: first row of the satisfying streak; for immediate close: current row.
-      TSKEY _ekey = pTsData[i];
-      bool  _closeNow = (checkSubEvent && !psValue);  // sub-event: close when no condition fires
+      // Implicit single-leaf close excludes the mismatching row; END streaks use their first satisfying row.
+      TSKEY _ekey = implicitClose ? (pWin->range.ekey & ~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK) : pTsData[i];
+      bool  _closeNow = implicitClose || (checkSubEvent && !psValue);
       if (pe[i]) {
         if (pTask->endTrueForInfo.count || pTask->endTrueForInfo.duration) {
           if (!pGroup->endCondCount) {
@@ -31220,6 +31226,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
     uint8_t *ps = useEventTree ? NULL : (uint8_t *)startCol.pData;
     uint8_t *pe = (uint8_t *)endCol.pData;
     bool     checkSubEvent = (nodeType(pTask->histStartCond) == QUERY_NODE_NODE_LIST);
+    bool     singleWithoutEnd = !checkSubEvent && pTask->histEndCond == NULL;
 
     for (int32_t r = startIdx; r < endIdx; r++) {
       int32_t targetLeaf = -1;
@@ -31264,7 +31271,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           stEventTreeResetLeafStreaksAfter(pGroup->leafStreaks, targetLeaf);
           code = stEventTreeAdvanceOpenNodeWindows(pGroup->openNodeWindows, pTsData[r], false);
           QUERY_CHECK_CODE(code, lino, _end);
-        } else if (!checkSubEvent && pGroup->activeLeaf >= 0) {
+        } else if (!checkSubEvent && !singleWithoutEnd && pGroup->activeLeaf >= 0) {
           code = stEventTreeAdvanceOpenNodeWindows(pGroup->openNodeWindows, pTsData[r], false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -31281,7 +31288,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
             closeNow = stEventTreeEndTrueForSatisfied(&pTask->endTrueForInfo, true, pTsData[r], &pGroup->endCondCount,
                                                       &pGroup->endCondFirstTs, &closeTs);
           }
-        } else if (checkSubEvent && pGroup->activeLeaf >= 0 && candidateLeaf < 0) {
+        } else if ((checkSubEvent || singleWithoutEnd) && pGroup->activeLeaf >= 0 && candidateLeaf < 0) {
           closeNow = true;
         } else if (!checkSubEvent) {
           stEventTreeResetEndStreak(&pGroup->endCondCount, &pGroup->endCondFirstTs);
@@ -31294,6 +31301,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
         }
         continue;
       }
+      bool implicitClose = singleWithoutEnd && !psValue;
       if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
         if (checkSubEvent && psValue && psValue != pGroup->conditionIdx) {
           // close previous sub-window since start condition index is changed
@@ -31312,8 +31320,10 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           r--;
           continue;
         }
-        TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
-        TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
+        if (!implicitClose) {
+          TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+          TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
+        }
         if (checkSubEvent) {
           pGroup->parentWindow.range.ekey = pTsData[r];
           pGroup->parentWindow.wrownum++;
@@ -31350,7 +31360,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
         code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false, deferOpen);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && (pe[r] || (checkSubEvent && !psValue))) {
+      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && (pe[r] || implicitClose || (checkSubEvent && !psValue))) {
         if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
           int64_t          parentWindowStart = checkSubEvent ? pGroup->parentWindow.range.skey : 0;
           SSTriggerWindow *pCurWin = TRINGBUF_HEAD(&pGroup->winBuf);

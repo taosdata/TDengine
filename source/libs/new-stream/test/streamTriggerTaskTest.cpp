@@ -34285,6 +34285,34 @@ TEST_F(StreamTriggerTaskTest, EventDeployRejectsMissingRequiredEnd) { checkEvent
 
 TEST_F(StreamTriggerTaskTest, EventDeployAllowsSubEventWithoutEnd) { checkEventDeployWithoutEnd(true); }
 
+TEST_F(StreamTriggerTaskTest, EventDeployAllowsSingleLeafWithoutEnd) {
+  for (bool useEventTree : {false, true}) {
+    SMStreamHbRspMsg         heartbeat = makeDeployHeartbeat(false);
+    SStreamTriggerDeployMsg* pMsg = deployTrigger(&heartbeat);
+    tDestroyStreamWindowPlan(&pMsg->pWindowPlan);
+    pMsg->addOptions = 0;
+    pMsg->placeHolderBitmap = useEventTree ? PLACE_HOLDER_EVENT_CONDITION_PATH : 0;
+    pMsg->triggerType = WINDOW_TYPE_EVENT;
+    pMsg->trigger.event = {};
+    pMsg->trigger.event.startCond =
+        encodeDeployNode(makeDeployEventStartLeaf(makeDeployParityEventComparison(2, OP_TYPE_EQUAL, 1)));
+    ASSERT_NE(nullptr, pMsg->trigger.event.startCond);
+    SStreamTriggerTask task = {};
+    task.task.type = STREAM_TRIGGER_TASK;
+    task.task.undeployCb = releaseStackTask;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskDeploy(&task, pMsg));
+    EXPECT_NE(nullptr, task.pStartCond);
+    EXPECT_EQ(nullptr, task.pEndCond);
+    EXPECT_EQ(useEventTree, task.pEventTree != nullptr);
+    EXPECT_NE(nullptr, task.histStartCond);
+    EXPECT_EQ(nullptr, task.histEndCond);
+    EXPECT_EQ(useEventTree, task.pHistEventTree != nullptr);
+    tDeepFreeSMStreamHbRspMsg(&heartbeat);
+    SStreamTriggerTask* pTask = &task;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskUndeploy(&pTask, true));
+  }
+}
+
 static void checkVirtualDeployMissingScanNode(bool missingRoot) {
   SNode* pPlan = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pPlan));
