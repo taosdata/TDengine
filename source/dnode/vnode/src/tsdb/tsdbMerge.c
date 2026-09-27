@@ -16,6 +16,7 @@
  */
 
 #include "tsdbMerge.h"
+#include "tlogKeyOp.h"
 
 #define TSDB_MAX_LEVEL 2  // means max level is 3
 
@@ -424,7 +425,8 @@ _exit:
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(merger->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done, fid:%d", TD_VID(merger->tsdb->pVnode), __func__, fset->fid);
+    tsdbInfo(KEYOP("tsdb-merge", "STEP") "vgId:%d %s done, fid:%d", TD_VID(merger->tsdb->pVnode), __func__,
+             fset->fid);
   }
   return code;
 }
@@ -449,7 +451,7 @@ _exit:
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(merger->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done", TD_VID(merger->tsdb->pVnode), __func__);
+    tsdbInfo(KEYOP("tsdb-merge", "STEP") "vgId:%d %s done", TD_VID(merger->tsdb->pVnode), __func__);
   }
   return code;
 }
@@ -507,10 +509,14 @@ int32_t tsdbMerge(void *arg) {
   }
 
   // do merge
-  tsdbInfo("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
+  tsdbInfo(KEYOP("tsdb-merge", "START") "vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
   METRICS_TIMING_BLOCK(tsdb->pVnode->writeMetrics.merge_time, METRIC_LEVEL_HIGH, { code = tsdbDoMerge(merger); });
   METRICS_UPDATE(tsdb->pVnode->writeMetrics.merge_count, METRIC_LEVEL_HIGH, 1);
-  tsdbInfo("vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
+  if (code) {
+    tsdbInfo(KEYOP("tsdb-merge", "FAIL") "vgId:%d merge failed, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
+  } else {
+    tsdbInfo(KEYOP("tsdb-merge", "END") "vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
+  }
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
