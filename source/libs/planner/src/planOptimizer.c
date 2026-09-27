@@ -17398,7 +17398,17 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       // Bitmap capability matrix: checks static per-dialect push-down support.
       // fqFuncIsPushable uses funcMgtBuiltins[funcId].fqPushCap; returns false
       // for UDFs, out-of-range funcIds, and functions with FQ_CAP_NONE.
-      if (!fqFuncIsPushable(pFunc->funcId, dialect, pOverlay)) return false;
+      bool funcPushable = fqFuncIsPushable(pFunc->funcId, dialect, pOverlay);
+      if (!funcPushable && 0 == strcasecmp(pFunc->functionName, "to_unixtimestamp")) {
+        // TO_UNIXTIMESTAMP is a built-in timestamp conversion whose capability
+        // is declared in funcMgtBuiltins.  Some planner rewrites lose funcId/
+        // funcType before FQ pushdown, so fall back to the function name to
+        // preserve the already-correct dialect-specific remote rendering.
+        funcPushable = fqDialectBit(dialect) != 0;
+        planDebug("FQ-push: func=%s funcId=%d funcType=%d dialect=%d name-based fallback pushable=%d",
+                  pFunc->functionName, pFunc->funcId, pFunc->funcType, dialect, (int)funcPushable);
+      }
+      if (!funcPushable) return false;
       // Dynamic catalog-level demote: connector may have disabled specific
       // functions at runtime via ALTER EXTERNAL SOURCE ... DISABLE FUNC ...
       if (capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_FUNC, pFunc->functionName)) return false;

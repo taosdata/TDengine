@@ -1605,6 +1605,27 @@ typedef struct SNewTimestampSorterSlice {
 
 typedef TD_DLIST(SNewTimestampSorterSlice) SNewTimestampSorterSliceList;
 
+static int32_t stNewTimestampSorterMetaCompare(const void *pLeft, const void *pRight) {
+  const SSTriggerMetaData *pLeftMeta = *(const SSTriggerMetaData *const *)pLeft;
+  const SSTriggerMetaData *pRightMeta = *(const SSTriggerMetaData *const *)pRight;
+
+  if (pLeftMeta->skey < pRightMeta->skey) {
+    return -1;
+  } else if (pLeftMeta->skey > pRightMeta->skey) {
+    return 1;
+  } else if (pLeftMeta->ekey < pRightMeta->ekey) {
+    return -1;
+  } else if (pLeftMeta->ekey > pRightMeta->ekey) {
+    return 1;
+  } else if (pLeftMeta->ver < pRightMeta->ver) {
+    return -1;
+  } else if (pLeftMeta->ver > pRightMeta->ver) {
+    return 1;
+  }
+
+  return 0;
+}
+
 static int32_t stNewTimestampSorterSliceListCompare(const void *pLeft, const void *pRight, void *param) {
   int32_t                      left = *(const int32_t *)pLeft;
   int32_t                      right = *(const int32_t *)pRight;
@@ -1697,6 +1718,7 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
 
   pSorter->inUse = false;
   pSorter->pDataBlock = NULL;
+  pSorter->readerKey = (SSTriggerReaderDataKey){0};
 
   if (pSorter->pSliceBuf != NULL) {
     taosArrayClear(pSorter->pSliceBuf);
@@ -1706,21 +1728,24 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
   }
 }
 
-int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
-                                    int32_t pkSlotId, STimeWindow *pReadRange, SObjList *pMetas,
-                                    SSTriggerDataSlice *pSlice, bool orderedInput) {
+int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter,
+                                    const SSTriggerReaderDataKey *pReaderKey, int32_t tsSlotId, int32_t pkSlotId,
+                                    STimeWindow *pReadRange, SObjList *pMetas, SSTriggerDataSlice *pSlice, bool orderedInput) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pSorter->pTask;
   SSDataBlock        *pDataBlock = pSlice->pDataBlock;
+  SArray             *pSortedMetas = NULL;
 
   QUERY_CHECK_CONDITION(!pSorter->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pReaderKey, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pSorter->inUse = true;
   pSorter->pDataBlock = pDataBlock;
   pSorter->tsSlotId = tsSlotId;
   pSorter->pkSlotId = pkSlotId;
-  pDataBlock->info.id.uid = tbUid;
+  pSorter->readerKey = *pReaderKey;
+  pDataBlock->info.id.uid = pReaderKey->logicalUid;
 
   // collect all data slices; data in each slice is in ascending order
   SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, tsSlotId);
@@ -1735,7 +1760,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
    * (for EVENT's verColBias=2 on a narrow trigger column set) can even index
    * before the start of the column array. Skip version gating entirely for
    * EXT streams: every row in range is accepted regardless of "version". */
-  bool             isExtSource = STREAM_IS_REF_EXT_SOURCE(pTask->task.flags);
+  bool             isExtSource = stTriggerReaderKindIsExternal(pReaderKey->readerKind);
   SColumnInfoData *pVerCol = NULL;
   int64_t         *pVerData = NULL;
   if (!isExtSource) {
@@ -1745,12 +1770,36 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
     pVerData = (int64_t *)pVerCol->pData;
   }
 
-  int32_t            i = pSlice->startIdx;
-  int64_t            lastTs = INT64_MIN;
   SSTriggerMetaData *pMeta = NULL;
   SObjListIter       iter;
   taosObjListInitIter(pMetas, &iter, TOBJLIST_ITER_FORWARD);
-  while ((i < pSlice->endIdx) && (pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter)) != NULL) {
+  if (isExtSource) {
+    pSortedMetas = taosArrayInit(0, sizeof(SSTriggerMetaData *));
+    QUERY_CHECK_NULL(pSortedMetas, code, lino, _end, terrno);
+    while ((pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter)) != NULL) {
+      void *px = taosArrayPush(pSortedMetas, &pMeta);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    }
+    taosArraySort(pSortedMetas, stNewTimestampSorterMetaCompare);
+    ST_TASK_DLOG("sorted external trigger metas, readerId:%" PRIu64 ", logicalUid:%" PRId64 ", metaCount:%d",
+                 pReaderKey->stableReaderId, pReaderKey->logicalUid, (int32_t)TARRAY_SIZE(pSortedMetas));
+  }
+
+  int32_t i = pSlice->startIdx;
+  int64_t lastTs = INT64_MIN;
+  int32_t metaIdx = 0;
+  while (i < pSlice->endIdx) {
+    if (isExtSource) {
+      if (metaIdx >= TARRAY_SIZE(pSortedMetas)) {
+        break;
+      }
+      pMeta = *(SSTriggerMetaData **)TARRAY_GET_ELEM(pSortedMetas, metaIdx++);
+    } else {
+      pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter);
+      if (pMeta == NULL) {
+        break;
+      }
+    }
     if (!isExtSource) {
       while (i < pSlice->endIdx && pVerData[i] < pMeta->ver) {
         lastTs = TMAX(lastTs, pTsData[i]);
@@ -1807,6 +1856,11 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
     if (pList == NULL) {
       pList = taosArrayReserve(pSorter->pSliceLists, 1);
       QUERY_CHECK_NULL(pList, code, lino, _end, terrno);
+      TD_DLIST_INIT(pList);
+      ST_TASK_DLOG("initialized timestamp sorter slice list, readerKind:%d, readerId:%" PRIu64
+                   ", logicalUid:%" PRId64 ", slice:[%d,%d)",
+                   pReaderKey->readerKind, pReaderKey->stableReaderId, pReaderKey->logicalUid, pSlice->startIdx,
+                   pSlice->endIdx);
     }
     TD_DLIST_APPEND(pList, pSlice);
   }
@@ -1841,6 +1895,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   }
 
 _end:
+  taosArrayDestroy(pSortedMetas);
   if (TSDB_CODE_SUCCESS != code) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2122,24 +2177,29 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
   pMerger->pDataBlock->info.id.uid = vtbUid;
   pMerger->tsSlotId = tsSlotId;
 
-  int32_t      nTables = taosArrayGetSize(pTableColRefs);
-  int64_t     *ar = NULL;
+  int32_t                        nTables = taosArrayGetSize(pTableColRefs);
+  SSTriggerVirtualTableSliceRef *pTableRef = NULL;
   SObjListIter iter = {0};
   taosObjListInitIter(pTableUids, &iter, TOBJLIST_ITER_FORWARD);
-  while ((ar = taosObjListIterNext(&iter)) != NULL) {
-    if (ar[0] != vtbUid) {
+  while ((pTableRef = taosObjListIterNext(&iter)) != NULL) {
+    if (pTableRef->virtualUid != vtbUid) {
       continue;
     }
-    int64_t               otbUid = ar[1];
     SSTriggerTableColRef *pColRef = NULL;
     for (int32_t i = 0; i < nTables; i++) {
       SSTriggerTableColRef *pTmpColRef = TARRAY_GET_ELEM(pTableColRefs, i);
-      if (pTmpColRef->otbUid == otbUid) {
+      bool sameReader = pTmpColRef->readerKey.readerKind == pTableRef->readerKey.readerKind &&
+                        pTmpColRef->readerKey.stableReaderId == pTableRef->readerKey.stableReaderId;
+      bool sameLogicalUid = pTmpColRef->readerKey.logicalUid == 0 ||
+                            pTmpColRef->readerKey.logicalUid == pTableRef->readerKey.logicalUid;
+      if (sameReader && sameLogicalUid) {
         pColRef = pTmpColRef;
         break;
       }
     }
-    SSTriggerDataSlice *pSlice = tSimpleHashGet(pSlices, &otbUid, sizeof(int64_t));
+    QUERY_CHECK_NULL(pColRef, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    SSTriggerDataSlice *pSlice =
+        tSimpleHashGet(pSlices, &pTableRef->readerKey, sizeof(SSTriggerReaderDataKey));
     QUERY_CHECK_NULL(pSlice, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     SNewVtableMergerReaderInfo *pReaderInfo = NULL;
     if (pMerger->nReaders < TARRAY_SIZE(pMerger->pReaderInfos)) {
@@ -2155,12 +2215,32 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
       code = stNewTimestampSorterInit(pReaderInfo->pReader, pTask, 0);
       QUERY_CHECK_CODE(code, lino, _end);
     }
-    SObjList *pMeta = tSimpleHashGet(pMetas, &pColRef->otbVgId, sizeof(int32_t));
+    SObjList *pMeta = tSimpleHashGet(pMetas, &pTableRef->readerKey, sizeof(SSTriggerReaderDataKey));
     QUERY_CHECK_NULL(pMeta, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    code = stNewTimestampSorterSetData(pReaderInfo->pReader, pColRef->otbUid, tsSlotId, pkSlotId, pReadRange, pMeta,
-                                       pSlice, orderedInput);
+    int32_t readerTsSlotId = tsSlotId;
+    for (int32_t i = 0; i < TARRAY_SIZE(pColRef->pNewColMatches); ++i) {
+      SSTriggerColMatch *pMatch = TARRAY_GET_ELEM(pColRef->pNewColMatches, i);
+      if (pMatch->vtbSlotId == tsSlotId) {
+        readerTsSlotId = pMatch->otbSlotId;
+        break;
+      }
+    }
+    int32_t readerPkSlotId = -1;
+    for (int32_t i = 0; pkSlotId >= 0 && i < TARRAY_SIZE(pColRef->pNewColMatches); ++i) {
+      SSTriggerColMatch *pMatch = TARRAY_GET_ELEM(pColRef->pNewColMatches, i);
+      if (pMatch->vtbSlotId == pkSlotId) {
+        readerPkSlotId = pMatch->otbSlotId;
+        break;
+      }
+    }
+    code = stNewTimestampSorterSetData(pReaderInfo->pReader, &pTableRef->readerKey, readerTsSlotId, readerPkSlotId,
+                                       pReadRange, pMeta, pSlice, orderedInput);
     QUERY_CHECK_CODE(code, lino, _end);
     pReaderInfo->pColRef = pColRef;
+    ST_TASK_DLOG("set virtual merger reader kind:%d, readerId:%" PRIu64 ", logicalUid:%" PRId64
+                 ", virtualUid:%" PRId64 ", virtualGid:%" PRId64,
+                 pTableRef->readerKey.readerKind, pTableRef->readerKey.stableReaderId,
+                 pTableRef->readerKey.logicalUid, pTableRef->virtualUid, pTableRef->virtualGid);
     code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -2210,7 +2290,7 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
   int64_t *pVirTsData = (int64_t *)pVirTsCol->pData;
 
   SSDataBlock     *pOrigDataBlock = pReaderInfo->pReader->pDataBlock;
-  SColumnInfoData *pOrigTsCol = taosArrayGet(pOrigDataBlock->pDataBlock, pMerger->tsSlotId);
+  SColumnInfoData *pOrigTsCol = taosArrayGet(pOrigDataBlock->pDataBlock, pReaderInfo->pReader->tsSlotId);
   QUERY_CHECK_NULL(pOrigTsCol, code, lino, _end, terrno);
   int64_t *pOrigTsData = (int64_t *)pOrigTsCol->pData;
 

@@ -29,8 +29,8 @@ from federated_query_common import (  # noqa: E402
     FederatedQueryTestMixin,
 )
 
-sys.path.insert(0, "cases/18-StreamProcessing/federated")
-from test_fs_common import (  # noqa: E402
+sys.path.insert(0, "cases/18-StreamProcessing/99-Others")
+from fs_common import (  # noqa: E402
     ensure_snode,
 )
 
@@ -57,7 +57,14 @@ class TestFsTsColumn(FederatedQueryTestMixin):
 
     # FS-TS-002 missing ts col -> CREATE STREAM rejected -----------------
     def test_ts_002_missing_ts_col_rejected(self):
-        """External table without a PK timestamp col => STREAM_EXT_TS_COLUMN_MISSING."""
+        """Reject an external trigger table without a timestamp column.
+
+        Verify that CREATE STREAM reports an error when the external table has
+        no primary-key timestamp column.
+
+        Since: v3.4.2.0
+
+        """
         prefix = "ts002"
         src = f"{prefix}_m"
         db = f"{prefix}_mdb"

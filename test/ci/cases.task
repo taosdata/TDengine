@@ -1239,6 +1239,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_privilege.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_public.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_pv.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_tobacco.py
@@ -1260,6 +1261,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
 ## 21-Stability
 ## 22-Performance
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/22-Performance/test_virtual_stream_mixed_external_perf.py::TestVirtualStreamMixedExternalPerf::test_virtual_stream_mixed_tdengine_mysql_throughput
+100,,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/18-StreamProcessing/22-Performance/test_virtual_stream_mixed_external_perf.py::TestVirtualStreamMixedExternalPerf::test_virtual_stream_mixed_tdengine_mysql_large_scale_throughput --timeout=1800
 ## 23-Compatibility
 
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_stream_time_config_upgrade.py
@@ -1289,44 +1292,47 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 ## federated support for streaming
 # Test files will be appended one per follow-up commit.
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_stable_no_partition_by
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_partition_host_tbname_region_mixed
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition_scalar
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_multi_tag_scalar_partition
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_same_tag_multi_expr_partition
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition_by_tbname
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition_by_tbname2
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition_by_tbname_tbname
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_twice
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows_with_wstart
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows_with_range
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_explicit_database_without_source_default
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_002_local_trigger_external_calc
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_long_tag_truncation
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_stable_no_partition_by
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_partition_host_tbname_region_mixed
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition_scalar
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_multi_tag_scalar_partition
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_same_tag_multi_expr_partition
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition_by_tbname
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition_by_tbname2
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition_by_tbname_tbname
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_twice
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows_with_wstart
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows_with_range
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_explicit_database_without_source_default
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_002_local_trigger_external_calc
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_long_tag_truncation
 
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_001_period
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_001_period_trows
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_002_sliding_only
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_002_sliding_only_trows
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_003_interval_sliding
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_003_interval_sliding_trows
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_004_session
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_004_session_trows
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_005_state_window
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_005_state_window_trows
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_006_event_window
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_006_event_window_trows
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window_trows
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_nested_external_trigger_rejected
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_001_period
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_001_period_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_002_sliding_only
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_002_sliding_only_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_003_interval_sliding
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_003_interval_sliding_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_004_session
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_004_session_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_005_state_window
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_005_state_window_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_006_event_window
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_006_event_window_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_nested_external_trigger_rejected
 
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_03_options_matrix.py
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_04_ts_column.py
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_05_create_errors.py
-100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_06_runtime_errors.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_04_ts_column.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_05_create_errors.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_06_runtime_errors.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_small_perf
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_medium_perf
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_large_perf
 ## 99-Others
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_out_table.py

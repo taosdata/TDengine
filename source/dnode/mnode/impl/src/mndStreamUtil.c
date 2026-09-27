@@ -442,16 +442,13 @@ void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus) {
 
 void mstDestroySStmTaskToDeployExt(void* param) {
   SStmTaskToDeployExt* pExt = (SStmTaskToDeployExt*)param;
-  if (pExt->ownsExtSpec) {
-    SStreamExtTriggerSpec* pSpec = pExt->deploy.msg.reader.pExtSpec;
-    taosMemoryFree(pSpec->prefilter);
-    taosMemoryFree(pSpec->triggerPrefilter);
-    taosArrayDestroy(pSpec->partitionTagCols);
-    taosMemoryFree(pSpec);
+  if (pExt->ownsExtSpec && pExt->deploy.task.type == STREAM_READER_TASK) {
+    mstDebug("release dynamic external reader spec from deployment queue");
+    tFreeSStreamExtTriggerSpec(pExt->deploy.msg.reader.pExtSpec);
     pExt->deploy.msg.reader.pExtSpec = NULL;
+    pExt->deploy.msg.reader.ownsExtSpec = false;
     pExt->ownsExtSpec = false;
   }
-
   if (pExt->deployed) {
     return;
   }

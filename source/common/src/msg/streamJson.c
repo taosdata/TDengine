@@ -603,6 +603,7 @@ static const char* jkExtSpecExtDb                       = "extDb";
 static const char* jkExtSpecExtSchema                   = "extSchema";
 static const char* jkExtSpecExtTable                    = "extTable";
 static const char* jkExtSpecTsColumn                    = "tsColumn";
+static const char* jkExtSpecPrecision                   = "precision";
 static const char* jkExtSpecTriggerColumns               = "triggerColumns";
 static const char* jkExtSpecHost                        = "host";
 static const char* jkExtSpecPort                        = "port";
@@ -638,6 +639,7 @@ static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecExtSchema, pSpec->extSchema));
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecExtTable, pSpec->extTable));
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTsColumn, pSpec->tsColumn));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecPrecision, pSpec->precision));
   /* triggerColumns: col names referenced by the trigger. Currently always
    * empty (attached at reader-task deploy time, not by the parser), but
    * round-tripped for completeness since SCMCreateStreamReq.extSpecs is now
@@ -689,7 +691,7 @@ static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj) {
+static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj, int8_t defaultPrecision) {
   /* tjsonToTArray decodes into a calloc'd buffer of size elemSize. We pass
    * sizeof(SStreamExtTriggerSpec*) and decode INTO a stack copy first, then
    * allocate a real heap spec and store its pointer. This matches the
@@ -707,6 +709,12 @@ static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj) {
   if ((code = tjsonGetStringValue(pJson, jkExtSpecExtSchema, pSpec->extSchema)) != 0) goto _err;
   if ((code = tjsonGetStringValue(pJson, jkExtSpecExtTable, pSpec->extTable)) != 0) goto _err;
   if ((code = tjsonGetStringValue(pJson, jkExtSpecTsColumn, pSpec->tsColumn)) != 0) goto _err;
+  pSpec->precision = defaultPrecision;
+  if (tjsonGetObjectItem(pJson, jkExtSpecPrecision) != NULL) {
+    if ((code = tjsonGetTinyIntValue(pJson, jkExtSpecPrecision, &pSpec->precision)) != 0) goto _err;
+  }
+  uDebug("decode stream ext spec: source=%s precision=%d defaultPrecision=%d",
+         pSpec->sourceName, (int)pSpec->precision, (int)defaultPrecision);
   /* triggerColumns: absent means empty (currently always the case). */
   if ((code = tjsonToTArray(pJson, jkExtSpecTriggerColumns, jsonToExtSpecTagCol,
                             &pSpec->triggerColumns, TSDB_COL_NAME_LEN)) != 0) {
@@ -1501,7 +1509,7 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
         SJson* pItem = tjsonGetArrayItem(pExtArr, i);
         if (pItem == NULL) continue;
         SStreamExtTriggerSpec* pSpec = NULL;
-        int32_t c = jsonToExtTriggerSpec(pItem, &pSpec);
+        int32_t c = jsonToExtTriggerSpec(pItem, &pSpec, pReq->triggerPrec);
         if (c != TSDB_CODE_SUCCESS) return c;
         if (taosArrayPush(pReq->extSpecs, &pSpec) == NULL) {
           tFreeSStreamExtTriggerSpec(pSpec);

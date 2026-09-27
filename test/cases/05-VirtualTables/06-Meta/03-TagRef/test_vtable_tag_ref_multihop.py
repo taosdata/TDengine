@@ -322,6 +322,7 @@ class TestVtableTagRefMultihop:
         tdLog.info("=== teardown: dropping databases ===")
         for db in [PHY_DB, L1_DB, L2_DB, L3_DB, SAME_DB, DEPTH_DB, CIRC_DB]:
             tdSql.execute(f"DROP DATABASE IF EXISTS {db};")
+        tdLog.success(f"{__file__} successfully executed")
 
     # ------------------------------------------------------------------
     # Test: 2-level tag-ref chain (L2 → L1 → physical)

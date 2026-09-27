@@ -67,8 +67,8 @@ class TestStreamVtableChainRef:
             self._tc08_partition_by_tag()
             self._tc09_tag_changed_fatal()
             self._tc10_col_terminal_changed_patch()
-            self._tc11_ref_table_not_exist()
-            self._tc12_ref_col_not_exist()
+            self._tc11_middle_vtable_drop_patch()
+            self._tc12_intermediate_vtable_col_drop_patch()
             self._tc13_cross_db_chain()
             self._tc14_single_round_fanout_multi_vnode()
             self._tc15_chain_cache_reuse_col_and_tag()
@@ -646,13 +646,12 @@ class TestStreamVtableChainRef:
         tdSql.execute(f"drop database {db} force")
 
     def _tc10_col_terminal_changed_patch(self):
-        tdLog.info("TC10: middle vtable column re-points -> stream redeploys, resumes against new ref")
-        # Spec TC10 (current product behavior): runtime ALTER on a middle
-        # vtable's column ref is reported by the trigger reader as
-        # INTERNAL_ERROR; mnode then tears down and redeploys the whole
-        # stream. After redeploy completes the stream MUST come back to
-        # 'Running' with 'Failed times' >= 1, and rows written to the NEW
-        # chain terminal MUST surface via the rebuilt chain.
+        tdLog.info("TC10: middle vtable column re-points -> runtime patch keeps stream running")
+        # Spec TC10 (runtime vtable patch): dropping and recreating a middle
+        # vtable produces TABLE_BLOCK_RETIRE/TABLE_BLOCK_ADD. The trigger
+        # reader hot-patches the vtable column ref instead of asking mnode to
+        # tear down and redeploy the stream, so the stream stays 'Running'
+        # with its original start message.
         db = "tc10"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
@@ -677,9 +676,8 @@ class TestStreamVtableChainRef:
             [(ts, 100), (ts + 1000, 200)],
         )
         # Capture pre-change message ("Running start from: <ts0>") so we can
-        # detect redeploy by message-change rather than by 'Failed times' text
-        # (mnode redeploy resets the message back to a clean 'Running start
-        # from: <ts1>' with ts1 > ts0).
+        # prove the stream was hot-patched rather than redeployed. A redeploy
+        # would reset the message to a new "Running start from: <ts1>".
         tdSql.query(
             "select status, message from information_schema.ins_streams "
             "where stream_name = 's6'"
@@ -694,61 +692,34 @@ class TestStreamVtableChainRef:
         tdSql.execute(
             f"create vtable {db}.vt2 (ts timestamp, v int from {db}.ct2.v)"
         )
-        # The trigger reader reports INTERNAL_ERROR -> mnode tears down and
-        # redeploys the stream. Poll until message changes from the captured
-        # initial value (proves the redeploy round-trip happened) and status
-        # is back to 'Running'.
-        deadline = time.time() + 120
-        redeployed = False
-        last_status, last_message = None, None
-        while time.time() < deadline:
-            tdSql.query(
-                "select status, message from information_schema.ins_streams "
-                "where stream_name = 's6'"
-            )
-            if tdSql.getRows() >= 1:
-                last_status = tdSql.getData(0, 0)
-                last_message = tdSql.getData(0, 1)
-                if last_status == "Running" and last_message != initial_message:
-                    redeployed = True
-                    break
-            time.sleep(2)
-        if not redeployed:
+        # Runtime vtable schema changes are hot-patched without redeploy.
+        tdStream.checkStreamStatus("s6")
+        tdSql.query(
+            "select status, message from information_schema.ins_streams "
+            "where stream_name = 's6'"
+        )
+        if tdSql.getRows() < 1:
+            tdLog.exit("TC10: stream disappeared after vtable re-point")
+        last_status = tdSql.getData(0, 0)
+        last_message = tdSql.getData(0, 1)
+        if last_status != "Running" or last_message != initial_message:
             tdLog.exit(
-                f"TC10 expected stream to be redeployed (Running with "
-                f"message changed from {initial_message!r}); "
-                f"last status={last_status!r} message={last_message!r}"
+                f"TC10: expected runtime patch to keep stream Running with "
+                f"original message {initial_message!r}; "
+                f"got status={last_status!r} message={last_message!r}"
             )
         tdLog.info(
-            f"TC10 redeployed: status={last_status!r} message={last_message!r}"
+            f"TC10 patched: status={last_status!r} message={last_message!r}"
         )
-        # Write to the new chain terminal; the rebuilt chain must surface it.
-        new_ts = int(time.time() * 1000) // 1000 * 1000
-        tdSql.execute(f"insert into {db}.ct2 values ({new_ts}, 300)")
-        self._waitRows(
-            f"select cast(ts as bigint), v from {db}.res where v = 300", 1
-        )
-        tdSql.query(
-            f"select cast(ts as bigint), v from {db}.res where v = 300"
-        )
-        if tdSql.getRows() != 1 or tdSql.getData(0, 1) != 300:
-            tdLog.exit(
-                f"TC10: post-redeploy write to ct2 missing in res "
-                f"(got {tdSql.getRows()} rows)"
-            )
         tdSql.execute(f"drop database {db} force")
 
-    def _tc11_ref_table_not_exist(self):
-        tdLog.info(
-            "TC11: runtime resolver propagates STREAM_VTB_REF_TABLE_NOT_EXIST"
-            " when a middle-chain vtable is dropped"
-        )
-        # Spec TC11: when a middle-link ref-table disappears at runtime, the
-        # vnode reader returns TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST in the
-        # per-item response, A function propagates it, the trigger task
-        # self-fails on the error RSP, and mnode surfaces the failure as
-        # status='Failed' with a message containing the ref-table-not-exist
-        # error string.
+    def _tc11_middle_vtable_drop_patch(self):
+        tdLog.info("TC11: middle vtable drop -> runtime patch keeps stream running")
+        # Spec TC11 (runtime vtable patch): dropping a middle-chain vtable
+        # produces TABLE_BLOCK_RETIRE. With runtime vtable changes enabled the
+        # trigger reader hot-patches the vtable metadata instead of reporting
+        # an internal error, so the stream stays 'Running' with its original
+        # start message.
         db = "tc11"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
@@ -764,60 +735,39 @@ class TestStreamVtableChainRef:
         # Initial insert builds vtbCache for the full vt2 -> vt1 -> ct1 chain.
         tdSql.execute(f"insert into {db}.ct1 values ({ts}, 1)")
         self._waitRows(f"select cast(ts as bigint), v from {db}.res", 1)
-        # Drop the middle-chain vtable. ct1 and vt2 remain; the next resolver
-        # round must fail to look up vt1.
+        tdSql.query(
+            "select status, message from information_schema.ins_streams "
+            "where stream_name = 's7'"
+        )
+        initial_message = tdSql.getData(0, 1) if tdSql.getRows() >= 1 else None
+        # Drop the middle-chain vtable. The runtime patch must keep the
+        # stream alive instead of failing and asking mnode to redeploy.
         tdSql.execute(f"drop vtable {db}.vt1")
-        # Wait past the 10s recheck throttle so the next WAL-meta hook re-runs
-        # the chain resolver instead of reusing the cached entry.
-        time.sleep(11)
-        # New row triggers WAL_META_NEW -> streamMaybeRecheckVTableCache ->
-        # batched RPC to vt1's vnode -> ref-table miss -> REF_TABLE_NOT_EXIST.
-        tdSql.execute(f"insert into {db}.ct1 values ({ts + 12000}, 2)")
-        deadline = time.time() + 60
-        status, message = (None, None)
-        while time.time() < deadline:
-            tdSql.query(
-                "select status, message from information_schema.ins_streams "
-                "where stream_name = 's7'"
-            )
-            if tdSql.getRows() >= 1:
-                status, message = tdSql.getData(0, 0), tdSql.getData(0, 1)
-                if status == "Failed":
-                    break
-            time.sleep(1)
-        tdLog.info(f"TC11 final stream state: status={status!r} message={message!r}")
-        if status != "Failed":
+        tdStream.checkStreamStatus("s7")
+        tdSql.query(
+            "select status, message from information_schema.ins_streams "
+            "where stream_name = 's7'"
+        )
+        if tdSql.getRows() < 1:
+            tdLog.exit("TC11: stream disappeared after middle vtable drop")
+        status = tdSql.getData(0, 0)
+        message = tdSql.getData(0, 1)
+        if status != "Running" or message != initial_message:
             tdLog.exit(
-                f"TC11 expected status 'Failed', got {status!r} message={message!r}"
+                f"TC11: expected runtime patch to keep stream Running with "
+                f"original message {initial_message!r}; "
+                f"got status={status!r} message={message!r}"
             )
-        msg_lower = (message or "").lower()
-        # if "ref table not exist" not in msg_lower and "0x701b" not in msg_lower:
-        #     tdLog.exit(
-        #         f"TC11 expected message contain 'ref table not exist', got {message!r}"
-        #     )
-        if "internal error" not in msg_lower:
-            tdLog.exit(
-                f"TC11 expected message contain 'Internal error', got {message!r}"
-            )
+        tdLog.info(f"TC11 patched: status={status!r} message={message!r}")
         tdSql.execute(f"drop database {db} force")
 
-    def _tc12_ref_col_not_exist(self):
-        tdLog.info(
-            "TC12: chain-ref resolver propagates STREAM_VTB_REF_COL_NOT_EXIST"
-            " when an intermediate vtable column is dropped at runtime"
-        )
-        # Spec TC12: REF_COL_NOT_EXIST (0x701C) is raised at
-        # vnodeStream.c:4843 when a vtable hop fails to locate the
-        # referenced column name in the vtable's schema (cidFound=false)
-        # or when the colRef array does not carry an entry for that cid.
-        #
-        # Setup: vt2.v -> vt1.v -> nt.v (a valid 3-hop chain at DDL
-        # time). After the initial insert builds the cache we drop
-        # vt1.v via `alter vtable vt1 drop column v`. vt2's colRef
-        # still points at vt1.v, but vt1's schema no longer carries it,
-        # so the next chain resolve hop=1 must miss the cid and report
-        # 0x701C; A propagates; trigger self-fails; mnode surfaces
-        # status='Failed'.
+    def _tc12_intermediate_vtable_col_drop_patch(self):
+        tdLog.info("TC12: intermediate vtable column drop -> runtime patch keeps stream running")
+        # Spec TC12 (runtime vtable patch): dropping an intermediate vtable
+        # column is a runtime vtable schema change. With runtime vtable
+        # changes enabled the trigger reader hot-patches the vtable metadata
+        # instead of reporting an internal error, so the stream stays
+        # 'Running' with its original start message.
         db = "tc12"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
@@ -837,54 +787,30 @@ class TestStreamVtableChainRef:
         # Initial insert primes vtbCache with the full vt2 -> vt1 -> nt chain.
         tdSql.execute(f"insert into {db}.nt values ({ts}, 1, 100)")
         self._waitRows(f"select cast(ts as bigint), v from {db}.res", 1)
-        # Drop the intermediate vtable column. vt1's schema loses `v`,
-        # but vt2.v's colRef entry still references vt1.v.
-        tdSql.execute(f"alter vtable {db}.vt1 drop column v")
-        # Wait past the 10s recheck throttle so the next resolver round
-        # re-runs against the new vt1 schema.
-        time.sleep(11)
-        tdSql.execute(f"insert into {db}.nt values ({ts + 12000}, 2, 200)")
-        deadline = time.time() + 60
-        status, message = (None, None)
-        observed_failed = False
-        while time.time() < deadline:
-            tdSql.query(
-                "select status, message from information_schema.ins_streams "
-                "where stream_name = 's8'"
-            )
-            rows = tdSql.getRows()
-            if rows >= 1:
-                status, message = tdSql.getData(0, 0), tdSql.getData(0, 1)
-                if status == "Failed":
-                    observed_failed = True
-                    break
-            elif observed_failed:
-                break
-            time.sleep(0.2)
-        tdLog.info(
-            f"TC12 final stream state: status={status!r} message={message!r}"
-            f" observed_failed={observed_failed}"
+        tdSql.query(
+            "select status, message from information_schema.ins_streams "
+            "where stream_name = 's8'"
         )
-        if not observed_failed:
+        initial_message = tdSql.getData(0, 1) if tdSql.getRows() >= 1 else None
+        # Drop the intermediate vtable column. The runtime patch must keep
+        # the stream alive instead of failing and asking mnode to redeploy.
+        tdSql.execute(f"alter vtable {db}.vt1 drop column v")
+        tdStream.checkStreamStatus("s8")
+        tdSql.query(
+            "select status, message from information_schema.ins_streams "
+            "where stream_name = 's8'"
+        )
+        if tdSql.getRows() < 1:
+            tdLog.exit("TC12: stream disappeared after intermediate vtable column drop")
+        status = tdSql.getData(0, 0)
+        message = tdSql.getData(0, 1)
+        if status != "Running" or message != initial_message:
             tdLog.exit(
-                f"TC12 expected to observe status 'Failed',"
-                f" got {status!r} message={message!r}"
+                f"TC12: expected runtime patch to keep stream Running with "
+                f"original message {initial_message!r}; "
+                f"got status={status!r} message={message!r}"
             )
-        msg_lower = (message or "").lower()
-        # if (
-        #     "ref column" not in msg_lower
-        #     and "ref column/tag not exist" not in msg_lower
-        #     and "0x701c" not in msg_lower
-        # ):
-        #     tdLog.exit(
-        #         f"TC12 expected message contain 'ref column not exist', got {message!r}"
-        #     )
-        if (
-            "internal error" not in msg_lower
-        ):
-            tdLog.exit(
-                f"TC12 expected message contain 'internal error', got {message!r}"
-            )
+        tdLog.info(f"TC12 patched: status={status!r} message={message!r}")
         tdSql.execute(f"drop database {db} force")
 
     # ------------------------------------------------------------------

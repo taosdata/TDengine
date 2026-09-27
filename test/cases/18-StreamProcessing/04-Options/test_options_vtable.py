@@ -34,6 +34,7 @@ class TestStreamOptionsVtable:
         Since: v3.3.3.7
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -69,6 +70,7 @@ class TestStreamOptionsVtable:
         # # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  fail  对超期的数据仍然进行了计算
         
         tdStream.checkAll(streams)
+        tdLog.success(f"{__file__} successfully executed")
 
     class Basic0(StreamCheckItem):
         def __init__(self):

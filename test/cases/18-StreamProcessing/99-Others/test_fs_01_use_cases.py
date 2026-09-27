@@ -45,8 +45,8 @@ from federated_query_common import (  # noqa: E402
     FederatedQueryTestMixin,
 )
 
-sys.path.insert(0, "cases/18-StreamProcessing/federated")
-from test_fs_common import (  # noqa: E402
+sys.path.insert(0, "cases/18-StreamProcessing/99-Others")
+from fs_common import (  # noqa: E402
     ensure_snode,
     wait_stream_window_closed,
     FS_BASE_MS,
@@ -213,7 +213,11 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
         Each device carries a distinct val (1/2/3) so the per-subtable AVG(val)
         identifies which series was fetched: seeing all of 1.0/2.0/3.0 proves the
-        OR batch pulled every subtable (a broken OR would drop some devices)."""
+        OR batch pulled every subtable (a broken OR would drop some devices).
+
+        Since: v3.4.2.0
+
+        """
         src = "uc001sp_n"
         i_db = "uc001sp_ndb"
         stream = "s_uc00nsp"
@@ -272,6 +276,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         The test also prewrites an older batch before CREATE STREAM and only
         verifies the batch written after stream creation. This proves that the
         stream does not backfill pre-existing Influx rows.
+
+        Since: v3.4.2.0
+
         """
         src = "uc001sp_tbname"
         i_db = "uc001sp_tdb"
@@ -344,6 +351,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         The test also prewrites an older batch before CREATE STREAM and only
         verifies the batch written after stream creation. This proves that the
         stream does not backfill pre-existing Influx rows.
+
+        Since: v3.4.2.0
+
         """
         src = "uc001sp_tbname"
         i_db = "uc001sp_tdb"
@@ -415,6 +425,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         The test also prewrites an older batch before CREATE STREAM and only
         verifies the batch written after stream creation. This proves that the
         stream does not backfill pre-existing Influx rows.
+
+        Since: v3.4.2.0
+
         """
         src = "uc001sp_tbname"
         i_db = "uc001sp_tdb"
@@ -476,6 +489,7 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
     def test_uc_001b_influx_partition_host_tbname_region_mixed(self):
         """InfluxDB PARTITION BY mixing tbname with explicit tag columns
+
         (PARTITION BY host, tbname, region) -> tbname forces finest-granularity
         grouping (same cardinality as PARTITION BY tbname alone: one group per
         unique host/region combination, NOT collapsed by host), while host and
@@ -517,6 +531,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         "PARTITION BY tbname" cardinality), each with its own recognizable
         "hm_<measurement>_<host>_<region>" subtable name and single-series
         (not averaged across regions) aggregate value.
+
+        Since: v3.4.2.0
+
         """
         src = "uc001mx_m"
         i_db = "uc001mx_mdb"
@@ -625,6 +642,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         The test also prewrites an older batch before CREATE STREAM and only
         verifies the batch written after stream creation. This proves that the
         stream does not backfill pre-existing Influx rows.
+
+        Since: v3.4.2.0
+
         """
         src = "uc001sp_s"
         i_db = "uc001sp_sdb"
@@ -705,6 +725,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         The test also prewrites an older batch before CREATE STREAM and only
         verifies the batch written after stream creation. This proves that the
         stream does not backfill pre-existing Influx rows.
+
+        Since: v3.4.2.0
+
         """
         src = "uc001sp_s"
         i_db = "uc001sp_sdb"
@@ -1054,6 +1077,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         Verifies that the stream correctly closes windows 08:00..08:03
         even when batch1 and batch2 arrive before the trigger has a chance
         to process batch1 independently.
+
+        Since: v3.4.2.0
+
         """
         prefix = "uc001"
 
@@ -1096,6 +1122,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
         Phase 1: batch1 (08:00..08:02) → windows 08:00 and 08:01 close.
         Phase 2: batch2 (08:03..08:04) → windows 08:02 and 08:03 close.
+
+        Since: v3.4.2.0
+
         """
         prefix = "uc001"
 
@@ -1149,6 +1178,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         Verifies that the stream correctly closes windows 08:00..08:03
         even when batch1 and batch2 arrive before the trigger has a chance
         to process batch1 independently.
+
+        Since: v3.4.2.0
+
         """
         prefix = "uc001"
 
@@ -1187,6 +1219,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         Verifies that the stream correctly closes windows 08:00..08:03
         even when batch1 and batch2 arrive before the trigger has a chance
         to process batch1 independently.
+
+        Since: v3.4.2.0
+
         """
         prefix = "uc001"
 
@@ -1226,6 +1261,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         Verifies that the stream correctly closes windows 08:00..08:03
         even when batch1 and batch2 arrive before the trigger has a chance
         to process batch1 independently.
+
+        Since: v3.4.2.0
+
         """
         prefix = "uc001"
 
@@ -1256,7 +1294,14 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
     # FS-UC-001 — Explicit namespace without a source-level default
     # ------------------------------------------------------------------
     def test_uc_001_explicit_database_without_source_default(self):
-        """Trigger and calc readers use the database named in the stream SQL."""
+        """Use the database explicitly named in the stream SQL.
+
+        Verify that trigger and calculation readers resolve the explicit remote
+        database instead of a source-level default.
+
+        Since: v3.4.2.0
+
+        """
         src = "uc001_nodefault_m"
         remote_db = "uc001_nodefault_mdb"
         stream = "s_uc001_nodefault"
@@ -1308,6 +1353,14 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 pass
 
     def test_uc_002_local_trigger_external_calc(self):
+        """Run an external calculation from a local trigger table.
+
+        Verify that local trigger rows drive windows whose calculation reads an
+        external table and writes the expected aggregates.
+
+        Since: v3.4.2.0
+
+        """
         src = "uc002_calc_m"
         remote_db = "uc002_calc_mdb"
         local_trigger = "trigger_uc002"
@@ -1400,7 +1453,11 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
         (two real external tables, NOT %%trows — %%trows may not appear in a join
         condition, rejected by the parser).  This exercises per-calc-scan ext-spec
         binding: each of the two calc readers must bind to its own source by name
-        (src_a -> extSpecs[src_a], src_b -> extSpecs[src_b])."""
+        (src_a -> extSpecs[src_a], src_b -> extSpecs[src_b]).
+
+        Since: v3.4.2.0
+
+        """
         prefix_a, prefix_b = "uc003a", "uc003b"
         src_a, src_b = f"{prefix_a}_m", f"{prefix_b}_m"
         db_a, db_b = f"{prefix_a}_mdb", f"{prefix_b}_mdb"

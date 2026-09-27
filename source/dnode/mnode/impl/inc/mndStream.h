@@ -219,6 +219,10 @@ typedef struct SStmTaskStatus {
   char*           extraErrMsg;
   int64_t         runningStartTs;
   int64_t         lastUpTs;
+  // External original table reader whose cleanup already executed. Its registry id and task address are
+  // kept so a heartbeat retry of the same cleanup request can replay the result instead of failing,
+  // while every registry lookup ignores it (see msmFindExtOrigTblReader).
+  int8_t          extReaderCleaned;
 } SStmTaskStatus;
 
 

@@ -247,7 +247,7 @@ class FsSharedFixtureMixin:
             # ]
             # ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
             tdLog.info(f"[{label}] delete {ts} InfluxDB points")
-    
+
     def _drop_table(self, suffix: str, db_or_bucket: str, label: str):
         """Write rows into the external source for the given suffix type
         ('m' MySQL, 'p' PostgreSQL, 'i' InfluxDB)."""

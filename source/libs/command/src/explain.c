@@ -2414,6 +2414,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
                         pInterpNode->mergeDataBlock ? "True" : "False");
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        qDebug("QID:0x0 Interp EXPLAIN reports mergeDataBlock=%s, level=%d",
+               pInterpNode->mergeDataBlock ? "True" : "False", level);
         if (pInterpNode->pFillValues) {
           SNodeListNode *pValues = (SNodeListNode *)pInterpNode->pFillValues;
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILL_VALUE_FORMAT);

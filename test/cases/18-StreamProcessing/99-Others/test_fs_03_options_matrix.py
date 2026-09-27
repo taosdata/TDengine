@@ -33,8 +33,8 @@ from federated_query_common import (  # noqa: E402
     FederatedQueryTestMixin,
 )
 
-sys.path.insert(0, "cases/18-StreamProcessing/federated")
-from test_fs_common import (  # noqa: E402
+sys.path.insert(0, "cases/18-StreamProcessing/99-Others")
+from fs_common import (  # noqa: E402
     ensure_snode,
     wait_stream_window_closed,
     FS_BASE_MS,

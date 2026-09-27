@@ -3550,6 +3550,21 @@ TEST(execUtilTest, remoteScalarCopyRetainsRemotePlanOwnershipAfterValueRewrite) 
   nodesDestroyNode(reinterpret_cast<SNode*>(pCached));
 }
 
+TEST(execUtilTest, streamScalarExprInRangeCleansFailedExprInfo) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_TARGET, &pNode), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+  SScalarParam    dst = {0};
+  dst.columnData = &colInfo;
+  dst.numOfRows = 0;
+  dst.colAlloced = false;
+
+  EXPECT_NE(streamCalcOneScalarExprInRange(pNode, &dst, 0, 0, nullptr), TSDB_CODE_SUCCESS);
+
+  nodesDestroyNode(pNode);
+}
+
 TEST(execUtilTest, externalWindowReusableBlockGrowsToRequestedRows) {
   SSDataBlock *pBlock = nullptr;
   ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);

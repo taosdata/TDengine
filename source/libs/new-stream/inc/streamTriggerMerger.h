@@ -220,7 +220,44 @@ typedef struct SSTriggerColMatch {
   col_id_t vtbSlotId;
 } SSTriggerColMatch;
 
+typedef enum ESTriggerReaderKind {
+  STRIGGER_READER_KIND_INTERNAL = 0,
+  STRIGGER_READER_KIND_EXTERNAL = 1,
+  // Calc-phase data of the same external registry entry must not share the trigger-phase identity:
+  // the trigger check of one group can still be pending while another group already requests calc
+  // data for the same reader, and slices/metas/ranges are all keyed by this struct. Sharing the key
+  // let a SEND_CALC_REQ block overwrite the trigger block other groups still had to consume.
+  STRIGGER_READER_KIND_EXTERNAL_CALC = 2,
+} ESTriggerReaderKind;
+
+static FORCE_INLINE bool stTriggerReaderKindIsExternal(int8_t readerKind) {
+  return readerKind == STRIGGER_READER_KIND_EXTERNAL || readerKind == STRIGGER_READER_KIND_EXTERNAL_CALC;
+}
+
+typedef struct SSTriggerReaderDataKey {
+  int8_t   readerKind;
+  uint8_t  reserved[7];
+  uint64_t stableReaderId;
+  int64_t  logicalUid;
+} SSTriggerReaderDataKey;
+
+static FORCE_INLINE SSTriggerReaderDataKey stTriggerReaderDataKey(int8_t readerKind, uint64_t stableReaderId,
+                                                                  int64_t logicalUid) {
+  SSTriggerReaderDataKey key = {0};
+  key.readerKind = readerKind;
+  key.stableReaderId = stableReaderId;
+  key.logicalUid = logicalUid;
+  return key;
+}
+
+typedef struct SSTriggerVirtualTableSliceRef {
+  int64_t                 virtualUid;
+  int64_t                 virtualGid;
+  SSTriggerReaderDataKey readerKey;
+} SSTriggerVirtualTableSliceRef;
+
 typedef struct SSTriggerTableColRef {
+  SSTriggerReaderDataKey readerKey;
   int64_t otbSuid;
   int64_t otbUid;
   int32_t otbVgId;
@@ -345,6 +382,7 @@ typedef struct SSTriggerNewTimestampSorter {
   SSDataBlock *pDataBlock;
   int32_t      tsSlotId;
   int32_t      pkSlotId;
+  SSTriggerReaderDataKey readerKey;
 
   SArray                 *pSliceBuf;    // SArray<SNewTimestampSorterSlice>
   SArray                 *pSliceLists;  // SArray<SNewTimestampSorterSliceList>
@@ -380,7 +418,7 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
  * @brief Set the table data for the timestamp sorter
  *
  * @param pSorter The SSTriggerNewTimestampSorter instance to set the data
- * @param tbUid The UID of the table to be sorted
+ * @param pReaderKey The source-scoped identity of the reader data
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
  * @param pkSlotId The index of the primary key column in the data block, starting from 0
  * @param pReadRange The time range for sorting, containing start and end timestamps
@@ -389,9 +427,9 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
  * @param orderedInput Whether rows older than the accepted version frontier must be skipped
  * @return int32_t Status code indicating success or error
  */
-int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
-                                    int32_t pkSlotId, STimeWindow *pReadRange, SObjList *pMetas,
-                                    SSTriggerDataSlice *pSlice, bool orderedInput);
+int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter,
+                                    const SSTriggerReaderDataKey *pReaderKey, int32_t tsSlotId, int32_t pkSlotId,
+                                    STimeWindow *pReadRange, SObjList *pMetas, SSTriggerDataSlice *pSlice, bool orderedInput);
 
 /**
  * @brief Get next data block from the sorter.

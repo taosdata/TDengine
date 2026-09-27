@@ -40,8 +40,8 @@ from federated_query_common import (  # noqa: E402
     FederatedQueryTestMixin,
 )
 
-sys.path.insert(0, "cases/18-StreamProcessing/federated")
-from test_fs_common import ensure_snode  # noqa: E402
+sys.path.insert(0, "cases/18-StreamProcessing/99-Others")
+from fs_common import ensure_snode  # noqa: E402
 
 
 class TestFsCreateErrors(FederatedQueryTestMixin):
@@ -66,7 +66,13 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
 
     # FS-CERR-001 federatedQueryEnable=false -----------------------------
     def test_cerr_001_disabled_flag(self):
-        """Toggle federatedQueryEnable=false then attempt CREATE STREAM with ext."""
+        """Reject an external-trigger stream when federation is disabled.
+
+        Verify that CREATE STREAM fails while federatedQueryEnable is false.
+
+        Since: v3.4.2.0
+
+        """
         # Setup a real source first (with flag still ON via class fixture).
         prefix = "cerr001"
         src = f"{prefix}_m"
@@ -102,7 +108,13 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
 
     # FS-CERR-002 missing ext source --------------------------------------
     def test_cerr_002_missing_ext_source(self):
-        """CREATE STREAM referencing a non-existent EXTERNAL SOURCE."""
+        """Reject a stream that references a missing external source.
+
+        Verify that CREATE STREAM reports an error for an unknown source name.
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute(f"USE {self.DB}")
         sql = (
             "CREATE STREAM s_cerr002 INTERVAL(1m) SLIDING(1m) "
@@ -114,7 +126,13 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
 
     # FS-CERR-003 PARTITION BY on relational ext --------------------------
     def test_cerr_003_partition_by_relational(self):
-        """Relational ext source + PARTITION BY -> STREAM_EXT_PARTITION_NOT_SUPPORTED."""
+        """Reject PARTITION BY on a relational external source.
+
+        Verify that a relational external trigger cannot use PARTITION BY.
+
+        Since: v3.4.2.0
+
+        """
         prefix = "cerr003"
         src = f"{prefix}_m"
         db = f"{prefix}_mdb"
@@ -144,7 +162,13 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
 
     # FS-CERR-004 PARTITION BY <non tbname/tag> on InfluxDB --------------
     def test_cerr_004_partition_by_column_influx(self):
-        """InfluxDB ext source + PARTITION BY on a field column -> rejected."""
+        """Reject PARTITION BY on an InfluxDB field column.
+
+        Verify that an InfluxDB field cannot be a stream partition key.
+
+        Since: v3.4.2.0
+
+        """
         prefix = "cerr004"
         src = f"{prefix}_i"
         db = f"{prefix}_idb"
@@ -170,6 +194,7 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
     # FS-CERR-007 tbname in OUTPUT_SUBTABLE with a PARTITION BY tag subset -
     def test_cerr_007_output_subtable_tbname_partition_by_subset_influx(self):
         """InfluxDB ext source + PARTITION BY <tag subset> + OUTPUT_SUBTABLE(tbname)
+
         must be rejected at CREATE STREAM time.
 
         The reader (streamReaderExt.c handleGroupColValuePull) only synthesizes
@@ -180,6 +205,9 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
         parsed fine but resolved to an empty string at runtime. The parser must
         reject it up front instead, same as any other column not in the
         PARTITION BY list.
+
+        Since: v3.4.2.0
+
         """
         prefix = "cerr007"
         src = f"{prefix}_i"
@@ -212,6 +240,14 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
                 pass
     
     def test_cerr_008_partition_by_scalar_tbname_influx(self):
+        """Reject a scalar expression over tbname for an InfluxDB partition.
+
+        Verify that an unsupported scalar grouping expression is rejected at
+        CREATE STREAM time.
+
+        Since: v3.4.2.0
+
+        """
         prefix = "cerr008"
         src = f"{prefix}_i"
         db = f"{prefix}_idb"
@@ -243,7 +279,13 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
 
     # FS-CERR-005 INTO points at external table -> rejected ---------------
     def test_cerr_005_into_external_rejected(self):
-        """FS §10#1 — INTO must be a local two-segment table; ext targets rejected."""
+        """Reject an external table as the stream output target.
+
+        Verify that INTO accepts only a local two-segment table name.
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute(f"USE {self.DB}")
         # Even without a real ext source created, this should fail at parse time.
         sql = (
@@ -256,7 +298,14 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
 
     # FS-CERR-006 user-specified ts column on ext trigger -> rejected ----
     def test_cerr_006_user_ts_col_rejected(self):
-        """FS §10#2 — SQL cannot override ts col on external trigger table."""
+        """Reject a user-specified timestamp column on an external trigger.
+
+        Verify that SQL cannot override the timestamp column selected from an
+        external trigger table.
+
+        Since: v3.4.2.0
+
+        """
         prefix = "cerr006"
         src = f"{prefix}_m"
         db = f"{prefix}_mdb"
@@ -291,8 +340,15 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
     # FS-CERR-009 FILL_HISTORY(...) on ext trigger -> rejected --------------
     def test_cerr_009_fill_history_ext_rejected(self):
         """STREAM_OPTIONS(FILL_HISTORY(...)) on an external trigger table must
+
         be rejected: history recalculation against a federated source is not
-        supported yet."""
+        supported yet.
+
+        Verify that FILL_HISTORY is rejected for external triggers.
+
+        Since: v3.4.2.0
+
+        """
         prefix = "cerr009"
         src = f"{prefix}_m"
         db = f"{prefix}_mdb"
@@ -325,7 +381,14 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
     # FS-CERR-010 FILL_HISTORY_FIRST on ext trigger -> rejected -------------
     def test_cerr_010_fill_history_first_ext_rejected(self):
         """STREAM_OPTIONS(FILL_HISTORY_FIRST) on an external trigger table
-        must be rejected for the same reason as FS-CERR-009."""
+
+        must be rejected for the same reason as FS-CERR-009.
+
+        Verify that FILL_HISTORY_FIRST is rejected for external triggers.
+
+        Since: v3.4.2.0
+
+        """
         prefix = "cerr010"
         src = f"{prefix}_m"
         db = f"{prefix}_mdb"
@@ -357,7 +420,14 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
 
     # FS-SEC-001 — privileges: low-priv user cannot reference an ext src --
     def test_sec_001_no_select_priv_on_ext_source(self):
-        """Building a stream using an ext source the user lacks SELECT on must fail."""
+        """Reject or fail a stream that cannot authenticate to its external source.
+
+        Verify that an external-source access failure prevents the stream from
+        making progress.
+
+        Since: v3.4.2.0
+
+        """
         # This is a structural placeholder: full priv-enforcement test
         # requires a second taos user. Verify at least that querying ext via
         # an unauthorised remote user surfaces an error; details depend on

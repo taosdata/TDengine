@@ -1277,7 +1277,10 @@ static void destroyBlock(void* data) {
 
 static void tblRefCacheItemFree(void *param) {
   SVTableRefResolveRspItem *p = (SVTableRefResolveRspItem *)param;
-  if (p) taosMemoryFreeClear(p->tagData);
+  if (p) {
+    taosMemoryFreeClear(p->tagData);
+    taosMemoryFreeClear(p->nextRef.tagCondJson);
+  }
 }
 
 int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
@@ -1686,6 +1689,151 @@ end:
 extern int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
 extern void    stExtReaderClose(void *pInfo);
 
+static bool stExtFedScanMatchesSource(const SFederatedScanPhysiNode *pFedScan, const char *sourceName) {
+  if (pFedScan == NULL) {
+    return false;
+  }
+  if (sourceName == NULL) {
+    return true;
+  }
+  if (sourceName[0] == '\0') {
+    return false;
+  }
+  if (pFedScan->pExtTable == NULL || nodeType(pFedScan->pExtTable) != QUERY_NODE_EXTERNAL_TABLE) {
+    return false;
+  }
+
+  const SExtTableNode *pExtTable = (const SExtTableNode *)pFedScan->pExtTable;
+  return strcmp(pExtTable->sourceName, sourceName) == 0;
+}
+
+static const SScanLogicNode *stExtFindLogicScanInPlan(const SNode *pNode, const char *sourceName) {
+  if (pNode == NULL || nodeType(pNode) < QUERY_NODE_LOGIC_PLAN_SCAN ||
+      nodeType(pNode) >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN) {
+    return NULL;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    const SScanLogicNode *pScan = (const SScanLogicNode *)pNode;
+    if (pScan->scanType != SCAN_TYPE_EXTERNAL || pScan->pExtTableNode == NULL ||
+        nodeType(pScan->pExtTableNode) != QUERY_NODE_EXTERNAL_TABLE) {
+      return NULL;
+    }
+    const SExtTableNode *pExtTable = (const SExtTableNode *)pScan->pExtTableNode;
+    if (sourceName != NULL && (sourceName[0] == '\0' || strcmp(pExtTable->sourceName, sourceName) != 0)) {
+      return NULL;
+    }
+    return pScan;
+  }
+
+  const SLogicNode *pLogic = (const SLogicNode *)pNode;
+  SNode *pChild = NULL;
+  FOREACH(pChild, pLogic->pChildren) {
+    const SScanLogicNode *pScan = stExtFindLogicScanInPlan(pChild, sourceName);
+    if (pScan != NULL) {
+      return pScan;
+    }
+  }
+  return NULL;
+}
+
+static SFederatedScanPhysiNode *stExtFindFedScanInPlan(SNode *pNode, const char *sourceName, bool requireExtTable) {
+  if (pNode == NULL) {
+    return NULL;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+    return stExtFindFedScanInPlan((SNode *)((SSubplan *)pNode)->pNode, sourceName, requireExtTable);
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+    SFederatedScanPhysiNode *pFedScan = (SFederatedScanPhysiNode *)pNode;
+    if (pFedScan->pRemotePlan != NULL) {
+      stDebug("ext: skip remote logical plan during physical namespace lookup, nodeType:%d",
+              (int)nodeType(pFedScan->pRemotePlan));
+    }
+    if ((!requireExtTable || pFedScan->pExtTable != NULL) && stExtFedScanMatchesSource(pFedScan, sourceName)) {
+      return pFedScan;
+    }
+  }
+
+  SPhysiNode *pPhysi = (SPhysiNode *)pNode;
+  SNode      *pChild = NULL;
+  FOREACH(pChild, pPhysi->pChildren) {
+    SFederatedScanPhysiNode *pFedScan = stExtFindFedScanInPlan(pChild, sourceName, requireExtTable);
+    if (pFedScan != NULL) {
+      return pFedScan;
+    }
+  }
+
+  return NULL;
+}
+
+static SNodeList *stExtFindCalcScanColsInPlan(SNode *pNode, const char *sourceName,
+                                              SFederatedScanPhysiNode **ppFedScan,
+                                              ENodeType *pScanType) {
+  if (pNode == NULL) {
+    return NULL;
+  }
+
+  ENodeType ntype = nodeType(pNode);
+  if (ntype == QUERY_NODE_PHYSICAL_SUBPLAN) {
+    SSubplan *pSubplan = (SSubplan *)pNode;
+    return stExtFindCalcScanColsInPlan((SNode *)pSubplan->pNode, sourceName, ppFedScan, pScanType);
+  }
+
+  if (ntype == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+      ntype == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    if (ppFedScan != NULL) {
+      *ppFedScan = NULL;
+    }
+    if (pScanType != NULL) {
+      *pScanType = ntype;
+    }
+    return ((STableScanPhysiNode *)pNode)->scan.pScanCols;
+  }
+
+  if (ntype == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+    SFederatedScanPhysiNode *pFedScan = (SFederatedScanPhysiNode *)pNode;
+    if (stExtFedScanMatchesSource(pFedScan, sourceName)) {
+      if (ppFedScan != NULL) {
+        *ppFedScan = pFedScan;
+      }
+      if (pScanType != NULL) {
+        *pScanType = ntype;
+      }
+      return pFedScan->pScanCols;
+    }
+    if (pFedScan->pRemotePlan != NULL) {
+      const SScanLogicNode *pRemoteScan =
+          stExtFindLogicScanInPlan(pFedScan->pRemotePlan, sourceName);
+      if (pRemoteScan != NULL) {
+        if (ppFedScan != NULL) {
+          *ppFedScan = NULL;
+        }
+        if (pScanType != NULL) {
+          *pScanType = QUERY_NODE_LOGIC_PLAN_SCAN;
+        }
+        stDebug("ext: found remote logical scan for source=%s", sourceName != NULL ? sourceName : "(any)");
+        return pRemoteScan->pScanCols;
+      }
+      stDebug("ext: remote logical plan has no matching external scan, nodeType:%d",
+              (int)nodeType(pFedScan->pRemotePlan));
+    }
+  }
+
+  SPhysiNode *pPhysi = (SPhysiNode *)pNode;
+  SNode      *pChild = NULL;
+  FOREACH(pChild, pPhysi->pChildren) {
+    SNodeList *pScanCols = stExtFindCalcScanColsInPlan(pChild, sourceName, ppFedScan, pScanType);
+    if (pScanCols != NULL) {
+      return pScanCols;
+    }
+  }
+
+  return NULL;
+}
+
 static void stExtOverrideNamespaceFromFedScan(SStreamReaderTask *pTask, SStreamExtTriggerSpec *pExtSpec,
                                               const SFederatedScanPhysiNode *pFedScan) {
   if (pFedScan == NULL || pFedScan->pExtTable == NULL ||
@@ -1694,6 +1842,12 @@ static void stExtOverrideNamespaceFromFedScan(SStreamReaderTask *pTask, SStreamE
   }
 
   const SExtTableNode *pExtTable = (const SExtTableNode *)pFedScan->pExtTable;
+  const SScanLogicNode *pRemoteScan =
+      stExtFindLogicScanInPlan(pFedScan->pRemotePlan, pExtSpec->sourceName);
+  if (pRemoteScan != NULL && pRemoteScan->pExtTableNode != NULL &&
+      nodeType(pRemoteScan->pExtTableNode) == QUERY_NODE_EXTERNAL_TABLE) {
+    pExtTable = (const SExtTableNode *)pRemoteScan->pExtTableNode;
+  }
   if (strcmp(pExtSpec->sourceName, pExtTable->sourceName) != 0) {
     ST_TASK_DLOG("ext: skip namespace from source=%s for spec source=%s", pExtTable->sourceName,
                  pExtSpec->sourceName);
@@ -1726,8 +1880,17 @@ static int32_t stExtOverrideNamespaceFromPlan(SStreamReaderTask *pTask, SStreamE
   SPhysiNode *pPlan = nodeType((SNode *)pSubplan) == QUERY_NODE_PHYSICAL_SUBPLAN
                          ? (SPhysiNode *)pSubplan->pNode
                          : (SPhysiNode *)pSubplan;
-  if (pPlan != NULL && nodeType(pPlan) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
-    stExtOverrideNamespaceFromFedScan(pTask, pExtSpec, (SFederatedScanPhysiNode *)pPlan);
+  SFederatedScanPhysiNode *pFedScan =
+      stExtFindFedScanInPlan((SNode *)pPlan, pExtSpec == NULL ? NULL : pExtSpec->sourceName, true);
+  if (pFedScan != NULL) {
+    ST_TASK_DLOG("ext: resolved reader namespace from federated scan under node type=%d",
+                 pPlan != NULL ? (int)nodeType(pPlan) : -1);
+    stExtOverrideNamespaceFromFedScan(pTask, pExtSpec, pFedScan);
+  } else if (pExtSpec != NULL && pExtSpec->extDb[0] != '\0' && pExtSpec->extTable[0] != '\0' &&
+             pExtSpec->tsColumn[0] != '\0') {
+    ST_TASK_DLOG("ext: using reader namespace from ext spec, source:%s db:%s schema:%s table:%s ts:%s planType:%d",
+                 pExtSpec->sourceName, pExtSpec->extDb, pExtSpec->extSchema, pExtSpec->extTable,
+                 pExtSpec->tsColumn, pPlan != NULL ? (int)nodeType(pPlan) : -1);
   } else {
     ST_TASK_ELOG("ext: cannot resolve reader namespace from scan node type=%d",
                  pPlan != NULL ? (int)nodeType(pPlan) : -1);
@@ -1747,6 +1910,12 @@ static int32_t stExtBuildTriggerColumns(SStreamReaderTask *pTask,
                                         const SStreamReaderDeployMsg *pMsg) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList *pTrigCols = NULL;
+
+  if (pMsg->pExtSpec->triggerColumns != NULL && pMsg->pExtSpec->pColMappings != NULL &&
+      pMsg->pExtSpec->numColMappings > 0) {
+    ST_TASK_DLOG("ext: reuse deploy triggerColumns count=%d", pMsg->pExtSpec->numColMappings);
+    return code;
+  }
 
   if (pMsg->msg.trigger.triggerCols == NULL) {
     ST_TASK_DLOG("%s", "ext: triggerCols empty, fetchDataForUid will use SELECT *");
@@ -1830,16 +1999,17 @@ static int32_t stExtCollectScanCols(SStreamReaderTask *pTask,
   }
 
   int32_t calcIdx = 0;
+  int32_t nodeIdx = 0;
   SNode  *pCalcNode = NULL;
   FOREACH(pCalcNode, pScanCols) {
-    // for federated scan, unwrap STargetNode if present
+    int32_t scanIdx = nodeIdx++;
     SNode *pExpr = pCalcNode;
-    if (pFedScan && nodeType(pCalcNode) == QUERY_NODE_TARGET) {
+    if (nodeType(pCalcNode) == QUERY_NODE_TARGET) {
       pExpr = ((STargetNode *)pCalcNode)->pExpr;
     }
     if (pExpr == NULL || nodeType(pExpr) != QUERY_NODE_COLUMN) {
       ST_TASK_DLOG("ext: calcScanCols[%d] nodeType=%d exprType=%d skipped %s",
-                   calcIdx, (int)nodeType(pCalcNode),
+                   scanIdx, (int)nodeType(pCalcNode),
                    pExpr ? (int)nodeType(pExpr) : -1, tag);
       continue;
     }
@@ -1855,9 +2025,14 @@ static int32_t stExtCollectScanCols(SStreamReaderTask *pTask,
     } else {
       pMap->tdType = ((SExprNode *)pExpr)->resType;
     }
+    if (pMap->tdType.type == TSDB_DATA_TYPE_TIMESTAMP && pMap->tdType.precision != pExtSpec->precision) {
+      ST_TASK_DLOG("ext: normalize calc mapping timestamp precision col='%s' precision:%d->%d %s",
+                   pCol->colName, pMap->tdType.precision, pExtSpec->precision, tag);
+      pMap->tdType.precision = pExtSpec->precision;
+    }
     tstrncpy(pMap->colName, pCol->colName, sizeof(pMap->colName));
-    ST_TASK_DLOG("ext: calcColumns[%d] col='%s' type=%d bytes=%d %s",
-                 calcIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes, tag);
+    ST_TASK_DLOG("ext: calcColumns[%d] col='%s' type=%d bytes=%d precision=%d %s",
+                 calcIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes, pMap->tdType.precision, tag);
     calcIdx++;
   }
   pExtSpec->numCalcMappings = calcIdx;
@@ -1875,8 +2050,15 @@ static int32_t stExtCollectScanCols(SStreamReaderTask *pTask,
  * --------------------------------------------------------------------------- */
 static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
                                              SStreamExtTriggerSpec *pExtSpec,
-                                             const char *planStr) {
+                                             const char *planStr,
+                                             bool updateSpecPrecision) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pExtSpec != NULL && pExtSpec->calcColumns != NULL && pExtSpec->pCalcMappings != NULL &&
+      pExtSpec->numCalcMappings > 0) {
+    ST_TASK_DLOG("ext: reuse deploy calcColumns count=%d", pExtSpec->numCalcMappings);
+    return code;
+  }
 
   if (planStr == NULL) {
     ST_TASK_DLOG("%s", "ext: calcScanPlan is NULL, calcColumns empty");
@@ -1902,17 +2084,31 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
   ENodeType ntype = (pCalcPlan != NULL) ? nodeType(pCalcPlan) : (ENodeType)0;
   ST_TASK_DLOG("ext: calcCacheScanPlan subplan pNode type=%d", (int)ntype);
 
+  if (updateSpecPrecision && pExtSpec != NULL && pCalcPlan != NULL &&
+      pCalcPlan->pOutputDataBlockDesc != NULL) {
+    int8_t calcPrecision = (int8_t)pCalcPlan->pOutputDataBlockDesc->precision;
+    if (calcPrecision >= TSDB_MIN_PRECISION && calcPrecision <= TSDB_MAX_PRECISION) {
+      if (pExtSpec->precision != calcPrecision) {
+        ST_TASK_DLOG("ext: update calc reader precision from plan precision:%d->%d",
+                     pExtSpec->precision, calcPrecision);
+      }
+      pExtSpec->precision = calcPrecision;
+    } else {
+      ST_TASK_WLOG("ext: invalid calc plan precision:%d, keep spec precision:%d",
+                   calcPrecision, pExtSpec->precision);
+    }
+  }
+
   SNodeList *pScanCols = NULL;
   SFederatedScanPhysiNode *pFedScan = NULL;
-
-  if (ntype == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
-      ntype == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
-    pScanCols = ((STableScanPhysiNode *)pCalcPlan)->scan.pScanCols;
-  } else if (ntype == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
-    pFedScan = (SFederatedScanPhysiNode *)pCalcPlan;
-    pScanCols = pFedScan->pScanCols;
+  ENodeType scanType = (ENodeType)0;
+  pScanCols = stExtFindCalcScanColsInPlan((SNode *)pCalcPlan, pExtSpec == NULL ? NULL : pExtSpec->sourceName,
+                                          &pFedScan, &scanType);
+  if (pScanCols != NULL) {
+    ST_TASK_DLOG("ext: calcCacheScanPlan found scan node type=%d under root node type=%d",
+                 (int)scanType, (int)ntype);
   } else {
-    ST_TASK_DLOG("ext: calcCacheScanPlan node type=%d (not TABLE_SCAN/FEDERATED_SCAN), calcColumns empty",
+    ST_TASK_DLOG("ext: calcCacheScanPlan root node type=%d has no TABLE_SCAN/FEDERATED_SCAN, calcColumns empty",
                  (int)ntype);
   }
 
@@ -1931,7 +2127,8 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
 static int32_t stExtBuildCalcColumns(SStreamReaderTask *pTask,
                                      const SStreamReaderDeployMsg *pMsg) {
   return stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec,
-                                      (const char *)pMsg->msg.trigger.calcCacheScanPlan);
+                                      (const char *)pMsg->msg.trigger.calcCacheScanPlan,
+                                      false);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1995,7 +2192,8 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
                                                     (const char *)pMsg->msg.calc.calcScanPlan),
                       &lino, end);
       TAOS_CHECK_GOTO(stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec,
-                                                   (const char *)pMsg->msg.calc.calcScanPlan),
+                                                   (const char *)pMsg->msg.calc.calcScanPlan,
+                                                   true),
                       &lino, end);
 
       void *pExtInfo = NULL;
@@ -2060,19 +2258,20 @@ int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndepl
   int32_t lino = 0;
   STREAM_CHECK_NULL_GOTO(ppTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
+  SStreamReaderTask* pTask = *ppTask;
   if ((*ppTask)->triggerReader == 1) {
     if (STREAM_IS_REF_EXT_SOURCE((*ppTask)->task.flags)) {
       /* Ext-source reader: release the SStreamTriggerReaderInfo (ext version)
        * allocated by streamReaderExtOpen via streamReaderExtClose. */
-      stInfo("release ext reader info:%p flags:%" PRId64, (*ppTask)->info, (*ppTask)->task.flags);
+      ST_TASK_ILOG("release ext reader info:%p flags:%" PRId64, (*ppTask)->info, (*ppTask)->task.flags);
       stExtReaderClose((*ppTask)->info);
     } else {
-      stInfo("release stream reader info:%p", (*ppTask)->info);
+      ST_TASK_ILOG("release stream reader info:%p", (*ppTask)->info);
       releaseStreamReaderInfo((*ppTask)->info);
     }
   } else {
     if (STREAM_IS_REF_EXT_SOURCE((*ppTask)->task.flags)) {
-      stInfo("release ext calc reader info:%p flags:%" PRId64, (*ppTask)->info, (*ppTask)->task.flags);
+      ST_TASK_ILOG("release ext calc reader info:%p flags:%" PRId64, (*ppTask)->info, (*ppTask)->task.flags);
       stExtReaderClose((*ppTask)->info);
     } else {
       taosArrayDestroyP((*ppTask)->info, releaseStreamReaderCalcInfo);

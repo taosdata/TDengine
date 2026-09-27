@@ -59,7 +59,6 @@
 #include "vnodeInt.h"
 #include "vnodeStreamVTable.h"
 
-
 // ---------------------------------------------------------------------------
 // Block A: per-uid VTableInfo helpers + cache commit
 // ---------------------------------------------------------------------------
@@ -110,6 +109,95 @@ bool streamVTableInfoHasColumnRef(const SStreamMsgVTableInfo *pVTableInfo) {
   return false;
 }
 
+static const SColRef *streamFindColRefByCid(const SColRefWrapper *pCols, col_id_t cid) {
+  if (pCols == NULL || pCols->pColRef == NULL) {
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < pCols->nCols; ++i) {
+    if (pCols->pColRef[i].id == cid) {
+      return &pCols->pColRef[i];
+    }
+  }
+  return NULL;
+}
+
+int32_t streamValidateVTableColRef(const SColRef *pRef) {
+  if (pRef != NULL && pRef->hasRef &&
+      (pRef->filterCondLen != 0 || pRef->filterCondJson != NULL)) {
+    stError("%s external column WHERE filters are not supported in streams, source:%s, table:%s.%s, column:%s, cid:%d",
+            __func__, pRef->refSourceName, pRef->refDbName, pRef->refTableName, pRef->refColName, pRef->id);
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamCopyColRefTagCond(SColRef *pDst, const SColRef *pSrc) {
+  if (pDst == NULL || pSrc == NULL || pSrc->tagCondLen <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pSrc->tagCondJson == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t tagCondLen = (int32_t)strnlen(pSrc->tagCondJson, (size_t)pSrc->tagCondLen);
+  if (tagCondLen <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  pDst->tagCondJson = taosMemoryMalloc(tagCondLen + 1);
+  if (pDst->tagCondJson == NULL) {
+    return terrno;
+  }
+  memcpy(pDst->tagCondJson, pSrc->tagCondJson, tagCondLen);
+  pDst->tagCondJson[tagCondLen] = '\0';
+  pDst->tagCondLen = tagCondLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamCopyResolvedTagCond(SColRef *pDst, const SColResolveItem *pItem) {
+  if (pDst == NULL || pItem == NULL || pItem->tagCondLen <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pItem->tagCondJson == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  pDst->tagCondJson = taosMemoryMalloc((size_t)pItem->tagCondLen + 1);
+  if (pDst->tagCondJson == NULL) {
+    return terrno;
+  }
+  memcpy(pDst->tagCondJson, pItem->tagCondJson, pItem->tagCondLen);
+  pDst->tagCondJson[pItem->tagCondLen] = '\0';
+  pDst->tagCondLen = pItem->tagCondLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamFillResolvedColRef(SVnode *pVnode, SStreamTriggerReaderInfo *sStreamReaderInfo, int64_t uid,
+                                        SColRef *pDst, const SColResolveItem *pItem, const SColRef *pSourceRef) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  pDst->hasRef = pItem->hasRef;
+  if (pItem->hasRef) {
+    pDst->refType = pItem->refType;
+    tstrncpy(pDst->refSourceName, pItem->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+    tstrncpy(pDst->refSchemaName, pItem->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    tstrncpy(pDst->refDbName, pItem->refDbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pDst->refTableName, pItem->refTableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pDst->refColName, pItem->refColName, TSDB_COL_NAME_LEN);
+  }
+
+  code = streamCopyColRefTagCond(pDst, pSourceRef);
+  if (code == TSDB_CODE_SUCCESS && pDst->tagCondLen == 0) {
+    code = streamCopyResolvedTagCond(pDst, pItem);
+  }
+  if (code == TSDB_CODE_SUCCESS && pDst->tagCondLen > 0) {
+    stDebug("vgId:%d %s uid=%" PRId64 " cid=%d copied vtable series tag condition, tagLen:%d",
+            TD_VID(pVnode), __func__, uid, pDst->id, pDst->tagCondLen);
+  }
+  return code;
+}
+
 // For a single resolved uid, fill one VTableInfo entry: copy each requested cid's
 // resolved terminal SColResolveItem into pColRef[i] (hasRef + ref{Db,Table,Col}Name);
 // id is the virtual cid itself. version is taken from metaReader if available.
@@ -123,6 +211,7 @@ int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInf
 
   VTableInfo *vTable = taosArrayReserve(infos, 1);
   STREAM_CHECK_NULL_GOTO(vTable, terrno);
+  memset(vTable, 0, sizeof(*vTable));
   vTable->uid = uid;
   vTable->gId = gid;
 
@@ -135,9 +224,26 @@ int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInf
   if (code == 0) {
     version  = metaReader->me.colRef.version;
     haveMeta = true;
+    tstrncpy(vTable->tbName, metaReader->me.name, sizeof(vTable->tbName));
   } else {
     code = 0;
   }
+  if (vTable->tbName[0] == '\0') {
+    code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByUid(metaReader, uid);
+    if (code == 0) {
+      version = metaReader->me.colRef.version;
+      haveMeta = true;
+      tstrncpy(vTable->tbName, metaReader->me.name, sizeof(vTable->tbName));
+      ST_TASK_DLOG("vgId:%d %s loaded fallback metadata uid:%" PRId64 ", version:%d", TD_VID(pVnode), __func__,
+                   uid, version);
+    } else {
+      ST_TASK_DLOG("vgId:%d %s table name lookup failed uid:%" PRId64 ", code:%d", TD_VID(pVnode), __func__, uid,
+                   code);
+      code = 0;
+    }
+  }
+  ST_TASK_DLOG("vgId:%d %s put resolved vtable uid:%" PRId64 ", gid:%" PRIu64 ", tbname:%s", TD_VID(pVnode),
+               __func__, uid, gid, vTable->tbName);
 
   if (cids == NULL) {
     // "All columns" mode: enumerate the vtable's own pColRef.
@@ -154,12 +260,9 @@ int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInf
         SColResolveItem **pp = (SColResolveItem **)tSimpleHashGet(pRes->colMap, &cid, sizeof(cid));
         if (pp == NULL || *pp == NULL) continue;
         SColResolveItem *item = *pp;
-        vTable->cols.pColRef[j].hasRef = item->hasRef;
-        if (item->hasRef) {
-          tstrncpy(vTable->cols.pColRef[j].refDbName,    item->refDbName,    TSDB_DB_NAME_LEN);
-          tstrncpy(vTable->cols.pColRef[j].refTableName, item->refTableName, TSDB_TABLE_NAME_LEN);
-          tstrncpy(vTable->cols.pColRef[j].refColName,   item->refColName,   TSDB_COL_NAME_LEN);
-        }
+        code = streamFillResolvedColRef(pVnode, sStreamReaderInfo, uid, &vTable->cols.pColRef[j], item,
+                                        &metaReader->me.colRef.pColRef[j]);
+        STREAM_CHECK_RET_GOTO(code);
       }
     }
   } else {
@@ -176,12 +279,9 @@ int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInf
       SColResolveItem **pp = (SColResolveItem **)tSimpleHashGet(pRes->colMap, &cid, sizeof(cid));
       if (pp == NULL || *pp == NULL) continue;
       SColResolveItem *item = *pp;
-      vTable->cols.pColRef[i].hasRef = item->hasRef;
-      if (item->hasRef) {
-        tstrncpy(vTable->cols.pColRef[i].refDbName,    item->refDbName,    TSDB_DB_NAME_LEN);
-        tstrncpy(vTable->cols.pColRef[i].refTableName, item->refTableName, TSDB_TABLE_NAME_LEN);
-        tstrncpy(vTable->cols.pColRef[i].refColName,   item->refColName,   TSDB_COL_NAME_LEN);
-      }
+      const SColRef *pSourceRef = haveMeta ? streamFindColRefByCid(&metaReader->me.colRef, cid) : NULL;
+      code = streamFillResolvedColRef(pVnode, sStreamReaderInfo, uid, &vTable->cols.pColRef[i], item, pSourceRef);
+      STREAM_CHECK_RET_GOTO(code);
     }
   }
 
@@ -214,6 +314,8 @@ int32_t streamCacheCommitResolved(SStreamVTableInfoCache *pCache, bool fullScan,
         if (code != 0) {
           goto _exit;
         }
+        *pSlot = NULL;
+        qDebug("streamCacheCommitResolved transferred partial vtable cache uid:%" PRId64, uid);
       }
     }
   }
@@ -243,14 +345,23 @@ _exit:
 // ---------------------------------------------------------------------------
 
 // Compare two SColResolveItem; returns true if they refer to the same terminal column.
-static bool colResolveItemEqual(const SColResolveItem *a, const SColResolveItem *b) {
-  if (a == NULL && b == NULL) return true;
-  if (a == NULL || b == NULL) return false;
-  if (a->hasRef != b->hasRef) return false;
-  if (!a->hasRef) return true;
-  return strcmp(a->refDbName, b->refDbName) == 0 &&
-         strcmp(a->refTableName, b->refTableName) == 0 &&
-         strcmp(a->refColName, b->refColName) == 0;
+bool streamColResolveItemEqual(const SColResolveItem *pLeft, const SColResolveItem *pRight) {
+  if (pLeft == NULL && pRight == NULL) return true;
+  if (pLeft == NULL || pRight == NULL) return false;
+  if (pLeft->hasRef != pRight->hasRef) return false;
+  if (!pLeft->hasRef) return true;
+  if (pLeft->tagCondLen != pRight->tagCondLen || pLeft->tagCondLen < 0) return false;
+  if (pLeft->tagCondLen > 0 &&
+      (pLeft->tagCondJson == NULL || pRight->tagCondJson == NULL ||
+       memcmp(pLeft->tagCondJson, pRight->tagCondJson, pLeft->tagCondLen) != 0)) {
+    return false;
+  }
+  return pLeft->refType == pRight->refType &&
+         strcmp(pLeft->refSourceName, pRight->refSourceName) == 0 &&
+         strcmp(pLeft->refSchemaName, pRight->refSchemaName) == 0 &&
+         strcmp(pLeft->refDbName, pRight->refDbName) == 0 &&
+         strcmp(pLeft->refTableName, pRight->refTableName) == 0 &&
+         strcmp(pLeft->refColName, pRight->refColName) == 0;
 }
 
 bool tagValueEqual(const STagValue *a, const STagValue *b) {
@@ -448,7 +559,12 @@ static int32_t streamRecheckDiffAndApplyOneUid(SVnode *pVnode, SStreamVTableInfo
       SColResolveItem **ppNewI = (newRes->colMap == NULL) ? NULL :
                                  (SColResolveItem **)tSimpleHashGet(newRes->colMap, &cid, sizeof(cid));
       SColResolveItem  *newI   = (ppNewI == NULL) ? NULL : *ppNewI;
-      if (!colResolveItemEqual(oldI, newI)) { colChanged = true; break; }
+      if (!streamColResolveItemEqual(oldI, newI)) {
+        stDebug("vgId:%d %s column reference changed: uid=%" PRId64 " cid=%d", TD_VID(pVnode), __func__,
+                uid, (int32_t)cid);
+        colChanged = true;
+        break;
+      }
     }
   }
   if (colChanged) {
@@ -801,6 +917,18 @@ static int32_t vnodeFillResolveRspFromColRef(SVnode *pVnode, const SMetaEntry *p
                                              const char *dbName, const char *tableName,
                                              const char *colName, bool isVtable,
                                              SVTableRefResolveRspItem *r) {
+  int32_t code = streamValidateVTableColRef(pFound);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  // Resolve responses own a deep copy so the encoded payload remains valid
+  // after the metadata reader releases its source column reference.
+  if (pFound != NULL && pFound->tagCondLen > 0) {
+    if (pFound->tagCondJson == NULL) return TSDB_CODE_INVALID_MSG;
+    r->nextRef.tagCondJson = taosMemoryMalloc((size_t)pFound->tagCondLen + 1);
+    if (r->nextRef.tagCondJson == NULL) return terrno;
+    memcpy(r->nextRef.tagCondJson, pFound->tagCondJson, pFound->tagCondLen);
+    r->nextRef.tagCondJson[pFound->tagCondLen] = '\0';
+    r->nextRef.tagCondLen = pFound->tagCondLen;
+  }
   if (isVtable) {
     if (pFound == NULL) {
       r->code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
@@ -810,9 +938,13 @@ static int32_t vnodeFillResolveRspFromColRef(SVnode *pVnode, const SMetaEntry *p
       r->terminated     = false;
       r->nextRef.kind   = kind;
       r->nextRef.hasRef = true;
+      r->nextRef.refType = pFound->refType;
+      tstrncpy(r->nextRef.refSourceName, pFound->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      tstrncpy(r->nextRef.refSchemaName, pFound->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
       tstrncpy(r->nextRef.refDbName,    pFound->refDbName,    TSDB_DB_NAME_LEN);
       tstrncpy(r->nextRef.refTableName, pFound->refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(r->nextRef.refColName,   pFound->refColName,   TSDB_COL_NAME_LEN);
+      if (pFound->refType != 0) r->terminated = true;
       return 0;
     }
     // !hasRef
@@ -928,11 +1060,17 @@ static int32_t vnodeResolveTableGroup(SVnode *pVnode, const char *dbName, const 
       (void)vnodeFindVTableColRef(pVnode, &mr.me, stbReaderInited ? &stbReader.me : NULL,
                                   c->kind, c->colName, &pFound);
     }
-    (void)vnodeFillResolveRspFromColRef(pVnode, &mr.me, pFound, c->kind,
-                                        dbName, tableName, c->colName, isVtable, &r);
+    code = vnodeFillResolveRspFromColRef(pVnode, &mr.me, pFound, c->kind,
+                                         dbName, tableName, c->colName, isVtable, &r);
+    if (code != 0) {
+      taosMemoryFreeClear(r.tagData);
+      taosMemoryFreeClear(r.nextRef.tagCondJson);
+      break;
+    }
 
     if (taosArrayPush(pRspItems, &r) == NULL) {
       taosMemoryFreeClear(r.tagData);
+      taosMemoryFreeClear(r.nextRef.tagCondJson);
       code = terrno;
       break;
     }
@@ -980,11 +1118,11 @@ static int32_t vnodeResolveOneHop(SVnode *pVnode, const SVTableRefResolveItem *q
       return 0;
     }
 
-    (void)vnodeFillResolveRspFromColRef(pVnode, &mr.me, pFound, q->kind,
+    code = vnodeFillResolveRspFromColRef(pVnode, &mr.me, pFound, q->kind,
                                         q->refDbName, q->refTableName, q->refColName,
                                         true, r);
     metaReaderClear(&mr);
-    return 0;
+    return code;
   }
 
   // Physical table
@@ -1083,7 +1221,11 @@ _end:
 #define STREAM_VTB_MAX_HOPS 32
 
 static void freeColMap(void* ptr) {
-  taosMemoryFree(*(void**)ptr); 
+  SColResolveItem *pItem = *(SColResolveItem **)ptr;
+  if (pItem != NULL) {
+    taosMemoryFreeClear(pItem->tagCondJson);
+    taosMemoryFree(pItem);
+  }
 }
 
 static void freeTagMap(void* ptr) {
@@ -1116,6 +1258,27 @@ static SVTableResolveResult *streamGetOrCreateUidResult(SSHashObj *uid2Result, i
     return NULL;
   }
   return pRes;
+}
+
+static int32_t streamPushResolveWorkItem(SArray *workList, SResolveWorkItem *item) {
+  if (item->tagCondLen < 0 || item->tagCondLen > STREAM_EXT_SOURCE_IDENTITY_MAX_TAG_COND_LEN ||
+      (item->tagCondLen > 0 && item->tagCondJson == NULL)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (item->tagCondLen > 0) {
+    char *copy = taosMemoryMalloc((size_t)item->tagCondLen + 1);
+    if (copy == NULL) return terrno;
+    memcpy(copy, item->tagCondJson, item->tagCondLen);
+    copy[item->tagCondLen] = '\0';
+    item->tagCondJson = copy;
+    item->ownsTagCond = true;
+  }
+  if (taosArrayPush(workList, item) == NULL) {
+    int32_t code = terrno;
+    if (item->ownsTagCond) taosMemoryFreeClear(item->tagCondJson);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 // Push initial work-items for a single vtable uid. Each requested cid (col or tag)
@@ -1171,6 +1334,8 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
     for (int32_t j = 0; j < mr.me.colRef.nCols; ++j) {
       SColRef *pRef = &mr.me.colRef.pColRef[j];
       col_id_t cid  = pRef->id;
+      code = streamValidateVTableColRef(pRef);
+      if (code != TSDB_CODE_SUCCESS) goto _end;
       if (!pRef->hasRef) {
         SColResolveItem *item = taosMemoryCalloc(1, sizeof(*item));
         if (item == NULL) { code = terrno; goto _end; }
@@ -1184,17 +1349,26 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
           code = terrno;
           goto _end;
         }
-        if (oldItem) { taosMemoryFree(oldItem); }
+        if (oldItem) {
+          taosMemoryFreeClear(oldItem->tagCondJson);
+          taosMemoryFree(oldItem);
+        }
         continue;
       }
       SResolveWorkItem w = {0};
       w.originVtbUid = uid;
       w.originCid    = cid;
       w.kind         = STREAM_VREF_KIND_COL;
+      w.refType      = pRef->refType;
+      tstrncpy(w.refSourceName, pRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      tstrncpy(w.refSchemaName, pRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
       tstrncpy(w.refDbName,    pRef->refDbName,    TSDB_DB_NAME_LEN);
       tstrncpy(w.refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(w.refColName,   pRef->refColName,   TSDB_COL_NAME_LEN);
-      if (taosArrayPush(workList, &w) == NULL) { code = terrno; goto _end; }
+      w.tagCondLen  = pRef->tagCondLen;
+      w.tagCondJson = pRef->tagCondJson;
+      code = streamPushResolveWorkItem(workList, &w);
+      if (code != 0) goto _end;
     }
   } else {
     int32_t nCol = (int32_t)taosArrayGetSize(colCids);
@@ -1213,6 +1387,8 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
         code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
         goto _end;
       }
+      code = streamValidateVTableColRef(pFound);
+      if (code != TSDB_CODE_SUCCESS) goto _end;
       if (!pFound->hasRef) {
         SColResolveItem *item = taosMemoryCalloc(1, sizeof(*item));
         if (item == NULL) { code = terrno; goto _end; }
@@ -1228,10 +1404,16 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
       w.originVtbUid = uid;
       w.originCid    = cid;
       w.kind         = STREAM_VREF_KIND_COL;
+      w.refType      = pFound->refType;
+      tstrncpy(w.refSourceName, pFound->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      tstrncpy(w.refSchemaName, pFound->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
       tstrncpy(w.refDbName,    pFound->refDbName,    TSDB_DB_NAME_LEN);
       tstrncpy(w.refTableName, pFound->refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(w.refColName,   pFound->refColName,   TSDB_COL_NAME_LEN);
-      if (taosArrayPush(workList, &w) == NULL) { code = terrno; goto _end; }
+      w.tagCondLen  = pFound->tagCondLen;
+      w.tagCondJson = pFound->tagCondJson;
+      code = streamPushResolveWorkItem(workList, &w);
+      if (code != 0) goto _end;
     }
   }
 
@@ -1283,14 +1465,22 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
       continue;
     }
 
+    code = streamValidateVTableColRef(pFound);
+    if (code != TSDB_CODE_SUCCESS) goto _end;
     SResolveWorkItem w = {0};
     w.originVtbUid = uid;
     w.originCid    = cid;
     w.kind         = STREAM_VREF_KIND_TAG;
+    w.refType      = pFound->refType;
+    tstrncpy(w.refSourceName, pFound->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+    tstrncpy(w.refSchemaName, pFound->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
     tstrncpy(w.refDbName,    pFound->refDbName,    TSDB_DB_NAME_LEN);
     tstrncpy(w.refTableName, pFound->refTableName, TSDB_TABLE_NAME_LEN);
     tstrncpy(w.refColName,   pFound->refColName,   TSDB_COL_NAME_LEN);
-    if (taosArrayPush(workList, &w) == NULL) { code = terrno; goto _end; }
+    w.tagCondLen  = pFound->tagCondLen;
+    w.tagCondJson = pFound->tagCondJson;
+    code = streamPushResolveWorkItem(workList, &w);
+    if (code != 0) goto _end;
   }
 
 _end:
@@ -1306,6 +1496,19 @@ static int32_t streamVgHashValueComp(void const *lp, void const *rp) {
   if (*key < pVg->hashBegin) return -1;
   if (*key > pVg->hashEnd)   return 1;
   return 0;
+}
+
+static void streamDestroyResolveWorkList(SArray *pWorkList) {
+  if (pWorkList == NULL) return;
+  for (int32_t i = 0; i < TARRAY_SIZE(pWorkList); ++i) {
+    SResolveWorkItem *pItem = TARRAY_GET_ELEM(pWorkList, i);
+    if (pItem != NULL && pItem->ownsTagCond) {
+      taosMemoryFreeClear(pItem->tagCondJson);
+      pItem->tagCondLen = 0;
+      pItem->ownsTagCond = false;
+    }
+  }
+  taosArrayDestroy(pWorkList);
 }
 
 static int32_t streamVgInfoBeginComp(void const *lp, void const *rp) {
@@ -1946,6 +2149,8 @@ static int32_t streamScatterOneVgResolve(SVnode *pVnode, SStreamVgRpcHandle *h,
     *dst = *src;
     src->tagData = NULL;
     src->tagLen  = 0;
+    src->nextRef.tagCondJson = NULL;
+    src->nextRef.tagCondLen = 0;
   }
   return 0;
 }
@@ -1961,9 +2166,9 @@ static int32_t streamScatterOneVgResolve(SVnode *pVnode, SStreamVgRpcHandle *h,
 // outRspItems must be pre-sized with batch.size() default-zero entries; this
 // function fills them in place.
 //
-// Build the flat composite key "dbName\0tableName\0colName" used by BOTH
-// the Phase-1 dedup map and the tblRefCache. Tags and columns cannot share
-// a name within the same physical table, so kind does not enter the key.
+// Build the local-reference cache key "dbName\0tableName\0colName". Tags
+// and columns cannot share a name within the same physical table, so kind
+// does not enter the key.
 // Caller-provided buffer must hold at least
 // TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 4 bytes.
 // Example: db="mydb", tb="t1", col="voltage" => key="mydb\0t1\0voltage" (len=16)
@@ -1981,17 +2186,69 @@ void streamBuildTblColKey(const char *db, const char *tb, const char *col,
   *outLen = n;
 }
 
+// Phase-1 dedup must retain the complete terminal reference identity. In
+// particular, two external sources may expose the same schema/table/column;
+// collapsing those work items would bind the wrong source to a virtual table.
+void streamBuildRefKey(const SResolveWorkItem *item, char *out, int32_t *outLen) {
+  int32_t n = 0;
+  out[n++] = (char)item->refType;
+  const char *parts[] = {item->refSourceName, item->refSchemaName, item->refDbName,
+                         item->refTableName, item->refColName};
+  for (int32_t i = 0; i < (int32_t)(sizeof(parts) / sizeof(parts[0])); ++i) {
+    int32_t len = (int32_t)strlen(parts[i]);
+    memcpy(out + n, parts[i], len);
+    n += len;
+    out[n++] = '\0';
+  }
+  memcpy(out + n, &item->tagCondLen, sizeof(item->tagCondLen));
+  n += sizeof(item->tagCondLen);
+  if (item->tagCondLen > 0 && item->tagCondJson != NULL) {
+    memcpy(out + n, item->tagCondJson, item->tagCondLen);
+    n += item->tagCondLen;
+  }
+  *outLen = n;
+}
+
+static int32_t streamBuildTblColCondKey(const char *dbName, const char *tableName, const char *colName,
+                                        const char *tagCondJson, int32_t tagCondLen, char **ppKey) {
+  if (ppKey == NULL || dbName == NULL || tableName == NULL || colName == NULL || tagCondLen < 0 ||
+      (tagCondLen > 0 && tagCondJson == NULL)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  size_t dbLen = strlen(dbName), tableLen = strlen(tableName), colLen = strlen(colName);
+  size_t keyLen = dbLen + tableLen + colLen + 3 + sizeof(tagCondLen) + (size_t)tagCondLen;
+  char *key = taosMemoryMalloc(keyLen);
+  if (key == NULL) return terrno;
+  size_t offset = 0;
+  memcpy(key + offset, dbName, dbLen); offset += dbLen; key[offset++] = '\0';
+  memcpy(key + offset, tableName, tableLen); offset += tableLen; key[offset++] = '\0';
+  memcpy(key + offset, colName, colLen); offset += colLen; key[offset++] = '\0';
+  memcpy(key + offset, &tagCondLen, sizeof(tagCondLen)); offset += sizeof(tagCondLen);
+  if (tagCondLen > 0) memcpy(key + offset, tagCondJson, (size_t)tagCondLen);
+  *ppKey = key;
+  return (int32_t)keyLen;
+}
+
 // Helper: look up tblRefCache for a resolved column. Returns pointer to cached
 // SVTableRefResolveRspItem or NULL if not cached.
 SVTableRefResolveRspItem *streamTblRefCacheLookup(SStreamVTableInfoCache *pCache,
                                                           const char *dbName, const char *tableName,
                                                           const char *colName, int8_t kind) {
+  return streamTblRefCacheLookupEx(pCache, dbName, tableName, colName, kind, NULL, 0);
+}
+
+SVTableRefResolveRspItem *streamTblRefCacheLookupEx(SStreamVTableInfoCache *pCache,
+                                                           const char *dbName, const char *tableName,
+                                                           const char *colName, int8_t kind,
+                                                           const char *tagCondJson, int32_t tagCondLen) {
   (void)kind;  // tag and col cannot share a name within a table
   if (pCache == NULL || pCache->tblRefCache == NULL) return NULL;
-  char    key[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 4];
-  int32_t keyLen = 0;
-  streamBuildTblColKey(dbName, tableName, colName, key, &keyLen);
-  return (SVTableRefResolveRspItem *)taosHashGet(pCache->tblRefCache, key, keyLen);
+  char *key = NULL;
+  int32_t keyLen = streamBuildTblColCondKey(dbName, tableName, colName, tagCondJson, tagCondLen, &key);
+  if (keyLen < 0) return NULL;
+  SVTableRefResolveRspItem *pItem = (SVTableRefResolveRspItem *)taosHashGet(pCache->tblRefCache, key, keyLen);
+  taosMemoryFree(key);
+  return pItem;
 }
 
 // Helper: insert a resolved column result into tblRefCache.
@@ -1999,11 +2256,19 @@ void streamTblRefCacheInsert(SStreamVTableInfoCache *pCache,
                                      const char *dbName, const char *tableName,
                                      const char *colName, int8_t kind,
                                      const SVTableRefResolveRspItem *pItem) {
+  streamTblRefCacheInsertEx(pCache, dbName, tableName, colName, kind, NULL, 0, pItem);
+}
+
+void streamTblRefCacheInsertEx(SStreamVTableInfoCache *pCache,
+                                      const char *dbName, const char *tableName,
+                                      const char *colName, int8_t kind,
+                                      const char *tagCondJson, int32_t tagCondLen,
+                                      const SVTableRefResolveRspItem *pItem) {
   (void)kind;  // tag and col cannot share a name within a table
-  if (pCache == NULL || pCache->tblRefCache == NULL) return;
-  char    key[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 4];
-  int32_t keyLen = 0;
-  streamBuildTblColKey(dbName, tableName, colName, key, &keyLen);
+  if (pCache == NULL || pCache->tblRefCache == NULL || pItem == NULL) return;
+  char *key = NULL;
+  int32_t keyLen = streamBuildTblColCondKey(dbName, tableName, colName, tagCondJson, tagCondLen, &key);
+  if (keyLen < 0) return;
   // Store a deep copy including tagData so cache outlives the original rsp.
   SVTableRefResolveRspItem copy = *pItem;
   if (pItem->tagData != NULL && pItem->tagLen > 0) {
@@ -2012,20 +2277,36 @@ void streamTblRefCacheInsert(SStreamVTableInfoCache *pCache,
       memcpy(copy.tagData, pItem->tagData, pItem->tagLen);
       copy.tagLen = pItem->tagLen;
     } else {
-      copy.tagData = NULL;
-      copy.tagLen  = 0;
+      stWarn("%s skip cache insert after tag allocation failed", __func__);
+      taosMemoryFree(key);
+      return;
     }
   } else {
     copy.tagData = NULL;
     copy.tagLen  = 0;
+  }
+  if (pItem->nextRef.tagCondJson != NULL && pItem->nextRef.tagCondLen > 0) {
+    copy.nextRef.tagCondJson = taosMemoryMalloc((size_t)pItem->nextRef.tagCondLen + 1);
+    if (copy.nextRef.tagCondJson == NULL) {
+      taosMemoryFreeClear(copy.tagData);
+      taosMemoryFree(key);
+      return;
+    }
+    memcpy(copy.nextRef.tagCondJson, pItem->nextRef.tagCondJson, pItem->nextRef.tagCondLen);
+    copy.nextRef.tagCondJson[pItem->nextRef.tagCondLen] = '\0';
+  } else {
+    copy.nextRef.tagCondJson = NULL;
+    copy.nextRef.tagCondLen = 0;
   }
   if (taosHashPut(pCache->tblRefCache, key, keyLen, &copy, sizeof(copy)) != 0) {
     // Put failed (likely OOM/rehash); release the freshly deep-copied tagData
     // to avoid leaking it. Cache miss on next lookup will simply re-resolve.
     stWarn("%s taosHashPut failed for col=%s, code=0x%x", __func__, colName, terrno);
     taosMemoryFreeClear(copy.tagData);
+    taosMemoryFreeClear(copy.nextRef.tagCondJson);
     copy.tagLen = 0;
   }
+  taosMemoryFree(key);
 }
 
 // (dedup map and tblRefCache share streamBuildTblColKey above; no extra alias.)
@@ -2042,12 +2323,29 @@ int32_t streamWriteRspItemDeepCopy(const SVTableRefResolveRspItem *src,
       // surface the missing payload by zeroing tagLen instead of failing
       // the entire batch.
       dst->tagLen = 0;
+      dst->nextRef.tagCondJson = NULL;
+      dst->nextRef.tagCondLen = 0;
       return terrno;
     }
     memcpy(dst->tagData, src->tagData, src->tagLen);
   } else {
     dst->tagData = NULL;
     dst->tagLen  = 0;
+  }
+  if (src->nextRef.tagCondJson != NULL && src->nextRef.tagCondLen > 0) {
+    dst->nextRef.tagCondJson = taosMemoryMalloc((size_t)src->nextRef.tagCondLen + 1);
+    if (dst->nextRef.tagCondJson == NULL) {
+      taosMemoryFreeClear(dst->tagData);
+      dst->tagLen = 0;
+      dst->nextRef.tagCondJson = NULL;
+      dst->nextRef.tagCondLen = 0;
+      return terrno;
+    }
+    memcpy(dst->nextRef.tagCondJson, src->nextRef.tagCondJson, src->nextRef.tagCondLen);
+    dst->nextRef.tagCondJson[src->nextRef.tagCondLen] = '\0';
+  } else {
+    dst->nextRef.tagCondJson = NULL;
+    dst->nextRef.tagCondLen = 0;
   }
   return 0;
 }
@@ -2064,9 +2362,40 @@ int32_t streamBatchTryCacheAndDedup(SStreamVTableInfoCache *pCache, SArray *batc
   int32_t cacheHits = 0;
   for (int32_t i = 0; i < n; ++i) {
     SResolveWorkItem *w = taosArrayGet(batch, i);
+    if (w->tagCondLen < 0 || w->tagCondLen > STREAM_EXT_SOURCE_IDENTITY_MAX_TAG_COND_LEN ||
+        (w->tagCondLen > 0 && w->tagCondJson == NULL)) {
+      stError("%s invalid SERIES condition length:%d", __func__, w->tagCondLen);
+      return TSDB_CODE_INVALID_MSG;
+    }
 
-    SVTableRefResolveRspItem *cached = streamTblRefCacheLookup(pCache, w->refDbName, w->refTableName,
-                                                               w->refColName, w->kind);
+    // External references are terminal at this vnode. They identify a remote
+    // source, not a TDengine table that can be routed to a local vgroup.
+    if (w->refType != 0) {
+      SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, i);
+      dst->terminated = true;
+      dst->nextRef.kind = w->kind;
+      dst->nextRef.hasRef = true;
+      dst->nextRef.refType = w->refType;
+      tstrncpy(dst->nextRef.refSourceName, w->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      tstrncpy(dst->nextRef.refSchemaName, w->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+      tstrncpy(dst->nextRef.refDbName, w->refDbName, TSDB_DB_NAME_LEN);
+      tstrncpy(dst->nextRef.refTableName, w->refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(dst->nextRef.refColName, w->refColName, TSDB_COL_NAME_LEN);
+      if (w->tagCondLen > 0) {
+        if (w->tagCondJson == NULL) return TSDB_CODE_INVALID_MSG;
+        dst->nextRef.tagCondJson = taosMemoryMalloc((size_t)w->tagCondLen + 1);
+        if (dst->nextRef.tagCondJson == NULL) return terrno;
+        memcpy(dst->nextRef.tagCondJson, w->tagCondJson, w->tagCondLen);
+        dst->nextRef.tagCondJson[w->tagCondLen] = '\0';
+        dst->nextRef.tagCondLen = w->tagCondLen;
+      }
+      origToDedupIdx[i] = -1;
+      continue;
+    }
+
+    SVTableRefResolveRspItem *cached = streamTblRefCacheLookupEx(pCache, w->refDbName, w->refTableName,
+                                                                 w->refColName, w->kind, w->tagCondJson,
+                                                                 w->tagCondLen);
     if (cached != NULL) {
       // Cache hit: deep copy into the caller-owned outRspItems slot directly.
       SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, i);
@@ -2084,10 +2413,12 @@ int32_t streamBatchTryCacheAndDedup(SStreamVTableInfoCache *pCache, SArray *batc
       }
     }
 
-    // Dedup key: tag and col share namespace within a table so kind is omitted.
-    char    dedupKey[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 4];
+    // Dedup key includes source identity as well as the terminal table/column.
+    char    dedupKey[1 + TSDB_EXT_SOURCE_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN +
+                     TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 5 + sizeof(int32_t) +
+                     STREAM_EXT_SOURCE_IDENTITY_MAX_TAG_COND_LEN];
     int32_t dkLen = 0;
-    streamBuildTblColKey(w->refDbName, w->refTableName, w->refColName, dedupKey, &dkLen);
+    streamBuildRefKey(w, dedupKey, &dkLen);
 
     int32_t *pExistIdx = (int32_t *)taosHashGet(dedupMap, dedupKey, dkLen);
     if (pExistIdx != NULL) {
@@ -2170,6 +2501,9 @@ static int32_t streamBatchExecuteLocalVg(SVnode *pVnode, SArray *dedupItems, SAr
     SVTableRefResolveItem q = {0};
     q.kind   = w->kind;
     q.hasRef = true;
+    q.refType = w->refType;
+    tstrncpy(q.refSourceName, w->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+    tstrncpy(q.refSchemaName, w->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
     tstrncpy(q.refDbName,    w->refDbName,    TSDB_DB_NAME_LEN);
     tstrncpy(q.refTableName, w->refTableName, TSDB_TABLE_NAME_LEN);
     tstrncpy(q.refColName,   w->refColName,   TSDB_COL_NAME_LEN);
@@ -2177,7 +2511,7 @@ static int32_t streamBatchExecuteLocalVg(SVnode *pVnode, SArray *dedupItems, SAr
     int32_t one = vnodeResolveOneHop(pVnode, &q, dst);
     if (one != 0) {
       dst->code = one;
-      if (one == TSDB_CODE_OUT_OF_MEMORY) return one;
+      if (one == TSDB_CODE_OUT_OF_MEMORY || one == TSDB_CODE_OPS_NOT_SUPPORT) return one;
     }
   }
   return 0;
@@ -2374,7 +2708,13 @@ static int32_t streamBatchScatterAndPublish(SStreamVTableInfoCache *pCache, SArr
   for (int32_t i = 0; i < dedupN; ++i) {
     SResolveWorkItem         *w   = taosArrayGet(dedupItems, i);
     SVTableRefResolveRspItem *rsp = taosArrayGet(dedupRspItems, i);
-    streamTblRefCacheInsert(pCache, w->refDbName, w->refTableName, w->refColName, w->kind, rsp);
+    if (rsp->code == TSDB_CODE_OPS_NOT_SUPPORT) {
+      stError("%s external column filter rejected, table:%s.%s, column:%s", __func__, w->refDbName,
+              w->refTableName, w->refColName);
+      return rsp->code;
+    }
+    streamTblRefCacheInsertEx(pCache, w->refDbName, w->refTableName, w->refColName, w->kind,
+                              w->tagCondJson, w->tagCondLen, rsp);
   }
 
   for (int32_t i = 0; i < n; ++i) {
@@ -2498,6 +2838,7 @@ _end:
     for (int32_t i = 0; i < sz; ++i) {
       SVTableRefResolveRspItem *r = taosArrayGet(dedupRspItems, i);
       taosMemoryFreeClear(r->tagData);
+      taosMemoryFreeClear(r->nextRef.tagCondJson);
     }
     taosArrayDestroy(dedupRspItems);
   }
@@ -2584,20 +2925,45 @@ static int32_t streamConsumeOneHopResults(SVnode *pVnode, int32_t hop, SArray *w
         if (item == NULL) { taosMemoryFreeClear(r->tagData); return terrno; }
         item->hasRef = r->nextRef.hasRef;
         if (item->hasRef) {
+          item->refType = r->nextRef.refType;
+          tstrncpy(item->refSourceName, r->nextRef.refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(item->refSchemaName, r->nextRef.refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
           tstrncpy(item->refDbName,    r->nextRef.refDbName,    TSDB_DB_NAME_LEN);
           tstrncpy(item->refTableName, r->nextRef.refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(item->refColName,   r->nextRef.refColName,   TSDB_COL_NAME_LEN);
+          const char *tagCond = w->tagCondLen > 0 ? w->tagCondJson : r->nextRef.tagCondJson;
+          int32_t tagCondLen = w->tagCondLen > 0 ? w->tagCondLen : r->nextRef.tagCondLen;
+          if (tagCondLen > 0) {
+            if (tagCond == NULL) {
+              taosMemoryFree(item);
+              taosMemoryFreeClear(r->tagData);
+              return TSDB_CODE_INVALID_MSG;
+            }
+            item->tagCondJson = taosMemoryMalloc((size_t)tagCondLen + 1);
+            if (item->tagCondJson == NULL) {
+              taosMemoryFree(item);
+              taosMemoryFreeClear(r->tagData);
+              return terrno;
+            }
+            memcpy(item->tagCondJson, tagCond, tagCondLen);
+            item->tagCondJson[tagCondLen] = '\0';
+            item->tagCondLen = tagCondLen;
+          }
         }
         // Snapshot old pointer before put; free it only after successful put so
         // the hash never holds a dangling pointer (avoids double-free on cleanup).
         SColResolveItem **ppOld = (SColResolveItem **)tSimpleHashGet(pRes->colMap, &w->originCid, sizeof(w->originCid));
         SColResolveItem  *oldItem = (ppOld && *ppOld) ? *ppOld : NULL;
         if (tSimpleHashPut(pRes->colMap, &w->originCid, sizeof(w->originCid), &item, sizeof(item)) != 0) {
+          taosMemoryFreeClear(item->tagCondJson);
           taosMemoryFree(item);
           taosMemoryFreeClear(r->tagData);
           return terrno;
         }
-        if (oldItem) { taosMemoryFree(oldItem); }
+        if (oldItem) {
+          taosMemoryFreeClear(oldItem->tagCondJson);
+          taosMemoryFree(oldItem);
+        }
         stDebug("vgId:%d %s hop=%d uid=%" PRId64 " COL cid=%d TERMINATED hasRef=%d ref=%s.%s.%s -> colMap",
                 TD_VID(pVnode), __func__, hop, w->originVtbUid, w->originCid,
                 item->hasRef, item->refDbName, item->refTableName, item->refColName);
@@ -2625,10 +2991,30 @@ static int32_t streamConsumeOneHopResults(SVnode *pVnode, int32_t hop, SArray *w
       next.originVtbUid = w->originVtbUid;
       next.originCid    = w->originCid;
       next.kind         = r->nextRef.kind;
+      next.refType      = r->nextRef.refType;
+      tstrncpy(next.refSourceName, r->nextRef.refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      tstrncpy(next.refSchemaName, r->nextRef.refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
       tstrncpy(next.refDbName,    r->nextRef.refDbName,    TSDB_DB_NAME_LEN);
       tstrncpy(next.refTableName, r->nextRef.refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(next.refColName,   r->nextRef.refColName,   TSDB_COL_NAME_LEN);
+      next.tagCondLen = r->nextRef.tagCondLen > 0 ? r->nextRef.tagCondLen : w->tagCondLen;
+      if (next.tagCondLen > 0) {
+        const char *tagCond = r->nextRef.tagCondLen > 0 ? r->nextRef.tagCondJson : w->tagCondJson;
+        if (tagCond == NULL) {
+          taosMemoryFreeClear(r->tagData);
+          return TSDB_CODE_INVALID_MSG;
+        }
+        next.tagCondJson = taosMemoryMalloc((size_t)next.tagCondLen + 1);
+        if (next.tagCondJson == NULL) {
+          taosMemoryFreeClear(r->tagData);
+          return terrno;
+        }
+        memcpy(next.tagCondJson, tagCond, next.tagCondLen);
+        next.tagCondJson[next.tagCondLen] = '\0';
+        next.ownsTagCond = true;
+      }
       if (taosArrayPush(nextWorkList, &next) == NULL) {
+        taosMemoryFreeClear(next.tagCondJson);
         taosMemoryFreeClear(r->tagData);
         return terrno;
       }
@@ -2758,8 +3144,10 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
     code = streamConsumeOneHopResults(pVnode, hop, workList, rspItems, uid2Result, nextWorkList);
     if (code != 0) goto _end;
 
-    taosArrayDestroy(rspItems); rspItems = NULL;
-    taosArrayDestroy(workList);
+    SVTableRefResolveRsp completedRsp = {.items = rspItems};
+    tFreeSVTableRefResolveRsp(&completedRsp);
+    rspItems = NULL;
+    streamDestroyResolveWorkList(workList);
     workList     = nextWorkList;
     nextWorkList = NULL;
   }
@@ -2795,13 +3183,14 @@ _end:
           (*ppUid2Result ? tSimpleHashGetSize(*ppUid2Result) : 0));
   if (fullUids        != NULL) taosArrayDestroy(fullUids);
   if (pTableListArray != NULL) taosArrayDestroyP(pTableListArray, taosMemFree);
-  if (workList     != NULL) taosArrayDestroy(workList);
-  if (nextWorkList != NULL) taosArrayDestroy(nextWorkList);
+  if (workList     != NULL) streamDestroyResolveWorkList(workList);
+  if (nextWorkList != NULL) streamDestroyResolveWorkList(nextWorkList);
   if (rspItems     != NULL) {
     int32_t m = (int32_t)taosArrayGetSize(rspItems);
     for (int32_t i = 0; i < m; ++i) {
       SVTableRefResolveRspItem *r = taosArrayGet(rspItems, i);
       taosMemoryFreeClear(r->tagData);
+      taosMemoryFreeClear(r->nextRef.tagCondJson);
     }
     taosArrayDestroy(rspItems);
   }
