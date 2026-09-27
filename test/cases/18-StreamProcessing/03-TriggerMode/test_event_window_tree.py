@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import time
+import pytest
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
@@ -55,7 +56,8 @@ class TestEventWindowTree:
     def test_event_window_tree_paths(self):
         """EVENT_WINDOW nested START WITH emits stable condition paths.
 
-        EVENT_WINDOW nested START WITH emits stable condition paths.
+        Switch between nested leaves and verify the envelope, group, and leaf
+        condition paths and row counts emitted on window close.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -99,7 +101,8 @@ class TestEventWindowTree:
     def test_event_window_tree_compatibility(self):
         """Existing single-condition and flat sub-event streams remain legal.
 
-        Existing single-condition and flat sub-event streams remain legal.
+        Create single-condition and flat sub-event streams without END WITH
+        and verify that both trigger tasks reach the Running state.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -128,10 +131,65 @@ class TestEventWindowTree:
         )
         tdStream.checkStreamStatus()
 
+    @pytest.mark.parametrize("fill_history", [False, True], ids=["realtime", "history"])
+    @pytest.mark.parametrize("use_event_tree", [False, True], ids=["ordinary", "tree"])
+    @pytest.mark.parametrize("explicit_end", [False, True], ids=["implicit_end", "explicit_end"])
+    def test_event_window_tree_single_leaf_end_condition(self, fill_history, use_event_tree, explicit_end):
+        """A single leaf closes on mismatch only when END WITH is omitted.
+
+        Compare implicit and explicit closing in ordinary and event-tree paths,
+        for realtime input and history replay, checking window bounds and counts.
+
+        Catalog:
+            - StreamProcessing:TriggerMode
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7125293823
+
+        History:
+            - 2026-09-27 Created
+        """
+        tdStream.dropAllStreamsAndDbs()
+        tdStream.ensureSnode()
+        tdSql.prepare(dbname="ewtree_single_end", vgroups=1)
+        tdSql.execute("create table t (ts timestamp, c0 int, c1 int)")
+        inserts = [
+            "insert into t values ('2025-01-01 00:00:00.000', 1, 0)",
+            "insert into t values ('2025-01-01 00:00:01.000', 0, 0)",
+            "insert into t values ('2025-01-01 00:00:02.000', 1, 0)",
+            "insert into t values ('2025-01-01 00:00:03.000', 0, 0)",
+            "insert into t values ('2025-01-01 00:00:04.000', 0, 1)",
+        ]
+        if fill_history:
+            tdSql.executes(inserts)
+        end_clause = " end with c1 = 1" if explicit_end else ""
+        options = "stream_options(fill_history) " if fill_history else ""
+        leaf_true_for = " true_for(count 1)" if use_event_tree else ""
+        tdSql.execute(
+            f"create stream s_single event_window(start with c0 = 1{leaf_true_for}{end_clause}) "
+            f"from t {options}into r_single (ts, te, nrows, cnt) "
+            "as select _twstart, _twend, _twrownum, count(*) from %%trows"
+        )
+        tdStream.checkStreamStatus()
+        if not fill_history:
+            tdSql.executes(inserts)
+        expected = (
+            [("2025-01-01 00:00:00.000", "2025-01-01 00:00:04.000", 5, 5)]
+            if explicit_end
+            else [
+                ("2025-01-01 00:00:00.000", "2025-01-01 00:00:00.000", 1, 1),
+                ("2025-01-01 00:00:02.000", "2025-01-01 00:00:02.000", 1, 1),
+            ]
+        )
+        self._query_until_result("select ts, te, nrows, cnt from r_single order by ts", expected)
+
     def test_event_window_tree_single_condition_close_reopens_from_next_row(self):
         """Single-condition event tree starts a fresh window after close.
 
-        Single-condition event tree starts a fresh window after close.
+        Insert successive START and END matches and verify that each closed
+        single-condition window is followed by a new window with its own bounds.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -179,7 +237,8 @@ class TestEventWindowTree:
     def test_event_window_tree_global_true_for_does_not_delay_single_leaf_start(self):
         """Global true_for filters output but does not delay single leaf start.
 
-        Global true_for filters output but does not delay single leaf start.
+        Feed windows of different durations and verify that the global duration
+        filter preserves the first START row and suppresses short windows.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -232,7 +291,8 @@ class TestEventWindowTree:
     def test_event_window_tree_history_global_true_for_does_not_delay_single_leaf_start(self):
         """History replay keeps global true_for separate from single leaf start.
 
-        History replay keeps global true_for separate from single leaf start.
+        Replay existing rows with fill_history and verify that the global duration
+        filter preserves the first START row and suppresses short windows.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -285,7 +345,8 @@ class TestEventWindowTree:
     def test_event_window_tree_fill_history_matches_realtime_paths(self):
         """EVENT_WINDOW tree history replay matches realtime condition paths.
 
-        EVENT_WINDOW tree history replay matches realtime condition paths.
+        Create the stream after inserting data and verify that history replay
+        produces the expected envelope, group, and leaf paths and row counts.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -329,7 +390,8 @@ class TestEventWindowTree:
     def test_event_window_tree_end_without_leaf_uses_last_leaf_row(self):
         """EVENT_WINDOW tree closes at the last descendant leaf row.
 
-        EVENT_WINDOW tree closes at the last descendant leaf row.
+        Make END match a row that satisfies no START leaf and verify that the
+        closing envelope and descendant windows exclude that final row.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -372,7 +434,8 @@ class TestEventWindowTree:
     def test_event_window_tree_leaf_true_for_resets_after_close(self):
         """Single leaf true_for streak is cleared when the window closes.
 
-        Single leaf true_for streak is cleared when the window closes.
+        Close two consecutive windows whose leaf requires two matching rows
+        and verify that each window starts from a fresh leaf streak.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -416,7 +479,8 @@ class TestEventWindowTree:
     def test_event_window_tree_leaf_true_for_is_local(self):
         """EVENT_WINDOW tree applies true_for on the matching leaf only.
 
-        EVENT_WINDOW tree applies true_for on the matching leaf only.
+        Switch from a leaf with a local count threshold to its sibling and verify
+        that each leaf retains its own window bounds and row count.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -462,7 +526,8 @@ class TestEventWindowTree:
     def test_event_window_tree_parallel_pending_fallback(self):
         """Lower priority leaf wins from its own streak if higher priority breaks.
 
-        Lower priority leaf wins from its own streak if higher priority breaks.
+        Break the higher-priority pending streak while the lower-priority leaf
+        meets its threshold, then verify the selected path starts at its first match.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -504,7 +569,8 @@ class TestEventWindowTree:
     def test_event_window_tree_backtracking_preemption(self):
         """Higher priority leaf preempts active lower priority from its streak start.
 
-        Higher priority leaf preempts active lower priority from its streak start.
+        Satisfy a higher-priority leaf after a lower-priority window opens and
+        verify that preemption splits the windows at the new streak start.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -548,7 +614,8 @@ class TestEventWindowTree:
     def test_event_window_tree_parent_true_for_is_global(self):
         """Global true_for suppresses parent nodes but not local leaf windows.
 
-        Global true_for suppresses parent nodes but not local leaf windows.
+        Close a window before the global count threshold is met and verify that
+        the matching leaf emits a result while the envelope remains filtered.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -588,7 +655,8 @@ class TestEventWindowTree:
     def test_event_window_tree_global_true_for_filters_parent_open(self):
         """Global true_for suppresses parent open.
 
-        Global true_for suppresses parent open.
+        Request WINDOW_OPEN for a window below the global count threshold and
+        verify that only the leaf whose local threshold is satisfied emits a row.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -628,7 +696,8 @@ class TestEventWindowTree:
     def test_event_window_tree_global_true_for_emits_parent_open_and_close(self):
         """Satisfied global true_for emits non-leaf open and close.
 
-        Satisfied global true_for emits non-leaf open and close.
+        Satisfy the global count threshold on the closing row and verify that
+        both the envelope and leaf emit their opening and closing results.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -673,7 +742,8 @@ class TestEventWindowTree:
     def test_event_window_tree_history_global_true_for_emits_parent_open_and_close(self):
         """History replay emits satisfied non-leaf open and close.
 
-        History replay emits satisfied non-leaf open and close.
+        Replay rows that satisfy the global count threshold at close and verify
+        opening and closing results for both the envelope and leaf.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -718,7 +788,8 @@ class TestEventWindowTree:
     def test_event_window_tree_global_true_for_does_not_duplicate_parent_open(self):
         """Non-leaf open already emitted before close is not emitted again.
 
-        Non-leaf open already emitted before close is not emitted again.
+        Open a nested leaf after its ancestors satisfy the global count threshold
+        and verify exactly one opening and one closing result for each path.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -767,7 +838,8 @@ class TestEventWindowTree:
     def test_event_window_tree_history_global_true_for_does_not_duplicate_parent_open(self):
         """History replay does not duplicate non-leaf open at close.
 
-        History replay does not duplicate non-leaf open at close.
+        Replay a nested leaf whose ancestors satisfy the global count threshold
+        and verify exactly one opening and one closing result for each path.
 
         Catalog:
             - StreamProcessing:TriggerMode
@@ -816,7 +888,8 @@ class TestEventWindowTree:
     def test_event_window_tree_pending_break_keeps_active_leaf(self):
         """Broken higher priority pending leaf does not interrupt active lower leaf.
 
-        Broken higher priority pending leaf does not interrupt active lower leaf.
+        Break a higher-priority pending streak while a lower-priority leaf is
+        active and verify that the active window retains all its matching rows.
 
         Catalog:
             - StreamProcessing:TriggerMode
