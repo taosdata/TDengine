@@ -30,6 +30,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "tlogKeyOp.h"
 #include "tmisce.h"
 
 #define VGROUP_VER_COMPAT_MOUNT_KEEP_VER  2
@@ -2467,7 +2468,8 @@ int32_t mndSetMoveVgroupsInfoToTrans(SMnode *pMnode, STrans *pTrans, int32_t del
 static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup,
                                              int32_t newDnodeId) {
   int32_t code = 0;
-  mInfo("vgId:%d, will add 1 vnode, replica:%d dnode:%d", pVgroup->vgId, pVgroup->replica, newDnodeId);
+  mInfo(KEYOP("alter-vgroup-replica", "STEP") "trans:%d, vgId:%d, will add 1 vnode, replica:%d dnode:%d",
+        pTrans->id, pVgroup->vgId, pVgroup->replica, newDnodeId);
 
   // assoc dnode
   SVnodeGid *pGid = &pVgroup->vnodeGid[pVgroup->replica];
@@ -2579,7 +2581,8 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
 
   SVgObj newVg = {0};
   memcpy(&newVg, pVgroup, sizeof(SVgObj));
-  mInfo("vgId:%d, vgroup info before redistribute, replica:%d", newVg.vgId, newVg.replica);
+  mInfo(KEYOP("redistribute-vgroup", "STEP") "vgId:%d, vgroup info before redistribute, replica:%d", newVg.vgId,
+        newVg.replica);
   for (int32_t i = 0; i < newVg.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d role:%s", newVg.vgId, i, newVg.vnodeGid[i].dnodeId,
           syncStr(newVg.vnodeGid[i].syncState));
@@ -2668,7 +2671,8 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
     }
   }
 
-  mInfo("vgId:%d, vgroup info after redistribute, replica:%d", newVg.vgId, newVg.replica);
+  mInfo(KEYOP("redistribute-vgroup", "STEP") "vgId:%d, vgroup info after redistribute, replica:%d", newVg.vgId,
+        newVg.replica);
   for (int32_t i = 0; i < newVg.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg.vgId, i, newVg.vnodeGid[i].dnodeId);
   }
@@ -3771,8 +3775,8 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
 
   SVgObj newVg1 = {0};
   memcpy(&newVg1, pVgroup, sizeof(SVgObj));
-  mInfo("vgId:%d, vgroup info before split, replica:%d hashBegin:%u hashEnd:%u", newVg1.vgId, newVg1.replica,
-        newVg1.hashBegin, newVg1.hashEnd);
+  mInfo(KEYOP("split-vgroup", "STEP") "vgId:%d, vgroup info before split, replica:%d hashBegin:%u hashEnd:%u",
+        newVg1.vgId, newVg1.replica, newVg1.hashBegin, newVg1.hashEnd);
   for (int32_t i = 0; i < newVg1.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg1.vgId, i, newVg1.vnodeGid[i].dnodeId);
   }
@@ -3820,13 +3824,15 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   memcpy(&newVg2.vnodeGid[0], &newVg2.vnodeGid[1], sizeof(SVnodeGid));
   memset(&newVg2.vnodeGid[1], 0, sizeof(SVnodeGid));
 
-  mInfo("vgId:%d, vgroup info after split, replica:%d hashrange:[%u, %u] vnode:0 dnode:%d", newVg1.vgId, newVg1.replica,
-        newVg1.hashBegin, newVg1.hashEnd, newVg1.vnodeGid[0].dnodeId);
+  mInfo(KEYOP("split-vgroup", "STEP")
+            "vgId:%d, vgroup info after split, replica:%d hashrange:[%u, %u] vnode:0 dnode:%d",
+        newVg1.vgId, newVg1.replica, newVg1.hashBegin, newVg1.hashEnd, newVg1.vnodeGid[0].dnodeId);
   for (int32_t i = 0; i < newVg1.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg1.vgId, i, newVg1.vnodeGid[i].dnodeId);
   }
-  mInfo("vgId:%d, vgroup info after split, replica:%d hashrange:[%u, %u] vnode:0 dnode:%d", newVg2.vgId, newVg2.replica,
-        newVg2.hashBegin, newVg2.hashEnd, newVg2.vnodeGid[0].dnodeId);
+  mInfo(KEYOP("split-vgroup", "STEP")
+            "vgId:%d, vgroup info after split, replica:%d hashrange:[%u, %u] vnode:0 dnode:%d",
+        newVg2.vgId, newVg2.replica, newVg2.hashBegin, newVg2.hashEnd, newVg2.vnodeGid[0].dnodeId);
   for (int32_t i = 0; i < newVg1.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg2.vgId, i, newVg2.vnodeGid[i].dnodeId);
   }

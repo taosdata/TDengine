@@ -22,6 +22,7 @@
 #include "tdatablock.h"
 #include "querynodes.h"
 #include "thash.h"
+#include "tlogKeyOp.h"
 
 extern int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry);
 extern int32_t metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema,
@@ -1018,8 +1019,9 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
   // handle entry
   code = metaHandleEntry2(pMeta, &entry);
   if (TSDB_CODE_SUCCESS == code) {
-    metaInfo("vgId:%d, index:%" PRId64 ", virtual normal table is created, tb:%s uid:%" PRId64, TD_VID(pMeta->pVnode),
-             version, pReq->name, pReq->uid);
+    metaInfo(KEYOP("vtable-create", "END")
+                 "vgId:%d, index:%" PRId64 ", virtual normal table is created, tb:%s uid:%" PRId64,
+             TD_VID(pMeta->pVnode), version, pReq->name, pReq->uid);
   } else {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
@@ -1426,8 +1428,9 @@ static int32_t metaCreateVirtualChildTable(SMeta *pMeta, int64_t version, SVCrea
   // handle entry
   code = metaHandleEntry2(pMeta, &entry);
   if (TSDB_CODE_SUCCESS == code) {
-    metaInfo("vgId:%d, index:%" PRId64 ", virtual child table is created, tb:%s uid:%" PRId64, TD_VID(pMeta->pVnode),
-             version, pReq->name, pReq->uid);
+    metaInfo(KEYOP("vtable-create", "END")
+                 "vgId:%d, index:%" PRId64 ", virtual child table is created, tb:%s uid:%" PRId64,
+             TD_VID(pMeta->pVnode), version, pReq->name, pReq->uid);
   } else {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
@@ -1939,9 +1942,17 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
+    if (pReq->isVirtual) {
+      metaError(KEYOP("vtable-drop", "FAIL") "vgId:%d, table %s uid %" PRId64 " since %s", TD_VID(pMeta->pVnode),
+                pReq->name, pReq->uid, tstrerror(code));
+    }
   } else {
     metaInfo("vgId:%d, table %s uid %" PRId64 " is dropped, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
              pReq->uid, version);
+    if (pReq->isVirtual) {
+      metaInfo(KEYOP("vtable-drop", "END") "vgId:%d, table %s uid %" PRId64 " is dropped, version:%" PRId64,
+               TD_VID(pMeta->pVnode), pReq->name, pReq->uid, version);
+    }
   }
   TAOS_RETURN(code);
 }
@@ -2010,6 +2021,9 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
                                       STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s add own column %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
 
   // an own data column of a vchild must carry an origin reference
   if (NULL == pReq->refDbName || NULL == pReq->refTbName || NULL == pReq->refColName ||
@@ -2191,8 +2205,9 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
     goto _return;
   }
-  metaInfo("vgId:%d, table %s uid %" PRId64 " added own column %s colId %d, version:%" PRId64, TD_VID(pMeta->pVnode),
-           pReq->tbName, pEntry->uid, pReq->colName, newColId, version);
+  metaInfo(KEYOP("vtable-alter", "END")
+               "vgId:%d, table %s uid %" PRId64 " added own column %s colId %d, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, pReq->colName, newColId, version);
 
   // build the merged response (vstb schema + own columns) so the client catalog cache refreshes
   code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pStbSchema, &pSuper->stbEntry.schemaTag, &pEntry->colRef, pSuper->pExtSchemas,
@@ -2218,6 +2233,9 @@ _return:
 static int32_t metaDropVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, SMetaEntry *pEntry,
                                        STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s drop own column %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
 
   // locate the own column by name
   int32_t idx = -1;
@@ -2292,8 +2310,9 @@ static int32_t metaDropVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbR
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
     goto _exit;
   }
-  metaInfo("vgId:%d, table %s uid %" PRId64 " dropped own column %s colId %d, version:%" PRId64, TD_VID(pMeta->pVnode),
-           pReq->tbName, pEntry->uid, pReq->colName, droppedColId, version);
+  metaInfo(KEYOP("vtable-alter", "END")
+               "vgId:%d, table %s uid %" PRId64 " dropped own column %s colId %d, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, pReq->colName, droppedColId, version);
 
   // build the merged response (vstb schema + remaining own columns) so the client catalog cache refreshes
   code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, &pSuper->stbEntry.schemaRow, &pSuper->stbEntry.schemaTag,
@@ -2359,6 +2378,9 @@ _exit:
 // (shared with own columns) so it can never collide with vstb-assigned colIds.
 int32_t metaAddVChildOwnTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s add own tag %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+           pReq->tbName, pReq->colName, version);
 
   if (NULL == pReq->colName || strlen(pReq->colName) == 0) {
     metaError("vgId:%d, %s failed at %s:%d since invalid tag name:%s, version:%" PRId64, TD_VID(pMeta->pVnode),
@@ -2555,8 +2577,9 @@ int32_t metaAddVChildOwnTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
     goto _exit;
   }
-  metaInfo("vgId:%d, table %s uid %" PRId64 " added own tag %s colId %d, version:%" PRId64, TD_VID(pMeta->pVnode),
-           pReq->tbName, pEntry->uid, pReq->colName, newColId, version);
+  metaInfo(KEYOP("vtable-alter", "END")
+               "vgId:%d, table %s uid %" PRId64 " added own tag %s colId %d, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, pReq->colName, newColId, version);
 
   // build the merged response (vstb schema + own columns/tags) so the client catalog cache refreshes
   code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pStbSchema, pStbTagSchema, &pEntry->colRef, pSuper->pExtSchemas,
@@ -2579,6 +2602,9 @@ _exit:
 // reach here (enforced by the parser / dispatcher).
 int32_t metaDropVChildOwnTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s drop own tag %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
 
   if (NULL == pReq->colName || strlen(pReq->colName) == 0) {
     metaError("vgId:%d, %s failed at %s:%d since invalid tag name:%s, version:%" PRId64, TD_VID(pMeta->pVnode),
@@ -2706,8 +2732,9 @@ int32_t metaDropVChildOwnTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, 
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
     goto _exit;
   }
-  metaInfo("vgId:%d, table %s uid %" PRId64 " dropped own tag %s colId %d, version:%" PRId64, TD_VID(pMeta->pVnode),
-           pReq->tbName, pEntry->uid, pReq->colName, droppedColId, version);
+  metaInfo(KEYOP("vtable-alter", "END")
+               "vgId:%d, table %s uid %" PRId64 " dropped own tag %s colId %d, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, pReq->colName, droppedColId, version);
 
   // build the merged response (vstb schema + remaining own columns/tags) so the client catalog cache refreshes
   code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, &pSuper->stbEntry.schemaRow, pStbTagSchema, &pEntry->colRef,
@@ -5531,6 +5558,9 @@ int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq 
 int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s alter column ref %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+
   // check request
   code = metaCheckAlterTableColumnReq(pMeta, version, pReq);
   if (code) {
@@ -5664,7 +5694,8 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     metaFetchEntryFree(&pSuper);
     TAOS_RETURN(code);
   } else {
-    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
+    metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName,
              pEntry->uid, version);
   }
 
@@ -5720,6 +5751,9 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
 
 int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s remove column ref %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
 
   // check request
   code = metaCheckAlterTableColumnReq(pMeta, version, pReq);
@@ -5796,7 +5830,8 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
     metaFetchEntryFree(&pSuper);
     TAOS_RETURN(code);
   } else {
-    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
+    metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName,
              pEntry->uid, version);
   }
 
@@ -5992,6 +6027,9 @@ static int32_t metaCheckTagRefChainLocal(SMeta *pMeta, const char *pSrcTbName, c
 int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s alter tag ref %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+
   if (NULL == pReq->colName || NULL == pReq->refDbName || NULL == pReq->refTbName || NULL == pReq->refColName) {
     metaError("vgId:%d, %s failed at %s:%d since invalid request params, version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, version);
@@ -6163,8 +6201,8 @@ int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
   } else {
-    metaInfo("vgId:%d, table %s uid %" PRId64 " tag ref updated, version:%" PRId64, TD_VID(pMeta->pVnode),
-             pReq->tbName, pEntry->uid, version);
+    metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " tag ref updated, version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, version);
   }
 
   // build response

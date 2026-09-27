@@ -25,6 +25,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tcompare.h"
+#include "tlogKeyOp.h"
 #include "tname.h"
 
 #define MND_SUBSCRIBE_VER_NUMBER   5
@@ -946,6 +947,8 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     if (terrno != 0) code = terrno;
     goto END;
   }
+
+  mInfo(KEYOP("tmq-rebalance", "STEP") "trans:%d, rebalance persisting for sub:%s", pTrans->id, pOutput->pSub->key);
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_INTERUPT);
   mndTransSetDbName(pTrans, pOutput->pSub->dbName, pOutput->pSub->key);

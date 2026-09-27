@@ -20,6 +20,7 @@
 #include "tencrypt.h"
 #include "tsdb.h"
 #include "vnd.h"
+#include "tlogKeyOp.h"
 
 static int32_t vnodeExtractSnapInfoDiff(void *buf, int32_t bufLen, TFileSetRangeArray **ppRanges) {
   int32_t            code = 0;
@@ -236,7 +237,8 @@ _exit:
     if (pReader != NULL) vnodeSnapReaderClose(pReader);
     *ppReader = NULL;
   } else {
-    vInfo("vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
+    vInfo(KEYOP("restore-dnode", "START") "vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64,
+          TD_VID(pVnode), sver, ever);
     *ppReader = pReader;
   }
   return code;
@@ -264,7 +266,7 @@ static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
 }
 
 void vnodeSnapReaderClose(SVSnapReader *pReader) {
-  vInfo("vgId:%d, close vnode snapshot reader", TD_VID(pReader->pVnode));
+  vInfo(KEYOP("restore-dnode", "END") "vgId:%d, close vnode snapshot reader", TD_VID(pReader->pVnode));
   vnodeSnapReaderDestroyTsdbRanges(pReader);
 #ifdef USE_RSMA_ORIGIN
   if (pReader->pRsmaReader) {
@@ -894,8 +896,9 @@ _exit:
     if (pWriter) taosMemoryFreeClear(pWriter);
     *ppWriter = NULL;
   } else {
-    vInfo("vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
-          sver, ever, pWriter->commitID);
+    vInfo(KEYOP("restore-dnode", "START")
+              "vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64,
+          TD_VID(pVnode), sver, ever, pWriter->commitID);
     *ppWriter = pWriter;
   }
   return code;
@@ -1023,7 +1026,8 @@ _exit:
   if (code) {
     vError("vgId:%d, vnode snapshot writer close failed since %s", TD_VID(pWriter->pVnode), tstrerror(code));
   } else {
-    vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
+    vInfo(KEYOP("restore-dnode", "END") "vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode),
+          rollback);
     taosMemoryFree(pWriter);
   }
   if (vnodeEnableBgTask(pVnode) != 0) {

@@ -202,6 +202,62 @@ def test_generated_lite_installer_names_current_and_legacy_groups(tmp_path, monk
     assert '#define MyAppName "TDengine TDgpt-OSS Lite"' in generated_iss
     assert '#define MyLegacyAppName "TDengine TDgpt-OSS"' in generated_iss
     assert "{{LEGACY_APP_NAME}}" not in generated_iss
+    assert "{{APP_NAME}}" not in generated_iss
+    assert "{{VERSION}}" not in generated_iss
+    assert "WizardStyle=modern" in generated_iss
+    assert "WizardForm.Caption := '{#MyAppName} {#MyAppVersion} Setup';" in generated_iss
+    assert "UninstallAppFullTitle={#MyAppName} {#MyAppVersion} Uninstall" in generated_iss
+    assert "ConfirmUninstall=Are you sure you want to uninstall {#MyAppName}?" in generated_iss
+
+
+def test_lite_installer_aligns_completion_text_and_log_checkbox():
+    installer_template = (MODULE_PATH.parent / "installer" / "tdgpt-lite.iss").read_text(
+        encoding="utf-8-sig"
+    )
+
+    for control in (
+        "WizardForm.PageNameLabel",
+        "WizardForm.PageDescriptionLabel",
+        "WizardForm.InnerNotebook",
+        "WizardForm.FinishedHeadingLabel",
+        "WizardForm.FinishedLabel",
+        "FinishNotesLabel",
+        "WizardForm.RunList",
+    ):
+        assert f"MoveControlToClientX({control}, CaptionX);" in installer_template
+    assert "WizardForm.AdjustLabelHeight(FinishNotesLabel);" in installer_template
+    assert "WizardForm.RunList.Top := FinishNotesLabel.Top + FinishNotesLabel.Height" in installer_template
+    assert "if WizardForm.YesRadio.Visible then\n      exit;" in installer_template
+    assert 'Description: "View the installation log";' in installer_template
+
+
+def test_lite_uninstall_updates_status_without_changing_retention():
+    installer_template = (MODULE_PATH.parent / "installer" / "tdgpt-lite.iss").read_text(
+        encoding="utf-8-sig"
+    )
+
+    uninstall_run = installer_template.split("[UninstallRun]", 1)[1].split("[", 1)[0]
+    assert 'Parameters: "/C call ""{app}\\uninstall.bat""";' in uninstall_run
+    # These entry callbacks run while Setup records the uninstall command,
+    # when UninstallProgressForm does not exist, including in silent mode.
+    assert "BeforeInstall:" not in uninstall_run
+    assert "AfterInstall:" not in uninstall_run
+    assert "procedure InitializeUninstallProgressForm;" in installer_template
+    uninstall_event = installer_template.split(
+        "procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);", 1
+    )[1]
+    before_removal = uninstall_event.split("CurUninstallStep = usPostUninstall", 1)[0]
+    assert "if CurUninstallStep = usUninstall then" in before_removal
+    assert (
+        "UninstallProgressForm.StatusLabel.Caption := "
+        "'Stopping services and removing application files...';"
+    ) in before_removal
+    assert "UninstallProgressForm.Refresh;" in before_removal
+    assert "IconFile := ExpandConstant('{app}\\favicon.ico');" in installer_template
+    assert "DelTree(" not in installer_template
+    assert "[UninstallDelete]" not in installer_template
+    for directory in ("cfg", "data", "log", "model", "model_venvs", "venvs"):
+        assert f'Name: "{{app}}\\{directory}"; Permissions: everyone-modify; Flags: uninsneveruninstall' in installer_template
 
 
 def test_silent_installer_does_not_prompt_for_prerequisite_or_existing_install():

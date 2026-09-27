@@ -32,6 +32,7 @@
 #include "osMemory.h"
 #include "parser.h"
 #include "taoserror.h"
+#include "tlogKeyOp.h"
 #include "tmisce.h"
 #include "tname.h"
 // #include "mndDnode.h"
@@ -2865,6 +2866,10 @@ static int32_t msmDeployStreamTasks(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmS
   TAOS_CHECK_EXIT(
       mndStreamRecalcRestore(pStream, pStatus, pStatus->triggerTask->id.taskId, pStatus->triggerTask->id.seriousId));
 
+  // NOTE: this is an internal deployment milestone, not the operation's terminal state - the
+  // trans-level START/END/FAIL for op=stream-create already comes from mndTrans.c's generic
+  // KEYOP hook, so use STEP here to avoid emitting a second, duplicate phase=END record.
+  mstsInfo(KEYOP("stream-create", "STEP") "stream fully deployed, taskId:%" PRIx64, pStatus->triggerTask->id.taskId);
   mstLogSStmStatus("stream deployed", streamId, pStatus);
 
 _exit:
@@ -4368,6 +4373,12 @@ void msmChkHandleTriggerOperations(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask, S
   SStmStatus* pStream = (SStmStatus*)pStatus->pStream;
   SArray*     pRecalcList = NULL;
 
+  // Use plain mstInfo (not msttInfo) here: pTask is typed SStmTaskStatusMsg*, but msttXxx
+  // blindly casts its implicit pTask to SStreamTask* - that cast is wrong for this function's
+  // parameter type, so avoid the macro entirely rather than copy the mismatch.
+  mstInfo(KEYOP("stream-trigger-fire", "START") "streamId:%" PRIx64 " taskId:%" PRIx64 " checking trigger operations",
+          pTask->streamId, pTask->taskId);
+
   TAOS_CHECK_EXIT(mndStreamRecalcBuildDispatch(pStream, &pRecalcList));
   if (taosArrayGetSize(pRecalcList) > 0) {
     TAOS_CHECK_EXIT(msmGrpAddActionRecalc(pCtx, pTask->streamId, pRecalcList));
@@ -4394,6 +4405,12 @@ _exit:
   if (code) {
     // IGNORE STOP STREAM BY ERROR
     msttError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    // This runs every heartbeat round, not once per trigger's lifetime, so STEP (not END) is the
+    // correct phase - "trigger firing" has no single terminal state to mark as END here.
+    mstInfo(KEYOP("stream-trigger-fire", "STEP") "streamId:%" PRIx64 " taskId:%" PRIx64
+                                                  " trigger operations handled, detailStatus:%d",
+            pTask->streamId, pTask->taskId, pTask->detailStatus);
   }
 }
 
