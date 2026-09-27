@@ -1820,7 +1820,13 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
 
     def test_fq_path_resolution_framework(self):
-        """Data-driven path resolution test: all dimensions × all source types."""
+        """Data-driven path resolution test: all dimensions × all source types.
+
+        Data-driven path resolution test: all dimensions × all source types.
+
+        Since: v3.4.0.0
+
+        """
         # FQ_CASES="DIM-01,DIM-05" → only run specified dimensions
         _only = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None

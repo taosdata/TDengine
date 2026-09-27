@@ -36,10 +36,10 @@ class TestStreamTagCache:
                 test stable tag filter cache fallback to normal tag filter cache
             - todo(Tony Zhang): check virtual super table
 
-
         Since: v3.3.8.8
 
         Labels: outTable,schemaChange,stream,integration,functional
+
         Catalog:
             - StreamProcessing:Others
 
@@ -64,6 +64,7 @@ class TestStreamTagCache:
         Since: v3.3.8.8
 
         Labels: outTable,partialColumns,partialTags,stream,integration,functional
+
         Catalog:
             - StreamProcessing:Others
 
@@ -87,6 +88,7 @@ class TestStreamTagCache:
         Since: v3.3.8.8
 
         Labels: outTable,partialColumns,schemaChange,stream,integration,functional
+
         Catalog:
             - StreamProcessing:Others
 
@@ -108,6 +110,7 @@ class TestStreamTagCache:
         Since: v3.3.8.8
 
         Labels: outTable,partialTags,schemaChange,stream,integration,functional
+
         Catalog:
             - StreamProcessing:Others
 
@@ -131,6 +134,7 @@ class TestStreamTagCache:
         Since: v3.3.8.8
 
         Labels: outTable,partialColumns,stream,integration,functional
+
         Catalog:
             - StreamProcessing:Others
 
@@ -152,6 +156,7 @@ class TestStreamTagCache:
         Since: v3.3.8.8
 
         Labels: outTable,partialColumns,normalTable,stream,integration,functional
+
         Catalog:
             - StreamProcessing:Others
 
@@ -173,6 +178,7 @@ class TestStreamTagCache:
         Since: v3.3.8.8
 
         Labels: outTable,partialColumns,normalTable,schemaChange,stream,integration,functional
+
         Catalog:
             - StreamProcessing:Others
 

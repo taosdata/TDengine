@@ -420,6 +420,7 @@ class TestVtableQueryAfterDropOriginTable:
         Since: v3.3.6.0
 
         Labels: drop,virtual,integration,functional
+
         Jira: None
 
         History:

@@ -58,11 +58,11 @@ class TestUnionBugs:
         4. Use order by pseudo columns tbname, _wstart in union query
         5. Use number column in order by clause in union query
         6. Check error when order by column is not in select columns in union query
-        
 
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: https://jira.taosdata.com:18080/browse/TS-6660
 
         History:
@@ -164,11 +164,11 @@ class TestUnionBugs:
         2. Insert data into 3 subtables 1 rows each
         3. Use union operator to combine the result from 3 subtables
         4. Use order by pseudo columns tbname, _wstart in union query
-        
 
         Since: v3.0.0.0
 
         Labels: order by,pseudo function,set operator,integration,functional
+
         Jira: TS-7311
 
         History:
@@ -242,10 +242,11 @@ class TestUnionBugs:
         2. Insert data into 3 subtables 1 rows each
         3. Use union operator to combine the result from 3 subtables
         4. Use normal functions abs(), ltrim(), lower() in order by clause in union query
-        
+
         Since: v3.0.0.0
 
         Labels: normal function,order by,set operator,integration,functional
+
         Jira: TS-7311
 
         History:
@@ -342,6 +343,7 @@ class TestUnionBugs:
         Since: v3.8.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: https://jira.taosdata.com:18080/browse/TD-38544
 
         History:
@@ -784,19 +786,20 @@ class TestUnionBugs:
 
     def test_union_bugs(self):
         """Operator union bugs
-        
+
         1. JIRA TD-5630: Support UNION ALL operation for time-series data query
         2. JIRA TD-33137: Fix UNION ALL query bugs
         3. Add test case for nodes match node in UNION ALL query
-        
+
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-12-21 Alex Duan Migrated from uncatalog/system-test/2-query/test_union.py
- 
+
         """
         tdSql.prepare()
         self.check_TS_5630()

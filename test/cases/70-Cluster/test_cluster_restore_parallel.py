@@ -83,6 +83,9 @@ class TestRestoreParallel:
         Verify that RESTORE DNODE <id> PARALLEL <n> syntax can be parsed correctly.
         Since in a single-node environment dnode 1 may not be in a state that needs restoring,
         business-level errors are tolerated; only that no syntax error is reported at the parse level.
+
+        Since: v3.4.0.0
+
         """
         # Valid syntax: with PARALLEL
         self._check_parse_ok("restore dnode 1 parallel 4")
@@ -99,6 +102,9 @@ class TestRestoreParallel:
         """Test RESTORE VNODE ON DNODE with PARALLEL parameter syntax.
 
         Verify that RESTORE VNODE ON DNODE <id> PARALLEL <n> syntax can be parsed correctly.
+
+        Since: v3.4.0.0
+
         """
         # Valid syntax: with PARALLEL
         self._check_parse_ok("restore vnode on dnode 1 parallel 2")
@@ -115,6 +121,9 @@ class TestRestoreParallel:
 
         The NK_INTEGER token does not include a minus sign; the - in PARALLEL -1 is a separate
         token, so the parser should report an error directly.
+
+        Since: v3.4.0.0
+
         """
         tdSql.error("restore dnode 1 parallel -1")
         tdLog.info("restore dnode with negative PARALLEL correctly rejected")
@@ -128,6 +137,9 @@ class TestRestoreParallel:
         """Test that PARALLEL without an integer value is rejected.
 
         PARALLEL must be followed by an integer; a missing integer should raise a syntax error.
+
+        Since: v3.4.0.0
+
         """
         tdSql.error("restore dnode 1 parallel")
         tdLog.info("restore dnode with missing PARALLEL value correctly rejected")
@@ -141,6 +153,9 @@ class TestRestoreParallel:
         """Test that non-integer PARALLEL values are rejected.
 
         A non-integer after PARALLEL (such as an identifier or a float) should raise a syntax error.
+
+        Since: v3.4.0.0
+
         """
         tdSql.error("restore dnode 1 parallel abc")
         tdLog.info("restore dnode with non-integer PARALLEL correctly rejected")

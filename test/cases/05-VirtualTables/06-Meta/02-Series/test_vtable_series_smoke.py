@@ -94,6 +94,13 @@ class TestVtableSeriesSmoke:
 
     # ------------------------------------------------------------------
     def test_series_pipeline_smoke(self):
+        """Series pipeline smoke
+
+        Series pipeline smoke
+
+        Since: v3.4.2.0
+
+        """
         tdLog.info("=== SERIES pipeline smoke test ===")
         tdSql.execute(f"USE {DB_NAME}")
 

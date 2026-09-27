@@ -55,13 +55,20 @@ class TestEventWindowTree:
     def test_event_window_tree_paths(self):
         """EVENT_WINDOW nested START WITH emits stable condition paths.
 
+        EVENT_WINDOW nested START WITH emits stable condition paths.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-23 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -92,13 +99,20 @@ class TestEventWindowTree:
     def test_event_window_tree_compatibility(self):
         """Existing single-condition and flat sub-event streams remain legal.
 
+        Existing single-condition and flat sub-event streams remain legal.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-23 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -117,13 +131,20 @@ class TestEventWindowTree:
     def test_event_window_tree_single_condition_close_reopens_from_next_row(self):
         """Single-condition event tree starts a fresh window after close.
 
+        Single-condition event tree starts a fresh window after close.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -158,13 +179,20 @@ class TestEventWindowTree:
     def test_event_window_tree_global_true_for_does_not_delay_single_leaf_start(self):
         """Global true_for filters output but does not delay single leaf start.
 
+        Global true_for filters output but does not delay single leaf start.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -204,13 +232,20 @@ class TestEventWindowTree:
     def test_event_window_tree_history_global_true_for_does_not_delay_single_leaf_start(self):
         """History replay keeps global true_for separate from single leaf start.
 
+        History replay keeps global true_for separate from single leaf start.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -250,13 +285,20 @@ class TestEventWindowTree:
     def test_event_window_tree_fill_history_matches_realtime_paths(self):
         """EVENT_WINDOW tree history replay matches realtime condition paths.
 
+        EVENT_WINDOW tree history replay matches realtime condition paths.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -287,13 +329,20 @@ class TestEventWindowTree:
     def test_event_window_tree_end_without_leaf_uses_last_leaf_row(self):
         """EVENT_WINDOW tree closes at the last descendant leaf row.
 
+        EVENT_WINDOW tree closes at the last descendant leaf row.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-24 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -323,13 +372,20 @@ class TestEventWindowTree:
     def test_event_window_tree_leaf_true_for_resets_after_close(self):
         """Single leaf true_for streak is cleared when the window closes.
 
+        Single leaf true_for streak is cleared when the window closes.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -360,13 +416,20 @@ class TestEventWindowTree:
     def test_event_window_tree_leaf_true_for_is_local(self):
         """EVENT_WINDOW tree applies true_for on the matching leaf only.
 
+        EVENT_WINDOW tree applies true_for on the matching leaf only.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-24 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -399,13 +462,20 @@ class TestEventWindowTree:
     def test_event_window_tree_parallel_pending_fallback(self):
         """Lower priority leaf wins from its own streak if higher priority breaks.
 
+        Lower priority leaf wins from its own streak if higher priority breaks.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-24 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -434,13 +504,20 @@ class TestEventWindowTree:
     def test_event_window_tree_backtracking_preemption(self):
         """Higher priority leaf preempts active lower priority from its streak start.
 
+        Higher priority leaf preempts active lower priority from its streak start.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-24 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -471,13 +548,20 @@ class TestEventWindowTree:
     def test_event_window_tree_parent_true_for_is_global(self):
         """Global true_for suppresses parent nodes but not local leaf windows.
 
+        Global true_for suppresses parent nodes but not local leaf windows.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-24 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -504,13 +588,20 @@ class TestEventWindowTree:
     def test_event_window_tree_global_true_for_filters_parent_open(self):
         """Global true_for suppresses parent open.
 
+        Global true_for suppresses parent open.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -537,13 +628,20 @@ class TestEventWindowTree:
     def test_event_window_tree_global_true_for_emits_parent_open_and_close(self):
         """Satisfied global true_for emits non-leaf open and close.
 
+        Satisfied global true_for emits non-leaf open and close.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -575,13 +673,20 @@ class TestEventWindowTree:
     def test_event_window_tree_history_global_true_for_emits_parent_open_and_close(self):
         """History replay emits satisfied non-leaf open and close.
 
+        History replay emits satisfied non-leaf open and close.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -613,13 +718,20 @@ class TestEventWindowTree:
     def test_event_window_tree_global_true_for_does_not_duplicate_parent_open(self):
         """Non-leaf open already emitted before close is not emitted again.
 
+        Non-leaf open already emitted before close is not emitted again.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -655,13 +767,20 @@ class TestEventWindowTree:
     def test_event_window_tree_history_global_true_for_does_not_duplicate_parent_open(self):
         """History replay does not duplicate non-leaf open at close.
 
+        History replay does not duplicate non-leaf open at close.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-25 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()
@@ -697,13 +816,20 @@ class TestEventWindowTree:
     def test_event_window_tree_pending_break_keeps_active_leaf(self):
         """Broken higher priority pending leaf does not interrupt active lower leaf.
 
+        Broken higher priority pending leaf does not interrupt active lower leaf.
+
         Catalog:
             - StreamProcessing:TriggerMode
+
         Since: v3.4.2.0
+
         Labels: common,ci
+
         Feishu: None
+
         History:
             - 2026-06-24 Created
+
         """
         tdStream.dropAllStreamsAndDbs()
         tdStream.ensureSnode()

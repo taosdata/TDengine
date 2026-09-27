@@ -1743,11 +1743,14 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
     def test_time_format(self):
         """WHERE clause time format variants: string, ms/µs/ns epoch, NOW(), TODAY().
 
+        WHERE clause time format variants: string, ms/µs/ns epoch, NOW(), TODAY().
+
         Catalog: - Query:FederatedTimezonePrecision
 
         Since: v3.4.0.0
 
         Labels: common,ci
+
         """
         all_cases = _TFMT_CASES + _TFMT_TZ_CASES
         failed = self._run_dual_tz_baseline_group(all_cases, "test_time_format")
@@ -1760,11 +1763,14 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
     def test_precision_single(self):
         """Single-precision correctness: verify CAST(ts AS BIGINT) returns correct epoch.
 
+        Single-precision correctness: verify CAST(ts AS BIGINT) returns correct epoch.
+
         Catalog: - Query:FederatedTimezonePrecision
 
         Since: v3.4.0.0
 
         Labels: common,ci
+
         """
         all_cases = _PREC_CASES + _PREC_TZ_CASES
         failed = self._run_dual_tz_baseline_group(all_cases, "test_precision_single")
@@ -1777,11 +1783,14 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
     def test_precision_cross(self):
         """Cross-precision operations: comparison, IN, UNION, JOIN, CASE WHEN, conditional funcs.
 
+        Cross-precision operations: comparison, IN, UNION, JOIN, CASE WHEN, conditional funcs.
+
         Catalog: - Query:FederatedTimezonePrecision
 
         Since: v3.4.0.0
 
         Labels: common,ci
+
         """
         all_cases = _XPREC_CASES + _XPREC_TZ_CASES + _XPCOND_CASES + _XPCOND_TZ_CASES
         failed = self._run_dual_tz_baseline_group(all_cases, "test_precision_cross")
@@ -1795,11 +1804,14 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
     def test_multi_timestamp(self):
         """Multi-timestamp column queries across sources.
 
+        Multi-timestamp column queries across sources.
+
         Catalog: - Query:FederatedTimezonePrecision
 
         Since: v3.4.0.0
 
         Labels: common,ci
+
         """
         all_cases = _TMULTI_CASES + _TMULTI_TZ_CASES
         failed = self._run_dual_tz_baseline_group(all_cases, "test_multi_timestamp")
@@ -1812,11 +1824,14 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
     def test_insert_select(self):
         """INSERT SELECT cross-precision: verify truncation and expansion.
 
+        INSERT SELECT cross-precision: verify truncation and expansion.
+
         Catalog: - Query:FederatedTimezonePrecision
 
         Since: v3.4.0.0
 
         Labels: common,ci
+
         """
         failed = []
 
@@ -1864,11 +1879,14 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
     def test_negative(self):
         """Negative cases: time-parsing errors return expected error codes.
 
+        Negative cases: time-parsing errors return expected error codes.
+
         Catalog: - Query:FederatedTimezonePrecision
 
         Since: v3.4.0.0
 
         Labels: common,ci
+
         """
         failed = []
 
@@ -1922,11 +1940,14 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
     def test_edge_cases(self):
         """Edge cases: overflow clamp, CAST garbage, sub-precision TIMETRUNCATE, extremes.
 
+        Edge cases: overflow clamp, CAST garbage, sub-precision TIMETRUNCATE, extremes.
+
         Catalog: - Query:FederatedTimezonePrecision
 
         Since: v3.4.0.0
 
         Labels: common,ci
+
         """
         failed = self._run_dual_tz_baseline_group(_EDGE_CASES, "test_edge_cases")
         if failed:

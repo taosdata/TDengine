@@ -130,6 +130,7 @@ class TestBackupSyntax:
         Since: v3.4.3.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -195,6 +196,7 @@ class TestBackupSyntax:
         Since: v3.4.3.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -244,6 +246,7 @@ class TestBackupSyntax:
         Since: v3.4.3.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

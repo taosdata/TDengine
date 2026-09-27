@@ -156,6 +156,7 @@ class TestJoinFull:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -378,6 +379,7 @@ class TestJoinFull:
         Since: v3.4.1.6
 
         Labels: common,ci
+
         Jira: None
 
         History:

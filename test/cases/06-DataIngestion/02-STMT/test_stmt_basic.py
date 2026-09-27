@@ -374,11 +374,13 @@ class TestStmtBasic:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py
             - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py
+
         """
 
         self.do_stmt_muti_insert_query()

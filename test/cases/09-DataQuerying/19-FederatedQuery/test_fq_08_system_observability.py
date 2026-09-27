@@ -1091,7 +1091,9 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         On first run the baseline is auto-created; subsequent runs compare against it.
 
         Labels: common,ci
+
         Since: v3.4.0.0
+
         """
         _only     = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None

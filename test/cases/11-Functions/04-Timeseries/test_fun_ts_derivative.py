@@ -217,7 +217,7 @@ class TestFunDerivative:
     # ------------------ main ------------------
     #
     def test_func_ts_derivative(self):
-        """ Fun: derivative()
+        """Fun: derivative()
 
         1. Basic query for different params
         2. Query on super/child/normal table
@@ -233,6 +233,7 @@ class TestFunDerivative:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

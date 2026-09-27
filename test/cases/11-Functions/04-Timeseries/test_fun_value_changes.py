@@ -424,10 +424,14 @@ class TestValueChanges:
         8. Composition: nested subquery, union all, diff cross-check
 
         Since: v3.4.3.0
+
         Labels: common,ci,integration,functional
+
         Jira: TS-6485
+
         History:
             - 2026-07-17 Initial test-first suite alongside the FS.
+
         """
         self._setup_ref()
         self._counting_and_null()
@@ -451,10 +455,14 @@ class TestValueChanges:
         supertable partition-by, and string columns.
 
         Since: v3.4.3.0
+
         Labels: common,ci,integration,functional
+
         Jira: TS-6485
+
         History:
             - 2026-07-17 Initial stream suite alongside the FS.
+
         """
         tdStream.ensureSnode()
         streams = [

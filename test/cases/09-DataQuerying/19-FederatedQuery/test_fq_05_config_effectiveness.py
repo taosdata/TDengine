@@ -296,7 +296,13 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
     # ==================================================================
 
     def test_fq_05_001_defaults(self):
-        """FQ-05-001: Verify all config default values via SHOW VARIABLES."""
+        """FQ-05-001: Verify all config default values via SHOW VARIABLES.
+
+        FQ-05-001: Verify all config default values via SHOW VARIABLES.
+
+        Since: v3.4.0.0
+
+        """
         self._rec_reset()
         # --- Server-side (SHOW DNODE 1 VARIABLES) ---
         for param, (dnode_val, _) in _DEFAULTS.items():
@@ -317,7 +323,13 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
     # ==================================================================
 
     def test_fq_05_002_alter_and_verify(self):
-        """FQ-05-002: ALTER config values and verify via SHOW VARIABLES."""
+        """FQ-05-002: ALTER config values and verify via SHOW VARIABLES.
+
+        FQ-05-002: ALTER config values and verify via SHOW VARIABLES.
+
+        Since: v3.4.0.0
+
+        """
         self._rec_reset()
         try:
             self._b1_enable()
@@ -477,6 +489,9 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         client ext-connector pool (used by the catalog for schema resolution).
         The two pools are fully independent: ALTER LOCAL only affects the
         catalog phase, ALTER ALL DNODES only affects the data-query phase.
+
+        Since: v3.4.0.0
+
         """
         self._rec_reset()
         try:

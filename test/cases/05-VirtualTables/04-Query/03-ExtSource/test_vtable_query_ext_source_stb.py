@@ -63,59 +63,143 @@ class _ExtSourceStbBasicQueryBase(_ExtSourceStbQueryMixin):
         raise NotImplementedError
 
     def test_projection(self):
-        """Query ext-source virtual stable projection."""
+        """Query ext-source virtual stable projection.
+
+        Query ext-source virtual stable projection.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_projection")
 
     def test_projection_filter(self):
-        """Query ext-source virtual stable projection filter."""
+        """Query ext-source virtual stable projection filter.
+
+        Query ext-source virtual stable projection filter.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_projection_filter")
 
     def test_projection_timerange_filter(self):
-        """Query ext-source virtual stable projection timerange filter."""
+        """Query ext-source virtual stable projection timerange filter.
+
+        Query ext-source virtual stable projection timerange filter.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_projection_timerange_filter")
 
     def test_function_cols(self):
-        """Query ext-source virtual stable column functions."""
+        """Query ext-source virtual stable column functions.
+
+        Query ext-source virtual stable column functions.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_function_cols")
 
     def test_function_tags(self):
-        """Query ext-source virtual stable tag functions."""
+        """Query ext-source virtual stable tag functions.
+
+        Query ext-source virtual stable tag functions.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_function_tags")
 
     def test_partition(self):
-        """Query ext-source virtual stable partition."""
+        """Query ext-source virtual stable partition.
+
+        Query ext-source virtual stable partition.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_partition")
 
     def test_group(self):
-        """Query ext-source virtual stable group."""
+        """Query ext-source virtual stable group.
+
+        Query ext-source virtual stable group.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_group")
 
     def test_orderby(self):
-        """Query ext-source virtual stable order by."""
+        """Query ext-source virtual stable order by.
+
+        Query ext-source virtual stable order by.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_orderby")
 
     def test_interval(self):
-        """Query ext-source virtual stable interval."""
+        """Query ext-source virtual stable interval.
+
+        Query ext-source virtual stable interval.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_interval")
 
     def test_session(self):
-        """Query ext-source virtual stable session."""
+        """Query ext-source virtual stable session.
+
+        Query ext-source virtual stable session.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_session")
 
     def test_event(self):
-        """Query ext-source virtual stable event."""
+        """Query ext-source virtual stable event.
+
+        Query ext-source virtual stable event.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_event")
 
     def test_count(self):
-        """Query ext-source virtual stable count."""
+        """Query ext-source virtual stable count.
+
+        Query ext-source virtual stable count.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_count")
 
     def test_state_mode_0(self):
-        """Query ext-source virtual stable state mode 0."""
+        """Query ext-source virtual stable state mode 0.
+
+        Query ext-source virtual stable state mode 0.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_state_mode_0")
 
     def test_state_mode_2(self):
-        """Query ext-source virtual stable state mode 2."""
+        """Query ext-source virtual stable state mode 2.
+
+        Query ext-source virtual stable state mode 2.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_state_mode_2")
 
 
@@ -129,23 +213,53 @@ class _ExtSourceStbAggQueryBase(_ExtSourceStbQueryMixin):
         raise NotImplementedError
 
     def test_agg(self):
-        """Query ext-source virtual stable aggregate."""
+        """Query ext-source virtual stable aggregate.
+
+        Query ext-source virtual stable aggregate.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_agg")
 
     def test_agg_group(self):
-        """Query ext-source virtual stable aggregate group by."""
+        """Query ext-source virtual stable aggregate group by.
+
+        Query ext-source virtual stable aggregate group by.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_agg_group_by")
 
     def test_agg_tag_filter(self):
-        """Query ext-source virtual stable aggregate tag filter."""
+        """Query ext-source virtual stable aggregate tag filter.
+
+        Query ext-source virtual stable aggregate tag filter.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_agg_tag_cond")
 
     def test_agg_time_filter(self):
-        """Query ext-source virtual stable aggregate time filter."""
+        """Query ext-source virtual stable aggregate time filter.
+
+        Query ext-source virtual stable aggregate time filter.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_agg_time_cond")
 
     def test_agg_partition_expr(self):
-        """Query ext-source virtual stable aggregate partition expression."""
+        """Query ext-source virtual stable aggregate partition expression.
+
+        Query ext-source virtual stable aggregate partition expression.
+
+        Since: v3.4.3.0
+
+        """
         self.run_normal_query("test_vstable_select_test_agg_partition_expr")
 
 

@@ -79,6 +79,13 @@ class TestVtableDropExtSource:
     # -------------------------------------------------------------------
 
     def test_drop_normal_vtable(self):
+        """Drop normal vtable
+
+        Drop normal vtable
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             f"CREATE VTABLE v_drop_n (ts timestamp, "
             f"v int FROM {_PG_SRC}.{_PG_DB}.r.v)")
@@ -88,12 +95,33 @@ class TestVtableDropExtSource:
         tdSql.checkData(0, 0, 0)
 
     def test_drop_if_exists_missing(self):
+        """Drop if exists missing
+
+        Drop if exists missing
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute("DROP VTABLE IF EXISTS v_drop_missing")
 
     def test_drop_missing_without_if_exists_fails(self):
+        """Drop missing without if exists fails
+
+        Drop missing without if exists fails
+
+        Since: v3.4.0.0
+
+        """
         tdSql.error("DROP VTABLE v_drop_missing2")
 
     def test_drop_child_vtable(self):
+        """Drop child vtable
+
+        Drop child vtable
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             "CREATE STABLE stb_drop (ts timestamp, v int) "
             "TAGS (s nchar(8)) VIRTUAL 1")
@@ -110,6 +138,13 @@ class TestVtableDropExtSource:
         # DROP STABLE removes the stable AND all of its child vtables.
         # If the product enforces "must be empty", flip the expectation —
         # the test then asserts the error.
+        """Drop vstable with children
+
+        DROP STABLE removes the stable AND all of its child vtables. If the product enforces "must be empty", flip the expectation — the test then asserts the error.
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             "CREATE STABLE stb_drop_c (ts timestamp, v int) "
             "TAGS (s nchar(8)) VIRTUAL 1")
@@ -128,6 +163,13 @@ class TestVtableDropExtSource:
     def test_drop_vstable_heterogeneous_children(self):
         # Same as above but the children come from different ext sources —
         # ensures the drop cleans up references in both source bookkeepings.
+        """Drop vstable heterogeneous children
+
+        Same as above but the children come from different ext sources — ensures the drop cleans up references in both source bookkeepings.
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             "CREATE STABLE stb_drop_het (ts timestamp, v int) "
             "TAGS (s nchar(8)) VIRTUAL 1")
@@ -146,6 +188,13 @@ class TestVtableDropExtSource:
         tdSql.execute(f"USE {_LOCAL_DB}")
 
     def test_drop_recreate_same_name(self):
+        """Drop recreate same name
+
+        Drop recreate same name
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             f"CREATE VTABLE v_drop_rc (ts timestamp, "
             f"v int FROM {_PG_SRC}.{_PG_DB}.r.v)")
@@ -162,6 +211,13 @@ class TestVtableDropExtSource:
 
     def test_drop_database_cascade(self):
         # Create a fresh DB with vtable/vstb on it and drop the whole DB.
+        """Drop database cascade
+
+        Create a fresh DB with vtable/vstb on it and drop the whole DB.
+
+        Since: v3.4.0.0
+
+        """
         db = "vdrop_cascade"
         tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
         tdSql.execute(f"CREATE DATABASE {db} PRECISION 'ns'")

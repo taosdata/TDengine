@@ -68,6 +68,7 @@ class TestBalanceLeader:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional
+
         Jira: TS-6480
 
         History:

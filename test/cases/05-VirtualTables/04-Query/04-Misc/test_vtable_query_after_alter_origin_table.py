@@ -58,6 +58,7 @@ class TestVtableQueryAfterAlterOriginTable:
         Since: v3.3.6.0
 
         Labels: alter,virtual,integration,functional
+
         Jira: None
 
         History:

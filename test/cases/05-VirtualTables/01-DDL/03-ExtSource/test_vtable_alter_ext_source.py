@@ -119,7 +119,13 @@ class TestVtableAlterExtSource:
         return name
 
     def test_alter_normal_vtable(self):
-        """§4.1 — ALTER on normal vtable: add/drop/modify/rename columns."""
+        """§4.1 — ALTER on normal vtable: add/drop/modify/rename columns.
+
+        §4.1 — ALTER on normal vtable: add/drop/modify/rename columns.
+
+        Since: v3.4.0.0
+
+        """
         # (a) ADD COLUMN with FROM — succeeds and ref visible in DESCRIBE.
         tdLog.info("§4.1a: add column with FROM succeeds")
         n = self._fresh_normal_vt()
@@ -212,6 +218,13 @@ class TestVtableAlterExtSource:
         return stb
 
     def test_vstb_add_column_propagates(self):
+        """Vstb add column propagates
+
+        Vstb add column propagates
+
+        Since: v3.4.0.0
+
+        """
         stb = self._fresh_vstb("vstb_alter_add")
         tdSql.execute(f"ALTER STABLE {stb} ADD COLUMN w int")
         _check_describe_layout("vctb_alter", [
@@ -234,7 +247,13 @@ class TestVtableAlterExtSource:
     # -------------------------------------------------------------------
 
     def test_existing_vtable_refs_after_source_refresh_drop_and_recreate(self):
-        """Existing refs survive refresh, fail after source drop, and recover after recreate."""
+        """Existing refs survive refresh, fail after source drop, and recover after recreate.
+
+        Existing refs survive refresh, fail after source drop, and recover after recreate.
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute("DROP VTABLE IF EXISTS v_refresh_pg")
         tdSql.execute(
             f"CREATE VTABLE v_refresh_pg (ts timestamp, "
@@ -281,7 +300,13 @@ class TestVtableAlterExtSource:
         tdSql.execute("DROP VTABLE IF EXISTS v_refresh_inf")
 
     def test_alter_column_set_ref_after_remote_schema_change(self):
-        """Ref binding sees refreshed remote schema and rejects incompatible type changes."""
+        """Ref binding sees refreshed remote schema and rejects incompatible type changes.
+
+        Ref binding sees refreshed remote schema and rejects incompatible type changes.
+
+        Since: v3.4.0.0
+
+        """
         create_pg_table(_PG_DB, "r_mut",
                         "ts TIMESTAMP PRIMARY KEY, v INTEGER",
                         ["('2024-01-01 00:00:00', 1)"])
@@ -337,6 +362,13 @@ class TestVtableAlterExtSource:
         tdSql.execute("DROP VTABLE IF EXISTS v_mut_my")
 
     def test_vstb_drop_column_propagates(self):
+        """Vstb drop column propagates
+
+        Vstb drop column propagates
+
+        Since: v3.4.0.0
+
+        """
         stb = self._fresh_vstb("vstb_alter_drop")
         tdSql.execute(f"ALTER STABLE {stb} ADD COLUMN w int")
         tdSql.execute(f"ALTER STABLE {stb} DROP COLUMN w")
@@ -349,6 +381,13 @@ class TestVtableAlterExtSource:
         tdSql.execute(f"DROP STABLE IF EXISTS {stb}")
 
     def test_vstb_modify_column(self):
+        """Vstb modify column
+
+        Vstb modify column
+
+        Since: v3.4.0.0
+
+        """
         stb = self._fresh_vstb("vstb_alter_mod")
         tdSql.execute(f"ALTER STABLE {stb} ADD COLUMN s varchar(16)")
         tdSql.execute(f"ALTER STABLE {stb} MODIFY COLUMN s varchar(64)")
@@ -363,6 +402,13 @@ class TestVtableAlterExtSource:
         tdSql.execute(f"DROP STABLE IF EXISTS {stb}")
 
     def test_vstb_add_drop_tag(self):
+        """Vstb add drop tag
+
+        Vstb add drop tag
+
+        Since: v3.4.0.0
+
+        """
         stb = self._fresh_vstb("vstb_alter_tag")
         tdSql.execute(f"ALTER STABLE {stb} ADD TAG newt int")
         tdSql.execute(f"ALTER STABLE {stb} DROP TAG newt")
@@ -374,6 +420,13 @@ class TestVtableAlterExtSource:
     # -------------------------------------------------------------------
 
     def test_child_set_tag_single(self):
+        """Child set tag single
+
+        Child set tag single
+
+        Since: v3.4.0.0
+
+        """
         stb = self._fresh_vstb("vstb_alter_tags")
         tdSql.execute("ALTER VTABLE vctb_alter SET TAG site = 'siteB'")
         tdSql.query("SELECT site FROM vctb_alter LIMIT 1")
@@ -382,6 +435,13 @@ class TestVtableAlterExtSource:
         tdSql.execute(f"DROP STABLE {stb}")
 
     def test_child_set_tag_type_mismatch(self):
+        """Child set tag type mismatch
+
+        Child set tag type mismatch
+
+        Since: v3.4.0.0
+
+        """
         stb = self._fresh_vstb("vstb_alter_tag_mis")
         # site is nchar(16); set a too-long string → must fail.
         tdSql.error(
