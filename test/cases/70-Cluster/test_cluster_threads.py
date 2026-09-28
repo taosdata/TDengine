@@ -128,7 +128,7 @@ class TestDb:
             tdSql.checkRows(5)
 
             tdSql.query(f"show {zone} variables like 'Max%'")
-            tdSql.checkRows(3)
+            tdSql.checkRows(4)
 
             tdSql.query(f"show {zone} variables like 'ttl%'")
             tdSql.checkRows(5)
@@ -183,6 +183,7 @@ class TestDb:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
