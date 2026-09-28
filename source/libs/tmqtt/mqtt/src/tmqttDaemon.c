@@ -573,7 +573,7 @@ static void mqttdPrintVersion() {
 }
 
 static int32_t mqttdInitLog() {
-  const char *logName = "mqttdlog";
+  const char *logName = CUS_PROMPT "mqttdlog";
   TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
   return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
 }

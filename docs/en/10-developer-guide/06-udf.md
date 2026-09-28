@@ -735,7 +735,7 @@ DB error: udf function execution failure (0.011088s)
 Unfortunately, the execution failed. What could be the reason? Check the taosudf process logs.
 
 ```shell
-tail -10 /var/log/taos/taosudf.log
+tail -10 /var/log/taos/taosudfdlog.0
 ```
 
 Found the following error messages.

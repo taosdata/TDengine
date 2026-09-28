@@ -180,8 +180,8 @@ The default Linux installation creates the following paths:
 | `/usr/local/taos/include` | Public C headers |
 | `/etc/taos/taos.cfg` | Default configuration file |
 | `/var/lib/taos` | Default data directory |
-| `/var/log/taos` | Default log directory |
+| `/var/log/taos` | Default log directory. For each component's log files, see [Locating and Collecting Log Files](./06-logs.md). |
 
 The executables include `taosd`, `taos`, `taosdump`, `taosBenchmark`, `taosadapter`, and maintenance scripts such as `remove.sh` and `set_core.sh`.
 
-For IPv4 and IPv6 configuration, see [Network and FQDN Configuration](./08-network.md).
+For IPv4 and IPv6 configuration, see [Network and FQDN Configuration](./09-network.md).

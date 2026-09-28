@@ -387,7 +387,7 @@ ALTER DATABASE db REPLICA 2;   -- 仅支持与单副本互转
 
 容错边界：单服务故障且不出现连续故障时尚可恢复；两数据副本同时不可用，或未同步完成时再故障，则无法继续服务。强制指定 Leader 等运维见下。
 
-部署约束、异常场景与 `ASSIGN LEADER FORCE` 等详见 [双副本方案](../12-operations-and-tooling/02-operations/11-ha/02-replica2.md)。
+部署约束、异常场景与 `ASSIGN LEADER FORCE` 等详见 [双副本方案](../12-operations-and-tooling/02-operations/12-ha/02-replica2.md)。
 
 **单副本**
 
@@ -611,7 +611,7 @@ taosX run \
 
 ### 8.4 集群内部
 
-- [ ] 集群至少 3 个 DNode；生产库优先 `REPLICA 3`（成本敏感可用企业版 `REPLICA 2`，见 [双副本方案](../12-operations-and-tooling/02-operations/11-ha/02-replica2.md)）
+- [ ] 集群至少 3 个 DNode；生产库优先 `REPLICA 3`（成本敏感可用企业版 `REPLICA 2`，见 [双副本方案](../12-operations-and-tooling/02-operations/12-ha/02-replica2.md)）
 - [ ] 3 个 MNode 分布在不同 DNode
 - [ ] 已演练 `RESTORE DNODE` / `RESTORE VNODE` 恢复流程
 - [ ] `SHOW VGROUPS` 定期巡检副本状态

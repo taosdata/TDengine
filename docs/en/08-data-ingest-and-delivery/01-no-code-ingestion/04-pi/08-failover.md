@@ -118,7 +118,7 @@ For aggregating multiple PI systems into a central TDengine with redundancy on t
 | taosX-Agent | On Windows hosts that can reach PI; configure all related taosX endpoints |
 | PI dependencies | Licensed PI AF SDK (and appropriate Windows service account permissions) |
 
-For network and Agent proxy topology, see [Deployment Architecture](./02-deployment-architecture.md). For storage-side replica HA, see [High Availability](../../../12-operations-and-tooling/02-operations/11-ha/index.md) (a different layer from Xnode task scheduling).
+For network and Agent proxy topology, see [Deployment Architecture](./02-deployment-architecture.md). For storage-side replica HA, see [High Availability](../../../12-operations-and-tooling/02-operations/12-ha/index.md) (a different layer from Xnode task scheduling).
 
 ## Version, Components, and Licensing
 

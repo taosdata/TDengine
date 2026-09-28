@@ -7,6 +7,8 @@ toc_max_heading_level: 4
 
 TDengine records runtime status and diagnostic information in two categories: normal logs and slow logs. Normal logs describe engine operation, while slow logs record operations whose execution time exceeds the configured threshold.
 
+This page describes the logging implementation. To find log files or package them for technical support, see [Locating and Collecting Log Files](../12-operations-and-tooling/02-operations/06-logs.md).
+
 ## Normal Logs
 
 ### Implementation
@@ -71,10 +73,10 @@ Because uploading and removing uploaded records cannot form one atomic operation
 ### File Behavior
 
 - Slow logs are written locally and, when monitoring is enabled, sent through taosAdapter to taosKeeper for structured storage.
-- A file is created only on a day that has slow records and is named `taosSlowLog.yyyy-mm-dd`.
+- A file is created only on a day that has slow records and is named `taosslowlog.yyyy-mm-dd`.
 - `logDir` controls its location. Multiple clients use the same daily file in that directory.
-- Slow-log files are not deleted or compressed automatically.
-- Slow logs use `logDir`, `minimalLogDirGB`, and `asyncLog`. `numOfLogLines` and `logKeepDays` do not apply.
+- Slow-log files are not compressed. When `logKeepDays` is 0 (the default), they are not deleted. When it is non-zero, slow-log files whose file-name date is more than `abs(logKeepDays)` days old are deleted. For example, `logKeepDays 1` keeps the files for today and yesterday. The check runs with normal-log rotation, about once an hour.
+- Slow logs use `logDir`, `minimalLogDirGB`, `asyncLog`, and `logKeepDays`. `numOfLogLines` does not apply.
 
 ## Log Levels
 

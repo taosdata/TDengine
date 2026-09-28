@@ -739,7 +739,7 @@ DB error: udf function execution failure (0.011088s)
 不幸的是执行失败了，什么原因呢？查看 taosudf 进程的日志。
 
 ```shell
-tail -10 /var/log/taos/taosudf.log
+tail -10 /var/log/taos/taosudfdlog.0
 ```
 
 发现以下错误信息。

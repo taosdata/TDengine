@@ -205,12 +205,7 @@ static void getFullPathName(char *fullName, const char *logName) {
 }
 
 int32_t taosInitSlowLog() {
-  char logFileName[64] = {0};
-#ifdef CUS_PROMPT
-  (void)snprintf(logFileName, 64, "%sSlowLog", CUS_PROMPT);
-#else
-  (void)snprintf(logFileName, 64, "taosSlowLog");
-#endif
+  const char *logFileName = CUS_PROMPT "slowlog";
 
   getFullPathName(tsLogObj.slowLogName, logFileName);
 
@@ -1090,6 +1085,58 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 #define LOG_ROTATE_BOOT   (LOG_INACTIVE_TIME + 1)
 #endif
 static int8_t tsLogRotateRunning = 0;
+
+static bool taosIsSlowLogDay(const char *day) {
+  if (strlen(day) != 10) return false;
+  for (int32_t i = 0; i < 10; ++i) {
+    if (i == 4 || i == 7) {
+      if (day[i] != '-') return false;
+    } else if (!isdigit(day[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Slow log files are named <prefix>.<yyyy-mm-dd>, so the date string orders like the date.
+static void taosRemoveOldSlowLogs() {
+  if (tsLogKeepDays == 0 || tsLogObj.slowHandle == NULL) return;
+
+  const char *slowPrefix = strrchr(tsLogObj.slowLogName, TD_DIRSEP_CHAR);
+  slowPrefix = slowPrefix ? slowPrefix + 1 : tsLogObj.slowLogName;
+  int32_t prefixLen = strlen(slowPrefix);
+  if (prefixLen == 0) return;
+
+  time_t now;
+  if (taosTime(&now) != 0) return;
+  time_t    cutoff = now - (time_t)abs(tsLogKeepDays) * 86400;
+  struct tm tmInfo;
+  char      cutoffDay[TD_TIME_STR_LEN] = {0};
+  if (taosLocalTime(&cutoff, &tmInfo, cutoffDay, sizeof(cutoffDay), NULL) == NULL) return;
+  if (taosStrfTime(cutoffDay, sizeof(cutoffDay), "%Y-%m-%d", &tmInfo) == 0) return;
+
+  TdDirPtr pDir = taosOpenDir(tsLogDir);
+  if (!pDir) return;
+  TdDirEntryPtr de = NULL;
+  while ((de = taosReadDir(pDir))) {
+    if (taosDirEntryIsDir(de)) continue;
+    char *fname = taosGetDirEntryName(de);
+    if (!fname || strncmp(fname, slowPrefix, prefixLen) != 0 || fname[prefixLen] != '.') continue;
+
+    const char *day = fname + prefixLen + 1;
+    if (!taosIsSlowLogDay(day) || strcmp(day, cutoffDay) >= 0) continue;
+
+    char fullName[PATH_MAX] = {0};
+    snprintf(fullName, sizeof(fullName), "%s%s%s", tsLogDir, TD_DIRSEP, fname);
+    if (taosRemoveFile(fullName) == 0) {
+      uInfo("slow log file:%s is removed, keepDays:%d", fullName, tsLogKeepDays);
+    }
+  }
+  if (taosCloseDir(&pDir) != 0) {
+    uWarn("%s:%d failed to close dir %s\n", __func__, __LINE__, tsLogDir);
+  }
+}
+
 static void  *taosLogRotateFunc(void *param) {
   setThreadName("logRotate");
   taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
@@ -1183,6 +1230,7 @@ static void  *taosLogRotateFunc(void *param) {
 
   if (tsLogKeepDays != 0) {
     taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
+    taosRemoveOldSlowLogs();
   }
 _exit:
   atomic_store_8(&tsLogRotateRunning, 0);

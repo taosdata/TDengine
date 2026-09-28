@@ -40,4 +40,4 @@ import PlatformSupported from "../10-developer-guide/08-connectors-reference/res
 
 ## 支持的网络环境
 
-TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 [IPv6 配置](./02-operations/08-network.md)。
+TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 [IPv6 配置](./02-operations/09-network.md)。

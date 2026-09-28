@@ -387,7 +387,7 @@ ALTER DATABASE db REPLICA 2;   -- Supports conversion only with single replica
 
 Fault tolerance boundary: recovery is possible when a single service fails and no continuous failures occur. If both data replicas are unavailable at the same time, or another failure occurs before synchronization completes, service cannot continue. Operations such as force assigning a Leader are described below.
 
-For deployment constraints, exception scenarios, and `ASSIGN LEADER FORCE`, see [Two-Replica Solution](../12-operations-and-tooling/02-operations/11-ha/02-replica2.md).
+For deployment constraints, exception scenarios, and `ASSIGN LEADER FORCE`, see [Two-Replica Solution](../12-operations-and-tooling/02-operations/12-ha/02-replica2.md).
 
 **Single replica**
 
@@ -611,7 +611,7 @@ Audit logs are written to an audit database with `IS_AUDIT`, whose default name 
 
 ### 8.4 Cluster Internals
 
-- [ ] The cluster has at least 3 DNodes; production databases prefer `REPLICA 3` (cost-sensitive scenarios can use Enterprise `REPLICA 2`; see [Two-Replica Solution](../12-operations-and-tooling/02-operations/11-ha/02-replica2.md))
+- [ ] The cluster has at least 3 DNodes; production databases prefer `REPLICA 3` (cost-sensitive scenarios can use Enterprise `REPLICA 2`; see [Two-Replica Solution](../12-operations-and-tooling/02-operations/12-ha/02-replica2.md))
 - [ ] 3 MNodes are distributed on different DNodes
 - [ ] `RESTORE DNODE` / `RESTORE VNODE` recovery workflows have been rehearsed
 - [ ] `SHOW VGROUPS` is used for regular replica status inspection

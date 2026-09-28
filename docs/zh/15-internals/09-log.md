@@ -7,6 +7,8 @@ toc_max_heading_level: 4
 
 TDengine 通过日志文件记录系统运行状态，帮助用户监控系统运行情况，排查问题。Log 分为普通日志和慢日志。引擎侧的运行状态通过普通日志的方式记录下来，系统运行相关的慢日志操作则记录到慢日志文件里。
 
+本节介绍日志的实现机制。如需查找日志文件或打包日志提交技术支持，请参阅 [日志文件位置与获取](../12-operations-and-tooling/02-operations/06-logs.md)。
+
 ## 普通日志
 
 ### 普通日志实现逻辑
@@ -89,10 +91,10 @@ TDengine 通过日志文件记录系统运行状态，帮助用户监控系统�
 - 慢日志一方面会记录到本地慢日志文件中，另一方面会通过 taosAdapter 发送到 taosKeeper 进行结构化存储（需打开 monitor 开关）。
 - 慢日志文件存储规则为：
   - 慢日志文件一天一个，如果当天没有慢日志，没有当天的文件。
-  - 文件名为 taosSlowLog.yyyy-mm-dd（taosSlowLog.2024-08-02），日志存储路径通过 logDir 配置。
-  - 多个客户端的日志存储在相应日志路径下的同一个 taosSlowLog.yyyy.mm.dd 文件里。
-  - 慢日志文件不自动删除，不压缩。
-  - 使用和普通日志文件相同的三个参数 logDir、minimalLogDirGB、asyncLog。另外两个参数 numOfLogLines、logKeepDays 不适用于慢日志。
+  - 文件名为 taosslowlog.yyyy-mm-dd（taosslowlog.2024-08-02），日志存储路径通过 logDir 配置。
+  - 多个客户端的日志存储在相应日志路径下的同一个 taosslowlog.yyyy-mm-dd 文件里。
+  - 慢日志文件不压缩。logKeepDays 为 0（默认）时不自动删除；非 0 时，按文件名中的日期删除早于 abs(logKeepDays) 天的慢日志文件，例如 logKeepDays 为 1 时保留当天和前一天的文件。删除检查随普通日志的滚动检查进行，约每小时一次。
+  - 使用和普通日志文件相同的参数 logDir、minimalLogDirGB、asyncLog、logKeepDays。numOfLogLines 不适用于慢日志。
 
 ## 日志级别说明
 
