@@ -43,6 +43,7 @@ class TestStreamTagCache:
         Since: v3.3.8.5
 
         Labels: meta,stream,tagCache,integration,functional
+
         Catalog:
             - StreamProcessing:Others
 
@@ -59,6 +60,119 @@ class TestStreamTagCache:
         self.check_null_tag_value()
         self.check_create_drop_ctable()
         self.check_fallback_to_normal_cache()
+
+    def test_null_dimension_tags(self):
+        """NULL dimension TAGs must not abort unrelated stream lookups.
+
+        Cover cold/warm equality caches, compound predicates, TAG transitions,
+        and child creation/deletion against the same uncached results, with
+        dimension mappings larger than the ordinary 10 KiB cache threshold.
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Since: v3.4.2.9
+
+        Labels: common,ci,stream,tagCache
+        Feishu: None
+
+        History:
+            - 2026-09-16 Created
+        """
+        for stable_cache in (0, 1):
+            tdLog.info(f"Check NULL dimension TAGs with stableTagFilterCache={stable_cache}")
+            self._check_null_dimension_tags(stable_cache)
+
+    def _check_null_dimension_tags(self, stable_cache):
+        tdStream.ensureSnode()
+        tdSql.query("show dnodes")
+        dnodes = [row[0] for row in tdSql.queryResult]
+        original = []
+        db = f"tag_cache_null_dim_{stable_cache}"
+        try:
+            for dnode in dnodes:
+                for option in ("stableTagFilterCache", "tagFilterCache"):
+                    tdSql.query(f"show dnode {dnode} variables like '{option}'")
+                    original.append((dnode, option, tdSql.queryResult[0][2]))
+                    value = stable_cache if option == "stableTagFilterCache" else 0
+                    tdSql.execute(f"alter dnode {dnode} '{option}' '{value}'")
+            tdSql.execute(f"create database {db} vgroups 3")
+            tdSql.execute(f"use {db}")
+            tdSql.execute("create table src (ts timestamp, v int) tags (pile_code varchar(32), zone int)")
+            tdSql.execute("create table src_p1 using src tags ('p1',1)")
+            tdSql.execute("create table dim (ts timestamp, v int) tags (pile_code varchar(32), zone int)")
+            for name, tags, value in (
+                ("good", "'p1', 1", 10),
+                ("null_first", "NULL, 1", 100),
+                ("null_second", "'p1', NULL", 20),
+                ("all_null", "NULL, NULL", 1000),
+                ("empty_code", "'', 1", 10000),
+                ("other", "'p2', 2", 30),
+            ):
+                tdSql.execute(f"create table {name} using dim tags ({tags})")
+                tdSql.execute(f"insert into {name} values (now, {value})")
+            # Each vgroup must contain an unrelated all-NULL child during warmup.
+            tdSql.query(f"select vgroup_id from information_schema.ins_vgroups where db_name='{db}'")
+            uncovered = {row[0] for row in tdSql.queryResult}
+            for index in range(100):
+                name = f"null_vg_{index}"
+                tdSql.execute(f"create table {name} using dim tags (NULL, NULL)")
+                tdSql.query(
+                    f"select vgroup_id from information_schema.ins_tables "
+                    f"where db_name='{db}' and table_name='{name}'"
+                )
+                uncovered.discard(tdSql.queryResult[0][0])
+                if not uncovered:
+                    break
+            assert not uncovered, f"NULL TAG fixture misses vgroups {uncovered}"
+
+            # Unmatched distinct TAGs exercise full warmup above the old limit.
+            for start in range(0, 1200, 100):
+                children = " ".join(
+                    f"unused_{i} using dim tags ('unused_{i}',99)"
+                    for i in range(start, start + 100)
+                )
+                tdSql.execute(f"create table {children}")
+
+            for suffix, condition in (("single", "pile_code=%%2"), ("pair", "pile_code=%%2 and zone=%%3")):
+                tdSql.execute(
+                    f"create stream s_{suffix} count_window(1) from src partition by tbname,pile_code,zone "
+                    f"into res_{suffix} as select _twend as ts,sum(v) as total from dim where {condition}"
+                )
+                tdStream.checkStreamStatus(f"s_{suffix}")
+
+            stages = [
+                ([], 30, 10),
+                ([], 30, 10),  # Repeat the lookup after first-miss warmup.
+                (["alter table null_first set tag pile_code='p1'"], 130, 110),
+                (["alter table good set tag pile_code=NULL"], 120, 100),
+                (["alter table good set tag pile_code='p1'"], 130, 110),
+                (["alter table null_second set tag zone=1"], 130, 130),
+                (["alter table null_first set tag pile_code=NULL"], 30, 30),
+                (["create table added using dim tags ('p1',NULL)", "insert into added values(now,40)"], 70, 30),
+                (["alter table added set tag zone=1"], 70, 70),
+                (["drop table null_first", "drop table added"], 30, 30),
+                (["create table added_null using dim tags(NULL,NULL)",
+                  "insert into added_null values(now,100000)", "drop table all_null"], 30, 30),
+            ]
+            base_ts = int(time.time() * 1000)
+            for index, (statements, single, pair) in enumerate(stages):
+                for statement in statements:
+                    tdSql.execute(statement)
+                ts = base_ts + index * 1000
+                tdSql.execute(f"insert into src_p1 values({ts},1)")
+                for suffix, expected in (("single", single), ("pair", pair)):
+                    tdSql.checkResultsByFunc(
+                        f"select total from res_{suffix} where ts={ts}",
+                        lambda: tdSql.queryResult == [(expected,)], retry=30
+                    )
+            for suffix in ("single", "pair"):
+                tdSql.query(f"select count(*) from res_{suffix}")
+                tdSql.checkData(0, 0, len(stages))
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
+            for dnode, option, value in original:
+                tdSql.execute(f"alter dnode {dnode} '{option}' '{value}'")
 
     def _grep_taosd_log_count(self, pattern, retry=30) -> int:
         """Poll taosd log and return the maximum grep hit count."""
@@ -187,8 +301,9 @@ class TestStreamTagCache:
         for s in streams:
             s.checkResults()
 
-        # warm-on-first-miss can satisfy the first lookups before cache retrieval
-        assert self.stable_tag_cache_log_counter(db_name, tb_name) >= 6
+        # st0/st1 contain DOUBLE predicates and use ordinary filtering.
+        # st2/st3 use the stable cache, with two TAG groups each.
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) >= 4
 
     def check_all_types_alter(self):
         db_name = "test_alter"

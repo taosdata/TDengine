@@ -2220,9 +2220,76 @@ static bool sigTbJoinSplNeedSplit(SLogicNode* pNode) {
          QUERY_NODE_LOGIC_PLAN_EXCHANGE != nodeType(nodesListGetNode(pJoin->node.pChildren, 1));
 }
 
+static bool streamJoinLocalNodeHasRestrictions(const SLogicNode* pNode) {
+  return pNode->dynamicOp || NULL != pNode->pLimit || NULL != pNode->pSlimit;
+}
+
+static bool streamJoinCanKeepRightLocal(const SPlanContext* pPlanCxt, const SJoinLogicNode* pJoin) {
+  if (!pPlanCxt->streamCxt.isCalc || !pPlanCxt->streamCxt.enableMultiGroupCalc || !pJoin->multiGroupJoin ||
+      !pJoin->isSingleTableJoin || JOIN_TYPE_INNER != pJoin->joinType || JOIN_STYPE_NONE != pJoin->subType ||
+      (JOIN_ALGO_HASH != pJoin->joinAlgo && JOIN_ALGO_UNKNOWN != pJoin->joinAlgo) ||
+      2 != LIST_LENGTH(pJoin->node.pChildren)) {
+    return false;
+  }
+
+  const SLogicNode* pNode = (const SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  while (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pNode)) {
+    if (streamJoinLocalNodeHasRestrictions(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
+        ((const SProjectLogicNode*)pNode)->isSetOpProj) {
+      return false;
+    }
+    // Existing multi-group qualification preserves gid even when ordinary-query
+    // projection flags request group clearing. Keep the project itself unchanged.
+    pNode = (const SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  }
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode) || streamJoinLocalNodeHasRestrictions(pNode) ||
+      1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+
+  const SWindowLogicNode* pWindow = (const SWindowLogicNode*)pNode;
+  if (WINDOW_TYPE_EXTERNAL != pWindow->winType || !pWindow->isSingleTable || pWindow->extWinSplit ||
+      pWindow->indefRowsFunc || pWindow->calcWithPartition || pWindow->needGroupSort ||
+      (0 != pWindow->windowAlgo && EXTERNAL_ALGO_HASH != pWindow->windowAlgo) ||
+      (EXT_WIN_INPUT_WINDOW_BOUND != pWindow->extWinInputMode && EXT_WIN_INPUT_BROADCAST != pWindow->extWinInputMode)) {
+    return false;
+  }
+  SNode* pFuncNode = NULL;
+  FOREACH(pFuncNode, pWindow->pFuncs) {
+    if (QUERY_NODE_FUNCTION != nodeType(pFuncNode)) {
+      return false;
+    }
+    const SFunctionNode* pFunc = (const SFunctionNode*)pFuncNode;
+    // Distributed windows carry extWinSplit; partial/merge functions also retain
+    // their original function identity. Neither represents complete local work.
+    if (pFunc->hasOriginalFunc || pFunc->isDistinct || fmIsIndefiniteRowsFunc(pFunc->funcId)) {
+      return false;
+    }
+  }
+
+  pNode = (const SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || streamJoinLocalNodeHasRestrictions(pNode) ||
+      0 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+  const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
+  if (SCAN_TYPE_EXTERNAL == pScan->scanType || SP_PARTITION_ROWS == pScan->placeholderType ||
+      pScan->virtualStableScan) {
+    return false;
+  }
+  // A tbname placeholder may route different trigger groups to different vnodes.
+  // Its vgroup-list length does not make the per-window scan a multi-table scan.
+  return TSDB_NORMAL_TABLE == pScan->tableType || TSDB_CHILD_TABLE == pScan->tableType ||
+         (TSDB_SUPER_TABLE == pScan->tableType &&
+          (SP_PARTITION_TBNAME == pScan->placeholderType || pScan->phTbnameScan));
+}
+
 static bool sigTbJoinSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                       SSigTbJoinSplitInfo* pInfo) {
   if (sigTbJoinSplNeedSplit(pNode)) {
+    if (streamJoinCanKeepRightLocal(pCxt->pPlanCxt, (const SJoinLogicNode*)pNode)) {
+      return false;
+    }
     pInfo->pJoin = (SJoinLogicNode*)pNode;
     pInfo->pSplitNode = (SLogicNode*)nodesListGetNode(pNode->pChildren, 1);
     pInfo->pSubplan = pSubplan;

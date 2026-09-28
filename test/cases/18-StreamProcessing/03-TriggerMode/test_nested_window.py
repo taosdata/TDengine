@@ -63,6 +63,186 @@ class TestNestedWindow:
         """
         self._run_isolated(self._check_leaf_equivalence)
 
+    def test_prefilter_empty_subtable_slice(self):
+        """Trigger mode: a filtered-out subtable does not fail nested input.
+
+        1. Mix a valid subtable and a fully filtered subtable in one WAL batch.
+        2. Filter an existing group completely without losing its open window.
+        3. Verify later input from both groups produces the expected SOC pairs.
+
+        Catalog:
+            - Streams:03-TriggerMode:NestedWindow
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-09-07 Codex Add empty filtered slice regression
+        """
+        tdStream.dropAllStreamsAndDbs()
+        tdSql.executes(
+            [
+                "create database nw_filter vgroups 1",
+                "create stable nw_filter.monitor (ts timestamp, soc int, "
+                "trade_no varchar(16), charge_status int) "
+                "tags (pile_code varchar(16), gun_code int)",
+                "create table nw_filter.a using nw_filter.monitor tags ('p1',1) "
+                "nw_filter.b using nw_filter.monitor tags ('p2',2)",
+                "create stream nw_filter.s window ("
+                "state_window(trade_no) extend(1) as w_order,count_window(2,1)) "
+                "from nw_filter.monitor partition by tbname,pile_code,gun_code "
+                "stream_options(pre_filter(ifnull(trade_no,'')<>'' and "
+                "trade_no not like '000000000%' and charge_status=3)) "
+                "into nw_filter.result as select _twend ts, "
+                "first(soc) prev_soc,last(soc) curr_soc from %%tbname "
+                "where ts >= _twstart and ts <= _twend and "
+                "ifnull(trade_no,'')<>'' and trade_no not like '000000000%' "
+                "and charge_status=3",
+            ]
+        )
+        tdStream.checkStreamStatus()
+        tdSql.execute(
+            "insert into nw_filter.a values "
+            "('2025-01-01 00:00:00',20,'A',3) ('2025-01-01 00:00:01',30,'A',3) "
+            "nw_filter.b values "
+            "('2025-01-01 00:00:00',40,'B',2) ('2025-01-01 00:00:01',50,'B',2)"
+        )
+        query = "select pile_code,prev_soc,curr_soc from nw_filter.result order by pile_code,ts"
+        self._wait_exact_rows(query, [("p1", 20, 30)])
+        tdSql.execute(
+            "insert into nw_filter.a values ('2025-01-01 00:00:02',99,'A',2) "
+            "nw_filter.b values "
+            "('2025-01-01 00:00:02',60,'B',3) ('2025-01-01 00:00:03',70,'B',3)"
+        )
+        self._wait_exact_rows(query, [("p1", 20, 30), ("p2", 60, 70)])
+        tdSql.execute("insert into nw_filter.a values ('2025-01-01 00:00:03',35,'A',3)")
+        self._wait_exact_rows(query, [("p1", 20, 30), ("p1", 30, 35), ("p2", 60, 70)])
+        tdStream.checkStreamStatus()
+        tdStream.dropAllStreamsAndDbs()
+
+    def test_soc_dimension_joins(self):
+        """Trigger mode: nested SOC windows join per-group dimension rows.
+
+        1. Join ancestor and leaf aggregates with three dimension tables.
+        2. Mix valid and filtered groups, then resume both open windows.
+        3. Check SOC differences and the threshold belonging to each group.
+        4. Mix a late row with new input without moving the realtime window backward.
+        5. Clear the output and recalculate both groups through the same JOINs.
+
+        Catalog:
+            - Streams:03-TriggerMode:NestedWindow
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-09-07 Codex Add full SOC join regression
+        """
+        tdStream.dropAllStreamsAndDbs()
+        tdSql.executes(
+            [
+                "create database nw_soc_join vgroups 1",
+                "create stable nw_soc_join.monitor (ts timestamp, trade_no varchar(32), "
+                "charge_status int, soc int, charged_time int, pile_kw double) "
+                "tags (pile_code varchar(16), gun_code int)",
+                "create table nw_soc_join.a using nw_soc_join.monitor tags ('p1',1) "
+                "nw_soc_join.b using nw_soc_join.monitor tags ('p2',2)",
+                "create table nw_soc_join.pile (ts timestamp, pile_code varchar(16), "
+                "pile_brand_setting_id int, station_belong_to int, type varchar(16))",
+                "create table nw_soc_join.brand (ts timestamp, pile_brand_setting_id int, "
+                "pile_type int, type varchar(16))",
+                "create table nw_soc_join.rule (ts timestamp, station_id int, "
+                "percent_threshold double, rule_id int, type varchar(16))",
+                "insert into nw_soc_join.pile values (now,'p1',1,11,'INSERT') "
+                "(now+1s,'p2',2,22,'INSERT')",
+                "insert into nw_soc_join.brand values (now,1,300102,'INSERT') "
+                "(now+1s,2,300102,'INSERT')",
+                "insert into nw_soc_join.rule values (now,11,5,20,'INSERT') "
+                "(now+1s,22,15,20,'INSERT')",
+            ]
+        )
+        tdSql.execute("""
+            create stream nw_soc_join.s window (
+                state_window(trade_no) extend(1) as w_order,count_window(2,1))
+            from nw_soc_join.monitor partition by tbname,pile_code,gun_code
+            stream_options(pre_filter(ifnull(trade_no,'')<>'' and
+                trade_no not like '000000000%' and charge_status=3))
+            into nw_soc_join.result output_subtable(concat('soc_',%%1)) as
+            select t1.ts,t1.trade_no,t1.charged_time,t1.pile_kw,t4.percent_threshold,
+                t1.soc curr_soc,t1.prev_soc,abs(t1.soc-t1.prev_soc) diff_soc,
+                case when t4.percent_threshold is null then 0 else
+                    case when abs(t1.soc-t1.prev_soc)>t4.percent_threshold
+                    then 1 else 0 end end flag
+            from (select _twend ts,max(case when soc!=0 then 1 else 0 end) has_nonzero_soc
+                from %%tbname where ts>=w_order._twstart and ts<=_twstart) t0
+            inner join (select _twend ts,last(soc) soc,last(trade_no) trade_no,
+                last(charged_time) charged_time,last(pile_kw) pile_kw,last(gun_code) gun_code,
+                last(pile_code) pile_code,first(soc) prev_soc,first(trade_no) prev_trade_no
+                from %%tbname where ts>=_twstart and ts<=_twend and _twduration<=30000
+                and ifnull(trade_no,'')<>'' and trade_no not like '000000000%'
+                and charge_status=3) t1 on t0.ts=t1.ts
+            inner join (select _twend ts,pile_code,pile_brand_setting_id,
+                station_belong_to station_id from nw_soc_join.pile
+                where pile_code=%%2 and type<>'DELETE') t2 on t1.ts=t2.ts
+            inner join (select _twend ts,pile_brand_setting_id from nw_soc_join.brand
+                where pile_type=300102 and type<>'DELETE') t3
+                on t2.pile_brand_setting_id=t3.pile_brand_setting_id and t2.ts=t3.ts
+            inner join (select _twend ts,station_id,percent_threshold from nw_soc_join.rule
+                where rule_id=20 and type<>'DELETE') t4
+                on t2.station_id=t4.station_id and t2.ts=t4.ts
+            where t0.has_nonzero_soc>0 and t1.prev_soc is not null
+        """)
+        tdStream.checkStreamStatus()
+        tdSql.execute(
+            "insert into nw_soc_join.a values "
+            "('2025-01-01 00:00:00','A',3,20,1,10) ('2025-01-01 00:00:01','A',3,30,2,11) "
+            "nw_soc_join.b values "
+            "('2025-01-01 00:00:00','B',2,40,1,10) ('2025-01-01 00:00:01','B',2,50,2,11)"
+        )
+        query = ("select trade_no,prev_soc,curr_soc,diff_soc,percent_threshold,flag "
+                 "from nw_soc_join.result order by trade_no,ts")
+        self._wait_exact_rows(query, [("A", 20, 30, 10, 5, 1)])
+        tdSql.execute(
+            "insert into nw_soc_join.a values ('2025-01-01 00:00:02','A',2,99,3,12) "
+            "nw_soc_join.b values "
+            "('2025-01-01 00:00:02','B',3,60,3,12) ('2025-01-01 00:00:03','B',3,70,4,13)"
+        )
+        self._wait_exact_rows(query, [("A", 20, 30, 10, 5, 1), ("B", 60, 70, 10, 15, 0)])
+        tdSql.execute("insert into nw_soc_join.a values ('2025-01-01 00:00:03','A',3,35,4,13)")
+        self._wait_exact_rows(
+            query, [("A", 20, 30, 10, 5, 1), ("A", 30, 35, 5, 5, 0), ("B", 60, 70, 10, 15, 0)]
+        )
+        tdSql.execute(
+            "insert into nw_soc_join.a values "
+            "('2025-01-01 00:00:01.500','A',3,32,2,11) ('2025-01-01 00:00:04','A',3,40,5,14)"
+        )
+        self._wait_exact_rows(
+            "select trade_no,prev_soc,curr_soc,diff_soc,percent_threshold,flag "
+            "from nw_soc_join.result where ts='2025-01-01 00:00:04'",
+            [("A", 35, 40, 5, 5, 0)],
+        )
+        tdSql.execute("delete from nw_soc_join.result")
+        tdSql.execute(
+            "recalculate stream nw_soc_join.s from '2025-01-01 00:00:00' to '2025-01-01 00:00:05'"
+        )
+        self._wait_exact_rows(
+            "select trade_no,prev_soc,curr_soc,diff_soc,percent_threshold,flag "
+            "from nw_soc_join.result where ts<'2025-01-01 00:00:01.500' order by trade_no,ts",
+            [("A", 20, 30, 10, 5, 1)],
+        )
+        self._wait_exact_rows(
+            "select distinct trade_no,percent_threshold from nw_soc_join.result order by trade_no",
+            [("A", 5), ("B", 15)],
+        )
+        tdStream.checkStreamStatus()
+        tdStream.dropAllStreamsAndDbs()
+
     def test_ignore_nodata(self):
         """Trigger mode: ignore-no-data suppresses empty leaf output.
 

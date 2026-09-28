@@ -91,6 +91,15 @@ static SNode* getOrderByFirstExpr(SRewriteExprCxt* pCxt) {
   return NULL;
 }
 
+static bool streamWindowPlaceholderIsCurrent(const SFunctionNode* pFunc) {
+  // Explicit layer references have a second parameter; this AST has no leaf identity proof.
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+  SNode* pValue = nodesListGetNode(pFunc->pParameterList, 0);
+  return QUERY_NODE_VALUE == nodeType(pValue) && ((SValueNode*)pValue)->notReserved;
+}
+
 static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartitionBy, SRewriteExprCxt* pCxt) {
   // Get the current first order by expression (may have been rewritten)
   SNode* pOrderByFirstExpr = getOrderByFirstExpr(pCxt);
@@ -130,12 +139,16 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_TWSTART:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->isPrimTs = true;
-      pCol->colType = COLUMN_TYPE_WINDOW_START;
+      if (streamWindowPlaceholderIsCurrent(pFunc)) {
+        pCol->colType = COLUMN_TYPE_WINDOW_START;
+      }
       break;
     case FUNCTION_TYPE_TWEND:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->isPrimTs = true;
-      pCol->colType = COLUMN_TYPE_WINDOW_END;
+      if (streamWindowPlaceholderIsCurrent(pFunc)) {
+        pCol->colType = COLUMN_TYPE_WINDOW_END;
+      }
       break;
     case FUNCTION_TYPE_TPREV_LOCALTIME:
     case FUNCTION_TYPE_TNEXT_LOCALTIME:
@@ -1288,6 +1301,9 @@ static EStreamExtJoinKey streamExtJoinExprKeyType(SNode* pNode) {
 
   if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (!streamWindowPlaceholderIsCurrent(pFunc)) {
+      return STREAM_EXT_JOIN_KEY_NONE;
+    }
     if (FUNCTION_TYPE_TWSTART == pFunc->funcType) {
       return STREAM_EXT_JOIN_KEY_TWSTART;
     }
@@ -7299,34 +7315,18 @@ _return:
   return code;
 }
 
-static bool streamDirectBaseTableProjectionIsSafe(SNodeList* pProjectionList, bool* pUsesWindowMetadata) {
-  *pUsesWindowMetadata = false;
+static bool streamDirectBaseTableProjectionIsSafe(SNodeList* pProjectionList, bool* pUsesStreamPlaceholder) {
+  *pUsesStreamPlaceholder = false;
   SNode* pProj = NULL;
   FOREACH(pProj, pProjectionList) {
     SNode* pExpr = QUERY_NODE_TARGET == nodeType(pProj) ? ((STargetNode*)pProj)->pExpr : pProj;
     if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
       continue;
     }
-    if (QUERY_NODE_FUNCTION != nodeType(pExpr)) {
+    if (QUERY_NODE_FUNCTION != nodeType(pExpr) || !fmIsPlaceHolderFunc(((SFunctionNode*)pExpr)->funcId)) {
       return false;
     }
-    switch (((SFunctionNode*)pExpr)->funcType) {
-      case FUNCTION_TYPE_TWSTART:
-      case FUNCTION_TYPE_TWEND:
-      case FUNCTION_TYPE_TWDURATION:
-      case FUNCTION_TYPE_TWROWNUM:
-        *pUsesWindowMetadata = true;
-        if (1 != LIST_LENGTH(((SFunctionNode*)pExpr)->pParameterList)) {
-          return false;
-        }
-        SNode* pLayer = nodesListGetNode(((SFunctionNode*)pExpr)->pParameterList, 0);
-        if (QUERY_NODE_VALUE != nodeType(pLayer) || !((SValueNode*)pLayer)->notReserved) {
-          return false;
-        }
-        break;
-      default:
-        return false;
-    }
+    *pUsesStreamPlaceholder = true;
   }
   return true;
 }
@@ -7512,11 +7512,11 @@ static bool streamDirectBaseTableIsBroadcastSafe(const SPlanStreamContext* pStre
       (!allowGroupStaticDimensionFilter && !streamDirectBaseTableMatchesTrigger(pStreamCxt, pSelect))) {
     return false;
   }
-  bool usesWindowMetadata = false;
-  if (!streamDirectBaseTableProjectionIsSafe(pSelect->pProjectionList, &usesWindowMetadata)) {
+  bool usesStreamPlaceholder = false;
+  if (!streamDirectBaseTableProjectionIsSafe(pSelect->pProjectionList, &usesStreamPlaceholder)) {
     return false;
   }
-  return usesWindowMetadata;
+  return usesStreamPlaceholder;
 }
 
 static int32_t streamConditionHasUnsupportedPlaceHolder(SNode* pNode, bool* pHasPlaceHolder) {

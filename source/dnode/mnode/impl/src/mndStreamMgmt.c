@@ -2283,7 +2283,26 @@ int32_t msmUpdateRunnerPlans(SStmGrpCtx* pCtx, SArray* pRunners, SStreamObj* pSt
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   int32_t runnerNum = taosArrayGetSize(pRunners);
-  
+  SNodeList* pReaders = NULL;
+
+  // Cache sources are not Readers. Their unresolved Exchange references keep reuse disabled.
+  for (int32_t i = 0; runnerNum > 0 && i < taosArrayGetSize(pStream->pCreate->calcScanPlanList); ++i) {
+    SStreamCalcScan* pScan = taosArrayGet(pStream->pCreate->calcScanPlanList, i);
+    if (pScan->readFromCache) {
+      continue;
+    }
+    SNode* pReader = NULL;
+    TSDB_CHECK_NULL(pScan->scanPlan, code, lino, _exit, TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    TAOS_CHECK_EXIT(nodesStringToNode(pScan->scanPlan, &pReader));
+    TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pReaders, pReader));
+  }
+
+  // Preserve every Runner's complete child identities before endpoint updates erase them.
+  for (int32_t i = 0; i < runnerNum; ++i) {
+    SStmTaskDeploy* pDeploy = taosArrayGet(pRunners, i);
+    TAOS_CHECK_EXIT(qSetStreamBroadcastReuse(pDeploy->msg.runner.pPlan, pReaders));
+  }
+
   for (int32_t i = 0; i < runnerNum; ++i) {
     SStmTaskDeploy* pDeploy = taosArrayGet(pRunners, i);
     TAOS_CHECK_EXIT(msmUpdateRunnerPlan(pCtx, pRunners, i, pDeploy, pStream));
@@ -2294,6 +2313,8 @@ int32_t msmUpdateRunnerPlans(SStmGrpCtx* pCtx, SArray* pRunners, SStreamObj* pSt
   }
 
 _exit:
+
+  nodesDestroyList(pReaders);
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

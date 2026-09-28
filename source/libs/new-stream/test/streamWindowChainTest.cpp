@@ -2116,6 +2116,9 @@ TEST(StreamWindowChainDataTest, StateScopeFirstNullRowDoesNotReadEmptyInstanceAr
   EXPECT_EQ(TSDB_CODE_SUCCESS, terrno);
   EXPECT_EQ(0, taosArrayGetSize(first.value().pAcceptedBatches));
   EXPECT_EQ(0, taosArrayGetSize(first.value().pCandidates));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stWindowChainAdvanceFrontier(chain.get(), 100, 20, first.value().pCandidates));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, terrno);
+  EXPECT_EQ(0, taosArrayGetSize(first.value().pCandidates));
 }
 
 TEST(StreamWindowChainDataTest, StatePartialNullResolutionMatchesLegacy) {

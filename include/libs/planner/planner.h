@@ -114,6 +114,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 int32_t qContinuePlanPostQuery(void *pPostPlan);
 
+/** Annotate Runner input reuse before child references are rewritten; Readers are borrowed and read-only. */
+int32_t qSetStreamBroadcastReuse(SSubplan* pRunner, const SNodeList* pReaderSubplans);
+
 void qClearSubplanExecutionNode(SSubplan* pSubplan);
 
 // Convert to subplan to display string for the scheduler to send to the executor

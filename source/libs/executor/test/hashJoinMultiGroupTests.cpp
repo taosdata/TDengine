@@ -734,6 +734,15 @@ void expectProtocol(const std::vector<ProtocolEvent>&                       actu
 
 }  // namespace
 
+TEST(HashJoinMultiGroupTest, FactoryLeavesPhysicalNodeOwnershipWithParentPlan) {
+  HashJoinHarness harness;
+  ASSERT_EQ(harness.Create({eogBlock(101)}, {eogBlock(101)}, {101}), TSDB_CODE_SUCCESS);
+  ASSERT_NE(harness.join(), nullptr);
+  EXPECT_EQ(harness.join()->operatorType, QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN);
+  EXPECT_EQ(harness.join()->pPhyNode, nullptr);
+  EXPECT_TRUE(harness.info()->multiGroupJoin);
+}
+
 TEST(HashJoinMultiGroupTest, BuildsAndProbesOneCanonicalGroupAtATime) {
   const std::vector<uint64_t> order = {101, 202, 303};
   std::vector<InputBlockSpec> left;

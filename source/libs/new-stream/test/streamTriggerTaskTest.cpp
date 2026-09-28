@@ -79,6 +79,16 @@ int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pT
 int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp);
 void    tFreeSSTriggerRuntimeStatus(void* param);
 int32_t smStartStreamTasks(SStreamTaskStart* pStart);
+int32_t stTriggerTaskAcquireDropTableRequest(SStreamTriggerTask* pTask, int64_t sessionId, int64_t gid,
+                                             SSTriggerDropRequest** ppRequest);
+int32_t stTestCalcRequestParamCount(const SSTriggerCalcRequest* pReq, int32_t* pCount);
+int32_t stTestFinalizeCalcRequest(SSTriggerCalcRequest* pReq);
+}
+
+static void destroyPoolDropRequest(SSTriggerDropRequest** ppRequest) {
+  if (ppRequest == nullptr || *ppRequest == nullptr) return;
+  tDestroySSTriggerDropRequest(*ppRequest);
+  taosMemoryFreeClear(*ppRequest);
 }
 
 static int32_t discardQueuedTriggerMessage(void*, EQueueType, SRpcMsg* pMsg) {
@@ -3267,6 +3277,7 @@ struct PipelineWalGroup {
   int64_t              version;
   bool                 hasRollupTbCount;
   int32_t              rollupTbCount;
+  TSKEY                metaStart;
 };
 
 struct PipelineRow {
@@ -3526,7 +3537,8 @@ static SSDataBlock* makePipelineMetaBlock(const std::vector<PipelineWalGroup>& g
       blockDataDestroy(pBlock);
       return nullptr;
     }
-    const int64_t values[] = {groups[row].gid, 0, groups[row].timestamps.back(), groups[row].version};
+    const int64_t values[] = {groups[row].gid, groups[row].metaStart, groups[row].timestamps.back(),
+                              groups[row].version};
     for (int32_t col = 0; col <= STREAM_WAL_META_VER_COL; ++col) {
       auto* pCol = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, col));
       if (pCol == nullptr || colDataSetVal(pCol, static_cast<int32_t>(row), reinterpret_cast<const char*>(&values[col]),
@@ -14099,6 +14111,105 @@ class ScopedHistoryGroupIterationProbe {
   Stub stub_;
 };
 
+TEST(StreamCalcRequestCountTest, RepeatedGroupedCountDoesNotIterateGroups) {
+  SSTriggerCalcRequest request = {};
+  request.pGroupCalcInfos = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, request.pGroupCalcInfos);
+  tSimpleHashSetFreeFp(request.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+
+  for (int64_t gid : {INT64_C(42), INT64_C(43)}) {
+    SSTriggerGroupCalcInfo group = {};
+    group.pParams = taosArrayInit_s(sizeof(SSTriggerCalcParam), gid == 42 ? 2 : 1);
+    ASSERT_NE(nullptr, group.pParams);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(request.pGroupCalcInfos, &gid, sizeof(gid), &group, sizeof(group)));
+  }
+  request.assembledParamCount = 3;
+
+  ScopedHistoryGroupIterationProbe probe(request.pGroupCalcInfos);
+  for (int32_t i = 0; i < 100; ++i) {
+    int32_t count = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTestCalcRequestParamCount(&request, &count));
+    EXPECT_EQ(3, count);
+  }
+  EXPECT_EQ(0, probe.calls());
+
+  int32_t count = 0;
+  request.assembledParamCount = STREAM_CALC_REQ_MAX_WIN_NUM;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stTestCalcRequestParamCount(&request, &count));
+  EXPECT_EQ(STREAM_CALC_REQ_MAX_WIN_NUM, count);
+  request.assembledParamCount = STREAM_CALC_REQ_MAX_WIN_NUM + 1;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stTestCalcRequestParamCount(&request, &count));
+
+  tDestroySTriggerCalcRequest(&request);
+}
+
+TEST(StreamCalcRequestCountTest, FinalizeRejectsCounterMismatch) {
+  SSTriggerCalcRequest request = {};
+  request.isMultiGroupCalc = true;
+  request.pGroupCalcInfos = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, request.pGroupCalcInfos);
+  tSimpleHashSetFreeFp(request.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  const int64_t          gid = 42;
+  SSTriggerGroupCalcInfo group = {};
+  group.pParams = taosArrayInit_s(sizeof(SSTriggerCalcParam), 2);
+  ASSERT_NE(nullptr, group.pParams);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(request.pGroupCalcInfos, &gid, sizeof(gid), &group, sizeof(group)));
+
+  request.assembledParamCount = 1;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stTestFinalizeCalcRequest(&request));
+  EXPECT_TRUE(request.isMultiGroupCalc);
+  EXPECT_EQ(1, tSimpleHashGetSize(request.pGroupCalcInfos));
+
+  request.assembledParamCount = 2;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stTestFinalizeCalcRequest(&request));
+  tDestroySTriggerCalcRequest(&request);
+}
+
+TEST(StreamCalcRequestCountTest, LegacySingleGroupCountUsesParams) {
+  SSTriggerCalcRequest request = {};
+  request.params = taosArrayInit_s(sizeof(SSTriggerCalcParam), 2);
+  ASSERT_NE(nullptr, request.params);
+  request.assembledParamCount = STREAM_CALC_REQ_MAX_WIN_NUM + 1;
+
+  int32_t count = 0;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stTestCalcRequestParamCount(&request, &count));
+  EXPECT_EQ(2, count);
+  tDestroySTriggerCalcRequest(&request);
+}
+
+TEST(StreamCalcRequestCountTest, FinalizePreservesLegacySingleGroupShape) {
+  SSTriggerCalcRequest request = {};
+  request.params = taosArrayInit(0, sizeof(SSTriggerCalcParam));
+  request.groupColVals = taosArrayInit(0, sizeof(SStreamGroupValue));
+  request.pGroupCalcInfos = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  request.pGroupReadInfos = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  ASSERT_NE(nullptr, request.params);
+  ASSERT_NE(nullptr, request.groupColVals);
+  ASSERT_NE(nullptr, request.pGroupCalcInfos);
+  ASSERT_NE(nullptr, request.pGroupReadInfos);
+  tSimpleHashSetFreeFp(request.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  tSimpleHashSetFreeFp(request.pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
+
+  const int64_t          gid = 42;
+  SSTriggerGroupCalcInfo group = {};
+  group.pParams = taosArrayInit_s(sizeof(SSTriggerCalcParam), 2);
+  group.pGroupColVals = taosArrayInit(0, sizeof(SStreamGroupValue));
+  ASSERT_NE(nullptr, group.pParams);
+  ASSERT_NE(nullptr, group.pGroupColVals);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(request.pGroupCalcInfos, &gid, sizeof(gid), &group, sizeof(group)));
+  request.assembledParamCount = 2;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTestFinalizeCalcRequest(&request));
+  EXPECT_FALSE(request.isMultiGroupCalc);
+  EXPECT_EQ(gid, request.gid);
+  EXPECT_EQ(2, taosArrayGetSize(request.params));
+  EXPECT_EQ(0, tSimpleHashGetSize(request.pGroupCalcInfos));
+  int32_t count = 0;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stTestCalcRequestParamCount(&request, &count));
+  EXPECT_EQ(2, count);
+  tDestroySTriggerCalcRequest(&request);
+}
+
 class ScopedHistoryPendingInflation {
  public:
   ScopedHistoryPendingInflation(SSTriggerHistoryContext* pContext, const std::vector<SSTriggerHistoryGroup*>& groups,
@@ -15414,6 +15525,45 @@ TEST_F(StreamHistoryBatchTest, HistoryTraversalPacksGroupsIntoOneRequest) {
   }
 }
 
+TEST_F(StreamHistoryBatchTest, ExistingRequestAppendsBusyGroupWithoutTrows) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deploy(NestedHistoryPlan::SessionUnitCount, 0,
+                             NestedHistoryHarness::kScanStart + NestedHistoryHarness::kHistoryStep, false, 0, true,
+                             false, 4, false, false, false, false));
+  harness.task()->multiGroupBatch = true;
+  ASSERT_TRUE(harness.setHistoryEffectPolicy(STRIGGER_EVENT_WINDOW_CLOSE, STRIGGER_EVENT_WINDOW_NONE, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startAndCreateHistory());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondFirstTs());
+
+  const int64_t         otherGid = NestedHistoryHarness::kGid;
+  const int64_t         busyGid = NestedHistoryHarness::kGid + 1;
+  SSTriggerCalcRequest* blocker = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAcquireRequest(harness.task(), NestedHistoryHarness::kHistorySession, busyGid, &blocker));
+  ASSERT_NE(nullptr, blocker);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondTriggerGroupRows({{otherGid, 1}, {busyGid, 2}}));
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  const PipelineCalcAttempt* pAttempt = harness.calcAttempt(0);
+  ASSERT_NE(nullptr, pAttempt);
+  const SSTriggerGroupCalcInfo* pOtherGroup = historyGroupCalcInfo(&pAttempt->decoded, otherGid);
+  const SSTriggerGroupCalcInfo* pBusyGroup = historyGroupCalcInfo(&pAttempt->decoded, busyGid);
+  ASSERT_NE(nullptr, pOtherGroup);
+  ASSERT_NE(nullptr, pBusyGroup);
+  ASSERT_EQ(1, taosArrayGetSize(pOtherGroup->pParams));
+  ASSERT_EQ(2, taosArrayGetSize(pBusyGroup->pParams));
+
+  int64_t     runningKey[2] = {NestedHistoryHarness::kHistorySession, busyGid};
+  const auto* pRunning = static_cast<const SSTriggerGroupRunning*>(
+      tSimpleHashGet(harness.task()->pGroupRunning, runningKey, sizeof(runningKey)));
+  ASSERT_NE(nullptr, pRunning);
+  EXPECT_EQ(2, pRunning->runningRequests);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(harness.task(), &blocker, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(0));
+}
+
 TEST_F(StreamHistoryBatchTest, HistoryTraversalCanonicalizesDescendingGroupIds) {
   NestedHistoryHarness harness;
   ASSERT_TRUE(harness.deploy(NestedHistoryPlan::SessionUnitCount, 0,
@@ -15667,6 +15817,14 @@ TEST_F(StreamHistoryBatchTest, FatalBuildFailureReleasesRequestWithoutRestoringC
   EXPECT_EQ(0, listNEles(&pConsumed->pendingNestedEvents));
   EXPECT_EQ(1, listNEles(&pFailed->pendingNestedEvents));
   EXPECT_EQ(pFailed, TD_DLIST_HEAD(&harness.historyContext()->groupsToCheck));
+  for (int32_t i = 0; i < 3; ++i) {
+    SSTriggerDropRequest* dropRequest = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              stTriggerTaskAcquireDropTableRequest(harness.task(), NestedHistoryHarness::kHistorySession,
+                                                   NestedHistoryHarness::kGid + i, &dropRequest));
+    ASSERT_NE(nullptr, dropRequest);
+    destroyPoolDropRequest(&dropRequest);
+  }
 }
 
 TEST_F(StreamHistoryBatchTest, SendFailureReturnsFatalAndCreatesNoRetryOwner) {
@@ -15691,6 +15849,12 @@ TEST_F(StreamHistoryBatchTest, SendFailureReturnsFatalAndCreatesNoRetryOwner) {
     const SSTriggerHistoryGroup* pGroup = harness.historyGroup(NestedHistoryHarness::kGid + i);
     ASSERT_NE(nullptr, pGroup);
     EXPECT_EQ(0, listNEles(&pGroup->pendingNestedEvents));
+    SSTriggerDropRequest* dropRequest = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              stTriggerTaskAcquireDropTableRequest(harness.task(), NestedHistoryHarness::kHistorySession,
+                                                   NestedHistoryHarness::kGid + i, &dropRequest));
+    ASSERT_NE(nullptr, dropRequest);
+    destroyPoolDropRequest(&dropRequest);
   }
 }
 
@@ -15764,29 +15928,44 @@ TEST_F(StreamHistoryBatchTest, History40960FlushesThenContinuesSameGroup) {
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             stTriggerTaskGetRunningReq(harness.task(), NestedHistoryHarness::kHistorySession, &runningRequests));
   EXPECT_EQ(1, runningRequests);
+  SSTriggerDropRequest* pDropRequest = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAcquireDropTableRequest(harness.task(), NestedHistoryHarness::kHistorySession,
+                                                 NestedHistoryHarness::kGid, &pDropRequest));
+  EXPECT_EQ(nullptr, pDropRequest);
+  if (pDropRequest != nullptr) {
+    tDestroySSTriggerDropRequest(pDropRequest);
+    taosMemoryFreeClear(pDropRequest);
+  }
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(0));
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             stTriggerTaskGetRunningReq(harness.task(), NestedHistoryHarness::kHistorySession, &runningRequests));
   EXPECT_EQ(0, runningRequests);
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAcquireDropTableRequest(harness.task(), NestedHistoryHarness::kHistorySession,
+                                                 NestedHistoryHarness::kGid, &pDropRequest));
+  ASSERT_NE(nullptr, pDropRequest);
+  tDestroySSTriggerDropRequest(pDropRequest);
+  taosMemoryFreeClear(pDropRequest);
 }
 
-TEST_F(StreamHistoryBatchTest, ManualRecalcSingleGidRemainsValidSingleGroup) {
+TEST_F(StreamHistoryBatchTest, ManualRecalcSingleGidPreservesMultiGroupProtocol) {
   NestedHistoryHarness harness;
   startNestedHistoryRangeRecalc(harness, NestedHistoryPlan::SessionCount, {1000, 1000},
-                                NestedHistoryHarness::kScanStart + 2 * NestedHistoryHarness::kHistoryStep);
+                                NestedHistoryHarness::kScanStart + 2 * NestedHistoryHarness::kHistoryStep, false);
   harness.task()->multiGroupBatch = true;
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondMetaAt(1000, NestedHistoryHarness::kTableUid, 2));
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondRows({1000, 1000}, {10, 20}));
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPendingEmptyMetas());
-  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcDataRows({1000, 1000}, {10, 20}));
-
   ASSERT_EQ(1, harness.calcAttemptCount());
   const PipelineCalcAttempt* pAttempt = harness.calcAttempt(0);
   ASSERT_NE(nullptr, pAttempt);
-  EXPECT_FALSE(pAttempt->decoded.isMultiGroupCalc);
-  EXPECT_EQ(NestedHistoryHarness::kGid, pAttempt->decoded.gid);
-  ASSERT_NE(nullptr, pAttempt->decoded.params);
-  EXPECT_EQ(1, taosArrayGetSize(pAttempt->decoded.params));
+  EXPECT_TRUE(pAttempt->decoded.isMultiGroupCalc);
+  EXPECT_EQ(0, pAttempt->decoded.gid);
+  const SSTriggerGroupCalcInfo* pGroup = historyGroupCalcInfo(&pAttempt->decoded, NestedHistoryHarness::kGid);
+  ASSERT_NE(nullptr, pGroup);
+  ASSERT_NE(nullptr, pGroup->pParams);
+  EXPECT_EQ(1, taosArrayGetSize(pGroup->pParams));
   EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateSTriggerCalcRequest(&pAttempt->decoded));
 }
 
@@ -20895,7 +21074,7 @@ TEST_F(StreamTriggerTaskTest, OrdinaryRealtimeHousekeepingFailureIsFatalBeforeSe
   EXPECT_EQ(0, runningRequests);
 }
 
-TEST_F(StreamTriggerTaskTest, OrdinaryRealtimeGroupsIncrementallyBindOneLiveRequest) {
+TEST_F(StreamTriggerTaskTest, OrdinaryRealtimeGroupAfterMultiGroupRequestRunsConcurrently) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
                            STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, true));
@@ -20910,15 +21089,89 @@ TEST_F(StreamTriggerTaskTest, OrdinaryRealtimeGroupsIncrementallyBindOneLiveRequ
   EXPECT_EQ(1, runningRequests);
 
   ASSERT_TRUE(harness.feedGroups({{43, 1002, {3000, 4000}, {5, 6}, 3}}));
-  EXPECT_EQ(1, harness.calcAttemptCount());
-  EXPECT_GT(harness.group(43)->pPendingCalcParams.neles, 0);
-  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
-  harness.cleanupCalcAttemptTransport(0);
   ASSERT_EQ(2, harness.calcAttemptCount());
   EXPECT_EQ(0, harness.group(43)->pPendingCalcParams.neles);
+  const PipelineCalcAttempt* pFirst = harness.calcAttempt(0);
+  const PipelineCalcAttempt* pSecond = harness.calcAttempt(1);
+  ASSERT_NE(nullptr, pFirst);
+  ASSERT_NE(nullptr, pSecond);
+  EXPECT_NE(nullptr, pipelineGroupCalcInfo(&pFirst->decoded, 42));
+  const SSTriggerGroupCalcInfo* pFirstGroup = pipelineGroupCalcInfo(&pFirst->decoded, 43);
+  const SSTriggerGroupCalcInfo* pSecondGroup = pipelineGroupCalcInfo(&pSecond->decoded, 43);
+  ASSERT_NE(nullptr, pFirstGroup);
+  ASSERT_NE(nullptr, pSecondGroup);
+  ASSERT_EQ(1, taosArrayGetSize(pFirstGroup->pParams));
+  ASSERT_EQ(2, taosArrayGetSize(pSecondGroup->pParams));
+  const auto* pFirstParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pFirstGroup->pParams, 0));
+  const auto* pSecondParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pSecondGroup->pParams, 0));
+  const auto* pSecondNextParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pSecondGroup->pParams, 1));
+  ASSERT_NE(nullptr, pFirstParam);
+  ASSERT_NE(nullptr, pSecondParam);
+  ASSERT_NE(nullptr, pSecondNextParam);
+  EXPECT_EQ(1000, pFirstParam->wstart);
+  EXPECT_EQ(2000, pSecondParam->wstart);
+  EXPECT_EQ(3000, pSecondNextParam->wstart);
+  EXPECT_NE(pFirst->pooledRequestAddress, pSecond->pooledRequestAddress);
+  EXPECT_NE(pFirst->decoded.runnerTaskId, pSecond->decoded.runnerTaskId);
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &runningRequests));
+  EXPECT_EQ(2, runningRequests);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(1);
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &runningRequests));
   EXPECT_EQ(1, runningRequests);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(0);
+}
+
+TEST_F(StreamTriggerTaskTest, OrdinaryRealtimeSameGroupRunsConcurrentlyWithoutTrows) {
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, true));
+  harness.retainCalcAttempts();
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
+
+  ASSERT_TRUE(harness.feedRows({1000, 2000}, {1, 2}));
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  ASSERT_TRUE(harness.feedRows({3000, 4000}, {3, 4}));
+  ASSERT_EQ(2, harness.calcAttemptCount());
+
+  const PipelineCalcAttempt* pFirst = harness.calcAttempt(0);
+  const PipelineCalcAttempt* pSecond = harness.calcAttempt(1);
+  ASSERT_NE(nullptr, pFirst);
+  ASSERT_NE(nullptr, pSecond);
+  EXPECT_EQ(0, pFirst->decoded.gid);
+  EXPECT_EQ(0, pSecond->decoded.gid);
+  EXPECT_NE(pFirst->pooledRequestAddress, pSecond->pooledRequestAddress);
+  EXPECT_NE(pFirst->decoded.runnerTaskId, pSecond->decoded.runnerTaskId);
+  const SSTriggerGroupCalcInfo* pFirstGroup = pipelineGroupCalcInfo(&pFirst->decoded, RealtimePipelineHarness::kGid);
+  const SSTriggerGroupCalcInfo* pSecondGroup = pipelineGroupCalcInfo(&pSecond->decoded, RealtimePipelineHarness::kGid);
+  ASSERT_NE(nullptr, pFirstGroup);
+  ASSERT_NE(nullptr, pSecondGroup);
+  ASSERT_EQ(1, taosArrayGetSize(pFirstGroup->pParams));
+  ASSERT_EQ(2, taosArrayGetSize(pSecondGroup->pParams));
+  const auto* pFirstParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pFirstGroup->pParams, 0));
+  const auto* pSecondParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pSecondGroup->pParams, 0));
+  const auto* pSecondNextParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pSecondGroup->pParams, 1));
+  ASSERT_NE(nullptr, pFirstParam);
+  ASSERT_NE(nullptr, pSecondParam);
+  ASSERT_NE(nullptr, pSecondNextParam);
+  EXPECT_EQ(1000, pFirstParam->wstart);
+  EXPECT_EQ(2000, pSecondParam->wstart);
+  EXPECT_EQ(3000, pSecondNextParam->wstart);
+
+  int64_t runningRequests = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &runningRequests));
+  EXPECT_EQ(2, runningRequests);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &runningRequests));
+  EXPECT_EQ(1, runningRequests);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
 }
 
 TEST_F(StreamTriggerTaskTest, AutomaticRealtimeCalcFailureIsFatalWithoutRetry) {
@@ -20939,7 +21192,7 @@ TEST_F(StreamTriggerTaskTest, AutomaticRealtimeCalcFailureIsFatalWithoutRetry) {
   EXPECT_EQ(0, runningRequests);
 }
 
-TEST_F(StreamTriggerTaskTest, AutomaticRealtimeVtableRedeployRetriesSameRequest) {
+TEST_F(StreamTriggerTaskTest, AutomaticRealtimeVtableRedeployRetriesWithoutDuplicateSameGroupOwnership) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
                            STRIGGER_EVENT_WINDOW_NONE, 0, 1, true, 0, true));
@@ -20951,12 +21204,24 @@ TEST_F(StreamTriggerTaskTest, AutomaticRealtimeVtableRedeployRetriesSameRequest)
 
   EXPECT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
   ASSERT_EQ(2, harness.calcAttemptCount());
-  EXPECT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
-
   int64_t runningRequests = -1;
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &runningRequests));
+  EXPECT_EQ(1, runningRequests);
+  SSTriggerDropRequest* dropRequest = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireDropTableRequest(harness.task(), harness.context()->sessionId,
+                                                                    RealtimePipelineHarness::kGid, &dropRequest));
+  EXPECT_EQ(nullptr, dropRequest);
+  destroyPoolDropRequest(&dropRequest);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &runningRequests));
   EXPECT_EQ(0, runningRequests);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireDropTableRequest(harness.task(), harness.context()->sessionId,
+                                                                    RealtimePipelineHarness::kGid, &dropRequest));
+  ASSERT_NE(nullptr, dropRequest);
+  destroyPoolDropRequest(&dropRequest);
 }
 
 TEST_F(StreamTriggerTaskTest, AutomaticRealtimeTableNotCreateIsFatalWithoutRetry) {
@@ -21649,7 +21914,8 @@ TEST_F(StreamNestedRealtimeTest, NestedAutomaticResponseErrorIsFatalWithoutRetry
   EXPECT_EQ(0, runningRequests);
 }
 
-TEST_F(StreamNestedRealtimeTest, SameGidNestedBatchDefersUntilPriorRequestCompletes) {
+TEST_F(StreamNestedRealtimeTest, SameGidNestedBatchRunsConcurrentlyWithoutTrows) {
+  ScopedStreamBatchRequestWait batchWait(10);
   gRealtimePipelineClockNs = NANOSECOND_PER_MSEC;
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_CLOSE,
@@ -21668,30 +21934,46 @@ TEST_F(StreamNestedRealtimeTest, SameGidNestedBatchDefersUntilPriorRequestComple
 
   ++gRealtimePipelineClockNs;
   ASSERT_TRUE(harness.feedRowsAndDroppedGroups({1040, 1055}, {3, 4}, {42}));
-  ASSERT_EQ(1, harness.calcAttemptCount());
+  ASSERT_EQ(2, harness.calcAttemptCount());
   SSTriggerRealtimeGroup* pGroup = harness.group(42);
   ASSERT_NE(nullptr, pGroup);
-  EXPECT_GT(listNEles(&pGroup->pendingNestedEvents), 0);
+  EXPECT_EQ(0, listNEles(&pGroup->pendingNestedEvents));
   EXPECT_EQ(0, listNEles(&pGroup->pendingNestedParWinEvents));
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &runningRequests));
-  EXPECT_EQ(1, runningRequests);
+  EXPECT_EQ(2, runningRequests);
+
+  const PipelineCalcAttempt* pFirst = harness.calcAttempt(0);
+  const PipelineCalcAttempt* pSecond = harness.calcAttempt(1);
+  ASSERT_NE(nullptr, pFirst);
+  ASSERT_NE(nullptr, pSecond);
+  EXPECT_EQ(RealtimePipelineHarness::kGid, pFirst->decoded.gid);
+  EXPECT_EQ(RealtimePipelineHarness::kGid, pSecond->decoded.gid);
+  EXPECT_NE(pFirst->pooledRequestAddress, pSecond->pooledRequestAddress);
+  EXPECT_NE(pFirst->decoded.runnerTaskId, pSecond->decoded.runnerTaskId);
+  ASSERT_EQ(1, taosArrayGetSize(pFirst->decoded.params));
+  ASSERT_EQ(2, taosArrayGetSize(pSecond->decoded.params));
+  const auto* pFirstParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pFirst->decoded.params, 0));
+  const auto* pSecondParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pSecond->decoded.params, 0));
+  const auto* pSecondNextParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pSecond->decoded.params, 1));
+  ASSERT_NE(nullptr, pFirstParam);
+  ASSERT_NE(nullptr, pSecondParam);
+  ASSERT_NE(nullptr, pSecondNextParam);
+  EXPECT_EQ(1000, pFirstParam->wstart);
+  EXPECT_EQ(1015, pSecondParam->wstart);
+  EXPECT_EQ(1040, pSecondNextParam->wstart);
 
   EXPECT_TRUE(harness.droppedGids().empty());
-  ASSERT_EQ(1, harness.calcAttemptCount());
-
-  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
-  harness.cleanupCalcAttemptTransport(0);
-  ASSERT_EQ(2, harness.calcAttemptCount());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(1);
   EXPECT_TRUE(harness.droppedGids().empty());
   EXPECT_EQ(0, listNEles(&pGroup->pendingNestedEvents));
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &runningRequests));
   EXPECT_EQ(1, runningRequests);
 
-  ASSERT_EQ(TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER,
-            harness.dispatchCalcAttempt(1, TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER));
-  harness.cleanupCalcAttemptTransport(1);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(0);
   ASSERT_EQ(2, harness.calcAttemptCount());
   EXPECT_TRUE(harness.droppedGids().empty());
   ASSERT_EQ(TSDB_CODE_SUCCESS,
@@ -21699,6 +21981,35 @@ TEST_F(StreamNestedRealtimeTest, SameGidNestedBatchDefersUntilPriorRequestComple
   EXPECT_EQ(0, runningRequests);
   ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
   ASSERT_EQ((std::vector<int64_t>{42}), harness.droppedGids());
+}
+
+TEST_F(StreamNestedRealtimeTest, SameGidNestedBatchWithTrowsWaitsForPriorRequest) {
+  ScopedStreamBatchRequestWait batchWait(10);
+  gRealtimePipelineClockNs = NANOSECOND_PER_MSEC;
+  RealtimePipelineHarness harness;
+  harness.enableNestedValueCacheProjection();
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 3));
+  ASSERT_NE(0, harness.task()->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS);
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  harness.retainCalcAttempts();
+  ASSERT_TRUE(harness.start());
+
+  ASSERT_TRUE(harness.feedRows({1000, 1015}, {1, 2}));
+  ASSERT_TRUE(harness.respondCalcRows({1000, 1015}, {1, 2}));
+  ASSERT_EQ(1, harness.calcAttemptCount());
+
+  ++gRealtimePipelineClockNs;
+  ASSERT_TRUE(harness.feedRows({1040, 1055}, {3, 4}));
+  EXPECT_EQ(1, harness.calcAttemptCount());
+  EXPECT_EQ(0, harness.pendingPullCount(STRIGGER_PULL_WAL_CALC_DATA_NEW));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(0);
+  ASSERT_EQ(1, harness.pendingPullCount(STRIGGER_PULL_WAL_CALC_DATA_NEW));
+  ASSERT_TRUE(harness.respondCalcRows({1040, 1055}, {3, 4}));
+  ASSERT_EQ(2, harness.calcAttemptCount());
 }
 
 TEST_F(StreamNestedRealtimeTest, SubsequentNestedCalcCarriesPartitionValues) {
@@ -21729,14 +22040,13 @@ TEST_F(StreamNestedRealtimeTest, SubsequentNestedCalcCarriesPartitionValues) {
 
   ++gRealtimePipelineClockNs;
   ASSERT_TRUE(harness.feedRowsAndDroppedGroups({1040, 1055}, {3, 4}, {42}));
-  ASSERT_EQ(1, harness.calcAttemptCount());
-  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
-  harness.cleanupCalcAttemptTransport(0);
   ASSERT_EQ(2, harness.calcAttemptCount());
 
   const PipelineCalcAttempt* pSubsequent = harness.calcAttempt(1);
   ASSERT_NE(nullptr, pSubsequent);
-  EXPECT_FALSE(pSubsequent->decoded.createTable);
+  EXPECT_TRUE(pSubsequent->decoded.createTable);
+  EXPECT_NE(pInitial->pooledRequestAddress, pSubsequent->pooledRequestAddress);
+  EXPECT_NE(pInitial->decoded.runnerTaskId, pSubsequent->decoded.runnerTaskId);
   ASSERT_NE(nullptr, pSubsequent->decoded.groupColVals);
   ASSERT_EQ(1, taosArrayGetSize(pSubsequent->decoded.groupColVals));
   const auto* pSubsequentValue =
@@ -21744,6 +22054,11 @@ TEST_F(StreamNestedRealtimeTest, SubsequentNestedCalcCarriesPartitionValues) {
   ASSERT_NE(nullptr, pSubsequentValue);
   EXPECT_EQ(TSDB_DATA_TYPE_BIGINT, pSubsequentValue->data.type);
   EXPECT_EQ(4200, pSubsequentValue->data.val);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(1);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(0);
 }
 
 TEST_F(StreamNestedRealtimeTest, NoContextDropsOnlySelectedNestedGroup) {
@@ -21929,6 +22244,140 @@ TEST_F(StreamNestedRealtimeTest, Nested40960FlushesWithoutLosingRemainder) {
   ASSERT_EQ(2, harness.calcAttemptCount());
   EXPECT_EQ(1, pipelineCalcRequestParamCount(&harness.calcAttempt(1)->decoded));
   EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateSTriggerCalcRequestAncestorContext(&harness.calcAttempt(1)->decoded, true));
+}
+
+static bool seedNestedBackpressure(RealtimePipelineHarness& harness) {
+  std::vector<PipelineWalGroup> groups;
+  for (int64_t i = 0; i < 32; ++i) {
+    groups.push_back({42 + i, 1001 + i, {1000, 1015}, {1, 2}, 2});
+  }
+  if (!harness.feedGroups(groups)) return false;
+
+  // Keep every group below the request limit while the total exceeds 1M by two full requests.
+  constexpr int32_t perGroup = (1024 * 1024 + 2 * STREAM_CALC_REQ_MAX_WIN_NUM) / 32;
+  for (const auto& group : groups) {
+    if (!harness.appendPendingNestedEvents(group.gid, perGroup - 1, 3000)) return false;
+  }
+  return true;
+}
+
+TEST_F(StreamNestedRealtimeTest, NestedBackpressureDrainsBeforePollingAndResumesOnCalcResponse) {
+  constexpr int64_t            pendingLimit = 1024 * 1024;
+  ScopedStreamBatchRequestWait batchWait(10);
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 1, false, 0, true));
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  harness.retainCalcAttempts();
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(seedNestedBackpressure(harness));
+  ASSERT_EQ(pendingLimit + 2 * STREAM_CALC_REQ_MAX_WIN_NUM, harness.context()->nestedPendingParamCount);
+
+  ASSERT_TRUE(harness.feedZeroRowWal());
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  EXPECT_EQ(pendingLimit + STREAM_CALC_REQ_MAX_WIN_NUM, harness.context()->nestedPendingParamCount);
+  ASSERT_EQ(STRIGGER_CONTEXT_ACQUIRE_REQUEST, harness.context()->status);
+  EXPECT_EQ(0, harness.pendingSendCount());
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(0);
+  ASSERT_EQ(2, harness.calcAttemptCount());
+  EXPECT_EQ(pendingLimit, harness.context()->nestedPendingParamCount);
+  ASSERT_EQ(STRIGGER_CONTEXT_ACQUIRE_REQUEST, harness.context()->status);
+  EXPECT_EQ(0, harness.pendingSendCount());
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(1);
+  ASSERT_EQ(3, harness.calcAttemptCount());
+  EXPECT_EQ(pendingLimit - STREAM_CALC_REQ_MAX_WIN_NUM, harness.context()->nestedPendingParamCount);
+  EXPECT_EQ(STRIGGER_CONTEXT_IDLE, harness.context()->status);
+  for (int32_t i = 0; i < harness.calcAttemptCount(); ++i) {
+    EXPECT_EQ(STREAM_CALC_REQ_MAX_WIN_NUM, pipelineCalcRequestParamCount(&harness.calcAttempt(i)->decoded));
+    EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateSTriggerCalcRequestAncestorContext(&harness.calcAttempt(i)->decoded, true));
+  }
+  ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
+  EXPECT_EQ(STRIGGER_CONTEXT_FETCH_META, harness.context()->status);
+  EXPECT_EQ(1, harness.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+TEST_F(StreamNestedRealtimeTest, NestedBackpressureDefersUncheckedGroupsUntilPendingDrops) {
+  constexpr int64_t            pendingLimit = 1024 * 1024;
+  ScopedStreamBatchRequestWait batchWait(10);
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 1, false, 0, true));
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  harness.retainCalcAttempts();
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(seedNestedBackpressure(harness));
+
+  ASSERT_TRUE(harness.feedGroups({{100, 2000, {2000, 2015}, {3, 4}, 3}}));
+  SSTriggerRealtimeGroup* pUnchecked = harness.group(100);
+  ASSERT_NE(nullptr, pUnchecked);
+  EXPECT_EQ(0, pUnchecked->nestedPendingParamCount);
+  EXPECT_EQ(1, TD_DLIST_NELES(&harness.context()->groupsToCheck));
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  ASSERT_EQ(STRIGGER_CONTEXT_ACQUIRE_REQUEST, harness.context()->status);
+  EXPECT_EQ(0, harness.pendingSendCount());
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(0);
+  EXPECT_EQ(pendingLimit, harness.context()->nestedPendingParamCount);
+  EXPECT_EQ(0, pUnchecked->nestedPendingParamCount);
+  ASSERT_EQ(STRIGGER_CONTEXT_ACQUIRE_REQUEST, harness.context()->status);
+  EXPECT_EQ(0, harness.pendingSendCount());
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(1);
+  EXPECT_EQ(3, harness.calcAttemptCount());
+  EXPECT_EQ(1, pUnchecked->nestedPendingParamCount);
+  EXPECT_EQ(pendingLimit - STREAM_CALC_REQ_MAX_WIN_NUM + 1, harness.context()->nestedPendingParamCount);
+  EXPECT_EQ(0, TD_DLIST_NELES(&harness.context()->groupsToCheck));
+  EXPECT_EQ(STRIGGER_CONTEXT_FETCH_META, harness.context()->status);
+  EXPECT_EQ(1, harness.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+TEST_F(StreamNestedRealtimeTest, NestedBackpressurePreservesUncheckedTrowsInput) {
+  ScopedStreamBatchRequestWait batchWait(10);
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  RealtimePipelineHarness harness;
+  harness.enableNestedValueCacheProjection();
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 1, false));
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  harness.retainCalcAttempts();
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(seedNestedBackpressure(harness));
+
+  const int64_t uid = 2000;
+  ASSERT_TRUE(harness.feedGroups({{100, uid, {2000, 2015}, {3, 4}, 3}}));
+  SSTriggerRealtimeGroup* pUnchecked = harness.group(100);
+  ASSERT_NE(nullptr, pUnchecked);
+  EXPECT_EQ(0, pUnchecked->nestedPendingParamCount);
+  const auto* pSlice =
+      static_cast<const SSTriggerDataSlice*>(tSimpleHashGet(harness.context()->pSlices, &uid, sizeof(uid)));
+  ASSERT_NE(nullptr, pSlice);
+  EXPECT_EQ(harness.triggerBlock(), pSlice->pDataBlock);
+  EXPECT_EQ(0, pSlice->startIdx);
+  EXPECT_EQ(2, pSlice->endIdx);
+
+  for (int32_t i = 0; i < 3; ++i) {
+    ASSERT_EQ(1, harness.pendingPullCount(STRIGGER_PULL_WAL_CALC_DATA_NEW));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondNestedCalcDataRows({1000, 1015}, {10, 20}));
+    ASSERT_EQ(i + 1, harness.calcAttemptCount());
+    if (i < 2) {
+      EXPECT_EQ(0, pUnchecked->nestedPendingParamCount);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(i, TSDB_CODE_SUCCESS));
+      harness.cleanupCalcAttemptTransport(i);
+    }
+  }
+  EXPECT_EQ(1, pUnchecked->nestedPendingParamCount);
+  EXPECT_EQ(0, TD_DLIST_NELES(&harness.context()->groupsToCheck));
 }
 
 TEST_F(StreamNestedRealtimeTest, AppendPendingNestedEventsRollsBackPartialCloneFailure) {
@@ -22788,6 +23237,32 @@ TEST_F(StreamNestedRealtimeTest, DisorderRepairsActiveCountLeafBeforeRecalc) {
   EXPECT_EQ(1000, pRequest->calcRange.skey);
   EXPECT_EQ(3000, pRequest->calcRange.ekey);
   stTriggerTaskDestroyRecalcRequest(&pRequest);
+}
+
+TEST_F(StreamNestedRealtimeTest, CountDisorderBatchKeepsNewRowsAcrossWalVersions) {
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedIntervalCountThree));
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedRows({1000, 3000}, {10, 30}));
+
+  ASSERT_TRUE(harness.feedVersionedRows({
+      {RealtimePipelineHarness::kGid, RealtimePipelineHarness::kUid, {2000}, {20}, 3, false, 0, 2000},
+      {RealtimePipelineHarness::kGid, RealtimePipelineHarness::kUid, {4000}, {40}, 4, false, 0, 4000},
+  }));
+
+  STimeWindow openRange = {};
+  ASSERT_TRUE(stWindowChainGetFirstOpenCountLeafRange(harness.group()->pWindowChain, &openRange));
+  EXPECT_EQ(3000, openRange.skey);
+  EXPECT_EQ(4000, openRange.ekey);
+  const SSTriggerCalcRequest* pCalc = harness.capturedCalc();
+  ASSERT_NE(nullptr, pCalc);
+  ASSERT_NE(nullptr, pCalc->params);
+  ASSERT_EQ(1, taosArrayGetSize(pCalc->params));
+  const auto* pParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pCalc->params, 0));
+  ASSERT_NE(nullptr, pParam);
+  EXPECT_EQ(2000, pParam->wstart);
+  EXPECT_EQ(4000, pParam->wend);
+  EXPECT_EQ(3, pParam->wrownum);
 }
 
 TEST_F(StreamNestedRealtimeTest, OrdinaryNestedTrowsDoesNotCacheAcceptedRowsBeforeCalc) {
@@ -26253,8 +26728,8 @@ struct TriggerRowState {
 TriggerRowState      gTriggerRowState;
 SSTriggerCalcRequest gTriggerRowRequest = {};
 
-int32_t prepareTriggerRowSorter(SSTriggerNewTimestampSorter* pSorter, int64_t, int32_t, int32_t, STimeWindow*,
-                                SObjList*, SSTriggerDataSlice*) {
+int32_t prepareTriggerRowSorter(SSTriggerNewTimestampSorter* pSorter, const SSTriggerReaderDataKey*, int32_t, int32_t,
+                                STimeWindow*, SObjList*, SSTriggerDataSlice*, bool) {
   pSorter->inUse = true;
   gTriggerRowState.returnSlice = true;
   return TSDB_CODE_SUCCESS;
@@ -31316,9 +31791,10 @@ TEST_F(StreamTriggerTaskManualRetryTest, LocalFailureAfterCalcAcquireReturnsPool
   ASSERT_NE(running, nullptr);
   EXPECT_EQ(*running, 0);
   int64_t runningKey[2] = {context_.sessionId, request->gid};
-  bool*   groupRunning = static_cast<bool*>(tSimpleHashGet(task_.pGroupRunning, runningKey, sizeof(runningKey)));
+  auto*   groupRunning =
+      static_cast<SSTriggerGroupRunning*>(tSimpleHashGet(task_.pGroupRunning, runningKey, sizeof(runningKey)));
   ASSERT_NE(groupRunning, nullptr);
-  EXPECT_FALSE(groupRunning[0]);
+  EXPECT_EQ(groupRunning->runningRequests, 0);
   EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
 
   if (context_.pCalcReq != nullptr) {
@@ -31992,6 +32468,7 @@ TEST(StreamTriggerRecalcTokenTest, CalcPoolReleaseAndReuseClearRuntimeTokens) {
   request->progressStepId = 11;
   request->progressRequestToken = 12;
   request->manualAttempt = {13, 1};
+  request->assembledParamCount = 14;
   ASSERT_EQ(stTriggerTaskReleaseRequest(&task, &request, true), TSDB_CODE_SUCCESS);
   ASSERT_EQ(stTriggerTaskAcquireRequest(&task, 2, 3, &request), TSDB_CODE_SUCCESS);
   ASSERT_NE(request, nullptr);
@@ -31999,9 +32476,11 @@ TEST(StreamTriggerRecalcTokenTest, CalcPoolReleaseAndReuseClearRuntimeTokens) {
   EXPECT_EQ(request->progressRequestToken, 0U);
   EXPECT_EQ(request->manualAttempt.chainId, 0U);
   EXPECT_EQ(request->manualAttempt.executionOrdinal, 0U);
+  EXPECT_EQ(request->assembledParamCount, 0);
   request->progressStepId = 21;
   request->progressRequestToken = 22;
   request->manualAttempt = {23, 2};
+  request->assembledParamCount = 24;
   ASSERT_EQ(stTriggerTaskReleaseRequest(&task, &request, true), TSDB_CODE_SUCCESS);
   ASSERT_EQ(stTriggerTaskAcquireRequest(&task, 2, 3, &request), TSDB_CODE_SUCCESS);
   ASSERT_NE(request, nullptr);
@@ -32009,6 +32488,7 @@ TEST(StreamTriggerRecalcTokenTest, CalcPoolReleaseAndReuseClearRuntimeTokens) {
   EXPECT_EQ(request->progressRequestToken, 0U);
   EXPECT_EQ(request->manualAttempt.chainId, 0U);
   EXPECT_EQ(request->manualAttempt.executionOrdinal, 0U);
+  EXPECT_EQ(request->assembledParamCount, 0);
   ASSERT_EQ(stTriggerTaskReleaseRequest(&task, &request, true), TSDB_CODE_SUCCESS);
 
   for (int32_t i = 0; i < 2; ++i) {
@@ -32035,6 +32515,7 @@ TEST(StreamTriggerRecalcTokenTest, RuntimeTokensAreNotSerialized) {
   source.progressStepId = 101;
   source.progressRequestToken = 202;
   source.manualAttempt = {303, 2};
+  source.assembledParamCount = 404;
   ASSERT_NE(source.params, nullptr);
   ASSERT_NE(source.groupColVals, nullptr);
   const int32_t        len = tSerializeSTriggerCalcRequest(nullptr, 0, &source);
@@ -32042,11 +32523,16 @@ TEST(StreamTriggerRecalcTokenTest, RuntimeTokensAreNotSerialized) {
   withoutTokens.progressStepId = 0;
   withoutTokens.progressRequestToken = 0;
   withoutTokens.manualAttempt = {};
+  withoutTokens.assembledParamCount = 0;
   EXPECT_EQ(tSerializeSTriggerCalcRequest(nullptr, 0, &withoutTokens), len);
   ASSERT_GT(len, 0);
   void* data = taosMemoryMalloc(len);
+  void* dataWithoutCount = taosMemoryMalloc(len);
   ASSERT_NE(data, nullptr);
+  ASSERT_NE(dataWithoutCount, nullptr);
   ASSERT_EQ(tSerializeSTriggerCalcRequest(data, len, &source), len);
+  ASSERT_EQ(tSerializeSTriggerCalcRequest(dataWithoutCount, len, &withoutTokens), len);
+  EXPECT_EQ(0, memcmp(data, dataWithoutCount, len));
   SSTriggerCalcRequest decoded = {};
   decoded.progressStepId = 303;
   decoded.progressRequestToken = 404;
@@ -32061,6 +32547,7 @@ TEST(StreamTriggerRecalcTokenTest, RuntimeTokensAreNotSerialized) {
   decoded.progressRequestToken = 404;
   decoded.manualAttempt = {405, 3};
   tDestroySTriggerCalcRequest(&decoded);
+  taosMemoryFree(dataWithoutCount);
   EXPECT_EQ(decoded.progressStepId, 0U);
   EXPECT_EQ(decoded.progressRequestToken, 0U);
   EXPECT_EQ(decoded.manualAttempt.chainId, 405U);
@@ -33179,7 +33666,7 @@ SSDataBlock* makePoolCacheBlock() {
 
 class CalcPoolHarness {
  public:
-  bool init() {
+  bool init(int32_t slotCount = 2) {
     task_.task.streamId = 0x700;
     task_.task.taskId = 0x701;
     task_.triggerType = STREAM_TRIGGER_COUNT;
@@ -33190,14 +33677,14 @@ class CalcPoolHarness {
     if (task_.runnerList == nullptr) return false;
     auto* runner = static_cast<SStreamRunnerTarget*>(taosArrayGet(task_.runnerList, 0));
     runner->addr.taskId = 0x702;
-    runner->execReplica = 2;
+    runner->execReplica = slotCount;
 
     task_.pCalcNodes = taosArrayInit_s(sizeof(SSTriggerCalcNode), 1);
     if (task_.pCalcNodes == nullptr) return false;
     auto* node = static_cast<SSTriggerCalcNode*>(taosArrayGet(task_.pCalcNodes, 0));
-    node->pSlots = taosArrayInit_s(sizeof(SSTriggerCalcSlot), 2);
+    node->pSlots = taosArrayInit_s(sizeof(SSTriggerCalcSlot), slotCount);
     if (node->pSlots == nullptr) return false;
-    for (int32_t i = 0; i < 2; ++i) {
+    for (int32_t i = 0; i < slotCount; ++i) {
       auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(node->pSlots, i));
       TD_DLIST_APPEND(&node->idleSlots, slot);
     }
@@ -33330,13 +33817,14 @@ class CalcPoolHarness {
 
   int32_t cacheIteratorCount() const { return taosHashGetSize(realtime_.pCalcDataCacheIters); }
 
-  int32_t processResponse(SSTriggerCalcRequest* request, int32_t responseCode) {
+  int32_t processResponse(SSTriggerCalcRequest* request, int32_t responseCode, uint64_t generation = 0) {
     SSTriggerAHandle responseAhandle = {};
     responseAhandle.sessionId = request->sessionId;
     responseAhandle.param = request;
     SMsgSendInfo responseSendInfo = {};
     responseSendInfo.param = &responseAhandle;
-    responseSendInfo.requestObjRefId = reinterpret_cast<SSTriggerCalcSlot*>(request)->generation;
+    responseSendInfo.requestObjRefId =
+        generation == 0 ? reinterpret_cast<SSTriggerCalcSlot*>(request)->generation : generation;
     SRpcMsg response = {};
     response.msgType = TDMT_STREAM_TRIGGER_CALC_RSP;
     response.code = responseCode;
@@ -33354,6 +33842,100 @@ class CalcPoolHarness {
   bool                     taskMapOwned_ = false;
   bool                     taskRegistered_ = false;
 };
+
+TEST_F(StreamTriggerTaskTest, SameGroupReleaseKeepsDropBlockedUntilLastRequest) {
+  CalcPoolHarness harness;
+  ASSERT_TRUE(harness.init(3));
+
+  SSTriggerCalcRequest* first = nullptr;
+  SSTriggerCalcRequest* second = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(&harness.task_, kRealtimeSessionId, 101, &first));
+  ASSERT_NE(nullptr, first);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(&harness.task_, kRealtimeSessionId, 101, &second));
+  ASSERT_NE(nullptr, second);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(&harness.task_, &second, false));
+  SSTriggerDropRequest* dropRequest = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAcquireDropTableRequest(&harness.task_, kRealtimeSessionId, 101, &dropRequest));
+  EXPECT_EQ(nullptr, dropRequest);
+  destroyPoolDropRequest(&dropRequest);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(&harness.task_, &first, true));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAcquireDropTableRequest(&harness.task_, kRealtimeSessionId, 101, &dropRequest));
+  ASSERT_NE(nullptr, dropRequest);
+  destroyPoolDropRequest(&dropRequest);
+}
+
+TEST_F(StreamTriggerTaskTest, SameGroupPartitionRowsKeepsSecondRequestExclusive) {
+  CalcPoolHarness harness;
+  ASSERT_TRUE(harness.init(3));
+  harness.task_.placeHolderBitmap = PLACE_HOLDER_PARTITION_ROWS;
+
+  SSTriggerCalcRequest* first = nullptr;
+  SSTriggerCalcRequest* second = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(&harness.task_, kRealtimeSessionId, 101, &first));
+  ASSERT_NE(nullptr, first);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(&harness.task_, kRealtimeSessionId, 101, &second));
+  EXPECT_EQ(nullptr, second);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(&harness.task_, &first, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(&harness.task_, kRealtimeSessionId, 101, &second));
+  ASSERT_NE(nullptr, second);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(&harness.task_, &second, false));
+}
+
+TEST_F(StreamTriggerTaskTest, SameGroupOwnershipIsIndependentAcrossSessions) {
+  CalcPoolHarness harness;
+  ASSERT_TRUE(harness.init());
+  harness.task_.placeHolderBitmap = PLACE_HOLDER_PARTITION_ROWS;
+
+  SSTriggerCalcRequest* realtime = nullptr;
+  SSTriggerCalcRequest* history = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(&harness.task_, kRealtimeSessionId, 101, &realtime));
+  ASSERT_NE(nullptr, realtime);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(&harness.task_, kHistorySessionId, 101, &history));
+  ASSERT_NE(nullptr, history);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(&harness.task_, &realtime, false));
+
+  SSTriggerDropRequest* realtimeDrop = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAcquireDropTableRequest(&harness.task_, kRealtimeSessionId, 101, &realtimeDrop));
+  ASSERT_NE(nullptr, realtimeDrop);
+  destroyPoolDropRequest(&realtimeDrop);
+  SSTriggerDropRequest* historyDrop = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAcquireDropTableRequest(&harness.task_, kHistorySessionId, 101, &historyDrop));
+  EXPECT_EQ(nullptr, historyDrop);
+  destroyPoolDropRequest(&historyDrop);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(&harness.task_, &history, false));
+}
+
+TEST_F(StreamTriggerTaskTest, SameGroupLateTerminalResponseCannotReleaseRemainingOwner) {
+  CalcPoolHarness harness;
+  ASSERT_TRUE(harness.init(3));
+  ASSERT_TRUE(harness.enableCacheRead());
+
+  SSTriggerCalcRequest* completed = nullptr;
+  SSTriggerCalcRequest* remaining = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(&harness.task_, kRealtimeSessionId, 101, &completed));
+  ASSERT_NE(nullptr, completed);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(&harness.task_, kRealtimeSessionId, 101, &remaining));
+  ASSERT_NE(nullptr, remaining);
+  const uint64_t completedGeneration = reinterpret_cast<SSTriggerCalcSlot*>(completed)->generation;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.processResponse(completed, TSDB_CODE_SUCCESS, completedGeneration));
+  int64_t runningRequests = -1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskGetRunningReq(&harness.task_, kRealtimeSessionId, &runningRequests));
+  ASSERT_EQ(1, runningRequests);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, harness.processResponse(completed, TSDB_CODE_SUCCESS, completedGeneration));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskGetRunningReq(&harness.task_, kRealtimeSessionId, &runningRequests));
+  EXPECT_EQ(1, runningRequests);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(&harness.task_, &remaining, false));
+}
 
 void expectTerminalResponseClearsPool(int32_t responseCode, int64_t placeholderMask = 0) {
   CalcPoolHarness harness;
@@ -33503,7 +34085,7 @@ TEST_F(StreamTriggerTaskTest, MultiGroupTerminalResponseClearsEveryBoundScopeOnl
   tDestroyStreamAncestorContext(&decoyContext);
 }
 
-TEST_F(StreamTriggerTaskTest, ContextPairAcquireRejectsResidualOwnedObject) {
+TEST_F(StreamTriggerTaskTest, SameGroupFirstReservationFailureDoesNotBlockDrop) {
   CalcPoolHarness harness;
   ASSERT_TRUE(harness.init());
   auto* node = static_cast<SSTriggerCalcNode*>(taosArrayGet(harness.task_.pCalcNodes, 0));
@@ -33516,6 +34098,11 @@ TEST_F(StreamTriggerTaskTest, ContextPairAcquireRejectsResidualOwnedObject) {
   SSTriggerCalcRequest* request = reinterpret_cast<SSTriggerCalcRequest*>(UINTPTR_MAX);
   EXPECT_EQ(stTriggerTaskAcquireRequest(&harness.task_, kRealtimeSessionId, 101, &request), TSDB_CODE_INTERNAL_ERROR);
   EXPECT_EQ(request, nullptr);
+  SSTriggerDropRequest* dropRequest = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAcquireDropTableRequest(&harness.task_, kRealtimeSessionId, 101, &dropRequest));
+  ASSERT_NE(nullptr, dropRequest);
+  destroyPoolDropRequest(&dropRequest);
 }
 
 TEST_F(StreamTriggerTaskTest, ContextPairTerminalFailureClearsOwnedObjectsWithoutRetry) {

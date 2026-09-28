@@ -5488,7 +5488,8 @@ enum {
   PHY_EXT_CODE_FILL_VALUES,
   PHY_EXT_CODE_SUB_QUERY,
   PHY_EXT_CODE_INPUT_MODE,
-  PHY_EXT_CODE_WINDOW_CONDITIONS
+  PHY_EXT_CODE_WINDOW_CONDITIONS,
+  PHY_EXT_CODE_BROADCAST_INPUT_REUSABLE
 };
 
 static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5546,6 +5547,9 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
     code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_WINDOW_CONDITIONS, nodeToMsg, pNode->pWindowConditions);
   }
 
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_BROADCAST_INPUT_REUSABLE, pNode->broadcastInputReusable);
+  }
   return code;
 }
 
@@ -5609,6 +5613,9 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXT_CODE_WINDOW_CONDITIONS:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pWindowConditions);
+        break;
+      case PHY_EXT_CODE_BROADCAST_INPUT_REUSABLE:
+        code = tlvDecodeBool(pTlv, &pNode->broadcastInputReusable);
         break;
       default:
         break;

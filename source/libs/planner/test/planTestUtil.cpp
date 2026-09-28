@@ -96,9 +96,24 @@ void setUseNodeAllocator(const char* pArg) { g_useNodeAllocator = stoi(pArg); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
+// A standalone decoded subplan owns its child copies. A decoded SQueryPlan
+// instead registers all children in pSubplans and uses the normal destructor.
+static void destroyDecodedPlan(SNode* node) {
+  if (node == nullptr) return;
+  if (nodeType(node) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+    auto*  subplan = reinterpret_cast<SSubplan*>(node);
+    SNode* child = nullptr;
+    FOREACH(child, subplan->pChildren) { destroyDecodedPlan(child); }
+    nodesClearList(subplan->pChildren);
+    subplan->pChildren = nullptr;
+  }
+  nodesDestroyNode(node);
+}
+
 class PlannerTestBaseImpl {
  public:
   PlannerTestBaseImpl() : sqlNo_(0), sqlNum_(0) { TD_ALWAYS_ASSERT(qInitKeywordsTable() == 0); }
+  ~PlannerTestBaseImpl() { qCleanupKeywordsTable(); }
 
   void useDb(const string& user, const string& db) {
     caseEnv_.acctId_ = 0;
@@ -151,6 +166,26 @@ class PlannerTestBaseImpl {
                              FLogicPlanHook before,
                              FLogicPlanHook after) {
     run(sql, false, before, after);
+  }
+
+  void runCreateStream(const string& sql, const std::function<void(const SQueryPlan&, const SArray*)>& check) {
+    reset();
+    unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+    doParseSql(sql, query.get());
+    ASSERT_NE(nullptr, (*query)->pCmdMsg);
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    DO_WITH_THROW(tDeserializeSCMCreateStreamReq, (*query)->pCmdMsg->pMsg, (*query)->pCmdMsg->msgLen, &req);
+    ASSERT_NE(nullptr, req.calcPlan);
+    SNode* pPlan = nullptr;
+    DO_WITH_THROW(nodesStringToNode, (const char*)req.calcPlan, &pPlan);
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> plan(pPlan, nodesDestroyNode);
+    res_.physiPlan_ = toString(pPlan);
+    checkPlanMsg(pPlan);
+    if (check) {
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pPlan));
+      check(*reinterpret_cast<const SQueryPlan*>(pPlan), req.calcScanPlanList);
+    }
   }
 
   void run(const string& sql, bool streamCalc, FLogicPlanHook before,
@@ -318,6 +353,32 @@ class PlannerTestBaseImpl {
       count += countPlanNodeIn(subplan, nodeName);
     }
     return count;
+  }
+
+  void checkHashJoins(const std::function<void(const SHashJoinPhysiNode&)>& check) const {
+    SNode* root = nullptr;
+    ASSERT_EQ(0, nodesStringToNode(res_.physiPlan_.c_str(), &root));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> owned(root, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(root));
+    std::function<void(const SPhysiNode*)> visitNode = [&](const SPhysiNode* node) {
+      if (nodeType(node) == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN) {
+        check(*reinterpret_cast<const SHashJoinPhysiNode*>(node));
+      }
+      SNode* child = nullptr;
+      FOREACH(child, node->pChildren) { visitNode(reinterpret_cast<const SPhysiNode*>(child)); }
+    };
+    std::function<void(const SQueryPlan*)> visitPlan = [&](const SQueryPlan* plan) {
+      SNode* level = nullptr;
+      FOREACH(level, plan->pSubplans) {
+        SNode* subplan = nullptr;
+        FOREACH(subplan, reinterpret_cast<SNodeListNode*>(level)->pNodeList) {
+          visitNode(reinterpret_cast<SSubplan*>(subplan)->pNode);
+        }
+      }
+      SNode* child = nullptr;
+      FOREACH(child, plan->pChildren) { visitPlan(reinterpret_cast<const SQueryPlan*>(child)); }
+    };
+    visitPlan(reinterpret_cast<const SQueryPlan*>(root));
   }
 
   void runImpl(const string& sql, int32_t queryPolicy, bool streamCalc,
@@ -686,7 +747,7 @@ class PlannerTestBaseImpl {
     // check toObject
     SNode* pCopy = NULL;
     DO_WITH_THROW(nodesStringToNode, pStr, &pCopy)
-    nodesDestroyNode(pCopy);
+    destroyDecodedPlan(pCopy);
     string str(pStr);
     taosMemoryFreeClear(pStr);
 
@@ -881,7 +942,7 @@ class PlannerTestBaseImpl {
       DO_WITH_THROW(nodesNodeToString, pNode, false, &pNewStr, &newlen)
       cout << "new node: " << pNewStr << endl;
     }
-    nodesDestroyNode(pNode);
+    destroyDecodedPlan(pNode);
     taosMemoryFreeClear(pNewStr);
 
     taosMemoryFreeClear(pStr);
@@ -914,6 +975,11 @@ void PlannerTestBase::runFullPlan(const std::string& sql,
 }
 
 void PlannerTestBase::runStreamCalc(const std::string& sql) { impl_->runStreamCalc(sql); }
+
+void PlannerTestBase::runCreateStream(const std::string&                                           sql,
+                                      const std::function<void(const SQueryPlan&, const SArray*)>& check) {
+  return impl_->runCreateStream(sql, check);
+}
 
 bool PlannerTestBase::findPlanNode(const std::string& nodeName) const { return impl_->findPlanNode(nodeName); }
 
@@ -969,6 +1035,10 @@ bool PlannerTestBase::exchangeSubplansContain(const std::string& nodeName) const
 }
 
 bool PlannerTestBase::aggOutputsMatchFuncs() const { return impl_->aggOutputsMatchFuncs(); }
+
+void PlannerTestBase::checkHashJoins(const std::function<void(const SHashJoinPhysiNode&)>& check) const {
+  impl_->checkHashJoins(check);
+}
 
 void PlannerTestBase::prepare(const std::string& sql) { return impl_->prepare(sql); }
 

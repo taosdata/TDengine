@@ -3956,8 +3956,29 @@ static void pstCheckCreateStreamRollupTagPlaceholderType(const char* pSql, int8_
 
   SNode* pProjNode = nodesListGetNode(pSelect->pProjectionList, 1);
   ASSERT_NE(pProjNode, nullptr);
-  ASSERT_EQ(nodeType(pProjNode), QUERY_NODE_FUNCTION);
-  const SFunctionNode* pFunc = (const SFunctionNode*)pProjNode;
+  ASSERT_EQ(nodeType(pProjNode), QUERY_NODE_COLUMN);
+  EXPECT_EQ(((const SColumnNode*)pProjNode)->node.resType.type, expectedType);
+  EXPECT_EQ(((const SColumnNode*)pProjNode)->node.resType.bytes, expectedBytes);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.calcPlan, nullptr);
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  const auto*                                    pExternal = pstFindExternalWindowNode((const SQueryPlan*)pPlanNode);
+  ASSERT_NE(pExternal, nullptr);
+  EXPECT_EQ(pExternal->extWinInputMode, EXT_WIN_INPUT_BROADCAST);
+  ASSERT_EQ(LIST_LENGTH(pExternal->window.pProjs), 2);
+
+  // The planner rewrites the SELECT output to a column, retaining its function in the replay projection.
+  const SNode* pTarget = nodesListGetNode(pExternal->window.pProjs, 1);
+  ASSERT_EQ(nodeType(pTarget), QUERY_NODE_TARGET);
+  const SNode* pExpr = ((const STargetNode*)pTarget)->pExpr;
+  ASSERT_NE(pExpr, nullptr);
+  ASSERT_EQ(nodeType(pExpr), QUERY_NODE_FUNCTION);
+  const SFunctionNode* pFunc = (const SFunctionNode*)pExpr;
   EXPECT_STREQ(pFunc->functionName, "_placeholder_rollup_tag");
   EXPECT_EQ(pFunc->node.resType.type, expectedType);
   EXPECT_EQ(pFunc->node.resType.bytes, expectedBytes);
@@ -5192,8 +5213,113 @@ TEST_F(ParserStreamTest, TestTriggerOption) {
   addCreateStreamOutCols(&expect, "_tidleend", TSDB_DATA_TYPE_TIMESTAMP, 0, 8, 0, 0);
   setCreateStreamPlaceHolderBitmap(&expect, PLACE_HOLDER_IDLE_START | PLACE_HOLDER_IDLE_END);
   resetCreateStreamQueryScanPlan(&expect);
-  addCreateStreamQueryScanPlan(&expect, false, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\",\"SubplanId\":\"2\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_querydb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"1\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"1011735779866557034\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"30\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"stream_t2\",\"TableAlias\":\"stream_t2\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"30\",\"STableId\":\"0\",\"TableType\":\"3\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_querydb\",\"TableName\":\"stream_t2\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}");
-  setCreateStreamQueryCalcPlan(&expect, "{\"NodeType\":\"1138\",\"PhysiPlan\":{\"QueryId\":\"0\",\"NumOfSubplans\":\"1\",\"Subplans\":{\"NodeType\":\"15\",\"NodeList\":{\"DataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"NodeList\":[{\"NodeType\":\"1137\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"1\",\"SubplanId\":\"1\"},\"SubplanType\":\"5\",\"MsgType\":\"771\",\"Level\":\"0\",\"DbFName\":\"\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"0\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"Child\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"5\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"8589934594\"}}],\"RootNode\":{\"NodeType\":\"1108\",\"PhysiProject\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"1\",\"TotalRowSize\":\"16\",\"OutputRowSize\":\"16\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1111\",\"PhysiExchange\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"0\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"SrcStartGroupId\":\"2\",\"SrcEndGroupId\":\"2\",\"SeqRecvData\":false,\"DynTbname\":false,\"GrpSingleChannel\":false,\"SingleSource\":false}}],\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"Projections\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"1\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tidlestart\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"188\",\"Type\":\"3537\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}},{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"1\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tidleend\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"189\",\"Type\":\"3538\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}}],\"MergeDataBlock\":true,\"IgnoreGroupId\":true,\"InputIgnoreGroup\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"1\",\"TotalRowSize\":\"16\",\"OutputRowSize\":\"16\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}]}}}}");
+  addCreateStreamQueryScanPlan(
+      &expect, false,
+      "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\","
+      "\"SubplanId\":\"2\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_querydb\","
+      "\"User\":\"\",\"NodeAddr\":{\"Id\":\"1\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"RootNode\":{\"NodeType\":"
+      "\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":"
+      "\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\","
+      "\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":"
+      "\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":"
+      "\"1011735779866557034\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\","
+      "\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\","
+      "\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{"
+      "\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\","
+      "\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"30\",\"TableType\":"
+      "\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"stream_t2\","
+      "\"TableAlias\":\"stream_t2\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,"
+      "\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":"
+      "\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"30\",\"STableId\":\"0\",\"TableType\":\"3\",\"TableName\":{"
+      "\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_querydb\",\"TableName\":\"stream_t2\"},"
+      "\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\","
+      "\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\","
+      "\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\","
+      "\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,"
+      "\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,"
+      "\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":"
+      "\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\","
+      "\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{"
+      "\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\","
+      "\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":"
+      "false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":"
+      "\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}");
+  // Scalar idle placeholders are evaluated for each replayed window.
+  setCreateStreamQueryCalcPlan(
+      &expect,
+      "{\"NodeType\":\"1138\",\"PhysiPlan\":{\"QueryId\":\"0\",\"NumOfSubplans\":\"1\",\"Subplans\":{\"NodeType\":"
+      "\"15\",\"NodeList\":{\"DataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"},"
+      "\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"NodeList\":[{\"NodeType\":"
+      "\"1137\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"1\",\"SubplanId\":\"1\"},\"SubplanType\":"
+      "\"5\",\"MsgType\":\"771\",\"Level\":\"0\",\"DbFName\":\"\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"0\",\"InUse\":"
+      "\"0\",\"NumOfEps\":\"0\"},\"Child\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"5\",\"Precision\":"
+      "\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":"
+      "\"0\",\"LiteralSize\":\"0\",\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":"
+      "\"8589934594\"}}],\"RootNode\":{\"NodeType\":\"1108\",\"PhysiProject\":{\"OutputDataBlockDesc\":{\"NodeType\":"
+      "\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"16\",\"OutputRowSize\":\"16\",\"Slots\":[{"
+      "\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":"
+      "\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{"
+      "\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":"
+      "false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1164\","
+      "\"PhysiExternalWindow\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"1\","
+      "\"TotalRowSize\":\"16\",\"OutputRowSize\":\"16\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\","
+      "\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":"
+      "true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\","
+      "\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],"
+      "\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1111\",\"PhysiExchange\":{\"OutputDataBlockDesc\":{"
+      "\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"0\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\","
+      "\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\","
+      "\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},"
+      "\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,"
+      "\"SrcStartGroupId\":\"2\",\"SrcEndGroupId\":\"2\",\"SeqRecvData\":false,\"DynTbname\":false,"
+      "\"GrpSingleChannel\":false,\"SingleSource\":false}}],\"InputOrder\":\"1\",\"OutputOrder\":\"1\",\"DynamicOp\":"
+      "false,\"ForceCreateNonBlockingOptr\":false,\"Projs\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"1\","
+      "\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\","
+      "\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tidlestart\",\"HasNull\":false,\"RelatedTo\":\"0\","
+      "\"BindExprID\":\"0\",\"Id\":\"188\",\"Type\":\"3537\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{"
+      "\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\","
+      "\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Translate\":true,"
+      "\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,"
+      "\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{"
+      "\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}},{\"NodeType\":\"18\",\"Target\":{"
+      "\"DataBlockId\":\"1\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"9\","
+      "\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tidleend\",\"HasNull\":false,"
+      "\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"189\",\"Type\":\"3538\",\"Parameters\":[{\"NodeType\":\"2\","
+      "\"Value\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\","
+      "\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Translate\":true,"
+      "\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,"
+      "\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{"
+      "\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}}],\"TsPk\":{\"NodeType\":\"1\","
+      "\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":"
+      "\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":"
+      "\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"stream_t2\",\"TableAlias\":\"stream_t2\","
+      "\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,"
+      "\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}},\"TriggerType\":\"0\","
+      "\"Watermark\":\"0\",\"DeleteMark\":\"0\",\"IgnoreExpired\":\"0\",\"IndefRowsFunc\":\"0\",\"MergeDataBlock\":"
+      "true,\"RecalculateInterval\":\"0\",\"StartTime\":\"0\",\"EndTime\":\"0\",\"IsSingleTable\":true,"
+      "\"InputHasOrder\":true,\"OrgTableUid\":\"0\",\"OrgTableVgId\":\"0\",\"NeedGroupSort\":false,"
+      "\"CalcWithPartition\":false,\"ExtWinSplit\":false,\"FillMode\":\"0\",\"ExtWinInputMode\":\"1\","
+      "\"BroadcastInputReusable\":false}}],\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,"
+      "\"ForceCreateNonBlockingOptr\":false,\"Projections\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\","
+      "\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\","
+      "\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tidlestart\",\"HasNull\":false,\"RelatedTo\":\"0\","
+      "\"BindExprID\":\"0\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"0\",\"DbName\":\"\","
+      "\"TableName\":\"\",\"TableAlias\":\"\",\"DataBlockId\":\"1\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":"
+      "false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\","
+      "\"IsPrimTs\":true}}}},{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"1\",\"Expr\":{"
+      "\"NodeType\":\"1\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"}"
+      ",\"UserAlias\":\"_tidleend\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableType\":\"0\","
+      "\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"0\",\"DbName\":\"\",\"TableName\":\"\",\"TableAlias\":\"\","
+      "\"DataBlockId\":\"1\",\"SlotId\":\"1\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,"
+      "\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":true}}}}],\"MergeDataBlock\":"
+      "false,\"IgnoreGroupId\":true,\"InputIgnoreGroup\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"PhysiDispatch\":"
+      "{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"16\","
+      "\"OutputRowSize\":\"16\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":"
+      "\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{"
+      "\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":"
+      "\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}}}},"
+      "\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,"
+      "\"DynTbname\":false,\"ProcessOneBlock\":false}}]}}}}");
   setCreateStreamIdleTimeout(&expect, 5000);  // 5s
   setCreateStreamEventTypes(&expect, EVENT_IDLE);
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2 ");
@@ -6561,7 +6687,7 @@ TEST_F(ParserStreamTest, MultiGroupJoinAcceptsExternalWindowTreesBehindTranspare
   useDb("root", "stream_streamdb");
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 1, 1, -1, -1, 1);
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 1, 1, -1, -1, 0);
   });
 
   run("create stream stream_streamdb.s_multigroup_transparent interval(1s) sliding(1s) "
@@ -6604,6 +6730,7 @@ TEST_F(ParserStreamTest, MultiGroupJoinSerializesInheritedQualificationForDistri
         if (pSubplan->inheritedMultiGroupJoin) {
           ++inheritedSubplanCount;
           EXPECT_EQ(0, info.hashJoins.size());
+          EXPECT_EQ(1, info.externalWindowCount);
         }
         for (const SHashJoinPhysiNode* pJoin : info.hashJoins) {
           if (pJoin->multiGroupJoin) {
@@ -6613,9 +6740,10 @@ TEST_F(ParserStreamTest, MultiGroupJoinSerializesInheritedQualificationForDistri
         }
       }
     }
-    EXPECT_EQ(2, subplanCount);
+    // The supertable leaf retains separate partial and merge window subplans.
+    EXPECT_EQ(3, subplanCount);
     EXPECT_EQ(1, markedSubplanCount);
-    EXPECT_EQ(1, inheritedSubplanCount);
+    EXPECT_EQ(2, inheritedSubplanCount);
   });
 
   run("create stream stream_streamdb.s_multigroup_inherited interval(1s) sliding(1s) "
@@ -6623,7 +6751,7 @@ TEST_F(ParserStreamTest, MultiGroupJoinSerializesInheritedQualificationForDistri
       "select a.ts, a.cnt, b.minv from "
       "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
       "where ts >= _twstart and ts < _twend) a join "
-      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "(select _twstart ts, min(c1) minv from stream_querydb.st1 "
       "where ts >= _twstart and ts < _twend) b on a.ts = b.ts where a.cnt >= 0");
 }
 
@@ -6632,7 +6760,7 @@ TEST_F(ParserStreamTest, MultiGroupJoinAcceptsUnaryBroadcastPredicate) {
   useDb("root", "stream_streamdb");
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 1, 1, -1, -1, 1);
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 1, 1, -1, -1, 0);
 
     vector<SExternalWindowPhysiInfo> infos;
     vector<ENodeType>                joinTypes;
@@ -6664,7 +6792,7 @@ TEST_F(ParserStreamTest, MultiGroupJoinMarksEveryLevelOfNestedJoinTree) {
   useDb("root", "stream_streamdb");
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 3, 3, -1, -1, 3);
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 3, 3, -1, -1, 0);
   });
 
   run("create stream stream_streamdb.s_multigroup_nested interval(1s) sliding(1s) "
@@ -6755,7 +6883,7 @@ TEST_F(ParserStreamTest, MultiGroupJoinForcesEveryMarkedJoinToPhysicalHash) {
   useDb("root", "stream_streamdb");
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 2, 2, -1, -1, 2);
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 2, 2, -1, -1, 0);
   });
 
   run("create stream stream_streamdb.s_multigroup_hash interval(1s) sliding(1s) "
@@ -7395,11 +7523,32 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowAncestorWindowConditionDisabled
       "where ts >= _twstart and ts <= _twend and w_order._twduration <= 30000");
 }
 
-TEST_F(ParserStreamTest, TestStreamExternalWindowBroadcastAncestorProjectionDisabled) {
+TEST_F(ParserStreamTest, TestStreamExternalWindowBroadcastAncestorProjectionEnabled) {
   setAsyncFlag("-1");
   useDb("root", "stream_streamdb");
-  setCheckDdlFunc(
-      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_NE(req.calcPlan, nullptr);
+    SNode* pPlanNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+    const auto*                                    pExternal = pstFindExternalWindowNode((const SQueryPlan*)pPlanNode);
+    ASSERT_NE(pExternal, nullptr);
+    EXPECT_EQ(pExternal->extWinInputMode, EXT_WIN_INPUT_BROADCAST);
+    EXPECT_EQ(pExternal->pTimeRange, nullptr);
+    ASSERT_EQ(LIST_LENGTH(pExternal->window.pProjs), 2);
+
+    std::vector<SPseudoLayerBinding> bindings;
+    nodesWalkExprs(pExternal->window.pProjs, pstCollectPseudoLayerBinding, &bindings);
+    ASSERT_EQ(bindings.size(), 1);
+    EXPECT_EQ(bindings[0].name, "_twstart");
+    EXPECT_TRUE(bindings[0].qualified);
+    EXPECT_EQ(bindings[0].layerIndex, 0);
+  });
 
   run("create stream stream_streamdb.s_broadcast_ancestor_projection window ("
       "state_window(c1) extend(1) as w_order, count_window(2, 1) as w_leaf) "

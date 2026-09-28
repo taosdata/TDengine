@@ -3248,6 +3248,20 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
     code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
   }
 
+  // This pass visits parents first. ON-only columns must already be exposed by
+  // child JOINs when classifying this JOIN's equality keys.
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, pJoin->node.pChildren) {
+      if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
+        code = pdcJoinAddParentOnColsToTarget(pCxt, (SJoinLogicNode*)pChild);
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+      }
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = pdcJoinPartEqualOnCond(pCxt, pJoin);
   }

@@ -2956,7 +2956,8 @@ static int32_t stAdvanceLayer(SWindowChainState *pState, int32_t layerIndex, TSK
   if (layerIndex == pState->numLayers - 1) return stAdvanceLeaf(pState, frontier, inputType, nowNs, pCandidates);
 
   SWindowChainLayerState *pLayer = &pState->layers[layerIndex];
-  SWindowChainInstance   *pCurrent = taosArrayGet(pLayer->pInstances, 0);
+  SWindowChainInstance   *pCurrent =
+      taosArrayGetSize(pLayer->pInstances) == 0 ? NULL : taosArrayGet(pLayer->pInstances, 0);
   if (stWindowChainDataDriven(pLayer->runtimeType)) {
     if (pCurrent == NULL || !stLayerHasRuntimeState(&pState->layers[layerIndex + 1])) {
       return TSDB_CODE_SUCCESS;

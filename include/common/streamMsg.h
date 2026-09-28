@@ -69,6 +69,13 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_FETCH_RESET_MODE_FRAME_VERSION 1
 #define STREAM_TWO_PASS_RESCAN_FRAME_VERSION  1
 #define STREAM_RUNNER_FETCH_FRAME_VERSION     1
+#define STREAM_READER_FETCH_ID_FRAME_VERSION   1
+#define STREAM_READER_FETCH_ID_FRAME_MAGIC     UINT32_C(0x4e575246)
+#define STREAM_READER_GROUP_MODE_FRAME_VERSION 1
+#define STREAM_RUNNER_EOG_BATCH_FRAME_VERSION  1
+#define STREAM_RUNNER_FETCH_BATCH_VERSION      1
+#define STREAM_RUNNER_EOG_BATCH_MAX            64
+#define STREAM_READER_FETCH_BATCH_VERSION      1
 #define STREAM_WINDOW_MAX_LAYERS           8
 #define STREAM_NESTED_TRIGGER_ID_LEN       33
 #define STREAM_CALC_REQ_MAX_WIN_NUM           40960
@@ -77,6 +84,8 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_ANCESTOR_FRAME_MAGIC        UINT32_C(0x4e574354)
 #define STREAM_FETCH_RESET_MODE_FRAME_MAGIC   UINT32_C(0x4e574652)
 #define STREAM_TWO_PASS_RESCAN_FRAME_MAGIC    UINT32_C(0x4e575052)
+#define STREAM_READER_GROUP_MODE_FRAME_MAGIC   UINT32_C(0x4e57474d)
+#define STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC    UINT32_C(0x4e575242)
 #define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
 #define STREAM_OPTION_TIME_CONFIG_PRESENT     BIT_FLAG_MASK(6)
@@ -85,7 +94,19 @@ typedef enum EStreamRunnerFetchType {
   STREAM_RUNNER_FETCH_LEGACY = 0,
   STREAM_RUNNER_FETCH_DATA = 1,
   STREAM_RUNNER_FETCH_EOG = 2,
+  STREAM_READER_FETCH_BATCH = 3,
+  STREAM_RUNNER_FETCH_BATCH = 4,
 } EStreamRunnerFetchType;
+
+typedef struct {
+  int8_t       type;
+  uint64_t     baseGId;
+  SSDataBlock* pBlock;  // owned for DATA, NULL for EOG
+} SStreamReaderFetchItem;
+
+/** Decodes an exact Reader batch payload. The returned array owns all DATA blocks. */
+int32_t tDecodeStreamReaderFetchBatch(const void* pData, int32_t len, SArray** ppItems);
+void    tDestroyStreamReaderFetchItem(void* pItem);
 
 typedef struct SStreamRunnerFetchFrame {
   EStreamRunnerFetchType type;
@@ -101,6 +122,19 @@ int32_t tSerializeSStreamRunnerFetchFrame(void* buf, int32_t bufLen, const SStre
 int32_t tDeserializeSStreamRunnerFetchFrame(const void* buf, int32_t bufLen, SStreamRunnerFetchFrame* pFrame);
 int32_t tValidateSStreamRunnerFetchFrame(const SStreamRunnerFetchFrame* pFrame, int64_t rows);
 void    tDestroySStreamRunnerFetchFrame(SStreamRunnerFetchFrame* pFrame);
+
+/** Owns at most one DATA block with its lineage, followed by EOG gids. */
+typedef struct SStreamRunnerFetchBatch {
+  SSDataBlock*            pBlock;
+  SStreamRunnerFetchFrame dataFrame;
+  SArray*                 pEogGids;  // owned SArray<uint64_t>
+} SStreamRunnerFetchBatch;
+
+int32_t tValidateSStreamRunnerFetchBatch(const SStreamRunnerFetchBatch* pBatch);
+int32_t tSerializeSStreamRunnerFetchBatch(void* buf, int32_t bufLen, const SStreamRunnerFetchBatch* pBatch);
+/** pBatch must be initialized; prior owned state is released, and any decode failure leaves it empty. */
+int32_t tDeserializeSStreamRunnerFetchBatch(const void* buf, int32_t bufLen, SStreamRunnerFetchBatch* pBatch);
+void    tDestroySStreamRunnerFetchBatch(SStreamRunnerFetchBatch* pBatch);
 
 #define PLACE_HOLDER_NONE             0
 #define PLACE_HOLDER_PREV_TS          BIT_FLAG_MASK(0)
@@ -309,6 +343,7 @@ typedef struct {
 typedef struct {
   SArray* pParamContexts;
   SArray* pReadScopeBindings;
+  SSHashObj* pParamIndex;
 } SStreamAncestorContext;
 
 typedef enum {
@@ -325,6 +360,19 @@ typedef struct {
 typedef struct {
   SArray* pEntries;
 } SStreamContextPolicy;
+
+typedef struct SStreamContextFrames {
+  int32_t                       size;
+  void*                         pData;
+  const SStreamContextPolicy*   pContextPolicy;    // borrowed identity anchor
+  const SStreamAncestorContext* pAncestorContext;  // borrowed identity anchor
+  SArray*                       pPolicyRefs;
+  SArray*                       pParamRefs;
+  SArray*                       pBindingRefs;
+} SStreamContextFrames;
+
+typedef struct SStreamPreparedFetchContext  SStreamPreparedFetchContext;
+typedef struct SStreamFetchContextSelection SStreamFetchContextSelection;
 
 typedef struct {
   bool    isExtTrigger;
@@ -1234,12 +1282,25 @@ int32_t tEncodeStreamWindowPlan(SEncoder* pEncoder, const SStreamWindowPlan* pPl
 int32_t tDecodeStreamWindowPlan(SDecoder* pDecoder, SStreamWindowPlan** ppPlan);
 int32_t tCloneStreamAncestorContext(const SStreamAncestorContext* pSrc, SStreamAncestorContext** ppDst);
 void    tDestroyStreamAncestorContext(SStreamAncestorContext** ppContext);
+int32_t tPrepareStreamAncestorParamIndex(SStreamAncestorContext* pContext);
+int32_t tLookupStreamAncestorParam(const SStreamAncestorContext* pContext, int64_t gid, int32_t paramIndex,
+                                   const SStreamAncestorParamContext** ppParam);
 int32_t tEncodeStreamAncestorContext(SEncoder* pEncoder, const SStreamAncestorContext* pContext);
 int32_t tDecodeStreamAncestorContext(SDecoder* pDecoder, SStreamAncestorContext** ppContext);
+int32_t tDecodeStreamAncestorContextWithOffsets(SDecoder* pDecoder, SStreamAncestorContext** ppContext,
+                                                SArray** ppParamRefs, SArray** ppBindingRefs);
 int32_t tCloneStreamContextPolicy(const SStreamContextPolicy* pSrc, SStreamContextPolicy** ppDst);
 void    tDestroyStreamContextPolicy(SStreamContextPolicy** ppPolicy);
 int32_t tEncodeStreamContextPolicy(SEncoder* pEncoder, const SStreamContextPolicy* pPolicy);
 int32_t tDecodeStreamContextPolicy(SDecoder* pDecoder, SStreamContextPolicy** ppPolicy);
+int32_t tDecodeStreamContextPolicyWithOffsets(SDecoder* pDecoder, SStreamContextPolicy** ppPolicy, SArray** ppRefs);
+void    tDestroyStreamContextFrames(SStreamContextFrames** ppFrames);
+// Optional retention: allocation failure leaves *ppFrames NULL.
+void    tTryRetainStreamContextFrames(const SDecoder* pDecoder, int32_t policyStart, int32_t policyLength,
+                                      int32_t ancestorStart, int32_t ancestorLength, const SStreamContextPolicy* pPolicy,
+                                      const SStreamAncestorContext* pContext, SArray** ppPolicyRefs,
+                                      int32_t policyPayloadStart, SArray** ppParamRefs, SArray** ppBindingRefs,
+                                      int32_t ancestorPayloadStart, SStreamContextFrames** ppFrames);
 int32_t tAdmitStreamContext(const SStreamContextPolicy* pPolicy, const SStreamAncestorContext* pContext,
                             bool requiresContextPolicy);
 int32_t tProjectStreamAncestorContext(const SStreamAncestorContext* pSrc, int64_t gid, int32_t srcParamIndex,
@@ -1702,13 +1763,19 @@ typedef struct SSTriggerCalcRequest {
   SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
   SStreamContextPolicy*   pContextPolicy;
   SStreamAncestorContext* pAncestorContext;
+  SStreamContextFrames*   pContextFrames;  // optional owned validated frame copy
 
-  // The following fields are not serialized and only used by the runner task
+  // The following fields are not serialized
+  int32_t assembledParamCount;  // only used by the trigger task
+
+  // The following fields are only used by the runner task
   bool    brandNew;   // no serialize
   int32_t execId;     // no serialize
   int32_t curWinIdx;  // no serialize
   void*   pOutBlock;  // no serialize
   SStreamRunnerFetchFrame      outFrame;   // no serialize, owned runner output
+  bool                         runnerEogBatch;        // no serialize, negotiated fetch capability
+  SStreamRunnerFetchBatch      outBatch;              // no serialize, owned runner output
   bool                         outFinished;           // no serialize
   uint64_t progressStepId;        // no serialize
   uint64_t progressRequestToken;  // no serialize
@@ -1717,6 +1784,7 @@ typedef struct SSTriggerCalcRequest {
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
+int32_t tDeserializeSTriggerCalcRequestWithContextFrames(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
 int32_t tValidateSTriggerCalcRequest(const SSTriggerCalcRequest* pReq);
 int32_t tValidateSTriggerCalcRequestAncestorContext(const SSTriggerCalcRequest* pReq, bool nested);
 void    tDestroySSTriggerCalcParam(void* ptr);
@@ -1799,6 +1867,15 @@ typedef struct SStreamRuntimeFuncInfo {
   char*   outNormalTable;
 } SStreamRuntimeFuncInfo;
 
+/** Borrowed members require the source to outlive this view. After prepare, keep
+ * the view at a stable address: runtime points into its embedded structs. Do not
+ * copy the prepared view by value. Clear only with tClearStreamReaderFetchView. */
+typedef struct SStreamReaderFetchView {
+  SStreamRuntimeFuncInfo runtime;
+  SStreamContextPolicy   policy;
+  SStreamAncestorContext ancestor;
+} SStreamReaderFetchView;
+
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
@@ -1819,6 +1896,26 @@ int32_t tProjectStreamCalcContextForGroup(const SStreamContextPolicy* pPolicy, c
 int32_t tProjectStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
                                           bool effectiveNeedStreamGrpInfo, SStreamContextPolicy** ppPolicy,
                                           SStreamAncestorContext** ppContext);
+int32_t tValidateStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
+                                           bool effectiveNeedStreamGrpInfo);
+int32_t tPrepareStreamReaderFetchView(const SStreamRuntimeFuncInfo* pSource, int32_t nodeId,
+                                      SStreamReaderFetchView* pView);
+void    tClearStreamReaderFetchView(SStreamReaderFetchView* pView);
+int32_t tPrepareStreamFetchContext(const SStreamRuntimeFuncInfo* pSource, const SStreamContextFrames* pFrames,
+                                   SStreamPreparedFetchContext** ppPrepared);
+void    tDestroyStreamFetchContext(SStreamPreparedFetchContext** ppPrepared);
+int32_t tSelectStreamFetchContextForNode(const SStreamPreparedFetchContext* pPrepared,
+                                         const SStreamRuntimeFuncInfo* pSource, int32_t nodeId,
+                                         const SStreamFetchContextSelection** ppSelection);
+int32_t tSelectStreamFetchContextForGroup(const SStreamPreparedFetchContext* pPrepared,
+                                          const SStreamRuntimeFuncInfo* pSource, int64_t gid,
+                                          const SStreamFetchContextSelection** ppSelection);
+bool    tStreamFetchSelectionBelongsToPrepared(const SStreamPreparedFetchContext*  pPrepared,
+                                               const SStreamFetchContextSelection* pSelection);
+int32_t tPrepareStreamFetchRuntimeView(const SStreamFetchContextSelection* pSelection,
+                                       const SStreamRuntimeFuncInfo* pBatch, const SStreamRuntimeFuncInfo* pCurrent,
+                                       SStreamReaderFetchView* pView);
+int32_t tEncodeStreamFetchContext(SEncoder* pEncoder, const SStreamFetchContextSelection* pSelection);
 typedef struct STsInfo {
   int64_t gId;
   int64_t  ts;

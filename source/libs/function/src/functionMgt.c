@@ -1014,16 +1014,9 @@ static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeF
   }
 
   const SStreamAncestorParamContext* pMatch = NULL;
-  const int32_t                      contextCount =
-      taosArrayGetSize(pInfo->pAncestorContext == NULL ? NULL : pInfo->pAncestorContext->pParamContexts);
-  for (int32_t i = 0; i < contextCount; ++i) {
-    const SStreamAncestorParamContext* pParam = taosArrayGet(pInfo->pAncestorContext->pParamContexts, i);
-    if (pParam != NULL && pParam->leafIdentity.gid == pInfo->groupId && pParam->paramIndex == pInfo->curIdx) {
-      if (pMatch != NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
-      pMatch = pParam;
-    }
-  }
-  if (pMatch == NULL || pMatch->pSnapshots == NULL || pMatch->pSnapshots->elemSize != sizeof(SWindowAncestorSnapshot)) {
+  if (tLookupStreamAncestorParam(pInfo->pAncestorContext, pInfo->groupId, pInfo->curIdx, &pMatch) !=
+          TSDB_CODE_SUCCESS ||
+      pMatch->pSnapshots == NULL || pMatch->pSnapshots->elemSize != sizeof(SWindowAncestorSnapshot)) {
     return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
   }
 

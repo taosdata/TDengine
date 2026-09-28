@@ -63,17 +63,25 @@ typedef struct SExtWindowStat {
   int64_t           broadcastLoadBytes;
 #if defined(BUILD_TEST)
   int64_t windowConditionEvals;
+  int64_t broadcastPreparationCopies;
+  int64_t broadcastStageCapacityPeak;
 #endif
 } SExtWindowStat;
 
-typedef struct SExtWinBroadcastState {
+typedef struct SExtWinBroadcastInput {
   SWindowInputStore* pStore;
-  int32_t            replayWinIdx;
-  int32_t            replayPage;
   bool               inputLoaded;
+  bool               compact;
+  SSDataBlock*       pStaging;   // one physical page, owned only during loading
   SArray*            pPageMeta;  // SArray<SExtWinBroadcastPageMeta>, one entry per store page
   int64_t            appendedSerializedBytes;
   SExtWindowStat*    pStat;
+} SExtWinBroadcastInput;
+
+typedef struct SExtWinBroadcastState {
+  SExtWinBroadcastInput input;  // owned only by this group on the non-reusable path
+  int32_t               replayWinIdx;
+  int32_t               replayPage;
 } SExtWinBroadcastState;
 
 typedef struct SExtWinBroadcastPageMeta {
@@ -82,6 +90,7 @@ typedef struct SExtWinBroadcastPageMeta {
   int64_t     version;
   int16_t     dataLoad;
   uint8_t     scanFlag;
+  char        parTbName[TSDB_TABLE_NAME_LEN];
 } SExtWinBroadcastPageMeta;
 
 #if defined(BUILD_TEST)
@@ -171,6 +180,7 @@ typedef struct SExternalWindowOperator {
   uint64_t           lastCGrpId;
   SExtWinTrigGrpCtx* pTGrpCtx;
   SSHashObj*          pGroupRegistry;  // trigger group id => operator-owned SExtWinTrigGrpCtx*
+  SExtWinBroadcastInput broadcastInput;  // operator-owned raw input for one qualified calc request
   SWindowInputPool*   pBroadcastPool;
   SArray*             pBroadcastContextViews;  // SArray<SStreamCalcContextGroupView>
   SDiskbasedBufStatis broadcastCollectedStatis;
@@ -203,6 +213,8 @@ typedef struct SExternalWindowOperator {
   bool                    activeGroupPublished;
   bool                    boundaryReady;
   bool                    nonAggInputDone;
+  bool                    strictGroupInputDone;
+  int8_t                  readerAggMode;  // 0 unchecked, 1 legacy, 2 grouped for this execution
   bool                    mergeInputDone;
   bool                    mergeGroupComplete;
 
@@ -230,6 +242,8 @@ typedef struct SExternalWindowOperator {
 
 #if defined(BUILD_TEST)
   bool    testAliasClearedOnOpen;
+  bool    testLegacyBroadcast;
+  bool    testDisableReplayObservations;
   SArray* pBroadcastReplayObservations;  // SArray<SExtWinBroadcastReplayObservation>
 #endif
 } SExternalWindowOperator;
@@ -447,7 +461,7 @@ static int64_t extWinPayloadSumClamp(const SExtWinPayloadSum* pSum) {
   return pSum->high != 0 || pSum->low > INT64_MAX ? INT64_MAX : (int64_t)pSum->low;
 }
 
-static void extWinAccountBroadcastPayloadAppend(SExtWinBroadcastState* pState, int64_t serializedBytes) {
+static void extWinAccountBroadcastPayloadAppend(SExtWinBroadcastInput* pState, int64_t serializedBytes) {
   pState->appendedSerializedBytes = extWinAddPositiveI64Saturating(pState->appendedSerializedBytes, serializedBytes);
   if (pState->pStat != NULL) {
     extWinPayloadSumAdd(&pState->pStat->broadcastPayloadCurrent, serializedBytes);
@@ -457,7 +471,7 @@ static void extWinAccountBroadcastPayloadAppend(SExtWinBroadcastState* pState, i
   }
 }
 
-static void extWinDestroyBroadcastState(SExtWinBroadcastState* pState) {
+static void extWinDestroyBroadcastInput(SExtWinBroadcastInput* pState) {
   if (pState == NULL) {
     return;
   }
@@ -465,9 +479,16 @@ static void extWinDestroyBroadcastState(SExtWinBroadcastState* pState) {
   if (pState->pStat != NULL) {
     extWinPayloadSumSubtract(&pState->pStat->broadcastPayloadCurrent, pState->appendedSerializedBytes);
   }
+  blockDataDestroy(pState->pStaging);
   winInputStoreDestroy(pState->pStore);
   taosArrayDestroy(pState->pPageMeta);
   memset(pState, 0, sizeof(*pState));
+}
+
+static void extWinDestroyBroadcastState(SExtWinBroadcastState* pState) {
+  extWinDestroyBroadcastInput(&pState->input);
+  pState->replayWinIdx = 0;
+  pState->replayPage = 0;
 }
 
 static void extWinDestroyCGrpCtx(void* param) {
@@ -529,6 +550,7 @@ static void extWinClearGroupRegistry(SExternalWindowOperator* pExtW) {
     ppTCtx = tSimpleHashIterate(pExtW->pGroupRegistry, ppTCtx, &iter);
   }
   tSimpleHashCleanup(pExtW->pGroupRegistry);
+  extWinDestroyBroadcastInput(&pExtW->broadcastInput);
   winInputPoolDestroy(pExtW->pBroadcastPool);
   tDestroyStreamCalcContextGroupViews(&pExtW->pBroadcastContextViews);
   pExtW->pBroadcastPool = NULL;
@@ -592,6 +614,8 @@ static void extWinClearGroupProgression(SExternalWindowOperator* pExtW) {
   pExtW->groupOutputComplete = false;
   pExtW->activeGroupPublished = false;
   pExtW->boundaryReady = false;
+  pExtW->strictGroupInputDone = false;
+  pExtW->readerAggMode = 0;
   pExtW->mergeInputDone = false;
   pExtW->mergeGroupComplete = false;
 }
@@ -652,6 +676,75 @@ static bool extWinUsesStreamingBroadcast(const SOperatorInfo* pOperator, const S
   return pExtW != NULL && pExtW->inputMode == EXT_WIN_INPUT_BROADCAST &&
          (pExtW->mode == EEXT_MODE_SCALAR || pExtW->mode == EEXT_MODE_INDEFR_FUNC) && !pExtW->calcWithPartition &&
          extWinUsesStrictMultiGroupProtocol(pOperator);
+}
+
+static bool extWinCanCompactBroadcast(const SOperatorInfo* pOperator, const SExternalWindowOperator* pExtW) {
+#if defined(BUILD_TEST)
+  if (pExtW->testLegacyBroadcast) return false;
+#endif
+  if (pExtW->mode != EEXT_MODE_SCALAR || pExtW->isMergeAlignedExtW || !extWinUsesStreamingBroadcast(pOperator, pExtW)) {
+    return false;
+  }
+  const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pOperator->pPhyNode;
+  if (pNode == NULL || pNode->window.pProjs == NULL) {
+    return false;
+  }
+  SNode* pProj = NULL;
+  FOREACH(pProj, pNode->window.pProjs) {
+    SNode* pExpr = nodeType(pProj) == QUERY_NODE_TARGET ? ((STargetNode*)pProj)->pExpr : pProj;
+    if (pExpr == NULL ||
+        (nodeType(pExpr) != QUERY_NODE_COLUMN &&
+         (nodeType(pExpr) != QUERY_NODE_FUNCTION || !fmIsPlaceHolderFunc(((SFunctionNode*)pExpr)->funcId)))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool extWinReusesBroadcastInput(const SOperatorInfo* pOperator, const SExternalWindowOperator* pExtW) {
+  // Runtime multi-group mode is bound after operator construction.
+  const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pOperator->pPhyNode;
+  return pNode != NULL && pNode->broadcastInputReusable && pExtW->mode == EEXT_MODE_SCALAR &&
+         !pExtW->isMergeAlignedExtW && extWinUsesStreamingBroadcast(pOperator, pExtW);
+}
+
+static SExtWinBroadcastInput* extWinGetBroadcastInput(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
+                                                      SExtWinCalcGrpCtx* pCCtx) {
+  return extWinReusesBroadcastInput(pOperator, pExtW) ? &pExtW->broadcastInput : &pCCtx->broadcast.input;
+}
+
+static bool extWinConsumesDirectHashJoinEog(const SOperatorInfo* pOperator, const SExternalWindowOperator* pExtW) {
+  if (pOperator == NULL || pExtW == NULL || pExtW->inputMode != EXT_WIN_INPUT_WINDOW_BOUND ||
+      pExtW->mode != EEXT_MODE_SCALAR || pExtW->calcWithPartition || !extWinUsesStrictMultiGroupProtocol(pOperator) ||
+      pOperator->numOfDownstream != 1 || pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
+    return false;
+  }
+
+  const SPhysiNode* pPhysicalParent = (const SPhysiNode*)pOperator->pPhyNode;
+  if (pPhysicalParent == NULL || LIST_LENGTH(pPhysicalParent->pChildren) != 1) {
+    return false;
+  }
+
+  const SOperatorInfo* pChild = pOperator->pDownstream[0];
+  const SPhysiNode*    pPhysicalChild = (const SPhysiNode*)nodesListGetNode(pPhysicalParent->pChildren, 0);
+  return pChild->operatorType == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN && pPhysicalChild != NULL &&
+         nodeType(pPhysicalChild) == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN &&
+         ((const SHashJoinPhysiNode*)pPhysicalChild)->multiGroupJoin;
+}
+
+static bool extWinCanRequestReaderGroups(const SOperatorInfo* pOperator, const SExternalWindowOperator* pExtW) {
+  if (pExtW->mode != EEXT_MODE_AGG || pExtW->inputMode != EXT_WIN_INPUT_WINDOW_BOUND || pExtW->calcWithPartition ||
+      pExtW->isMergeAlignedExtW || pExtW->isDynWindow || pOperator->pOperatorGetParam != NULL ||
+      !extWinUsesStrictMultiGroupProtocol(pOperator) || pOperator->numOfDownstream != 1 ||
+      pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
+    return false;
+  }
+  const SPhysiNode*    pNode = pOperator->pPhyNode;
+  const SOperatorInfo* pChild = pOperator->pDownstream[0];
+  return pNode != NULL && !pNode->dynamicOp && LIST_LENGTH(pNode->pChildren) == 1 &&
+         pChild->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE && pChild->pPhyNode != NULL &&
+         nodeType(pChild->pPhyNode) == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE &&
+         nodeType(nodesListGetNode(pNode->pChildren, 0)) == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
 }
 
 static int32_t extWinValidateMultiGroupProtocolMode(const SOperatorInfo* pOperator) {
@@ -1657,7 +1750,7 @@ static int32_t extWinInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTaskInfo* 
   pCtx->windowDecisionsReady = false;
   pCtx->pWins = NULL;
   pCtx->outWinBufIdx = NULL;
-  pCtx->broadcast.pStat = &pExtW->stat;
+  pCtx->broadcast.input.pStat = &pExtW->stat;
 
   SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
   SStreamRuntimeFuncInfo  initInfo = *pInfo;
@@ -2025,7 +2118,10 @@ static int32_t extWinFinishOutputGroup(SOperatorInfo* pOperator, SExternalWindow
   pExtW->groupOutputComplete = false;
   pExtW->activeGroupPublished = false;
   pExtW->boundaryReady = true;
-  if (pExtW->groupOrderIdx >= taosArrayGetSize(pStream->pGroupCalcOrder)) {
+  if (extWinConsumesDirectHashJoinEog(pOperator, pExtW) || pExtW->readerAggMode == 2) {
+    pExtW->strictGroupInputDone = false;
+    pOperator->status = OP_NOT_OPENED;
+  } else if (pExtW->groupOrderIdx >= taosArrayGetSize(pStream->pGroupCalcOrder)) {
     pExtW->groupScanDone = true;
   }
   return TSDB_CODE_SUCCESS;
@@ -3053,6 +3149,8 @@ static void extWinLogAndResetRequestStat(SExternalWindowOperator* pExtW, const c
   pExtW->stat.broadcastLoadBytes = 0;
 #if defined(BUILD_TEST)
   pExtW->stat.windowConditionEvals = 0;
+  pExtW->stat.broadcastPreparationCopies = 0;
+  pExtW->stat.broadcastStageCapacityPeak = 0;
 #endif
 }
 
@@ -4304,7 +4402,8 @@ _exit:
   return code;
 }
 
-static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBlock, int32_t startPos, int32_t rows, SExtWinTimeWindow* pWin) {
+static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBlock, int32_t startPos, int32_t rows,
+                               SExtWinTimeWindow* pWin, bool prepared) {
   SExternalWindowOperator* pExtW = pOperator->info;
   SExprSupp*               pExprSup = &pExtW->scalarSupp;
   SSDataBlock*             pResBlock = NULL;
@@ -4332,17 +4431,28 @@ static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBloc
 
   qDebug("%s %s win[%" PRId64 ", %" PRId64 "] got res block %p winRowIdx %p, winOutIdx:%d, capacity:%d", 
       pOperator->pTaskInfo->id.str, __func__, pWin->tw.skey, pWin->tw.ekey, pResBlock, pIdx, pWin->resWinIdx, pResBlock->info.capacity);
-  
-  if (!pExtW->pTmpBlock) {
-    TAOS_CHECK_EXIT(createOneDataBlock(pInputBlock, false, &pExtW->pTmpBlock));
-  } else {
-    blockDataCleanup(pExtW->pTmpBlock);
-  }
-  
-  TAOS_CHECK_EXIT(blockDataEnsureCapacity(pExtW->pTmpBlock, TMAX(1, rows)));
 
-  qDebug("%s %s start to copy %d rows to tmp blk", pOperator->pTaskInfo->id.str, __func__, rows);
-  TAOS_CHECK_EXIT(blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rows));
+  if (!prepared) {
+    if (!pExtW->pTmpBlock) {
+      TAOS_CHECK_EXIT(createOneDataBlock(pInputBlock, false, &pExtW->pTmpBlock));
+    } else {
+      blockDataCleanup(pExtW->pTmpBlock);
+    }
+
+    TAOS_CHECK_EXIT(blockDataEnsureCapacity(pExtW->pTmpBlock, TMAX(1, rows)));
+
+    qDebug("%s %s start to copy %d rows to tmp blk", pOperator->pTaskInfo->id.str, __func__, rows);
+    TAOS_CHECK_EXIT(blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rows));
+#if defined(BUILD_TEST)
+    if (extWinCanCompactBroadcast(pOperator, pExtW)) ++pExtW->stat.broadcastPreparationCopies;
+#endif
+  }
+  if (extWinCanCompactBroadcast(pOperator, pExtW)) {
+    if (!prepared) {
+      tstrncpy(pExtW->pTmpBlock->info.parTbName, pInputBlock->info.parTbName, sizeof(pExtW->pTmpBlock->info.parTbName));
+    }
+    tstrncpy(pResBlock->info.parTbName, pInputBlock->info.parTbName, sizeof(pResBlock->info.parTbName));
+  }
 
   qDebug("%s %s start to apply project to tmp blk", pOperator->pTaskInfo->id.str, __func__);
   TAOS_CHECK_EXIT(projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx,
@@ -4394,11 +4504,12 @@ static int32_t extWinProjectOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBl
       continue;
     }
 
-    qDebug("%s ext window [%" PRId64 ", %" PRId64 ") tgrp %" PRId64 " project start, ascScan:%d, startPos:%d, winRows:%d",
-           GET_TASKID(pOperator->pTaskInfo), pWin->tw.skey, pWin->tw.ekey, pExtW->lastTGrpId, ascScan, startPos, winRows);        
-    
-    TAOS_CHECK_EXIT(extWinProjectDo(pOperator, pInputBlock, startPos, winRows, pWin));
-    
+    qDebug(
+        "%s ext window [%" PRId64 ", %" PRId64 ") tgrp %" PRId64 " project start, ascScan:%d, startPos:%d, winRows:%d",
+        GET_TASKID(pOperator->pTaskInfo), pWin->tw.skey, pWin->tw.ekey, pExtW->lastTGrpId, ascScan, startPos, winRows);
+
+    TAOS_CHECK_EXIT(extWinProjectDo(pOperator, pInputBlock, startPos, winRows, pWin, false));
+
     startPos += winRows;
   }
   
@@ -4770,7 +4881,9 @@ static int32_t extWinNonAggOutputMultiGrpRes(SOperatorInfo* pOperator, SExternal
   TAOS_CHECK_EXIT(extWinNonAggOutputSingleGrpRes(pOperator, pExtW, &pBlock));
   SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
   int32_t            numOfWin = pCCtx == NULL ? 0 : taosArrayGetSize(pCCtx->pWins);
-  pExtW->groupOutputComplete = pExtW->nonAggInputDone && (pCCtx == NULL || pCCtx->outWinIdx >= numOfWin);
+  bool               inputComplete =
+      extWinConsumesDirectHashJoinEog(pOperator, pExtW) ? pExtW->strictGroupInputDone : pExtW->nonAggInputDone;
+  pExtW->groupOutputComplete = inputComplete && (pCCtx == NULL || pCCtx->outWinIdx >= numOfWin);
 
   if (pBlock == NULL) {
     pBlock = pExtW->binfo.pRes;
@@ -5883,6 +5996,82 @@ static int32_t extWinPrepareStaticEofGroups(SOperatorInfo* pOperator, SExternalW
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extWinAcceptDirectGroupEog(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
+                                          const SSDataBlock* pBlock) {
+  if (pExtW->strictGroupInputDone) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  SStreamRuntimeFuncInfo* pStream = &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo;
+  uint64_t                expectedGid = 0;
+  SSTriggerGroupCalcInfo* pGroup = NULL;
+  int32_t                 code = extWinGetExpectedGroup(pStream, pExtW->groupOrderIdx, &expectedGid, &pGroup);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pGroup == NULL || expectedGid == 0 || pBlock->info.id.groupId != expectedGid ||
+      pBlock->info.id.baseGId != expectedGid || (pExtW->activeBaseGId != 0 && pExtW->activeBaseGId != expectedGid) ||
+      (pExtW->lastTGrpId != 0 && pExtW->lastTGrpId != expectedGid &&
+       !extWinGroupIsFinalized(pExtW, pExtW->lastTGrpId))) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  SExtWinTrigGrpCtx* pTCtx = extWinLookupTriggerGroup(pExtW, expectedGid);
+  SExtWinCalcGrpCtx* pCCtx = extWinLookupCalcGroup(pTCtx, 0);
+  if (pTCtx == NULL) {
+    code = extWinActivateGroup(pOperator, pExtW, pGroup, expectedGid, 0, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else if (pCCtx == NULL || pCCtx->groupId != 0) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  pExtW->strictGroupInputDone = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extWinAggHandleTriggerGroupEmptyWins(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
+                                                    uint64_t groupId) {
+  int32_t            code = TSDB_CODE_SUCCESS, lino = 0;
+  uint64_t           calcGroupId = 0;
+  SExtWinTrigGrpCtx* pTCtx = extWinLookupTriggerGroup(pExtW, groupId);
+  if (pExtW->calcWithPartition) {
+    calcGroupId = pTCtx == NULL || pTCtx->pCCtx == NULL ? groupId : pTCtx->pCCtx->groupId;
+  }
+  TAOS_CHECK_EXIT(extWinBindOutputGroup(pOperator, pExtW, groupId, calcGroupId));
+
+  SExtWinTrigGrpCtx* pTGrpCtx = pExtW->pTGrpCtx;
+  if (pTGrpCtx->pCGCtxs == NULL) {
+    TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, NULL, true, NULL));
+  } else {
+    SExtWinCalcGrpCtx* pSavedCCtx = pTGrpCtx->pCCtx;
+    uint64_t           savedCGrpId = pExtW->lastCGrpId;
+    int32_t            cIter = 0;
+    void*              pCIter = NULL;
+    int32_t            emptyCode = TSDB_CODE_SUCCESS;
+    SExtWinCalcGrpCtx* pCCtx = extWinIterateCalcGroup(pTGrpCtx, &pCIter, &cIter);
+    while (pCCtx != NULL) {
+      pTGrpCtx->pCCtx = pCCtx;
+      pExtW->lastCGrpId = pCCtx->groupId;
+      emptyCode = extWinAggHandleEmptyWins(pOperator, NULL, true, NULL);
+      if (emptyCode != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      pCCtx = extWinIterateCalcGroup(pTGrpCtx, &pCIter, &cIter);
+    }
+    pTGrpCtx->pCCtx = pSavedCCtx;
+    pExtW->lastCGrpId = savedCGrpId;
+    TAOS_CHECK_EXIT(emptyCode);
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t extWinAggHandleMultiTGrpEmptyWins(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
@@ -5906,36 +6095,7 @@ static int32_t extWinAggHandleMultiTGrpEmptyWins(SOperatorInfo* pOperator, SExte
       groupId = *(uint64_t*)tSimpleHashGetKey(pGroup, NULL);
     }
     QUERY_CHECK_NULL(pGroup, code, lino, _exit, TSDB_CODE_STREAM_INTERNAL_ERROR);
-    uint64_t           calcGroupId = 0;
-    SExtWinTrigGrpCtx* pTCtx = extWinLookupTriggerGroup(pExtW, groupId);
-    if (pExtW->calcWithPartition) {
-      calcGroupId = pTCtx == NULL || pTCtx->pCCtx == NULL ? groupId : pTCtx->pCCtx->groupId;
-    }
-    TAOS_CHECK_EXIT(extWinBindOutputGroup(pOperator, pExtW, groupId, calcGroupId));
-
-    SExtWinTrigGrpCtx* pTGrpCtx = pExtW->pTGrpCtx;
-    if (pTGrpCtx->pCGCtxs == NULL) {
-      TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, NULL, true, NULL));
-    } else {
-      SExtWinCalcGrpCtx* pSavedCCtx = pTGrpCtx->pCCtx;
-      uint64_t           savedCGrpId = pExtW->lastCGrpId;
-      int32_t            cIter = 0;
-      void*              pCIter = NULL;
-      int32_t            emptyCode = TSDB_CODE_SUCCESS;
-      SExtWinCalcGrpCtx* pCCtx = extWinIterateCalcGroup(pTGrpCtx, &pCIter, &cIter);
-      while (pCCtx != NULL) {
-        pTGrpCtx->pCCtx = pCCtx;
-        pExtW->lastCGrpId = pCCtx->groupId;
-        emptyCode = extWinAggHandleEmptyWins(pOperator, NULL, true, NULL);
-        if (emptyCode != TSDB_CODE_SUCCESS) {
-          break;
-        }
-        pCCtx = extWinIterateCalcGroup(pTGrpCtx, &pCIter, &cIter);
-      }
-      pTGrpCtx->pCCtx = pSavedCCtx;
-      pExtW->lastCGrpId = savedCGrpId;
-      TAOS_CHECK_EXIT(emptyCode);
-    }
+    TAOS_CHECK_EXIT(extWinAggHandleTriggerGroupEmptyWins(pOperator, pExtW, groupId));
   }
 
 _exit:
@@ -5945,6 +6105,36 @@ _exit:
   }
 
   return code;
+}
+
+static int32_t extWinAcceptReaderAggEog(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
+                                        const SSDataBlock* pBlock) {
+  int32_t code = extWinAcceptDirectGroupEog(pOperator, pExtW, pBlock);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = extWinAggHandleTriggerGroupEmptyWins(pOperator, pExtW, pBlock->info.id.baseGId);
+  if (code == TSDB_CODE_SUCCESS) {
+    qDebug("%s ext window reader aggregate group complete, baseGrp:%" PRIu64, GET_TASKID(pOperator->pTaskInfo),
+           pBlock->info.id.baseGId);
+  }
+  return code;
+}
+
+static void extWinReleaseReaderAggGroup(SExternalWindowOperator* pExtW) {
+  // Called on the next open, after the caller has consumed the previous DATA and EOG.
+  uint64_t groupId = pExtW->lastTGrpId;
+  if (groupId == 0 || !extWinGroupIsFinalized(pExtW, groupId)) return;
+  SExtWinTrigGrpCtx* pTCtx = extWinLookupTriggerGroup(pExtW, groupId);
+  extWinResetResultRows(pExtW);
+  extWinDestroyTGrpCtx(pTCtx);
+  taosMemoryFree(pTCtx);
+  TAOS_UNUSED(tSimpleHashRemove(pExtW->pGroupRegistry, &groupId, sizeof(groupId)));
+  pExtW->pTGrpCtx = NULL;
+  pExtW->lastTGrpId = 0;
+  pExtW->lastCGrpId = 0;
+  pExtW->resWinIdx = 0;
+  pExtW->outWinIdx = 0;
+  pExtW->lastGrpIdx = 0;
+  if (pExtW->pGrpIds != NULL) taosArrayClear(pExtW->pGrpIds);
 }
 
 static void extWinPrepareForOutput(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW) {
@@ -6014,7 +6204,7 @@ static int32_t extWinEnsureDynParamOpenCtx(SExternalWindowOperator* pExtW) {
     pNewCCtx = taosMemoryCalloc(1, sizeof(*pNewCCtx));
     TSDB_CHECK_NULL(pNewCCtx, code, lino, _exit, terrno);
     extWinInitDynParamCGrpCtx(pNewCCtx);
-    pNewCCtx->broadcast.pStat = &pExtW->stat;
+    pNewCCtx->broadcast.input.pStat = &pExtW->stat;
     TAOS_CHECK_EXIT(
         tSimpleHashPut(pExtW->pTGrpCtx->pCGCtxs, &calcGroupId, sizeof(calcGroupId), &pNewCCtx, sizeof(pNewCCtx)));
     pNewCCtx = NULL;
@@ -6054,6 +6244,142 @@ static int32_t extWinEnsureBroadcastPool(SOperatorInfo* pOperator, SExternalWind
   return code;
 }
 
+static int32_t extWinBroadcastStoreBlock(SExtWinBroadcastInput* pState, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t firstNewPage = winInputStoreGetPageCount(pState->pStore);
+  code = winInputStoreAppendBlock(pState->pStore, pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  int32_t                  pageCount = winInputStoreGetPageCount(pState->pStore);
+  SExtWinBroadcastPageMeta meta = {.id = pBlock->info.id,
+                                   .window = pBlock->info.window,
+                                   .version = pBlock->info.version,
+                                   .dataLoad = pBlock->info.dataLoad,
+                                   .scanFlag = pBlock->info.scanFlag};
+  tstrncpy(meta.parTbName, pBlock->info.parTbName, sizeof(meta.parTbName));
+  for (int32_t page = firstNewPage; page < pageCount; ++page) {
+    if (taosArrayPush(pState->pPageMeta, &meta) == NULL) {
+      return terrno;
+    }
+  }
+
+  size_t  blockBytes = blockDataGetSize(pBlock);
+  int64_t serializedBytes = blockBytes > INT64_MAX ? INT64_MAX : (int64_t)blockBytes;
+  serializedBytes = extWinAddPositiveI64Saturating(serializedBytes, sizeof(int32_t));
+  int64_t columnHeaderBytes =
+      extWinMultiplyPositiveI64Saturating(taosArrayGetSize(pBlock->pDataBlock), sizeof(int32_t));
+  serializedBytes = extWinAddPositiveI64Saturating(serializedBytes, columnHeaderBytes);
+  extWinAccountBroadcastPayloadAppend(pState, serializedBytes);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extWinBroadcastFlush(SExtWinBroadcastInput* pState) {
+  SSDataBlock* pBlock = pState->pStaging;
+  if (pBlock == NULL || pBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = extWinBroadcastStoreBlock(pState, pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  blockDataCleanup(pBlock);
+  // Different columns may dominate successive pages. Do not retain all their high-water payload buffers.
+  for (int32_t col = 0; col < taosArrayGetSize(pBlock->pDataBlock); ++col) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, col);
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      taosMemoryFreeClear(pCol->pData);
+      pCol->varmeta.allocLen = 0;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extWinBroadcastPackBlock(SExtWinBroadcastInput* pState, SSDataBlock* pBlock, int32_t pageSize) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t columns = taosArrayGetSize(pBlock->pDataBlock);
+  int64_t minRowBytes = 0;
+  if (pState->pStaging != NULL && taosArrayGetSize(pState->pStaging->pDataBlock) != columns) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  for (int32_t col = 0; col < columns; ++col) {
+    SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, col);
+    if (pSrc->reassigned) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    minRowBytes += IS_VAR_DATA_TYPE(pSrc->info.type) ? sizeof(int32_t) : pSrc->info.bytes;
+    if (pState->pStaging != NULL) {
+      SColumnInfoData* pDst = taosArrayGet(pState->pStaging->pDataBlock, col);
+      if (pSrc->info.type != pDst->info.type || pSrc->info.bytes != pDst->info.bytes ||
+          pSrc->info.slotId != pDst->info.slotId) {
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+    }
+  }
+  int64_t headerBytes = sizeof(int32_t) * (columns + 1LL);
+  if (minRowBytes <= 0 || pageSize - headerBytes < minRowBytes) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (pState->pStaging == NULL) {
+    code = createOneDataBlock(pBlock, false, &pState->pStaging);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    code = blockDataEnsureCapacity(pState->pStaging, (pageSize - headerBytes) / minRowBytes);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+#if defined(BUILD_TEST)
+  pState->pStat->broadcastStageCapacityPeak =
+      TMAX(pState->pStat->broadcastStageCapacityPeak, pState->pStaging->info.capacity);
+#endif
+  SSDataBlock* pStaging = pState->pStaging;
+  if (strcmp(pStaging->info.parTbName, pBlock->info.parTbName) != 0) {
+    code = extWinBroadcastFlush(pState);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+
+  int32_t start = 0;
+  while (start < pBlock->info.rows) {
+    if (pStaging->info.rows == 0) {
+      // Compact pages carry schema identity, not the first raw block's physical provenance.
+      pStaging->info.id = (SBlockID){.blockId = pBlock->info.id.blockId};
+      pStaging->info.window = (STimeWindow){0};
+      pStaging->info.version = 0;
+      pStaging->info.dataLoad = 1;
+      pStaging->info.scanFlag = MAIN_SCAN;
+      tstrncpy(pStaging->info.parTbName, pBlock->info.parTbName, sizeof(pStaging->info.parTbName));
+    }
+    int64_t bytes = headerBytes + blockDataGetSize(pStaging);
+    int32_t end = start;
+    for (; end < pBlock->info.rows; ++end) {
+      int64_t rowBytes = 0;
+      int64_t dstRow = pStaging->info.rows + end - start;
+      for (int32_t col = 0; col < columns; ++col) {
+        SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, col);
+        if (IS_VAR_DATA_TYPE(pSrc->info.type)) {
+          rowBytes += sizeof(int32_t);
+          if (!colDataIsNull_var(pSrc, end)) {
+            rowBytes += calcStrBytesByType(pSrc->info.type, colDataGetData(pSrc, end));
+          }
+        } else {
+          rowBytes += pSrc->info.bytes + ((dstRow & 7) == 0);
+        }
+      }
+      if (bytes + rowBytes > pageSize) break;
+      bytes += rowBytes;
+    }
+    if (end > start) {
+      code = blockDataMergeNRows(pStaging, pBlock, start, end - start);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      start = end;
+    }
+    if (start < pBlock->info.rows) {
+      if (pStaging->info.rows == 0) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      code = extWinBroadcastFlush(pState);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t extWinBroadcastAppendBlock(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
                                           SExtWinCalcGrpCtx* pCCtx, SSDataBlock* pBlock) {
   if (pOperator == NULL || pExtW == NULL || pCCtx == NULL || pBlock == NULL) {
@@ -6064,7 +6390,7 @@ static int32_t extWinBroadcastAppendBlock(SOperatorInfo* pOperator, SExternalWin
   }
 
   int32_t                code = TSDB_CODE_SUCCESS;
-  SExtWinBroadcastState* pState = &pCCtx->broadcast;
+  SExtWinBroadcastInput* pState = extWinGetBroadcastInput(pOperator, pExtW, pCCtx);
   if (pState->inputLoaded) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
@@ -6084,33 +6410,10 @@ static int32_t extWinBroadcastAppendBlock(SOperatorInfo* pOperator, SExternalWin
     pState->pStat = &pExtW->stat;
   }
 
-  int32_t firstNewPage = winInputStoreGetPageCount(pState->pStore);
-  code = winInputStoreAppendBlock(pState->pStore, pBlock);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-  int32_t                  pageCount = winInputStoreGetPageCount(pState->pStore);
-  SExtWinBroadcastPageMeta meta = {.id = pBlock->info.id,
-                                   .window = pBlock->info.window,
-                                   .version = pBlock->info.version,
-                                   .dataLoad = pBlock->info.dataLoad,
-                                   .scanFlag = pBlock->info.scanFlag};
-  for (int32_t page = firstNewPage; page < pageCount; ++page) {
-    if (taosArrayPush(pState->pPageMeta, &meta) == NULL) {
-      return terrno;
-    }
-  }
-
-  size_t  blockBytes = blockDataGetSize(pBlock);
-  int64_t serializedBytes = blockBytes > INT64_MAX ? INT64_MAX : (int64_t)blockBytes;
-  serializedBytes = extWinAddPositiveI64Saturating(serializedBytes, sizeof(int32_t));
-  int64_t columnHeaderBytes =
-      extWinMultiplyPositiveI64Saturating(taosArrayGetSize(pBlock->pDataBlock), sizeof(int32_t));
-  serializedBytes = extWinAddPositiveI64Saturating(serializedBytes, columnHeaderBytes);
-  extWinAccountBroadcastPayloadAppend(pState, serializedBytes);
   pExtW->stat.broadcastScanBlocks++;
   pExtW->stat.broadcastScanRows += pBlock->info.rows;
-  return TSDB_CODE_SUCCESS;
+  return pState->compact ? extWinBroadcastPackBlock(pState, pBlock, winInputPoolGetPageSize(pExtW->pBroadcastPool))
+                         : extWinBroadcastStoreBlock(pState, pBlock);
 }
 
 static int32_t extWinBroadcastProcessPage(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, SSDataBlock* pBlock,
@@ -6118,7 +6421,7 @@ static int32_t extWinBroadcastProcessPage(SOperatorInfo* pOperator, SExternalWin
   int32_t code = TSDB_CODE_SUCCESS;
   switch (pExtW->mode) {
     case EEXT_MODE_SCALAR:
-      return extWinProjectDo(pOperator, pBlock, 0, (int32_t)pBlock->info.rows, pWin);
+      return extWinProjectDo(pOperator, pBlock, 0, (int32_t)pBlock->info.rows, pWin, false);
     case EEXT_MODE_INDEFR_FUNC:
       return extWinIndefRowsDo(pOperator, pBlock, 0, (int32_t)pBlock->info.rows, pWin);
     case EEXT_MODE_AGG: {
@@ -6190,6 +6493,7 @@ static int32_t extWinBroadcastRestoreNullSummaries(SSDataBlock* pBlock) {
 #if defined(BUILD_TEST)
 static int32_t extWinTestObserveBroadcastReplay(SExternalWindowOperator* pExtW, int32_t pageIndex,
                                                 SSDataBlock* pReplay) {
+  if (pExtW->testDisableReplayObservations) return TSDB_CODE_SUCCESS;
   if (pExtW->pBroadcastReplayObservations == NULL) {
     pExtW->pBroadcastReplayObservations = taosArrayInit(4, sizeof(SExtWinBroadcastReplayObservation));
     if (pExtW->pBroadcastReplayObservations == NULL) {
@@ -6223,61 +6527,78 @@ static int32_t extWinBroadcastReplayPage(SOperatorInfo* pOperator, SExternalWind
   if (pWin == NULL) {
     return terrno;
   }
-  SExtWinBroadcastState* pState = &pCCtx->broadcast;
+  SExtWinBroadcastInput* pState = extWinGetBroadcastInput(pOperator, pExtW, pCCtx);
   int32_t                pageCount = winInputStoreGetPageCount(pState->pStore);
-  if (pState->replayPage < 0 || pState->replayPage >= pageCount) {
+  if (pCCtx->broadcast.replayPage < 0 || pCCtx->broadcast.replayPage >= pageCount) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   SSDataBlock* pStored = NULL;
-  int32_t      code = winInputStoreGetBlock(pState->pStore, pState->replayPage, &pStored);
+  int32_t      code = winInputStoreGetBlock(pState->pStore, pCCtx->broadcast.replayPage, &pStored);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  SExtWinBroadcastPageMeta* pMeta = taosArrayGet(pState->pPageMeta, pState->replayPage);
+  SExtWinBroadcastPageMeta* pMeta = taosArrayGet(pState->pPageMeta, pCCtx->broadcast.replayPage);
   if (pStored == NULL || pMeta == NULL) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   SSDataBlock* pReplay = NULL;
-  code = createOneDataBlock(pStored, true, &pReplay);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  if (pState->compact) {
+    if (pExtW->pTmpBlock == NULL) {
+      code = createOneDataBlock(pStored, false, &pExtW->pTmpBlock);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    // Whole-column copying is safe before the decoded page's NULL summaries are restored.
+    code = copyDataBlock(pExtW->pTmpBlock, pStored);
+    pReplay = pExtW->pTmpBlock;
+  } else {
+    code = createOneDataBlock(pStored, true, &pReplay);
   }
+  if (code != TSDB_CODE_SUCCESS) return code;
+#if defined(BUILD_TEST)
+  if (pState->compact) ++pExtW->stat.broadcastPreparationCopies;
+#endif
   pReplay->info.id = pMeta->id;
   pReplay->info.window = pMeta->window;
   pReplay->info.version = pMeta->version;
   pReplay->info.dataLoad = pMeta->dataLoad;
   pReplay->info.scanFlag = pMeta->scanFlag;
+  tstrncpy(pReplay->info.parTbName, pMeta->parTbName, sizeof(pReplay->info.parTbName));
   code = extWinBroadcastRestoreNullSummaries(pReplay);
   if (code != TSDB_CODE_SUCCESS) {
-    blockDataDestroy(pReplay);
+    if (!pState->compact) blockDataDestroy(pReplay);
     return code;
   }
+  if (pState->compact || extWinReusesBroadcastInput(pOperator, pExtW)) {
+    // Projection and lineage consume current identity; stored physical provenance stays immutable.
+    extWinAssignBlockGrpId(pOperator, pExtW, &pReplay->info.id);
+  }
 #if defined(BUILD_TEST)
-  code = extWinTestObserveBroadcastReplay(pExtW, pState->replayPage, pReplay);
+  code = extWinTestObserveBroadcastReplay(pExtW, pCCtx->broadcast.replayPage, pReplay);
   if (code != TSDB_CODE_SUCCESS) {
-    blockDataDestroy(pReplay);
+    if (!pState->compact) blockDataDestroy(pReplay);
     return code;
   }
 #endif
-  code = extWinBroadcastProcessPage(pOperator, pExtW, pReplay, pWin);
+  code = pState->compact ? extWinProjectDo(pOperator, pReplay, 0, (int32_t)pReplay->info.rows, pWin, true)
+                         : extWinBroadcastProcessPage(pOperator, pExtW, pReplay, pWin);
   pExtW->stat.broadcastReplayBlocks++;
   pExtW->stat.broadcastReplayRows += pReplay->info.rows;
-  blockDataDestroy(pReplay);
+  if (!pState->compact) blockDataDestroy(pReplay);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  ++pState->replayPage;
+  ++pCCtx->broadcast.replayPage;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t extWinBroadcastReplayWindow(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
                                            SExtWinCalcGrpCtx* pCCtx, int32_t winIdx) {
-  SExtWinBroadcastState* pState = &pCCtx->broadcast;
-  pState->replayPage = 0;
+  SExtWinBroadcastInput* pState = extWinGetBroadcastInput(pOperator, pExtW, pCCtx);
+  pCCtx->broadcast.replayPage = 0;
   int32_t pageCount = winInputStoreGetPageCount(pState->pStore);
-  while (pState->replayPage < pageCount) {
+  while (pCCtx->broadcast.replayPage < pageCount) {
     int32_t code = extWinBroadcastReplayPage(pOperator, pExtW, pCCtx, winIdx);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -6293,7 +6614,7 @@ static int32_t extWinBroadcastReplayCalcGroup(SOperatorInfo* pOperator, SExterna
   }
   pExtW->pTGrpCtx->pCCtx = pCCtx;
   pExtW->lastCGrpId = pCCtx->groupId;
-  pCCtx->broadcast.inputLoaded = true;
+  pCCtx->broadcast.input.inputLoaded = true;
   for (int32_t winIdx = 0; winIdx < (int32_t)taosArrayGetSize(pCCtx->pWins); ++winIdx) {
     SExtWinTimeWindow* pWin = taosArrayGet(pCCtx->pWins, winIdx);
     if (pWin == NULL) {
@@ -6305,7 +6626,7 @@ static int32_t extWinBroadcastReplayCalcGroup(SOperatorInfo* pOperator, SExterna
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-    if (pass && pCCtx->broadcast.pStore != NULL) {
+    if (pass && pCCtx->broadcast.input.pStore != NULL) {
       code = extWinBroadcastReplayWindow(pOperator, pExtW, pCCtx, winIdx);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -6479,6 +6800,8 @@ static int32_t extWinBroadcastLoadActiveGroup(SOperatorInfo* pOperator, SExterna
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
+  SExtWinBroadcastInput* pInput = extWinGetBroadcastInput(pOperator, pExtW, pExtW->pTGrpCtx->pCCtx);
+  pInput->compact = extWinCanCompactBroadcast(pOperator, pExtW);
   int32_t                 code = TSDB_CODE_SUCCESS;
   SStreamRuntimeInfo*     pRuntime = pOperator->pTaskInfo->pStreamRuntimeInfo;
   SStreamRuntimeFuncInfo* pStream = pRuntime == NULL ? NULL : &pRuntime->funcInfo;
@@ -6519,6 +6842,11 @@ static int32_t extWinBroadcastLoadActiveGroup(SOperatorInfo* pOperator, SExterna
     pRuntime->fetchInfo.funcInfo.isMultiGroupCalc = false;
     pRuntime->fetchInfo.funcInfo.pContextPolicy = pView == NULL ? NULL : pView->pContextPolicy;
     pRuntime->fetchInfo.funcInfo.pAncestorContext = pView == NULL ? NULL : pView->pAncestorContext;
+    if (pRuntime->pPreparedFetchContext != NULL) {
+      code = tSelectStreamFetchContextForGroup(pRuntime->pPreparedFetchContext, pStream, pStream->groupId,
+                                               &pRuntime->fetchInfo.pContextSelection);
+      if (code != TSDB_CODE_SUCCESS) goto _exit;
+    }
   }
 
   while (true) {
@@ -6545,7 +6873,13 @@ static int32_t extWinBroadcastLoadActiveGroup(SOperatorInfo* pOperator, SExterna
       goto _exit;
     }
   }
-  pExtW->pTGrpCtx->pCCtx->broadcast.inputLoaded = true;
+  code = extWinBroadcastFlush(pInput);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+  blockDataDestroy(pInput->pStaging);
+  pInput->pStaging = NULL;
+  pInput->inputLoaded = true;
 
 _exit:
   qClearStreamFetchRuntime(pRuntime);
@@ -6632,7 +6966,10 @@ static void extWinBroadcastReleaseGroupInput(SExternalWindowOperator* pExtW, SEx
   }
 
   extWinDestroyBroadcastState(&pCCtx->broadcast);
-  pCCtx->broadcast.pStat = &pExtW->stat;
+  pCCtx->broadcast.input.pStat = &pExtW->stat;
+  if (pExtW->groupScanDone) {
+    extWinDestroyBroadcastInput(&pExtW->broadcastInput);
+  }
 }
 
 static int32_t extWinBroadcastLoadStreamingGroup(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
@@ -6651,6 +6988,7 @@ static int32_t extWinBroadcastLoadStreamingGroup(SOperatorInfo* pOperator, SExte
     return code;
   }
   if (pGroup == NULL) {
+    extWinDestroyBroadcastInput(&pExtW->broadcastInput);
     pExtW->groupScanDone = true;
     pStream->curGrpCalc = NULL;
     return TSDB_CODE_SUCCESS;
@@ -6660,9 +6998,12 @@ static int32_t extWinBroadcastLoadStreamingGroup(SOperatorInfo* pOperator, SExte
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  code = extWinBroadcastLoadActiveGroup(pOperator, pExtW, pExtW->groupOrderIdx > 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  SExtWinBroadcastInput* pInput = extWinGetBroadcastInput(pOperator, pExtW, pExtW->pTGrpCtx->pCCtx);
+  if (!pInput->inputLoaded) {
+    code = extWinBroadcastLoadActiveGroup(pOperator, pExtW, pExtW->groupOrderIdx > 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   bool found = false;
@@ -6748,7 +7089,14 @@ static int32_t extWinBroadcastStreamingNext(SOperatorInfo* pOperator, SExternalW
     }
 
     SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
-    if (pCCtx == NULL || pCCtx->pWins == NULL || !pCCtx->broadcast.inputLoaded) {
+    if (pCCtx == NULL || pCCtx->pWins == NULL) {
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+      lino = __LINE__;
+      goto _exit;
+    }
+
+    SExtWinBroadcastInput* pInput = extWinGetBroadcastInput(pOperator, pExtW, pCCtx);
+    if (!pInput->inputLoaded) {
       code = TSDB_CODE_STREAM_INTERNAL_ERROR;
       lino = __LINE__;
       goto _exit;
@@ -6761,7 +7109,7 @@ static int32_t extWinBroadcastStreamingNext(SOperatorInfo* pOperator, SExternalW
       if (pBlock != NULL) {
         SExtWinTimeWindow* pWin = taosArrayGet(pCCtx->pWins, pCCtx->broadcast.replayWinIdx);
         SList*             pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
-        int32_t pageCount = pCCtx->broadcast.pStore == NULL ? 0 : winInputStoreGetPageCount(pCCtx->broadcast.pStore);
+        int32_t            pageCount = pInput->pStore == NULL ? 0 : winInputStoreGetPageCount(pInput->pStore);
         if (listNEles(pList) == 0 && pCCtx->broadcast.replayPage >= pageCount) {
           extWinBroadcastAdvanceStreamingWindow(pCCtx);
         }
@@ -6777,7 +7125,7 @@ static int32_t extWinBroadcastStreamingNext(SOperatorInfo* pOperator, SExternalW
 
       bool pass = true;
       TAOS_CHECK_EXIT(extWinGetWindowDecision(pCCtx, pCCtx->broadcast.replayWinIdx, &pass));
-      int32_t pageCount = pCCtx->broadcast.pStore == NULL ? 0 : winInputStoreGetPageCount(pCCtx->broadcast.pStore);
+      int32_t pageCount = pInput->pStore == NULL ? 0 : winInputStoreGetPageCount(pInput->pStore);
       if (!pass || pCCtx->broadcast.replayPage >= pageCount) {
         extWinBroadcastAdvanceStreamingWindow(pCCtx);
         continue;
@@ -6877,6 +7225,15 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
   SExternalWindowOperator* pExtW = pOperator->info;
   SExprSupp*               pSup = &pOperator->exprSupp;
   SStreamRuntimeFuncInfo*  pInfo = pTaskInfo->pStreamRuntimeInfo ? &pTaskInfo->pStreamRuntimeInfo->funcInfo : NULL;
+  bool                     directHashJoinEog = extWinConsumesDirectHashJoinEog(pOperator, pExtW);
+  bool requestReaderGroups = pExtW->readerAggMode == 0 && extWinCanRequestReaderGroups(pOperator, pExtW);
+
+  if (requestReaderGroups) {
+    TAOS_CHECK_EXIT(qExchangeRequestReaderGroupOutput(pDownstream));
+  }
+  if (pExtW->readerAggMode == 2) {
+    extWinReleaseReaderAggGroup(pExtW);
+  }
 
   if (pOperator->pOperatorGetParam) {
     SOperatorParam*               pParam = (SOperatorParam*)(pOperator->pOperatorGetParam);
@@ -6893,7 +7250,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     extWinDestroyBroadcastState(&pExtW->pTGrpCtx->pCCtx->broadcast);
 
     extWinInitDynParamCGrpCtx(pExtW->pTGrpCtx->pCCtx);
-    pExtW->pTGrpCtx->pCCtx->broadcast.pStat = &pExtW->stat;
+    pExtW->pTGrpCtx->pCCtx->broadcast.input.pStat = &pExtW->stat;
     pExtW->pTGrpCtx->pCCtx->pWins = pExtPram->ExtWins;
 
     pExtPram->ExtWins = NULL;
@@ -6963,7 +7320,26 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == pDownstream->operatorType
                               ? getNextBlockFromDownstream(pOperator, 0)
                               : getNextBlockFromDownstreamRemainDetach(pOperator, 0);
+    if (requestReaderGroups) {
+      int32_t mode = qExchangeReaderGroupOutputMode(pDownstream);
+      if (mode != 1 && mode != 2) {
+        TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+      }
+      pExtW->readerAggMode = mode;
+      requestReaderGroups = false;
+      qDebug("%s ext window reader aggregate mode:%d", GET_TASKID(pTaskInfo), mode);
+    }
     if (pBlock == NULL) {
+      if (directHashJoinEog || pExtW->readerAggMode == 2) {
+        int32_t groupCount = taosArrayGetSize(pInfo->pGroupCalcOrder);
+        if (pExtW->strictGroupInputDone || pExtW->activeBaseGId != 0 || pExtW->groupEogPending ||
+            pExtW->groupOrderIdx != groupCount) {
+          TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+        }
+        pExtW->nonAggInputDone = true;
+        pExtW->groupScanDone = true;
+        break;
+      }
       if (!pExtW->isDynWindow) {
         TAOS_CHECK_EXIT(extWinPrepareStaticEofGroups(pOperator, pExtW));
       }
@@ -6982,6 +7358,29 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
       break;
     }
 
+    if (qIsMultiGroupEogBlock(pBlock)) {
+      if (pExtW->readerAggMode == 2) {
+        TAOS_CHECK_EXIT(extWinAcceptReaderAggEog(pOperator, pExtW, pBlock));
+        break;
+      }
+      if (directHashJoinEog) {
+        TAOS_CHECK_EXIT(extWinAcceptDirectGroupEog(pOperator, pExtW, pBlock));
+        break;
+      }
+      // Group boundaries carry no rows; output groups are finalized by this operator.
+      continue;
+    }
+
+    if (pExtW->readerAggMode == 2) {
+      uint64_t                expectedGid = 0;
+      SSTriggerGroupCalcInfo* pGroup = NULL;
+      TAOS_CHECK_EXIT(extWinGetExpectedGroup(pInfo, pExtW->groupOrderIdx, &expectedGid, &pGroup));
+      if (pGroup == NULL || pBlock->info.rows <= 0 || pBlock->info.id.baseGId != expectedGid ||
+          pExtW->strictGroupInputDone) {
+        TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+      }
+    }
+
     if (pExtW->isDynWindow) {
       TSKEY skey = 0;
       TSKEY ekey = 0;
@@ -6993,8 +7392,8 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
 
     printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
-    qInfo("%s ext window mode:%s baseGrp:%" PRIu64 " grp:%" PRIu64 " got %" PRId64 " rows from downstream",
-        GET_TASKID(pTaskInfo), extWinModeStr(pExtW->mode), pBlock->info.id.baseGId, pBlock->info.id.groupId, pBlock->info.rows);
+    qDebug("%s ext window mode:%s baseGrp:%" PRIu64 " grp:%" PRIu64 " got %" PRId64 " rows from downstream",
+           GET_TASKID(pTaskInfo), extWinModeStr(pExtW->mode), pBlock->info.id.baseGId, pBlock->info.id.groupId, pBlock->info.rows);
 
     if (extWinShouldSkipNonStreamPartitionBlock(pExtW, pTaskInfo, &pBlock->info.id)) {
       qDebug("%s skip unmatched non-stream partition block, baseGrp:%" PRIu64 " grp:%" PRIu64, GET_TASKID(pTaskInfo),
@@ -7041,7 +7440,9 @@ _input_done:
   }
   OPTR_SET_OPENED(pOperator);
 
-  extWinPrepareForOutput(pOperator, pExtW);
+  if (!directHashJoinEog && pExtW->readerAggMode != 2) {
+    extWinPrepareForOutput(pOperator, pExtW);
+  }
 
 _exit:
 
@@ -7186,6 +7587,14 @@ _return:
 }
 
 #if defined(BUILD_TEST)
+int32_t extWinTestGetBroadcastWork(SOperatorInfo* pOperator, int64_t* pCopies, const SSDataBlock** ppWork) {
+  SExternalWindowOperator* pExtW = extWinGetCoreInfo(pOperator);
+  if (pExtW == NULL || pCopies == NULL || ppWork == NULL) return TSDB_CODE_INVALID_PARA;
+  *pCopies = pExtW->stat.broadcastPreparationCopies;
+  *ppWork = pExtW->pTmpBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t extWinTestGetBroadcastStat(SOperatorInfo* pOperator, int64_t* pScanBlocks, int64_t* pScanRows,
                                    int64_t* pReplayBlocks, int64_t* pReplayRows, int64_t* pActualBudget,
                                    int64_t* pPayloadPeak, int64_t* pFlushBytes, int64_t* pLoadBytes,
@@ -7217,6 +7626,29 @@ int32_t extWinTestGetBroadcastStat(SOperatorInfo* pOperator, int64_t* pScanBlock
   return TSDB_CODE_SUCCESS;
 }
 
+// Set only before a request opens. Both modes keep the same Reader and group protocol.
+int32_t extWinTestConfigureBroadcastBenchmark(SOperatorInfo* pOperator, bool legacy) {
+  SExternalWindowOperator* pExtW = extWinGetCoreInfo(pOperator);
+  if (pExtW == NULL || pOperator->status != OP_NOT_OPENED) return TSDB_CODE_INVALID_PARA;
+  pExtW->testLegacyBroadcast = legacy;
+  pExtW->testDisableReplayObservations = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t extWinTestGetBroadcastBenchmarkState(SOperatorInfo* pOperator, bool* pCompact, int64_t* pLivePayload,
+                                             int32_t* pObservations, int64_t* pStageCapacityPeak, int32_t* pPages) {
+  SExternalWindowOperator* pExtW = extWinGetCoreInfo(pOperator);
+  if (pExtW == NULL || pCompact == NULL || pLivePayload == NULL || pObservations == NULL ||
+      pStageCapacityPeak == NULL || pPages == NULL)
+    return TSDB_CODE_INVALID_PARA;
+  *pCompact = extWinCanCompactBroadcast(pOperator, pExtW);
+  *pLivePayload = extWinPayloadSumClamp(&pExtW->stat.broadcastPayloadCurrent);
+  *pObservations = taosArrayGetSize(pExtW->pBroadcastReplayObservations);
+  *pStageCapacityPeak = pExtW->stat.broadcastStageCapacityPeak;
+  *pPages = pExtW->pBroadcastPool == NULL ? 0 : winInputPoolTestGetRegisteredPageCount(pExtW->pBroadcastPool);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t extWinTestGetBroadcastRegisteredPageCount(SOperatorInfo* pOperator, int32_t* pRegisteredPages) {
   if (pOperator == NULL || pRegisteredPages == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -7241,7 +7673,7 @@ int32_t extWinTestReplaceActiveBroadcastState(SOperatorInfo* pOperator, SSDataBl
 
   SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx->pCCtx;
   extWinDestroyBroadcastState(&pCCtx->broadcast);
-  pCCtx->broadcast.pStat = &pExtW->stat;
+  pCCtx->broadcast.input.pStat = &pExtW->stat;
   int32_t code = extWinBroadcastAppendBlock(pOperator, pExtW, pCCtx, pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -7260,12 +7692,16 @@ int32_t extWinTestGetBroadcastPageMeta(SOperatorInfo* pOperator, uint64_t trigge
   SExternalWindowOperator* pExtW = extWinGetCoreInfo(pOperator);
   SExtWinTrigGrpCtx*       pTCtx = extWinLookupTriggerGroup(pExtW, triggerGroupId);
   SExtWinCalcGrpCtx*       pCCtx = extWinLookupCalcGroup(pTCtx, calcGroupId);
-  if (pCCtx == NULL || pCCtx->broadcast.pPageMeta == NULL) {
+  if (pCCtx == NULL) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  SExtWinBroadcastInput* pInput = extWinGetBroadcastInput(pOperator, pExtW, pCCtx);
+  if (pInput->pPageMeta == NULL) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  *pPageCount = taosArrayGetSize(pCCtx->broadcast.pPageMeta);
-  SExtWinBroadcastPageMeta* pMeta = taosArrayGet(pCCtx->broadcast.pPageMeta, pageIndex);
+  *pPageCount = taosArrayGetSize(pInput->pPageMeta);
+  SExtWinBroadcastPageMeta* pMeta = taosArrayGet(pInput->pPageMeta, pageIndex);
   if (pMeta == NULL) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
@@ -7313,16 +7749,16 @@ int32_t extWinTestRunBroadcastPayloadTransition(int64_t firstContribution, int64
   }
 
   SExtWindowStat        stat = {.broadcastStoreBudget = INT64_MAX};
-  SExtWinBroadcastState first = {.pStat = &stat};
-  SExtWinBroadcastState second = {.pStat = &stat};
+  SExtWinBroadcastInput first = {.pStat = &stat};
+  SExtWinBroadcastInput second = {.pStat = &stat};
   extWinAccountBroadcastPayloadAppend(&first, firstContribution);
   *pCurrentAfterFirst = extWinPayloadSumClamp(&stat.broadcastPayloadCurrent);
   extWinAccountBroadcastPayloadAppend(&second, secondContribution);
   *pCurrentAfterSecond = extWinPayloadSumClamp(&stat.broadcastPayloadCurrent);
-  extWinDestroyBroadcastState(&second);
+  extWinDestroyBroadcastInput(&second);
   *pCurrentAfterSecondDestroy = extWinPayloadSumClamp(&stat.broadcastPayloadCurrent);
   *pPeakAfterSecondDestroy = stat.broadcastPayloadPeak;
-  extWinDestroyBroadcastState(&first);
+  extWinDestroyBroadcastInput(&first);
   return TSDB_CODE_SUCCESS;
 }
 

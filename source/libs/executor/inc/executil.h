@@ -308,11 +308,18 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* p
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
+/* Structural provenance only; the common builder performs fallible validation. */
+bool    streamCanForwardRunnerContext(const SStreamRuntimeInfo* pRuntime, const SStreamRuntimeFuncInfo* pInfo,
+                                      int32_t msgType, bool reset);
 int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStreamRuntimeFuncInfo* pDst);
 void    cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo);
 int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 bool    isStaticMultiGroupJoinQualified(const struct SOperatorInfo* pOperator);
+/** Request after each execution reset, before the first fetch. Mode resolves before its first return. */
+int32_t qExchangeRequestReaderGroupOutput(struct SOperatorInfo* pOperator);
+/** 0 unknown, 1 legacy, 2 grouped. */
+int32_t qExchangeReaderGroupOutputMode(const struct SOperatorInfo* pOperator);
 
 int32_t          findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId);
 SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slotId, int32_t* pIndex);

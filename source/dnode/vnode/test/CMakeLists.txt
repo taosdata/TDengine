@@ -120,6 +120,19 @@ add_test(
          COMMAND metaTxnAlterStbTest
 )
 
+ADD_EXECUTABLE(metaTagFilterCacheTest metaTagFilterCacheTest.cpp)
+DEP_ext_gtest(metaTagFilterCacheTest)
+DEP_ext_cppstub(metaTagFilterCacheTest)
+TARGET_LINK_LIBRARIES(metaTagFilterCacheTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
+SET_TARGET_PROPERTIES(metaTagFilterCacheTest PROPERTIES LINK_FLAGS "-Wl,--wrap=taosArrayAddBatch -Wl,--wrap=tdbTbcNext -Wl,--wrap=tdbTbcMoveTo -Wl,--wrap=tdbTbcMoveToNext")
+TARGET_INCLUDE_DIRECTORIES(metaTagFilterCacheTest PUBLIC
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/executor"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(NAME metaTagFilterCacheTest COMMAND metaTagFilterCacheTest)
+
 # Phase 1: metaSnapTxnTest disabled — snapshot sver-adjustment removed; re-enable in Phase 2
 # ADD_EXECUTABLE(metaSnapTxnTest metaSnapTxnTest.cpp)
 # DEP_ext_gtest(metaSnapTxnTest)

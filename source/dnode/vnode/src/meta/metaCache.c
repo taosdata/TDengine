@@ -56,6 +56,8 @@ typedef struct STagCondFilterEntry {
   bool      skipWarmup;
 } STagCondFilterEntry;
 
+#define STABLE_TAG_FILTER_WARMUP_MAX_BYTES (2 * 1024 * 1024)
+
 typedef struct STagConds {
   SHashObj* set;       // SHashObj<tagColIdStr, STagCondFilterEntry>
   uint32_t  hitTimes;  // queried times for current super table
@@ -654,7 +656,7 @@ int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pK
 }
 
 static int32_t addCachedUidListToArray(SArray* pList, SHashObj* pSet, const uint8_t* pKey, int32_t keyLen,
-                                       bool* acquired);
+                                       bool complete, bool* acquired);
 
 int32_t metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid, const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
                                     const uint8_t* pKey, int32_t keyLen, SArray* pList1, bool* acquireRes,
@@ -696,7 +698,7 @@ int32_t metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid, const uint8_t* 
     goto _end;
   }
 
-  code = addCachedUidListToArray(pList1, (*pFilterEntry)->set, pKey, keyLen, acquireRes);
+  code = addCachedUidListToArray(pList1, (*pFilterEntry)->set, pKey, keyLen, (*pFilterEntry)->prewarmed, acquireRes);
   TSDB_CHECK_CODE(code, lino, _end);
 
   if (!*acquireRes) {
@@ -954,9 +956,10 @@ static int32_t addUidListToArray(SArray* pList, SArray* pUidArray) {
 }
 
 static int32_t addCachedUidListToArray(SArray* pList, SHashObj* pSet, const uint8_t* pKey, int32_t keyLen,
-                                       bool* acquired) {
+                                       bool complete, bool* acquired) {
   SArray** ppUidArray = (SArray**)taosHashGet(pSet, pKey, keyLen);
   if (ppUidArray == NULL) {
+    if (acquired != NULL) *acquired = complete;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -987,7 +990,7 @@ static int32_t calcDigestUidMapPayloadLen(SHashObj* pDigestUidMap, int64_t* pPay
 }
 
 static int32_t buildTagDataEntryKey(const SArray* pColIds, const STag* pTag, const SSchemaWrapper* pTagScheam,
-                                    T_MD5_CTX* pContext);
+                                    T_MD5_CTX* pContext, bool* pHasNull);
 
 static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray* pTagColIds,
                                       SHashObj** ppDigestUidMap) {
@@ -1003,7 +1006,8 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
   TSDB_CHECK_NULL(pDigestUidMap, code, lino, _end, terrno);
   taosHashSetFreeFp(pDigestUidMap, freeSArrayPtr);
 
-  _metaReaderInit(&mr, pVnode, META_READER_LOCK, NULL, 0);
+  // The caller holds the metadata read lock through publication of this snapshot.
+  _metaReaderInit(&mr, pVnode, META_READER_NOLOCK, NULL, 0);
   code = metaReaderGetTableEntryByUid(&mr, suid);
   TSDB_CHECK_CODE(code, lino, _end);
 
@@ -1011,14 +1015,20 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
   TSDB_CHECK_NULL(pCur, code, lino, _end, terrno);
 
   while (1) {
-    tb_uid_t uid = metaCtbCursorNext(pCur);
+    tb_uid_t uid = 0;
+    code = metaCtbCursorNextChecked(pCur, &uid);
+    TSDB_CHECK_CODE(code, lino, _end);
     if (uid == 0) {
       break;
     }
 
     T_MD5_CTX context = {0};
-    code = buildTagDataEntryKey(pTagColIds, (STag*)pCur->pVal, &mr.me.stbEntry.schemaTag, &context);
+    bool      hasNull = false;
+    code = buildTagDataEntryKey(pTagColIds, (STag*)pCur->pVal, &mr.me.stbEntry.schemaTag, &context, &hasNull);
     TSDB_CHECK_CODE(code, lino, _end);
+    if (hasNull) {
+      continue;
+    }
 
     SArray** ppUidArray = (SArray**)taosHashGet(pDigestUidMap, context.digest, tListLen(context.digest));
     if (ppUidArray == NULL) {
@@ -1067,6 +1077,12 @@ int32_t metaWarmupStableTagFilterCache(void* pVnode, uint64_t suid, const void* 
     *acquireRes = false;
   }
 
+  metaRLock(pMeta);
+  // Transaction visibility can change without maintaining this snapshot. Retry
+  // after commit/rollback and vacuum have removed all pending shadow entries.
+  if (metaHasPendingTxnEntries(pMeta)) {
+    goto _end;
+  }
   code = taosThreadRwlockWrlock(pRwlock);
   TSDB_CHECK_CODE(code, lino, _end);
   locked = true;
@@ -1080,7 +1096,7 @@ int32_t metaWarmupStableTagFilterCache(void* pVnode, uint64_t suid, const void* 
   TSDB_CHECK_CODE(code, lino, _end_unlock);
 
   if ((*pFilterEntry)->prewarmed) {
-    code = addCachedUidListToArray(pList, (*pFilterEntry)->set, pKey, keyLen, acquireRes);
+    code = addCachedUidListToArray(pList, (*pFilterEntry)->set, pKey, keyLen, true, acquireRes);
     TSDB_CHECK_CODE(code, lino, _end_unlock);
   } else if (!(*pFilterEntry)->warming && !(*pFilterEntry)->skipWarmup) {
     (*pFilterEntry)->warming = true;
@@ -1126,48 +1142,23 @@ _end_unlock:
   }
 
   if ((*pFilterEntry)->prewarmed) {
-    code = addCachedUidListToArray(pList, (*pFilterEntry)->set, pKey, keyLen, acquireRes);
+    code = addCachedUidListToArray(pList, (*pFilterEntry)->set, pKey, keyLen, true, acquireRes);
     TSDB_CHECK_CODE(code, lino, _end_final_unlock);
-  } else if (payloadLen > tsTagFilterResCacheSize) {
+  } else if (payloadLen > STABLE_TAG_FILTER_WARMUP_MAX_BYTES) {
     (*pFilterEntry)->skipWarmup = true;
     metaDebug("vgId:%d, suid:%" PRIu64 " skip stable tag filter cache warmup, payload length %" PRId64
               " greater than threshold %d",
-              vgId, suid, payloadLen, tsTagFilterResCacheSize);
+              vgId, suid, payloadLen, STABLE_TAG_FILTER_WARMUP_MAX_BYTES);
   } else {
     uint32_t oldEntries = taosHashGetSize((*pFilterEntry)->set);
-    if (oldEntries > 0) {
-      SHashObj* pNewSet = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-      TSDB_CHECK_NULL(pNewSet, code, lino, _end_final_unlock, terrno);
-      taosHashSetFreeFp(pNewSet, freeSArrayPtr);
-
-      (*pTagConds)->numTagDataEntries -= oldEntries;
-      pMeta->pCache->sStableTagFilterResCache.numTagDataEntries -= oldEntries;
-      taosHashCleanup((*pFilterEntry)->set);
-      (*pFilterEntry)->set = pNewSet;
-    }
-
-    void* pIter = taosHashIterate(pDigestUidMap, NULL);
-    while (pIter != NULL) {
-      size_t   digestLen = 0;
-      char*    pDigest = (char*)taosHashGetKey(pIter, &digestLen);
-      SArray** ppUidArray = (SArray**)pIter;
-
-      code = taosHashPut((*pFilterEntry)->set, pDigest, (int32_t)digestLen, ppUidArray, POINTER_BYTES);
-      if (TSDB_CODE_SUCCESS != code) {
-        taosHashCancelIterate(pDigestUidMap, pIter);
-        lino = __LINE__;
-        goto _end_final_unlock;
-      }
-
-      *ppUidArray = NULL;
-      (*pTagConds)->numTagDataEntries += 1;
-      pMeta->pCache->sStableTagFilterResCache.numTagDataEntries += 1;
-
-      pIter = taosHashIterate(pDigestUidMap, pIter);
-    }
-
+    uint32_t newEntries = taosHashGetSize(pDigestUidMap);
+    (*pTagConds)->numTagDataEntries = (*pTagConds)->numTagDataEntries - oldEntries + newEntries;
+    pMeta->pCache->sStableTagFilterResCache.numTagDataEntries =
+        pMeta->pCache->sStableTagFilterResCache.numTagDataEntries - oldEntries + newEntries;
+    // Publish the complete map without an allocation-fallible partial copy.
+    TSWAP((*pFilterEntry)->set, pDigestUidMap);
     (*pFilterEntry)->prewarmed = true;
-    code = addCachedUidListToArray(pList, (*pFilterEntry)->set, pKey, keyLen, acquireRes);
+    code = addCachedUidListToArray(pList, (*pFilterEntry)->set, pKey, keyLen, true, acquireRes);
     TSDB_CHECK_CODE(code, lino, _end_final_unlock);
   }
 
@@ -1201,6 +1192,7 @@ _end:
     }
   }
   taosHashCleanup(pDigestUidMap);
+  metaULock(pMeta);
   if (TSDB_CODE_SUCCESS != code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", vgId, __func__, __FILE__, lino, tstrerror(code));
   }
@@ -1238,6 +1230,11 @@ int32_t metaStableTagFilterCachePut(void* pVnode, uint64_t suid, const void* pTa
     // pColIds is already set, so we can destroy the new one
     taosArrayDestroy(*pTagColIds);
     *pTagColIds = NULL;
+  }
+
+  // A per-key lookup may have started before a complete map was published.
+  if ((*pFilterEntry)->prewarmed) {
+    goto _end;
   }
 
   // add to cache.
@@ -1336,31 +1333,33 @@ static int32_t getTagColSize(
   return 0;
 }
 
-static int32_t buildTagDataEntryKey(const SArray* pColIds, const STag* pTag,
-  const SSchemaWrapper* pTagScheam, T_MD5_CTX* pContext) {
+static int32_t buildTagDataEntryKey(const SArray* pColIds, const STag* pTag, const SSchemaWrapper* pTagScheam,
+                                    T_MD5_CTX* pContext, bool* pHasNull) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t keyLen = 0;
   char* pKey = NULL;
+  *pHasNull = false;
   // get length first
   for (int32_t i = 0; i < taosArrayGetSize(pColIds); i++) {
     STagVal pTagValue = {.cid = *(col_id_t*)taosArrayGet(pColIds, i)};
+    int32_t colSize = getTagColSize(pTagScheam->pSchema, pTagScheam->nCols, pTagValue.cid);
+    code = colSize > 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_NOT_FOUND;
+    QUERY_CHECK_CODE(code, lino, _end);
     if (tTagGet(pTag, &pTagValue)) {
       keyLen += sizeof(col_id_t);
       if (IS_VAR_DATA_TYPE(pTagValue.type)) {
-        int32_t varLen = getTagColSize(
-          pTagScheam->pSchema, pTagScheam->nCols, pTagValue.cid);
-        code = varLen > 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_NOT_FOUND;
-        QUERY_CHECK_CODE(code, lino, _end);
-        keyLen += varLen;
+        keyLen += sizeof(pTagValue.nData) + pTagValue.nData;
       } else {
         keyLen += tDataTypes[pTagValue.type].bytes;
       }
     } else {
-      // tag value not found
-      code = TSDB_CODE_NOT_FOUND;
-      QUERY_CHECK_CODE(code, lino, _end);
+      // NULL TAGs cannot match this family's equality predicates.
+      *pHasNull = true;
     }
+  }
+  if (*pHasNull) {
+    goto _end;
   }
 
   pKey = taosMemoryCalloc(1, keyLen);
@@ -1379,7 +1378,9 @@ static int32_t buildTagDataEntryKey(const SArray* pColIds, const STag* pTag,
       pStart += sizeof(col_id_t);
       // copy value
       if (IS_VAR_DATA_TYPE(pTagValue.type) && pTagValue.pData != NULL) {
-        // Var tag values occupy schema-width slots; calloc keeps unused bytes padded with zeroes.
+        // Match query keys: actual lengths delimit values independently of TAG schema widths.
+        memcpy(pStart, &pTagValue.nData, sizeof(pTagValue.nData));
+        pStart += sizeof(pTagValue.nData);
         memcpy(pStart, pTagValue.pData, pTagValue.nData);
         pStart += pTagValue.nData;
       } else {
@@ -1413,17 +1414,19 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
   }
   int32_t   lino = 0;
   int32_t   code = TSDB_CODE_SUCCESS;
+  bool                  locked = false;
+  tb_uid_t              suid = pChildTable->ctbEntry.suid;
+  STagConds**           pTagConds = NULL;
+  STagCondFilterEntry** ppFilterEntry = NULL;
   SHashObj* pTableEntry = pMeta->pCache->sStableTagFilterResCache.pTableEntry;
   TdThreadRwlock* pRwlock = &pMeta->pCache->sStableTagFilterResCache.rwlock;
 
   code = taosThreadRwlockWrlock(pRwlock);
   TSDB_CHECK_CODE(code, lino, _end);
+  locked = true;
 
-  tb_uid_t suid = pChildTable->ctbEntry.suid;;
-  STagConds** pTagConds =
-    (STagConds**)taosHashGet(pTableEntry, &suid, sizeof(tb_uid_t));
+  pTagConds = (STagConds**)taosHashGet(pTableEntry, &suid, sizeof(tb_uid_t));
   if (pTagConds != NULL) {
-    STagCondFilterEntry** ppFilterEntry = NULL;
     while ((ppFilterEntry = taosHashIterate((*pTagConds)->set, ppFilterEntry))) {
       STagCondFilterEntry* pFilterEntry = *ppFilterEntry;
       // rebuild the tagCondKey and check existence
@@ -1432,13 +1435,17 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
       int32_t keyLen = 0;
       char*   pKey = NULL;
       T_MD5_CTX context = {0};
-      code = buildTagDataEntryKey(pColIds, (STag*)pChildTable->ctbEntry.pTags, 
-        &pSuperTable->stbEntry.schemaTag, &context);
+      bool      hasNull = false;
+      code = buildTagDataEntryKey(pColIds, (STag*)pChildTable->ctbEntry.pTags, &pSuperTable->stbEntry.schemaTag,
+                                  &context, &hasNull);
       if (code != TSDB_CODE_SUCCESS) {
         metaError("vgId:%d, suid:%" PRIu64 " failed to build tag condition"
           " key for dropped table uid:%" PRIu64 " since %s",
           TD_VID(pMeta->pVnode), suid, pChildTable->uid, tstrerror(code));
         goto _end;
+      }
+      if (hasNull) {
+        continue;
       }
 
       SArray** pArray = (SArray**)taosHashGet(
@@ -1460,15 +1467,19 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
           }
         } else {
           // STABLE_TAG_FILTER_CACHE_ADD_TABLE
-          void* _tmp = taosArrayPush(*pArray, &pChildTable->uid);
+          TSDB_CHECK_NULL(taosArrayPush(*pArray, &pChildTable->uid), code, lino, _end, terrno);
         }
       } else if (action == STABLE_TAG_FILTER_CACHE_ADD_TABLE &&
                  pFilterEntry->prewarmed) {
         SArray* pUidArray = taosArrayInit(4, sizeof(uint64_t));
         TSDB_CHECK_NULL(pUidArray, code, lino, _end, terrno);
 
-        TSDB_CHECK_NULL(taosArrayPush(pUidArray, &pChildTable->uid),
-                        code, lino, _end, terrno);
+        if (taosArrayPush(pUidArray, &pChildTable->uid) == NULL) {
+          code = terrno;
+          lino = __LINE__;
+          taosArrayDestroy(pUidArray);
+          goto _end;
+        }
 
         code = taosHashPut(pFilterEntry->set, context.digest,
                            tListLen(context.digest), &pUidArray,
@@ -1486,6 +1497,16 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
 
 _end:
   if (TSDB_CODE_SUCCESS != code) {
+    // A failed maintenance operation makes both cached UID lists and empty hits unreliable.
+    if (pTagConds != NULL) {
+      taosHashCancelIterate((*pTagConds)->set, ppFilterEntry);
+      pMeta->pCache->sStableTagFilterResCache.numTagDataEntries -= (*pTagConds)->numTagDataEntries;
+      int32_t removeCode = taosHashRemove(pTableEntry, &suid, sizeof(tb_uid_t));
+      if (removeCode != TSDB_CODE_SUCCESS) {
+        metaError("vgId:%d, suid:%" PRIu64 " failed to invalidate stable tag filter cache since %s",
+                  TD_VID(pMeta->pVnode), suid, tstrerror(removeCode));
+      }
+    }
     metaError("vgId:%d, %s failed at %s:%d since %s",
       TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
   } else {
@@ -1495,10 +1516,11 @@ _end:
       TD_VID(pMeta->pVnode),
       pChildTable->ctbEntry.suid, pChildTable->uid, action);
   }
-  code = taosThreadRwlockUnlock(pRwlock);
-  if (TSDB_CODE_SUCCESS != code) {
-    metaError("vgId:%d, %s unlock failed at %s:%d since %s",
-      TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
+  if (locked) {
+    int32_t unlockCode = taosThreadRwlockUnlock(pRwlock);
+    if (TSDB_CODE_SUCCESS != unlockCode && TSDB_CODE_SUCCESS == code) {
+      code = unlockCode;
+    }
   }
   return code;
 }

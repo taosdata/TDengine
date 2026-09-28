@@ -57,7 +57,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pR
   void* taskAddr = NULL;
   int32_t code = 0, lino = 0;
   int64_t requestStartMonoUs = streamTaskGetMonotonicUs();
-  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcRequest(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
+  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcRequestWithContextFrames(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
   TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
 
   req.brandNew = true;
@@ -387,8 +387,42 @@ int32_t sndTestBuildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetch
   return buildStreamFetchRsp(pBlock, pFrame, data, size, precision, finished);
 }
 
-static int32_t transferFetchRuntimeToCalcRequest(SStreamRuntimeFuncInfo* pRuntime, SSTriggerCalcRequest* pCalcReq) {
-  if (pRuntime == NULL || pCalcReq == NULL) return TSDB_CODE_INVALID_PARA;
+static int32_t buildStreamFetchBatchRsp(const SStreamRunnerFetchBatch* pBatch, void** data, size_t* size,
+                                       int8_t precision) {
+  *data = NULL;
+  *size = 0;
+  int32_t payloadSize = tSerializeSStreamRunnerFetchBatch(NULL, 0, pBatch);
+  if (payloadSize < 0) return payloadSize;
+  if (payloadSize == 0 || payloadSize > INT32_MAX - (int32_t)sizeof(SRetrieveTableRsp)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  size_t responseSize = sizeof(SRetrieveTableRsp) + (size_t)payloadSize;
+  SRetrieveTableRsp* pRsp = rpcMallocCont(responseSize);
+  if (pRsp == NULL) return terrno;
+  memset(pRsp, 0, sizeof(*pRsp));
+  pRsp->precision = precision;
+  pRsp->streamBlockType = STREAM_RUNNER_FETCH_BATCH;
+  pRsp->payloadLen = htonl(payloadSize);
+  pRsp->compLen = htonl(payloadSize);
+  if (pBatch->pBlock != NULL) {
+    pRsp->numOfRows = htobe64(pBatch->pBlock->info.rows);
+    pRsp->numOfCols = htobe64(taosArrayGetSize(pBatch->pBlock->pDataBlock));
+    pRsp->numOfBlocks = htonl(1);
+  }
+  int32_t encoded = tSerializeSStreamRunnerFetchBatch(pRsp->data, payloadSize, pBatch);
+  if (encoded != payloadSize) {
+    rpcFreeCont(pRsp);
+    return encoded < 0 ? encoded : TSDB_CODE_INVALID_MSG;
+  }
+  *data = pRsp;
+  *size = responseSize;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t transferFetchRuntimeToCalcRequest(SResFetchReq* pFetchReq, SSTriggerCalcRequest* pCalcReq) {
+  if (pFetchReq == NULL || pFetchReq->pStRtFuncInfo == NULL || pCalcReq == NULL) return TSDB_CODE_INVALID_PARA;
+  SStreamRuntimeFuncInfo* pRuntime = pFetchReq->pStRtFuncInfo;
+  TSWAP(pCalcReq->pContextFrames, pFetchReq->pContextFrames);
   TSWAP(pCalcReq->pContextPolicy, pRuntime->pContextPolicy);
   TSWAP(pCalcReq->pAncestorContext, pRuntime->pAncestorContext);
   if (pCalcReq->isMultiGroupCalc) {
@@ -415,12 +449,13 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   stDebug("handleStreamFetchData, msgType:%s, contLen:%d 0x%" PRIx64 ":0x%" PRIx64, 
       TMSG_INFO(pRpcMsg->msgType), pRpcMsg->contLen, TRACE_GET_ROOTID(&pRpcMsg->info.traceId), TRACE_GET_MSGID(&pRpcMsg->info.traceId));
   
-  TAOS_CHECK_EXIT(tDeserializeSResFetchReq(pRpcMsg->pCont,pRpcMsg->contLen, &req));
+  TAOS_CHECK_EXIT(tDeserializeSResFetchReqWithContextFrames(pRpcMsg->pCont,pRpcMsg->contLen, &req));
 
   calcReq.streamId = req.queryId;
   calcReq.runnerTaskId = req.taskId;
   calcReq.brandNew = req.reset;
   calcReq.execId = req.execId;
+  calcReq.runnerEogBatch = req.runnerEogBatch;
   if (req.pStRtFuncInfo) {
     calcReq.sessionId = req.pStRtFuncInfo->sessionId;
     calcReq.triggerType = req.pStRtFuncInfo->triggerType;
@@ -428,7 +463,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
     calcReq.precision = req.pStRtFuncInfo->precision;
     calcReq.isMultiGroupCalc = req.pStRtFuncInfo->isMultiGroupCalc;
     calcReq.stbPartByTbname = req.pStRtFuncInfo->stbPartByTbname;
-    TAOS_CHECK_EXIT(transferFetchRuntimeToCalcRequest(req.pStRtFuncInfo, &calcReq));
+    TAOS_CHECK_EXIT(transferFetchRuntimeToCalcRequest(&req, &calcReq));
     if (!calcReq.isMultiGroupCalc) {
       calcReq.gid = req.pStRtFuncInfo->groupId;
       calcReq.rollupTbCount = req.pStRtFuncInfo->rollupTbCount;
@@ -446,7 +481,18 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq, requestStartMonoUs));
 
   const bool responseFinished = calcReq.isMultiGroupCalc ? calcReq.outFinished : req.forceFetchCompleted;
-  TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &calcReq.outFrame, &buf, &size, 0, responseFinished));
+  if (calcReq.outBatch.pBlock != NULL || taosArrayGetSize(calcReq.outBatch.pEogGids) > 0) {
+    code = buildStreamFetchBatchRsp(&calcReq.outBatch, &buf, &size, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      int32_t cleanupCode = stRunnerTaskAbortFetch(pTask, calcReq.execId);
+      if (cleanupCode != TSDB_CODE_SUCCESS) {
+        sndError("failed to release runner fetch continuation since %s", tstrerror(cleanupCode));
+      }
+      TAOS_CHECK_EXIT(code);
+    }
+  } else {
+    TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &calcReq.outFrame, &buf, &size, 0, responseFinished));
+  }
 
 _exit:
 

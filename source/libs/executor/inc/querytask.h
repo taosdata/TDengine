@@ -91,6 +91,7 @@ struct SExecTaskInfo {
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
+  bool                     readerGroupOutput;  // opt-in Reader DATA/EOG execution
   SArray*               pResultBlockList;  // result block list
   STaskStopInfo         stopInfo;
   SRWLatch              lock;  // secure the access of STableListInfo

@@ -1708,3 +1708,49 @@ TEST(NodesSysScanCharsetTest, emptyCharsetNameRoundTrips) {
   std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
   EXPECT_STREQ(((SSystemTableScanPhysiNode*)out.get())->charsetName, "");
 }
+
+TEST(NodesBroadcastReuseTest, CloneJsonAndTlvRoundTrip) {
+  for (bool reusable : {false, true}) {
+    SNode* raw = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, &raw));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> source(raw, nodesDestroyNode);
+    reinterpret_cast<SExternalWindowPhysiNode*>(raw)->broadcastInputReusable = reusable;
+    SNode* copy = nullptr;
+    ASSERT_EQ(0, nodesCloneNode(raw, &copy));
+    EXPECT_EQ(reusable, reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    char* json = nullptr;
+    ASSERT_EQ(0, nodesNodeToString(raw, false, &json, nullptr));
+    ASSERT_EQ(0, nodesStringToNode(json, &copy));
+    EXPECT_EQ(reusable, reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    std::string oldJson(json);
+    taosMemoryFree(json);
+    const std::string field = ",\"BroadcastInputReusable\":" + std::string(reusable ? "true" : "false");
+    const auto        pos = oldJson.find(field);
+    ASSERT_NE(std::string::npos, pos);
+    oldJson.erase(pos, field.size());
+    ASSERT_EQ(0, nodesStringToNode(oldJson.c_str(), &copy));
+    EXPECT_FALSE(reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    char*   msg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(0, nodesNodeToMsg(raw, &msg, &len));
+    ASSERT_EQ(0, nodesMsgToNode(msg, len, &copy));
+    EXPECT_EQ(reusable, reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    // The decoder converts headers in place; obtain a fresh wire payload.
+    taosMemoryFree(msg);
+    ASSERT_EQ(0, nodesNodeToMsg(raw, &msg, &len));
+    // Appended field 19: packed TLV header is int16 type + int32 length.
+    ASSERT_GE(len, 13);
+    EXPECT_EQ(0, msg[len - 7]);
+    EXPECT_EQ(19, msg[len - 6]);
+    uint32_t oldLength = htonl(len - 7 - 6);
+    memcpy(msg + 2, &oldLength, sizeof(oldLength));
+    ASSERT_EQ(0, nodesMsgToNode(msg, len - 7, &copy));
+    EXPECT_FALSE(reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    taosMemoryFree(msg);
+  }
+}

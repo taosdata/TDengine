@@ -1292,6 +1292,7 @@ typedef struct SExternalWindowPhysiNode {
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
   SNode*           pSubquery;
+  bool               broadcastInputReusable;
 } SExternalWindowPhysiNode;
 
 typedef struct SWindowFuncPhysiNode {

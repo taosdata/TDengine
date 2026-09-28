@@ -38,6 +38,7 @@ target_link_options(
         -Wl,--wrap=qNeedReset
         -Wl,--wrap=qResetTableScan
         -Wl,--wrap=qSetTaskId
+        -Wl,--wrap=qEnableReaderGroupOutput
         -Wl,--wrap=qUpdateOperatorParam
         -Wl,--wrap=qSetStreamGen
         -Wl,--wrap=setTaskScalarExtraInfo
