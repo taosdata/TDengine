@@ -373,3 +373,303 @@ If you discover a vulnerability in TDengine, report it privately through one of 
 4. Summary
 
     In the `tableMetaCommit()` error path in `source/dnode/mnode/impl/src/mndVgroup.c`, incorrect cleanup ordering caused a freed hash-table object to be used and freed again.
+
+## GHSA-crfh-3p34-23cw (TD-SEC-2026-030)
+
+1. Basic information
+
+    - Severity: Medium
+    - GHSA: `GHSA-crfh-3p34-23cw`
+    - Title: Missing ownership verification in `mndProcessAskEpReq` (IDOR) allows any authenticated user to fetch another consumer's VNode endpoints
+    - Published: 2026-09-28
+    - CWE: `CWE-285` Improper Authorization / `CWE-639` IDOR
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.4.0.0, <= v3.4.2.12`
+
+3. Fixed version
+
+    - `v3.4.2.13`
+
+4. Summary
+
+    MNode handler `mndProcessAskEpReq` (`TDMT_MND_TMQ_ASK_EP`) only validated the consumerId/cgroup and never checked that the requesting user owned the TMQ consumer. An authenticated user could exploit this insecure direct object reference (IDOR) to retrieve VNode endpoint assignments for other users' consumers. The fix verifies consumer ownership or authorization before handling the request.
+
+## GHSA-gmhq-7r4w-7rp5 (TD-SEC-2026-031)
+
+1. Basic information
+
+    - Severity: Medium
+    - GHSA: `GHSA-gmhq-7r4w-7rp5`
+    - Title: Integer overflow and boundary-check bypass in INSERT deserialization (`tDecodeColDataVersion0` / `tDecodeBinaryWithSize`)
+    - Published: 2026-09-28
+    - CWE: `CWE-190` Integer Overflow / `CWE-125` Out-of-bounds Read
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.4.0.0, <= v3.4.2.12`
+
+3. Fixed version
+
+    - `v3.4.2.13`
+
+4. Summary
+
+    Integer overflows and a boundary-check bypass in the INSERT deserialization routines `tDecodeColDataVersion0()` and `tDecodeBinaryWithSize()` allow crafted INSERT payloads to trigger out-of-bounds access, crashing `taosd` or corrupting data. Length fields are now validated with overflow-safe checks.
+
+## GHSA-pc9g-w85r-7c6x (TD-SEC-2026-035)
+
+1. Basic information
+
+    - Severity: Medium
+    - GHSA: `GHSA-pc9g-w85r-7c6x`
+    - Title: Heap buffer overflow in the `msgToDatum()` DECIMAL branch via a crafted query plan
+    - Published: 2026-09-28
+    - CWE: `CWE-122` Heap-based Buffer Overflow / `CWE-787` Out-of-bounds Write
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.0.0.0, <= v3.4.2.12`
+
+3. Fixed version
+
+    - `v3.4.2.13`
+
+4. Summary
+
+    The DECIMAL branch of `msgToDatum()` can be driven into a heap buffer overflow through a crafted `TDMT_SCH_QUERY` query plan TLV. An authenticated remote attacker can crash `taosd` (DoS). The fix consistency-checks DECIMAL field lengths against the target buffer.
+
+## GHSA-382r-9pxq-7vg2 (TD-SEC-2026-036)
+
+1. Basic information
+
+    - Severity: High
+    - GHSA: `GHSA-382r-9pxq-7vg2`
+    - Title: Missing length validation in `mndProcessStreamHb` causes integer underflow and heap out-of-bounds read
+    - Published: 2026-09-28
+    - CWE: `CWE-191` Integer Underflow / `CWE-125` Out-of-bounds Read
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.4.2.8, <= v3.4.2.12`
+
+3. Fixed version
+
+    - `v3.4.2.13`
+
+4. Summary
+
+    `mndProcessStreamHb` did not validate the message length when processing `TDMT_MND_STREAM_HEARTBEAT` messages with an empty body, causing an integer underflow that leads to a heap out-of-bounds read and an mnode crash (DoS). The fix validates the message body length before deserialization.
+
+## GHSA-c483-rvf9-p53q (TD-SEC-2026-038)
+
+1. Basic information
+
+    - Severity: Medium
+    - GHSA: `GHSA-c483-rvf9-p53q`
+    - Title: Server-side request forgery (SSRF) in `CREATE ANODE` URL handling
+    - Published: 2026-09-28
+    - CWE: `CWE-918` Server-Side Request Forgery
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.0.0.0, <= v3.4.2.12`
+
+3. Fixed version
+
+    - `v3.4.2.13`
+
+4. Summary
+
+    The URL handling of the `CREATE ANODE` statement lacked destination validation, allowing server-side request forgery (SSRF). An authenticated user could make the server issue requests to arbitrary internal or external addresses, probing the internal network or reaching restricted services. The fix applies allow-list and destination checks to the URL.
+
+## GHSA-j63p-9gcr-5fv8 (TD-SEC-2026-040)
+
+1. Basic information
+
+    - Severity: High
+    - GHSA: `GHSA-j63p-9gcr-5fv8`
+    - Title: Stack buffer overflow in `createHintNodeList()` via SQL hint with more than 10 parameters
+    - Published: 2026-09-28
+    - CWE: `CWE-121` Stack-based Buffer Overflow / `CWE-787` Out-of-bounds Write
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.0.0.0, <= v3.4.2.12`
+
+3. Fixed version
+
+    - `v3.4.2.13`
+
+4. Summary
+
+    `createHintNodeList()` uses a fixed-size stack buffer when processing SQL hints; a hint with more than 10 parameters overflows the buffer and crashes `taosd` (DoS). The fix caps the number of hint parameters and uses dynamic allocation.
+
+## GHSA-f939-x5h3-cg4f (TD-SEC-2026-041)
+
+1. Basic information
+
+    - Severity: High
+    - GHSA: `GHSA-f939-x5h3-cg4f`
+    - Title: Integer overflow in `translateRepeat` leads to heap buffer overflow in `repeatFunction`
+    - Published: 2026-09-28
+    - CWE: `CWE-190` Integer Overflow / `CWE-680` Integer Overflow to Buffer Overflow / `CWE-787` Out-of-bounds Write
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.4.2.0, <= v3.4.2.12`
+
+3. Fixed version
+
+    - `v3.4.2.13`
+
+4. Summary
+
+    `translateRepeat` miscalculates the output length of the REPEAT function with an integer overflow; `repeatFunction` then allocates the wrapped length and writes past the heap buffer, causing remote denial of service (server crash). The fix uses overflow-safe length computation.
+
+## GHSA-qh9p-wprq-p2hf (TD-SEC-2026-046)
+
+1. Basic information
+
+    - Severity: High
+    - GHSA: `GHSA-qh9p-wprq-p2hf`
+    - Title: Heap buffer overflow in the `tDeserializeSCreateFuncReq()` pCode field
+    - Published: 2026-09-28
+    - CWE: `CWE-122` Heap-based Buffer Overflow
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - All versions (`<= v3.3.6.64`, `>= v3.4.0.0, <= v3.4.2.12`)
+
+3. Fixed versions
+
+    - `v3.3.6.65` / `v3.4.2.13`
+
+4. Summary
+
+    In `tDeserializeSCreateFuncReq()` the pCode field length is inconsistent with the allocated memory size, triggering a heap buffer overflow. An unauthenticated remote attacker can crash `taosd` (DoS). The fix allocates based on the actual length and validates it.
+
+## GHSA-8c53-8w6m-w28r (TD-SEC-2026-047)
+
+1. Basic information
+
+    - Severity: Critical
+    - GHSA: `GHSA-8c53-8w6m-w28r`
+    - Title: Stack buffer overflow in `tDeserializeSCreateFuncReq()` allows unauthenticated remote code execution
+    - Published: 2026-09-28
+    - CWE: `CWE-121` Stack-based Buffer Overflow
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.0.0.0, <= v3.3.6.64`, `>= v3.4.0.0, <= v3.4.2.12`
+
+3. Fixed versions
+
+    - `v3.3.6.65` / `v3.4.2.13`
+
+4. Summary
+
+    `tDeserializeSCreateFuncReq()` does not bound-check the deserialized name field, allowing a stack buffer overflow. An unauthenticated remote attacker can crash `taosd` and potentially achieve remote code execution (RCE). The fix validates the name field length.
+
+## GHSA-4w45-hf5j-95m3 (TD-SEC-2026-048)
+
+1. Basic information
+
+    - Severity: High
+    - CVSS: 8.8
+    - GHSA: `GHSA-4w45-hf5j-95m3`
+    - Title: Path traversal in the TDGpt installer (`tarfile.extractall`) allows arbitrary file write
+    - Published: 2026-09-28
+    - CWE: `CWE-22` Path Traversal
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.4.2.9, < v3.4.2.12` (TDGpt component)
+
+3. Fixed version
+
+    - `v3.4.2.12` (TDGpt component)
+
+4. Summary
+
+    The TDGpt installer script `tools/tdgpt/script/install.py` calls `tarfile.extractall()` / `zipfile.extractall()` on model resource archives without validating member paths. An attacker can write arbitrary files outside the extraction directory using malicious archives containing `../` traversal paths; installation usually runs as root, so system files can be overwritten. The fix validates all member paths before extraction and rejects traversal.
+
+## GHSA-x8q3-55fg-4pwh (TD-SEC-2026-049)
+
+1. Basic information
+
+    - Severity: Medium
+    - GHSA: `GHSA-x8q3-55fg-4pwh`
+    - Title: Stack buffer overflow in `tDecodeCStrTo`
+    - Published: 2026-09-28
+    - CWE: `CWE-121` Stack-based Buffer Overflow
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - All versions (`<= v3.3.6.64`, `>= v3.4.0.0, <= v3.4.2.12`)
+
+3. Fixed versions
+
+    - `v3.3.6.65` / `v3.4.2.13`
+
+4. Summary
+
+    `tDecodeCStrTo` decodes strings without checking the destination buffer length, triggering a stack buffer overflow. An authenticated remote attacker can crash `taosd` or execute arbitrary code. The fix adds destination-buffer length validation.
+
+## GHSA-9m72-77jp-x5f2 (TD-SEC-2026-050)
+
+1. Basic information
+
+    - Severity: High
+    - GHSA: `GHSA-9m72-77jp-x5f2`
+    - Title: Unauthenticated SQL injection in the taosKeeper audit endpoint allows audit log tampering
+    - Published: 2026-09-28
+    - CWE: `CWE-89` SQL Injection
+    - Reporter: External security researcher
+
+2. Affected versions
+
+    - `>= v3.3.6.0, <= v3.4.2.12` (taosKeeper)
+
+3. Fixed version
+
+    - `v3.4.2.13`
+
+4. Summary
+
+    The taosKeeper audit endpoint lacked authentication and the metric/audit ingestion handlers were vulnerable to SQL injection. An unauthenticated remote attacker could execute arbitrary SQL against the backend TDengine instance and tamper with audit logs. The fix adds authentication to the audit endpoint and uses parameterized queries in the ingestion path.
+
+## GHSA-2hff-w2r4-f7g5 (TD-SEC-2026-051)
+
+1. Basic information
+
+    - Severity: Medium
+    - GHSA: `GHSA-2hff-w2r4-f7g5`
+    - Title: Vendored zstd 1.3.5 in contrib/TSZ falls within the affected range of CVE-2019-11922
+    - Published: 2026-09-28
+    - CWE: `CWE-362` Concurrent Execution using Shared Resource with Improper Synchronization
+    - Reporter: TDengine security team
+
+2. Affected versions
+
+    - `<= v3.4.2.12` (contrib/TSZ/zstd 1.3.5)
+
+3. Fixed version
+
+    - `v3.4.2.13` (zstd upgraded to 1.3.8 or later)
+
+4. Summary
+
+    The zstd library vendored in contrib/TSZ is version 1.3.5, which falls within the affected range of CVE-2019-11922 (a compression/decompression race condition, `< 1.3.8`). This is a library-level flaw whose exploitation depends on specific concurrency timing. The fix upgrades the vendored zstd to 1.3.8 or later.
