@@ -23,6 +23,8 @@ You can obtain `dnode_id` from the output of `SHOW DNODES`.
 
 When the system is running normally, set `debugFlag` to `131`; otherwise a large volume of logs will be generated and system efficiency will drop.
 
+For log file locations, file names, how to confirm the effective log directory, and how to package logs, see [Locating and Collecting Log Files](../12-operations-and-tooling/02-operations/06-logs.md).
+
 <!-- markdownlint-disable MD051 -->
 ## FAQ List
 

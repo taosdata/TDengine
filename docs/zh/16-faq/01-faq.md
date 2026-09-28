@@ -23,6 +23,8 @@ ALTER DNODE <dnode_id> 'debugFlag' '135';
 
 系统正常运行时，须将 `debugFlag` 设为 `131`，否则会产生大量日志并降低系统效率。
 
+各组件日志文件的位置、文件名，以及如何确认实际日志目录和打包日志，详见 [日志文件位置与获取](../12-operations-and-tooling/02-operations/06-logs.md)。
+
 <!-- markdownlint-disable MD051 -->
 ## 常见问题列表
 

@@ -1858,7 +1858,7 @@ static void udfdPrintVersion() {
 }
 
 static int32_t udfdInitLog() {
-  const char *logName = "udfdlog";
+  const char *logName = CUS_PROMPT "udfdlog";
   TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
   return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
 }

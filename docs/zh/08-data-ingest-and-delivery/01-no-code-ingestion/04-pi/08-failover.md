@@ -118,7 +118,7 @@ DRAIN XNODE <id>;
 | taosX-Agent | 部署在可访问 PI 的 Windows 主机；配置全部相关 taosX endpoint |
 | PI 依赖 | 已授权的 PI AF SDK（及相应 Windows 服务账户权限） |
 
-网络与 Agent 代理拓扑选型仍参见 [部署架构](./02-deployment-architecture.md)。库侧副本高可用参见 [高可用](../../../12-operations-and-tooling/02-operations/11-ha/index.md)（与 Xnode 任务调度不是同一层能力）。
+网络与 Agent 代理拓扑选型仍参见 [部署架构](./02-deployment-architecture.md)。库侧副本高可用参见 [高可用](../../../12-operations-and-tooling/02-operations/12-ha/index.md)（与 Xnode 任务调度不是同一层能力）。
 
 ## 版本、组件与许可
 

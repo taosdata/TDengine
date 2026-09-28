@@ -38,4 +38,4 @@ Note: 1) ● indicates officially tested and verified, ○ indicates unofficiall
 
 ## Supported Network Environments
 
-TDengine supports both IPv4 and IPv6. For IPv6 configuration, see [Network and FQDN Configuration](./02-operations/08-network.md).
+TDengine supports both IPv4 and IPv6. For IPv6 configuration, see [Network and FQDN Configuration](./02-operations/09-network.md).
