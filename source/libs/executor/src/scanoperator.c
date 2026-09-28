@@ -2706,6 +2706,138 @@ _end:
   return code;
 }
 
+static void clearReaderGroupOutput(STableScanInfo* pInfo) {
+  taosArrayDestroy(pInfo->pReaderGroups);
+  pInfo->pReaderGroups = NULL;
+  blockDataDestroy(pInfo->pGroupEndBlock);
+  pInfo->pGroupEndBlock = NULL;
+  pInfo->readerGroupIndex = 0;
+  pInfo->readerSubgroupActive = false;
+}
+
+static int32_t compareReaderGroupId(const void* lhs, const void* rhs) {
+  uint64_t left = *(const uint64_t*)lhs;
+  uint64_t right = *(const uint64_t*)rhs;
+  return left < right ? -1 : left > right;
+}
+
+int32_t qEnableReaderGroupOutput(qTaskInfo_t task, bool requested, bool* pEnabled) {
+  if (task == NULL || pEnabled == NULL) return TSDB_CODE_INVALID_PARA;
+  SExecTaskInfo* pTask = task;
+  *pEnabled = false;
+  pTask->readerGroupOutput = false;
+  SOperatorInfo* pRoot = pTask->pRoot;
+  if (pRoot == NULL || pRoot->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) return TSDB_CODE_SUCCESS;
+  STableScanInfo* pInfo = pRoot->info;
+  clearReaderGroupOutput(pInfo);
+  if (!requested) return TSDB_CODE_SUCCESS;
+  SStreamRuntimeInfo*  pRuntime = pTask->pStreamRuntimeInfo;
+  STableScanPhysiNode* pNode = (STableScanPhysiNode*)pTask->pSubplan->pNode;
+  if (pNode->scan.node.dynamicOp || pRoot->dynamicTask || pInfo->virtualStableScan || pInfo->pBatchColMap ||
+      pRoot->pOperatorGetParam || pTask->pOpParam || pInfo->scanMode == TABLE_SCAN__TABLE_ORDER ||
+      pNode->scan.node.pLimit || pNode->scan.node.pSlimit || pInfo->needCountEmptyTable ||
+      pInfo->base.cond.type == TIMEWINDOW_RANGE_EXTERNAL || pRuntime == NULL || !pRuntime->funcInfo.isMultiGroupCalc ||
+      taosArrayGetSize(pRuntime->funcInfo.curGrpRead) == 0 || pInfo->currentGroupId != -1) {
+    return TSDB_CODE_SUCCESS;
+  }
+  STableListInfo* pTables = pInfo->base.pTableListInfo;
+  if (pTables == NULL || (taosArrayGetSize(pTables->pTableList) > 0 && pTables->groupOffset == NULL)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  pInfo->pReaderGroups = taosArrayInit(taosArrayGetSize(pRuntime->funcInfo.curGrpRead), sizeof(uint64_t));
+  if (pInfo->pReaderGroups == NULL) return terrno;
+  for (int32_t i = 0; i < taosArrayGetSize(pRuntime->funcInfo.curGrpRead); ++i) {
+    const SSTriggerGroupReadInfo* pRead = taosArrayGet(pRuntime->funcInfo.curGrpRead, i);
+    uint64_t                      gid = (uint64_t)pRead->gid;
+    if (gid == 0) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _error;
+    }
+    if (taosArrayPush(pInfo->pReaderGroups, &gid) == NULL) {
+      code = terrno;
+      goto _error;
+    }
+  }
+  taosArraySort(pInfo->pReaderGroups, compareReaderGroupId);
+  taosArrayRemoveDuplicate(pInfo->pReaderGroups, compareReaderGroupId, NULL);
+  // Every local table must belong to the canonical request, in unsigned order.
+  int32_t  group = 0;
+  uint64_t previous = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pTables->pTableList); ++i) {
+    const STableKeyInfo* pKey = tableListGetInfo(pTables, i);
+    while (group < taosArrayGetSize(pInfo->pReaderGroups) &&
+           *(uint64_t*)taosArrayGet(pInfo->pReaderGroups, group) < pKey->baseGId)
+      ++group;
+    if (pKey->baseGId < previous || group == taosArrayGetSize(pInfo->pReaderGroups) ||
+        *(uint64_t*)taosArrayGet(pInfo->pReaderGroups, group) != pKey->baseGId) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _error;
+    }
+    previous = pKey->baseGId;
+  }
+  code = createDataBlock(&pInfo->pGroupEndBlock);
+  if (code != TSDB_CODE_SUCCESS) goto _error;
+  pTask->readerGroupOutput = true;
+  *pEnabled = true;
+  return TSDB_CODE_SUCCESS;
+_error:
+  clearReaderGroupOutput(pInfo);
+  return code;
+}
+
+static int32_t readerGroupTableScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  STableScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*  pTask = pOperator->pTaskInfo;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  *ppRes = NULL;
+  while (pInfo->readerGroupIndex < taosArrayGetSize(pInfo->pReaderGroups)) {
+    uint64_t expected = *(uint64_t*)taosArrayGet(pInfo->pReaderGroups, pInfo->readerGroupIndex);
+    if (pInfo->readerSubgroupActive) {
+      code = doGroupedTableScan(pOperator, ppRes);
+      if (code != TSDB_CODE_SUCCESS || *ppRes != NULL) return code;
+      pInfo->readerSubgroupActive = false;
+    }
+    STableKeyInfo* pList = NULL;
+    int32_t        num = 0;
+    int32_t        next = pInfo->currentGroupId + 1;
+    // Empty multi-group construction can retain a legacy nonzero output-group count.
+    if (taosArrayGetSize(pInfo->base.pTableListInfo->pTableList) > 0 &&
+        next < tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
+      code = tableListGetGroupList(pInfo->base.pTableListInfo, next, &pList, &num);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      if (num <= 0 || pList->baseGId < expected) return TSDB_CODE_INVALID_PARA;
+    }
+    if (pList == NULL || pList->baseGId > expected) {
+      code = qSetMultiGroupEogBlock(pInfo->pGroupEndBlock, expected);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      ++pInfo->readerGroupIndex;
+      *ppRes = pInfo->pGroupEndBlock;
+      return TSDB_CODE_SUCCESS;
+    }
+    // Advance only after the previous subgroup's complete scan, without fetching next DATA.
+    pInfo->currentGroupId = next;
+    pOperator->status = OP_OPENED;
+    resetLimitInfoForNextGroup(&pInfo->base.limitInfo);
+    pInfo->scanTimes = 0;
+    pInfo->base.cond.order = pInfo->scanInfo.numOfAsc > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+    pInfo->base.scanFlag = pInfo->scanInfo.numOfAsc > 1 ? PRE_SCAN : MAIN_SCAN;
+    bool opened = false;
+    taosRLockLatch(&pTask->lock);
+    code = initNextGroupScan(pInfo, &pList, &num);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = openOrRebindTableReader(&pInfo->base, pList, num, pInfo->pResBlock, GET_TASKID(pTask),
+                                     &pInfo->pIgnoreTables, &opened);
+    }
+    taosRUnLockLatch(&pTask->lock);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (opened && pInfo->filesetDelimited) pTask->storageAPI.tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
+    pInfo->readerSubgroupActive = true;
+  }
+  setOperatorCompleted(pOperator);
+  return code;
+}
+
 static int32_t groupSeqTableScan(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -3228,6 +3360,12 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   }
 
+  if (pTaskInfo->readerGroupOutput) {
+    code = readerGroupTableScan(pOperator, ppRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+    return code;
+  }
+
   // scan table one by one sequentially
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {
     int32_t       numOfTables = 0;
@@ -3529,6 +3667,7 @@ static void cleanReaderForVTable(STableScanInfo* pInfo){
 
 static void destroyTableScanOperatorInfo(void* param) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
+  clearReaderGroupOutput(pTableScanInfo);
   clearVstbBatchDynamicTableScanInfo(pTableScanInfo);
   blockDataDestroy(pTableScanInfo->pResBlock);
   blockDataDestroy(pTableScanInfo->pOrgBlock);
@@ -3575,6 +3714,8 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   STableScanInfo* pInfo = pOper->info;
   SExecTaskInfo*  pTaskInfo = pOper->pTaskInfo;
   pOper->status = OP_NOT_OPENED;
+  pTaskInfo->readerGroupOutput = false;
+  clearReaderGroupOutput(pInfo);
 
   pInfo->scanTimes = 0;
   pInfo->currentGroupId = -1;

@@ -1175,6 +1175,8 @@ SMCtbCursor *metaOpenCtbCursor(void *pVnode, tb_uid_t uid, int lock, int64_t txn
 
   ret = metaResumeCtbCursor(pCtbCur, 1);
   if (ret < 0) {
+    metaCloseCtbCursor(pCtbCur);
+    terrno = ret;
     return NULL;
   }
   return pCtbCur;
@@ -1234,8 +1236,7 @@ int32_t metaResumeCtbCursor(SMCtbCursor *pCtbCur, int8_t first) {
     int ret = 0;
     ret = tdbTbcOpen(pCtbCur->pMeta->pCtbIdx, (TBC **)&pCtbCur->pCur, NULL);
     if (ret < 0) {
-      metaCloseCtbCursor(pCtbCur);
-      return -1;
+      return ret;
     }
 
     if (first) {
@@ -1245,25 +1246,33 @@ int32_t metaResumeCtbCursor(SMCtbCursor *pCtbCur, int8_t first) {
       ctbIdxKey.uid = INT64_MIN;
       int c = 0;
       ret = tdbTbcMoveTo(pCtbCur->pCur, &ctbIdxKey, sizeof(ctbIdxKey), &c);
-      if (c > 0) {
+      if (ret < 0) {
+        return ret;
+      }
+      if (c > 0 && tdbTbcIsValid(pCtbCur->pCur)) {
         ret = tdbTbcMoveToNext(pCtbCur->pCur);
       }
     } else {
       int c = 0;
       ret = tdbTbcMoveTo(pCtbCur->pCur, pCtbCur->pKey, pCtbCur->kLen, &c);
+      if (ret < 0 || !tdbTbcIsValid(pCtbCur->pCur)) {
+        return ret;
+      }
       if (c < 0) {
         ret = tdbTbcMoveToPrev(pCtbCur->pCur);
       } else {
         ret = tdbTbcMoveToNext(pCtbCur->pCur);
       }
     }
+    return ret;
   }
   return 0;
 }
 
-tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
+int32_t metaCtbCursorNextChecked(SMCtbCursor *pCtbCur, tb_uid_t *pUid) {
   int         ret;
   SCtbIdxKey *pCtbIdxKey;
+  *pUid = 0;
 
   // STB PRE_DROP was checked once in metaResumeCtbCursor (under the lock).
   // If it was dropped, all children are invisible  -  no need to iterate.
@@ -1271,10 +1280,10 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
     return 0;
   }
 
-  for (;;) {
+  while (tdbTbcIsValid(pCtbCur->pCur)) {
     ret = tdbTbcNext(pCtbCur->pCur, &pCtbCur->pKey, &pCtbCur->kLen, &pCtbCur->pVal, &pCtbCur->vLen);
     if (ret < 0) {
-      return 0;
+      return ret;
     }
 
     pCtbIdxKey = pCtbCur->pKey;
@@ -1310,8 +1319,19 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
       }
     }  // metaHasPendingTxnEntries
 
-    return pCtbIdxKey->uid;
+    *pUid = pCtbIdxKey->uid;
+    return 0;
   }
+  return 0;
+}
+
+tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
+  tb_uid_t uid = 0;
+  int32_t  code = metaCtbCursorNextChecked(pCtbCur, &uid);
+  if (code != 0) {
+    terrno = code;
+  }
+  return uid;
 }
 
 struct SMStbCursor {

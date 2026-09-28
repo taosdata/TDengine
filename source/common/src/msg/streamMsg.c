@@ -169,6 +169,244 @@ void tDestroySStreamRunnerFetchFrame(SStreamRunnerFetchFrame* pFrame) {
   pFrame->type = STREAM_RUNNER_FETCH_LEGACY;
 }
 
+int32_t tValidateSStreamRunnerFetchBatch(const SStreamRunnerFetchBatch* pBatch) {
+  if (pBatch == NULL || (pBatch->pEogGids != NULL && pBatch->pEogGids->elemSize != sizeof(uint64_t))) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  size_t eogCount = taosArrayGetSize(pBatch->pEogGids);
+  if (eogCount > STREAM_RUNNER_EOG_BATCH_MAX || (pBatch->pBlock == NULL && eogCount == 0)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pBatch->pBlock != NULL) {
+    if (pBatch->dataFrame.type != STREAM_RUNNER_FETCH_DATA ||
+        pBatch->pBlock->info.id.baseGId != pBatch->dataFrame.baseGId ||
+        pBatch->pBlock->info.id.groupId != pBatch->dataFrame.baseGId) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    int32_t code = tValidateSStreamRunnerFetchFrame(&pBatch->dataFrame, pBatch->pBlock->info.rows);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  } else if (pBatch->dataFrame.type != STREAM_RUNNER_FETCH_LEGACY || pBatch->dataFrame.baseGId != 0 ||
+             pBatch->dataFrame.pLineage != NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  for (size_t i = 0; i < eogCount; ++i) {
+    const uint64_t* pGid = taosArrayGet(pBatch->pEogGids, i);
+    if (pGid == NULL || *pGid == 0 || (i == 0 && pBatch->pBlock != NULL && *pGid != pBatch->dataFrame.baseGId)) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    for (size_t j = 0; j < i; ++j) {
+      if (*pGid == *(const uint64_t*)taosArrayGet(pBatch->pEogGids, j)) return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tSerializeSStreamRunnerFetchBatch(void* buf, int32_t bufLen, const SStreamRunnerFetchBatch* pBatch) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  blockLen = 0;
+  int32_t  frameLen = 0;
+  SEncoder encoder = {0};
+
+  if (bufLen < 0 || (buf == NULL && bufLen != 0)) return TSDB_CODE_INVALID_MSG;
+  TAOS_CHECK_EXIT(tValidateSStreamRunnerFetchBatch(pBatch));
+  if (pBatch->pBlock != NULL) {
+    blockLen = blockGetInternalEncodeSize(pBatch->pBlock);
+    frameLen = tSerializeSStreamRunnerFetchFrame(NULL, 0, &pBatch->dataFrame);
+    if (frameLen < 0) TAOS_CHECK_EXIT(frameLen);
+    if (blockLen <= 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  uint32_t eogCount = taosArrayGetSize(pBatch->pEogGids);
+  // Fixed header: payload length, version, hasData, block length, DATA frame length, EOG count.
+  int64_t encodedLen =
+      4 * sizeof(uint32_t) + 2 * sizeof(uint8_t) + (int64_t)blockLen + frameLen + (int64_t)eogCount * sizeof(uint64_t);
+  if (encodedLen > INT32_MAX || (buf != NULL && bufLen < encodedLen)) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, htobe32((uint32_t)encodedLen - sizeof(uint32_t))));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, STREAM_RUNNER_FETCH_BATCH_VERSION));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pBatch->pBlock != NULL ? 1 : 0));
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, htobe32((uint32_t)blockLen)));
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, htobe32((uint32_t)frameLen)));
+  TAOS_CHECK_EXIT(tEncodeU32(&encoder, htobe32(eogCount)));
+  if (pBatch->pBlock != NULL) {
+    if (buf != NULL) {
+      int32_t actualLen = blockEncodeInternal(pBatch->pBlock, (char*)encoder.data + encoder.pos, blockLen,
+                                              taosArrayGetSize(pBatch->pBlock->pDataBlock));
+      if (actualLen < 0) TAOS_CHECK_EXIT(terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_INVALID_MSG);
+      if (actualLen != blockLen) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    encoder.pos += blockLen;
+    if (buf != NULL) {
+      int32_t actualLen = tSerializeSStreamRunnerFetchFrame(encoder.data + encoder.pos, frameLen, &pBatch->dataFrame);
+      if (actualLen < 0) TAOS_CHECK_EXIT(actualLen);
+      if (actualLen != frameLen) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    encoder.pos += frameLen;
+  }
+  for (uint32_t i = 0; i < eogCount; ++i) {
+    TAOS_CHECK_EXIT(tEncodeU64(&encoder, htobe64(*(const uint64_t*)taosArrayGet(pBatch->pEogGids, i))));
+  }
+
+_exit:
+  if (code == TSDB_CODE_SUCCESS) code = encoder.pos;
+  tEncoderClear(&encoder);
+  return code;
+}
+
+int32_t tDeserializeSStreamRunnerFetchBatch(const void* buf, int32_t bufLen, SStreamRunnerFetchBatch* pBatch) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  SDecoder decoder = {0};
+  uint32_t payloadLen = 0;
+  uint32_t blockLen = 0;
+  uint32_t frameLen = 0;
+  uint32_t eogCount = 0;
+  uint8_t  version = 0;
+  uint8_t  hasData = 0;
+
+  if (pBatch == NULL) return TSDB_CODE_INVALID_MSG;
+  tDestroySStreamRunnerFetchBatch(pBatch);
+  if (buf == NULL || bufLen < (int32_t)(4 * sizeof(uint32_t) + 2 * sizeof(uint8_t))) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  tDecoderInit(&decoder, (void*)buf, bufLen);
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &payloadLen));
+  TAOS_CHECK_EXIT(tDecodeU8(&decoder, &version));
+  TAOS_CHECK_EXIT(tDecodeU8(&decoder, &hasData));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &blockLen));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &frameLen));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &eogCount));
+  payloadLen = be32toh(payloadLen);
+  blockLen = be32toh(blockLen);
+  frameLen = be32toh(frameLen);
+  eogCount = be32toh(eogCount);
+  if (payloadLen != (uint32_t)bufLen - sizeof(uint32_t) || version != STREAM_RUNNER_FETCH_BATCH_VERSION ||
+      hasData > 1 || eogCount > STREAM_RUNNER_EOG_BATCH_MAX ||
+      (hasData == 0 && (blockLen != 0 || frameLen != 0 || eogCount == 0)) ||
+      (hasData == 1 && (blockLen == 0 || frameLen == 0)) ||
+      (uint64_t)blockLen + frameLen + (uint64_t)eogCount * sizeof(uint64_t) != TD_CODER_REMAIN_CAPACITY(&decoder)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+
+  if (hasData == 1) {
+    const char* pBlockData = (const char*)decoder.data + decoder.pos;
+    const char* pBlockEnd = NULL;
+    pBatch->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    TSDB_CHECK_NULL(pBatch->pBlock, code, lino, _exit, terrno);
+    TAOS_CHECK_EXIT(blockDecodeInternalBounded(pBatch->pBlock, pBlockData, blockLen, &pBlockEnd));
+    if (pBlockEnd != pBlockData + blockLen) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(tDecodeFixed(&decoder, NULL, blockLen));
+    TAOS_CHECK_EXIT(tDeserializeSStreamRunnerFetchFrame(decoder.data + decoder.pos, frameLen, &pBatch->dataFrame));
+    TAOS_CHECK_EXIT(tDecodeFixed(&decoder, NULL, frameLen));
+  }
+  if (eogCount > 0) {
+    pBatch->pEogGids = taosArrayInit_s(sizeof(uint64_t), eogCount);
+    TSDB_CHECK_NULL(pBatch->pEogGids, code, lino, _exit, terrno);
+    for (uint32_t i = 0; i < eogCount; ++i) {
+      uint64_t gid = 0;
+      TAOS_CHECK_EXIT(tDecodeU64(&decoder, &gid));
+      *(uint64_t*)TARRAY_GET_ELEM(pBatch->pEogGids, i) = be64toh(gid);
+    }
+  }
+  if (!tDecodeIsEnd(&decoder)) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  TAOS_CHECK_EXIT(tValidateSStreamRunnerFetchBatch(pBatch));
+
+_exit:
+  tDecoderClear(&decoder);
+  if (code != TSDB_CODE_SUCCESS) tDestroySStreamRunnerFetchBatch(pBatch);
+  return code;
+}
+
+void tDestroySStreamRunnerFetchBatch(SStreamRunnerFetchBatch* pBatch) {
+  if (pBatch == NULL) return;
+  blockDataDestroy(pBatch->pBlock);
+  pBatch->pBlock = NULL;
+  tDestroySStreamRunnerFetchFrame(&pBatch->dataFrame);
+  taosArrayDestroy(pBatch->pEogGids);
+  pBatch->pEogGids = NULL;
+}
+
+void tDestroyStreamReaderFetchItem(void* pItem) {
+  if (pItem == NULL) return;
+
+  SStreamReaderFetchItem* pFetchItem = pItem;
+  blockDataDestroy(pFetchItem->pBlock);
+  pFetchItem->pBlock = NULL;
+  pFetchItem->baseGId = 0;
+  pFetchItem->type = STREAM_RUNNER_FETCH_LEGACY;
+}
+
+int32_t tDecodeStreamReaderFetchBatch(const void* pData, int32_t len, SArray** ppItems) {
+  SDecoder decoder = {0};
+  SArray*  pItems = NULL;
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+
+  if (ppItems == NULL) return TSDB_CODE_INVALID_PARA;
+  *ppItems = NULL;
+  if (pData == NULL || len < (int32_t)(sizeof(uint8_t) + sizeof(int32_t))) return TSDB_CODE_INVALID_MSG;
+
+  tDecoderInit(&decoder, (void*)pData, len);
+  uint8_t version = 0;
+  TAOS_CHECK_EXIT(tDecodeU8(&decoder, &version));
+  if (version != STREAM_READER_FETCH_BATCH_VERSION) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+
+  int32_t itemCount = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &itemCount));
+  const size_t minimumItemSize = sizeof(uint8_t) + sizeof(uint64_t) + sizeof(uint8_t);
+  if (itemCount < 0 || itemCount > STREAM_CALC_REQ_MAX_WIN_NUM ||
+      (size_t)itemCount > TD_CODER_REMAIN_CAPACITY(&decoder) / minimumItemSize) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+
+  pItems = taosArrayInit(itemCount, sizeof(SStreamReaderFetchItem));
+  TSDB_CHECK_NULL(pItems, code, lino, _exit, terrno);
+  for (int32_t i = 0; i < itemCount; ++i) {
+    SStreamReaderFetchItem item = {0};
+    uint8_t                type = 0;
+    uint8_t*               pBlockData = NULL;
+    uint32_t               blockLen = 0;
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &type));
+    if (type != STREAM_RUNNER_FETCH_DATA && type != STREAM_RUNNER_FETCH_EOG) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    item.type = (int8_t)type;
+    TAOS_CHECK_EXIT(tDecodeU64(&decoder, &item.baseGId));
+    if (item.baseGId == 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBlockData, &blockLen));
+
+    if (item.type == STREAM_RUNNER_FETCH_EOG) {
+      if (blockLen != 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    } else {
+      if (blockLen == 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      item.pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+      TSDB_CHECK_NULL(item.pBlock, code, lino, _exit, terrno);
+      const char* pBlockEnd = NULL;
+      code = blockDecodeInternalBounded(item.pBlock, (const char*)pBlockData, blockLen, &pBlockEnd);
+      if (code != TSDB_CODE_SUCCESS || pBlockEnd != (const char*)pBlockData + blockLen || item.pBlock->info.rows <= 0 ||
+          item.pBlock->info.id.baseGId != item.baseGId) {
+        tDestroyStreamReaderFetchItem(&item);
+        if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+    }
+    if (taosArrayPush(pItems, &item) == NULL) {
+      tDestroyStreamReaderFetchItem(&item);
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  if (!tDecodeIsEnd(&decoder)) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+
+  *ppItems = pItems;
+  pItems = NULL;
+
+_exit:
+  tDecoderClear(&decoder);
+  taosArrayDestroyEx(pItems, tDestroyStreamReaderFetchItem);
+  return code;
+}
+
 void tCleanupSStreamExtTriggerSpec(SStreamExtTriggerSpec* pSpec) {
   if (pSpec == NULL) return;
 
@@ -6218,6 +6456,8 @@ static void tDestroyReadScopeBinding(void* pValue) {
 void tDestroyStreamAncestorContext(SStreamAncestorContext** ppContext) {
   if (ppContext == NULL || *ppContext == NULL) return;
   SStreamAncestorContext* pContext = *ppContext;
+  tSimpleHashCleanup(pContext->pParamIndex);
+  pContext->pParamIndex = NULL;
   taosArrayDestroyEx(pContext->pParamContexts, tDestroyAncestorParamContext);
   taosArrayDestroyEx(pContext->pReadScopeBindings, tDestroyReadScopeBinding);
   taosMemoryFree(pContext);
@@ -6230,6 +6470,112 @@ void tDestroyStreamContextPolicy(SStreamContextPolicy** ppPolicy) {
   taosArrayDestroy(pPolicy->pEntries);
   taosMemoryFree(pPolicy);
   *ppPolicy = NULL;
+}
+
+typedef struct {
+  int32_t offset;
+  int32_t length;
+} SStreamContextEntryRef;
+
+static void tRecordStreamContextEntry(SArray** ppRefs, int32_t start, int32_t end) {
+  if (ppRefs == NULL || *ppRefs == NULL) return;
+  SStreamContextEntryRef ref = {.offset = start, .length = end - start};
+  if (taosArrayPush(*ppRefs, &ref) == NULL) {
+    taosArrayDestroy(*ppRefs);
+    *ppRefs = NULL;
+  }
+}
+
+void tDestroyStreamContextFrames(SStreamContextFrames** ppFrames) {
+  if (ppFrames == NULL || *ppFrames == NULL) return;
+  SStreamContextFrames* pFrames = *ppFrames;
+  taosArrayDestroy(pFrames->pPolicyRefs);
+  taosArrayDestroy(pFrames->pParamRefs);
+  taosArrayDestroy(pFrames->pBindingRefs);
+  taosMemoryFree(pFrames->pData);
+  taosMemoryFree(pFrames);
+  *ppFrames = NULL;
+}
+
+static void tRebaseStreamContextRefs(SArray** ppRefs, int32_t payloadStart, int32_t frameStart, int32_t frameLength,
+                                     int32_t retainedStart) {
+  if (ppRefs == NULL || *ppRefs == NULL) return;
+  const int32_t payloadOffset = payloadStart - frameStart;
+  if (frameStart < 0 || payloadOffset < 0 || payloadOffset > frameLength || retainedStart > INT32_MAX - payloadOffset) {
+    taosArrayDestroy(*ppRefs);
+    *ppRefs = NULL;
+    return;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(*ppRefs); ++i) {
+    SStreamContextEntryRef* pRef = taosArrayGet(*ppRefs, i);
+    if (pRef == NULL || pRef->offset < 0 || pRef->length < 0 || pRef->offset > frameLength - payloadOffset ||
+        pRef->length > frameLength - payloadOffset - pRef->offset ||
+        pRef->offset > INT32_MAX - retainedStart - payloadOffset) {
+      taosArrayDestroy(*ppRefs);
+      *ppRefs = NULL;
+      return;
+    }
+    pRef->offset += retainedStart + payloadOffset;
+  }
+}
+
+void tTryRetainStreamContextFrames(const SDecoder* pDecoder, int32_t policyStart, int32_t policyLength,
+                                   int32_t ancestorStart, int32_t ancestorLength, const SStreamContextPolicy* pPolicy,
+                                   const SStreamAncestorContext* pContext, SArray** ppPolicyRefs,
+                                   int32_t policyPayloadStart, SArray** ppParamRefs, SArray** ppBindingRefs,
+                                   int32_t ancestorPayloadStart, SStreamContextFrames** ppFrames) {
+  if (ppFrames == NULL) goto _exit;
+  *ppFrames = NULL;
+  if (pDecoder == NULL || policyLength <= 0 || policyStart < 0 || ancestorLength < 0 ||
+      policyLength > INT32_MAX - ancestorLength || policyLength > (int32_t)pDecoder->size - policyStart ||
+      (ancestorLength > 0 && (ancestorStart < 0 || ancestorLength > (int32_t)pDecoder->size - ancestorStart))) {
+    goto _exit;
+  }
+
+  SStreamContextFrames* pFrames = taosMemoryMalloc(sizeof(*pFrames));
+  if (pFrames == NULL) goto _exit;
+  memset(pFrames, 0, sizeof(*pFrames));
+  pFrames->size = policyLength + ancestorLength;
+  pFrames->pData = taosMemoryMalloc(pFrames->size);
+  if (pFrames->pData == NULL) {
+    tDestroyStreamContextFrames(&pFrames);
+    goto _exit;
+  }
+  TAOS_MEMCPY(pFrames->pData, pDecoder->data + policyStart, policyLength);
+  if (ancestorLength > 0) {
+    TAOS_MEMCPY((char*)pFrames->pData + policyLength, pDecoder->data + ancestorStart, ancestorLength);
+  }
+  pFrames->pContextPolicy = pPolicy;
+  pFrames->pAncestorContext = pContext;
+  tRebaseStreamContextRefs(ppPolicyRefs, policyPayloadStart, policyStart, policyLength, 0);
+  tRebaseStreamContextRefs(ppParamRefs, ancestorPayloadStart, ancestorStart, ancestorLength, policyLength);
+  tRebaseStreamContextRefs(ppBindingRefs, ancestorPayloadStart, ancestorStart, ancestorLength, policyLength);
+  if (ppPolicyRefs != NULL) {
+    pFrames->pPolicyRefs = *ppPolicyRefs;
+    *ppPolicyRefs = NULL;
+  }
+  if (ppParamRefs != NULL) {
+    pFrames->pParamRefs = *ppParamRefs;
+    *ppParamRefs = NULL;
+  }
+  if (ppBindingRefs != NULL) {
+    pFrames->pBindingRefs = *ppBindingRefs;
+    *ppBindingRefs = NULL;
+  }
+  *ppFrames = pFrames;
+_exit:
+  if (ppPolicyRefs != NULL) {
+    taosArrayDestroy(*ppPolicyRefs);
+    *ppPolicyRefs = NULL;
+  }
+  if (ppParamRefs != NULL) {
+    taosArrayDestroy(*ppParamRefs);
+    *ppParamRefs = NULL;
+  }
+  if (ppBindingRefs != NULL) {
+    taosArrayDestroy(*ppBindingRefs);
+    *ppBindingRefs = NULL;
+  }
 }
 
 static int32_t tCompareStreamContextPolicyKey(const SStreamContextPolicyEntry* pLeft,
@@ -6283,9 +6629,10 @@ _exit:
   return code;
 }
 
-int32_t tDecodeStreamContextPolicy(SDecoder* pDecoder, SStreamContextPolicy** ppPolicy) {
+static int32_t tDecodeStreamContextPolicyImpl(SDecoder* pDecoder, SStreamContextPolicy** ppPolicy, SArray** ppRefs) {
   if (ppPolicy == NULL) return TSDB_CODE_INVALID_PARA;
   *ppPolicy = NULL;
+  if (ppRefs != NULL) *ppRefs = NULL;
   if (pDecoder == NULL) return TSDB_CODE_INVALID_PARA;
 
   int32_t               code = TSDB_CODE_SUCCESS;
@@ -6305,20 +6652,36 @@ int32_t tDecodeStreamContextPolicy(SDecoder* pDecoder, SStreamContextPolicy** pp
   QUERY_CHECK_NULL(pPolicy, code, lino, _exit, terrno);
   pPolicy->pEntries = taosArrayInit(count == 0 ? 1 : count, sizeof(SStreamContextPolicyEntry));
   QUERY_CHECK_NULL(pPolicy->pEntries, code, lino, _exit, terrno);
+  if (ppRefs != NULL) *ppRefs = taosArrayInit(count == 0 ? 1 : count, sizeof(SStreamContextEntryRef));
   for (int32_t i = 0; i < count; ++i) {
+    const int32_t             start = pDecoder->pos;
     SStreamContextPolicyEntry entry = {0};
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.gid));
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &entry.paramIndex));
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &entry.contextPolicy));
     QUERY_CHECK_NULL(taosArrayPush(pPolicy->pEntries, &entry), code, lino, _exit, terrno);
+    tRecordStreamContextEntry(ppRefs, start, pDecoder->pos);
   }
   TAOS_CHECK_EXIT(tValidateStreamContextPolicy(pPolicy));
   *ppPolicy = pPolicy;
   pPolicy = NULL;
 
 _exit:
+  if (code != TSDB_CODE_SUCCESS && ppRefs != NULL) {
+    taosArrayDestroy(*ppRefs);
+    *ppRefs = NULL;
+  }
   tDestroyStreamContextPolicy(&pPolicy);
   return code;
+}
+
+int32_t tDecodeStreamContextPolicy(SDecoder* pDecoder, SStreamContextPolicy** ppPolicy) {
+  return tDecodeStreamContextPolicyImpl(pDecoder, ppPolicy, NULL);
+}
+
+int32_t tDecodeStreamContextPolicyWithOffsets(SDecoder* pDecoder, SStreamContextPolicy** ppPolicy, SArray** ppRefs) {
+  if (ppRefs == NULL) return TSDB_CODE_INVALID_PARA;
+  return tDecodeStreamContextPolicyImpl(pDecoder, ppPolicy, ppRefs);
 }
 
 int32_t tCloneStreamContextPolicy(const SStreamContextPolicy* pSrc, SStreamContextPolicy** ppDst) {
@@ -6585,6 +6948,53 @@ _exit:
   return code;
 }
 
+int32_t tPrepareStreamAncestorParamIndex(SStreamAncestorContext* pContext) {
+  if (pContext == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pContext->pParamIndex != NULL) return TSDB_CODE_SUCCESS;
+
+  SStreamAncestorContextIndex index = {0};
+  int32_t                     code = tBuildStreamAncestorContextIndex(pContext, &index);
+  if (code == TSDB_CODE_SUCCESS) {
+    pContext->pParamIndex = index.pParams;
+    index.pParams = NULL;
+  }
+  tCleanupStreamAncestorContextIndex(&index);
+  return code;
+}
+
+int32_t tLookupStreamAncestorParam(const SStreamAncestorContext* pContext, int64_t gid, int32_t paramIndex,
+                                   const SStreamAncestorParamContext** ppParam) {
+  if (ppParam == NULL) return TSDB_CODE_INVALID_PARA;
+  *ppParam = NULL;
+  if (pContext == NULL || pContext->pParamContexts == NULL || paramIndex < 0) return TSDB_CODE_INVALID_PARA;
+
+  if (pContext->pParamIndex != NULL) {
+    const SStreamContextParamKey key = tMakeStreamContextParamKey(gid, paramIndex);
+    const int32_t*               pIndex = tSimpleHashGet(pContext->pParamIndex, &key, sizeof(key));
+    if (pIndex == NULL || *pIndex < 0 || *pIndex >= taosArrayGetSize(pContext->pParamContexts)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    const SStreamAncestorParamContext* pMatch = taosArrayGet(pContext->pParamContexts, *pIndex);
+    if (pMatch == NULL || pMatch->leafIdentity.gid != gid || pMatch->paramIndex != paramIndex) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    *ppParam = pMatch;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pContext->pParamContexts); ++i) {
+    const SStreamAncestorParamContext* pMatch = taosArrayGet(pContext->pParamContexts, i);
+    if (pMatch != NULL && pMatch->leafIdentity.gid == gid && pMatch->paramIndex == paramIndex) {
+      if (*ppParam != NULL) {
+        *ppParam = NULL;
+        return TSDB_CODE_INVALID_PARA;
+      }
+      *ppParam = pMatch;
+    }
+  }
+  return *ppParam == NULL ? TSDB_CODE_INVALID_PARA : TSDB_CODE_SUCCESS;
+}
+
 static int32_t tValidateStreamAncestorContext(const SStreamAncestorContext* pContext) {
   SStreamAncestorContextIndex index = {0};
   int32_t                     code = tBuildStreamAncestorContextIndex(pContext, &index);
@@ -6784,9 +7194,12 @@ _exit:
   return code;
 }
 
-int32_t tDecodeStreamAncestorContext(SDecoder* pDecoder, SStreamAncestorContext** ppContext) {
+static int32_t tDecodeStreamAncestorContextImpl(SDecoder* pDecoder, SStreamAncestorContext** ppContext,
+                                                SArray** ppParamRefs, SArray** ppBindingRefs) {
   if (ppContext == NULL) return TSDB_CODE_INVALID_PARA;
   *ppContext = NULL;
+  if (ppParamRefs != NULL) *ppParamRefs = NULL;
+  if (ppBindingRefs != NULL) *ppBindingRefs = NULL;
   if (pDecoder == NULL) return TSDB_CODE_INVALID_PARA;
   int32_t version = 0;
   int32_t code = tDecodeI32(pDecoder, &version);
@@ -6802,7 +7215,9 @@ int32_t tDecodeStreamAncestorContext(SDecoder* pDecoder, SStreamAncestorContext*
   QUERY_CHECK_CONDITION(paramCount > 0, code, lino, _exit, TSDB_CODE_INVALID_MSG);
   pContext->pParamContexts = taosArrayInit(paramCount, sizeof(SStreamAncestorParamContext));
   QUERY_CHECK_NULL(pContext->pParamContexts, code, lino, _exit, terrno);
+  if (ppParamRefs != NULL) *ppParamRefs = taosArrayInit(paramCount, sizeof(SStreamContextEntryRef));
   for (int32_t i = 0; i < paramCount; ++i) {
+    const int32_t               start = pDecoder->pos;
     SStreamAncestorParamContext param = {0};
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &param.paramIndex));
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &param.leafIdentity.gid));
@@ -6831,6 +7246,7 @@ int32_t tDecodeStreamAncestorContext(SDecoder* pDecoder, SStreamAncestorContext*
       tDestroyAncestorParamContext(&param);
       goto _exit;
     }
+    tRecordStreamContextEntry(ppParamRefs, start, pDecoder->pos);
   }
 
   int32_t bindingCount = 0;
@@ -6839,7 +7255,10 @@ int32_t tDecodeStreamAncestorContext(SDecoder* pDecoder, SStreamAncestorContext*
     pContext->pReadScopeBindings = taosArrayInit(bindingCount, sizeof(SStreamReadScopeBinding));
     QUERY_CHECK_NULL(pContext->pReadScopeBindings, code, lino, _exit, terrno);
   }
+  if (ppBindingRefs != NULL)
+    *ppBindingRefs = taosArrayInit(bindingCount == 0 ? 1 : bindingCount, sizeof(SStreamContextEntryRef));
   for (int32_t i = 0; i < bindingCount; ++i) {
+    const int32_t           start = pDecoder->pos;
     SStreamReadScopeBinding binding = {0};
     code = tDecodeI32(pDecoder, &binding.vgId);
     if (code == TSDB_CODE_SUCCESS) code = tDecodeI32(pDecoder, &binding.readInfoIndex);
@@ -6850,14 +7269,35 @@ int32_t tDecodeStreamAncestorContext(SDecoder* pDecoder, SStreamAncestorContext*
       tDestroyReadScopeBinding(&binding);
       goto _exit;
     }
+    tRecordStreamContextEntry(ppBindingRefs, start, pDecoder->pos);
   }
-  TAOS_CHECK_EXIT(tValidateStreamAncestorContext(pContext));
+  TAOS_CHECK_EXIT(tPrepareStreamAncestorParamIndex(pContext));
   *ppContext = pContext;
   pContext = NULL;
 
 _exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    if (ppParamRefs != NULL) {
+      taosArrayDestroy(*ppParamRefs);
+      *ppParamRefs = NULL;
+    }
+    if (ppBindingRefs != NULL) {
+      taosArrayDestroy(*ppBindingRefs);
+      *ppBindingRefs = NULL;
+    }
+  }
   tDestroyStreamAncestorContext(&pContext);
   return code;
+}
+
+int32_t tDecodeStreamAncestorContext(SDecoder* pDecoder, SStreamAncestorContext** ppContext) {
+  return tDecodeStreamAncestorContextImpl(pDecoder, ppContext, NULL, NULL);
+}
+
+int32_t tDecodeStreamAncestorContextWithOffsets(SDecoder* pDecoder, SStreamAncestorContext** ppContext,
+                                                SArray** ppParamRefs, SArray** ppBindingRefs) {
+  if (ppParamRefs == NULL || ppBindingRefs == NULL) return TSDB_CODE_INVALID_PARA;
+  return tDecodeStreamAncestorContextImpl(pDecoder, ppContext, ppParamRefs, ppBindingRefs);
 }
 
 int32_t tCloneStreamAncestorContext(const SStreamAncestorContext* pSrc, SStreamAncestorContext** ppDst) {
@@ -6910,7 +7350,9 @@ int32_t tProjectStreamAncestorContext(const SStreamAncestorContext* pSrc, int64_
   SStreamAncestorContext selected = {0};
   selected.pParamContexts = taosArrayInit(1, sizeof(SStreamAncestorParamContext));
   if (selected.pParamContexts == NULL) return terrno;
-  if (taosArrayPush(selected.pParamContexts, pMatch) == NULL) {
+  SStreamAncestorParamContext projectedParam = *pMatch;
+  projectedParam.paramIndex = dstParamIndex;
+  if (taosArrayPush(selected.pParamContexts, &projectedParam) == NULL) {
     taosArrayDestroy(selected.pParamContexts);
     return terrno;
   }
@@ -6935,10 +7377,6 @@ int32_t tProjectStreamAncestorContext(const SStreamAncestorContext* pSrc, int64_
   code = tCloneStreamAncestorContext(&selected, ppDst);
   taosArrayDestroy(selected.pParamContexts);
   taosArrayDestroy(selected.pReadScopeBindings);
-  if (code == TSDB_CODE_SUCCESS) {
-    SStreamAncestorParamContext* pProjected = taosArrayGet((*ppDst)->pParamContexts, 0);
-    pProjected->paramIndex = dstParamIndex;
-  }
   return code;
 }
 
@@ -7557,12 +7995,8 @@ _exit:
   return code;
 }
 
-int32_t tProjectStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
-                                          bool effectiveNeedStreamGrpInfo, SStreamContextPolicy** ppPolicy,
-                                          SStreamAncestorContext** ppContext) {
-  if (ppPolicy == NULL || ppContext == NULL) return TSDB_CODE_INVALID_PARA;
-  *ppPolicy = NULL;
-  *ppContext = NULL;
+int32_t tValidateStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
+                                           bool effectiveNeedStreamGrpInfo) {
   if (pInfo == NULL) return TSDB_CODE_SUCCESS;
   const bool requiresContextPolicy = BIT_FLAG_TEST_MASK(pInfo->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
   int32_t    code = tAdmitStreamContext(pInfo->pContextPolicy, pInfo->pAncestorContext, requiresContextPolicy);
@@ -7596,6 +8030,20 @@ int32_t tProjectStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, b
       code = tValidateGroupReadBindings(pInfo->pGroupCalcInfos, pInfo->pGroupReadInfos, pInfo->pAncestorContext);
       if (code != TSDB_CODE_SUCCESS) return code;
     }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tProjectStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
+                                          bool effectiveNeedStreamGrpInfo, SStreamContextPolicy** ppPolicy,
+                                          SStreamAncestorContext** ppContext) {
+  if (ppPolicy == NULL || ppContext == NULL) return TSDB_CODE_INVALID_PARA;
+  *ppPolicy = NULL;
+  *ppContext = NULL;
+  int32_t code = tValidateStreamCalcContextForFetch(pInfo, needStreamRtInfo, effectiveNeedStreamGrpInfo);
+  if (code != TSDB_CODE_SUCCESS || pInfo == NULL ||
+      !BIT_FLAG_TEST_MASK(pInfo->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
+    return code;
   }
 
   SStreamRuntimeFuncInfo  groupedInfo = {0};
@@ -7681,6 +8129,840 @@ _exit:
   tDestroyStreamContextPolicy(&pProjectedPolicy);
   tDestroyStreamContextPolicy(&pGroupPolicy);
   tDestroyStreamAncestorContext(&pGroupContext);
+  return code;
+}
+
+int32_t tPrepareStreamReaderFetchView(const SStreamRuntimeFuncInfo* pSource, int32_t nodeId,
+                                      SStreamReaderFetchView* pView) {
+  if (pView == NULL) return TSDB_CODE_INVALID_PARA;
+  memset(pView, 0, sizeof(*pView));
+  if (pSource == NULL || !pSource->isMultiGroupCalc || pSource->pGroupCalcInfos == NULL ||
+      pSource->pGroupReadInfos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSTriggerCalcRequest sourceRequest = {0};
+  sourceRequest.isMultiGroupCalc = true;
+  sourceRequest.pGroupCalcInfos = pSource->pGroupCalcInfos;
+  sourceRequest.pGroupReadInfos = pSource->pGroupReadInfos;
+  sourceRequest.pContextPolicy = pSource->pContextPolicy;
+  sourceRequest.pAncestorContext = pSource->pAncestorContext;
+  int32_t code = tValidateSTriggerCalcRequest(&sourceRequest);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = tValidateStreamCalcContextForFetch(pSource, true, false);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (nodeId != pSource->curNodeId || pSource->curGrpRead == NULL || taosArrayGetSize(pSource->curGrpRead) <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pView->runtime = *pSource;
+  pView->runtime.pGroupCalcInfos = NULL;
+  pView->runtime.pGroupReadInfos = NULL;
+  pView->runtime.pGroupCalcOrder = NULL;
+  pView->runtime.curGrpCalc = NULL;
+  pView->runtime.pContextPolicy = NULL;
+  pView->runtime.pAncestorContext = NULL;
+  pView->runtime.curGrpReadOwnership = STREAM_GRP_READ_BORROWED;
+
+  const int32_t readCount = taosArrayGetSize(pSource->curGrpRead);
+  pView->runtime.pGroupCalcInfos = tSimpleHashInit(readCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  pView->runtime.pGroupReadInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  if (pView->runtime.pGroupCalcInfos == NULL || pView->runtime.pGroupReadInfos == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  for (int32_t i = 0; i < readCount; ++i) {
+    const SSTriggerGroupReadInfo* pRead = taosArrayGet(pSource->curGrpRead, i);
+    const SSTriggerGroupCalcInfo* pCalc =
+        pRead == NULL ? NULL : tSimpleHashGet(pSource->pGroupCalcInfos, &pRead->gid, sizeof(pRead->gid));
+    if (pCalc == NULL) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    if (tSimpleHashGet(pView->runtime.pGroupCalcInfos, &pRead->gid, sizeof(pRead->gid)) == NULL) {
+      code = tSimpleHashPut(pView->runtime.pGroupCalcInfos, &pRead->gid, sizeof(pRead->gid), pCalc, sizeof(*pCalc));
+      if (code != TSDB_CODE_SUCCESS) goto _exit;
+    }
+  }
+  code = tSimpleHashPut(pView->runtime.pGroupReadInfos, &nodeId, sizeof(nodeId), &pSource->curGrpRead, POINTER_BYTES);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  if (pSource->pContextPolicy != NULL) {
+    pView->policy.pEntries =
+        taosArrayInit(taosArrayGetSize(pSource->pContextPolicy->pEntries), sizeof(SStreamContextPolicyEntry));
+    if (pView->policy.pEntries == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(pSource->pContextPolicy->pEntries); ++i) {
+      const SStreamContextPolicyEntry* pEntry = taosArrayGet(pSource->pContextPolicy->pEntries, i);
+      if (pEntry != NULL && tSimpleHashGet(pView->runtime.pGroupCalcInfos, &pEntry->gid, sizeof(pEntry->gid)) != NULL &&
+          taosArrayPush(pView->policy.pEntries, pEntry) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+    pView->runtime.pContextPolicy = &pView->policy;
+  }
+
+  if (pSource->pAncestorContext != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pSource->pAncestorContext->pParamContexts); ++i) {
+      const SStreamAncestorParamContext* pParam = taosArrayGet(pSource->pAncestorContext->pParamContexts, i);
+      if (pParam == NULL || tSimpleHashGet(pView->runtime.pGroupCalcInfos, &pParam->leafIdentity.gid,
+                                           sizeof(pParam->leafIdentity.gid)) == NULL) {
+        continue;
+      }
+      if (pView->ancestor.pParamContexts == NULL) {
+        pView->ancestor.pParamContexts = taosArrayInit(taosArrayGetSize(pSource->pAncestorContext->pParamContexts),
+                                                       sizeof(SStreamAncestorParamContext));
+        if (pView->ancestor.pParamContexts == NULL) {
+          code = terrno;
+          goto _exit;
+        }
+      }
+      if (taosArrayPush(pView->ancestor.pParamContexts, pParam) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(pSource->pAncestorContext->pReadScopeBindings); ++i) {
+      const SStreamReadScopeBinding* pBinding = taosArrayGet(pSource->pAncestorContext->pReadScopeBindings, i);
+      if (pBinding == NULL || pBinding->vgId != nodeId) continue;
+      if (pView->ancestor.pReadScopeBindings == NULL) {
+        pView->ancestor.pReadScopeBindings = taosArrayInit(readCount, sizeof(SStreamReadScopeBinding));
+        if (pView->ancestor.pReadScopeBindings == NULL) {
+          code = terrno;
+          goto _exit;
+        }
+      }
+      if (taosArrayPush(pView->ancestor.pReadScopeBindings, pBinding) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+    if (pView->ancestor.pParamContexts != NULL) pView->runtime.pAncestorContext = &pView->ancestor;
+  }
+
+  SSTriggerCalcRequest viewRequest = {0};
+  viewRequest.isMultiGroupCalc = true;
+  viewRequest.pGroupCalcInfos = pView->runtime.pGroupCalcInfos;
+  viewRequest.pGroupReadInfos = pView->runtime.pGroupReadInfos;
+  viewRequest.pContextPolicy = pView->runtime.pContextPolicy;
+  viewRequest.pAncestorContext = pView->runtime.pAncestorContext;
+  code = tValidateSTriggerCalcRequest(&viewRequest);
+  if (code == TSDB_CODE_SUCCESS) code = tValidateStreamCalcContextForFetch(&pView->runtime, true, false);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) tClearStreamReaderFetchView(pView);
+  return code;
+}
+
+void tClearStreamReaderFetchView(SStreamReaderFetchView* pView) {
+  if (pView == NULL) return;
+  tSimpleHashCleanup(pView->runtime.pGroupCalcInfos);
+  tSimpleHashCleanup(pView->runtime.pGroupReadInfos);
+  taosArrayDestroy(pView->policy.pEntries);
+  taosArrayDestroy(pView->ancestor.pParamContexts);
+  taosArrayDestroy(pView->ancestor.pReadScopeBindings);
+  memset(pView, 0, sizeof(*pView));
+}
+
+typedef struct {
+  int32_t groupIndex;
+  int32_t sourceIndex;
+} SStreamFetchParamIndex;
+
+struct SStreamFetchContextSelection {
+  const SStreamPreparedFetchContext* pPrepared;
+  int32_t                            index;
+  bool                               isNode;
+  int32_t                            policyCount;
+  int32_t                            paramCount;
+  int32_t                            bindingCount;
+  int64_t                            contextBytes;
+};
+
+typedef struct {
+  int64_t                      gid;
+  int32_t                      policyStart;
+  int32_t                      policyCount;
+  int32_t                      paramStart;
+  int32_t                      paramCount;
+  SStreamFetchContextSelection selection;
+} SStreamPreparedFetchGroup;
+
+typedef struct {
+  int32_t                      nodeId;
+  SArray*                      pGroupIndices;
+  SArray*                      pBindingIndices;
+  SStreamFetchContextSelection selection;
+} SStreamPreparedFetchNode;
+
+struct SStreamPreparedFetchContext {
+  const SStreamRuntimeFuncInfo* pSource;
+  const SSHashObj*              pGroupCalcInfos;
+  const SSHashObj*              pGroupReadInfos;
+  const SStreamContextPolicy*   pPolicy;
+  const SStreamAncestorContext* pAncestor;
+  const SArray*                 pPolicyEntries;
+  const SArray*                 pAncestorParams;
+  const SArray*                 pBindings;
+  const SStreamContextFrames*   pSourceFrames;
+  const void*                   pSourceFrameData;
+  int32_t                       sourceFrameSize;
+  SStreamContextFrames*         pOwnedFrames;
+  const SStreamContextFrames*   pFrames;
+  SArray*                       pGroups;
+  SArray*                       pNodes;
+  SArray*                       pParamOrder;
+};
+
+static int32_t tCompareStreamFetchParamIndex(const void* pLeft, const void* pRight) {
+  const SStreamFetchParamIndex* pA = pLeft;
+  const SStreamFetchParamIndex* pB = pRight;
+  if (pA->groupIndex != pB->groupIndex) return pA->groupIndex < pB->groupIndex ? -1 : 1;
+  return pA->sourceIndex < pB->sourceIndex ? -1 : pA->sourceIndex > pB->sourceIndex;
+}
+
+static int32_t tCompareStreamFetchInt(const void* pLeft, const void* pRight) {
+  const int32_t a = *(const int32_t*)pLeft;
+  const int32_t b = *(const int32_t*)pRight;
+  return a < b ? -1 : a > b;
+}
+
+static int32_t tFindStreamFetchGroup(const SArray* pGroups, int64_t gid) {
+  int32_t low = 0;
+  int32_t high = taosArrayGetSize(pGroups);
+  while (low < high) {
+    const int32_t                    middle = low + (high - low) / 2;
+    const SStreamPreparedFetchGroup* pGroup = taosArrayGet(pGroups, middle);
+    if (pGroup->gid < gid)
+      low = middle + 1;
+    else
+      high = middle;
+  }
+  const SStreamPreparedFetchGroup* pGroup = taosArrayGet(pGroups, low);
+  return pGroup != NULL && pGroup->gid == gid ? low : -1;
+}
+
+static int32_t tEncodeStreamFetchSourceFrames(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pSource) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  TAOS_CHECK_EXIT(
+      tStartEncodeStreamTailFrame(pEncoder, STREAM_CONTEXT_POLICY_FRAME_MAGIC, STREAM_CONTEXT_POLICY_FRAME_VERSION, 0));
+  TAOS_CHECK_EXIT(tEncodeStreamContextPolicy(pEncoder, pSource->pContextPolicy));
+  tEndEncodeStreamTailFrame(pEncoder);
+  if (pSource->pAncestorContext != NULL) {
+    TAOS_CHECK_EXIT(
+        tStartEncodeStreamTailFrame(pEncoder, STREAM_ANCESTOR_FRAME_MAGIC, STREAM_ANCESTOR_FRAME_VERSION, 0));
+    TAOS_CHECK_EXIT(tEncodeStreamAncestorContext(pEncoder, pSource->pAncestorContext));
+    tEndEncodeStreamTailFrame(pEncoder);
+  }
+_exit:
+  return code;
+}
+
+static int32_t tBuildStreamFetchSourceFrames(const SStreamRuntimeFuncInfo* pSource, SStreamContextFrames** ppFrames) {
+  *ppFrames = NULL;
+  int32_t  code = TSDB_CODE_SUCCESS;
+  SEncoder sizer = {0};
+  tEncoderInit(&sizer, NULL, 0);
+  code = tEncodeStreamFetchSourceFrames(&sizer, pSource);
+  const int32_t size = sizer.pos;
+  tEncoderClear(&sizer);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SStreamContextFrames* pFrames = taosMemoryCalloc(1, sizeof(*pFrames));
+  if (pFrames == NULL) return terrno;
+  pFrames->size = size;
+  pFrames->pData = taosMemoryMalloc(size);
+  if (pFrames->pData == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, pFrames->pData, size);
+  code = tEncodeStreamFetchSourceFrames(&encoder, pSource);
+  tEncoderClear(&encoder);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, pFrames->pData, size);
+  SStreamTailFrameDecoder frame = {0};
+  SStreamContextPolicy*   pDecodedPolicy = NULL;
+  SStreamAncestorContext* pDecodedAncestor = NULL;
+  code = tDecodeNextStreamTailFrame(&decoder, &frame);
+  if (code == TSDB_CODE_SUCCESS) {
+    const int32_t payloadStart = (int32_t)(frame.payloadDecoder.data - decoder.data);
+    code = tDecodeStreamContextPolicyWithOffsets(&frame.payloadDecoder, &pDecodedPolicy, &pFrames->pPolicyRefs);
+    if (code == TSDB_CODE_SUCCESS)
+      code = tFinishDecodeStreamTailFrame(&frame, true);
+    else
+      tFinishDecodeStreamTailFrame(&frame, false);
+    tRebaseStreamContextRefs(&pFrames->pPolicyRefs, payloadStart, 0, decoder.pos, 0);
+  }
+  if (code == TSDB_CODE_SUCCESS && pSource->pAncestorContext != NULL) {
+    const int32_t frameStart = decoder.pos;
+    code = tDecodeNextStreamTailFrame(&decoder, &frame);
+    if (code == TSDB_CODE_SUCCESS) {
+      const int32_t payloadStart = (int32_t)(frame.payloadDecoder.data - decoder.data);
+      code = tDecodeStreamAncestorContextWithOffsets(&frame.payloadDecoder, &pDecodedAncestor, &pFrames->pParamRefs,
+                                                     &pFrames->pBindingRefs);
+      if (code == TSDB_CODE_SUCCESS)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else
+        tFinishDecodeStreamTailFrame(&frame, false);
+      tRebaseStreamContextRefs(&pFrames->pParamRefs, payloadStart, frameStart, decoder.pos - frameStart, frameStart);
+      tRebaseStreamContextRefs(&pFrames->pBindingRefs, payloadStart, frameStart, decoder.pos - frameStart, frameStart);
+    }
+  }
+  tDestroyStreamContextPolicy(&pDecodedPolicy);
+  tDestroyStreamAncestorContext(&pDecodedAncestor);
+  tDecoderClear(&decoder);
+  if (code == TSDB_CODE_SUCCESS &&
+      (pFrames->pPolicyRefs == NULL ||
+       (pSource->pAncestorContext != NULL && (pFrames->pParamRefs == NULL || pFrames->pBindingRefs == NULL)))) {
+    code = terrno;
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    pFrames->pContextPolicy = pSource->pContextPolicy;
+    pFrames->pAncestorContext = pSource->pAncestorContext;
+    *ppFrames = pFrames;
+    return TSDB_CODE_SUCCESS;
+  }
+_exit:
+  tDestroyStreamContextFrames(&pFrames);
+  return code;
+}
+
+static int32_t tValidateStreamFetchRefs(const SArray* pRefs, int32_t count, int32_t frameSize) {
+  if (pRefs == NULL || taosArrayGetSize(pRefs) != count || pRefs->elemSize != sizeof(SStreamContextEntryRef)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  for (int32_t i = 0; i < count; ++i) {
+    const SStreamContextEntryRef* pRef = taosArrayGet(pRefs, i);
+    if (pRef == NULL || pRef->offset < 0 || pRef->length < 0 || pRef->offset > frameSize ||
+        pRef->length > frameSize - pRef->offset) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int64_t tSumStreamFetchRefs(const SArray* pRefs, int32_t start, int32_t count, const SArray* pOrder) {
+  int64_t bytes = 0;
+  for (int32_t i = 0; i < count; ++i) {
+    int32_t index = start + i;
+    if (pOrder != NULL) {
+      const SStreamFetchParamIndex* pParam = taosArrayGet(pOrder, index);
+      index = pParam->sourceIndex;
+    }
+    const SStreamContextEntryRef* pRef = taosArrayGet(pRefs, index);
+    bytes += pRef->length;
+  }
+  return bytes;
+}
+
+static void tFinalizeStreamFetchSelection(SStreamFetchContextSelection* pSelection) {
+  const SStreamPreparedFetchContext* pPrepared = pSelection->pPrepared;
+  int64_t                            bytes = 12 + 8;
+  if (pSelection->isNode) {
+    const SStreamPreparedFetchNode* pNode = taosArrayGet(pPrepared->pNodes, pSelection->index);
+    for (int32_t i = 0; i < taosArrayGetSize(pNode->pGroupIndices); ++i) {
+      const int32_t*                   pIndex = taosArrayGet(pNode->pGroupIndices, i);
+      const SStreamPreparedFetchGroup* pGroup = taosArrayGet(pPrepared->pGroups, *pIndex);
+      pSelection->policyCount += pGroup->policyCount;
+      pSelection->paramCount += pGroup->paramCount;
+      bytes += tSumStreamFetchRefs(pPrepared->pFrames->pPolicyRefs, pGroup->policyStart, pGroup->policyCount, NULL);
+      bytes += tSumStreamFetchRefs(pPrepared->pFrames->pParamRefs, pGroup->paramStart, pGroup->paramCount,
+                                   pPrepared->pParamOrder);
+    }
+    pSelection->bindingCount = taosArrayGetSize(pNode->pBindingIndices);
+    for (int32_t i = 0; i < pSelection->bindingCount; ++i) {
+      const int32_t*                pIndex = taosArrayGet(pNode->pBindingIndices, i);
+      const SStreamContextEntryRef* pRef = taosArrayGet(pPrepared->pFrames->pBindingRefs, *pIndex);
+      bytes += pRef->length;
+    }
+  } else {
+    const SStreamPreparedFetchGroup* pGroup = taosArrayGet(pPrepared->pGroups, pSelection->index);
+    pSelection->policyCount = pGroup->policyCount;
+    pSelection->paramCount = pGroup->paramCount;
+    bytes += tSumStreamFetchRefs(pPrepared->pFrames->pPolicyRefs, pGroup->policyStart, pGroup->policyCount, NULL);
+    bytes += tSumStreamFetchRefs(pPrepared->pFrames->pParamRefs, pGroup->paramStart, pGroup->paramCount,
+                                 pPrepared->pParamOrder);
+  }
+  if (pSelection->paramCount > 0) bytes += 12 + 12;
+  pSelection->contextBytes = bytes;
+}
+
+void tDestroyStreamFetchContext(SStreamPreparedFetchContext** ppPrepared) {
+  if (ppPrepared == NULL || *ppPrepared == NULL) return;
+  SStreamPreparedFetchContext* pPrepared = *ppPrepared;
+  for (int32_t i = 0; i < taosArrayGetSize(pPrepared->pNodes); ++i) {
+    SStreamPreparedFetchNode* pNode = taosArrayGet(pPrepared->pNodes, i);
+    taosArrayDestroy(pNode->pGroupIndices);
+    taosArrayDestroy(pNode->pBindingIndices);
+  }
+  taosArrayDestroy(pPrepared->pGroups);
+  taosArrayDestroy(pPrepared->pNodes);
+  taosArrayDestroy(pPrepared->pParamOrder);
+  tDestroyStreamContextFrames(&pPrepared->pOwnedFrames);
+  taosMemoryFree(pPrepared);
+  *ppPrepared = NULL;
+}
+
+int32_t tPrepareStreamFetchContext(const SStreamRuntimeFuncInfo* pSource, const SStreamContextFrames* pFrames,
+                                   SStreamPreparedFetchContext** ppPrepared) {
+  if (ppPrepared == NULL) return TSDB_CODE_INVALID_PARA;
+  *ppPrepared = NULL;
+  if (pSource == NULL || !pSource->isMultiGroupCalc || pSource->pGroupCalcInfos == NULL ||
+      pSource->pGroupReadInfos == NULL || pSource->pContextPolicy == NULL ||
+      !BIT_FLAG_TEST_MASK(pSource->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SSTriggerCalcRequest request = {0};
+  request.isMultiGroupCalc = true;
+  request.pGroupCalcInfos = pSource->pGroupCalcInfos;
+  request.pGroupReadInfos = pSource->pGroupReadInfos;
+  request.pContextPolicy = pSource->pContextPolicy;
+  request.pAncestorContext = pSource->pAncestorContext;
+  int32_t code = tValidateSTriggerCalcRequest(&request);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = tValidateStreamCalcContextForFetch(pSource, true, false);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (pFrames != NULL &&
+      (pFrames->pContextPolicy != pSource->pContextPolicy || pFrames->pAncestorContext != pSource->pAncestorContext)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SStreamPreparedFetchContext* pPrepared = taosMemoryCalloc(1, sizeof(*pPrepared));
+  if (pPrepared == NULL) return terrno;
+  pPrepared->pSource = pSource;
+  pPrepared->pGroupCalcInfos = pSource->pGroupCalcInfos;
+  pPrepared->pGroupReadInfos = pSource->pGroupReadInfos;
+  pPrepared->pPolicy = pSource->pContextPolicy;
+  pPrepared->pAncestor = pSource->pAncestorContext;
+  pPrepared->pPolicyEntries = pSource->pContextPolicy->pEntries;
+  pPrepared->pAncestorParams = pSource->pAncestorContext == NULL ? NULL : pSource->pAncestorContext->pParamContexts;
+  pPrepared->pBindings = pSource->pAncestorContext == NULL ? NULL : pSource->pAncestorContext->pReadScopeBindings;
+  pPrepared->pSourceFrames = pFrames;
+  pPrepared->pSourceFrameData = pFrames == NULL ? NULL : pFrames->pData;
+  pPrepared->sourceFrameSize = pFrames == NULL ? 0 : pFrames->size;
+  const int32_t policyCount = taosArrayGetSize(pPrepared->pPolicyEntries);
+  const int32_t paramCount = taosArrayGetSize(pPrepared->pAncestorParams);
+  const int32_t bindingCount = taosArrayGetSize(pPrepared->pBindings);
+
+  if (pFrames != NULL &&
+      ((pFrames->pPolicyRefs != NULL &&
+        tValidateStreamFetchRefs(pFrames->pPolicyRefs, policyCount, pFrames->size) != TSDB_CODE_SUCCESS) ||
+       (pFrames->pParamRefs != NULL &&
+        tValidateStreamFetchRefs(pFrames->pParamRefs, paramCount, pFrames->size) != TSDB_CODE_SUCCESS) ||
+       (pFrames->pBindingRefs != NULL &&
+        tValidateStreamFetchRefs(pFrames->pBindingRefs, bindingCount, pFrames->size) != TSDB_CODE_SUCCESS) ||
+       (pFrames->pData == NULL &&
+        (pFrames->pPolicyRefs != NULL || pFrames->pParamRefs != NULL || pFrames->pBindingRefs != NULL)))) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+  if (pFrames != NULL && pFrames->pData != NULL && pFrames->pPolicyRefs != NULL &&
+      (pPrepared->pAncestor == NULL || (pFrames->pParamRefs != NULL && pFrames->pBindingRefs != NULL))) {
+    pPrepared->pFrames = pFrames;
+  } else {
+    code = tBuildStreamFetchSourceFrames(pSource, &pPrepared->pOwnedFrames);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+    pPrepared->pFrames = pPrepared->pOwnedFrames;
+  }
+
+  pPrepared->pGroups = taosArrayInit(TMAX(policyCount, 1), sizeof(SStreamPreparedFetchGroup));
+  pPrepared->pNodes =
+      taosArrayInit(TMAX(tSimpleHashGetSize(pSource->pGroupReadInfos), 1), sizeof(SStreamPreparedFetchNode));
+  pPrepared->pParamOrder = taosArrayInit(TMAX(paramCount, 1), sizeof(SStreamFetchParamIndex));
+  if (pPrepared->pGroups == NULL || pPrepared->pNodes == NULL || pPrepared->pParamOrder == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < policyCount; ++i) {
+    const SStreamContextPolicyEntry* pEntry = taosArrayGet(pPrepared->pPolicyEntries, i);
+    SStreamPreparedFetchGroup*       pGroup = taosArrayGetLast(pPrepared->pGroups);
+    if (pGroup == NULL || pGroup->gid != pEntry->gid) {
+      SStreamPreparedFetchGroup group = {.gid = pEntry->gid, .policyStart = i};
+      if (taosArrayPush(pPrepared->pGroups, &group) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+      pGroup = taosArrayGetLast(pPrepared->pGroups);
+    }
+    ++pGroup->policyCount;
+  }
+  for (int32_t i = 0; i < paramCount; ++i) {
+    const SStreamAncestorParamContext* pParam = taosArrayGet(pPrepared->pAncestorParams, i);
+    const int32_t                      groupIndex = tFindStreamFetchGroup(pPrepared->pGroups, pParam->leafIdentity.gid);
+    if (groupIndex < 0) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    SStreamFetchParamIndex entry = {.groupIndex = groupIndex, .sourceIndex = i};
+    if (taosArrayPush(pPrepared->pParamOrder, &entry) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+  taosArraySort(pPrepared->pParamOrder, tCompareStreamFetchParamIndex);
+  for (int32_t i = 0; i < paramCount; ++i) {
+    const SStreamFetchParamIndex* pEntry = taosArrayGet(pPrepared->pParamOrder, i);
+    SStreamPreparedFetchGroup*    pGroup = taosArrayGet(pPrepared->pGroups, pEntry->groupIndex);
+    if (pGroup->paramCount == 0) pGroup->paramStart = i;
+    ++pGroup->paramCount;
+  }
+
+  int32_t iter = 0;
+  void*   pReadSlot = tSimpleHashIterate(pSource->pGroupReadInfos, NULL, &iter);
+  while (pReadSlot != NULL) {
+    const int32_t*           pNodeId = tSimpleHashGetKey(pReadSlot, NULL);
+    SArray*                  pReads = *(SArray**)pReadSlot;
+    SStreamPreparedFetchNode node = {.nodeId = *pNodeId};
+    node.pGroupIndices = taosArrayInit(TMAX(taosArrayGetSize(pReads), 1), sizeof(int32_t));
+    if (node.pGroupIndices == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(pReads); ++i) {
+      const SSTriggerGroupReadInfo* pRead = taosArrayGet(pReads, i);
+      const int32_t                 groupIndex = tFindStreamFetchGroup(pPrepared->pGroups, pRead->gid);
+      if (groupIndex < 0) {
+        taosArrayDestroy(node.pGroupIndices);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+      if (taosArrayPush(node.pGroupIndices, &groupIndex) == NULL) {
+        taosArrayDestroy(node.pGroupIndices);
+        code = terrno;
+        goto _exit;
+      }
+    }
+    taosArraySort(node.pGroupIndices, tCompareStreamFetchInt);
+    int32_t unique = 0;
+    for (int32_t i = 0; i < taosArrayGetSize(node.pGroupIndices); ++i) {
+      const int32_t value = *(int32_t*)taosArrayGet(node.pGroupIndices, i);
+      if (unique == 0 || value != *(int32_t*)taosArrayGet(node.pGroupIndices, unique - 1)) {
+        *(int32_t*)taosArrayGet(node.pGroupIndices, unique++) = value;
+      }
+    }
+    node.pGroupIndices->size = unique;
+    if (taosArrayPush(pPrepared->pNodes, &node) == NULL) {
+      taosArrayDestroy(node.pGroupIndices);
+      code = terrno;
+      goto _exit;
+    }
+    pReadSlot = tSimpleHashIterate(pSource->pGroupReadInfos, pReadSlot, &iter);
+  }
+  for (int32_t i = 0; i < bindingCount; ++i) {
+    const SStreamReadScopeBinding* pBinding = taosArrayGet(pPrepared->pBindings, i);
+    for (int32_t j = 0; j < taosArrayGetSize(pPrepared->pNodes); ++j) {
+      SStreamPreparedFetchNode* pNode = taosArrayGet(pPrepared->pNodes, j);
+      if (pNode->nodeId != pBinding->vgId) continue;
+      if (pNode->pBindingIndices == NULL) {
+        pNode->pBindingIndices = taosArrayInit(1, sizeof(int32_t));
+        if (pNode->pBindingIndices == NULL) {
+          code = terrno;
+          goto _exit;
+        }
+      }
+      if (taosArrayPush(pNode->pBindingIndices, &i) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+      break;
+    }
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pPrepared->pGroups); ++i) {
+    SStreamPreparedFetchGroup* pGroup = taosArrayGet(pPrepared->pGroups, i);
+    pGroup->selection = (SStreamFetchContextSelection){.pPrepared = pPrepared, .index = i};
+    tFinalizeStreamFetchSelection(&pGroup->selection);
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pPrepared->pNodes); ++i) {
+    SStreamPreparedFetchNode* pNode = taosArrayGet(pPrepared->pNodes, i);
+    pNode->selection = (SStreamFetchContextSelection){.pPrepared = pPrepared, .index = i, .isNode = true};
+    tFinalizeStreamFetchSelection(&pNode->selection);
+  }
+  *ppPrepared = pPrepared;
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  tDestroyStreamFetchContext(&pPrepared);
+  return code;
+}
+
+static bool tStreamFetchSourceMatches(const SStreamPreparedFetchContext* pPrepared,
+                                      const SStreamRuntimeFuncInfo*      pSource) {
+  if (pPrepared == NULL || pSource == NULL || pPrepared->pSource != pSource ||
+      pPrepared->pGroupCalcInfos != pSource->pGroupCalcInfos ||
+      pPrepared->pGroupReadInfos != pSource->pGroupReadInfos || pPrepared->pPolicy != pSource->pContextPolicy ||
+      pPrepared->pAncestor != pSource->pAncestorContext ||
+      pPrepared->pPolicyEntries != pSource->pContextPolicy->pEntries ||
+      pPrepared->pAncestorParams !=
+          (pSource->pAncestorContext == NULL ? NULL : pSource->pAncestorContext->pParamContexts) ||
+      pPrepared->pBindings !=
+          (pSource->pAncestorContext == NULL ? NULL : pSource->pAncestorContext->pReadScopeBindings)) {
+    return false;
+  }
+  if (pPrepared->pSourceFrames != NULL && (pPrepared->pSourceFrames->pData != pPrepared->pSourceFrameData ||
+                                           pPrepared->pSourceFrames->size != pPrepared->sourceFrameSize ||
+                                           pPrepared->pSourceFrames->pContextPolicy != pPrepared->pPolicy ||
+                                           pPrepared->pSourceFrames->pAncestorContext != pPrepared->pAncestor)) {
+    return false;
+  }
+  return true;
+}
+
+int32_t tSelectStreamFetchContextForNode(const SStreamPreparedFetchContext* pPrepared,
+                                         const SStreamRuntimeFuncInfo* pSource, int32_t nodeId,
+                                         const SStreamFetchContextSelection** ppSelection) {
+  if (ppSelection == NULL) return TSDB_CODE_INVALID_PARA;
+  *ppSelection = NULL;
+  if (!tStreamFetchSourceMatches(pPrepared, pSource)) return TSDB_CODE_INVALID_PARA;
+  for (int32_t i = 0; i < taosArrayGetSize(pPrepared->pNodes); ++i) {
+    const SStreamPreparedFetchNode* pNode = taosArrayGet(pPrepared->pNodes, i);
+    if (pNode->nodeId == nodeId && taosArrayGetSize(pNode->pGroupIndices) > 0) {
+      *ppSelection = &pNode->selection;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_INVALID_PARA;
+}
+
+int32_t tSelectStreamFetchContextForGroup(const SStreamPreparedFetchContext* pPrepared,
+                                          const SStreamRuntimeFuncInfo* pSource, int64_t gid,
+                                          const SStreamFetchContextSelection** ppSelection) {
+  if (ppSelection == NULL) return TSDB_CODE_INVALID_PARA;
+  *ppSelection = NULL;
+  if (!tStreamFetchSourceMatches(pPrepared, pSource)) return TSDB_CODE_INVALID_PARA;
+  const int32_t index = tFindStreamFetchGroup(pPrepared->pGroups, gid);
+  if (index < 0) return TSDB_CODE_INVALID_PARA;
+  const SStreamPreparedFetchGroup* pGroup = taosArrayGet(pPrepared->pGroups, index);
+  *ppSelection = &pGroup->selection;
+  return TSDB_CODE_SUCCESS;
+}
+
+bool tStreamFetchSelectionBelongsToPrepared(const SStreamPreparedFetchContext*  pPrepared,
+                                            const SStreamFetchContextSelection* pSelection) {
+  return pPrepared != NULL && pSelection != NULL && pSelection->pPrepared == pPrepared;
+}
+
+static int32_t tCollectStreamFetchParamIndices(const SStreamFetchContextSelection* pSelection, SArray** ppIndices) {
+  *ppIndices = NULL;
+  if (pSelection->paramCount == 0) return TSDB_CODE_SUCCESS;
+  const SStreamPreparedFetchContext* pPrepared = pSelection->pPrepared;
+  SArray*                            pIndices = taosArrayInit(pSelection->paramCount, sizeof(int32_t));
+  if (pIndices == NULL) return terrno;
+  const SStreamPreparedFetchNode* pNode =
+      pSelection->isNode ? taosArrayGet(pPrepared->pNodes, pSelection->index) : NULL;
+  const int32_t groupCount = pNode == NULL ? 1 : taosArrayGetSize(pNode->pGroupIndices);
+  for (int32_t i = 0; i < groupCount; ++i) {
+    const int32_t groupIndex = pNode == NULL ? pSelection->index : *(int32_t*)taosArrayGet(pNode->pGroupIndices, i);
+    const SStreamPreparedFetchGroup* pGroup = taosArrayGet(pPrepared->pGroups, groupIndex);
+    for (int32_t j = 0; j < pGroup->paramCount; ++j) {
+      const SStreamFetchParamIndex* pEntry = taosArrayGet(pPrepared->pParamOrder, pGroup->paramStart + j);
+      if (taosArrayPush(pIndices, &pEntry->sourceIndex) == NULL) {
+        taosArrayDestroy(pIndices);
+        return terrno;
+      }
+    }
+  }
+  taosArraySort(pIndices, tCompareStreamFetchInt);
+  *ppIndices = pIndices;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tPrepareStreamFetchRuntimeView(const SStreamFetchContextSelection* pSelection,
+                                       const SStreamRuntimeFuncInfo* pBatch, const SStreamRuntimeFuncInfo* pCurrent,
+                                       SStreamReaderFetchView* pView) {
+  if (pView == NULL) return TSDB_CODE_INVALID_PARA;
+  memset(pView, 0, sizeof(*pView));
+  if (pSelection == NULL || pCurrent == NULL || !tStreamFetchSourceMatches(pSelection->pPrepared, pBatch)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  const SStreamPreparedFetchContext* pPrepared = pSelection->pPrepared;
+  const SStreamPreparedFetchNode*    pNode =
+      pSelection->isNode ? taosArrayGet(pPrepared->pNodes, pSelection->index) : NULL;
+  if ((pNode != NULL && (!pCurrent->isMultiGroupCalc || pCurrent->curNodeId != pNode->nodeId ||
+                         pCurrent->curGrpRead == NULL || taosArrayGetSize(pCurrent->curGrpRead) == 0)) ||
+      (pNode == NULL &&
+       (pCurrent->isMultiGroupCalc ||
+        pCurrent->groupId != ((SStreamPreparedFetchGroup*)taosArrayGet(pPrepared->pGroups, pSelection->index))->gid))) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pNode != NULL) {
+    SArray** ppCanonical = tSimpleHashGet(pBatch->pGroupReadInfos, &pNode->nodeId, sizeof(pNode->nodeId));
+    if (ppCanonical == NULL || *ppCanonical == NULL ||
+        taosArrayGetSize(*ppCanonical) != taosArrayGetSize(pCurrent->curGrpRead)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(*ppCanonical); ++i) {
+      const SSTriggerGroupReadInfo* pExpected = taosArrayGet(*ppCanonical, i);
+      const SSTriggerGroupReadInfo* pActual = taosArrayGet(pCurrent->curGrpRead, i);
+      if (pExpected == NULL || pActual == NULL || memcmp(pExpected, pActual, sizeof(*pExpected)) != 0) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+    }
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  pView->runtime = *pCurrent;
+  pView->runtime.pGroupCalcInfos = NULL;
+  pView->runtime.pGroupReadInfos = NULL;
+  pView->runtime.pGroupCalcOrder = NULL;
+  pView->runtime.curGrpCalc = NULL;
+  pView->runtime.pContextPolicy = NULL;
+  pView->runtime.pAncestorContext = NULL;
+  pView->runtime.curGrpReadOwnership = STREAM_GRP_READ_BORROWED;
+  if (pNode != NULL) {
+    const int32_t groupCount = taosArrayGetSize(pNode->pGroupIndices);
+    pView->runtime.pGroupCalcInfos = tSimpleHashInit(groupCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    pView->runtime.pGroupReadInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    if (pView->runtime.pGroupCalcInfos == NULL || pView->runtime.pGroupReadInfos == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < groupCount; ++i) {
+      const int32_t                    groupIndex = *(int32_t*)taosArrayGet(pNode->pGroupIndices, i);
+      const SStreamPreparedFetchGroup* pGroup = taosArrayGet(pPrepared->pGroups, groupIndex);
+      const SSTriggerGroupCalcInfo* pCalc = tSimpleHashGet(pBatch->pGroupCalcInfos, &pGroup->gid, sizeof(pGroup->gid));
+      if (pCalc == NULL) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+      code = tSimpleHashPut(pView->runtime.pGroupCalcInfos, &pGroup->gid, sizeof(pGroup->gid), pCalc, sizeof(*pCalc));
+      if (code != TSDB_CODE_SUCCESS) goto _exit;
+    }
+    code = tSimpleHashPut(pView->runtime.pGroupReadInfos, &pNode->nodeId, sizeof(pNode->nodeId), &pCurrent->curGrpRead,
+                          POINTER_BYTES);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+  }
+
+  pView->policy.pEntries = taosArrayInit(TMAX(pSelection->policyCount, 1), sizeof(SStreamContextPolicyEntry));
+  if (pView->policy.pEntries == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  const int32_t groupCount = pNode == NULL ? 1 : taosArrayGetSize(pNode->pGroupIndices);
+  for (int32_t i = 0; i < groupCount; ++i) {
+    const int32_t groupIndex = pNode == NULL ? pSelection->index : *(int32_t*)taosArrayGet(pNode->pGroupIndices, i);
+    const SStreamPreparedFetchGroup* pGroup = taosArrayGet(pPrepared->pGroups, groupIndex);
+    for (int32_t j = 0; j < pGroup->policyCount; ++j) {
+      const SStreamContextPolicyEntry* pEntry = taosArrayGet(pPrepared->pPolicyEntries, pGroup->policyStart + j);
+      if (taosArrayPush(pView->policy.pEntries, pEntry) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+  }
+  pView->runtime.pContextPolicy = &pView->policy;
+  if (pSelection->paramCount > 0) {
+    SArray* pIndices = NULL;
+    code = tCollectStreamFetchParamIndices(pSelection, &pIndices);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+    pView->ancestor.pParamContexts = taosArrayInit(pSelection->paramCount, sizeof(SStreamAncestorParamContext));
+    if (pView->ancestor.pParamContexts == NULL) {
+      taosArrayDestroy(pIndices);
+      code = terrno;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < pSelection->paramCount; ++i) {
+      const int32_t                      index = *(int32_t*)taosArrayGet(pIndices, i);
+      const SStreamAncestorParamContext* pParam = taosArrayGet(pPrepared->pAncestorParams, index);
+      if (taosArrayPush(pView->ancestor.pParamContexts, pParam) == NULL) {
+        taosArrayDestroy(pIndices);
+        code = terrno;
+        goto _exit;
+      }
+    }
+    taosArrayDestroy(pIndices);
+    if (pNode != NULL && pSelection->bindingCount > 0) {
+      pView->ancestor.pReadScopeBindings = taosArrayInit(pSelection->bindingCount, sizeof(SStreamReadScopeBinding));
+      if (pView->ancestor.pReadScopeBindings == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+      for (int32_t i = 0; i < pSelection->bindingCount; ++i) {
+        const int32_t                  index = *(int32_t*)taosArrayGet(pNode->pBindingIndices, i);
+        const SStreamReadScopeBinding* pBinding = taosArrayGet(pPrepared->pBindings, index);
+        if (taosArrayPush(pView->ancestor.pReadScopeBindings, pBinding) == NULL) {
+          code = terrno;
+          goto _exit;
+        }
+      }
+    }
+    pView->runtime.pAncestorContext = &pView->ancestor;
+  }
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  tClearStreamReaderFetchView(pView);
+  return code;
+}
+
+static int32_t tEncodeStreamFetchRef(SEncoder* pEncoder, const SStreamContextFrames* pFrames, const SArray* pRefs,
+                                     int32_t index) {
+  const SStreamContextEntryRef* pRef = taosArrayGet(pRefs, index);
+  if (pRef == NULL || pRef->offset < 0 || pRef->length < 0 || pRef->offset > pFrames->size ||
+      pRef->length > pFrames->size - pRef->offset) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return tEncodeFixed(pEncoder, (const char*)pFrames->pData + pRef->offset, pRef->length);
+}
+
+int32_t tEncodeStreamFetchContext(SEncoder* pEncoder, const SStreamFetchContextSelection* pSelection) {
+  if (pEncoder == NULL || pSelection == NULL || pSelection->pPrepared == NULL || pSelection->contextBytes > INT32_MAX)
+    return TSDB_CODE_INVALID_PARA;
+  if (pEncoder->data == NULL) {
+    if (pEncoder->pos > INT32_MAX || pSelection->contextBytes > INT32_MAX - pEncoder->pos) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    pEncoder->pos += (uint32_t)pSelection->contextBytes;
+    return TSDB_CODE_SUCCESS;
+  }
+  const SStreamPreparedFetchContext* pPrepared = pSelection->pPrepared;
+  const SStreamPreparedFetchNode*    pNode =
+      pSelection->isNode ? taosArrayGet(pPrepared->pNodes, pSelection->index) : NULL;
+  const int32_t groupCount = pNode == NULL ? 1 : taosArrayGetSize(pNode->pGroupIndices);
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  SArray*       pParamIndices = NULL;
+  TAOS_CHECK_EXIT(
+      tStartEncodeStreamTailFrame(pEncoder, STREAM_CONTEXT_POLICY_FRAME_MAGIC, STREAM_CONTEXT_POLICY_FRAME_VERSION, 0));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, STREAM_CONTEXT_POLICY_VERSION));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pSelection->policyCount));
+  for (int32_t i = 0; i < groupCount; ++i) {
+    const int32_t groupIndex = pNode == NULL ? pSelection->index : *(int32_t*)taosArrayGet(pNode->pGroupIndices, i);
+    const SStreamPreparedFetchGroup* pGroup = taosArrayGet(pPrepared->pGroups, groupIndex);
+    for (int32_t j = 0; j < pGroup->policyCount; ++j) {
+      TAOS_CHECK_EXIT(tEncodeStreamFetchRef(pEncoder, pPrepared->pFrames, pPrepared->pFrames->pPolicyRefs,
+                                            pGroup->policyStart + j));
+    }
+  }
+  tEndEncodeStreamTailFrame(pEncoder);
+  if (pSelection->paramCount > 0) {
+    TAOS_CHECK_EXIT(tCollectStreamFetchParamIndices(pSelection, &pParamIndices));
+    TAOS_CHECK_EXIT(
+        tStartEncodeStreamTailFrame(pEncoder, STREAM_ANCESTOR_FRAME_MAGIC, STREAM_ANCESTOR_FRAME_VERSION, 0));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, STREAM_ANCESTOR_CONTEXT_VERSION));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pSelection->paramCount));
+    for (int32_t i = 0; i < pSelection->paramCount; ++i) {
+      const int32_t index = *(int32_t*)taosArrayGet(pParamIndices, i);
+      TAOS_CHECK_EXIT(tEncodeStreamFetchRef(pEncoder, pPrepared->pFrames, pPrepared->pFrames->pParamRefs, index));
+    }
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pSelection->bindingCount));
+    if (pNode != NULL) {
+      for (int32_t i = 0; i < pSelection->bindingCount; ++i) {
+        const int32_t index = *(int32_t*)taosArrayGet(pNode->pBindingIndices, i);
+        TAOS_CHECK_EXIT(tEncodeStreamFetchRef(pEncoder, pPrepared->pFrames, pPrepared->pFrames->pBindingRefs, index));
+      }
+    }
+    tEndEncodeStreamTailFrame(pEncoder);
+  }
+_exit:
+  taosArrayDestroy(pParamIndices);
   return code;
 }
 
@@ -8023,14 +9305,25 @@ _exit:
   return code;
 }
 
-int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq) {
+static int32_t tDeserializeSTriggerCalcRequestImpl(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq,
+                                                   bool retainContextFrames) {
   SDecoder                decoder = {0};
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
   SStreamContextPolicy*   pContextPolicy = NULL;
   SStreamAncestorContext* pAncestorContext = NULL;
+  int32_t                 policyFrameStart = -1;
+  int32_t                 policyFrameLength = 0;
+  int32_t                 policyPayloadStart = -1;
+  int32_t                 ancestorFrameStart = -1;
+  int32_t                 ancestorFrameLength = 0;
+  int32_t                 ancestorPayloadStart = -1;
+  SArray*                 pPolicyRefs = NULL;
+  SArray*                 pParamRefs = NULL;
+  SArray*                 pBindingRefs = NULL;
 
   if (buf == NULL || pReq == NULL || bufLen < (int32_t)sizeof(int32_t)) return TSDB_CODE_INVALID_MSG;
+  pReq->pContextFrames = NULL;
   int32_t frameLen = 0;
   TAOS_MEMCPY(&frameLen, buf, sizeof(frameLen));
   if (frameLen < 0 || frameLen > bufLen - (int32_t)sizeof(frameLen)) return TSDB_CODE_INVALID_MSG;
@@ -8126,6 +9419,7 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
   bool ancestorSeen = false;
   while (!tDecodeIsEnd(&decoder)) {
     SStreamTailFrameDecoder frame = {0};
+    const int32_t           frameStart = decoder.pos;
     TAOS_CHECK_EXIT(tDecodeNextStreamTailFrame(&decoder, &frame));
     if (frame.magic == STREAM_CONTEXT_POLICY_FRAME_MAGIC) {
       if (policySeen || ancestorSeen || frame.version != STREAM_CONTEXT_POLICY_FRAME_VERSION || frame.flags != 0) {
@@ -8134,12 +9428,17 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
         goto _exit;
       }
       policySeen = true;
-      code = tDecodeStreamContextPolicy(&frame.payloadDecoder, &pContextPolicy);
+      policyPayloadStart = (int32_t)(frame.payloadDecoder.data - decoder.data);
+      code = retainContextFrames
+                 ? tDecodeStreamContextPolicyWithOffsets(&frame.payloadDecoder, &pContextPolicy, &pPolicyRefs)
+                 : tDecodeStreamContextPolicy(&frame.payloadDecoder, &pContextPolicy);
       if (code == TSDB_CODE_SUCCESS)
         code = tFinishDecodeStreamTailFrame(&frame, true);
       else
         tFinishDecodeStreamTailFrame(&frame, false);
       TAOS_CHECK_EXIT(code);
+      policyFrameStart = frameStart;
+      policyFrameLength = decoder.pos - frameStart;
       continue;
     }
     if (frame.magic != STREAM_ANCESTOR_FRAME_MAGIC) {
@@ -8153,12 +9452,17 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
       goto _exit;
     }
     ancestorSeen = true;
-    code = tDecodeStreamAncestorContext(&frame.payloadDecoder, &pAncestorContext);
+    ancestorPayloadStart = (int32_t)(frame.payloadDecoder.data - decoder.data);
+    code = retainContextFrames ? tDecodeStreamAncestorContextWithOffsets(&frame.payloadDecoder, &pAncestorContext,
+                                                                         &pParamRefs, &pBindingRefs)
+                               : tDecodeStreamAncestorContext(&frame.payloadDecoder, &pAncestorContext);
     if (code == TSDB_CODE_SUCCESS)
       code = tFinishDecodeStreamTailFrame(&frame, true);
     else
       tFinishDecodeStreamTailFrame(&frame, false);
     TAOS_CHECK_EXIT(code);
+    ancestorFrameStart = frameStart;
+    ancestorFrameLength = decoder.pos - frameStart;
   }
   pReq->pContextPolicy = pContextPolicy;
   pContextPolicy = NULL;
@@ -8167,14 +9471,31 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
 
   TAOS_CHECK_EXIT(tMaterializeDecodedCreateOnlyParam(pReq));
   TAOS_CHECK_EXIT(tValidateSTriggerCalcRequest(pReq));
+  if (retainContextFrames && pReq->isMultiGroupCalc) {
+    tTryRetainStreamContextFrames(&decoder, policyFrameStart, policyFrameLength, ancestorFrameStart,
+                                  ancestorFrameLength, pReq->pContextPolicy, pReq->pAncestorContext, &pPolicyRefs,
+                                  policyPayloadStart, &pParamRefs, &pBindingRefs, ancestorPayloadStart,
+                                  &pReq->pContextFrames);
+  }
 
   tEndDecode(&decoder);
 
 _exit:
+  taosArrayDestroy(pPolicyRefs);
+  taosArrayDestroy(pParamRefs);
+  taosArrayDestroy(pBindingRefs);
   tDestroyStreamContextPolicy(&pContextPolicy);
   tDestroyStreamAncestorContext(&pAncestorContext);
   tDecoderClear(&decoder);
   return code;
+}
+
+int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq) {
+  return tDeserializeSTriggerCalcRequestImpl(buf, bufLen, pReq, false);
+}
+
+int32_t tDeserializeSTriggerCalcRequestWithContextFrames(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq) {
+  return tDeserializeSTriggerCalcRequestImpl(buf, bufLen, pReq, true);
 }
 
 void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
@@ -8197,9 +9518,11 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
     }
     tDestroyStreamContextPolicy(&pReq->pContextPolicy);
     tDestroyStreamAncestorContext(&pReq->pAncestorContext);
+    tDestroyStreamContextFrames(&pReq->pContextFrames);
     blockDataDestroy(pReq->pOutBlock);
     pReq->pOutBlock = NULL;
     tDestroySStreamRunnerFetchFrame(&pReq->outFrame);
+    tDestroySStreamRunnerFetchBatch(&pReq->outBatch);
     pReq->progressStepId = 0;
     pReq->progressRequestToken = 0;
   }

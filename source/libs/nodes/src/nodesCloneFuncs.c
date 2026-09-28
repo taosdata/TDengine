@@ -1802,6 +1802,7 @@ static int32_t physiExternalCopy(const SExternalWindowPhysiNode* pSrc, SExternal
   COPY_SCALAR_FIELD(orgTableVgId);
   COPY_SCALAR_FIELD(orgTableUid);
   CLONE_NODE_FIELD(pSubquery);
+  COPY_SCALAR_FIELD(broadcastInputReusable);
   return TSDB_CODE_SUCCESS;
 }
 

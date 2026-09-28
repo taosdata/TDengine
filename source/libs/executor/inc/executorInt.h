@@ -250,12 +250,16 @@ typedef struct SExchangeInfo {
   // passed by downstream operator
   SArray*      pResultBlockList;
   SArray*      pRecycledBlocks;  // build a pool for small data block to avoid to repeatly create and then destroy.
-  SArray*      pMultiGroupResultList;        // SArray<SExchangeMultiGroupResult>, strict Runner fetch only
+  SArray*      pMultiGroupResultList;        // SArray<SExchangeMultiGroupResult>, Runner or Reader fetch
   SArray*      pPublishedLineage;            // owned; runtime pStreamBlkWinIdx borrows it
   SStreamRuntimeFuncInfo* pPublishedStream;  // borrowed runtime that received pPublishedLineage
   int32_t                 nextGroupIdx;      // strict Runner fetch canonical cursor
   int32_t                 eogSourceCount;    // strict Runner sources at current group barrier
   bool                    strictSourcesValidated;
+  bool                    readerGroupRequested;
+  bool                    readerGroupsInitialized;
+  int32_t                 readerGroupMode;  // 0 unknown, 1 legacy, 2 grouped
+  int32_t                 readerNextGroupIdx;
   SSDataBlock* pDummyBlock;      // dummy block, not keep data
   bool         seqLoadData;      // sequential load data or not, false by default
   bool         dynamicOp;
@@ -432,6 +436,10 @@ typedef struct STableScanInfo {
   int32_t         scanTimes;
   SSDataBlock*    pResBlock;
   SHashObj*       pIgnoreTables;
+  SSDataBlock*    pGroupEndBlock;
+  SArray*         pReaderGroups;  // owned, sorted unique uint64_t trigger gids
+  int32_t         readerGroupIndex;
+  bool            readerSubgroupActive;
   SSampleExecInfo sample;           // sample execution info
   int32_t         tableStartIndex;  // current group scan start
   int32_t         tableEndIndex;    // current group scan end

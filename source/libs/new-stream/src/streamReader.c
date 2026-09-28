@@ -31,6 +31,58 @@
 #include "tcommon.h"
 #include "tmsg.h"
 
+void stReaderCaptureFetchState(SStreamReaderFetchState* pState, const SResFetchReq* pReq, int32_t actualNodeId) {
+  *pState = (SStreamReaderFetchState){.enabled = true,
+                                      .id = pReq->readerFetchId,
+                                      .queryId = pReq->queryId,
+                                      .taskId = pReq->taskId,
+                                      .execId = pReq->execId,
+                                      .nodeId = actualNodeId,
+                                      .streamGen = pReq->pStRtFuncInfo->streamGen,
+                                      .sessionId = pReq->pStRtFuncInfo->sessionId,
+                                      .dynTbname = pReq->dynTbname,
+                                      .readerGroupMode = pReq->readerGroupMode};
+}
+
+int32_t stReaderCheckFetchContinuation(const SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq,
+                                       int32_t actualNodeId) {
+  if (pCalc == NULL || pReq == NULL || pReq->pStRtFuncInfo == NULL) return TSDB_CODE_INVALID_MSG;
+  const SStreamReaderFetchState* pState = &pCalc->fetchState;
+  const SStreamRuntimeFuncInfo*  pRt = pReq->pStRtFuncInfo;
+  if (!pState->enabled || pState->id == 0 || pState->id != pReq->readerFetchId || pState->queryId != pReq->queryId ||
+      pState->taskId != pReq->taskId || pState->execId != pReq->execId || pState->nodeId != actualNodeId ||
+      pState->streamGen != pRt->streamGen || pState->sessionId != pRt->sessionId ||
+      pState->dynTbname != pReq->dynTbname || pState->readerGroupMode != pReq->readerGroupMode ||
+      !pRt->isMultiGroupCalc || pReq->reset || pReq->reuseReader || pReq->pOpParam != NULL ||
+      pRt->pGroupCalcInfos != NULL || pRt->pGroupReadInfos != NULL || pRt->curGrpRead != NULL ||
+      pRt->pContextPolicy != NULL || pRt->pAncestorContext != NULL || pReq->pContextFrames != NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+void stReaderInvalidateFetchState(SStreamTriggerReaderCalcInfo* pCalc) {
+  if (pCalc != NULL) pCalc->fetchState.id = 0;
+}
+
+int32_t stReaderSetGroupOutputMode(SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq) {
+  if (pCalc == NULL || pReq == NULL) return TSDB_CODE_INVALID_PARA;
+  if (!pReq->reset) {
+    if (!pCalc->readerGroupModeSet || pReq->readerGroupMode != pCalc->readerGroupRequested ||
+        (pCalc->readerGroupAccepted && pReq->pOpParam != NULL))
+      return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_SUCCESS;
+  }
+  pCalc->readerGroupModeSet = false;
+  pCalc->readerGroupAccepted = false;
+  int32_t code = qEnableReaderGroupOutput(pCalc->pTaskInfo, pReq->readerGroupMode && pReq->pOpParam == NULL,
+                                          &pCalc->readerGroupAccepted);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  pCalc->readerGroupRequested = pReq->readerGroupMode;
+  pCalc->readerGroupModeSet = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 #define STREAM_READER_PERIOD_LOG_BUFFER_SIZE 2048
 // Six int64 values, one int32, the longest status, eight uint64 values, two rates, ten optional values, and a bool.
 #define STREAM_READER_PERIOD_LOG_VALUE_BYTES (6 * 21 + 11 + 10 + 8 * 20 + 2 * 32 + 10 * 32 + 5)
@@ -363,8 +415,10 @@ static int32_t stCloneReaderProjectedContext(const SStreamAncestorParamContext* 
     taosArrayDestroy(selected.pReadScopeBindings);
     return terrno;
   }
+  SStreamAncestorParamContext projectedParam = *pParam;
+  projectedParam.paramIndex = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (taosArrayPush(selected.pParamContexts, pParam) == NULL ||
+  if (taosArrayPush(selected.pParamContexts, &projectedParam) == NULL ||
       taosArrayPush(selected.pReadScopeBindings, pBinding) == NULL) {
     code = terrno;
   } else {
@@ -372,14 +426,6 @@ static int32_t stCloneReaderProjectedContext(const SStreamAncestorParamContext* 
   }
   taosArrayDestroy(selected.pParamContexts);
   taosArrayDestroy(selected.pReadScopeBindings);
-  if (code == TSDB_CODE_SUCCESS) {
-    SStreamAncestorParamContext* pProjectedParam = taosArrayGet((*ppProjected)->pParamContexts, 0);
-    if (pProjectedParam == NULL) {
-      tDestroyStreamAncestorContext(ppProjected);
-      return TSDB_CODE_INVALID_PARA;
-    }
-    pProjectedParam->paramIndex = 0;
-  }
   return code;
 }
 
@@ -571,6 +617,7 @@ int32_t stValidateNodeGroupReadBindings(const SStreamRuntimeFuncInfo* pSource, i
     pGroupReadInfos = pBorrowedNodeReads;
     if (pSource->pAncestorContext != NULL) {
       nodeContext = *pSource->pAncestorContext;
+      nodeContext.pParamIndex = NULL;
       const int32_t bindingCount = taosArrayGetSize(pSource->pAncestorContext->pReadScopeBindings);
       pNodeBindings = taosArrayInit(bindingCount, sizeof(SStreamReadScopeBinding));
       if (pNodeBindings == NULL) {
@@ -2371,5 +2418,100 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
 
 end:
   rpcFreeCont(buf);
+  return code;
+}
+
+static int32_t encodeReaderFetchBatch(SEncoder* pEncoder, const SArray* pBlocks, int32_t* pBlockCount,
+                                      int64_t* pRowCount) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  size_t  itemCount = pBlocks == NULL ? 0 : taosArrayGetSize(pBlocks);
+  if (itemCount > STREAM_CALC_REQ_MAX_WIN_NUM || itemCount > INT32_MAX) return TSDB_CODE_INVALID_PARA;
+
+  TAOS_CHECK_EXIT(tEncodeU8(pEncoder, STREAM_READER_FETCH_BATCH_VERSION));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, (int32_t)itemCount));
+  for (size_t i = 0; i < itemCount; ++i) {
+    const SSDataBlock* pBlock = taosArrayGetP(pBlocks, i);
+    if (pBlock == NULL || pBlock->info.id.baseGId == 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+
+    const bool isEog = qIsMultiGroupEogBlock(pBlock);
+    if (!isEog && pBlock->info.rows <= 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+    TAOS_CHECK_EXIT(tEncodeU8(pEncoder, isEog ? STREAM_RUNNER_FETCH_EOG : STREAM_RUNNER_FETCH_DATA));
+    TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pBlock->info.id.baseGId));
+    if (isEog) {
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, NULL, 0));
+      continue;
+    }
+
+    int32_t blockSize = blockGetInternalEncodeSize(pBlock);
+    if (blockSize <= 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+    TAOS_CHECK_EXIT(tEncodeU32v(pEncoder, (uint32_t)blockSize));
+    if (pEncoder->data != NULL) {
+      if ((size_t)blockSize > TD_CODER_REMAIN_CAPACITY(pEncoder)) TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_RANGE);
+      int32_t actualLen = blockEncodeInternal(pBlock, (char*)TD_CODER_CURRENT(pEncoder), blockSize,
+                                              taosArrayGetSize(pBlock->pDataBlock));
+      if (actualLen != blockSize) TAOS_CHECK_EXIT(actualLen < 0 ? terrno : TSDB_CODE_INVALID_MSG);
+    }
+    pEncoder->pos += blockSize;
+    if (pBlockCount != NULL) ++*pBlockCount;
+    if (pRowCount != NULL) *pRowCount += pBlock->info.rows;
+  }
+
+_exit:
+  return code;
+}
+
+int32_t streamBuildGroupFetchRsp(const SArray* pBlocks, bool hasNext, void** ppData, size_t* pSize, int8_t precision) {
+  SEncoder encoder = {0};
+  void*    pBuffer = NULL;
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  blockCount = 0;
+  int64_t  rowCount = 0;
+
+  if (ppData == NULL || pSize == NULL) return TSDB_CODE_INVALID_PARA;
+  *ppData = NULL;
+  *pSize = 0;
+
+  tEncoderInit(&encoder, NULL, 0);
+  code = encodeReaderFetchBatch(&encoder, pBlocks, &blockCount, &rowCount);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+  if (encoder.pos > INT32_MAX - sizeof(SRetrieveTableRsp)) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
+  }
+  const int32_t payloadLen = (int32_t)encoder.pos;
+  const size_t  totalSize = sizeof(SRetrieveTableRsp) + (size_t)payloadLen;
+  tEncoderClear(&encoder);
+
+  pBuffer = rpcMallocCont(totalSize);
+  if (pBuffer == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  memset(pBuffer, 0, sizeof(SRetrieveTableRsp));
+  SRetrieveTableRsp* pRsp = pBuffer;
+  pRsp->version = RETRIEVE_TABLE_RSP_VERSION;
+  pRsp->completed = hasNext ? 0 : 1;
+  pRsp->precision = precision;
+  pRsp->streamBlockType = STREAM_READER_FETCH_BATCH;
+  pRsp->payloadLen = htonl(payloadLen);
+  pRsp->compLen = htonl(payloadLen);
+  pRsp->numOfBlocks = htonl(blockCount);
+  pRsp->numOfRows = htobe64(rowCount);
+
+  tEncoderInit(&encoder, pRsp->data, payloadLen);
+  code = encodeReaderFetchBatch(&encoder, pBlocks, NULL, NULL);
+  if (code != TSDB_CODE_SUCCESS || encoder.pos != (size_t)payloadLen) {
+    if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  *ppData = pBuffer;
+  *pSize = totalSize;
+  pBuffer = NULL;
+
+_exit:
+  tEncoderClear(&encoder);
+  rpcFreeCont(pBuffer);
   return code;
 }

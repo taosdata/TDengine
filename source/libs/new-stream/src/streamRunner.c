@@ -50,7 +50,12 @@ struct SStreamRunnerGroupedContinuation {
   int32_t                 nextGroupIdx;
   bool                    retained;
   bool                    inUse;
+  bool                    runnerEogBatch;
+  bool                    eofPending;
+  SStreamRunnerFetchBatch pending;  // owns at most one DATA block and its lineage, never EOGs
 };
+
+#define STREAM_RUNNER_EOG_BATCH_WORK_US 1000
 
 typedef enum {
   STREAM_RUNNER_ACQUIRE_BRAND_NEW = 0,
@@ -399,7 +404,7 @@ _exit:
   return code;
 }
 
-static void stRunnerCleanupCalcRequestRuntime(SStreamRuntimeFuncInfo* pRuntime);
+static void stRunnerCleanupCalcRequestRuntime(SStreamRuntimeInfo* pRuntimeInfo);
 
 static void stRunnerDestroyGroupedContinuation(SStreamRunnerTaskExecution* pExec) {
   if (pExec == NULL || pExec->pGroupedContinuation == NULL) return;
@@ -411,12 +416,13 @@ static void stRunnerDestroyGroupedContinuation(SStreamRunnerTaskExecution* pExec
   pContinuation->inUse = false;
   tSimpleHashCleanup(pContinuation->pSettledGids);
   pContinuation->pSettledGids = NULL;
+  tDestroySStreamRunnerFetchBatch(&pContinuation->pending);
   taosMemoryFree(pContinuation);
   pExec->pGroupedContinuation = NULL;
 }
 
 static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
-  stRunnerCleanupCalcRequestRuntime(&pRuntime->funcInfo);
+  stRunnerCleanupCalcRequestRuntime(pRuntime);
   tDestroyStRtFuncInfo(&pRuntime->funcInfo);
 }
 
@@ -1775,7 +1781,11 @@ static void stRunnerClearPublishedGroupAliases(SStreamRuntimeFuncInfo* pRuntime)
   tClearStreamCurrentGroupRead(pRuntime);
 }
 
-static void stRunnerCleanupCalcRequestRuntime(SStreamRuntimeFuncInfo* pRuntime) {
+static void stRunnerCleanupCalcRequestRuntime(SStreamRuntimeInfo* pRuntimeInfo) {
+  SStreamRuntimeFuncInfo* pRuntime = &pRuntimeInfo->funcInfo;
+  qClearStreamFetchRuntime(pRuntimeInfo);
+  tDestroyStreamFetchContext(&pRuntimeInfo->pPreparedFetchContext);
+  tDestroyStreamContextFrames(&pRuntimeInfo->pContextFrames);
   if (pRuntime->isMultiGroupCalc) {
     stRunnerClearPublishedGroupAliases(pRuntime);
     qCleanupExternalWindowGroupCtx(pRuntime->pGroupCalcInfos);
@@ -1850,26 +1860,44 @@ _exit:
   return code;
 }
 
-static int32_t stRunnerInstallCalcRequestRuntime(SStreamRuntimeFuncInfo* pRuntime, SSTriggerCalcRequest* pReq,
-                                                 int32_t* pTotalParams) {
-  if (pRuntime == NULL || pReq == NULL || pTotalParams == NULL || !pReq->brandNew || !pReq->isMultiGroupCalc) {
+static int32_t stRunnerInstallCalcRequestRuntime(SStreamRunnerTask* pTask, SStreamRuntimeInfo* pRuntimeInfo,
+                                                 SSTriggerCalcRequest* pReq, int32_t* pTotalParams) {
+  if (pRuntimeInfo == NULL || pReq == NULL || pTotalParams == NULL || !pReq->brandNew || !pReq->isMultiGroupCalc) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  SStreamRuntimeFuncInfo* pRuntime = &pRuntimeInfo->funcInfo;
   uint64_t total = stRunnerCountRequestWindows(pReq);
   if (total == 0 || total > STREAM_CALC_REQ_MAX_WIN_NUM) return TSDB_CODE_INVALID_PARA;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pReq->pAncestorContext != NULL) {
+    code = tPrepareStreamAncestorParamIndex(pReq->pAncestorContext);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
 
-  stRunnerCleanupCalcRequestRuntime(pRuntime);
+  stRunnerCleanupCalcRequestRuntime(pRuntimeInfo);
+  TSWAP(pRuntimeInfo->pContextFrames, pReq->pContextFrames);
   TSWAP(pRuntime->pGroupCalcInfos, pReq->pGroupCalcInfos);
   TSWAP(pRuntime->pGroupReadInfos, pReq->pGroupReadInfos);
   TSWAP(pRuntime->pContextPolicy, pReq->pContextPolicy);
   TSWAP(pRuntime->pAncestorContext, pReq->pAncestorContext);
   pRuntime->isMultiGroupCalc = true;
   pRuntime->stbPartByTbname = pReq->stbPartByTbname;
-  int32_t code = stRunnerBuildCanonicalGroupOrder(pRuntime->pGroupCalcInfos, &pRuntime->pGroupCalcOrder);
+  pRuntime->addOptions = pTask->addOptions;
+  code = stRunnerBuildCanonicalGroupOrder(pRuntime->pGroupCalcInfos, &pRuntime->pGroupCalcOrder);
   if (code != TSDB_CODE_SUCCESS) return code;
   stRunnerClearPublishedGroupAliases(pRuntime);
   *pTotalParams = (int32_t)total;
+  if (BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN) && pRuntime->pGroupReadInfos != NULL &&
+      pRuntime->pGroupCalcInfos != NULL && tSimpleHashGetSize(pRuntime->pGroupReadInfos) > 0 &&
+      !stRunnerIsLegacyCreateOnlyRequest(pReq) && !stRunnerIsCanonicalCreateOnlyRequest(pReq)) {
+    code = tPrepareStreamFetchContext(pRuntime, pRuntimeInfo->pContextFrames, &pRuntimeInfo->pPreparedFetchContext);
+    if (code == TSDB_CODE_OUT_OF_MEMORY) {
+      tDestroyStreamFetchContext(&pRuntimeInfo->pPreparedFetchContext);
+      code = TSDB_CODE_SUCCESS;
+    }
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2056,6 +2084,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   blockDataDestroy(pReq->pOutBlock);
   pReq->pOutBlock = NULL;
   tDestroySStreamRunnerFetchFrame(&pReq->outFrame);
+  tDestroySStreamRunnerFetchBatch(&pReq->outBatch);
   pReq->outFinished = true;
   const bool legacyCreateOnly = stRunnerIsLegacyCreateOnlyRequest(pReq);
   const bool canonicalCreateOnly = stRunnerIsCanonicalCreateOnlyRequest(pReq);
@@ -2107,21 +2136,28 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   }
   if (pReq->brandNew && pReq->isMultiGroupCalc && !pTask->topTask) {
     STREAM_CHECK_RET_GOTO(stRunnerCreateGroupedContinuation(pExec));
+    pExec->pGroupedContinuation->runnerEogBatch = pReq->runnerEogBatch;
   }
+  STREAM_CHECK_CONDITION_GOTO(
+      pExec->pGroupedContinuation != NULL && pExec->pGroupedContinuation->runnerEogBatch != pReq->runnerEogBatch,
+      TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_CONDITION_GOTO(!pReq->brandNew && pExec->pGroupedContinuation != NULL && !pReq->isMultiGroupCalc,
                               TSDB_CODE_INVALID_PARA);
   int32_t winNum = 0;
   if (pReq->isMultiGroupCalc) {
     if (pReq->brandNew) {
-      STREAM_CHECK_RET_GOTO(stRunnerInstallCalcRequestRuntime(&pExec->runtimeInfo.funcInfo, pReq, &winNum));
+      STREAM_CHECK_RET_GOTO(stRunnerInstallCalcRequestRuntime(pTask, &pExec->runtimeInfo, pReq, &winNum));
     } else {
       STREAM_CHECK_CONDITION_GOTO(
           !pExec->runtimeInfo.funcInfo.isMultiGroupCalc || pExec->runtimeInfo.funcInfo.pGroupCalcInfos == NULL,
           TSDB_CODE_INVALID_PARA);
     }
   } else {
+    if (pReq->pAncestorContext != NULL) {
+      STREAM_CHECK_RET_GOTO(tPrepareStreamAncestorParamIndex(pReq->pAncestorContext));
+    }
     if (pReq->brandNew && pExec->runtimeInfo.funcInfo.isMultiGroupCalc) {
-      stRunnerCleanupCalcRequestRuntime(&pExec->runtimeInfo.funcInfo);
+      stRunnerCleanupCalcRequestRuntime(&pExec->runtimeInfo);
     }
     tDestroyStreamContextPolicy(&pExec->runtimeInfo.funcInfo.pContextPolicy);
     tDestroyStreamAncestorContext(&pExec->runtimeInfo.funcInfo.pAncestorContext);
@@ -2330,11 +2366,23 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     SStreamRunnerGroupedContinuation* pContinuation = pExec->pGroupedContinuation;
     STREAM_CHECK_CONDITION_GOTO(pContinuation == NULL || pContinuation->pSettledGids == NULL || !pContinuation->inUse,
                                 TSDB_CODE_INVALID_PARA);
-    bool finished = false;
+    const bool    batchMode = pContinuation->runnerEogBatch;
+    const int64_t collectStartUs = streamTaskGetMonotonicUs();
+    if (batchMode && pContinuation->pending.pBlock != NULL) {
+      pReq->outBatch = pContinuation->pending;
+      memset(&pContinuation->pending, 0, sizeof(pContinuation->pending));
+    }
+    bool finished = pContinuation->eofPending;
     while (!finished) {
       if (stRunnerTaskWaitQuit(pTask)) {
         ST_TASK_ILOG("[runner calc]quit, skip grouped continuation. status:%d", pTask->task.status);
+        tDestroySStreamRunnerFetchBatch(&pReq->outBatch);
         goto end;
+      }
+      if (batchMode && (pReq->outBatch.pBlock != NULL || taosArrayGetSize(pReq->outBatch.pEogGids) > 0) &&
+          (taosArrayGetSize(pReq->outBatch.pEogGids) >= STREAM_RUNNER_EOG_BATCH_MAX ||
+           streamTaskGetMonotonicUs() - collectStartUs >= STREAM_RUNNER_EOG_BATCH_WORK_US)) {
+        break;
       }
 
       SSDataBlock*         pBlock = NULL;
@@ -2364,6 +2412,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
                 tSimpleHashGetSize(pContinuation->pSettledGids) !=
                     taosArrayGetSize(pExec->runtimeInfo.funcInfo.pGroupCalcOrder),
             TSDB_CODE_INVALID_PARA);
+        if (batchMode) pContinuation->eofPending = true;
         break;
       }
       STREAM_CHECK_CONDITION_GOTO(finished, TSDB_CODE_INVALID_PARA);
@@ -2391,6 +2440,15 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
         pContinuation->pActiveGroup = NULL;
         pContinuation->activeGid = 0;
         stRunnerClearSettlementAliases(&pExec->runtimeInfo.funcInfo);
+        if (batchMode) {
+          if (pReq->outBatch.pEogGids == NULL) {
+            pReq->outBatch.pEogGids = taosArrayInit(STREAM_RUNNER_EOG_BATCH_MAX, sizeof(uint64_t));
+            STREAM_CHECK_NULL_GOTO(pReq->outBatch.pEogGids, terrno);
+          }
+          uint64_t gid = (uint64_t)expectedGid;
+          STREAM_CHECK_NULL_GOTO(taosArrayPush(pReq->outBatch.pEogGids, &gid), terrno);
+          continue;
+        }
         pReq->outFrame.type = STREAM_RUNNER_FETCH_EOG;
         pReq->outFrame.baseGId = (uint64_t)expectedGid;
         pReq->outFinished = false;
@@ -2413,6 +2471,19 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
           .pLineage = pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx,
       };
       STREAM_CHECK_RET_GOTO(tValidateSStreamRunnerFetchFrame(&frame, pBlock->info.rows));
+      if (batchMode) {
+        bool deferData = pReq->outBatch.pBlock != NULL || taosArrayGetSize(pReq->outBatch.pEogGids) > 0;
+        SStreamRunnerFetchBatch* pOutput = deferData ? &pContinuation->pending : &pReq->outBatch;
+        // Executor blocks and lineage may be overwritten by the next call or EOG settlement.
+        pOutput->dataFrame.pLineage = taosArrayDup(frame.pLineage, NULL);
+        STREAM_CHECK_NULL_GOTO(pOutput->dataFrame.pLineage, terrno);
+        STREAM_CHECK_RET_GOTO(createOneDataBlock(pBlock, true, &pOutput->pBlock));
+        pOutput->dataFrame.type = STREAM_RUNNER_FETCH_DATA;
+        pOutput->dataFrame.baseGId = (uint64_t)expectedGid;
+        stRunnerRecordReadyWindow(pTask, requestStartMonoUs, true);
+        if (deferData) break;
+        continue;
+      }
       pReq->outFrame.pLineage = taosArrayDup(frame.pLineage, NULL);
       STREAM_CHECK_NULL_GOTO(pReq->outFrame.pLineage, terrno);
       STREAM_CHECK_RET_GOTO(createOneDataBlock(pBlock, true, (SSDataBlock**)&pReq->pOutBlock));
@@ -2427,6 +2498,14 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       goto end;
     }
 
+    if (batchMode && (pReq->outBatch.pBlock != NULL || taosArrayGetSize(pReq->outBatch.pEogGids) > 0)) {
+      pReq->outFinished = false;
+      pReq->execId = pExec->runtimeInfo.execId;
+      STREAM_CHECK_RET_GOTO(stRunnerTaskRetainExec(pTask, pExec));
+      retainMultiGroupRuntime = true;
+      if (pReq->outBatch.pBlock != NULL) stRunnerRecordOutput(pTask, pReq->outBatch.pBlock->info.rows, 1);
+      goto end;
+    }
     pReq->execId = pExec->runtimeInfo.execId;
     multiGroupTreeReset = true;
     STREAM_CHECK_RET_GOTO(stRunnerResetTaskExec(pTask, pExec, true));
@@ -2689,7 +2768,7 @@ _cleanup:
     pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx = NULL;
     if (pTask->output.outTblType != TSDB_NORMAL_TABLE) pExec->tbname[0] = '\0';
     stRunnerDestroyGroupedContinuation(pExec);
-    stRunnerCleanupCalcRequestRuntime(&pExec->runtimeInfo.funcInfo);
+    stRunnerCleanupCalcRequestRuntime(&pExec->runtimeInfo);
   }
   if (pSettledGids != NULL) tSimpleHashCleanup(pSettledGids);
   statsNowMonoUs = streamTaskGetMonotonicUs();
@@ -2706,6 +2785,7 @@ _cleanup:
     blockDataDestroy(pReq->pOutBlock);
     pReq->pOutBlock = NULL;
     tDestroySStreamRunnerFetchFrame(&pReq->outFrame);
+    tDestroySStreamRunnerFetchBatch(&pReq->outBatch);
     pReq->outFinished = true;
     ST_TASK_ELOG("[runner calc]failed, gid:%" PRId64 ", lino:%d code:%s", pReq->gid, lino, tstrerror(code));
     if (code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
@@ -2717,6 +2797,17 @@ _cleanup:
   } else {
     ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
   }
+  return code;
+}
+
+int32_t stRunnerTaskAbortFetch(SStreamRunnerTask* pTask, int32_t execId) {
+  SStreamRunnerTaskExecution* pExec = NULL;
+  int32_t code = stRunnerTaskAcquireExec(pTask, execId, STREAM_RUNNER_ACQUIRE_RETAINED_CONTINUATION, &pExec);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stRunnerResetTaskExec(pTask, pExec, true);
+  stRunnerDestroyGroupedContinuation(pExec);
+  stRunnerCleanupCalcRequestRuntime(&pExec->runtimeInfo);
+  stRunnerTaskReleaseExec(pTask, pExec);
   return code;
 }
 

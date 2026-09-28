@@ -103,6 +103,29 @@ class TestNestedWindowHistory:
         """
         self._run_isolated(self._data_root_fill_history_first)
 
+    def test_data_root_no_trows_batches_match_history(self):
+        """Nested history: no-trows batches match realtime exactly.
+
+        1. Create a realtime data-root state/count stream without trows.
+        2. Write one group in twelve batches spanning two ancestor states.
+        3. Check every two-row leaf and its frozen ancestor start.
+        4. Match FILL_HISTORY and FILL_HISTORY_FIRST to realtime.
+        5. Append a complete leaf and check each history-to-realtime handoff.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowHistory
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-09-10 OpenAI Added no-trows same-group batch regression
+        """
+        self._run_isolated(self._data_root_no_trows_batches)
+
     def test_history_eof_does_not_close_ancestor(self):
         """Nested history: scan EOF does not close an open ancestor scope.
 
@@ -369,6 +392,64 @@ class TestNestedWindowHistory:
             self._data_result_sql(db, "r_history"), expected
         )
 
+    def _data_root_no_trows_batches(self):
+        db = "nw_hist_data_no_trows"
+        base_ts = 1756688400000
+        tdSql.executes(
+            [
+                f"create database {db} vgroups 1",
+                f"create table {db}.src (ts timestamp,scope varchar(8),v int)",
+                self._data_range_count_stream(db, "s_rt", "r_rt"),
+            ]
+        )
+        self._wait_stream_running("s_rt")
+
+        for start in range(0, 48, 4):
+            rows = " ".join(
+                f"({base_ts + offset * 1000},"
+                f"'{('A' if offset < 24 else 'B')}',{offset + 1})"
+                for offset in range(start, start + 4)
+            )
+            tdSql.execute(f"insert into {db}.src values {rows}")
+
+        expected = [
+            (
+                base_ts + offset * 1000,
+                offset + 1,
+                offset + 2,
+                2,
+                base_ts + (0 if offset < 24 else 24) * 1000,
+            )
+            for offset in range(0, 48, 2)
+        ]
+        result_sqls = [self._data_epoch_result_sql(db, "r_rt")]
+        self._wait_stable_exact_rows(result_sqls[0], expected)
+
+        history_streams = [
+            ("s_history", "r_history", f"fill_history({base_ts})"),
+            ("s_history_first", "r_history_first", f"fill_history_first({base_ts})"),
+        ]
+        for stream, output, option in history_streams:
+            tdSql.execute(
+                self._data_range_count_stream(db, stream, output, option)
+            )
+            self._wait_stream_running(stream)
+            self._wait_history_finished(db, stream)
+            result_sql = self._data_epoch_result_sql(db, output)
+            self._wait_stable_exact_rows(result_sql, expected)
+            result_sqls.append(result_sql)
+
+        tdSql.execute(
+            f"insert into {db}.src values "
+            f"({base_ts + 48 * 1000},'B',49) "
+            f"({base_ts + 49 * 1000},'B',50)"
+        )
+        expected.append(
+            (base_ts + 48 * 1000, 49, 50, 2, base_ts + 24 * 1000)
+        )
+        for result_sql in result_sqls:
+            self._wait_stable_exact_rows(result_sql, expected)
+
     def _data_count_stream(self, db, name, output, option=None):
         options = f" stream_options({option})" if option else ""
         return (
@@ -380,10 +461,28 @@ class TestNestedWindowHistory:
             "from %%trows"
         )
 
+    def _data_range_count_stream(self, db, name, output, option=None):
+        options = f" stream_options({option})" if option else ""
+        return (
+            f"create stream {db}.{name} window ("
+            "state_window(scope) extend(1) as w_outer,count_window(2,2)) "
+            f"from {db}.src partition by tbname{options} into {db}.{output} "
+            "(leaf_start,first_v,last_v,members,outer_start) as "
+            "select _twstart,first(v),last(v),count(*),w_outer._twstart "
+            "from %%tbname where ts >= _twstart and ts <= _twend"
+        )
+
     def _data_result_sql(self, db, output):
         return (
             "select leaf_start,first_v,last_v,members,outer_start "
             f"from {db}.{output} order by leaf_start"
+        )
+
+    def _data_epoch_result_sql(self, db, output):
+        return (
+            "select cast(leaf_start as bigint),first_v,last_v,members,"
+            f"cast(outer_start as bigint) from {db}.{output} "
+            "order by leaf_start"
         )
 
     def _history_eof_does_not_close_ancestor(self):
@@ -624,6 +723,7 @@ class TestNestedWindowHistory:
         physical = self._prepare_cross_database_virtual_source()
         tdSql.execute(self._virtual_count_stream("s_rt", "r_rt"))
         self._wait_stream_running("s_rt")
+        self._wait_readers_running("s_rt", 4)
         for offset, table in enumerate(physical):
             tdSql.execute(
                 f"insert into nw_hist_phys.{table} values "
@@ -873,6 +973,31 @@ class TestNestedWindowHistory:
         tdLog.exit(
             f"streams did not reach Running in {self.RETRY} seconds: "
             f"{latest}"
+        )
+
+    def _wait_readers_running(self, stream, expected_count):
+        latest = []
+        for attempt in range(self.RETRY):
+            tdSql.query(
+                "select node_id,status,`message` "
+                "from information_schema.ins_stream_tasks "
+                f"where stream_name='{stream}' and type='Reader'"
+            )
+            latest = self._current_rows()
+            if (
+                len(latest) == expected_count
+                and len({row[0] for row in latest}) == expected_count
+                and all(row[1] == "Running" for row in latest)
+            ):
+                tdLog.info(f"reader terminal running rows: {latest!r}")
+                return
+            if any(row[1] == "Failed" for row in latest):
+                tdLog.exit(f"reader failed for {stream}: {latest!r}")
+            if attempt + 1 < self.RETRY:
+                time.sleep(1)
+        tdLog.exit(
+            f"readers did not reach Running in {self.RETRY} seconds for "
+            f"{stream}: {latest!r}"
         )
 
     def _wait_history_finished(self, db, stream):

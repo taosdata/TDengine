@@ -100,6 +100,7 @@ add_test(
 
 add_executable(streamWindowPlanTest "streamWindowPlanTest.cpp")
 DEP_ext_gtest(streamWindowPlanTest)
+DEP_ext_cppstub(streamWindowPlanTest)
 target_link_libraries(streamWindowPlanTest PRIVATE os util common nodes)
 add_test(NAME streamWindowPlanTest COMMAND streamWindowPlanTest)
 

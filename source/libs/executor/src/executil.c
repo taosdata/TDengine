@@ -797,8 +797,8 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
   for (int32_t i = 0; i < taosArrayGetSize(pIdWithValue); ++i) {
     STagDataEntry* entry      = (STagDataEntry*)taosArrayGet(pIdWithValue, i);
     SValueNode*    pValueNode = (SValueNode*)entry->pValueNode;
-    // num type may have different bytes length, use the smaller one
-    int32_t        bytes = TMIN(entry->bytes, pValueNode->node.resType.bytes);
+    // Integer values have been checked for representability in the TAG type.
+    int32_t bytes = entry->bytes;
 
     (void)memcpy(pStart, &entry->colId, sizeof(col_id_t));
     pStart += sizeof(col_id_t);
@@ -827,7 +827,12 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
             pStart, &pValueNode->datum.u, bytes);
           pStart += bytes;
           break;
-        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_FLOAT: {
+          float value = (float)pValueNode->datum.d;
+          (void)memcpy(pStart, &value, sizeof(value));
+          pStart += sizeof(value);
+          break;
+        }
         case TSDB_DATA_TYPE_DOUBLE:
           (void)memcpy(
             pStart, &pValueNode->datum.d, bytes);
@@ -835,11 +840,15 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
           break;
         case TSDB_DATA_TYPE_VARCHAR:
         case TSDB_DATA_TYPE_VARBINARY:
-        case TSDB_DATA_TYPE_NCHAR:
-          (void)memcpy(pStart,
-            varDataVal(pValueNode->datum.p), varDataLen(pValueNode->datum.p));
-          pStart += varDataLen(pValueNode->datum.p);
+        case TSDB_DATA_TYPE_NCHAR: {
+          // Match metadata keys without depending on a persisted plan's TAG width.
+          uint32_t len = varDataLen(pValueNode->datum.p);
+          memcpy(pStart, &len, sizeof(len));
+          pStart += sizeof(len);
+          memcpy(pStart, varDataVal(pValueNode->datum.p), len);
+          pStart += len;
           break;
+        }
         default:
           qError("unsupported tag data type %d in tag filter optimization",
             pValueNode->node.resType.type);
@@ -905,7 +914,10 @@ static int32_t genStableTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pConte
   QUERY_CHECK_CODE(code, lino, _end);
   for (int32_t i = 0; i < taosArrayGetSize(pIdWithVal); ++i) {
     STagDataEntry* pEntry = taosArrayGet(pIdWithVal, i);
-    len += sizeof(col_id_t) + pEntry->bytes;
+    SValueNode*    pValue = (SValueNode*)pEntry->pValueNode;
+    len +=
+        sizeof(col_id_t) +
+        (IS_VAR_DATA_TYPE(pValue->node.resType.type) ? sizeof(uint32_t) + varDataLen(pValue->datum.p) : pEntry->bytes);
   }
   code = buildTagDataEntryKey(pIdWithVal, &payload, len);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2328,6 +2340,18 @@ _end:
   return code;
 }
 
+static bool tagFilterIntegerFits(int8_t tagType, const SValueNode* pValue) {
+  int8_t valueType = pValue->node.resType.type;
+  if ((!IS_INTEGER_TYPE(tagType) && tagType != TSDB_DATA_TYPE_BOOL) || !IS_INTEGER_TYPE(valueType)) return false;
+  if (IS_UNSIGNED_NUMERIC_TYPE(valueType)) {
+    return pValue->datum.u <= (uint64_t)tDataTypes[tagType].maxValue;
+  }
+  if (IS_UNSIGNED_NUMERIC_TYPE(tagType)) {
+    return pValue->datum.i >= 0 && (uint64_t)pValue->datum.i <= (uint64_t)tDataTypes[tagType].maxValue;
+  }
+  return pValue->datum.i >= tDataTypes[tagType].minValue && pValue->datum.i <= tDataTypes[tagType].maxValue;
+}
+
 static EDealRes canOptimizeTagCondFilter(SNode* pTagCond, void* pContext) {
   if (NULL == pTagCond) {
     *(bool*)pContext = false;
@@ -2339,7 +2363,30 @@ static EDealRes canOptimizeTagCondFilter(SNode* pTagCond, void* pContext) {
   }
   if (nodeType(pTagCond) == QUERY_NODE_OPERATOR &&
     ((SOperatorNode*)pTagCond)->opType == OP_TYPE_EQUAL) {
-    return DEAL_RES_CONTINUE;
+    SOperatorNode* pOp = (SOperatorNode*)pTagCond;
+    SNode*         pColumn = nodeType(pOp->pLeft) == QUERY_NODE_COLUMN ? pOp->pLeft : pOp->pRight;
+    SNode*         pOther = pColumn == pOp->pLeft ? pOp->pRight : pOp->pLeft;
+    if (nodeType(pColumn) == QUERY_NODE_COLUMN && nodeType(pOther) == QUERY_NODE_FUNCTION &&
+        fmIsStreamPesudoColVal(((SFunctionNode*)pOther)->funcId)) {
+      return DEAL_RES_CONTINUE;  // Recheck after replacing the placeholder with its value.
+    }
+    if (nodeType(pColumn) == QUERY_NODE_COLUMN && nodeType(pOther) == QUERY_NODE_VALUE) {
+      SDataType   type = ((SColumnNode*)pColumn)->node.resType;
+      SValueNode* pValue = (SValueNode*)pOther;
+      // Complete-map misses are only meaningful for the metadata key representation.
+      // Encoding conversions and tolerance-based floating equality need ordinary filtering.
+      if (!pValue->isNull &&
+          (tagFilterIntegerFits(type.type, pValue) ||
+           (type.type == pValue->node.resType.type &&
+            (type.type == TSDB_DATA_TYPE_BOOL || type.type == TSDB_DATA_TYPE_TIMESTAMP ||
+             type.type == TSDB_DATA_TYPE_VARCHAR || type.type == TSDB_DATA_TYPE_VARBINARY ||
+             type.type == TSDB_DATA_TYPE_NCHAR))) &&
+          (!IS_VAR_DATA_TYPE(type.type) || varDataLen(pValue->datum.p) <= type.bytes - VARSTR_HEADER_SIZE)) {
+        return DEAL_RES_CONTINUE;
+      }
+    }
+    *(bool*)pContext = false;
+    return DEAL_RES_END;
   }
   if (nodeType(pTagCond) == QUERY_NODE_LOGIC_CONDITION &&
     ((SLogicConditionNode*)pTagCond)->condType == LOGIC_COND_TYPE_AND) {
@@ -2400,7 +2447,6 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       nodesWalkExpr(pTagCond, canOptimizeTagCondFilter, (void*)&canCacheTagEqCondFilter);
     }
     if (canCacheTagEqCondFilter) {
-      qDebug("%s, stable tag filter condition can be optimized", idstr);
       if (((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
         SNode* tmp = NULL;
         code = nodesCloneNode((SNode*)pTagCond, &tmp);
@@ -2414,13 +2460,19 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
           code = ctx.code;
           goto end;
         }
-        code = genStableTagFilterDigest(tmp, &context);
+        nodesWalkExpr(tmp, canOptimizeTagCondFilter, &canCacheTagEqCondFilter);
+        if (canCacheTagEqCondFilter) {
+          code = genStableTagFilterDigest(tmp, &context);
+        }
         nodesDestroyNode(tmp);
       } else {
         code = genStableTagFilterDigest(pTagCond, &context);
       }
       QUERY_CHECK_CODE(code, lino, end);
+    }
 
+    if (canCacheTagEqCondFilter) {
+      qDebug("%s, stable tag filter condition can be optimized", idstr);
       code = buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
       QUERY_CHECK_CODE(code, lino, end);
       code = pStorageAPI->metaFn.getStableCachedTableList(pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
@@ -2479,8 +2531,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       }
       goto end;
     } else {
-      qDebug("suid:%" PRIu64 
-        ", failed to get table uid list from cache", pScanNode->suid);
+      qDebug("suid:%" PRIu64 ", failed to get table uid list from cache", pScanNode->suid);
     }
 
     if (!pTagCond) {  // no tag filter condition exists, let's fetch all tables of this super table
@@ -6369,6 +6420,16 @@ _exit:
 #define STREAM_TASK_REPLICA_NUM 5
 #define STREAM_TASK_DEPLOY_NUM 3
 
+bool streamCanForwardRunnerContext(const SStreamRuntimeInfo* pRuntime, const SStreamRuntimeFuncInfo* pInfo,
+                                   int32_t msgType, bool reset) {
+  if (pRuntime == NULL || pInfo == NULL || msgType != TDMT_STREAM_FETCH_FROM_RUNNER || !reset) return false;
+  const SStreamRuntimeFuncInfo* pCanonical = &pRuntime->funcInfo;
+  return pCanonical->isMultiGroupCalc && pInfo->isMultiGroupCalc && pInfo->pGroupCalcInfos != NULL &&
+         pInfo->pGroupCalcInfos == pCanonical->pGroupCalcInfos &&
+         pInfo->pGroupReadInfos == pCanonical->pGroupReadInfos && pInfo->pContextPolicy == pCanonical->pContextPolicy &&
+         pInfo->pAncestorContext == pCanonical->pAncestorContext;
+}
+
 int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStreamRuntimeFuncInfo* pDst) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -6416,6 +6477,9 @@ int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStream
     SStreamAncestorParamContext* pParam = taosArrayGet(pDst->pAncestorContext->pParamContexts, 0);
     QUERY_CHECK_NULL(pParam, code, lino, _exit, TSDB_CODE_INVALID_PARA);
     pParam->paramIndex = 0;
+    tSimpleHashCleanup(pDst->pAncestorContext->pParamIndex);
+    pDst->pAncestorContext->pParamIndex = NULL;
+    TAOS_CHECK_EXIT(tPrepareStreamAncestorParamIndex(pDst->pAncestorContext));
   }
   TAOS_CHECK_EXIT(tAdmitStreamContext(pDst->pContextPolicy, pDst->pAncestorContext,
                                       pDst->pContextPolicy != NULL || pDst->pAncestorContext != NULL));
@@ -6444,6 +6508,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   int32_t                innerIdx = 0;
   SExecTaskInfo*         pTaskInfo = ctx->pTaskInfo;
   bool                   needStreamPesudoFuncVals = false;
+  bool                   forwardContext = false;
   SStreamRuntimeFuncInfo rtInfo = {0};
 
   if (IS_STREAM_MODE(pTaskInfo)) {
@@ -6468,7 +6533,9 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     req.queryId = pSource->clientId;
     // Use deterministic execId from stream runtime (unique per reader task execution)
     req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
-    if (nodeType(pRes) == QUERY_NODE_REMOTE_TABLE) {
+    forwardContext =
+        streamCanForwardRunnerContext(pTaskInfo->pStreamRuntimeInfo, pStream, pSource->fetchMsgType, reset);
+    if (forwardContext || nodeType(pRes) == QUERY_NODE_REMOTE_TABLE) {
       req.pStRtFuncInfo = pStream;
     } else {
       code = buildStreamRunnerFetchRtInfo(pStream, &rtInfo);
@@ -6483,23 +6550,30 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     subQIdx = (subQIdx - innerIdx) / STREAM_TASK_DEPLOY_NUM;
   }
 
-  int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals, false);
-  if (msgSize < 0) {
-    code = msgSize;
-    goto _end;
-  }
+  int32_t msgSize = 0;
+  void*   msg = NULL;
+  if (forwardContext) {
+    code = tBuildStreamRunnerFetchReq(&req, pTaskInfo->pStreamRuntimeInfo->pContextFrames, &msg, &msgSize);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals, false);
+    if (msgSize < 0) {
+      code = msgSize;
+      goto _end;
+    }
 
-  void* msg = taosMemoryCalloc(1, msgSize);
-  if (NULL == msg) {
-    code = terrno;
-    goto _end;
-  }
+    msg = taosMemoryCalloc(1, msgSize);
+    if (NULL == msg) {
+      code = terrno;
+      goto _end;
+    }
 
-  msgSize = tSerializeSResFetchReq(msg, msgSize, &req, needStreamPesudoFuncVals, false);
-  if (msgSize < 0) {
-    taosMemoryFree(msg);
-    code = msgSize;
-    goto _end;
+    msgSize = tSerializeSResFetchReq(msg, msgSize, &req, needStreamPesudoFuncVals, false);
+    if (msgSize < 0) {
+      taosMemoryFree(msg);
+      code = msgSize;
+      goto _end;
+    }
   }
 
   qDebug("%s scl build fetch msg and send to nodeId:%d, ep:%s, clientId:0x%" PRIx64 " taskId:0x%" PRIx64

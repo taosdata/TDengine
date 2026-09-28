@@ -41,6 +41,7 @@ class PlannerTestBase : public testing::Test {
                                 FLogicPlanHook after);
   void    runFullPlan(const std::string& sql, const std::function<void(const SQueryPlan*)>& inspect);
   void    runStreamCalc(const std::string& sql);
+  void runCreateStream(const std::string& sql, const std::function<void(const SQueryPlan&, const SArray*)>& check = {});
   bool    findPlanNode(const std::string& nodeName) const;
   int32_t countPlanNode(const std::string& nodeName) const;
   bool    planContains(const std::string& text) const;
@@ -55,6 +56,7 @@ class PlannerTestBase : public testing::Test {
   bool    planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const;
   bool    exchangeSubplansContain(const std::string& nodeName) const;
   bool    aggOutputsMatchFuncs() const;
+  void    checkHashJoins(const std::function<void(const SHashJoinPhysiNode&)>& check) const;
   // stmt mode APIs
   void prepare(const std::string& sql);
   void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx);

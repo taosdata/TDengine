@@ -17,9 +17,14 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <future>
+#include <iostream>
+
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -32,6 +37,10 @@
 #include "streamRunner.h"
 #include "stub.h"
 #include "tmsg.h"
+
+#include "../../../common/test/readerFetchBenchmarkTest.h"
+
+using reader_fetch_benchmark::ReaderFetchLayout;
 
 extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
 
@@ -114,6 +123,301 @@ TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysical
     taosMemoryFree(spec.pCalcMappings);
     gExternalReaderPlan = nullptr;
   }
+}
+
+SSDataBlock *makeReaderFetchDataBlock(uint64_t baseGId, int32_t value) {
+  SSDataBlock *pBlock = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&pBlock));
+  if (pBlock == nullptr) return nullptr;
+
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(pBlock, &column));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, blockDataEnsureCapacity(pBlock, 1));
+  auto *pColumn = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  EXPECT_NE(nullptr, pColumn);
+  if (pColumn == nullptr ||
+      colDataSetVal(pColumn, 0, reinterpret_cast<const char *>(&value), false) != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return nullptr;
+  }
+  pBlock->info.rows = 1;
+  pBlock->info.id.groupId = baseGId;
+  pBlock->info.id.baseGId = baseGId;
+  return pBlock;
+}
+
+std::vector<uint8_t> encodeReaderFetchBatchFields(uint8_t version, int32_t itemCount, uint8_t type, uint64_t baseGId,
+                                                  const std::vector<uint8_t> &block) {
+  std::vector<uint8_t> bytes(sizeof(uint8_t) + sizeof(int32_t) + sizeof(uint8_t) + sizeof(uint64_t) + sizeof(uint32_t) +
+                             block.size());
+  SEncoder             encoder = {};
+  tEncoderInit(&encoder, bytes.data(), bytes.size());
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeU8(&encoder, version));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, itemCount));
+  if (itemCount > 0) {
+    EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeU8(&encoder, type));
+    EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, baseGId));
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              tEncodeBinary(&encoder, block.empty() ? nullptr : block.data(), static_cast<uint32_t>(block.size())));
+  }
+  bytes.resize(encoder.pos);
+  tEncoderClear(&encoder);
+  return bytes;
+}
+
+std::vector<uint8_t> encodeReaderFetchBlock(const SSDataBlock *pBlock) {
+  const int32_t blockLen = blockGetInternalEncodeSize(pBlock);
+  EXPECT_GT(blockLen, 0);
+  std::vector<uint8_t> bytes(blockLen);
+  EXPECT_EQ(blockLen, blockEncodeInternal(pBlock, reinterpret_cast<char *>(bytes.data()), bytes.size(),
+                                          taosArrayGetSize(pBlock->pDataBlock)));
+  return bytes;
+}
+
+void expectReaderFetchBatchDecodeFailure(const std::vector<uint8_t> &bytes) {
+  SArray *pItems = reinterpret_cast<SArray *>(static_cast<uintptr_t>(1));
+  EXPECT_NE(TSDB_CODE_SUCCESS,
+            tDecodeStreamReaderFetchBatch(bytes.empty() ? nullptr : bytes.data(), bytes.size(), &pItems));
+  EXPECT_EQ(nullptr, pItems);
+}
+
+TEST(StreamReaderFetchBatchTest, LegacyResponseDropsEogBetweenDataBlocks) {
+  SArray *pBlocks = taosArrayInit(3, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  SSDataBlock *pFirst = makeReaderFetchDataBlock(101, 11);
+  SSDataBlock *pEog = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&pEog));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, qSetMultiGroupEogBlock(pEog, 101));
+  SSDataBlock *pSecond = makeReaderFetchDataBlock(202, 22);
+  ASSERT_NE(nullptr, pFirst);
+  ASSERT_NE(nullptr, pSecond);
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pFirst));
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pEog));
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pSecond));
+
+  void  *pData = nullptr;
+  size_t size = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamBuildFetchRsp(pBlocks, true, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  ASSERT_NE(nullptr, pData);
+  const auto *pRsp = static_cast<const SRetrieveTableRsp *>(pData);
+  EXPECT_EQ(2, ntohl(pRsp->numOfBlocks));
+  EXPECT_EQ(2, be64toh(pRsp->numOfRows));
+
+  const char *pCursor = pRsp->data;
+  for (uint64_t expectedGid : {UINT64_C(101), UINT64_C(202)}) {
+    const int32_t blockLen = *reinterpret_cast<const int32_t *>(pCursor);
+    pCursor += INT_BYTES * 2;
+    SSDataBlock decoded = {};
+    const char *pEnd = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDecodeInternalBounded(&decoded, pCursor, blockLen, &pEnd));
+    EXPECT_EQ(expectedGid, decoded.info.id.baseGId);
+    EXPECT_EQ(pCursor + blockLen, pEnd);
+    blockDataFreeRes(&decoded);
+    pCursor = pEnd;
+  }
+  EXPECT_EQ(static_cast<const char *>(pData) + size, pCursor);
+
+  rpcFreeCont(pData);
+  blockDataDestroy(pFirst);
+  blockDataDestroy(pEog);
+  blockDataDestroy(pSecond);
+  taosArrayDestroy(pBlocks);
+}
+
+TEST(StreamReaderFetchBatchTest, DedicatedResponseRoundTripsDataEogData) {
+  SArray *pBlocks = taosArrayInit(3, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  SSDataBlock *pFirst = makeReaderFetchDataBlock(101, 11);
+  SSDataBlock *pEog = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&pEog));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, qSetMultiGroupEogBlock(pEog, 101));
+  SSDataBlock *pSecond = makeReaderFetchDataBlock(202, 22);
+  ASSERT_NE(nullptr, pFirst);
+  ASSERT_NE(nullptr, pSecond);
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pFirst));
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pEog));
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pSecond));
+
+  void  *pData = nullptr;
+  size_t size = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamBuildGroupFetchRsp(pBlocks, false, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  ASSERT_NE(nullptr, pData);
+  const auto *pRsp = static_cast<const SRetrieveTableRsp *>(pData);
+  EXPECT_EQ(3, pRsp->streamBlockType);
+  EXPECT_EQ(1, pRsp->completed);
+  EXPECT_EQ(2, ntohl(pRsp->numOfBlocks));
+  EXPECT_EQ(2, be64toh(pRsp->numOfRows));
+  const int32_t payloadLen = ntohl(pRsp->payloadLen);
+  EXPECT_EQ(size - sizeof(SRetrieveTableRsp), static_cast<size_t>(payloadLen));
+
+  SArray *pItems = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeStreamReaderFetchBatch(pRsp->data, payloadLen, &pItems));
+  ASSERT_NE(nullptr, pItems);
+  ASSERT_EQ(3, taosArrayGetSize(pItems));
+  const auto *pFirstItem = static_cast<const SStreamReaderFetchItem *>(taosArrayGet(pItems, 0));
+  const auto *pEndItem = static_cast<const SStreamReaderFetchItem *>(taosArrayGet(pItems, 1));
+  const auto *pSecondItem = static_cast<const SStreamReaderFetchItem *>(taosArrayGet(pItems, 2));
+  ASSERT_NE(nullptr, pFirstItem);
+  ASSERT_NE(nullptr, pEndItem);
+  ASSERT_NE(nullptr, pSecondItem);
+  EXPECT_EQ(STREAM_RUNNER_FETCH_DATA, pFirstItem->type);
+  ASSERT_NE(nullptr, pFirstItem->pBlock);
+  EXPECT_EQ(101U, pFirstItem->baseGId);
+  EXPECT_EQ(101U, pFirstItem->pBlock->info.id.baseGId);
+  const auto *pFirstColumn = static_cast<const SColumnInfoData *>(taosArrayGet(pFirstItem->pBlock->pDataBlock, 0));
+  ASSERT_NE(nullptr, pFirstColumn);
+  EXPECT_EQ(11, *reinterpret_cast<const int32_t *>(colDataGetData(pFirstColumn, 0)));
+  EXPECT_EQ(STREAM_RUNNER_FETCH_EOG, pEndItem->type);
+  EXPECT_EQ(101U, pEndItem->baseGId);
+  EXPECT_EQ(nullptr, pEndItem->pBlock);
+  EXPECT_EQ(STREAM_RUNNER_FETCH_DATA, pSecondItem->type);
+  ASSERT_NE(nullptr, pSecondItem->pBlock);
+  EXPECT_EQ(202U, pSecondItem->baseGId);
+  EXPECT_EQ(202U, pSecondItem->pBlock->info.id.baseGId);
+  const auto *pSecondColumn = static_cast<const SColumnInfoData *>(taosArrayGet(pSecondItem->pBlock->pDataBlock, 0));
+  ASSERT_NE(nullptr, pSecondColumn);
+  EXPECT_EQ(22, *reinterpret_cast<const int32_t *>(colDataGetData(pSecondColumn, 0)));
+
+  for (int32_t cut = 0; cut < payloadLen; ++cut) {
+    SArray *pTruncatedItems = nullptr;
+    EXPECT_NE(TSDB_CODE_SUCCESS, tDecodeStreamReaderFetchBatch(pRsp->data, cut, &pTruncatedItems));
+    EXPECT_EQ(nullptr, pTruncatedItems);
+  }
+
+  taosArrayDestroyEx(pItems, tDestroyStreamReaderFetchItem);
+  rpcFreeCont(pData);
+  blockDataDestroy(pFirst);
+  blockDataDestroy(pEog);
+  blockDataDestroy(pSecond);
+  taosArrayDestroy(pBlocks);
+}
+
+TEST(StreamReaderFetchBatchTest, DecoderRejectsMalformedEnvelopeAndItems) {
+  SSDataBlock *pBlock = makeReaderFetchDataBlock(101, 11);
+  ASSERT_NE(nullptr, pBlock);
+  const auto encodedBlock = encodeReaderFetchBlock(pBlock);
+  const auto valid =
+      encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, 1, STREAM_RUNNER_FETCH_DATA, 101, encodedBlock);
+
+  for (size_t cut = 0; cut < valid.size(); ++cut) {
+    expectReaderFetchBatchDecodeFailure(std::vector<uint8_t>(valid.begin(), valid.begin() + cut));
+  }
+
+  expectReaderFetchBatchDecodeFailure(encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION + 1, 1,
+                                                                   STREAM_RUNNER_FETCH_DATA, 101, encodedBlock));
+  expectReaderFetchBatchDecodeFailure(
+      encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, 1, 0, 101, encodedBlock));
+  expectReaderFetchBatchDecodeFailure(
+      encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, 1, 99, 101, encodedBlock));
+  expectReaderFetchBatchDecodeFailure(
+      encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, 1, STREAM_RUNNER_FETCH_DATA, 0, encodedBlock));
+  expectReaderFetchBatchDecodeFailure(
+      encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, 1, STREAM_RUNNER_FETCH_DATA, 202, encodedBlock));
+  expectReaderFetchBatchDecodeFailure(
+      encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, 1, STREAM_RUNNER_FETCH_DATA, 101, {}));
+  expectReaderFetchBatchDecodeFailure(
+      encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, 1, STREAM_RUNNER_FETCH_EOG, 101, {1}));
+  expectReaderFetchBatchDecodeFailure(
+      encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, INT32_MAX, 0, 0, {}));
+  expectReaderFetchBatchDecodeFailure(encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, -1, 0, 0, {}));
+
+  auto zeroRowsBlock = encodedBlock;
+  ASSERT_GE(zeroRowsBlock.size(), sizeof(int32_t) * 3);
+  const int32_t zeroRows = 0;
+  memcpy(zeroRowsBlock.data() + sizeof(int32_t) * 2, &zeroRows, sizeof(zeroRows));
+  expectReaderFetchBatchDecodeFailure(
+      encodeReaderFetchBatchFields(STREAM_READER_FETCH_BATCH_VERSION, 1, STREAM_RUNNER_FETCH_DATA, 101, zeroRowsBlock));
+
+  auto trailing = valid;
+  trailing.push_back(0);
+  expectReaderFetchBatchDecodeFailure(trailing);
+
+  auto shortBlock = valid;
+  ASSERT_GT(shortBlock.size(), encodedBlock.size());
+  const size_t blockLengthOffset = shortBlock.size() - encodedBlock.size() - 1;
+  ASSERT_LT(encodedBlock.size(), 128);
+  ASSERT_EQ(encodedBlock.size(), shortBlock[blockLengthOffset]);
+  --shortBlock[blockLengthOffset];
+  expectReaderFetchBatchDecodeFailure(shortBlock);
+
+  blockDataDestroy(pBlock);
+}
+
+TEST(StreamReaderFetchBatchTest, BuilderRejectsInvalidDataAndClearsOutputs) {
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&pBlock));
+  pBlock->info.id.baseGId = 101;
+  SArray *pBlocks = taosArrayInit(1, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pBlock));
+
+  void  *pData = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+  size_t size = 99;
+  EXPECT_NE(TSDB_CODE_SUCCESS, streamBuildGroupFetchRsp(pBlocks, true, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  EXPECT_EQ(nullptr, pData);
+  EXPECT_EQ(0, size);
+
+  blockDataDestroy(pBlock);
+  taosArrayDestroy(pBlocks);
+
+  pBlock = makeReaderFetchDataBlock(101, 11);
+  ASSERT_NE(nullptr, pBlock);
+  pBlock->info.id.baseGId = 0;
+  pBlocks = taosArrayInit(1, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pBlock));
+  pData = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+  size = 99;
+  EXPECT_NE(TSDB_CODE_SUCCESS, streamBuildGroupFetchRsp(pBlocks, true, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  EXPECT_EQ(nullptr, pData);
+  EXPECT_EQ(0, size);
+  blockDataDestroy(pBlock);
+  taosArrayDestroy(pBlocks);
+}
+
+TEST(StreamReaderFetchBatchTest, PureEogAndEofOnlyDoNotCountAsData) {
+  SSDataBlock *pEog = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&pEog));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, qSetMultiGroupEogBlock(pEog, 101));
+  SArray *pBlocks = taosArrayInit(1, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pEog));
+
+  void  *pData = nullptr;
+  size_t size = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamBuildGroupFetchRsp(pBlocks, true, &pData, &size, TSDB_TIME_PRECISION_MICRO));
+  const auto *pRsp = static_cast<const SRetrieveTableRsp *>(pData);
+  EXPECT_EQ(0, pRsp->completed);
+  EXPECT_EQ(0, ntohl(pRsp->numOfBlocks));
+  EXPECT_EQ(0, be64toh(pRsp->numOfRows));
+  EXPECT_EQ(0, be64toh(pRsp->numOfCols));
+  EXPECT_EQ(ntohl(pRsp->payloadLen), ntohl(pRsp->compLen));
+  SArray *pItems = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeStreamReaderFetchBatch(pRsp->data, ntohl(pRsp->payloadLen), &pItems));
+  ASSERT_EQ(1, taosArrayGetSize(pItems));
+  const auto *pItem = static_cast<const SStreamReaderFetchItem *>(taosArrayGet(pItems, 0));
+  ASSERT_NE(nullptr, pItem);
+  EXPECT_EQ(STREAM_RUNNER_FETCH_EOG, pItem->type);
+  EXPECT_EQ(101U, pItem->baseGId);
+  EXPECT_EQ(nullptr, pItem->pBlock);
+  taosArrayDestroyEx(pItems, tDestroyStreamReaderFetchItem);
+  rpcFreeCont(pData);
+
+  pData = nullptr;
+  size = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamBuildGroupFetchRsp(nullptr, false, &pData, &size, TSDB_TIME_PRECISION_NANO));
+  pRsp = static_cast<const SRetrieveTableRsp *>(pData);
+  EXPECT_EQ(1, pRsp->completed);
+  EXPECT_EQ(0, ntohl(pRsp->numOfBlocks));
+  EXPECT_EQ(0, be64toh(pRsp->numOfRows));
+  pItems = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeStreamReaderFetchBatch(pRsp->data, ntohl(pRsp->payloadLen), &pItems));
+  EXPECT_EQ(0, taosArrayGetSize(pItems));
+  taosArrayDestroyEx(pItems, tDestroyStreamReaderFetchItem);
+  rpcFreeCont(pData);
+
+  blockDataDestroy(pEog);
+  taosArrayDestroy(pBlocks);
 }
 
 void releaseStackReaderTask(void *pParam) {
@@ -204,6 +508,239 @@ void appendReaderBinding(SStreamRuntimeFuncInfo *runtime, int32_t vgId, int32_t 
   binding.scope.lineage.pScopes = taosArrayDup(context->leafIdentity.lineage.pScopes, nullptr);
   ASSERT_NE(binding.scope.lineage.pScopes, nullptr);
   ASSERT_NE(taosArrayPush(runtime->pAncestorContext->pReadScopeBindings, &binding), nullptr);
+}
+
+void extendReaderAncestorDepth(SStreamAncestorParamContext *context, int32_t ancestorDepth) {
+  ASSERT_NE(context, nullptr);
+  ASSERT_TRUE(ancestorDepth == 1 || ancestorDepth == 3);
+  while (taosArrayGetSize(context->leafIdentity.lineage.pScopes) < ancestorDepth) {
+    const int32_t    layer = taosArrayGetSize(context->leafIdentity.lineage.pScopes);
+    SScopeInstanceId scope = {};
+    scope.layerIndex = layer;
+    scope.triggerType = WINDOW_TYPE_COUNT;
+    scope.openingTs = layer * 100;
+    scope.nativeDiscriminator = layer + 20;
+    ASSERT_NE(taosArrayPush(context->leafIdentity.lineage.pScopes, &scope), nullptr);
+    SWindowAncestorSnapshot snapshot = {};
+    snapshot.layerIndex = layer;
+    snapshot.triggerType = WINDOW_TYPE_COUNT;
+    snapshot.values.window.start = layer * 100;
+    snapshot.values.window.end = layer * 100 + 99;
+    snapshot.values.window.duration = 100;
+    snapshot.values.window.rownum = 1;
+    ASSERT_NE(taosArrayPush(context->pSnapshots, &snapshot), nullptr);
+  }
+}
+
+SStreamRuntimeFuncInfo makeReaderFetchScaleRuntime(int32_t totalParams, int32_t nodeCount, ReaderFetchLayout layout,
+                                                   int32_t ancestorDepth) {
+  SStreamRuntimeFuncInfo runtime = {};
+  EXPECT_GT(totalParams, 0);
+  EXPECT_GT(nodeCount, 0);
+  EXPECT_TRUE(ancestorDepth == 1 || ancestorDepth == 3);
+  if (totalParams <= 0 || nodeCount <= 0 || (ancestorDepth != 1 && ancestorDepth != 3)) return runtime;
+
+  const auto    groups = reader_fetch_benchmark::makeScalePlan(totalParams, nodeCount, layout);
+  const int32_t groupCount = static_cast<int32_t>(groups.size());
+  runtime.isMultiGroupCalc = true;
+  runtime.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  runtime.sessionId = 33;
+  runtime.triggerType = STREAM_TRIGGER_COUNT;
+  runtime.isWindowTrigger = true;
+  runtime.precision = TSDB_TIME_PRECISION_MILLI;
+  runtime.pGroupCalcInfos = tSimpleHashInit(groupCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  runtime.pGroupReadInfos = tSimpleHashInit(nodeCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  runtime.pGroupCalcOrder = taosArrayInit(groupCount, sizeof(uint64_t));
+  EXPECT_NE(runtime.pGroupCalcInfos, nullptr);
+  EXPECT_NE(runtime.pGroupReadInfos, nullptr);
+  EXPECT_NE(runtime.pGroupCalcOrder, nullptr);
+  tSimpleHashSetFreeFp(runtime.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  tSimpleHashSetFreeFp(runtime.pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
+
+  std::vector<SArray *> nodeReads(nodeCount, nullptr);
+  for (int32_t node = 0; node < nodeCount; ++node) {
+    nodeReads[node] = taosArrayInit(1, sizeof(SSTriggerGroupReadInfo));
+    EXPECT_NE(nodeReads[node], nullptr);
+  }
+
+  int32_t globalParamIndex = 0;
+  for (const auto &group : groups) {
+    const int64_t gid = group.gid;
+    EXPECT_NE(taosArrayPush(runtime.pGroupCalcOrder, &gid), nullptr);
+    SSTriggerGroupCalcInfo calc = {};
+    calc.pParams = taosArrayInit(group.paramCount, sizeof(SSTriggerCalcParam));
+    EXPECT_NE(calc.pParams, nullptr);
+    for (int32_t paramIndex = 0; paramIndex < group.paramCount; ++paramIndex) {
+      SSTriggerCalcParam param = {};
+      param.wstart = static_cast<int64_t>(globalParamIndex) * 100;
+      param.wend = param.wstart + 99;
+      param.notifyType = BIT_FLAG_MASK(0);
+      EXPECT_NE(taosArrayPush(calc.pParams, &param), nullptr);
+      appendReaderPolicy(&runtime, gid, paramIndex);
+      appendReaderAncestorContext(&runtime, gid, paramIndex, group.gid * 1000, group.gid * 1000);
+      auto *context =
+          static_cast<SStreamAncestorParamContext *>(taosArrayGetLast(runtime.pAncestorContext->pParamContexts));
+      extendReaderAncestorDepth(context, ancestorDepth);
+      ++globalParamIndex;
+    }
+    EXPECT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(runtime.pGroupCalcInfos, &gid, sizeof(gid), &calc, sizeof(calc)));
+  }
+
+  if (layout == ReaderFetchLayout::SharedGroup) {
+    for (const auto &segment : groups.front().segments) {
+      for (int32_t paramIndex = segment.beginParam; paramIndex < segment.endParam; ++paramIndex) {
+        auto *context = static_cast<SStreamAncestorParamContext *>(
+            taosArrayGet(runtime.pAncestorContext->pParamContexts, paramIndex));
+        for (int32_t layer = 0; layer < taosArrayGetSize(context->leafIdentity.lineage.pScopes); ++layer) {
+          auto *scope = static_cast<SScopeInstanceId *>(taosArrayGet(context->leafIdentity.lineage.pScopes, layer));
+          scope->openingTs += static_cast<int64_t>(segment.nodeIndex) * 100000;
+          scope->nativeDiscriminator += segment.nodeIndex * 100;
+        }
+      }
+    }
+  }
+
+  for (const auto &group : groups) {
+    const int64_t gid = group.gid;
+    auto *calc = static_cast<SSTriggerGroupCalcInfo *>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+    EXPECT_NE(calc, nullptr);
+    for (const auto &segment : group.segments) {
+      SSTriggerGroupReadInfo read = {};
+      read.gid = gid;
+      read.firstParam = *static_cast<SSTriggerCalcParam *>(taosArrayGet(calc->pParams, segment.beginParam));
+      read.lastParam = *static_cast<SSTriggerCalcParam *>(taosArrayGet(calc->pParams, segment.endParam - 1));
+      const int32_t readInfoIndex = taosArrayGetSize(nodeReads[segment.nodeIndex]);
+      EXPECT_NE(taosArrayPush(nodeReads[segment.nodeIndex], &read), nullptr);
+      appendReaderBinding(&runtime, segment.nodeIndex + 1, readInfoIndex, group.paramOffset + segment.beginParam);
+    }
+  }
+  for (int32_t node = 0; node < nodeCount; ++node) {
+    if (taosArrayGetSize(nodeReads[node]) == 0) {
+      taosArrayDestroy(nodeReads[node]);
+      continue;
+    }
+    const int32_t nodeId = node + 1;
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(runtime.pGroupReadInfos, &nodeId, sizeof(nodeId), &nodeReads[node], POINTER_BYTES));
+  }
+  EXPECT_EQ(totalParams, globalParamIndex);
+  SSTriggerCalcRequest validation = {};
+  validation.isMultiGroupCalc = true;
+  validation.pGroupCalcInfos = runtime.pGroupCalcInfos;
+  validation.pGroupReadInfos = runtime.pGroupReadInfos;
+  validation.pContextPolicy = runtime.pContextPolicy;
+  validation.pAncestorContext = runtime.pAncestorContext;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateSTriggerCalcRequest(&validation));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tAdmitStreamContext(runtime.pContextPolicy, runtime.pAncestorContext, true));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateStreamCalcContextForFetch(&runtime, true, false));
+  return runtime;
+}
+
+TEST(StreamReaderFetchScaleTest, BoundaryInputsDecodeAndPassNodeAdmission) {
+  struct BoundaryCase {
+    int32_t           params;
+    int32_t           nodes;
+    ReaderFetchLayout layout;
+    int32_t           depth;
+  };
+  for (const auto &testCase :
+       {BoundaryCase{2, 3, ReaderFetchLayout::Even, 1}, BoundaryCase{128, 3, ReaderFetchLayout::Skewed, 3},
+        BoundaryCase{128, 3, ReaderFetchLayout::SharedGroup, 3}, BoundaryCase{40960, 30, ReaderFetchLayout::Even, 1}}) {
+    SCOPED_TRACE(testCase.params);
+    SStreamRuntimeFuncInfo runtime =
+        makeReaderFetchScaleRuntime(testCase.params, testCase.nodes, testCase.layout, testCase.depth);
+    const int32_t nodeId = 1;
+    auto        **reads = static_cast<SArray **>(tSimpleHashGet(runtime.pGroupReadInfos, &nodeId, sizeof(nodeId)));
+    ASSERT_NE(reads, nullptr);
+    runtime.curNodeId = nodeId;
+    runtime.curGrpRead = *reads;
+    runtime.curGrpReadOwnership = STREAM_GRP_READ_BORROWED;
+    SResFetchReq request = {};
+    request.header.vgId = nodeId;
+    request.reset = true;
+    request.readerGroupMode = true;
+    request.readerFetchId = 300;
+    request.pStRtFuncInfo = &runtime;
+    void   *wire = nullptr;
+    int32_t wireLen = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &wire, &wireLen));
+    SResFetchReq decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, wireLen, &decoded));
+    ASSERT_NE(decoded.pStRtFuncInfo, nullptr);
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, nodeId));
+    const auto expected = reader_fetch_benchmark::expectedSelection(
+        reader_fetch_benchmark::makeScalePlan(testCase.params, testCase.nodes, testCase.layout), nodeId - 1);
+    EXPECT_EQ(expected.first, tSimpleHashGetSize(decoded.pStRtFuncInfo->pGroupCalcInfos));
+    EXPECT_EQ(expected.second, reader_fetch_benchmark::paramCount(decoded.pStRtFuncInfo));
+    tDestroySResFetchReq(&decoded);
+    taosMemoryFree(wire);
+    runtime.curGrpRead = nullptr;
+    runtime.curGrpReadOwnership = STREAM_GRP_READ_BORROWED;
+    tDestroyStRtFuncInfo(&runtime);
+  }
+}
+
+TEST(StreamReaderFetchBenchmark, DISABLED_Scale) {
+  const std::array<int32_t, 4>           params = {2, 128, 4096, 40960};
+  const std::array<int32_t, 3>           nodes = {1, 3, 30};
+  const std::array<ReaderFetchLayout, 3> layouts = {ReaderFetchLayout::Even, ReaderFetchLayout::Skewed,
+                                                    ReaderFetchLayout::SharedGroup};
+  const std::array<int32_t, 2>           depths = {1, 3};
+
+  for (int32_t totalParams : params) {
+    for (int32_t nodeCount : nodes) {
+      for (ReaderFetchLayout layout : layouts) {
+        for (int32_t ancestorDepth : depths) {
+          SStreamRuntimeFuncInfo runtime = makeReaderFetchScaleRuntime(totalParams, nodeCount, layout, ancestorDepth);
+          ASSERT_EQ(TSDB_CODE_SUCCESS, tValidateStreamCalcContextForFetch(&runtime, true, false));
+          for (int32_t nodeId = 1; nodeId <= nodeCount; ++nodeId) {
+            auto **reads = static_cast<SArray **>(tSimpleHashGet(runtime.pGroupReadInfos, &nodeId, sizeof(nodeId)));
+            if (reads == nullptr || taosArrayGetSize(*reads) == 0) {
+              reader_fetch_benchmark::emit("admission", "skip", totalParams, nodeCount, layout, ancestorDepth, nodeId,
+                                           0, 0, 0, 0, 0, 0, 0);
+              continue;
+            }
+            runtime.curNodeId = nodeId;
+            runtime.curGrpRead = *reads;
+            runtime.curGrpReadOwnership = STREAM_GRP_READ_BORROWED;
+            SResFetchReq request = {};
+            request.header.vgId = nodeId;
+            request.reset = true;
+            request.readerGroupMode = true;
+            request.readerFetchId = 500;
+            request.pStRtFuncInfo = &runtime;
+            void   *wire = nullptr;
+            int32_t wireLen = 0;
+            ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &wire, &wireLen));
+            SResFetchReq warmup = {};
+            ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, wireLen, &warmup));
+            ASSERT_NE(warmup.pStRtFuncInfo, nullptr);
+            ASSERT_EQ(TSDB_CODE_SUCCESS, stValidateNodeGroupReadBindings(warmup.pStRtFuncInfo, nodeId));
+            tDestroySResFetchReq(&warmup);
+
+            for (int32_t sample = 0; sample < 3; ++sample) {
+              SResFetchReq  decoded = {};
+              const int64_t decodeNs = reader_fetch_benchmark::elapsedNs(
+                  [&] { ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, wireLen, &decoded)); });
+              ASSERT_NE(decoded.pStRtFuncInfo, nullptr);
+              const int64_t admissionNs = reader_fetch_benchmark::elapsedNs([&] {
+                ASSERT_EQ(TSDB_CODE_SUCCESS, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, nodeId));
+              });
+              reader_fetch_benchmark::emit("admission", "pruned", totalParams, nodeCount, layout, ancestorDepth, nodeId,
+                                           sample, tSimpleHashGetSize(decoded.pStRtFuncInfo->pGroupCalcInfos),
+                                           reader_fetch_benchmark::paramCount(decoded.pStRtFuncInfo), wireLen, 0,
+                                           decodeNs, admissionNs);
+              tDestroySResFetchReq(&decoded);
+            }
+            taosMemoryFree(wire);
+            runtime.curGrpRead = nullptr;
+            runtime.curGrpReadOwnership = STREAM_GRP_READ_BORROWED;
+          }
+          tDestroyStRtFuncInfo(&runtime);
+        }
+      }
+    }
+  }
 }
 
 const SStreamAncestorParamContext *onlyProjectedReaderContext(const SStreamRuntimeFuncInfo &runtime) {
@@ -455,6 +992,11 @@ TEST(StreamReaderTest, ProjectsMultiGroupAncestorContextSelectedByReadBinding) {
   ASSERT_NE(context, nullptr);
   EXPECT_EQ(context->leafIdentity.gid, 202);
   EXPECT_EQ(context->paramIndex, 0);
+  const SStreamAncestorParamContext *indexed = nullptr;
+  ASSERT_EQ(tLookupStreamAncestorParam(target.pAncestorContext, 202, 0, &indexed), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(indexed, context);
+  EXPECT_NE(tLookupStreamAncestorParam(target.pAncestorContext, 202, 3, &indexed), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(indexed, nullptr);
   const auto *snapshot = static_cast<const SWindowAncestorSnapshot *>(taosArrayGet(context->pSnapshots, 0));
   ASSERT_NE(snapshot, nullptr);
   EXPECT_EQ(snapshot->values.window.start, 2100);
@@ -550,12 +1092,16 @@ TEST(StreamReaderBindingTest, FromTriggerFetchKeepsFullBatchForNodeValidation) {
   ASSERT_NE(nullptr, runtime.pGroupCalcInfos);
   tSimpleHashSetFreeFp(runtime.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
   SSTriggerGroupCalcInfo calc = {};
-  calc.pParams = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  calc.pParams = taosArrayInit(2, sizeof(SSTriggerCalcParam));
   ASSERT_NE(nullptr, calc.pParams);
   SSTriggerCalcParam param = {};
   param.wstart = 1000;
   param.wend = 1099;
-  *static_cast<SSTriggerCalcParam *>(taosArrayGet(calc.pParams, 0)) = param;
+  ASSERT_NE(nullptr, taosArrayPush(calc.pParams, &param));
+  SSTriggerCalcParam otherParam = {};
+  otherParam.wstart = 2000;
+  otherParam.wend = 2099;
+  ASSERT_NE(nullptr, taosArrayPush(calc.pParams, &otherParam));
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             tSimpleHashPut(runtime.pGroupCalcInfos, &read->gid, sizeof(read->gid), &calc, sizeof(calc)));
   read->firstParam = param;
@@ -563,7 +1109,7 @@ TEST(StreamReaderBindingTest, FromTriggerFetchKeepsFullBatchForNodeValidation) {
   runtime.pGroupReadInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   ASSERT_NE(nullptr, runtime.pGroupReadInfos);
   tSimpleHashSetFreeFp(runtime.pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
-  SArray *nodeReads = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  SArray *nodeReads = taosArrayInit(1, sizeof(SSTriggerGroupReadInfo));
   ASSERT_NE(nullptr, nodeReads);
   SSTriggerGroupReadInfo sourceRead = *read;
   sourceRead.pTables = nullptr;
@@ -571,25 +1117,57 @@ TEST(StreamReaderBindingTest, FromTriggerFetchKeepsFullBatchForNodeValidation) {
   const int32_t nodeId = 7;
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             tSimpleHashPut(runtime.pGroupReadInfos, &nodeId, sizeof(nodeId), &nodeReads, POINTER_BYTES));
+  SArray *otherNodeReads = taosArrayInit(1, sizeof(SSTriggerGroupReadInfo));
+  ASSERT_NE(nullptr, otherNodeReads);
+  SSTriggerGroupReadInfo otherRead = sourceRead;
+  otherRead.firstParam = otherParam;
+  otherRead.lastParam = otherParam;
+  ASSERT_NE(nullptr, taosArrayPush(otherNodeReads, &otherRead));
+  const int32_t otherNodeId = 8;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(runtime.pGroupReadInfos, &otherNodeId, sizeof(otherNodeId), &otherNodeReads, POINTER_BYTES));
   appendReaderPolicy(&runtime, read->gid, 0);
+  appendReaderPolicy(&runtime, read->gid, 1);
   appendReaderAncestorContext(&runtime, read->gid, 0, 1000, 1100);
+  appendReaderAncestorContext(&runtime, read->gid, 1, 2000, 2100);
   appendReaderBinding(&runtime, 7, 0, 0);
+  appendReaderBinding(&runtime, 8, 0, 1);
 
   SResFetchReq request = {};
   request.header.vgId = 7;
+  request.reset = true;
   request.pStRtFuncInfo = &runtime;
-  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, true, true);
-  ASSERT_GT(size, 0);
-  std::vector<uint8_t> bytes(size);
-  ASSERT_EQ(size, tSerializeSResFetchReq(bytes.data(), bytes.size(), &request, true, true));
+  void   *wire = nullptr;
+  int32_t wireLen = 0;
+  request.readerFetchId = 200;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &wire, &wireLen));
 
   SResFetchReq decoded = {};
-  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, wireLen, &decoded));
+  taosMemoryFree(wire);
   ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+  auto *decodedCalc = static_cast<SSTriggerGroupCalcInfo *>(
+      tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &read->gid, sizeof(read->gid)));
+  ASSERT_NE(nullptr, decodedCalc);
+  EXPECT_EQ(taosArrayGetSize(decodedCalc->pParams), 2);
   EXPECT_EQ(TSDB_CODE_SUCCESS, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, 7));
   auto *decodedRead = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(decoded.pStRtFuncInfo->curGrpRead, 0));
   ASSERT_NE(nullptr, decodedRead);
   --decodedRead->firstParam.wstart;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, 7));
+  ++decodedRead->firstParam.wstart;
+  ++decodedRead->lastParam.wend;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, 7));
+  --decodedRead->lastParam.wend;
+  auto *decodedBinding = static_cast<SStreamReadScopeBinding *>(
+      taosArrayGet(decoded.pStRtFuncInfo->pAncestorContext->pReadScopeBindings, 0));
+  ASSERT_NE(nullptr, decodedBinding);
+  decodedBinding->vgId = 8;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, 7));
+  decodedBinding->vgId = 7;
+  taosArrayDestroy(decodedBinding->scope.lineage.pScopes);
+  decodedBinding->scope.lineage.pScopes = nullptr;
+  taosArrayRemove(decoded.pStRtFuncInfo->pAncestorContext->pReadScopeBindings, 0);
   EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, 7));
 
   tDestroySResFetchReq(&decoded);
@@ -1044,4 +1622,180 @@ TEST_F(StreamReaderCacheTest, ConcurrentExactScopeCleanupWaitsForActiveFetch) {
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+namespace {
+int     readerGroupEnableCalls;
+bool    readerGroupEnableRequested;
+bool    readerGroupEnableSupported;
+int32_t readerGroupEnableCode;
+int32_t readerGroupEnableStub(qTaskInfo_t, bool requested, bool *enabled) {
+  ++readerGroupEnableCalls;
+  readerGroupEnableRequested = requested;
+  *enabled = requested && readerGroupEnableSupported && readerGroupEnableCode == 0;
+  return readerGroupEnableCode;
+}
+}  // namespace
+
+TEST(StreamReaderGroupModeTest, ResetDecidesAndContinuationRetainsCapability) {
+  Stub stub;
+  stub.set(qEnableReaderGroupOutput, readerGroupEnableStub);
+  readerGroupEnableCalls = 0;
+  readerGroupEnableSupported = true;
+  readerGroupEnableCode = 0;
+  SStreamTriggerReaderCalcInfo calc = {};
+  SResFetchReq                 req = {};
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stReaderSetGroupOutputMode(&calc, &req));
+  req.reset = true;
+  req.readerGroupMode = true;
+  ASSERT_EQ(0, stReaderSetGroupOutputMode(&calc, &req));
+  EXPECT_TRUE(calc.readerGroupAccepted);
+  EXPECT_EQ(1, readerGroupEnableCalls);
+  req.reset = false;
+  ASSERT_EQ(0, stReaderSetGroupOutputMode(&calc, &req));
+  EXPECT_TRUE(calc.readerGroupAccepted);
+  EXPECT_EQ(1, readerGroupEnableCalls);
+  req.readerGroupMode = false;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stReaderSetGroupOutputMode(&calc, &req));
+  EXPECT_TRUE(calc.readerGroupAccepted);
+  req.reset = true;
+  ASSERT_EQ(0, stReaderSetGroupOutputMode(&calc, &req));
+  EXPECT_FALSE(calc.readerGroupAccepted);
+  EXPECT_FALSE(readerGroupEnableRequested);
+}
+
+TEST(StreamReaderGroupModeTest, UnsupportedFallbackAndResetFailureDoNotClaimGroupedOutput) {
+  Stub stub;
+  stub.set(qEnableReaderGroupOutput, readerGroupEnableStub);
+  readerGroupEnableCalls = 0;
+  readerGroupEnableSupported = false;
+  readerGroupEnableCode = 0;
+  SStreamTriggerReaderCalcInfo calc = {};
+  SResFetchReq                 req = {};
+  req.reset = true;
+  req.readerGroupMode = true;
+  ASSERT_EQ(0, stReaderSetGroupOutputMode(&calc, &req));
+  EXPECT_FALSE(calc.readerGroupAccepted);
+  req.reset = false;
+  ASSERT_EQ(0, stReaderSetGroupOutputMode(&calc, &req));
+  EXPECT_EQ(1, readerGroupEnableCalls);
+  req.reset = true;
+  readerGroupEnableSupported = true;
+  readerGroupEnableCode = TSDB_CODE_OUT_OF_MEMORY;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, stReaderSetGroupOutputMode(&calc, &req));
+  EXPECT_FALSE(calc.readerGroupAccepted);
+  EXPECT_FALSE(calc.readerGroupModeSet);
+  req.reset = false;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stReaderSetGroupOutputMode(&calc, &req));
+}
+
+TEST(StreamReaderFetchStateTest, StaleContinuationPreservesReplacement) {
+  SStreamTriggerReaderCalcInfo calc = {};
+  SStreamRuntimeFuncInfo       runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.streamGen = 12;
+  runtime.sessionId = 1;
+  SResFetchReq request = {};
+  request.readerFetchId = 200;
+  request.queryId = 11;
+  request.taskId = 22;
+  request.execId = 3;
+  request.pStRtFuncInfo = &runtime;
+  stReaderCaptureFetchState(&calc.fetchState, &request, 8);
+  request.readerFetchId = 100;
+  EXPECT_EQ(stReaderCheckFetchContinuation(&calc, &request, 8), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(calc.fetchState.id, 200);
+  request.readerFetchId = 200;
+  EXPECT_EQ(stReaderCheckFetchContinuation(&calc, &request, 8), TSDB_CODE_SUCCESS);
+  stReaderInvalidateFetchState(&calc);
+  EXPECT_TRUE(calc.fetchState.enabled);
+  EXPECT_EQ(stReaderCheckFetchContinuation(&calc, &request, 8), TSDB_CODE_INVALID_MSG);
+}
+
+class StreamReaderFetchIdentityTest : public testing::TestWithParam<int> {};
+TEST_P(StreamReaderFetchIdentityTest, MismatchDoesNotChangeState) {
+  SStreamTriggerReaderCalcInfo calc = {};
+  SStreamRuntimeFuncInfo       runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.streamGen = 12;
+  runtime.sessionId = 1;
+  SResFetchReq request = {};
+  request.readerFetchId = 200;
+  request.queryId = 11;
+  request.taskId = 22;
+  request.execId = 3;
+  request.pStRtFuncInfo = &runtime;
+  stReaderCaptureFetchState(&calc.fetchState, &request, 8);
+  int node = 8;
+  switch (GetParam()) {
+    case 0:
+      request.readerFetchId = 0;
+      break;
+    case 1:
+      ++request.queryId;
+      break;
+    case 2:
+      ++request.taskId;
+      break;
+    case 3:
+      ++request.execId;
+      break;
+    case 4:
+      ++node;
+      break;
+    case 5:
+      ++runtime.streamGen;
+      break;
+    case 6:
+      ++runtime.sessionId;
+      break;
+    case 7:
+      request.dynTbname = true;
+      break;
+    case 8:
+      request.readerGroupMode = true;
+      break;
+    case 9:
+      request.reset = true;
+      break;
+    case 10:
+      request.reuseReader = true;
+      break;
+    case 11:
+      runtime.isMultiGroupCalc = false;
+      break;
+  }
+  EXPECT_EQ(stReaderCheckFetchContinuation(&calc, &request, node), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(calc.fetchState.id, 200);
+}
+INSTANTIATE_TEST_SUITE_P(Identity, StreamReaderFetchIdentityTest, testing::Range(0, 12));
+
+TEST(StreamReaderFetchStateTest, ContinuationRejectsAttachedContext) {
+  SStreamTriggerReaderCalcInfo calc = {};
+  SStreamRuntimeFuncInfo       runtime = {};
+  runtime.isMultiGroupCalc = true;
+  SResFetchReq request = {};
+  request.readerFetchId = 200;
+  request.pStRtFuncInfo = &runtime;
+  stReaderCaptureFetchState(&calc.fetchState, &request, 8);
+  SSHashObj *hash = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(hash, nullptr);
+  SArray                 array = {};
+  SStreamContextPolicy   policy = {};
+  SStreamAncestorContext ancestor = {};
+  SStreamContextFrames   frames = {};
+  SOperatorParam         op = {};
+  for (int field = 0; field < 7; ++field) {
+    SCOPED_TRACE(field);
+    runtime.pGroupCalcInfos = field == 0 ? hash : nullptr;
+    runtime.pGroupReadInfos = field == 1 ? hash : nullptr;
+    runtime.curGrpRead = field == 2 ? &array : nullptr;
+    runtime.pContextPolicy = field == 3 ? &policy : nullptr;
+    runtime.pAncestorContext = field == 4 ? &ancestor : nullptr;
+    request.pContextFrames = field == 5 ? &frames : nullptr;
+    request.pOpParam = field == 6 ? &op : nullptr;
+    EXPECT_EQ(stReaderCheckFetchContinuation(&calc, &request, 8), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(calc.fetchState.id, 200);
+  }
+  tSimpleHashCleanup(hash);
 }

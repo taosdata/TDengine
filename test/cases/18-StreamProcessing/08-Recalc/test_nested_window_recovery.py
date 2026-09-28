@@ -148,6 +148,31 @@ class TestNestedWindowRecovery:
             self._check_external_window_multigroup_recovery,
         )
 
+    def test_broadcast_dimension_reloads_after_pending_restart(self):
+        """Nested recovery reloads a fixed dimension for the next request.
+
+        1. Leave one COUNT leaf pending in each trigger group.
+        2. Restart the cluster and finish both pending leaves.
+        3. Update a fixed Broadcast dimension after those results arrive.
+        4. Trigger another request and verify it reads the new dimension row.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowRecovery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-09-09 OpenAI Added request dimension reload recovery
+        """
+        self._run_isolated(
+            "nw_recover_dimension",
+            self._check_broadcast_dimension_reload,
+        )
+
     def test_cross_db_virtual_multi_vgroup_resume(self):
         """Nested recovery: cross-DB virtual inputs resume across vgroups.
 
@@ -168,7 +193,8 @@ class TestNestedWindowRecovery:
         self._run_isolated("nw_recover_virtual", self._check_virtual_multi_vgroup)
 
     def _run_isolated(self, db_name, scenario):
-        self._dnode_stopped = False
+        self._cluster_dnode_ids = []
+        self._stopped_dnode_ids = []
         self._notify_dir = tempfile.mkdtemp(
             prefix=f"nested-window-recovery-{db_name}-"
         )
@@ -186,10 +212,12 @@ class TestNestedWindowRecovery:
             first_traceback = error.__traceback__
         finally:
             try:
-                if self._dnode_stopped:
-                    sc.dnodeStart(1)
-                    clusterComCheck.checkDnodes(1)
-                    self._dnode_stopped = False
+                if self._stopped_dnode_ids:
+                    stopped_ids = list(self._stopped_dnode_ids)
+                    for dnode_id in stopped_ids:
+                        sc.dnodeStart(dnode_id)
+                        self._stopped_dnode_ids.remove(dnode_id)
+                    clusterComCheck.checkDnodes(len(self._cluster_dnode_ids))
             except BaseException as error:
                 if first_error is None:
                     first_error = error
@@ -415,12 +443,51 @@ class TestNestedWindowRecovery:
             f"trigger did not reach Running for {stream_name}: {actual!r}"
         )
 
-    def _restart_dnode(self):
-        self._dnode_stopped = True
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
-        clusterComCheck.checkDnodes(1)
-        self._dnode_stopped = False
+    def _wait_readers_running(self, stream_name, expected_count):
+        sql = (
+            "select node_id,status,`message` "
+            "from information_schema.ins_stream_tasks "
+            f"where stream_name='{stream_name}' and type='Reader'"
+        )
+        deadline = time.monotonic() + self.RETRY_SECONDS
+        actual = []
+        while time.monotonic() < deadline:
+            try:
+                actual = self._query_rows(sql)
+            except Exception:
+                actual = []
+            if (
+                len(actual) == expected_count
+                and len({row[0] for row in actual}) == expected_count
+                and all(row[1] == "Running" for row in actual)
+            ):
+                tdLog.info(f"reader terminal running rows: {actual!r}")
+                return actual
+            if any(row[1] == "Failed" for row in actual):
+                raise AssertionError(
+                    f"reader failed for {stream_name}: {actual!r}"
+                )
+            time.sleep(0.5)
+        raise AssertionError(
+            f"readers did not reach Running for {stream_name}: {actual!r}"
+        )
+
+    def _restart_cluster(self):
+        dnode_ids = [
+            int(row[0])
+            for row in self._query_rows(
+                "select id from information_schema.ins_dnodes order by id"
+            )
+        ]
+        assert dnode_ids, "no dnodes available for restart"
+        self._cluster_dnode_ids = dnode_ids
+        for dnode_id in dnode_ids:
+            sc.dnodeStop(dnode_id)
+            self._stopped_dnode_ids.append(dnode_id)
+        for dnode_id in dnode_ids:
+            sc.dnodeStart(dnode_id)
+            self._stopped_dnode_ids.remove(dnode_id)
+        clusterComCheck.checkDnodes(len(dnode_ids))
 
     def _create_count_pair(self, db_name, output_db):
         tdSql.executes(
@@ -552,7 +619,7 @@ class TestNestedWindowRecovery:
             "r_target",
             [("2025-08-18 00:00:00", "2025-08-18 00:00:01", "Count")],
         )
-        self._restart_dnode()
+        self._restart_cluster()
         self._wait_stream_status(db_name, "s_target", "Running")
         tdSql.execute(
             f"insert into {db_name}.target values "
@@ -652,7 +719,7 @@ class TestNestedWindowRecovery:
             "r_target",
             [("2025-08-18 00:10:10", "2025-08-18 00:10:11", "Count")],
         )
-        self._restart_dnode()
+        self._restart_cluster()
         self._wait_stream_status(db_name, "s_target", "Running")
         tdSql.execute(
             f"insert into {db_name}.target values ('2025-08-18 00:10:01',20)"
@@ -792,7 +859,7 @@ class TestNestedWindowRecovery:
                 ("2025-08-18 00:20:10", "2025-08-18 00:20:11", "Count"),
             ],
         )
-        self._restart_dnode()
+        self._restart_cluster()
         self._wait_stream_status(db_name, "s_target", "Running")
         self._wait_publications(
             f"select count(*) from {output_db}.r_target", target_rows, pre_cut
@@ -945,7 +1012,7 @@ class TestNestedWindowRecovery:
                 ("2025-08-18 00:30:00", "2025-08-18 00:30:01", "Session"),
             ],
         )
-        self._restart_dnode()
+        self._restart_cluster()
         self._wait_stream_status(db_name, "s_gids", "Running")
         tdSql.execute(
             f"insert into {db_name}.{target_a} values "
@@ -1085,7 +1152,7 @@ class TestNestedWindowRecovery:
             stable_seconds=1,
         )
 
-        self._restart_dnode()
+        self._restart_cluster()
         self._wait_stream_status(db_name, "s_target", "Running")
         tdSql.execute(
             f"insert into {db_name}.{target_a} values "
@@ -1135,6 +1202,94 @@ class TestNestedWindowRecovery:
         )
         assert target_identity == control_identity
 
+    def _check_broadcast_dimension_reload(self, db_name):
+        tdSql.executes(
+            [
+                f"create database {db_name} vgroups 1",
+                f"create stable {db_name}.monitor "
+                "(ts timestamp,trade_no varchar(32),soc int) tags(gid int)",
+                f"create table {db_name}.m0 using {db_name}.monitor tags(1) "
+                f"{db_name}.m1 using {db_name}.monitor tags(2)",
+                f"create table {db_name}.rule "
+                "(ts timestamp,threshold double,type varchar(16))",
+                f"insert into {db_name}.rule values "
+                "('2025-01-01 00:00:00',5,'INSERT')",
+                self._broadcast_dimension_recovery_stream(db_name),
+            ]
+        )
+        self._wait_trigger_running("s_dimension")
+
+        tdSql.execute(
+            f"insert into {db_name}.m0 values "
+            "('2025-01-01 00:00:00','order0',20) "
+            f"{db_name}.m1 values "
+            "('2025-01-01 00:00:00','order1',30)"
+        )
+        self._restart_cluster()
+        self._wait_stream_status(db_name, "s_dimension", "Running")
+
+        tdSql.execute(
+            f"insert into {db_name}.m0 values "
+            "('2025-01-01 00:00:01','order0',21) "
+            f"{db_name}.m1 values "
+            "('2025-01-01 00:00:01','order1',31)"
+        )
+        rows_sql = (
+            "select gid,trade_no,prev_soc,curr_soc,threshold,flag "
+            f"from {db_name}.r_dimension order by gid,ts"
+        )
+        initial = [
+            (1, "order0", 20, 21, 5.0, 0),
+            (2, "order1", 30, 31, 5.0, 0),
+        ]
+        self._wait_publications(
+            f"select count(*) from {db_name}.r_dimension",
+            rows_sql,
+            initial,
+        )
+
+        tdSql.execute(
+            f"insert into {db_name}.rule values "
+            "('2025-01-01 00:00:00',0.5,'INSERT')"
+        )
+        tdSql.execute(
+            f"insert into {db_name}.m0 values "
+            "('2025-01-01 00:00:02','order0',22) "
+            f"{db_name}.m1 values "
+            "('2025-01-01 00:00:02','order1',32)"
+        )
+        expected = [
+            initial[0],
+            (1, "order0", 21, 22, 0.5, 1),
+            initial[1],
+            (2, "order1", 31, 32, 0.5, 1),
+        ]
+        self._wait_publications(
+            f"select count(*) from {db_name}.r_dimension",
+            rows_sql,
+            expected,
+        )
+
+    @staticmethod
+    def _broadcast_dimension_recovery_stream(db_name):
+        return (
+            f"create stream {db_name}.s_dimension window ("
+            "state_window(trade_no) extend(1) as w_order,"
+            "count_window(2,1) as w_leaf) "
+            f"from {db_name}.monitor partition by tbname,gid "
+            f"into {db_name}.r_dimension output_subtable("
+            "concat('r_dimension_',%%1)) "
+            "(ts,trade_no,prev_soc,curr_soc,threshold,flag) "
+            "tags(source varchar(64) as %%1,gid int as %%2) as select "
+            "t1.ts,t1.trade_no,t1.prev_soc,t1.curr_soc,t2.threshold,"
+            "case when abs(t1.curr_soc-t1.prev_soc)>t2.threshold "
+            "then 1 else 0 end from (select _twend ts,last(trade_no) trade_no,"
+            "first(soc) prev_soc,last(soc) curr_soc from %%tbname "
+            "where ts>=_twstart and ts<=_twend) t1 inner join "
+            f"(select _twend ts,threshold from {db_name}.rule "
+            "where type<>'DELETE') t2 on t1.ts=t2.ts"
+        )
+
     def _check_virtual_multi_vgroup(self, db_name):
         physical_db = f"{db_name}_physical"
         output_db = db_name
@@ -1182,6 +1337,7 @@ class TestNestedWindowRecovery:
             ]
         )
         self._wait_trigger_running("s_virtual")
+        self._wait_readers_running("s_virtual", 4)
         tdSql.execute(
             f"insert into {physical_db}.{target_a} values "
             "('2025-08-18 00:40:00',10,1) "
@@ -1227,8 +1383,9 @@ class TestNestedWindowRecovery:
                 ("2025-08-18 00:40:00", "2025-08-18 00:40:01", "Count"),
             ],
         )
-        self._restart_dnode()
+        self._restart_cluster()
         self._wait_stream_status(db_name, "s_virtual", "Running")
+        self._wait_readers_running("s_virtual", 4)
         tdSql.execute(
             f"insert into {physical_db}.{target_a} values "
             "('2025-08-18 00:40:01',20,1) "

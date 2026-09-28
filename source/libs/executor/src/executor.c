@@ -1013,6 +1013,10 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   }
 
   if (isTaskKilled(pTaskInfo)) {
+    if (pTaskInfo->readerGroupOutput) {
+      bool enabled = false;
+      (void)qEnableReaderGroupOutput(pTaskInfo, false, &enabled);
+    }
     atomic_store_64(&pTaskInfo->owner, 0);
     qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
     return pTaskInfo->code;
@@ -1023,6 +1027,10 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   if (ret != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = ret;
     resetOperatorExecDepth(pTaskInfo->pRoot);
+    if (pTaskInfo->readerGroupOutput) {
+      bool enabled = false;
+      (void)qEnableReaderGroupOutput(pTaskInfo, false, &enabled);
+    }
     qClearStreamFetchRuntime(pTaskInfo->pStreamRuntimeInfo);
     (void)cleanUpUdfs();
 
@@ -1068,22 +1076,32 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   int32_t blockIndex = 0;
   while (pRes != NULL) {
     SSDataBlock* p = NULL;
+    bool         isEog = pTaskInfo->readerGroupOutput && qIsMultiGroupEogBlock(pRes);
+    QUERY_CHECK_CONDITION(pRes->info.rows > 0 || isEog, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    bool replace = processOneBlock;
+    if (blockIndex < taosArrayGetSize(pTaskInfo->pResultBlockList)) {
+      SSDataBlock* cached = taosArrayGetP(pTaskInfo->pResultBlockList, blockIndex);
+      replace = replace || isEog || qIsMultiGroupEogBlock(cached);
+    }
     if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
       SSDataBlock* p1 = NULL;
-      code = createOneDataBlock(pRes, true, &p1);
+      code = isEog ? createDataBlock(&p1) : createOneDataBlock(pRes, true, &p1);
+      if (code == TSDB_CODE_SUCCESS && isEog) p1->info = pRes->info;
       QUERY_CHECK_CODE(code, lino, _end);
 
       void* tmp = taosArrayPush(pTaskInfo->pResultBlockList, &p1);
+      if (tmp == NULL) blockDataDestroy(p1);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       p = p1;
-    } else if (processOneBlock) {
+    } else if (replace) {
       SSDataBlock** tmp = taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
       if (tmp) {
         blockDataDestroy(*tmp);
         *tmp = NULL;
       }
       SSDataBlock* p1 = NULL;
-      code = createOneDataBlock(pRes, true, &p1);
+      code = isEog ? createDataBlock(&p1) : createOneDataBlock(pRes, true, &p1);
+      if (code == TSDB_CODE_SUCCESS && isEog) p1->info = pRes->info;
       QUERY_CHECK_CODE(code, lino, _end);
 
       *tmp = p1;
@@ -1101,12 +1119,13 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
     current += p->info.rows;
     currentBytes += (int64_t)blockDataGetSize(p);
-    QUERY_CHECK_CONDITION((p->info.rows > 0), code, lino, _end,
-                          TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    QUERY_CHECK_CONDITION((p->info.rows > 0 || isEog), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     void* tmp = taosArrayPush(pResList, &p);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
-    if (current >= rowsThreshold || currentBytes >= bytesThreshold || processOneBlock) {
+    // Bound control-only responses independently of DATA row thresholds.
+    if (current >= rowsThreshold || currentBytes >= bytesThreshold || processOneBlock ||
+        (pTaskInfo->readerGroupOutput && blockIndex >= 4096)) {
       break;
     }
 
@@ -1135,6 +1154,10 @@ _end:
   qDebug("%s task suspended, %d rows in %d blocks returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
          GET_TASKID(pTaskInfo), current, (int32_t)taosArrayGetSize(pResList), total, 0, el / 1000.0);
 
+  if (code && pTaskInfo->readerGroupOutput) {
+    bool enabled = false;
+    (void)qEnableReaderGroupOutput(pTaskInfo, false, &enabled);
+  }
   atomic_store_64(&pTaskInfo->owner, 0);
   if (code) {
     pTaskInfo->code = code;

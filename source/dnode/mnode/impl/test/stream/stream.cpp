@@ -11778,3 +11778,126 @@ int main(int argc, char** argv) {
 
 
 #pragma GCC diagnostic pop
+
+extern "C" int32_t msmUpdateRunnerPlans(SStmGrpCtx *, SArray *, SStreamObj *);
+extern "C" int32_t msmUpdateLowestPlanSourceAddr(SSubplan *, SStmTaskDeploy *, int64_t);
+
+static int32_t broadcastReuseSourceAddrStub(SSubplan *, SStmTaskDeploy *, int64_t) { return 0; }
+
+TEST(MndBroadcastReuseTest, CommonDeploymentQualifiesOldPlansBeforeErasingReferences) {
+  // These are persisted payloads without BroadcastInputReusable. Endpoint routing
+  // is stubbed; common deployment's qualification, cleanup and codec are real.
+  SNode *raw = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &raw));
+  auto                                               *runner = reinterpret_cast<SSubplan *>(raw);
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> ownedRunner(raw, nodesDestroyNode);
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, reinterpret_cast<SNode **>(&runner->pNode)));
+  auto *window = reinterpret_cast<SExternalWindowPhysiNode *>(runner->pNode);
+  window->extWinInputMode = EXT_WIN_INPUT_BROADCAST;
+  SNode *child = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, &child));
+  auto *exchange = reinterpret_cast<SExchangePhysiNode *>(child);
+  exchange->srcStartGroupId = exchange->srcEndGroupId = 4;
+  ASSERT_EQ(0, nodesListMakeStrictAppend(&runner->pNode->pChildren, child));
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_VALUE, &child));
+  auto *ref = reinterpret_cast<SValueNode *>(child);
+  ref->translate = true;
+  ref->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  ref->datum.i = (INT64_C(4) << 32) | 14;
+  ASSERT_EQ(0, nodesListMakeStrictAppend(&runner->pChildren, child));
+  char *serialized = nullptr;
+  ASSERT_EQ(0, nodesNodeToString(raw, false, &serialized, nullptr));
+  std::string legacy(serialized);
+  taosMemoryFree(serialized);
+  const std::string field = ",\"BroadcastInputReusable\":false";
+  auto              pos = legacy.find(field);
+  if (pos != std::string::npos) legacy.erase(pos, field.size());
+  ASSERT_EQ(0, nodesStringToNode(legacy.c_str(), &raw));
+  ownedRunner.reset(raw);
+  runner = reinterpret_cast<SSubplan *>(raw);
+  window = reinterpret_cast<SExternalWindowPhysiNode *>(runner->pNode);
+  ASSERT_FALSE(window->broadcastInputReusable);
+
+  SNode *readerNode = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &readerNode));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> ownedReader(readerNode, nodesDestroyNode);
+  auto                                               *reader = reinterpret_cast<SSubplan *>(readerNode);
+  reader->id.groupId = 4;
+  reader->id.subplanId = 14;
+  reader->subplanType = SUBPLAN_TYPE_SCAN;
+  reader->requiresAncestorContext = true;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, reinterpret_cast<SNode **>(&reader->pNode)));
+  auto *scan = reinterpret_cast<STableScanPhysiNode *>(reader->pNode);
+  scan->scan.uid = scan->scan.suid = 42;
+  scan->scan.tableType = TSDB_SUPER_TABLE;
+  scan->scanSeq[0] = 1;
+  scan->ratio = 1;
+  scan->scanRange = {INT64_MIN, INT64_MAX};
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_COLUMN, &child));
+  auto *col = reinterpret_cast<SColumnNode *>(child);
+  col->colType = COLUMN_TYPE_COLUMN;
+  col->tableId = 42;
+  col->colId = 2;
+  ASSERT_EQ(0, nodesListMakeStrictAppend(&scan->scan.pScanCols, child));
+  SStreamCalcScan calc = {};
+  ASSERT_EQ(0, nodesNodeToString(readerNode, false, reinterpret_cast<char **>(&calc.scanPlan), nullptr));
+  SStreamObj         stream = {};
+  SCMCreateStreamReq create = {};
+  stream.pCreate = &create;
+  create.calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
+  ASSERT_NE(nullptr, taosArrayPush(create.calcScanPlanList, &calc));
+  auto          *runners = taosArrayInit(1, sizeof(SStmTaskDeploy));
+  SStmTaskDeploy deploy = {};
+  deploy.msg.runner.pPlan = runner;
+  ASSERT_NE(nullptr, taosArrayPush(runners, &deploy));
+  Stub stub;
+  stub.set(msmUpdateLowestPlanSourceAddr, broadcastReuseSourceAddrStub);
+  EXPECT_EQ(0, msmUpdateRunnerPlans(nullptr, runners, &stream));
+  EXPECT_TRUE(window->broadcastInputReusable);
+  EXPECT_EQ(nullptr, runner->pChildren);
+  auto  *updated = reinterpret_cast<SStmTaskDeploy *>(taosArrayGet(runners, 0));
+  SNode *decoded = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(reinterpret_cast<char *>(updated->msg.runner.pPlan), &decoded));
+  EXPECT_TRUE(reinterpret_cast<SExternalWindowPhysiNode *>(reinterpret_cast<SSubplan *>(decoded)->pNode)
+                  ->broadcastInputReusable);
+  nodesDestroyNode(decoded);
+  taosMemoryFree(updated->msg.runner.pPlan);
+  taosArrayDestroy(runners);
+  taosMemoryFree(calc.scanPlan);
+  taosArrayDestroy(create.calcScanPlanList);
+}
+
+static int32_t broadcastReuseDecodeOom(const char *, SNode **) { return TSDB_CODE_OUT_OF_MEMORY; }
+
+TEST(MndBroadcastReuseTest, ReaderDecodeFailureStopsBeforeRunnerMutation) {
+  SCMCreateStreamReq create = {};
+  SStreamObj         stream = {};
+  stream.pCreate = &create;
+  create.calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
+  SStreamCalcScan calc = {};
+  calc.scanPlan = const_cast<char *>("invalid json");
+  SNode *raw = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &raw));
+  char *prefix = nullptr;
+  ASSERT_EQ(0, nodesNodeToString(raw, false, &prefix, nullptr));
+  SStreamCalcScan first = {};
+  first.scanPlan = prefix;
+  ASSERT_NE(nullptr, taosArrayPush(create.calcScanPlanList, &first));
+  ASSERT_NE(nullptr, taosArrayPush(create.calcScanPlanList, &calc));
+  SStmTaskDeploy deploy = {};
+  deploy.msg.runner.pPlan = reinterpret_cast<SSubplan *>(raw);
+  auto *runners = taosArrayInit(1, sizeof(SStmTaskDeploy));
+  ASSERT_NE(nullptr, taosArrayPush(runners, &deploy));
+  EXPECT_NE(0, msmUpdateRunnerPlans(nullptr, runners, &stream));
+  EXPECT_EQ(raw,
+            reinterpret_cast<SNode *>(reinterpret_cast<SStmTaskDeploy *>(taosArrayGet(runners, 0))->msg.runner.pPlan));
+  Stub stub;
+  stub.set(nodesStringToNode, broadcastReuseDecodeOom);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, msmUpdateRunnerPlans(nullptr, runners, &stream));
+  EXPECT_EQ(raw,
+            reinterpret_cast<SNode *>(reinterpret_cast<SStmTaskDeploy *>(taosArrayGet(runners, 0))->msg.runner.pPlan));
+  taosMemoryFree(prefix);
+  nodesDestroyNode(raw);
+  taosArrayDestroy(runners);
+  taosArrayDestroy(create.calcScanPlanList);
+}

@@ -187,5 +187,6 @@ if(TD_USE_ROCKSDB)
 endif()
 
 if(BUILD_TEST)
+    target_compile_definitions(vnode PRIVATE BUILD_TEST)
     add_subdirectory(test)
 endif()

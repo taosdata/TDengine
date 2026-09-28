@@ -5797,6 +5797,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
   void*                         pTask = NULL;
   SArray*                       pResList = NULL;
   bool                          hasNext = false;
+  bool                          fetchStateTouched = false;
+  SStreamReaderFetchState       candidate = {0};
   SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = NULL;
   SStreamReaderTask*            pReaderTask = NULL;
   SArray*                       calcInfoList = NULL;
@@ -5806,19 +5808,32 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
                               TSDB_CODE_QRY_INVALID_INPUT);
   STREAM_CHECK_NULL_GOTO(req.pStRtFuncInfo, TSDB_CODE_INVALID_PARA);
   req.pStRtFuncInfo->curNodeId = TD_VID(pVnode);
-  if (req.pStRtFuncInfo->isMultiGroupCalc && req.pStRtFuncInfo->curGrpRead != NULL) {
-    STREAM_CHECK_RET_GOTO(stValidateNodeGroupReadBindings(req.pStRtFuncInfo, TD_VID(pVnode)));
-  }
   calcInfoList = (SArray*)qStreamGetReaderInfo(req.queryId, req.taskId, &taskAddr);
   STREAM_CHECK_NULL_GOTO(calcInfoList, terrno);
 
   STREAM_CHECK_CONDITION_GOTO(req.execId < 0, TSDB_CODE_INVALID_PARA);
   sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
-  STREAM_CHECK_RET_GOTO(tAdmitStreamContext(req.pStRtFuncInfo == NULL ? NULL : req.pStRtFuncInfo->pContextPolicy,
-                                            req.pStRtFuncInfo == NULL ? NULL : req.pStRtFuncInfo->pAncestorContext,
-                                            sStreamReaderCalcInfo->requiresContextPolicy));
-  sStreamReaderCalcInfo->rtInfo.execId = req.execId;
+  bool readerFetch =
+      req.pStRtFuncInfo->isMultiGroupCalc && req.pOpParam == NULL && req.pStRtFuncInfo->curGrpRead != NULL;
+  bool continuation =
+      !req.reset &&
+      (req.readerFetchId != 0 || sStreamReaderCalcInfo->fetchState.enabled ||
+       (req.pStRtFuncInfo->isMultiGroupCalc && req.pOpParam == NULL && req.pStRtFuncInfo->pGroupCalcInfos == NULL));
+  if (continuation) {
+    STREAM_CHECK_RET_GOTO(stReaderCheckFetchContinuation(sStreamReaderCalcInfo, &req, TD_VID(pVnode)));
+  } else {
+    STREAM_CHECK_CONDITION_GOTO(req.readerFetchId != 0 && (!req.reset || !readerFetch), TSDB_CODE_INVALID_MSG);
+    STREAM_CHECK_CONDITION_GOTO(req.reset && readerFetch && req.readerFetchId == 0, TSDB_CODE_INVALID_MSG);
+    STREAM_CHECK_CONDITION_GOTO(
+        req.pStRtFuncInfo->isMultiGroupCalc && req.pOpParam == NULL && req.pStRtFuncInfo->pGroupCalcInfos == NULL,
+        TSDB_CODE_INVALID_MSG);
+    if (req.pStRtFuncInfo->isMultiGroupCalc && req.pStRtFuncInfo->curGrpRead != NULL) {
+      STREAM_CHECK_RET_GOTO(stValidateNodeGroupReadBindings(req.pStRtFuncInfo, TD_VID(pVnode)));
+    }
+    STREAM_CHECK_RET_GOTO(tAdmitStreamContext(req.pStRtFuncInfo->pContextPolicy, req.pStRtFuncInfo->pAncestorContext,
+                                              sStreamReaderCalcInfo->requiresContextPolicy));
+  }
 
   pReaderTask = (SStreamReaderTask*)sStreamReaderCalcInfo->pTask;
   pTask = pReaderTask;
@@ -5833,7 +5848,18 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
     goto end;
   }
 
+  if (!req.reset) {
+    STREAM_CHECK_RET_GOTO(stReaderSetGroupOutputMode(sStreamReaderCalcInfo, &req));
+  }
+
   if (req.reset) {
+    if (readerFetch) stReaderCaptureFetchState(&candidate, &req, TD_VID(pVnode));
+    stReaderInvalidateFetchState(sStreamReaderCalcInfo);
+    sStreamReaderCalcInfo->fetchState.enabled = candidate.enabled;
+    fetchStateTouched = true;
+    sStreamReaderCalcInfo->rtInfo.execId = req.execId;
+    sStreamReaderCalcInfo->readerGroupModeSet = false;
+    sStreamReaderCalcInfo->readerGroupAccepted = false;
     int64_t uid = 0;
     if (req.dynTbname && !req.pStRtFuncInfo->isMultiGroupCalc) {
       SArray* vals = req.pStRtFuncInfo->pStreamPartColVals;
@@ -5894,8 +5920,14 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
     }
 
     STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
+    STREAM_CHECK_RET_GOTO(stReaderSetGroupOutputMode(sStreamReaderCalcInfo, &req));
+    sStreamReaderCalcInfo->fetchState = candidate;
+    ST_TASK_DLOG("vgId:%d Reader group output requested:%d accepted:%d, scan type:%d execId:%d", TD_VID(pVnode),
+                 req.readerGroupMode, sStreamReaderCalcInfo->readerGroupAccepted, scanType, req.execId);
   }
 
+  fetchStateTouched = true;
+  sStreamReaderCalcInfo->rtInfo.execId = req.execId;
   if (req.pOpParam != NULL) {
     qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, (void*)req.pOpParam);
   }
@@ -5911,7 +5943,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
   // (SELECT last_row(ts) FROM ref)) fail with "no subJob ctx" on whichever
   // event happens to land on a fresh worker thread.
   setTaskScalarExtraInfo(sStreamReaderCalcInfo->pTaskInfo);
-  STREAM_CHECK_RET_GOTO(qExecTaskOpt(sStreamReaderCalcInfo->pTaskInfo, pResList, &ts, &hasNext, NULL, req.pOpParam != NULL));
+  STREAM_CHECK_RET_GOTO(
+      qExecTaskOpt(sStreamReaderCalcInfo->pTaskInfo, pResList, &ts, &hasNext, NULL, req.pOpParam != NULL));
 
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
@@ -5926,7 +5959,12 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
   }
 
 end: {
-  const int32_t rspCode = streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision);
+  bool          grouped = sStreamReaderCalcInfo != NULL && sStreamReaderCalcInfo->readerGroupAccepted;
+  const int32_t rspCode =
+      grouped ? (code == TSDB_CODE_SUCCESS
+                     ? streamBuildGroupFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision)
+                     : code)
+              : streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision);
   if (code == TSDB_CODE_SUCCESS) {
     code = rspCode;
     if (code == TSDB_CODE_SUCCESS) {
@@ -5935,12 +5973,16 @@ end: {
   }
 }
 
-  if (sStreamReaderCalcInfo && sStreamReaderCalcInfo->rtInfo.funcInfo.isMultiGroupCalc) {
+  if (fetchStateTouched && (code != TSDB_CODE_SUCCESS || !hasNext)) {
+    stReaderInvalidateFetchState(sStreamReaderCalcInfo);
+  }
+  if (fetchStateTouched && sStreamReaderCalcInfo->rtInfo.funcInfo.isMultiGroupCalc) {
     sStreamReaderCalcInfo->rtInfo.funcInfo.pStreamPesudoFuncVals = NULL;
     sStreamReaderCalcInfo->rtInfo.funcInfo.pStreamPartColVals = NULL;
   }
 
-  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST){
+  if ((sStreamReaderCalcInfo == NULL || !sStreamReaderCalcInfo->readerGroupAccepted) &&
+      (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     code = TDB_CODE_SUCCESS;
   }
   if (pReaderTask != NULL) {
@@ -5950,11 +5992,9 @@ end: {
     stReaderTaskRecordPullResult(pReaderTask, pRspStats, code, nowMonoUs, taosGetTimestampMs());
   }
   taosArrayDestroy(pResList);
-  streamReleaseTask(taskAddr);
 
   STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
-  tmsgSendRsp(&rsp);
   tDestroySResFetchReq(&req);
   if (TDB_CODE_SUCCESS != code) {
     if (pTask != NULL) {
@@ -5963,8 +6003,21 @@ end: {
       stError("vgId:%d %s failed, code:%d - %s", TD_VID(pVnode), __func__, code, tstrerror(code));
     }
   }
+  streamReleaseTask(taskAddr);
+  tmsgSendRsp(&rsp);
   return code;
 }
+
+#if defined(BUILD_TEST)
+int32_t vnodeTestProcessStreamFetchMsg(int32_t vgId, SRpcMsg* pMsg) {
+  SVnode                     vnode = {0};
+  SQueueInfo                 queueInfo = {0};
+  SStreamReaderResponseStats stats = {0};
+  vnode.config.vgId = vgId;
+  vnode.config.tsdbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+  return vnodeProcessStreamFetchMsg(&vnode, pMsg, &queueInfo, &stats);
+}
+#endif
 
 static int32_t initTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, SVnode* pVnode) {
   int32_t code = 0;

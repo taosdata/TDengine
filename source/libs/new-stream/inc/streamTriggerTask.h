@@ -208,8 +208,8 @@ typedef struct SSTriggerNestedPeerSource {
   int32_t sourceIndex;
   int32_t subSourceIndex;
 
-  const SSDataBlock        *pSliceBlock;
-  SSDataBlock              *pOutputBlock;  // borrowed alias to pVtableMerger output
+  SSTriggerNewTimestampSorter *pSorter;
+  SSDataBlock                 *pOutputBlock;  // borrowed WAL slice, sorter output, or vtable merger output
   SSTriggerNewVtableMerger *pVtableMerger;
   SArray                   *pTrigColRefs;  // owned SArray<SSTriggerTableColRef>
   int32_t                   rowIndex;
@@ -867,6 +867,11 @@ typedef struct SStreamEventTree {
   int32_t maxDepth;
 } SStreamEventTree;
 
+typedef struct SSTriggerGroupRunning {
+  int32_t runningRequests;
+  bool    runnerInitialized[];
+} SSTriggerGroupRunning;
+
 typedef struct SSTriggerRecalcRequest {
   int64_t     gid;
   STimeWindow scanRange;
@@ -1023,7 +1028,7 @@ typedef struct SStreamTriggerTask {
   SRWLatch   calcPoolLock;
   SRWLatch   calcDataCacheIterLock;
   SArray    *pCalcNodes;       // SArray<SSTriggerCalcNode>
-  SSHashObj *pGroupRunning;    // SSHashObj<gid, bool[]>
+  SSHashObj *pGroupRunning;    // SSHashObj<(sessionId, gid), SSTriggerGroupRunning>
   SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
 
   SRWLatch   recalcRequestLock;

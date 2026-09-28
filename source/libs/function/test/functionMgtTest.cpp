@@ -20,6 +20,9 @@
 #include "functionMgt.h"
 #include "nodes.h"
 #include "osEnv.h"
+#ifndef _WIN32
+#include "stub.h"
+#endif
 
 namespace {
 
@@ -110,6 +113,83 @@ SNode* makeVarcharValue(const char* value, int32_t len) {
   (void)memcpy(varDataVal(node->datum.p), value, len);
   return (SNode*)node;
 }
+
+SStreamAncestorContext* createDenseAncestorContext(int32_t count) {
+  auto* context = static_cast<SStreamAncestorContext*>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+  if (context == nullptr) return nullptr;
+  context->pParamContexts = taosArrayInit(count, sizeof(SStreamAncestorParamContext));
+  if (context->pParamContexts == nullptr) {
+    tDestroyStreamAncestorContext(&context);
+    return nullptr;
+  }
+
+  SStreamAncestorParamContext param = {};
+  for (int32_t i = 0; i < count; ++i) {
+    param = {};
+    param.paramIndex = 0;
+    param.leafIdentity.gid = 1000 + i;
+    param.leafIdentity.triggerType = WINDOW_TYPE_COUNT;
+    param.leafIdentity.openingTs = i;
+    param.leafIdentity.nativeDiscriminator = i;
+    param.leafIdentity.lineage.pScopes = taosArrayInit(1, sizeof(SScopeInstanceId));
+    if (param.leafIdentity.lineage.pScopes == nullptr) goto _error;
+    SScopeInstanceId scope = {};
+    scope.layerIndex = 0;
+    scope.triggerType = WINDOW_TYPE_INTERVAL;
+    scope.openingTs = i;
+    scope.nativeDiscriminator = i;
+    if (taosArrayPush(param.leafIdentity.lineage.pScopes, &scope) == nullptr) goto _error;
+    param.pSnapshots = taosArrayInit(1, sizeof(SWindowAncestorSnapshot));
+    if (param.pSnapshots == nullptr) goto _error;
+    SWindowAncestorSnapshot snapshot = {};
+    snapshot.layerIndex = 0;
+    snapshot.triggerType = WINDOW_TYPE_INTERVAL;
+    snapshot.placeholderMask = PLACE_HOLDER_WSTART;
+    snapshot.values.window.start = param.leafIdentity.gid;
+    if (taosArrayPush(param.pSnapshots, &snapshot) == nullptr ||
+        taosArrayPush(context->pParamContexts, &param) == nullptr) {
+      goto _error;
+    }
+    param.leafIdentity.lineage.pScopes = nullptr;
+    param.pSnapshots = nullptr;
+  }
+  return context;
+
+_error:
+  taosArrayDestroy(param.leafIdentity.lineage.pScopes);
+  taosArrayDestroy(param.pSnapshots);
+  tDestroyStreamAncestorContext(&context);
+  return nullptr;
+}
+
+#ifndef _WIN32
+// MSVC /GL can inline array access, bypassing an entry-point patch.
+const SArray* gAncestorParamArray = nullptr;
+int32_t       gAncestorParamArrayGetCalls = 0;
+
+void* countAncestorParamArrayGet(const SArray* array, size_t index) {
+  if (array == gAncestorParamArray) ++gAncestorParamArrayGetCalls;
+  if (array == nullptr || index >= array->size) return nullptr;
+  return TARRAY_GET_ELEM(array, index);
+}
+
+class AncestorParamArrayGetGuard {
+ public:
+  explicit AncestorParamArrayGetGuard(const SArray* array) {
+    gAncestorParamArray = array;
+    gAncestorParamArrayGetCalls = 0;
+    stub_.set(taosArrayGet, countAncestorParamArrayGet);
+  }
+
+  ~AncestorParamArrayGetGuard() {
+    stub_.reset(taosArrayGet);
+    gAncestorParamArray = nullptr;
+  }
+
+ private:
+  Stub stub_;
+};
+#endif
 
 }  // namespace
 
@@ -328,4 +408,47 @@ TEST(FunctionMgtTest, fallsBackToTimezoneNameWhenOffsetIsMissing) {
 
     nodesDestroyNode((SNode*)pFunc);
   }
+}
+
+TEST(FunctionMgtTest, repeatedQualifiedPlaceholderEvaluationUsesPreparedAncestorIndex) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  const int32_t funcId = fmGetFuncId("_twstart");
+  ASSERT_GE(funcId, 0);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 1063;
+  runtime.curIdx = 0;
+  runtime.pAncestorContext = createDenseAncestorContext(64);
+  ASSERT_NE(nullptr, runtime.pAncestorContext);
+  ASSERT_EQ(64, taosArrayGetSize(runtime.pAncestorContext->pParamContexts));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamAncestorParamIndex(runtime.pAncestorContext));
+
+  SNodeList*  params = nullptr;
+  SValueNode* result = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode**>(&result)));
+  result->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  result->node.resType.bytes = sizeof(int64_t);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&params, reinterpret_cast<SNode*>(result)));
+  SValueNode* layer = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode**>(&layer)));
+  layer->node.resType.type = TSDB_DATA_TYPE_INT;
+  layer->node.resType.bytes = sizeof(int32_t);
+  layer->datum.i = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&params, reinterpret_cast<SNode*>(layer)));
+
+  {
+#ifndef _WIN32
+    AncestorParamArrayGetGuard arrayGetGuard(runtime.pAncestorContext->pParamContexts);
+#endif
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmSetStreamPseudoFuncParamVal(funcId, params, &runtime));
+    EXPECT_EQ(1063, result->datum.i);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmSetStreamPseudoFuncParamVal(funcId, params, &runtime));
+    EXPECT_EQ(1063, result->datum.i);
+#ifndef _WIN32
+    EXPECT_EQ(2, gAncestorParamArrayGetCalls);
+#endif
+  }
+
+  nodesDestroyList(params);
+  tDestroyStreamAncestorContext(&runtime.pAncestorContext);
 }

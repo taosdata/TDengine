@@ -15,25 +15,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <gtest/gtest.h>
+#include <stub.h>
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <initializer_list>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "nodes.h"
-#include "tdatablock.h"
 #include "streamMsg.h"
+#include "tdatablock.h"
 #include "tencode.h"
 #include "tjson.h"
 #include "tmsg.h"
+
+#include "readerFetchBenchmarkTest.h"
+
+using reader_fetch_benchmark::ReaderFetchLayout;
 
 extern "C" int32_t tEncodeSStmStreamDeploy(SEncoder* pEncoder, const SStmStreamDeploy* pStream);
 extern "C" int32_t tDecodeSStmStreamDeploy(SDecoder* pDecoder, SStmStreamDeploy* pStream);
@@ -51,6 +63,124 @@ struct RequestDeleter {
 };
 
 using RequestPtr = std::unique_ptr<SCMCreateStreamReq, RequestDeleter>;
+
+struct TriggerCalcRequestGuard {
+  SSTriggerCalcRequest request = {};
+  ~TriggerCalcRequestGuard() { tDestroySTriggerCalcRequest(&request); }
+};
+
+struct FetchRequestGuard {
+  SResFetchReq request = {};
+  ~FetchRequestGuard() { tDestroySResFetchReq(&request); }
+};
+
+struct RuntimeFuncInfoGuard {
+  SStreamRuntimeFuncInfo runtime = {};
+  ~RuntimeFuncInfoGuard() { tDestroyStRtFuncInfo(&runtime); }
+};
+
+struct TaosMemoryDeleter {
+  void operator()(void* memory) const { taosMemoryFree(memory); }
+};
+
+using TaosMemoryPtr = std::unique_ptr<void, TaosMemoryDeleter>;
+
+Stub*   gContextFrameAllocStub = nullptr;
+int64_t gContextFrameFailSize = -1;
+int32_t gContextFrameMatchingAllocations = 0;
+
+void* failMatchingContextFrameAllocation(int64_t size) {
+  gContextFrameAllocStub->reset(taosMemMalloc);
+  void* memory = nullptr;
+  if (size == gContextFrameFailSize && gContextFrameMatchingAllocations++ == 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    memory = taosMemMalloc(size);
+  }
+  gContextFrameAllocStub->set(taosMemMalloc, failMatchingContextFrameAllocation);
+  return memory;
+}
+
+class MatchingAllocationFailureGuard {
+ public:
+  explicit MatchingAllocationFailureGuard(int64_t size) {
+    gContextFrameFailSize = size;
+    gContextFrameMatchingAllocations = 0;
+    gContextFrameAllocStub = &stub_;
+    stub_.set(taosMemMalloc, failMatchingContextFrameAllocation);
+  }
+
+  ~MatchingAllocationFailureGuard() {
+    stub_.reset(taosMemMalloc);
+    gContextFrameAllocStub = nullptr;
+    gContextFrameFailSize = -1;
+  }
+
+ private:
+  Stub stub_;
+};
+
+Stub*   gNthAllocationStub = nullptr;
+int32_t gNthAllocationToFail = -1;
+int32_t gNthAllocationCount = 0;
+bool    gNthAllocationFailed = false;
+
+bool failNthAllocation() {
+  if (gNthAllocationCount++ == gNthAllocationToFail) {
+    gNthAllocationFailed = true;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return true;
+  }
+  return false;
+}
+
+void* failNthMalloc(int64_t size) {
+  gNthAllocationStub->reset(taosMemMalloc);
+  void* memory = failNthAllocation() ? nullptr : taosMemMalloc(size);
+  gNthAllocationStub->set(taosMemMalloc, failNthMalloc);
+  return memory;
+}
+
+void* failNthCalloc(int64_t num, int64_t size) {
+  gNthAllocationStub->reset(taosMemCalloc);
+  void* memory = failNthAllocation() ? nullptr : taosMemCalloc(num, size);
+  gNthAllocationStub->set(taosMemCalloc, failNthCalloc);
+  return memory;
+}
+
+void* failNthRealloc(void* memory, int64_t size) {
+  gNthAllocationStub->reset(taosMemRealloc);
+  void* result = failNthAllocation() ? nullptr : taosMemRealloc(memory, size);
+  gNthAllocationStub->set(taosMemRealloc, failNthRealloc);
+  return result;
+}
+
+class NthAllocationFailureGuard {
+ public:
+  explicit NthAllocationFailureGuard(int32_t allocationToFail) {
+    gNthAllocationToFail = allocationToFail;
+    gNthAllocationCount = 0;
+    gNthAllocationFailed = false;
+    gNthAllocationStub = &stub_;
+    stub_.set(taosMemMalloc, failNthMalloc);
+    stub_.set(taosMemCalloc, failNthCalloc);
+    stub_.set(taosMemRealloc, failNthRealloc);
+  }
+
+  ~NthAllocationFailureGuard() {
+    stub_.reset(taosMemMalloc);
+    stub_.reset(taosMemCalloc);
+    stub_.reset(taosMemRealloc);
+    gNthAllocationStub = nullptr;
+    gNthAllocationToFail = -1;
+  }
+
+  bool    failed() const { return gNthAllocationFailed; }
+  int32_t allocationCount() const { return gNthAllocationCount; }
+
+ private:
+  Stub stub_;
+};
 
 char* dupText(const char* text) {
   char* copy = taosStrdup(text);
@@ -2174,9 +2304,17 @@ SStreamRuntimeFuncInfo makeActualNodeMultiGroupFetchRuntime() {
       makeContextPolicyEntry(otherGid, 1, STREAM_CONTEXT_POLICY_ANCESTOR);
   EXPECT_NE(nullptr, taosArrayPush(request.pContextPolicy->pEntries, &secondOtherEntry));
   appendAncestorParamContext(request.pAncestorContext, otherGid, 1);
+  auto* secondOtherContext =
+      static_cast<SStreamAncestorParamContext*>(taosArrayGetLast(request.pAncestorContext->pParamContexts));
+  EXPECT_NE(nullptr, secondOtherContext);
+  auto* secondOtherParent =
+      static_cast<SScopeInstanceId*>(taosArrayGet(secondOtherContext->leafIdentity.lineage.pScopes, 1));
+  EXPECT_NE(nullptr, secondOtherParent);
+  secondOtherParent->openingTs = 2500;
+  secondOtherParent->nativeDiscriminator = 31;
   read.firstParam = secondOtherParam;
   read.lastParam = secondOtherParam;
-  SArray* otherNodeReads = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  SArray* otherNodeReads = taosArrayInit(1, sizeof(SSTriggerGroupReadInfo));
   EXPECT_NE(nullptr, otherNodeReads);
   EXPECT_NE(nullptr, taosArrayPush(otherNodeReads, &read));
   EXPECT_EQ(TSDB_CODE_SUCCESS,
@@ -2234,6 +2372,133 @@ SStreamRuntimeFuncInfo makeDenseActualNodeMultiGroupFetchRuntime(int32_t paramCo
   tSimpleHashSetFreeFp(runtime.pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
   EXPECT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(runtime.pGroupReadInfos, &nodeId, sizeof(nodeId), &reads, POINTER_BYTES));
   installActualNodeReadView(&runtime, nodeId);
+  return runtime;
+}
+
+void setReaderFetchAncestorDepth(SStreamAncestorParamContext* context, int32_t ancestorDepth) {
+  ASSERT_NE(nullptr, context);
+  ASSERT_TRUE(ancestorDepth == 1 || ancestorDepth == 3);
+  while (taosArrayGetSize(context->leafIdentity.lineage.pScopes) > ancestorDepth) {
+    ASSERT_NE(nullptr, taosArrayPop(context->leafIdentity.lineage.pScopes));
+    ASSERT_NE(nullptr, taosArrayPop(context->pSnapshots));
+  }
+  while (taosArrayGetSize(context->leafIdentity.lineage.pScopes) < ancestorDepth) {
+    const int32_t                 layer = taosArrayGetSize(context->leafIdentity.lineage.pScopes);
+    const SScopeInstanceId        scope = makeScopeInstanceId(layer, WINDOW_TYPE_COUNT, layer * 100, layer + 20);
+    const SWindowAncestorSnapshot snapshot = makeWindowSnapshot(layer, WINDOW_TYPE_COUNT, 0, layer * 100);
+    ASSERT_NE(nullptr, taosArrayPush(context->leafIdentity.lineage.pScopes, &scope));
+    ASSERT_NE(nullptr, taosArrayPush(context->pSnapshots, &snapshot));
+  }
+}
+
+SStreamRuntimeFuncInfo makeReaderFetchScaleRuntime(int32_t totalParams, int32_t nodeCount, ReaderFetchLayout layout,
+                                                   int32_t ancestorDepth) {
+  SStreamRuntimeFuncInfo runtime = {};
+  EXPECT_GT(totalParams, 0);
+  EXPECT_GT(nodeCount, 0);
+  EXPECT_TRUE(ancestorDepth == 1 || ancestorDepth == 3);
+  if (totalParams <= 0 || nodeCount <= 0 || (ancestorDepth != 1 && ancestorDepth != 3)) return runtime;
+
+  const auto    groups = reader_fetch_benchmark::makeScalePlan(totalParams, nodeCount, layout);
+  const int32_t groupCount = static_cast<int32_t>(groups.size());
+  runtime.isMultiGroupCalc = true;
+  runtime.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  runtime.sessionId = 33;
+  runtime.triggerType = STREAM_TRIGGER_COUNT;
+  runtime.isWindowTrigger = true;
+  runtime.precision = TSDB_TIME_PRECISION_MILLI;
+  runtime.pGroupCalcInfos = tSimpleHashInit(groupCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  runtime.pGroupReadInfos = tSimpleHashInit(nodeCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  runtime.pGroupCalcOrder = taosArrayInit(groupCount, sizeof(uint64_t));
+  runtime.pContextPolicy = makeContextPolicy();
+  runtime.pAncestorContext = static_cast<SStreamAncestorContext*>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+  EXPECT_NE(nullptr, runtime.pGroupCalcInfos);
+  EXPECT_NE(nullptr, runtime.pGroupReadInfos);
+  EXPECT_NE(nullptr, runtime.pGroupCalcOrder);
+  EXPECT_NE(nullptr, runtime.pContextPolicy);
+  EXPECT_NE(nullptr, runtime.pAncestorContext);
+  runtime.pAncestorContext->pParamContexts = taosArrayInit(totalParams, sizeof(SStreamAncestorParamContext));
+  EXPECT_NE(nullptr, runtime.pAncestorContext->pParamContexts);
+  tSimpleHashSetFreeFp(runtime.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  tSimpleHashSetFreeFp(runtime.pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
+
+  std::vector<SArray*> nodeReads(nodeCount, nullptr);
+  for (int32_t node = 0; node < nodeCount; ++node) {
+    nodeReads[node] = taosArrayInit(1, sizeof(SSTriggerGroupReadInfo));
+    EXPECT_NE(nullptr, nodeReads[node]);
+  }
+
+  int32_t globalParamIndex = 0;
+  for (const auto& group : groups) {
+    const int64_t gid = group.gid;
+    EXPECT_NE(nullptr, taosArrayPush(runtime.pGroupCalcOrder, &gid));
+    SSTriggerGroupCalcInfo calc = {};
+    calc.pParams = taosArrayInit(group.paramCount, sizeof(SSTriggerCalcParam));
+    EXPECT_NE(nullptr, calc.pParams);
+    for (int32_t paramIndex = 0; paramIndex < group.paramCount; ++paramIndex) {
+      const int64_t      start = static_cast<int64_t>(globalParamIndex) * 100;
+      SSTriggerCalcParam param = makeWindowCalcParam(start, start + 99, BIT_FLAG_MASK(0));
+      EXPECT_NE(nullptr, taosArrayPush(calc.pParams, &param));
+      appendAncestorParamContext(runtime.pAncestorContext, gid, paramIndex);
+      auto* context =
+          static_cast<SStreamAncestorParamContext*>(taosArrayGetLast(runtime.pAncestorContext->pParamContexts));
+      setReaderFetchAncestorDepth(context, ancestorDepth);
+      const SStreamContextPolicyEntry entry = makeContextPolicyEntry(gid, paramIndex, STREAM_CONTEXT_POLICY_ANCESTOR);
+      EXPECT_NE(nullptr, taosArrayPush(runtime.pContextPolicy->pEntries, &entry));
+      ++globalParamIndex;
+    }
+    EXPECT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(runtime.pGroupCalcInfos, &gid, sizeof(gid), &calc, sizeof(calc)));
+  }
+
+  if (layout == ReaderFetchLayout::SharedGroup) {
+    for (const auto& segment : groups.front().segments) {
+      for (int32_t paramIndex = segment.beginParam; paramIndex < segment.endParam; ++paramIndex) {
+        auto* context = static_cast<SStreamAncestorParamContext*>(
+            taosArrayGet(runtime.pAncestorContext->pParamContexts, paramIndex));
+        for (int32_t layer = 0; layer < taosArrayGetSize(context->leafIdentity.lineage.pScopes); ++layer) {
+          auto* scope = static_cast<SScopeInstanceId*>(taosArrayGet(context->leafIdentity.lineage.pScopes, layer));
+          scope->openingTs += static_cast<int64_t>(segment.nodeIndex) * 100000;
+          scope->nativeDiscriminator += segment.nodeIndex * 100;
+        }
+      }
+    }
+  }
+
+  for (const auto& group : groups) {
+    const int64_t gid = group.gid;
+    auto* calc = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+    EXPECT_NE(nullptr, calc);
+    for (const auto& segment : group.segments) {
+      SSTriggerGroupReadInfo read = {};
+      read.gid = gid;
+      read.firstParam = *static_cast<SSTriggerCalcParam*>(taosArrayGet(calc->pParams, segment.beginParam));
+      read.lastParam = *static_cast<SSTriggerCalcParam*>(taosArrayGet(calc->pParams, segment.endParam - 1));
+      const int32_t readInfoIndex = taosArrayGetSize(nodeReads[segment.nodeIndex]);
+      EXPECT_NE(nullptr, taosArrayPush(nodeReads[segment.nodeIndex], &read));
+      appendReadBindingForParam(runtime.pAncestorContext, segment.nodeIndex + 1, readInfoIndex,
+                                group.paramOffset + segment.beginParam);
+    }
+  }
+
+  for (int32_t node = 0; node < nodeCount; ++node) {
+    if (taosArrayGetSize(nodeReads[node]) == 0) {
+      taosArrayDestroy(nodeReads[node]);
+      continue;
+    }
+    const int32_t nodeId = node + 1;
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(runtime.pGroupReadInfos, &nodeId, sizeof(nodeId), &nodeReads[node], POINTER_BYTES));
+  }
+  EXPECT_EQ(totalParams, globalParamIndex);
+  SSTriggerCalcRequest validation = {};
+  validation.isMultiGroupCalc = true;
+  validation.pGroupCalcInfos = runtime.pGroupCalcInfos;
+  validation.pGroupReadInfos = runtime.pGroupReadInfos;
+  validation.pContextPolicy = runtime.pContextPolicy;
+  validation.pAncestorContext = runtime.pAncestorContext;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateSTriggerCalcRequest(&validation));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tAdmitStreamContext(runtime.pContextPolicy, runtime.pAncestorContext, true));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateStreamCalcContextForFetch(&runtime, true, false));
   return runtime;
 }
 
@@ -2327,6 +2592,667 @@ std::vector<uint8_t> makeUnknownCalcFrame() {
   EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeU8(&encoder, 3));
   tEncoderClear(&encoder);
   return frame;
+}
+
+std::vector<uint8_t> extractContextFrames(const std::vector<uint8_t>& bytes) {
+  std::vector<uint8_t> frames;
+  for (uint32_t magic : {STREAM_CONTEXT_POLICY_FRAME_MAGIC, STREAM_ANCESTOR_FRAME_MAGIC}) {
+    const size_t offset = frameOffset(bytes, magic);
+    if (offset == bytes.size()) continue;
+    uint32_t payloadLength = 0;
+    memcpy(&payloadLength, bytes.data() + offset + sizeof(uint32_t) + sizeof(uint16_t) * 2, sizeof(payloadLength));
+    const size_t frameLength = sizeof(uint32_t) * 2 + sizeof(uint16_t) * 2 + payloadLength;
+    EXPECT_LE(offset + frameLength, bytes.size());
+    if (offset + frameLength > bytes.size()) return {};
+    frames.insert(frames.end(), bytes.begin() + offset, bytes.begin() + offset + frameLength);
+  }
+  return frames;
+}
+
+const SStreamContextPolicyEntry* findPolicyEntry(const SStreamContextPolicy* policy, int64_t gid, int32_t paramIndex) {
+  if (policy == nullptr) return nullptr;
+  for (int32_t i = 0; i < taosArrayGetSize(policy->pEntries); ++i) {
+    const auto* entry = static_cast<const SStreamContextPolicyEntry*>(taosArrayGet(policy->pEntries, i));
+    if (entry != nullptr && entry->gid == gid && entry->paramIndex == paramIndex) return entry;
+  }
+  return nullptr;
+}
+
+const SSTriggerGroupReadInfo* findGroupReadInfo(const SArray* reads, int64_t gid) {
+  for (int32_t i = 0; i < taosArrayGetSize(reads); ++i) {
+    const auto* read = static_cast<const SSTriggerGroupReadInfo*>(taosArrayGet(reads, i));
+    if (read != nullptr && read->gid == gid) return read;
+  }
+  return nullptr;
+}
+
+const SStreamReadScopeBinding* findReadBinding(const SStreamAncestorContext* context, int32_t vgId,
+                                               int32_t readInfoIndex, int64_t gid) {
+  if (context == nullptr) return nullptr;
+  for (int32_t i = 0; i < taosArrayGetSize(context->pReadScopeBindings); ++i) {
+    const auto* binding = static_cast<const SStreamReadScopeBinding*>(taosArrayGet(context->pReadScopeBindings, i));
+    if (binding != nullptr && binding->vgId == vgId && binding->readInfoIndex == readInfoIndex &&
+        binding->scope.gid == gid) {
+      return binding;
+    }
+  }
+  return nullptr;
+}
+
+const SScopeInstanceId* findScope(const SArray* scopes, int32_t layerIndex) {
+  for (int32_t i = 0; i < taosArrayGetSize(scopes); ++i) {
+    const auto* scope = static_cast<const SScopeInstanceId*>(taosArrayGet(scopes, i));
+    if (scope != nullptr && scope->layerIndex == layerIndex) return scope;
+  }
+  return nullptr;
+}
+
+const SWindowAncestorSnapshot* findSnapshot(const SArray* snapshots, int32_t layerIndex) {
+  for (int32_t i = 0; i < taosArrayGetSize(snapshots); ++i) {
+    const auto* snapshot = static_cast<const SWindowAncestorSnapshot*>(taosArrayGet(snapshots, i));
+    if (snapshot != nullptr && snapshot->layerIndex == layerIndex) return snapshot;
+  }
+  return nullptr;
+}
+
+void expectFullFetchContext(const SResFetchReq& request, int8_t expectedPolicy = STREAM_CONTEXT_POLICY_ANCESTOR) {
+  ASSERT_NE(nullptr, request.pStRtFuncInfo);
+  EXPECT_TRUE(request.pStRtFuncInfo->isMultiGroupCalc);
+  EXPECT_EQ(2, tSimpleHashGetSize(request.pStRtFuncInfo->pGroupCalcInfos));
+  EXPECT_EQ(1, tSimpleHashGetSize(request.pStRtFuncInfo->pGroupReadInfos));
+  ASSERT_NE(nullptr, request.pStRtFuncInfo->pContextPolicy);
+  EXPECT_EQ(2, taosArrayGetSize(request.pStRtFuncInfo->pContextPolicy->pEntries));
+  const int64_t gids[] = {101, 202};
+  const int32_t vgId = 7;
+  auto** reads = static_cast<SArray**>(tSimpleHashGet(request.pStRtFuncInfo->pGroupReadInfos, &vgId, sizeof(vgId)));
+  ASSERT_NE(nullptr, reads);
+  ASSERT_NE(nullptr, *reads);
+  EXPECT_EQ(2, taosArrayGetSize(*reads));
+  for (int32_t i = 0; i < 2; ++i) {
+    const int64_t gid = gids[i];
+    const auto*   policy = findPolicyEntry(request.pStRtFuncInfo->pContextPolicy, gid, 0);
+    ASSERT_NE(nullptr, policy);
+    EXPECT_EQ(expectedPolicy, policy->contextPolicy);
+
+    const auto* calc = static_cast<const SSTriggerGroupCalcInfo*>(
+        tSimpleHashGet(request.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, calc);
+    ASSERT_EQ(1, taosArrayGetSize(calc->pParams));
+    const auto* calcParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(calc->pParams, 0));
+    ASSERT_NE(nullptr, calcParam);
+    EXPECT_EQ(gid, calcParam->wstart);
+    EXPECT_EQ(gid + 99, calcParam->wend);
+    EXPECT_EQ(BIT_FLAG_MASK(0), calcParam->notifyType);
+
+    const auto* read = findGroupReadInfo(*reads, gid);
+    ASSERT_NE(nullptr, read);
+    EXPECT_EQ(gid, read->firstParam.wstart);
+    EXPECT_EQ(gid + 99, read->firstParam.wend);
+    EXPECT_EQ(gid, read->lastParam.wstart);
+    EXPECT_EQ(gid + 99, read->lastParam.wend);
+  }
+
+  if (expectedPolicy == STREAM_CONTEXT_POLICY_NONE) {
+    EXPECT_EQ(nullptr, request.pStRtFuncInfo->pAncestorContext);
+    EXPECT_EQ(TSDB_CODE_SUCCESS, tAdmitStreamContext(request.pStRtFuncInfo->pContextPolicy, nullptr, true));
+    return;
+  }
+
+  ASSERT_EQ(STREAM_CONTEXT_POLICY_ANCESTOR, expectedPolicy);
+  const auto* context = request.pStRtFuncInfo->pAncestorContext;
+  ASSERT_NE(nullptr, context);
+  EXPECT_EQ(2, taosArrayGetSize(context->pParamContexts));
+  EXPECT_EQ(2, taosArrayGetSize(context->pReadScopeBindings));
+  for (int32_t i = 0; i < 2; ++i) {
+    const int64_t                      gid = gids[i];
+    const SStreamAncestorParamContext* param = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tLookupStreamAncestorParam(context, gid, 0, &param));
+    ASSERT_NE(nullptr, param);
+    EXPECT_EQ(gid, param->leafIdentity.gid);
+    EXPECT_EQ(WINDOW_TYPE_COUNT, param->leafIdentity.triggerType);
+    EXPECT_EQ(1000, param->leafIdentity.openingTs);
+    EXPECT_EQ(17, param->leafIdentity.nativeDiscriminator);
+
+    const auto* rootScope = findScope(param->leafIdentity.lineage.pScopes, 0);
+    const auto* parentScope = findScope(param->leafIdentity.lineage.pScopes, 1);
+    ASSERT_NE(nullptr, rootScope);
+    ASSERT_NE(nullptr, parentScope);
+    EXPECT_EQ(WINDOW_TYPE_INTERVAL, rootScope->triggerType);
+    EXPECT_EQ(0, rootScope->openingTs);
+    EXPECT_EQ(10, rootScope->nativeDiscriminator);
+    EXPECT_EQ(WINDOW_TYPE_SESSION, parentScope->triggerType);
+    EXPECT_EQ(500, parentScope->openingTs);
+    EXPECT_EQ(11, parentScope->nativeDiscriminator);
+
+    const auto* rootSnapshot = findSnapshot(param->pSnapshots, 0);
+    const auto* parentSnapshot = findSnapshot(param->pSnapshots, 1);
+    ASSERT_NE(nullptr, rootSnapshot);
+    ASSERT_NE(nullptr, parentSnapshot);
+    EXPECT_EQ(WINDOW_TYPE_INTERVAL, rootSnapshot->triggerType);
+    EXPECT_EQ(PLACE_HOLDER_PREV_TS | PLACE_HOLDER_CURRENT_TS | PLACE_HOLDER_NEXT_TS, rootSnapshot->placeholderMask);
+    EXPECT_EQ(-1, rootSnapshot->values.sliding.prevTs);
+    EXPECT_EQ(0, rootSnapshot->values.sliding.currentTs);
+    EXPECT_EQ(100, rootSnapshot->values.sliding.nextTs);
+    EXPECT_EQ(WINDOW_TYPE_SESSION, parentSnapshot->triggerType);
+    EXPECT_EQ(PLACE_HOLDER_WSTART | PLACE_HOLDER_WEND | PLACE_HOLDER_WROWNUM, parentSnapshot->placeholderMask);
+    EXPECT_EQ(500, parentSnapshot->values.window.start);
+    EXPECT_EQ(999, parentSnapshot->values.window.end);
+    EXPECT_EQ(500, parentSnapshot->values.window.duration);
+    EXPECT_EQ(9, parentSnapshot->values.window.rownum);
+
+    const auto* binding = findReadBinding(context, vgId, i, gid);
+    ASSERT_NE(nullptr, binding);
+    EXPECT_EQ(2, taosArrayGetSize(binding->scope.lineage.pScopes));
+  }
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tAdmitStreamContext(request.pStRtFuncInfo->pContextPolicy, context, true));
+}
+
+// Opt-in observations use the real receive and construction APIs, without Stub probes.
+SStreamRuntimeFuncInfo makeForwardingScaleRuntime(int32_t windows, int32_t groups, int32_t layers) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.isWindowTrigger = true;
+  runtime.triggerType = STREAM_TRIGGER_COUNT;
+  runtime.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  runtime.pContextPolicy = makeContextPolicy();
+  runtime.pGroupCalcInfos = tSimpleHashInit(groups, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  tSimpleHashSetFreeFp(runtime.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  runtime.pGroupReadInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  tSimpleHashSetFreeFp(runtime.pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
+  SArray* reads = taosArrayInit(groups, sizeof(SSTriggerGroupReadInfo));
+  for (int32_t group = 0; group < groups; ++group) {
+    const int64_t          gid = 101 + group;
+    const int32_t          count = windows / groups;
+    SSTriggerGroupCalcInfo calc = {};
+    calc.pParams = taosArrayInit(count, sizeof(SSTriggerCalcParam));
+    for (int32_t index = 0; index < count; ++index) {
+      auto window = makeWindowCalcParam(10000 + index * 100, 10099 + index * 100, BIT_FLAG_MASK(0));
+      EXPECT_NE(nullptr, taosArrayPush(calc.pParams, &window));
+      auto entry =
+          makeContextPolicyEntry(gid, index, layers == 1 ? STREAM_CONTEXT_POLICY_NONE : STREAM_CONTEXT_POLICY_ANCESTOR);
+      EXPECT_NE(nullptr, taosArrayPush(runtime.pContextPolicy->pEntries, &entry));
+      if (layers == 1) continue;
+      auto* context = makeAncestorContext(gid, index);
+      auto* param = static_cast<SStreamAncestorParamContext*>(taosArrayGet(context->pParamContexts, 0));
+      param->leafIdentity.openingTs = window.wstart;
+      param->leafIdentity.nativeDiscriminator = index;
+      if (layers == 2) {
+        taosArrayPop(param->leafIdentity.lineage.pScopes);
+        taosArrayPop(param->pSnapshots);
+      }
+      auto* root = static_cast<SScopeInstanceId*>(taosArrayGet(param->leafIdentity.lineage.pScopes, 0));
+      root->openingTs = group * 100;
+      auto* snapshot = static_cast<SWindowAncestorSnapshot*>(taosArrayGet(param->pSnapshots, 0));
+      snapshot->values.sliding.currentTs = group * 100;
+      if (runtime.pAncestorContext == nullptr) {
+        runtime.pAncestorContext = context;
+      } else {
+        EXPECT_NE(nullptr, taosArrayPush(runtime.pAncestorContext->pParamContexts, param));
+        taosArrayClear(context->pParamContexts);
+        tDestroyStreamAncestorContext(&context);
+      }
+    }
+    SSTriggerGroupReadInfo read = {};
+    read.gid = gid;
+    read.firstParam = *static_cast<SSTriggerCalcParam*>(taosArrayGet(calc.pParams, 0));
+    read.lastParam = *static_cast<SSTriggerCalcParam*>(taosArrayGetLast(calc.pParams));
+    EXPECT_NE(nullptr, taosArrayPush(reads, &read));
+    EXPECT_EQ(0, tSimpleHashPut(runtime.pGroupCalcInfos, &gid, sizeof(gid), &calc, sizeof(calc)));
+    if (layers > 1) appendReadBindingForParam(runtime.pAncestorContext, 7, group, windows / groups * group);
+  }
+  const int32_t nodeId = 7;
+  EXPECT_EQ(0, tSimpleHashPut(runtime.pGroupReadInfos, &nodeId, sizeof(nodeId), &reads, sizeof(reads)));
+  return runtime;
+}
+
+void expectForwardingScaleContext(const SResFetchReq& request, int32_t windows, int32_t groups, int32_t layers) {
+  auto* info = request.pStRtFuncInfo;
+  ASSERT_NE(nullptr, info);
+  EXPECT_EQ(groups, tSimpleHashGetSize(info->pGroupCalcInfos));
+  ASSERT_NE(nullptr, info->pContextPolicy);
+  ASSERT_EQ(windows, taosArrayGetSize(info->pContextPolicy->pEntries));
+  for (int32_t i = 0; i < windows; ++i) {
+    auto* entry = static_cast<SStreamContextPolicyEntry*>(taosArrayGet(info->pContextPolicy->pEntries, i));
+    ASSERT_GE(entry->gid, 101);
+    ASSERT_LT(entry->gid, 101 + groups);
+    EXPECT_EQ(layers == 1 ? STREAM_CONTEXT_POLICY_NONE : STREAM_CONTEXT_POLICY_ANCESTOR, entry->contextPolicy);
+    EXPECT_GE(entry->paramIndex, 0);
+    EXPECT_LT(entry->paramIndex, windows / groups);
+  }
+  for (int64_t gid = 101; gid < 101 + groups; ++gid) {
+    auto* calc = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(info->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, calc);
+    ASSERT_EQ(windows / groups, taosArrayGetSize(calc->pParams));
+    for (int32_t index = 0; index < windows / groups; ++index) {
+      auto* window = static_cast<SSTriggerCalcParam*>(taosArrayGet(calc->pParams, index));
+      EXPECT_EQ(10000 + index * 100, window->wstart);
+      EXPECT_EQ(10099 + index * 100, window->wend);
+    }
+  }
+  const int32_t nodeId = 7;
+  auto**        reads = static_cast<SArray**>(tSimpleHashGet(info->pGroupReadInfos, &nodeId, sizeof(nodeId)));
+  ASSERT_NE(nullptr, reads);
+  ASSERT_EQ(groups, taosArrayGetSize(*reads));
+  for (int32_t group = 0; group < groups; ++group) {
+    const auto* read = findGroupReadInfo(*reads, 101 + group);
+    ASSERT_NE(nullptr, read);
+    EXPECT_EQ(10000, read->firstParam.wstart);
+    EXPECT_EQ(10099 + (windows / groups - 1) * 100, read->lastParam.wend);
+    if (layers > 1) {
+      const auto* binding = findReadBinding(info->pAncestorContext, 7, group, 101 + group);
+      ASSERT_NE(nullptr, binding);
+      ASSERT_EQ(layers - 1, taosArrayGetSize(binding->scope.lineage.pScopes));
+      EXPECT_EQ(group * 100, findScope(binding->scope.lineage.pScopes, 0)->openingTs);
+    }
+  }
+  if (layers == 1) {
+    EXPECT_EQ(nullptr, info->pAncestorContext);
+    return;
+  }
+  ASSERT_NE(nullptr, info->pAncestorContext);
+  ASSERT_EQ(windows, taosArrayGetSize(info->pAncestorContext->pParamContexts));
+  EXPECT_EQ(groups, taosArrayGetSize(info->pAncestorContext->pReadScopeBindings));
+  for (int32_t i = 0; i < windows; ++i) {
+    auto* param = static_cast<SStreamAncestorParamContext*>(taosArrayGet(info->pAncestorContext->pParamContexts, i));
+    EXPECT_EQ(10000 + param->paramIndex * 100, param->leafIdentity.openingTs);
+    EXPECT_EQ(param->paramIndex, param->leafIdentity.nativeDiscriminator);
+    ASSERT_EQ(layers - 1, taosArrayGetSize(param->leafIdentity.lineage.pScopes));
+    ASSERT_EQ(layers - 1, taosArrayGetSize(param->pSnapshots));
+    const auto* root = findScope(param->leafIdentity.lineage.pScopes, 0);
+    ASSERT_NE(nullptr, root);
+    EXPECT_EQ((param->leafIdentity.gid - 101) * 100, root->openingTs);
+    const auto* snapshot = findSnapshot(param->pSnapshots, 0);
+    ASSERT_NE(nullptr, snapshot);
+    EXPECT_EQ((param->leafIdentity.gid - 101) * 100, snapshot->values.sliding.currentTs);
+    if (layers == 3) {
+      const auto* parent = findSnapshot(param->pSnapshots, 1);
+      ASSERT_NE(nullptr, parent);
+      EXPECT_EQ(500, parent->values.window.start);
+      EXPECT_EQ(999, parent->values.window.end);
+    }
+  }
+}
+
+TEST(StreamContextForwardingTest, BoundedScaleBenchmark) {
+  if (std::getenv("TD_CONTEXT_FORWARDING_BENCHMARK") == nullptr) GTEST_SKIP() << "Opt-in scale measurement";
+  using Clock = std::chrono::steady_clock;
+  const int32_t matrix[][3] = {{1, 1, 1}, {128, 2, 2}, {4096, 8, 3}, {40960, 16, 3}};
+  for (const auto& row : matrix) {
+    const int32_t windows = row[0], groups = row[1], layers = row[2];
+    ASSERT_LE(layers, STREAM_WINDOW_MAX_LAYERS);
+    ASSERT_EQ(0, windows % groups);
+    ASSERT_LE(windows, STREAM_CALC_REQ_MAX_WIN_NUM);
+    RuntimeFuncInfoGuard source;
+    source.runtime = makeForwardingScaleRuntime(windows, groups, layers);
+    SResFetchReq original = {};
+    original.reset = true;
+    original.pStRtFuncInfo = &source.runtime;
+    auto input = serializeFetchRequest(original, true, false);
+    ASSERT_FALSE(input.empty());
+    const auto expectedFrames = extractContextFrames(input);
+    // One repetition bounds the Debug/ASAN 40960-window legacy cost. No timing threshold.
+    for (int32_t children : {1, 5}) {
+      for (const char* mode : {"legacy", "objects", "frames"}) {
+        SCOPED_TRACE(::testing::Message() << windows << "/" << children << "/" << mode);
+        FetchRequestGuard received;
+        const bool        retain = std::strcmp(mode, "frames") == 0;
+        auto              begin = Clock::now();
+        int32_t code = retain ? tDeserializeSResFetchReqWithContextFrames(input.data(), input.size(), &received.request)
+                              : tDeserializeSResFetchReq(input.data(), input.size(), &received.request);
+        ASSERT_EQ(0, code);
+        received.request.pStRtFuncInfo->addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+        ASSERT_EQ(0, tAdmitStreamContext(received.request.pStRtFuncInfo->pContextPolicy,
+                                         received.request.pStRtFuncInfo->pAncestorContext, true));
+        const double receiveMs = std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
+        auto*        owner = received.request.pContextFrames;
+        ASSERT_EQ(retain, owner != nullptr);
+        const int32_t frameBytes = owner == nullptr ? 0 : owner->size;
+        double        outgoingMs = 0;
+        int64_t       messageBytes = 0;
+        for (int32_t child = 0; child < children; ++child) {
+          void*   output = nullptr;
+          int32_t length = 0;
+          received.request.taskId = child + 1;
+          begin = Clock::now();
+          if (std::strcmp(mode, "legacy") == 0) {
+            length = tSerializeSResFetchReq(nullptr, 0, &received.request, true, false);
+            ASSERT_GT(length, 0);
+            output = taosMemoryMalloc(length);
+            ASSERT_NE(nullptr, output);
+            code = tSerializeSResFetchReq(output, length, &received.request, true, false);
+            EXPECT_EQ(length, code);
+          } else {
+            code = tBuildStreamRunnerFetchReq(&received.request, owner, &output, &length);
+            EXPECT_EQ(0, code);
+          }
+          outgoingMs += std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
+          TaosMemoryPtr outgoing(output);
+          ASSERT_NE(nullptr, output);
+          ASSERT_GT(length, 0);
+          messageBytes += length;
+          EXPECT_EQ(owner, received.request.pContextFrames);
+          FetchRequestGuard decoded;
+          ASSERT_EQ(0, tDeserializeSResFetchReq(output, length, &decoded.request));
+          EXPECT_EQ(child + 1, decoded.request.taskId);
+          expectForwardingScaleContext(decoded.request, windows, groups, layers);
+          if (retain) {
+            std::vector<uint8_t> wire(static_cast<uint8_t*>(output), static_cast<uint8_t*>(output) + length);
+            EXPECT_EQ(expectedFrames, extractContextFrames(wire));
+          }
+        }
+        tDestroySResFetchReq(&received.request);
+        EXPECT_EQ(nullptr, received.request.pContextFrames);
+        memset(&received.request, 0, sizeof(received.request));
+        std::cout << "CONTEXT_FORWARDING_BENCHMARK {\"windows\":" << windows << ",\"groups\":" << groups
+                  << ",\"layers\":" << layers << ",\"children\":" << children << ",\"mode\":\"" << mode
+                  << "\",\"repetitions\":1,\"input_bytes\":" << input.size() << ",\"message_bytes\":" << messageBytes
+                  << ",\"receive_ms\":" << receiveMs << ",\"outgoing_ms\":" << outgoingMs
+                  << ",\"total_preparation_ms\":" << receiveMs + outgoingMs << ",\"policy_entries\":" << windows
+                  << ",\"ancestor_snapshots\":" << windows * (layers - 1) << ",\"frame_owners\":" << (owner != nullptr)
+                  << ",\"retained_bytes\":" << frameBytes << ",\"owners_after_cleanup\":0,\"bytes_after_cleanup\":0}"
+                  << std::endl;
+      }
+    }
+  }
+}
+
+TEST(StreamContextForwardingTest, CalcOptInRetainsIndependentExactFrames) {
+  TriggerCalcRequestGuard source;
+  source.request = makeLineageSplitMultiGroupCalcRequest();
+  auto       bytes = serializeCalcRequest(source.request);
+  const auto expectedFrames = extractContextFrames(bytes);
+  ASSERT_FALSE(expectedFrames.empty());
+
+  TriggerCalcRequestGuard ordinary;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTriggerCalcRequest(bytes.data(), bytes.size(), &ordinary.request));
+  EXPECT_EQ(nullptr, ordinary.request.pContextFrames);
+
+  TriggerCalcRequestGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tDeserializeSTriggerCalcRequestWithContextFrames(bytes.data(), bytes.size(), &decoded.request));
+  ASSERT_NE(nullptr, decoded.request.pContextFrames);
+  EXPECT_EQ(expectedFrames.size(), static_cast<size_t>(decoded.request.pContextFrames->size));
+  EXPECT_EQ(0, memcmp(expectedFrames.data(), decoded.request.pContextFrames->pData, expectedFrames.size()));
+  EXPECT_EQ(decoded.request.pContextPolicy, decoded.request.pContextFrames->pContextPolicy);
+  EXPECT_EQ(decoded.request.pAncestorContext, decoded.request.pContextFrames->pAncestorContext);
+
+  std::fill(bytes.begin(), bytes.end(), 0);
+  EXPECT_EQ(0, memcmp(expectedFrames.data(), decoded.request.pContextFrames->pData, expectedFrames.size()));
+  EXPECT_EQ(3, taosArrayGetSize(decoded.request.pContextPolicy->pEntries));
+  EXPECT_EQ(3, taosArrayGetSize(decoded.request.pAncestorContext->pParamContexts));
+}
+
+TEST(StreamContextForwardingTest, FetchBuilderForwardsRetainedFramesWithoutProjection) {
+  RuntimeFuncInfoGuard runtime;
+  runtime.runtime = makeFullMultiGroupFetchRuntime();
+  auto* firstParam =
+      static_cast<SStreamAncestorParamContext*>(taosArrayGet(runtime.runtime.pAncestorContext->pParamContexts, 0));
+  auto* secondParam =
+      static_cast<SStreamAncestorParamContext*>(taosArrayGet(runtime.runtime.pAncestorContext->pParamContexts, 1));
+  ASSERT_NE(nullptr, firstParam);
+  ASSERT_NE(nullptr, secondParam);
+  TSWAP(*firstParam, *secondParam);
+  auto* firstBinding =
+      static_cast<SStreamReadScopeBinding*>(taosArrayGet(runtime.runtime.pAncestorContext->pReadScopeBindings, 0));
+  auto* secondBinding =
+      static_cast<SStreamReadScopeBinding*>(taosArrayGet(runtime.runtime.pAncestorContext->pReadScopeBindings, 1));
+  ASSERT_NE(nullptr, firstBinding);
+  ASSERT_NE(nullptr, secondBinding);
+  TSWAP(*firstBinding, *secondBinding);
+
+  SResFetchReq source = {};
+  source.header.vgId = 7;
+  source.sId = 11;
+  source.queryId = 22;
+  source.taskId = 33;
+  source.srcTaskId = 44;
+  source.blockIdx = 55;
+  source.execId = 66;
+  source.clientId = 77;
+  source.pStRtFuncInfo = &runtime.runtime;
+  source.reset = true;
+  source.reuseReader = true;
+  source.readerGroupMode = true;
+  auto       bytes = serializeFetchRequest(source, true, false);
+  const auto expectedFrames = extractContextFrames(bytes);
+  ASSERT_FALSE(expectedFrames.empty());
+
+  FetchRequestGuard ordinary;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &ordinary.request));
+  EXPECT_EQ(nullptr, ordinary.request.pContextFrames);
+
+  FetchRequestGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReqWithContextFrames(bytes.data(), bytes.size(), &decoded.request));
+  ASSERT_NE(nullptr, decoded.request.pContextFrames);
+  EXPECT_EQ(expectedFrames.size(), static_cast<size_t>(decoded.request.pContextFrames->size));
+  EXPECT_EQ(0, memcmp(expectedFrames.data(), decoded.request.pContextFrames->pData, expectedFrames.size()));
+  std::fill(bytes.begin(), bytes.end(), 0);
+
+  decoded.request.pStRtFuncInfo->addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  const SStreamContextFrames* frameSources[] = {decoded.request.pContextFrames, nullptr};
+  for (const SStreamContextFrames* frames : frameSources) {
+    void*   message = nullptr;
+    int32_t length = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamRunnerFetchReq(&decoded.request, frames, &message, &length));
+    TaosMemoryPtr messageOwner(message);
+    ASSERT_NE(nullptr, message);
+    EXPECT_GT(length, 0);
+
+    const std::vector<uint8_t> forwarded(static_cast<uint8_t*>(message), static_cast<uint8_t*>(message) + length);
+    EXPECT_EQ(expectedFrames, extractContextFrames(forwarded));
+    FetchRequestGuard forwardedRequest;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(message, length, &forwardedRequest.request));
+    EXPECT_EQ(11, forwardedRequest.request.sId);
+    EXPECT_EQ(22, forwardedRequest.request.queryId);
+    EXPECT_EQ(33, forwardedRequest.request.taskId);
+    EXPECT_EQ(44, forwardedRequest.request.srcTaskId);
+    EXPECT_EQ(55, forwardedRequest.request.blockIdx);
+    EXPECT_EQ(66, forwardedRequest.request.execId);
+    EXPECT_EQ(77, forwardedRequest.request.clientId);
+    EXPECT_TRUE(forwardedRequest.request.reset);
+    EXPECT_TRUE(forwardedRequest.request.reuseReader);
+    EXPECT_TRUE(forwardedRequest.request.readerGroupMode);
+    expectFullFetchContext(forwardedRequest.request);
+  }
+}
+
+TEST(StreamContextForwardingTest, PolicyOnlyFramesAndObjectFallbackHaveSameSemantics) {
+  RuntimeFuncInfoGuard runtime;
+  runtime.runtime = makeFullMultiGroupFetchRuntime();
+  for (int32_t i = 0; i < taosArrayGetSize(runtime.runtime.pContextPolicy->pEntries); ++i) {
+    auto* entry = static_cast<SStreamContextPolicyEntry*>(taosArrayGet(runtime.runtime.pContextPolicy->pEntries, i));
+    ASSERT_NE(nullptr, entry);
+    entry->contextPolicy = STREAM_CONTEXT_POLICY_NONE;
+  }
+  tDestroyStreamAncestorContext(&runtime.runtime.pAncestorContext);
+
+  SResFetchReq source = {};
+  source.header.vgId = 8;
+  source.sId = 101;
+  source.queryId = 202;
+  source.taskId = 303;
+  source.pStRtFuncInfo = &runtime.runtime;
+  source.reset = true;
+  auto       bytes = serializeFetchRequest(source, true, false);
+  const auto expectedFrames = extractContextFrames(bytes);
+  ASSERT_FALSE(expectedFrames.empty());
+  EXPECT_EQ(bytes.size(), ancestorFrameOffset(bytes));
+
+  FetchRequestGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReqWithContextFrames(bytes.data(), bytes.size(), &decoded.request));
+  ASSERT_NE(nullptr, decoded.request.pContextFrames);
+  EXPECT_EQ(expectedFrames.size(), static_cast<size_t>(decoded.request.pContextFrames->size));
+  decoded.request.pStRtFuncInfo->addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+
+  const SStreamContextFrames* frameSources[] = {decoded.request.pContextFrames, nullptr};
+  for (const SStreamContextFrames* frames : frameSources) {
+    void*   message = nullptr;
+    int32_t length = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamRunnerFetchReq(&decoded.request, frames, &message, &length));
+    TaosMemoryPtr     messageOwner(message);
+    FetchRequestGuard forwarded;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(message, length, &forwarded.request));
+    expectFullFetchContext(forwarded.request, STREAM_CONTEXT_POLICY_NONE);
+  }
+}
+
+TEST(StreamContextForwardingTest, BuilderRejectsContextWithoutNestedTaskFlag) {
+  RuntimeFuncInfoGuard runtime;
+  runtime.runtime = makeFullMultiGroupFetchRuntime();
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime.runtime;
+  source.reset = true;
+  auto bytes = serializeFetchRequest(source, true, false);
+
+  FetchRequestGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReqWithContextFrames(bytes.data(), bytes.size(), &decoded.request));
+  ASSERT_NE(nullptr, decoded.request.pContextFrames);
+  ASSERT_FALSE(BIT_FLAG_TEST_MASK(decoded.request.pStRtFuncInfo->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN));
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tSerializeSResFetchReq(nullptr, 0, &decoded.request, true, false));
+
+  const SStreamContextFrames* frameSources[] = {decoded.request.pContextFrames, nullptr};
+  for (const SStreamContextFrames* frames : frameSources) {
+    void*         message = reinterpret_cast<void*>(1);
+    int32_t       length = 1;
+    const int32_t code = tBuildStreamRunnerFetchReq(&decoded.request, frames, &message, &length);
+    TaosMemoryPtr unexpectedMessage(code == TSDB_CODE_SUCCESS ? message : nullptr);
+    EXPECT_EQ(TSDB_CODE_INVALID_PARA, code);
+    EXPECT_EQ(nullptr, message);
+    EXPECT_EQ(0, length);
+  }
+}
+
+TEST(StreamContextForwardingTest, OptInDecodeRetainsOnlyCompleteFirstRequests) {
+  TriggerCalcRequestGuard calc;
+  calc.request = makeMultiGroupCalcRequest();
+  tDestroyStreamContextPolicy(&calc.request.pContextPolicy);
+  tDestroyStreamAncestorContext(&calc.request.pAncestorContext);
+  auto                    calcBytes = serializeCalcRequest(calc.request);
+  TriggerCalcRequestGuard decodedCalc;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tDeserializeSTriggerCalcRequestWithContextFrames(calcBytes.data(), calcBytes.size(), &decodedCalc.request));
+  EXPECT_EQ(nullptr, decodedCalc.request.pContextFrames);
+
+  RuntimeFuncInfoGuard fullRuntime;
+  fullRuntime.runtime = makeFullMultiGroupFetchRuntime();
+  SResFetchReq nonResetSource = {};
+  nonResetSource.pStRtFuncInfo = &fullRuntime.runtime;
+  auto              nonResetBytes = serializeFetchRequest(nonResetSource, true, false);
+  FetchRequestGuard decodedNonReset;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReqWithContextFrames(nonResetBytes.data(), nonResetBytes.size(),
+                                                                         &decodedNonReset.request));
+  EXPECT_EQ(nullptr, decodedNonReset.request.pContextFrames);
+
+  RuntimeFuncInfoGuard singleRuntime;
+  singleRuntime.runtime = makeSingleGroupFetchRuntime();
+  SResFetchReq singleSource = {};
+  singleSource.pStRtFuncInfo = &singleRuntime.runtime;
+  singleSource.reset = true;
+  auto              singleBytes = serializeFetchRequest(singleSource, true, false);
+  FetchRequestGuard decodedSingle;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tDeserializeSResFetchReqWithContextFrames(singleBytes.data(), singleBytes.size(), &decodedSingle.request));
+  EXPECT_EQ(nullptr, decodedSingle.request.pContextFrames);
+}
+
+TEST(StreamContextForwardingTest, BuilderRejectsFramesFromAnotherDecodedContext) {
+  RuntimeFuncInfoGuard firstRuntime;
+  firstRuntime.runtime = makeFullMultiGroupFetchRuntime();
+  SResFetchReq firstSource = {};
+  firstSource.pStRtFuncInfo = &firstRuntime.runtime;
+  firstSource.reset = true;
+  auto              firstBytes = serializeFetchRequest(firstSource, true, false);
+  FetchRequestGuard first;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tDeserializeSResFetchReqWithContextFrames(firstBytes.data(), firstBytes.size(), &first.request));
+  ASSERT_NE(nullptr, first.request.pContextFrames);
+  first.request.pStRtFuncInfo->addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+
+  RuntimeFuncInfoGuard secondRuntime;
+  secondRuntime.runtime = makeFullMultiGroupFetchRuntime();
+  SResFetchReq secondSource = {};
+  secondSource.pStRtFuncInfo = &secondRuntime.runtime;
+  secondSource.reset = true;
+  auto              secondBytes = serializeFetchRequest(secondSource, true, false);
+  FetchRequestGuard second;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tDeserializeSResFetchReqWithContextFrames(secondBytes.data(), secondBytes.size(), &second.request));
+  ASSERT_NE(nullptr, second.request.pContextFrames);
+  second.request.pStRtFuncInfo->addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+
+  void*   message = reinterpret_cast<void*>(1);
+  int32_t length = 1;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+            tBuildStreamRunnerFetchReq(&first.request, second.request.pContextFrames, &message, &length));
+  EXPECT_EQ(nullptr, message);
+  EXPECT_EQ(0, length);
+}
+
+TEST(StreamContextForwardingTest, MalformedFrameDoesNotPublishRetainedBytes) {
+  RuntimeFuncInfoGuard runtime;
+  runtime.runtime = makeFullMultiGroupFetchRuntime();
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime.runtime;
+  source.reset = true;
+  auto         bytes = serializeFetchRequest(source, true, false);
+  const size_t policyOffset = policyFrameOffset(bytes);
+  ASSERT_LT(policyOffset + sizeof(uint32_t) + sizeof(uint16_t), bytes.size());
+  const uint16_t badVersion = STREAM_CONTEXT_POLICY_FRAME_VERSION + 1;
+  memcpy(bytes.data() + policyOffset + sizeof(uint32_t), &badVersion, sizeof(badVersion));
+
+  FetchRequestGuard decoded;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG,
+            tDeserializeSResFetchReqWithContextFrames(bytes.data(), bytes.size(), &decoded.request));
+  EXPECT_EQ(nullptr, decoded.request.pContextFrames);
+}
+
+TEST(StreamContextForwardingTest, OptionalCopyAllocationFailureFallsBackToObjects) {
+  RuntimeFuncInfoGuard runtime;
+  runtime.runtime = makeFullMultiGroupFetchRuntime();
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime.runtime;
+  source.reset = true;
+  auto       bytes = serializeFetchRequest(source, true, false);
+  const auto expectedFrames = extractContextFrames(bytes);
+  ASSERT_FALSE(expectedFrames.empty());
+
+  FetchRequestGuard decoded;
+  {
+    MatchingAllocationFailureGuard allocationFailure(expectedFrames.size());
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSResFetchReqWithContextFrames(bytes.data(), bytes.size(), &decoded.request));
+    EXPECT_EQ(1, gContextFrameMatchingAllocations);
+  }
+  EXPECT_EQ(nullptr, decoded.request.pContextFrames);
+  decoded.request.pStRtFuncInfo->addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+
+  void*   message = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamRunnerFetchReq(&decoded.request, nullptr, &message, &length));
+  TaosMemoryPtr     messageOwner(message);
+  FetchRequestGuard forwarded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(message, length, &forwarded.request));
+  expectFullFetchContext(forwarded.request);
+}
+
+TEST(StreamContextForwardingTest, FinalMessageAllocationFailureLeavesOutputsEmpty) {
+  RuntimeFuncInfoGuard runtime;
+  runtime.runtime = makeFullMultiGroupFetchRuntime();
+  SResFetchReq request = {};
+  request.pStRtFuncInfo = &runtime.runtime;
+  request.reset = true;
+  const int32_t expectedLength = tSerializeSResFetchReq(nullptr, 0, &request, true, false);
+  ASSERT_GT(expectedLength, 0);
+
+  void*   message = reinterpret_cast<void*>(1);
+  int32_t length = 1;
+  {
+    MatchingAllocationFailureGuard allocationFailure(expectedLength);
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, tBuildStreamRunnerFetchReq(&request, nullptr, &message, &length));
+    EXPECT_EQ(1, gContextFrameMatchingAllocations);
+  }
+  EXPECT_EQ(nullptr, message);
+  EXPECT_EQ(0, length);
 }
 
 TEST(StreamCalcRequestAdmissionTest, OrdinaryMultiGroupRoundTripsWithoutNestedContext) {
@@ -2693,6 +3619,7 @@ TEST(StreamAncestorContextTest, calcRequestRoundTripsByGidAndParamIndex) {
   ASSERT_NE(nullptr, decoded.pContextPolicy);
   ASSERT_EQ(1, taosArrayGetSize(decoded.pContextPolicy->pEntries));
   ASSERT_NE(nullptr, decoded.pAncestorContext);
+  ASSERT_NE(nullptr, decoded.pAncestorContext->pParamIndex);
   ASSERT_EQ(1, taosArrayGetSize(decoded.pAncestorContext->pParamContexts));
   const auto* decodedParam =
       static_cast<const SStreamAncestorParamContext*>(taosArrayGet(decoded.pAncestorContext->pParamContexts, 0));
@@ -2973,6 +3900,213 @@ TEST(StreamFetchGroupProjectionTest, FetchRoundTripCarriesEveryGidForActualNode)
   tDestroyStRtFuncInfo(&runtime);
 }
 
+class StreamReaderFetchBuildTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    source = makeActualNodeMultiGroupFetchRuntime();
+    request.readerFetchId = 200;
+    request.pStRtFuncInfo = &source;
+  }
+
+  void TearDown() override {
+    tDestroySResFetchReq(&decoded);
+    taosMemoryFree(wire);
+    tDestroyStRtFuncInfo(&source);
+  }
+
+  SStreamRuntimeFuncInfo source = {};
+  SResFetchReq           request = {};
+  SResFetchReq           decoded = {};
+  void*                  wire = nullptr;
+  int32_t                wireLen = 0;
+};
+
+TEST_F(StreamReaderFetchBuildTest, MissingIdOrContinuationReuseDoesNotPublishMessage) {
+  request.readerFetchId = 0;
+  EXPECT_EQ(tBuildStreamReaderFetchReq(&request, &wire, &wireLen), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(wire, nullptr);
+  EXPECT_EQ(wireLen, 0);
+  request.readerFetchId = 200;
+  request.reuseReader = true;
+  EXPECT_EQ(tBuildStreamReaderFetchReq(&request, &wire, &wireLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(wire, nullptr);
+  EXPECT_EQ(wireLen, 0);
+}
+
+TEST_F(StreamReaderFetchBuildTest, ThinContinuationHasNoContext) {
+  source.streamGen = 12;
+  source.sessionId = 2;
+  source.curIdx = 3;
+  request.header.vgId = 8;
+  request.readerGroupMode = true;
+  ASSERT_EQ(tBuildStreamReaderFetchReq(&request, &wire, &wireLen), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tDeserializeSResFetchReq(wire, wireLen, &decoded), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded.readerFetchId, 200);
+  EXPECT_TRUE(decoded.readerGroupMode);
+  auto* rt = decoded.pStRtFuncInfo;
+  ASSERT_NE(rt, nullptr);
+  EXPECT_TRUE(rt->isMultiGroupCalc);
+  EXPECT_EQ(rt->streamGen, 12);
+  EXPECT_EQ(rt->sessionId, 2);
+  EXPECT_EQ(rt->curIdx, 3);
+  EXPECT_EQ(rt->pGroupCalcInfos, nullptr);
+  EXPECT_EQ(rt->pGroupReadInfos, nullptr);
+  EXPECT_EQ(rt->curGrpRead, nullptr);
+  EXPECT_EQ(rt->pContextPolicy, nullptr);
+  EXPECT_EQ(rt->pAncestorContext, nullptr);
+  EXPECT_EQ(decoded.pContextFrames, nullptr);
+}
+
+TEST(StreamReaderFetchBuildTestProtocol, RejectsMalformedReaderFetchIdFrame) {
+  SResFetchReq source = {};
+  source.readerFetchId = 200;
+  const auto   original = serializeFetchRequest(source, false, false);
+  const size_t offset = frameOffset(original, STREAM_READER_FETCH_ID_FRAME_MAGIC);
+  ASSERT_LT(offset, original.size());
+  auto duplicate = original;
+  duplicate.insert(duplicate.end(), original.begin() + offset, original.end());
+  rewriteFetchRequestLengths(&duplicate);
+  expectFetchDecodeFailure(duplicate);
+  auto badVersion = original;
+  writeU16(&badVersion, offset + 4, 2);
+  expectFetchDecodeFailure(badVersion);
+  auto badFlags = original;
+  writeU16(&badFlags, offset + 6, 1);
+  expectFetchDecodeFailure(badFlags);
+  auto zero = original;
+  std::fill(zero.end() - 8, zero.end(), 0);
+  expectFetchDecodeFailure(zero);
+  auto truncated = original;
+  truncated.pop_back();
+  rewriteFetchRequestLengths(&truncated);
+  expectFetchDecodeFailure(truncated);
+  auto extra = original;
+  extra.push_back(1);
+  writeU32(&extra, offset + 8, 9);
+  rewriteFetchRequestLengths(&extra);
+  expectFetchDecodeFailure(extra);
+}
+
+TEST_F(StreamReaderFetchBuildTest, NodeProjectionKeepsWholeCrossNodeGroup) {
+  request.reset = true;
+  request.header.vgId = 8;
+  installActualNodeReadView(&source, 8);
+  auto* firstContext =
+      static_cast<SStreamAncestorParamContext*>(taosArrayGet(source.pAncestorContext->pParamContexts, 0));
+  auto* lastContext =
+      static_cast<SStreamAncestorParamContext*>(taosArrayGetLast(source.pAncestorContext->pParamContexts));
+  auto* firstBinding =
+      static_cast<SStreamReadScopeBinding*>(taosArrayGet(source.pAncestorContext->pReadScopeBindings, 0));
+  auto* lastBinding =
+      static_cast<SStreamReadScopeBinding*>(taosArrayGetLast(source.pAncestorContext->pReadScopeBindings));
+  ASSERT_NE(firstContext, nullptr);
+  ASSERT_NE(lastContext, nullptr);
+  ASSERT_NE(firstBinding, nullptr);
+  ASSERT_NE(lastBinding, nullptr);
+  std::swap(*firstContext, *lastContext);
+  std::swap(*firstBinding, *lastBinding);
+  auto* const sourceCalcInfos = source.pGroupCalcInfos;
+  auto* const sourcePolicy = source.pContextPolicy;
+  auto* const sourceAncestor = source.pAncestorContext;
+  ASSERT_EQ(tBuildStreamReaderFetchReq(&request, &wire, &wireLen), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(source.pGroupCalcInfos, sourceCalcInfos);
+  EXPECT_EQ(source.pContextPolicy, sourcePolicy);
+  EXPECT_EQ(source.pAncestorContext, sourceAncestor);
+  EXPECT_EQ(tSimpleHashGetSize(source.pGroupCalcInfos), 2);
+  tDestroyStRtFuncInfo(&source);
+  memset(&source, 0, sizeof(source));
+  request.pStRtFuncInfo = nullptr;
+  ASSERT_EQ(tDeserializeSResFetchReq(wire, wireLen, &decoded), TSDB_CODE_SUCCESS);
+  auto* rt = decoded.pStRtFuncInfo;
+  ASSERT_NE(rt, nullptr);
+  EXPECT_EQ(tSimpleHashGetSize(rt->pGroupCalcInfos), 1);
+  const int64_t gid = 202;
+  auto*         calc = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(rt->pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(calc, nullptr);
+  EXPECT_EQ(taosArrayGetSize(calc->pParams), 2);
+  EXPECT_EQ(taosArrayGetSize(rt->pContextPolicy->pEntries), 2);
+  EXPECT_EQ(taosArrayGetSize(rt->pAncestorContext->pParamContexts), 2);
+  EXPECT_EQ(taosArrayGetSize(rt->pAncestorContext->pReadScopeBindings), 1);
+}
+
+TEST_F(StreamReaderFetchBuildTest, RejectsInvalidUnselectedGroup) {
+  request.reset = true;
+  request.header.vgId = 8;
+  installActualNodeReadView(&source, 8);
+  auto* binding = static_cast<SStreamReadScopeBinding*>(taosArrayGet(source.pAncestorContext->pReadScopeBindings, 0));
+  ASSERT_NE(binding, nullptr);
+  taosArrayDestroy(binding->scope.lineage.pScopes);
+  binding->scope.lineage.pScopes = nullptr;
+  taosArrayRemove(source.pAncestorContext->pReadScopeBindings, 0);
+
+  EXPECT_NE(tBuildStreamReaderFetchReq(&request, &wire, &wireLen), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(wire, nullptr);
+  EXPECT_EQ(wireLen, 0);
+}
+
+TEST_F(StreamReaderFetchBuildTest, AllocationFailureLeavesOutputsEmptyAndSourceReusable) {
+  request.reset = true;
+  request.header.vgId = 8;
+  installActualNodeReadView(&source, 8);
+  auto* const sourceCalcInfos = source.pGroupCalcInfos;
+  auto* const sourcePolicy = source.pContextPolicy;
+  auto* const sourceAncestor = source.pAncestorContext;
+  bool        completedPrepareFailurePoints = false;
+
+  for (int32_t allocationToFail = 0; allocationToFail < 256; ++allocationToFail) {
+    SStreamReaderFetchView view = {};
+    int32_t                code = TSDB_CODE_SUCCESS;
+    bool                   allocationFailed = false;
+    {
+      NthAllocationFailureGuard allocationFailure(allocationToFail);
+      code = tPrepareStreamReaderFetchView(&source, 8, &view);
+      allocationFailed = allocationFailure.failed();
+    }
+
+    if (!allocationFailed) {
+      ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+      tClearStreamReaderFetchView(&view);
+      completedPrepareFailurePoints = true;
+      break;
+    }
+    EXPECT_NE(code, TSDB_CODE_SUCCESS) << "prepare allocation " << allocationToFail;
+    EXPECT_EQ(view.runtime.pGroupCalcInfos, nullptr);
+    EXPECT_EQ(view.runtime.pGroupReadInfos, nullptr);
+    EXPECT_EQ(view.policy.pEntries, nullptr);
+    EXPECT_EQ(view.ancestor.pParamContexts, nullptr);
+    EXPECT_EQ(view.ancestor.pReadScopeBindings, nullptr);
+    tClearStreamReaderFetchView(&view);
+  }
+  ASSERT_TRUE(completedPrepareFailurePoints);
+
+  bool completedBuildFailurePoints = false;
+
+  for (int32_t allocationToFail = 0; allocationToFail < 256; ++allocationToFail) {
+    int32_t code = TSDB_CODE_SUCCESS;
+    bool    allocationFailed = false;
+    {
+      NthAllocationFailureGuard allocationFailure(allocationToFail);
+      code = tBuildStreamReaderFetchReq(&request, &wire, &wireLen);
+      allocationFailed = allocationFailure.failed();
+    }
+
+    if (!allocationFailed) {
+      ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+      completedBuildFailurePoints = true;
+      break;
+    }
+    EXPECT_NE(code, TSDB_CODE_SUCCESS) << "allocation " << allocationToFail;
+    EXPECT_EQ(wire, nullptr) << "allocation " << allocationToFail;
+    EXPECT_EQ(wireLen, 0) << "allocation " << allocationToFail;
+    EXPECT_EQ(source.pGroupCalcInfos, sourceCalcInfos);
+    EXPECT_EQ(source.pContextPolicy, sourcePolicy);
+    EXPECT_EQ(source.pAncestorContext, sourceAncestor);
+    EXPECT_EQ(tSimpleHashGetSize(source.pGroupCalcInfos), 2);
+  }
+
+  EXPECT_TRUE(completedBuildFailurePoints);
+}
+
 TEST(StreamFetchGroupProjectionTest, FetchRoundTripKeepsOriginalReadInfoIndexes) {
   SStreamRuntimeFuncInfo runtime = makeActualNodeMultiGroupFetchRuntime();
   installActualNodeReadView(&runtime, 7);
@@ -3044,10 +4178,829 @@ void expectLinearProjectionScaling(MeasureCpuTicks measureCpuTicks) {
   }
   std::sort(smallTicks.begin(), smallTicks.end());
   std::sort(largeTicks.begin(), largeTicks.end());
-  const double small = smallTicks[smallTicks.size() / 2];
+  const double smallMedianTicks = smallTicks[smallTicks.size() / 2];
   const double large = largeTicks[largeTicks.size() / 2];
-  ASSERT_GT(small, 0);
-  EXPECT_LT(large, small * 3.25);
+  ASSERT_GT(smallMedianTicks, 0);
+  EXPECT_LT(large, smallMedianTicks * 3.25);
+}
+
+TEST(StreamPreparedFetchContextTest, MissingNodeDoesNotPublishSelection) {
+  auto                         source = makeReaderFetchScaleRuntime(128, 3, ReaderFetchLayout::Even, 3);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  ASSERT_NE(nullptr, prepared);
+  const SStreamFetchContextSelection* selected = nullptr;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tSelectStreamFetchContextForNode(prepared, &source, 99, &selected));
+  EXPECT_EQ(nullptr, selected);
+  tDestroyStreamFetchContext(&prepared);
+  EXPECT_EQ(nullptr, prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+std::vector<uint8_t> encodePreparedFetchContext(const SStreamFetchContextSelection* selected) {
+  SEncoder sizer = {};
+  tEncoderInit(&sizer, nullptr, 0);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeStreamFetchContext(&sizer, selected));
+  std::vector<uint8_t> bytes(sizer.pos);
+  tEncoderClear(&sizer);
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, bytes.data(), bytes.size());
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeStreamFetchContext(&encoder, selected));
+  EXPECT_EQ(bytes.size(), encoder.pos);
+  tEncoderClear(&encoder);
+  return bytes;
+}
+
+int32_t decodePreparedFetchContext(const std::vector<uint8_t>& bytes, SStreamContextPolicy** ppPolicy,
+                                   SStreamAncestorContext** ppAncestor) {
+  *ppPolicy = nullptr;
+  *ppAncestor = nullptr;
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, const_cast<uint8_t*>(bytes.data()), bytes.size());
+  SStreamTailFrameDecoder frame = {};
+  int32_t                 code = tDecodeNextStreamTailFrame(&decoder, &frame);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = frame.magic == STREAM_CONTEXT_POLICY_FRAME_MAGIC
+               ? tDecodeStreamContextPolicy(&frame.payloadDecoder, ppPolicy)
+               : TSDB_CODE_INVALID_MSG;
+    const int32_t finish = tFinishDecodeStreamTailFrame(&frame, code == TSDB_CODE_SUCCESS);
+    if (code == TSDB_CODE_SUCCESS) code = finish;
+  }
+  if (code == TSDB_CODE_SUCCESS && !tDecodeIsEnd(&decoder)) {
+    code = tDecodeNextStreamTailFrame(&decoder, &frame);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = frame.magic == STREAM_ANCESTOR_FRAME_MAGIC
+                 ? tDecodeStreamAncestorContext(&frame.payloadDecoder, ppAncestor)
+                 : TSDB_CODE_INVALID_MSG;
+      const int32_t finish = tFinishDecodeStreamTailFrame(&frame, code == TSDB_CODE_SUCCESS);
+      if (code == TSDB_CODE_SUCCESS) code = finish;
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS && !tDecodeIsEnd(&decoder)) code = TSDB_CODE_INVALID_MSG;
+  tDecoderClear(&decoder);
+  if (code != TSDB_CODE_SUCCESS) {
+    tDestroyStreamContextPolicy(ppPolicy);
+    tDestroyStreamAncestorContext(ppAncestor);
+  }
+  return code;
+}
+
+void expectPreparedPoliciesEqual(const SStreamContextPolicy* expected, const SStreamContextPolicy* actual) {
+  ASSERT_NE(nullptr, expected);
+  ASSERT_NE(nullptr, actual);
+  ASSERT_EQ(taosArrayGetSize(expected->pEntries), taosArrayGetSize(actual->pEntries));
+  for (int32_t i = 0; i < taosArrayGetSize(expected->pEntries); ++i) {
+    SCOPED_TRACE(i);
+    const auto* left = static_cast<const SStreamContextPolicyEntry*>(taosArrayGet(expected->pEntries, i));
+    const auto* right = static_cast<const SStreamContextPolicyEntry*>(taosArrayGet(actual->pEntries, i));
+    ASSERT_NE(nullptr, left);
+    ASSERT_NE(nullptr, right);
+    EXPECT_EQ(left->gid, right->gid);
+    EXPECT_EQ(left->paramIndex, right->paramIndex);
+    EXPECT_EQ(left->contextPolicy, right->contextPolicy);
+  }
+}
+
+void expectPreparedAncestorsEqual(const SStreamAncestorContext* expected, const SStreamAncestorContext* actual) {
+  if (expected == nullptr || actual == nullptr) {
+    EXPECT_EQ(expected, actual);
+    return;
+  }
+  ASSERT_EQ(taosArrayGetSize(expected->pParamContexts), taosArrayGetSize(actual->pParamContexts));
+  for (int32_t i = 0; i < taosArrayGetSize(expected->pParamContexts); ++i) {
+    SCOPED_TRACE(i);
+    const auto* left = static_cast<const SStreamAncestorParamContext*>(taosArrayGet(expected->pParamContexts, i));
+    const auto* right = static_cast<const SStreamAncestorParamContext*>(taosArrayGet(actual->pParamContexts, i));
+    ASSERT_NE(nullptr, left);
+    ASSERT_NE(nullptr, right);
+    EXPECT_EQ(left->paramIndex, right->paramIndex);
+    EXPECT_EQ(left->leafIdentity.gid, right->leafIdentity.gid);
+    EXPECT_EQ(left->leafIdentity.triggerType, right->leafIdentity.triggerType);
+    EXPECT_EQ(left->leafIdentity.openingTs, right->leafIdentity.openingTs);
+    EXPECT_EQ(left->leafIdentity.nativeDiscriminator, right->leafIdentity.nativeDiscriminator);
+    EXPECT_TRUE(lineagesEqual(&left->leafIdentity.lineage, &right->leafIdentity.lineage));
+    ASSERT_EQ(taosArrayGetSize(left->pSnapshots), taosArrayGetSize(right->pSnapshots));
+    for (int32_t j = 0; j < taosArrayGetSize(left->pSnapshots); ++j) {
+      SCOPED_TRACE(j);
+      const auto* oldSnapshot = static_cast<const SWindowAncestorSnapshot*>(taosArrayGet(left->pSnapshots, j));
+      const auto* newSnapshot = static_cast<const SWindowAncestorSnapshot*>(taosArrayGet(right->pSnapshots, j));
+      ASSERT_NE(nullptr, oldSnapshot);
+      ASSERT_NE(nullptr, newSnapshot);
+      EXPECT_EQ(oldSnapshot->layerIndex, newSnapshot->layerIndex);
+      EXPECT_EQ(oldSnapshot->triggerType, newSnapshot->triggerType);
+      EXPECT_EQ(oldSnapshot->placeholderMask, newSnapshot->placeholderMask);
+      const int64_t slidingMask = PLACE_HOLDER_PREV_TS | PLACE_HOLDER_CURRENT_TS | PLACE_HOLDER_NEXT_TS;
+      if ((oldSnapshot->placeholderMask & slidingMask) != 0) {
+        EXPECT_EQ(oldSnapshot->values.sliding.prevTs, newSnapshot->values.sliding.prevTs);
+        EXPECT_EQ(oldSnapshot->values.sliding.currentTs, newSnapshot->values.sliding.currentTs);
+        EXPECT_EQ(oldSnapshot->values.sliding.nextTs, newSnapshot->values.sliding.nextTs);
+      } else {
+        EXPECT_EQ(oldSnapshot->values.window.start, newSnapshot->values.window.start);
+        EXPECT_EQ(oldSnapshot->values.window.end, newSnapshot->values.window.end);
+        EXPECT_EQ(oldSnapshot->values.window.duration, newSnapshot->values.window.duration);
+        EXPECT_EQ(oldSnapshot->values.window.rownum, newSnapshot->values.window.rownum);
+      }
+    }
+  }
+  ASSERT_EQ(taosArrayGetSize(expected->pReadScopeBindings), taosArrayGetSize(actual->pReadScopeBindings));
+  for (int32_t i = 0; i < taosArrayGetSize(expected->pReadScopeBindings); ++i) {
+    SCOPED_TRACE(i);
+    const auto* left = static_cast<const SStreamReadScopeBinding*>(taosArrayGet(expected->pReadScopeBindings, i));
+    const auto* right = static_cast<const SStreamReadScopeBinding*>(taosArrayGet(actual->pReadScopeBindings, i));
+    ASSERT_NE(nullptr, left);
+    ASSERT_NE(nullptr, right);
+    EXPECT_EQ(left->vgId, right->vgId);
+    EXPECT_EQ(left->readInfoIndex, right->readInfoIndex);
+    EXPECT_EQ(left->scope.gid, right->scope.gid);
+    EXPECT_TRUE(lineagesEqual(&left->scope.lineage, &right->scope.lineage));
+  }
+}
+
+void expectPreparedNodeWireMatchesLegacy(SStreamRuntimeFuncInfo* source, int32_t nodeId) {
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(source, nullptr, &prepared));
+  installActualNodeReadView(source, nodeId);
+  SStreamReaderFetchView legacy = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamReaderFetchView(source, nodeId, &legacy));
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, source, nodeId, &selected));
+  const auto              bytes = encodePreparedFetchContext(selected);
+  SStreamContextPolicy*   policy = nullptr;
+  SStreamAncestorContext* ancestor = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decodePreparedFetchContext(bytes, &policy, &ancestor));
+  expectPreparedPoliciesEqual(&legacy.policy, policy);
+  expectPreparedAncestorsEqual(&legacy.ancestor, ancestor);
+  tDestroyStreamContextPolicy(&policy);
+  tDestroyStreamAncestorContext(&ancestor);
+  tClearStreamReaderFetchView(&legacy);
+  tDestroyStreamFetchContext(&prepared);
+  tClearStreamCurrentGroupRead(source);
+}
+
+TEST(StreamPreparedFetchContextTest, PresentCorruptRefFailsButMissingRefRebuilds) {
+  auto         source = makeReaderFetchScaleRuntime(6, 3, ReaderFetchLayout::Even, 1);
+  SResFetchReq request = {};
+  request.reset = true;
+  request.pStRtFuncInfo = &source;
+  const auto   bytes = serializeFetchRequest(request, true, false);
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tDeserializeSResFetchReqWithContextFrames(const_cast<uint8_t*>(bytes.data()), bytes.size(), &decoded));
+  decoded.pStRtFuncInfo->addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  ASSERT_NE(nullptr, decoded.pContextFrames);
+  ASSERT_NE(nullptr, decoded.pContextFrames->pPolicyRefs);
+  struct EntryRef {
+    int32_t offset;
+    int32_t length;
+  };
+  auto* ref = static_cast<EntryRef*>(taosArrayGet(decoded.pContextFrames->pPolicyRefs, 0));
+  ASSERT_NE(nullptr, ref);
+  const EntryRef original = *ref;
+  ref->offset = decoded.pContextFrames->size;
+  ref->length = 1;
+  SStreamPreparedFetchContext* prepared = nullptr;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+            tPrepareStreamFetchContext(decoded.pStRtFuncInfo, decoded.pContextFrames, &prepared));
+  EXPECT_EQ(nullptr, prepared);
+  tDestroyStreamFetchContext(&prepared);
+  *ref = original;
+  SArray* savedRefs = decoded.pContextFrames->pPolicyRefs;
+  decoded.pContextFrames->pPolicyRefs = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(decoded.pStRtFuncInfo, decoded.pContextFrames, &prepared));
+  tDestroyStreamFetchContext(&prepared);
+  decoded.pContextFrames->pPolicyRefs = savedRefs;
+  tDestroySResFetchReq(&decoded);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, NodeAndGroupSelectionPreserveProjectionAndWireEntries) {
+  auto                         source = makeReaderFetchScaleRuntime(128, 3, ReaderFetchLayout::Even, 3);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  ASSERT_NE(nullptr, prepared);
+  installActualNodeReadView(&source, 1);
+  SStreamReaderFetchView legacy = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamReaderFetchView(&source, 1, &legacy));
+
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, &source, 1, &selected));
+  ASSERT_NE(nullptr, selected);
+  const auto expected = reader_fetch_benchmark::expectedSelection(
+      reader_fetch_benchmark::makeScalePlan(128, 3, ReaderFetchLayout::Even), 0);
+  SStreamReaderFetchView fresh = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchRuntimeView(selected, &source, &source, &fresh));
+  EXPECT_EQ(expected.second, taosArrayGetSize(fresh.policy.pEntries));
+  EXPECT_EQ(tSimpleHashGetSize(legacy.runtime.pGroupCalcInfos), tSimpleHashGetSize(fresh.runtime.pGroupCalcInfos));
+  expectPreparedPoliciesEqual(&legacy.policy, &fresh.policy);
+  expectPreparedAncestorsEqual(&legacy.ancestor, &fresh.ancestor);
+  const auto encoded = encodePreparedFetchContext(selected);
+  SStreamContextPolicy*   decodedPolicy = nullptr;
+  SStreamAncestorContext* decodedAncestor = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decodePreparedFetchContext(encoded, &decodedPolicy, &decodedAncestor));
+  expectPreparedPoliciesEqual(&legacy.policy, decodedPolicy);
+  expectPreparedAncestorsEqual(&legacy.ancestor, decodedAncestor);
+  tDestroyStreamContextPolicy(&decodedPolicy);
+  tDestroyStreamAncestorContext(&decodedAncestor);
+
+  const auto* firstGroup =
+      static_cast<const SStreamContextPolicyEntry*>(taosArrayGet(source.pContextPolicy->pEntries, 0));
+  const SStreamFetchContextSelection* group = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForGroup(prepared, &source, firstGroup->gid, &group));
+  ASSERT_NE(nullptr, group);
+  SStreamRuntimeFuncInfo current = source;
+  current.isMultiGroupCalc = false;
+  current.groupId = firstGroup->gid;
+  SStreamReaderFetchView groupView = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchRuntimeView(group, &source, &current, &groupView));
+  EXPECT_EQ(0, taosArrayGetSize(groupView.ancestor.pReadScopeBindings));
+  SStreamContextPolicy*   oldGroupPolicy = nullptr;
+  SStreamAncestorContext* oldGroupAncestor = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tProjectStreamCalcContextForGroup(source.pContextPolicy, source.pAncestorContext,
+                                                                 firstGroup->gid, &oldGroupPolicy, &oldGroupAncestor));
+  expectPreparedPoliciesEqual(oldGroupPolicy, &groupView.policy);
+  SStreamAncestorContext oldGroupWithoutBindings = *oldGroupAncestor;
+  oldGroupWithoutBindings.pReadScopeBindings = nullptr;
+  expectPreparedAncestorsEqual(&oldGroupWithoutBindings, &groupView.ancestor);
+  const auto groupBytes = encodePreparedFetchContext(group);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decodePreparedFetchContext(groupBytes, &decodedPolicy, &decodedAncestor));
+  expectPreparedPoliciesEqual(oldGroupPolicy, decodedPolicy);
+  expectPreparedAncestorsEqual(&oldGroupWithoutBindings, decodedAncestor);
+  tDestroyStreamContextPolicy(&decodedPolicy);
+  tDestroyStreamAncestorContext(&decodedAncestor);
+  tDestroyStreamContextPolicy(&oldGroupPolicy);
+  tDestroyStreamAncestorContext(&oldGroupAncestor);
+  tClearStreamReaderFetchView(&groupView);
+  tClearStreamReaderFetchView(&fresh);
+  tClearStreamReaderFetchView(&legacy);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, PreparedRequestCarriesLiveGroupFieldsAndOwnsWire) {
+  auto                         source = makeReaderFetchScaleRuntime(128, 3, ReaderFetchLayout::Even, 3);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  installActualNodeReadView(&source, 1);
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, &source, 1, &selected));
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerGroupMode = true;
+  request.readerFetchId = 200;
+  request.header.vgId = 1;
+  request.pStRtFuncInfo = &source;
+  const int64_t gid = 1000;
+  auto*         group = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(source.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, group);
+  for (int8_t createTable : {int8_t{0}, int8_t{1}}) {
+    group->createTable = createTable;
+    void*                    wire = nullptr;
+    int32_t                  length = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamPreparedFetchReq(&request, &source, selected, &wire, &length));
+    ASSERT_NE(nullptr, wire);
+    EXPECT_GT(length, 0);
+    SResFetchReq decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, length, &decoded));
+    auto* actual =
+        static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, actual);
+    EXPECT_EQ(createTable, actual->createTable);
+    tDestroySResFetchReq(&decoded);
+    taosMemoryFree(wire);
+  }
+  tClearStreamCurrentGroupRead(&source);
+  installActualNodeReadView(&source, 2);
+  const SStreamFetchContextSelection* secondNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, &source, 2, &secondNode));
+  request.header.vgId = 2;
+  void*   secondWire = nullptr;
+  int32_t secondLength = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamPreparedFetchReq(&request, &source, secondNode, &secondWire, &secondLength));
+  SResFetchReq secondDecoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(secondWire, secondLength, &secondDecoded));
+  ASSERT_GT(taosArrayGetSize(secondDecoded.pStRtFuncInfo->curGrpRead), 0);
+  auto* expectedRead = static_cast<SSTriggerGroupReadInfo*>(taosArrayGet(source.curGrpRead, 0));
+  auto* actualRead = static_cast<SSTriggerGroupReadInfo*>(taosArrayGet(secondDecoded.pStRtFuncInfo->curGrpRead, 0));
+  ASSERT_NE(nullptr, expectedRead);
+  ASSERT_NE(nullptr, actualRead);
+  EXPECT_EQ(expectedRead->gid, actualRead->gid);
+  EXPECT_NE(gid, actualRead->gid);
+  tDestroySResFetchReq(&secondDecoded);
+  taosMemoryFree(secondWire);
+  tClearStreamCurrentGroupRead(&source);
+  installActualNodeReadView(&source, 1);
+  request.header.vgId = 2;
+  void*   wire = nullptr;
+  int32_t length = 0;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tBuildStreamPreparedFetchReq(&request, &source, selected, &wire, &length));
+  EXPECT_EQ(nullptr, wire);
+  request.header.vgId = 1;
+  auto other = makeReaderFetchScaleRuntime(128, 3, ReaderFetchLayout::Even, 3);
+  installActualNodeReadView(&other, 1);
+  request.pStRtFuncInfo = &other;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tBuildStreamPreparedFetchReq(&request, &other, selected, &wire, &length));
+  EXPECT_EQ(nullptr, wire);
+  request.pStRtFuncInfo = &source;
+  tDestroyStRtFuncInfo(&other);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamPreparedFetchReq(&request, &source, selected, &wire, &length));
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, length, &decoded));
+  auto* actual =
+      static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, actual);
+  EXPECT_EQ(1, actual->createTable);
+  tDestroySResFetchReq(&decoded);
+  taosMemoryFree(wire);
+}
+
+TEST(StreamPreparedFetchContextTest, SharedGroupSelectionPreservesAllWindowsAcrossNodes) {
+  auto                         source = makeReaderFetchScaleRuntime(128, 30, ReaderFetchLayout::SharedGroup, 1);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  ASSERT_NE(nullptr, prepared);
+  for (int32_t nodeId : {1, 15, 30}) {
+    const SStreamFetchContextSelection* selected = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, &source, nodeId, &selected));
+    installActualNodeReadView(&source, nodeId);
+    SStreamReaderFetchView view = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchRuntimeView(selected, &source, &source, &view));
+    EXPECT_EQ(128, taosArrayGetSize(view.policy.pEntries));
+    tClearStreamReaderFetchView(&view);
+    tClearStreamCurrentGroupRead(&source);
+    EXPECT_NE(nullptr, selected);
+  }
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, ContextSizerUsesCachedLengthWithoutAllocating) {
+  auto                         source = makeReaderFetchScaleRuntime(128, 3, ReaderFetchLayout::Even, 3);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, &source, 1, &selected));
+  SEncoder sizer = {};
+  tEncoderInit(&sizer, nullptr, 0);
+  bool failed = false;
+  {
+    NthAllocationFailureGuard allocationFailure(0);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeStreamFetchContext(&sizer, selected));
+    failed = allocationFailure.failed();
+  }
+  EXPECT_FALSE(failed);
+  const auto length = sizer.pos;
+  tEncoderClear(&sizer);
+  std::vector<uint8_t> bytes(length);
+  SEncoder             encoder = {};
+  tEncoderInit(&encoder, bytes.data(), bytes.size());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeStreamFetchContext(&encoder, selected));
+  EXPECT_EQ(length, encoder.pos);
+  tEncoderClear(&encoder);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, LegacyReaderBuilderSendsSelectedContext) {
+  auto source = makeReaderFetchScaleRuntime(12, 3, ReaderFetchLayout::Even, 3);
+  installActualNodeReadView(&source, 1);
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerFetchId = 200;
+  request.header.vgId = 1;
+  request.pStRtFuncInfo = &source;
+  void*                    wire = nullptr;
+  int32_t                  length = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &wire, &length));
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, length, &decoded));
+  EXPECT_EQ(4, taosArrayGetSize(decoded.pStRtFuncInfo->pContextPolicy->pEntries));
+  tDestroySResFetchReq(&decoded);
+  taosMemoryFree(wire);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, PreparedRequestAllocationFailureLeavesNoWire) {
+  auto                         source = makeReaderFetchScaleRuntime(12, 3, ReaderFetchLayout::Even, 3);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  installActualNodeReadView(&source, 1);
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, &source, 1, &selected));
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerFetchId = 200;
+  request.header.vgId = 1;
+  request.pStRtFuncInfo = &source;
+  int32_t failedAllocations = 0;
+  bool    completed = false;
+  for (int32_t index = 0; index < 256; ++index) {
+    void*   wire = nullptr;
+    int32_t length = 0;
+    int32_t code = TSDB_CODE_SUCCESS;
+    bool    failed = false;
+    {
+      NthAllocationFailureGuard allocationFailure(index);
+      code = tBuildStreamPreparedFetchReq(&request, &source, selected, &wire, &length);
+      failed = allocationFailure.failed();
+    }
+    if (!failed) {
+      EXPECT_EQ(TSDB_CODE_SUCCESS, code);
+      taosMemoryFree(wire);
+      completed = true;
+      break;
+    }
+    ++failedAllocations;
+    EXPECT_NE(TSDB_CODE_SUCCESS, code);
+    EXPECT_EQ(nullptr, wire);
+    EXPECT_EQ(0, length);
+  }
+  EXPECT_TRUE(completed);
+  EXPECT_GT(failedAllocations, 0);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, DepthAndSharedGidWireMatchLegacyNodeProjection) {
+  auto depthOne = makeReaderFetchScaleRuntime(12, 3, ReaderFetchLayout::Even, 1);
+  expectPreparedNodeWireMatchesLegacy(&depthOne, 1);
+  tDestroyStRtFuncInfo(&depthOne);
+
+  auto shared = makeReaderFetchScaleRuntime(12, 3, ReaderFetchLayout::SharedGroup, 3);
+  expectPreparedNodeWireMatchesLegacy(&shared, 1);
+  expectPreparedNodeWireMatchesLegacy(&shared, 3);
+  tDestroyStRtFuncInfo(&shared);
+
+  auto repeatedRead = makeActualNodeMultiGroupFetchRuntime();
+  expectPreparedNodeWireMatchesLegacy(&repeatedRead, 7);
+  tDestroyStRtFuncInfo(&repeatedRead);
+}
+
+TEST(StreamPreparedFetchContextTest, InvalidSourceCannotBeRebuiltAsPreparedBytes) {
+  auto  source = makeReaderFetchScaleRuntime(6, 3, ReaderFetchLayout::Even, 1);
+  auto* binding = static_cast<SStreamReadScopeBinding*>(taosArrayGet(source.pAncestorContext->pReadScopeBindings, 0));
+  ASSERT_NE(nullptr, binding);
+  binding->readInfoIndex = 99;
+  SStreamPreparedFetchContext* prepared = nullptr;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  EXPECT_EQ(nullptr, prepared);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, RetainedTriggerFramesTrackPayloadAfterAncestorReorder) {
+  auto  source = makeReaderFetchScaleRuntime(6, 3, ReaderFetchLayout::Even, 3);
+  auto* first = static_cast<SStreamAncestorParamContext*>(taosArrayGet(source.pAncestorContext->pParamContexts, 0));
+  auto* last = static_cast<SStreamAncestorParamContext*>(taosArrayGetLast(source.pAncestorContext->pParamContexts));
+  ASSERT_NE(nullptr, first);
+  ASSERT_NE(nullptr, last);
+  std::swap(*first, *last);
+  SSTriggerCalcRequest request = {};
+  request.isMultiGroupCalc = true;
+  request.pGroupCalcInfos = source.pGroupCalcInfos;
+  request.pGroupReadInfos = source.pGroupReadInfos;
+  request.pContextPolicy = source.pContextPolicy;
+  request.pAncestorContext = source.pAncestorContext;
+  const auto           bytes = serializeCalcRequest(request);
+  SSTriggerCalcRequest decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTriggerCalcRequestWithContextFrames(const_cast<uint8_t*>(bytes.data()),
+                                                                                bytes.size(), &decoded));
+  ASSERT_NE(nullptr, decoded.pContextFrames);
+  EXPECT_NE(nullptr, decoded.pContextFrames->pPolicyRefs);
+  EXPECT_NE(nullptr, decoded.pContextFrames->pParamRefs);
+  EXPECT_NE(nullptr, decoded.pContextFrames->pBindingRefs);
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  runtime.pGroupCalcInfos = decoded.pGroupCalcInfos;
+  runtime.pGroupReadInfos = decoded.pGroupReadInfos;
+  runtime.pContextPolicy = decoded.pContextPolicy;
+  runtime.pAncestorContext = decoded.pAncestorContext;
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&runtime, decoded.pContextFrames, &prepared));
+  ASSERT_NE(nullptr, prepared);
+  installActualNodeReadView(&runtime, 1);
+  SStreamReaderFetchView legacy = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamReaderFetchView(&runtime, 1, &legacy));
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, &runtime, 1, &selected));
+  const auto              encoded = encodePreparedFetchContext(selected);
+  SStreamContextPolicy*   policy = nullptr;
+  SStreamAncestorContext* ancestor = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decodePreparedFetchContext(encoded, &policy, &ancestor));
+  expectPreparedPoliciesEqual(&legacy.policy, policy);
+  expectPreparedAncestorsEqual(&legacy.ancestor, ancestor);
+  tDestroyStreamContextPolicy(&policy);
+  tDestroyStreamAncestorContext(&ancestor);
+  tClearStreamReaderFetchView(&legacy);
+  tClearStreamCurrentGroupRead(&runtime);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroySTriggerCalcRequest(&decoded);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, RetainedRunnerFetchFramesCarrySelectableOffsets) {
+  auto         source = makeReaderFetchScaleRuntime(6, 3, ReaderFetchLayout::Even, 1);
+  SResFetchReq request = {};
+  request.reset = true;
+  request.pStRtFuncInfo = &source;
+  const auto   bytes = serializeFetchRequest(request, true, false);
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tDeserializeSResFetchReqWithContextFrames(const_cast<uint8_t*>(bytes.data()), bytes.size(), &decoded));
+  ASSERT_NE(nullptr, decoded.pContextFrames);
+  ASSERT_NE(nullptr, decoded.pContextFrames->pPolicyRefs);
+  ASSERT_NE(nullptr, decoded.pContextFrames->pParamRefs);
+  ASSERT_NE(nullptr, decoded.pContextFrames->pBindingRefs);
+  decoded.pStRtFuncInfo->addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(decoded.pStRtFuncInfo, decoded.pContextFrames, &prepared));
+  ASSERT_NE(nullptr, prepared);
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, decoded.pStRtFuncInfo, 1, &selected));
+  const auto encoded = encodePreparedFetchContext(selected);
+  EXPECT_LT(encoded.size(), decoded.pContextFrames->size);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroySResFetchReq(&decoded);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, SourceContainerChangeRejectsSelection) {
+  auto                         source = makeReaderFetchScaleRuntime(6, 3, ReaderFetchLayout::Even, 1);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  const SStreamFetchContextSelection* selected = nullptr;
+  auto*                               originalReadMap = source.pGroupReadInfos;
+  source.pGroupReadInfos = nullptr;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tSelectStreamFetchContextForNode(prepared, &source, 1, &selected));
+  EXPECT_EQ(nullptr, selected);
+  source.pGroupReadInfos = originalReadMap;
+  auto copy = source;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tSelectStreamFetchContextForNode(prepared, &copy, 1, &selected));
+  EXPECT_EQ(nullptr, selected);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, CurrentReadListMustMatchPreparedNode) {
+  auto                         source = makeReaderFetchScaleRuntime(6, 3, ReaderFetchLayout::Even, 1);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, &source, 1, &selected));
+  installActualNodeReadView(&source, 1);
+  auto* read = static_cast<SSTriggerGroupReadInfo*>(taosArrayGet(source.curGrpRead, 0));
+  ASSERT_NE(nullptr, read);
+  ++read->gid;
+  SStreamReaderFetchView view = {};
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tPrepareStreamFetchRuntimeView(selected, &source, &source, &view));
+  EXPECT_EQ(nullptr, view.runtime.pGroupCalcInfos);
+  tClearStreamReaderFetchView(&view);
+  --read->gid;
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, NoAncestorOmitsAncestorFrame) {
+  auto source = makeReaderFetchScaleRuntime(2, 3, ReaderFetchLayout::Even, 1);
+  for (int32_t i = 0; i < taosArrayGetSize(source.pContextPolicy->pEntries); ++i) {
+    auto* entry = static_cast<SStreamContextPolicyEntry*>(taosArrayGet(source.pContextPolicy->pEntries, i));
+    entry->contextPolicy = STREAM_CONTEXT_POLICY_NONE;
+  }
+  tDestroyStreamAncestorContext(&source.pAncestorContext);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForNode(prepared, &source, 1, &selected));
+  const auto encoded = encodePreparedFetchContext(selected);
+  SDecoder   decoder = {};
+  tDecoderInit(&decoder, const_cast<uint8_t*>(encoded.data()), encoded.size());
+  SStreamTailFrameDecoder frame = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeNextStreamTailFrame(&decoder, &frame));
+  SStreamContextPolicy* policy = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeStreamContextPolicy(&frame.payloadDecoder, &policy));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tFinishDecodeStreamTailFrame(&frame, true));
+  EXPECT_TRUE(tDecodeIsEnd(&decoder));
+  tDestroyStreamContextPolicy(&policy);
+  tDecoderClear(&decoder);
+  installActualNodeReadView(&source, 1);
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerFetchId = 200;
+  request.header.vgId = 1;
+  request.pStRtFuncInfo = &source;
+  void*   wire = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamPreparedFetchReq(&request, &source, selected, &wire, &length));
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, length, &decoded));
+  EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pAncestorContext);
+  tDestroySResFetchReq(&decoded);
+  taosMemoryFree(wire);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, AllocationFailureDoesNotPublishPreparedState) {
+  auto source = makeReaderFetchScaleRuntime(2, 3, ReaderFetchLayout::Even, 1);
+  bool reachedSuccess = false;
+  for (int32_t allocationToFail = 0; allocationToFail < 256; ++allocationToFail) {
+    SStreamPreparedFetchContext* prepared = nullptr;
+    int32_t                      code = TSDB_CODE_SUCCESS;
+    bool                         failed = false;
+    {
+      NthAllocationFailureGuard guard(allocationToFail);
+      code = tPrepareStreamFetchContext(&source, nullptr, &prepared);
+      failed = guard.failed();
+    }
+    if (!failed) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+      ASSERT_NE(nullptr, prepared);
+      tDestroyStreamFetchContext(&prepared);
+      reachedSuccess = true;
+      break;
+    }
+    EXPECT_NE(TSDB_CODE_SUCCESS, code) << allocationToFail;
+    EXPECT_EQ(nullptr, prepared) << allocationToFail;
+    tDestroyStreamFetchContext(&prepared);
+  }
+  EXPECT_TRUE(reachedSuccess);
+  installActualNodeReadView(&source, 1);
+  SStreamReaderFetchView legacy = {};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamReaderFetchView(&source, 1, &legacy));
+  tClearStreamReaderFetchView(&legacy);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamReaderFetchScaleTest, BoundaryInputsPreserveSelectionAndThinContinuation) {
+  struct BoundaryCase {
+    int32_t           params;
+    int32_t           nodes;
+    ReaderFetchLayout layout;
+    int32_t           depth;
+  };
+  int32_t thinBytes = 0;
+  for (const auto& testCase :
+       {BoundaryCase{2, 3, ReaderFetchLayout::Even, 1}, BoundaryCase{128, 3, ReaderFetchLayout::Skewed, 3},
+        BoundaryCase{128, 3, ReaderFetchLayout::SharedGroup, 3}, BoundaryCase{40960, 30, ReaderFetchLayout::Even, 1}}) {
+    SCOPED_TRACE(testCase.params);
+    SStreamRuntimeFuncInfo runtime =
+        makeReaderFetchScaleRuntime(testCase.params, testCase.nodes, testCase.layout, testCase.depth);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tValidateStreamCalcContextForFetch(&runtime, true, false));
+    const int32_t nodeId = 1;
+    installActualNodeReadView(&runtime, nodeId);
+    SResFetchReq request = {};
+    request.header.vgId = nodeId;
+    request.reset = true;
+    request.readerGroupMode = true;
+    request.readerFetchId = 300;
+    request.pStRtFuncInfo = &runtime;
+    const auto expected = reader_fetch_benchmark::expectedSelection(
+        reader_fetch_benchmark::makeScalePlan(testCase.params, testCase.nodes, testCase.layout), nodeId - 1);
+    const int32_t legacyLen = tSerializeSResFetchReq(nullptr, 0, &request, true, true);
+    ASSERT_GT(legacyLen, 0);
+    void*   firstWire = nullptr;
+    int32_t firstLen = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &firstWire, &firstLen));
+    SResFetchReq decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(firstWire, firstLen, &decoded));
+    ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+    EXPECT_EQ(expected.first, tSimpleHashGetSize(decoded.pStRtFuncInfo->pGroupCalcInfos));
+    EXPECT_EQ(expected.second, reader_fetch_benchmark::paramCount(decoded.pStRtFuncInfo));
+    if (expected.first < tSimpleHashGetSize(runtime.pGroupCalcInfos)) EXPECT_LT(firstLen, legacyLen);
+    tDestroySResFetchReq(&decoded);
+    taosMemoryFree(firstWire);
+
+    request.reset = false;
+    void*   continuationWire = nullptr;
+    int32_t continuationLen = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &continuationWire, &continuationLen));
+    if (thinBytes == 0) thinBytes = continuationLen;
+    EXPECT_EQ(thinBytes, continuationLen);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(continuationWire, continuationLen, &decoded));
+    ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+    EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pGroupCalcInfos);
+    EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pGroupReadInfos);
+    EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pContextPolicy);
+    EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pAncestorContext);
+    EXPECT_EQ(nullptr, decoded.pContextFrames);
+    tDestroySResFetchReq(&decoded);
+    taosMemoryFree(continuationWire);
+    tDestroyStRtFuncInfo(&runtime);
+  }
+}
+
+TEST(StreamReaderFetchBenchmark, DISABLED_Scale) {
+  const std::array<int32_t, 4>           params = {2, 128, 4096, 40960};
+  const std::array<int32_t, 3>           nodes = {1, 3, 30};
+  const std::array<ReaderFetchLayout, 3> layouts = {ReaderFetchLayout::Even, ReaderFetchLayout::Skewed,
+                                                    ReaderFetchLayout::SharedGroup};
+  const std::array<int32_t, 2>           depths = {1, 3};
+  int32_t                                thinBytes = 0;
+
+  for (int32_t totalParams : params) {
+    for (int32_t nodeCount : nodes) {
+      for (ReaderFetchLayout layout : layouts) {
+        for (int32_t ancestorDepth : depths) {
+          SStreamRuntimeFuncInfo runtime = makeReaderFetchScaleRuntime(totalParams, nodeCount, layout, ancestorDepth);
+          ASSERT_EQ(TSDB_CODE_SUCCESS, tValidateStreamCalcContextForFetch(&runtime, true, false));
+          for (int32_t nodeId = 1; nodeId <= nodeCount; ++nodeId) {
+            auto** reads = static_cast<SArray**>(tSimpleHashGet(runtime.pGroupReadInfos, &nodeId, sizeof(nodeId)));
+            if (reads == nullptr || taosArrayGetSize(*reads) == 0) {
+              reader_fetch_benchmark::emit("first", "skip", totalParams, nodeCount, layout, ancestorDepth, nodeId, 0, 0,
+                                           0, 0, 0, 0, 0);
+              continue;
+            }
+            tClearStreamCurrentGroupRead(&runtime);
+            installActualNodeReadView(&runtime, nodeId);
+            SStreamReaderFetchView validation = {};
+            ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamReaderFetchView(&runtime, nodeId, &validation));
+            tClearStreamReaderFetchView(&validation);
+
+            SResFetchReq request = {};
+            request.header.vgId = nodeId;
+            request.reset = true;
+            request.readerGroupMode = true;
+            request.readerFetchId = 400;
+            request.pStRtFuncInfo = &runtime;
+            int32_t legacyBytes = 0;
+            for (const char* path : {"legacy", "pruned"}) {
+              auto build = [&](void** wire, int32_t* wireLen) {
+                if (strcmp(path, "legacy") == 0) {
+                  *wireLen = tSerializeSResFetchReq(nullptr, 0, &request, true, true);
+                  ASSERT_GT(*wireLen, 0);
+                  *wire = taosMemoryMalloc(*wireLen);
+                  ASSERT_NE(nullptr, *wire);
+                  ASSERT_EQ(*wireLen, tSerializeSResFetchReq(*wire, *wireLen, &request, true, true));
+                } else {
+                  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, wire, wireLen));
+                }
+              };
+              void*   warmupWire = nullptr;
+              int32_t warmupLen = 0;
+              build(&warmupWire, &warmupLen);
+              if (strcmp(path, "legacy") == 0) legacyBytes = warmupLen;
+              SResFetchReq warmupDecoded = {};
+              ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(warmupWire, warmupLen, &warmupDecoded));
+              tDestroySResFetchReq(&warmupDecoded);
+              taosMemoryFree(warmupWire);
+              for (int32_t sample = 0; sample < 3; ++sample) {
+                void*         wire = nullptr;
+                int32_t       wireLen = 0;
+                const int64_t buildNs = reader_fetch_benchmark::elapsedNs([&] { build(&wire, &wireLen); });
+                SResFetchReq  decoded = {};
+                const int64_t decodeNs = reader_fetch_benchmark::elapsedNs(
+                    [&] { ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, wireLen, &decoded)); });
+                ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+                const int32_t selectedGroups = tSimpleHashGetSize(decoded.pStRtFuncInfo->pGroupCalcInfos);
+                const int32_t selectedParams = reader_fetch_benchmark::paramCount(decoded.pStRtFuncInfo);
+                if (strcmp(path, "pruned") == 0 && selectedGroups < tSimpleHashGetSize(runtime.pGroupCalcInfos)) {
+                  EXPECT_LT(selectedParams, totalParams);
+                  EXPECT_LT(wireLen, legacyBytes);
+                }
+                reader_fetch_benchmark::emit("first", path, totalParams, nodeCount, layout, ancestorDepth, nodeId,
+                                             sample, selectedGroups, selectedParams, wireLen, buildNs, decodeNs, 0);
+                tDestroySResFetchReq(&decoded);
+                taosMemoryFree(wire);
+              }
+            }
+
+            request.reset = false;
+            void*   warmupWire = nullptr;
+            int32_t warmupLen = 0;
+            ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &warmupWire, &warmupLen));
+            SResFetchReq warmupDecoded = {};
+            ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(warmupWire, warmupLen, &warmupDecoded));
+            tDestroySResFetchReq(&warmupDecoded);
+            taosMemoryFree(warmupWire);
+            if (thinBytes == 0) thinBytes = warmupLen;
+            EXPECT_EQ(thinBytes, warmupLen);
+            for (int32_t sample = 0; sample < 3; ++sample) {
+              void*         wire = nullptr;
+              int32_t       wireLen = 0;
+              const int64_t buildNs = reader_fetch_benchmark::elapsedNs(
+                  [&] { ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &wire, &wireLen)); });
+              SResFetchReq  decoded = {};
+              const int64_t decodeNs = reader_fetch_benchmark::elapsedNs(
+                  [&] { ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, wireLen, &decoded)); });
+              ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+              EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pGroupCalcInfos);
+              EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pGroupReadInfos);
+              EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pContextPolicy);
+              EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pAncestorContext);
+              EXPECT_EQ(nullptr, decoded.pContextFrames);
+              reader_fetch_benchmark::emit("continuation", "pruned", totalParams, nodeCount, layout, ancestorDepth,
+                                           nodeId, sample, 0, 0, wireLen, buildNs, decodeNs, 0);
+              tDestroySResFetchReq(&decoded);
+              taosMemoryFree(wire);
+            }
+          }
+          tDestroyStRtFuncInfo(&runtime);
+        }
+      }
+    }
+  }
 }
 
 TEST(StreamFetchGroupProjectionTest, ActualNodeProjectionScalesLinearly) {
@@ -3245,6 +5198,7 @@ TEST(StreamAncestorContextTest, FullMultiGroupFetchRejectsMissingReadBindingSet)
     SStreamRuntimeFuncInfo runtime = makeFullMultiGroupFetchRuntime();
     SResFetchReq           source = {};
     source.pStRtFuncInfo = &runtime;
+    source.reset = true;
     const auto              validBytes = serializeFetchRequest(source, true, false);
     SStreamAncestorContext* missingBindings = cloneWithoutLastReadBindings(runtime.pAncestorContext, remaining);
     ASSERT_NE(nullptr, missingBindings);
@@ -3252,6 +5206,11 @@ TEST(StreamAncestorContextTest, FullMultiGroupFetchRejectsMissingReadBindingSet)
     runtime.pAncestorContext = missingBindings;
 
     EXPECT_LT(tSerializeSResFetchReq(nullptr, 0, &source, true, false), 0);
+    void*   message = reinterpret_cast<void*>(1);
+    int32_t length = 1;
+    EXPECT_NE(TSDB_CODE_SUCCESS, tBuildStreamRunnerFetchReq(&source, nullptr, &message, &length));
+    EXPECT_EQ(nullptr, message);
+    EXPECT_EQ(0, length);
 
     auto malicious = validBytes;
     replaceAncestorFrame(&malicious, runtime.pAncestorContext, true);
@@ -3559,6 +5518,158 @@ TEST(StreamTwoPassRescanTest, RejectsDuplicateVersionFlagsFalsePayload) {
   tDestroySResFetchReq(&decoded);
 }
 
+TEST(StreamReaderGroupModeTest, AbsentFrameKeepsLegacyBytesAndDefaultsFresh) {
+  SResFetchReq source = {};
+  source.header.vgId = 7;
+  source.queryId = 11;
+  source.taskId = 22;
+  source.reset = true;
+  source.dynTbname = true;
+  source.forceFetchCompleted = true;
+
+  const auto bytes = serializeFetchRequest(source, false, false);
+  EXPECT_EQ(bytes.size(), frameOffset(bytes, STREAM_READER_GROUP_MODE_FRAME_MAGIC));
+
+  SResFetchReq decoded = {};
+  decoded.readerGroupMode = true;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(const_cast<uint8_t*>(bytes.data()), bytes.size(), &decoded));
+  EXPECT_FALSE(decoded.readerGroupMode);
+  tDestroySResFetchReq(&decoded);
+}
+
+TEST(StreamReaderGroupModeTest, RoundTripsEnabledTailFrame) {
+  SResFetchReq source = {};
+  source.readerGroupMode = true;
+
+  const auto bytes = serializeFetchRequest(source, false, false);
+  EXPECT_LT(frameOffset(bytes, STREAM_READER_GROUP_MODE_FRAME_MAGIC), bytes.size());
+
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(const_cast<uint8_t*>(bytes.data()), bytes.size(), &decoded));
+  EXPECT_TRUE(decoded.readerGroupMode);
+  tDestroySResFetchReq(&decoded);
+}
+
+TEST(StreamReaderGroupModeTest, RejectsDuplicateVersionFlagsAndInvalidBoolean) {
+  SResFetchReq source = {};
+  source.readerGroupMode = true;
+  const auto   original = serializeFetchRequest(source, false, false);
+  const size_t offset = frameOffset(original, STREAM_READER_GROUP_MODE_FRAME_MAGIC);
+  ASSERT_LT(offset, original.size());
+
+  auto duplicate = original;
+  duplicate.insert(duplicate.end(), original.begin() + offset, original.end());
+  rewriteFetchRequestLengths(&duplicate);
+  expectFetchDecodeFailure(duplicate);
+
+  auto badVersion = original;
+  writeU16(&badVersion, offset + sizeof(uint32_t), STREAM_READER_GROUP_MODE_FRAME_VERSION + 1);
+  expectFetchDecodeFailure(badVersion);
+
+  auto badFlags = original;
+  writeU16(&badFlags, offset + sizeof(uint32_t) + sizeof(uint16_t), 1);
+  expectFetchDecodeFailure(badFlags);
+
+  auto falsePayload = original;
+  falsePayload.at(falsePayload.size() - 1) = 0;
+  expectFetchDecodeFailure(falsePayload);
+
+  auto nonBooleanPayload = original;
+  nonBooleanPayload.at(nonBooleanPayload.size() - 1) = 2;
+  expectFetchDecodeFailure(nonBooleanPayload);
+
+  auto truncated = original;
+  truncated.pop_back();
+  rewriteFetchRequestLengths(&truncated);
+  expectFetchDecodeFailure(truncated);
+
+  auto unknown = original;
+  writeU32(&unknown, offset, UINT32_C(0x4e575858));
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(unknown.data(), unknown.size(), &decoded));
+  EXPECT_FALSE(decoded.readerGroupMode);
+  tDestroySResFetchReq(&decoded);
+}
+
+TEST(StreamRunnerEogBatchModeTest, RejectsInvalidCapabilityBoolean) {
+  SResFetchReq source = {};
+  source.readerGroupMode = true;
+  auto         bytes = serializeFetchRequest(source, false, false);
+  const size_t offset = frameOffset(bytes, STREAM_READER_GROUP_MODE_FRAME_MAGIC);
+  ASSERT_LT(offset, bytes.size());
+  writeU32(&bytes, offset, UINT32_C(0x4e575242));
+  bytes.back() = 2;
+  expectFetchDecodeFailure(bytes);
+}
+
+TEST(StreamRunnerEogBatchModeTest, AbsentCapabilityKeepsLegacyBytesAndClearsReusedRequest) {
+  SResFetchReq source = {};
+  auto         bytes = serializeFetchRequest(source, false, false);
+  EXPECT_EQ(bytes.size(), frameOffset(bytes, STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC));
+  FetchRequestGuard decoded;
+  decoded.request.runnerEogBatch = true;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded.request));
+  EXPECT_FALSE(decoded.request.runnerEogBatch);
+}
+
+TEST(StreamRunnerEogBatchModeTest, RoundTripsCapabilityOnInitialAndContinuationRequests) {
+  for (bool reset : {false, true}) {
+    SResFetchReq source = {};
+    source.reset = reset;
+    source.runnerEogBatch = true;
+    source.readerGroupMode = true;
+    auto bytes = serializeFetchRequest(source, false, false);
+    EXPECT_LT(frameOffset(bytes, STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC), bytes.size());
+    FetchRequestGuard decoded;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded.request));
+    EXPECT_TRUE(decoded.request.runnerEogBatch);
+    EXPECT_TRUE(decoded.request.readerGroupMode);
+    EXPECT_EQ(reset, decoded.request.reset);
+  }
+}
+
+TEST(StreamRunnerEogBatchModeTest, RejectsMalformedKnownFramesAndSkipsUnknownFrames) {
+  SResFetchReq source = {};
+  source.runnerEogBatch = true;
+  const auto   original = serializeFetchRequest(source, false, false);
+  const size_t offset = frameOffset(original, STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC);
+  ASSERT_LT(offset, original.size());
+
+  auto duplicate = original;
+  duplicate.insert(duplicate.end(), original.begin() + offset, original.end());
+  rewriteFetchRequestLengths(&duplicate);
+  expectFetchDecodeFailure(duplicate);
+
+  auto badVersion = original;
+  writeU16(&badVersion, offset + sizeof(uint32_t), STREAM_RUNNER_EOG_BATCH_FRAME_VERSION + 1);
+  expectFetchDecodeFailure(badVersion);
+
+  auto badFlags = original;
+  writeU16(&badFlags, offset + sizeof(uint32_t) + sizeof(uint16_t), 1);
+  expectFetchDecodeFailure(badFlags);
+
+  auto disabled = original;
+  disabled.back() = 0;
+  expectFetchDecodeFailure(disabled);
+
+  auto truncated = original;
+  truncated.pop_back();
+  rewriteFetchRequestLengths(&truncated);
+  expectFetchDecodeFailure(truncated);
+
+  auto extraPayload = original;
+  extraPayload.push_back(1);
+  writeU32(&extraPayload, offset + sizeof(uint32_t) + 2 * sizeof(uint16_t), 2);
+  rewriteFetchRequestLengths(&extraPayload);
+  expectFetchDecodeFailure(extraPayload);
+
+  auto unknown = original;
+  writeU32(&unknown, offset, UINT32_C(0x4e575858));
+  FetchRequestGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(unknown.data(), unknown.size(), &decoded.request));
+  EXPECT_FALSE(decoded.request.runnerEogBatch);
+}
+
 TEST(StreamAncestorContextTest, FetchRejectsFrameWithoutRuntimeInfo) {
   SStreamRuntimeFuncInfo runtime = makeSingleGroupFetchRuntime();
   SResFetchReq           source = {};
@@ -3813,10 +5924,13 @@ TEST(StreamAncestorContextTest, cloneIsDeepAndProjectRekeysUniqueMapping) {
   source->pReadScopeBindings = taosArrayInit(1, sizeof(SStreamReadScopeBinding));
   ASSERT_NE(nullptr, source->pReadScopeBindings);
   ASSERT_NE(nullptr, taosArrayPush(source->pReadScopeBindings, &binding));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamAncestorParamIndex(source));
 
   SStreamAncestorContext* clone = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, tCloneStreamAncestorContext(source, &clone));
   ASSERT_NE(nullptr, clone);
+  ASSERT_NE(nullptr, clone->pParamIndex);
+  EXPECT_NE(source->pParamIndex, clone->pParamIndex);
   auto* mutableSourceParam = static_cast<SStreamAncestorParamContext*>(taosArrayGet(source->pParamContexts, 0));
   auto* mutableSourceScope =
       static_cast<SScopeInstanceId*>(taosArrayGet(mutableSourceParam->leafIdentity.lineage.pScopes, 0));
@@ -3825,6 +5939,11 @@ TEST(StreamAncestorContextTest, cloneIsDeepAndProjectRekeysUniqueMapping) {
   const auto* clonedScope =
       static_cast<const SScopeInstanceId*>(taosArrayGet(clonedParam->leafIdentity.lineage.pScopes, 0));
   EXPECT_EQ(0, clonedScope->openingTs);
+  tDestroyStreamAncestorContext(&source);
+
+  const SStreamAncestorParamContext* clonedMatch = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tLookupStreamAncestorParam(clone, 101, 0, &clonedMatch));
+  EXPECT_EQ(clonedParam, clonedMatch);
 
   SStreamAncestorContext* projected = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, tProjectStreamAncestorContext(clone, 101, 0, 3, &projected));
@@ -3834,6 +5953,11 @@ TEST(StreamAncestorContextTest, cloneIsDeepAndProjectRekeysUniqueMapping) {
   EXPECT_EQ(3, projectedParam->paramIndex);
   EXPECT_EQ(1, taosArrayGetSize(projected->pReadScopeBindings));
   EXPECT_NE(projectedParam->leafIdentity.lineage.pScopes, clonedParam->leafIdentity.lineage.pScopes);
+  const SStreamAncestorParamContext* projectedMatch = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tLookupStreamAncestorParam(projected, 101, 3, &projectedMatch));
+  EXPECT_EQ(projectedParam, projectedMatch);
+  EXPECT_NE(TSDB_CODE_SUCCESS, tLookupStreamAncestorParam(projected, 101, 0, &projectedMatch));
+  EXPECT_EQ(nullptr, projectedMatch);
 
   SStreamAncestorContext* missing = reinterpret_cast<SStreamAncestorContext*>(UINTPTR_MAX);
   EXPECT_NE(TSDB_CODE_SUCCESS, tProjectStreamAncestorContext(clone, 202, 0, 0, &missing));
@@ -3846,7 +5970,82 @@ TEST(StreamAncestorContextTest, cloneIsDeepAndProjectRekeysUniqueMapping) {
   EXPECT_EQ(nullptr, invalidDecode);
   tDestroyStreamAncestorContext(&projected);
   tDestroyStreamAncestorContext(&clone);
-  tDestroyStreamAncestorContext(&source);
+}
+
+TEST(StreamAncestorContextTest, preparedIndexLooksUpSameLocalParamAcrossGroups) {
+  SStreamAncestorContext* context = makeAncestorContext(101, 0);
+  ASSERT_NE(nullptr, context);
+  appendAncestorParamContext(context, 202, 0);
+  auto* second = static_cast<SStreamAncestorParamContext*>(taosArrayGet(context->pParamContexts, 1));
+  ASSERT_NE(nullptr, second);
+  auto* secondSnapshot = static_cast<SWindowAncestorSnapshot*>(taosArrayGet(second->pSnapshots, 0));
+  ASSERT_NE(nullptr, secondSnapshot);
+  secondSnapshot->values.sliding.nextTs = 202;
+
+  const SStreamAncestorParamContext* match = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamAncestorParamIndex(context));
+  SSHashObj* const index = context->pParamIndex;
+  ASSERT_NE(nullptr, index);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamAncestorParamIndex(context));
+  EXPECT_EQ(index, context->pParamIndex);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tLookupStreamAncestorParam(context, 202, 0, &match));
+  ASSERT_NE(nullptr, match);
+  EXPECT_EQ(202, match->leafIdentity.gid);
+  EXPECT_EQ(0, match->paramIndex);
+  const auto* snapshot = static_cast<const SWindowAncestorSnapshot*>(taosArrayGet(match->pSnapshots, 0));
+  ASSERT_NE(nullptr, snapshot);
+  EXPECT_EQ(202, snapshot->values.sliding.nextTs);
+
+  tDestroyStreamAncestorContext(&context);
+}
+
+TEST(StreamAncestorContextTest, prepareRejectsInvalidParamIndexAndMissingSnapshots) {
+  SStreamAncestorContext* invalidIndex = makeAncestorContext(101, 0);
+  ASSERT_NE(nullptr, invalidIndex);
+  auto* param = static_cast<SStreamAncestorParamContext*>(taosArrayGet(invalidIndex->pParamContexts, 0));
+  ASSERT_NE(nullptr, param);
+  param->paramIndex = -1;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tPrepareStreamAncestorParamIndex(invalidIndex));
+  EXPECT_EQ(nullptr, invalidIndex->pParamIndex);
+  tDestroyStreamAncestorContext(&invalidIndex);
+
+  SStreamAncestorContext* missingSnapshots = makeAncestorContext(101, 0);
+  ASSERT_NE(nullptr, missingSnapshots);
+  param = static_cast<SStreamAncestorParamContext*>(taosArrayGet(missingSnapshots->pParamContexts, 0));
+  ASSERT_NE(nullptr, param);
+  taosArrayDestroy(param->pSnapshots);
+  param->pSnapshots = nullptr;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tPrepareStreamAncestorParamIndex(missingSnapshots));
+  EXPECT_EQ(nullptr, missingSnapshots->pParamIndex);
+  tDestroyStreamAncestorContext(&missingSnapshots);
+}
+
+TEST(StreamAncestorContextTest, unpreparedLookupRejectsDuplicatesAndPrepareClearsFailedIndex) {
+  SStreamAncestorContext* context = makeAncestorContext(101, 0);
+  ASSERT_NE(nullptr, context);
+
+  const SStreamAncestorParamContext* match = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tLookupStreamAncestorParam(context, 101, 0, &match));
+  ASSERT_NE(nullptr, match);
+  appendAncestorParamContext(context, 101, 0);
+  EXPECT_NE(TSDB_CODE_SUCCESS, tLookupStreamAncestorParam(context, 101, 0, &match));
+  EXPECT_EQ(nullptr, match);
+  EXPECT_NE(TSDB_CODE_SUCCESS, tPrepareStreamAncestorParamIndex(context));
+  EXPECT_EQ(nullptr, context->pParamIndex);
+
+  tDestroyStreamAncestorContext(&context);
+}
+
+TEST(StreamAncestorContextTest, preparedIndexIsNotEncoded) {
+  SStreamAncestorContext* context = makeAncestorContext(101, 0);
+  ASSERT_NE(nullptr, context);
+  const auto withoutIndex = encodeAncestorFrame(context);
+  ASSERT_FALSE(withoutIndex.empty());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamAncestorParamIndex(context));
+  ASSERT_NE(nullptr, context->pParamIndex);
+  EXPECT_EQ(withoutIndex, encodeAncestorFrame(context));
+
+  tDestroyStreamAncestorContext(&context);
 }
 
 TEST(StreamAncestorContextTest, rejectsInvalidMappingIdentityAndShape) {
@@ -4602,6 +6801,239 @@ TEST(StreamRunnerFetchFrameTest, DecoderReleasesPriorLineageBeforeSuccessAndFail
   tDestroySStreamRunnerFetchFrame(&decoded);
   tDestroySStreamRunnerFetchFrame(&secondSource);
   tDestroySStreamRunnerFetchFrame(&firstSource);
+}
+
+struct RunnerFetchBatchGuard {
+  SStreamRunnerFetchBatch batch = {};
+  ~RunnerFetchBatchGuard() { tDestroySStreamRunnerFetchBatch(&batch); }
+};
+
+void fillRunnerFetchBatch(SStreamRunnerFetchBatch* batch, bool data, std::initializer_list<uint64_t> eogs) {
+  if (data) {
+    ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&batch->pBlock));
+    SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(batch->pBlock, &column));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataEnsureCapacity(batch->pBlock, 4));
+    auto* storedColumn = static_cast<SColumnInfoData*>(taosArrayGet(batch->pBlock->pDataBlock, 0));
+    for (int64_t row = 0; row < 4; ++row) {
+      const int64_t value = 1000 + row;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(storedColumn, row, reinterpret_cast<const char*>(&value), row == 2));
+    }
+    batch->pBlock->info.rows = 4;
+    batch->pBlock->info.id.baseGId = 101;
+    batch->pBlock->info.id.groupId = 101;
+    batch->dataFrame.type = STREAM_RUNNER_FETCH_DATA;
+    batch->dataFrame.baseGId = 101;
+    batch->dataFrame.pLineage = makeRunnerFetchLineage({packLineage(3, 0), packLineage(7, 2)});
+    ASSERT_NE(nullptr, batch->dataFrame.pLineage);
+  }
+  if (eogs.size() > 0) {
+    batch->pEogGids = taosArrayFromList(eogs.begin(), eogs.size(), sizeof(uint64_t));
+    ASSERT_NE(nullptr, batch->pEogGids);
+  }
+}
+
+std::vector<uint8_t> serializeRunnerFetchBatch(const SStreamRunnerFetchBatch& batch) {
+  const int32_t encodedLen = tSerializeSStreamRunnerFetchBatch(nullptr, 0, &batch);
+  EXPECT_GT(encodedLen, 0);
+  if (encodedLen <= 0) return {};
+  std::vector<uint8_t> encoded(encodedLen);
+  EXPECT_EQ(encodedLen, tSerializeSStreamRunnerFetchBatch(encoded.data(), encoded.size(), &batch));
+  return encoded;
+}
+
+void expectEmptyRunnerFetchBatch(const SStreamRunnerFetchBatch& batch) {
+  EXPECT_EQ(nullptr, batch.pBlock);
+  EXPECT_EQ(nullptr, batch.dataFrame.pLineage);
+  EXPECT_EQ(STREAM_RUNNER_FETCH_LEGACY, batch.dataFrame.type);
+  EXPECT_EQ(0, batch.dataFrame.baseGId);
+  EXPECT_EQ(nullptr, batch.pEogGids);
+}
+
+void expectRunnerFetchBatchDecodeFailure(const std::vector<uint8_t>& bytes) {
+  RunnerFetchBatchGuard decoded;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tDeserializeSStreamRunnerFetchBatch(bytes.data(), bytes.size(), &decoded.batch));
+  expectEmptyRunnerFetchBatch(decoded.batch);
+}
+
+TEST(StreamRunnerFetchBatchTest, EogOnlyRoundTripMatchesGoldenBytes) {
+  RunnerFetchBatchGuard source;
+  fillRunnerFetchBatch(&source.batch, false, {101, 202});
+  const auto           bytes = serializeRunnerFetchBatch(source.batch);
+  static const uint8_t golden[] = {
+      0x00, 0x00, 0x00, 0x1e, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x65, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xca,
+  };
+  EXPECT_EQ(std::vector<uint8_t>(golden, golden + sizeof(golden)), bytes);
+  RunnerFetchBatchGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSStreamRunnerFetchBatch(bytes.data(), bytes.size(), &decoded.batch));
+  EXPECT_EQ(nullptr, decoded.batch.pBlock);
+  EXPECT_EQ(nullptr, decoded.batch.dataFrame.pLineage);
+  ASSERT_EQ(2, taosArrayGetSize(decoded.batch.pEogGids));
+  EXPECT_EQ(101, *static_cast<uint64_t*>(taosArrayGet(decoded.batch.pEogGids, 0)));
+  EXPECT_EQ(202, *static_cast<uint64_t*>(taosArrayGet(decoded.batch.pEogGids, 1)));
+}
+
+TEST(StreamRunnerFetchBatchTest, DataWithOptionalTailOwnsCompleteBlockAndLineage) {
+  for (bool withEogs : {false, true}) {
+    RunnerFetchBatchGuard source;
+    fillRunnerFetchBatch(&source.batch, true,
+                         withEogs ? std::initializer_list<uint64_t>{101, 202} : std::initializer_list<uint64_t>{});
+    const auto           bytes = serializeRunnerFetchBatch(source.batch);
+    std::vector<uint8_t> shortBuffer(bytes.size() - 1);
+    EXPECT_LT(tSerializeSStreamRunnerFetchBatch(shortBuffer.data(), shortBuffer.size(), &source.batch), 0);
+    RunnerFetchBatchGuard decoded;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSStreamRunnerFetchBatch(bytes.data(), bytes.size(), &decoded.batch));
+    tDestroySStreamRunnerFetchBatch(&source.batch);
+    ASSERT_NE(nullptr, decoded.batch.pBlock);
+    EXPECT_EQ(4, decoded.batch.pBlock->info.rows);
+    EXPECT_EQ(101, decoded.batch.pBlock->info.id.baseGId);
+    EXPECT_EQ(101, decoded.batch.pBlock->info.id.groupId);
+    auto* column = static_cast<SColumnInfoData*>(taosArrayGet(decoded.batch.pBlock->pDataBlock, 0));
+    ASSERT_NE(nullptr, column);
+    EXPECT_EQ(1000, *reinterpret_cast<int64_t*>(colDataGetData(column, 0)));
+    EXPECT_TRUE(colDataIsNull_s(column, 2));
+    EXPECT_EQ(1003, *reinterpret_cast<int64_t*>(colDataGetData(column, 3)));
+    ASSERT_EQ(2, taosArrayGetSize(decoded.batch.dataFrame.pLineage));
+    EXPECT_EQ(packLineage(3, 0), *static_cast<int64_t*>(taosArrayGet(decoded.batch.dataFrame.pLineage, 0)));
+    EXPECT_EQ(packLineage(7, 2), *static_cast<int64_t*>(taosArrayGet(decoded.batch.dataFrame.pLineage, 1)));
+    EXPECT_EQ(withEogs ? 2 : 0, taosArrayGetSize(decoded.batch.pEogGids));
+  }
+}
+
+TEST(StreamRunnerFetchBatchTest, RejectsEmptyInvalidIdentityAndExcessiveEogs) {
+  RunnerFetchBatchGuard source;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tValidateSStreamRunnerFetchBatch(&source.batch));
+  fillRunnerFetchBatch(&source.batch, false, {101, 0});
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tValidateSStreamRunnerFetchBatch(&source.batch));
+  *static_cast<uint64_t*>(taosArrayGet(source.batch.pEogGids, 1)) = 101;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tValidateSStreamRunnerFetchBatch(&source.batch));
+  taosArrayClear(source.batch.pEogGids);
+  for (uint64_t gid = 1; gid <= STREAM_RUNNER_EOG_BATCH_MAX; ++gid) {
+    ASSERT_NE(nullptr, taosArrayPush(source.batch.pEogGids, &gid));
+  }
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateSStreamRunnerFetchBatch(&source.batch));
+  const auto            atLimit = serializeRunnerFetchBatch(source.batch);
+  RunnerFetchBatchGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSStreamRunnerFetchBatch(atLimit.data(), atLimit.size(), &decoded.batch));
+  EXPECT_EQ(STREAM_RUNNER_EOG_BATCH_MAX, taosArrayGetSize(decoded.batch.pEogGids));
+  uint64_t extraGid = STREAM_RUNNER_EOG_BATCH_MAX + 1;
+  ASSERT_NE(nullptr, taosArrayPush(source.batch.pEogGids, &extraGid));
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tValidateSStreamRunnerFetchBatch(&source.batch));
+  tDestroySStreamRunnerFetchBatch(&source.batch);
+  fillRunnerFetchBatch(&source.batch, true, {202});
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tValidateSStreamRunnerFetchBatch(&source.batch));
+  *static_cast<uint64_t*>(taosArrayGet(source.batch.pEogGids, 0)) = 101;
+  source.batch.pBlock->info.id.baseGId = 202;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tValidateSStreamRunnerFetchBatch(&source.batch));
+  source.batch.pBlock->info.id.baseGId = 101;
+  source.batch.pBlock->info.id.groupId = 202;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tValidateSStreamRunnerFetchBatch(&source.batch));
+  source.batch.pBlock->info.id.groupId = 101;
+  *static_cast<int64_t*>(taosArrayGet(source.batch.dataFrame.pLineage, 1)) = packLineage(7, 4);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tValidateSStreamRunnerFetchBatch(&source.batch));
+  blockDataDestroy(source.batch.pBlock);
+  source.batch.pBlock = nullptr;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tValidateSStreamRunnerFetchBatch(&source.batch));
+}
+
+TEST(StreamRunnerFetchBatchTest, DecoderRejectsMalformedShapeLengthsBlocksAndLineage) {
+  RunnerFetchBatchGuard source;
+  fillRunnerFetchBatch(&source.batch, true, {101, 202});
+  const auto   original = serializeRunnerFetchBatch(source.batch);
+  const size_t blockStart = 18;
+  const size_t frameStart = blockStart + blockGetInternalEncodeSize(source.batch.pBlock);
+  const size_t eogStart = original.size() - 2 * sizeof(uint64_t);
+  for (size_t cut = 0; cut < original.size(); ++cut) {
+    expectRunnerFetchBatchDecodeFailure(std::vector<uint8_t>(original.begin(), original.begin() + cut));
+  }
+  for (size_t offset : {size_t{4}, size_t{5}}) {
+    auto badVersionOrFlag = original;
+    badVersionOrFlag[offset] = 2;
+    expectRunnerFetchBatchDecodeFailure(badVersionOrFlag);
+  }
+  for (size_t offset : {size_t{0}, size_t{6}, size_t{10}, size_t{14}}) {
+    auto excessiveLength = original;
+    writeRunnerFetchU32(&excessiveLength, offset, UINT32_MAX);
+    expectRunnerFetchBatchDecodeFailure(excessiveLength);
+  }
+  auto missingData = original;
+  missingData[5] = 0;
+  expectRunnerFetchBatchDecodeFailure(missingData);
+  std::vector<uint8_t> emptyBatch(18, 0);
+  writeRunnerFetchU32(&emptyBatch, 0, 14);
+  emptyBatch[4] = STREAM_RUNNER_FETCH_BATCH_VERSION;
+  expectRunnerFetchBatchDecodeFailure(emptyBatch);
+  auto secondData = original;
+  secondData.insert(secondData.end(), original.begin(), original.end());
+  writeRunnerFetchU32(&secondData, 0, secondData.size() - sizeof(uint32_t));
+  expectRunnerFetchBatchDecodeFailure(secondData);
+  auto invalidBlock = original;
+  writeI32(&invalidBlock, blockStart + 2 * sizeof(int32_t), INT32_MAX);
+  expectRunnerFetchBatchDecodeFailure(invalidBlock);
+  auto           wrongBlockGroup = original;
+  const uint64_t wrongGid = 202;
+  memcpy(wrongBlockGroup.data() + blockStart + 5 * sizeof(int32_t), &wrongGid, sizeof(wrongGid));
+  expectRunnerFetchBatchDecodeFailure(wrongBlockGroup);
+  auto truncatedBlock = original;
+  truncatedBlock.erase(truncatedBlock.begin() + frameStart - 1);
+  writeRunnerFetchU32(&truncatedBlock, 0, truncatedBlock.size() - sizeof(uint32_t));
+  writeRunnerFetchU32(&truncatedBlock, 6, frameStart - blockStart - 1);
+  expectRunnerFetchBatchDecodeFailure(truncatedBlock);
+  auto eogBeforeData = original;
+  eogBeforeData[frameStart + 5] = STREAM_RUNNER_FETCH_EOG;
+  expectRunnerFetchBatchDecodeFailure(eogBeforeData);
+  auto invalidLineage = original;
+  writeRunnerFetchU64(&invalidLineage, frameStart + 18 + sizeof(uint64_t), packLineage(7, 4));
+  expectRunnerFetchBatchDecodeFailure(invalidLineage);
+  auto wrongFirstEog = original;
+  writeRunnerFetchU64(&wrongFirstEog, eogStart, 202);
+  expectRunnerFetchBatchDecodeFailure(wrongFirstEog);
+  auto duplicateEog = original;
+  writeRunnerFetchU64(&duplicateEog, eogStart + sizeof(uint64_t), 101);
+  expectRunnerFetchBatchDecodeFailure(duplicateEog);
+  auto zeroEog = original;
+  writeRunnerFetchU64(&zeroEog, eogStart + sizeof(uint64_t), 0);
+  expectRunnerFetchBatchDecodeFailure(zeroEog);
+}
+
+TEST(StreamRunnerFetchBatchTest, DecodeReplacesOwnedStateAndClearsOnFailure) {
+  RunnerFetchBatchGuard source;
+  fillRunnerFetchBatch(&source.batch, true, {101, 202});
+  auto                  bytes = serializeRunnerFetchBatch(source.batch);
+  RunnerFetchBatchGuard decoded;
+  fillRunnerFetchBatch(&decoded.batch, true, {101});
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSStreamRunnerFetchBatch(bytes.data(), bytes.size(), &decoded.batch));
+  ASSERT_EQ(2, taosArrayGetSize(decoded.batch.pEogGids));
+  writeRunnerFetchU64(&bytes, bytes.size() - sizeof(uint64_t), 101);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tDeserializeSStreamRunnerFetchBatch(bytes.data(), bytes.size(), &decoded.batch));
+  expectEmptyRunnerFetchBatch(decoded.batch);
+  tDestroySStreamRunnerFetchBatch(&decoded.batch);
+  expectEmptyRunnerFetchBatch(decoded.batch);
+}
+
+TEST(StreamRunnerFetchBatchTest, AllocationFailureReleasesPartiallyDecodedState) {
+  for (bool withData : {false, true}) {
+    RunnerFetchBatchGuard source;
+    fillRunnerFetchBatch(&source.batch, withData, {101, 202});
+    auto                  bytes = serializeRunnerFetchBatch(source.batch);
+    RunnerFetchBatchGuard decoded;
+    fillRunnerFetchBatch(&decoded.batch, true, {101});
+    {
+      MatchingAllocationFailureGuard failure(sizeof(SArray));
+      EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+                tDeserializeSStreamRunnerFetchBatch(bytes.data(), bytes.size(), &decoded.batch));
+      EXPECT_EQ(1, gContextFrameMatchingAllocations);
+    }
+    expectEmptyRunnerFetchBatch(decoded.batch);
+  }
+}
+
+TEST(StreamRunnerFetchBatchTest, CalcRequestDestructorReleasesBatchOutput) {
+  TriggerCalcRequestGuard request;
+  fillRunnerFetchBatch(&request.request.outBatch, true, {101, 202});
+  tDestroySTriggerCalcRequest(&request.request);
+  expectEmptyRunnerFetchBatch(request.request.outBatch);
 }
 
 }  // namespace

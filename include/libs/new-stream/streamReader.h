@@ -173,7 +173,21 @@ typedef struct SStreamTriggerReaderInfo {
 
 bool    stReaderTaskGetShallowMemoryEstimate(const SStreamReaderTask *pTask, int64_t *pBytes);
 
+typedef struct SStreamReaderFetchState {
+  bool     enabled;
+  uint64_t id;
+  uint64_t queryId;
+  uint64_t taskId;
+  int32_t  execId;
+  int32_t  nodeId;
+  uint64_t streamGen;
+  int64_t  sessionId;
+  bool     dynTbname;
+  bool     readerGroupMode;
+} SStreamReaderFetchState;
+
 typedef struct SStreamTriggerReaderCalcInfo {
+  SStreamReaderFetchState fetchState;
   void*       pTask;
   void*       pFilterInfo;
   void*       tsConditions;
@@ -181,11 +195,21 @@ typedef struct SStreamTriggerReaderCalcInfo {
   STargetNode* pTargetNodeTs;
   char*       calcScanPlan;
   bool        hasPlaceHolder;
+  bool                   readerGroupRequested;
+  bool                   readerGroupAccepted;
+  bool                   readerGroupModeSet;
   bool                   requiresContextPolicy;
   qTaskInfo_t pTaskInfo;
   SStreamRuntimeInfo rtInfo;
   SStreamRuntimeFuncInfo tmpRtFuncInfo;
 } SStreamTriggerReaderCalcInfo;
+
+void    stReaderCaptureFetchState(SStreamReaderFetchState* pState, const SResFetchReq* pReq, int32_t actualNodeId);
+int32_t stReaderCheckFetchContinuation(const SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq,
+                                       int32_t actualNodeId);
+void    stReaderInvalidateFetchState(SStreamTriggerReaderCalcInfo* pCalc);
+
+int32_t stReaderSetGroupOutputMode(SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq);
 
 typedef struct SStreamReaderCalcProjection SStreamReaderCalcProjection;
 
@@ -234,6 +258,8 @@ void    releaseStreamTask(void* p);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr);
 void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
 int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
+/** Builds a Reader batch response while borrowing every block in pBlocks. */
+int32_t streamBuildGroupFetchRsp(const SArray* pBlocks, bool hasNext, void** ppData, size_t* pSize, int8_t precision);
 
 int32_t qBuildVTableList(SStreamTriggerReaderInfo* sStreamReaderInfo);
 

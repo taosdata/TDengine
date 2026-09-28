@@ -111,6 +111,7 @@ typedef void (*FStreamBlockingStats)(void* param, bool blocking);
 
 typedef struct {
   SStreamRuntimeFuncInfo funcInfo;  // shallow borrowed view; never destroy its fields
+  const SStreamFetchContextSelection* pContextSelection;  // borrowed from this batch's prepared owner
   bool                   reuseReader;
   bool                   active;
 } SStreamFetchRuntimeInfo;
@@ -118,6 +119,8 @@ typedef struct {
 typedef struct {
   SStreamRuntimeFuncInfo funcInfo;
   SStreamFetchRuntimeInfo fetchInfo;
+  SStreamContextFrames*   pContextFrames;  // owned by this execution, never by borrowed views
+  SStreamPreparedFetchContext* pPreparedFetchContext;  // owned; borrows funcInfo and pContextFrames
   int32_t                 execId;
   bool                    resetFlag;
   bool                    reuseReaderOnFetchReset;
@@ -269,6 +272,9 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
  */
 int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal,
                      bool processOneBlock);
+
+/** Enable completed trigger-group events for a qualified Reader scan before execution. */
+int32_t qEnableReaderGroupOutput(qTaskInfo_t task, bool requested, bool* pEnabled);
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
 

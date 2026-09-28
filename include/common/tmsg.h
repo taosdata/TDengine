@@ -5784,6 +5784,8 @@ typedef struct SDynQueryCtrlOperatorParam {
 } SDynQueryCtrlOperatorParam;
 
 struct SStreamRuntimeFuncInfo;
+typedef struct SStreamContextFrames SStreamContextFrames;
+typedef struct SStreamFetchContextSelection SStreamFetchContextSelection;
 typedef struct {
   SMsgHead        header;
   uint64_t        sId;
@@ -5802,11 +5804,21 @@ typedef struct {
   bool                           forceFetchCompleted;
   bool                           phase2Rescan;  // vtable two-pass: remote origin reuses reader and rescans
   bool                           reuseReader;
+  bool                           readerGroupMode;
+  bool                           runnerEogBatch;
+  uint64_t                       readerFetchId;
+  SStreamContextFrames*          pContextFrames;  // optional owned validated frame copy
   // used for new-stream
 } SResFetchReq;
 
 int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
+int32_t tDeserializeSResFetchReqWithContextFrames(void* buf, int32_t bufLen, SResFetchReq* pReq);
+int32_t tBuildStreamRunnerFetchReq(SResFetchReq* pReq, const SStreamContextFrames* pFrames, void** ppBuf,
+                                   int32_t* pLen);
+int32_t tBuildStreamReaderFetchReq(SResFetchReq* pReq, void** ppBuf, int32_t* pLen);
+int32_t tBuildStreamPreparedFetchReq(SResFetchReq* pReq, const struct SStreamRuntimeFuncInfo* pBatch,
+                                     const SStreamFetchContextSelection* pSelection, void** ppBuf, int32_t* pLen);
 void    tDestroySResFetchReq(SResFetchReq* pReq);
 typedef struct {
   SMsgHead header;

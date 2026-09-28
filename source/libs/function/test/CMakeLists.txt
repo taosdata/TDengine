@@ -30,6 +30,9 @@ if(NOT TD_DARWIN)
     set(CMAKE_CXX_STANDARD 11)
     add_executable(functionMgtTest functionMgtTest.cpp)
     DEP_ext_gtest(functionMgtTest)
+    if(NOT TD_WINDOWS)
+        DEP_ext_cppstub(functionMgtTest)
+    endif()
     target_link_libraries(
         functionMgtTest
         PRIVATE os util common nodes function
