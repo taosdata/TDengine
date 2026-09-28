@@ -1510,6 +1510,31 @@ TEST(otherTest, function) {
   schMgmt.jobRef = -1;
 }
 
+TEST(otherTest, taskRetryConfig) {
+  int32_t    originalMaxRetryWaitTime = tsMaxRetryWaitTime;
+  int32_t    originalMaxRetryTimes = tsMaxRetryTimes;
+  SCH_POLICY originalSchPolicy = schMgmt.cfg.schPolicy;
+
+  SSchJob   job = {0};
+  SSchTask  task = {0};
+  SSchLevel level = {0};
+  SSubplan  plan = {};
+
+  job.attr.type = JOB_TYPE_QUERY;
+  task.plan = &plan;
+  plan.subplanType = SUBPLAN_TYPE_SCAN;
+  schMgmt.cfg.schPolicy = SCH_ALL;
+  tsMaxRetryWaitTime = 3000;
+  tsMaxRetryTimes = 2;
+
+  schInitTaskRetryInfo(&job, &task, &level);
+  EXPECT_EQ(task.maxRetryTimes, 6);
+
+  tsMaxRetryWaitTime = originalMaxRetryWaitTime;
+  tsMaxRetryTimes = originalMaxRetryTimes;
+  schMgmt.cfg.schPolicy = originalSchPolicy;
+}
+
 TEST(otherTest, branch) {
   SSchJob job = {0};
   SSchTask task = {0};

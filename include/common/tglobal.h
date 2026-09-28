@@ -324,6 +324,7 @@ extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
 extern int32_t tsMaxRetryWaitTime;
+extern int32_t tsMaxRetryTimes;
 extern int32_t tsAuthMech;
 extern int32_t tsRetryOnOverloadBaseInterval;
 extern int32_t tsRetryOnOverloadTimeout;
