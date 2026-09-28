@@ -9156,7 +9156,8 @@ static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   SName        targetName = {0};
-  int32_t      code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &targetName);
+  int32_t      code =
+      getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pSelect->pWhere, &targetName);
   if (TSDB_CODE_SUCCESS == code) {
     if (0 == strcmp(pTableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) && targetName.dbname[0] != '\0') {
       targetName.type = TSDB_DB_NAME_T;
@@ -18378,7 +18379,7 @@ static int32_t validateFixedDistConditions(STranslateContext* pCxt, SSelectStmt*
     return TSDB_CODE_SUCCESS;
   }
   SName targetName = {0};
-  int32_t code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &targetName);
+  int32_t code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pSelect->pWhere, &targetName);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }

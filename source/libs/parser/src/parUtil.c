@@ -19,6 +19,7 @@
 #include "cJSON.h"
 #include "decimal.h"
 #include "extConnector.h"
+#include "functionMgt.h"
 #include "querynodes.h"
 #include "tarray.h"
 #include "tlog.h"
@@ -712,24 +713,44 @@ end:
   return retCode;
 }
 
-static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pOper, SName* pName) {
+static bool isDatabaseFunc(SNode* pNode) {
+  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+    return false;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pNode;
+  return FUNCTION_TYPE_DATABASE == fmGetFuncType(pFunc->functionName) && 0 == LIST_LENGTH(pFunc->pParameterList);
+}
+
+static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, const char* pCurrDb, SOperatorNode* pOper,
+                                            SName* pName) {
   if (OP_TYPE_EQUAL != pOper->opType) {
     return TSDB_CODE_SUCCESS;
   }
 
   SColumnNode* pCol = NULL;
   SValueNode*  pVal = NULL;
+  SNode*       pOther = NULL;
   if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
     pCol = (SColumnNode*)pOper->pLeft;
+    pOther = pOper->pRight;
   } else if (QUERY_NODE_VALUE == nodeType(pOper->pLeft)) {
     pVal = (SValueNode*)pOper->pLeft;
   }
   if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
     pCol = (SColumnNode*)pOper->pRight;
+    pOther = pOper->pLeft;
   } else if (QUERY_NODE_VALUE == nodeType(pOper->pRight)) {
     pVal = (SValueNode*)pOper->pRight;
   }
-  if (NULL == pCol || NULL == pVal) {
+  if (NULL == pCol) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pVal) {
+    if (0 == strcmp(pCol->colName, "db_name") && NULL != pCurrDb && '\0' != pCurrDb[0] && isDatabaseFunc(pOther)) {
+      return tNameSetDbName(pName, acctId, pCurrDb, strlen(pCurrDb));
+    }
     return TSDB_CODE_SUCCESS;
   }
 
@@ -799,21 +820,22 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   return code;
 }
 
-static int32_t getInsTagsTableTargetObjName(int32_t acctId, SNode* pNode, SName* pName) {
+static int32_t getInsTagsTableTargetObjName(int32_t acctId, const char* pCurrDb, SNode* pNode, SName* pName) {
   if (QUERY_NODE_OPERATOR == nodeType(pNode)) {
-    return getInsTagsTableTargetNameFromOp(acctId, (SOperatorNode*)pNode, pName);
+    return getInsTagsTableTargetNameFromOp(acctId, pCurrDb, (SOperatorNode*)pNode, pName);
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getInsTagsTableTargetNameFromCond(int32_t acctId, SLogicConditionNode* pCond, SName* pName) {
+static int32_t getInsTagsTableTargetNameFromCond(int32_t acctId, const char* pCurrDb, SLogicConditionNode* pCond,
+                                              SName* pName) {
   if (LOGIC_COND_TYPE_AND != pCond->condType) {
     return TSDB_CODE_SUCCESS;
   }
 
   SNode* pNode = NULL;
   FOREACH(pNode, pCond->pParameterList) {
-    int32_t code = getInsTagsTableTargetObjName(acctId, pNode, pName);
+    int32_t code = getInsTagsTableTargetObjName(acctId, pCurrDb, pNode, pName);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -824,13 +846,13 @@ static int32_t getInsTagsTableTargetNameFromCond(int32_t acctId, SLogicCondition
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) {
+int32_t getVnodeSysTableTargetName(int32_t acctId, const char* pCurrDb, SNode* pWhere, SName* pName) {
   if (NULL == pWhere) {
     return TSDB_CODE_SUCCESS;
   }
 
   if (QUERY_NODE_OPERATOR == nodeType(pWhere)) {
-    int32_t code = getInsTagsTableTargetNameFromOp(acctId, (SOperatorNode*)pWhere, pName);
+    int32_t code = getInsTagsTableTargetNameFromOp(acctId, pCurrDb, (SOperatorNode*)pWhere, pName);
     if (TSDB_CODE_SUCCESS == code && '\0' == pName->dbname[0]) {
       pName->type = 0;
     }
@@ -838,7 +860,7 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
   }
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pWhere)) {
-    return getInsTagsTableTargetNameFromCond(acctId, (SLogicConditionNode*)pWhere, pName);
+    return getInsTagsTableTargetNameFromCond(acctId, pCurrDb, (SLogicConditionNode*)pWhere, pName);
   }
 
   return TSDB_CODE_SUCCESS;

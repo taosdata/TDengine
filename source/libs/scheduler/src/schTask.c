@@ -58,10 +58,10 @@ void schInitTaskRetryInfo(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel) {
 
   if (SCH_IS_DATA_BIND_TASK(pTask) || (!SCH_IS_QUERY_JOB(pJob)) || (SCH_ALL != schMgmt.cfg.schPolicy)) {
     int32_t retryNum = ceil((tsMaxRetryWaitTime * 1.0) / pTask->redirectCtx.redirectDelayMs);
-    pTask->maxRetryTimes = TMAX(retryNum, SCH_DEFAULT_MAX_RETRY_NUM * REPLICA_FACTOR);
+    pTask->maxRetryTimes = TMAX(retryNum, tsMaxRetryTimes * REPLICA_FACTOR);
   } else {
     int32_t nodeNum = taosArrayGetSize(pJob->nodeList);
-    pTask->maxRetryTimes = TMAX(nodeNum, SCH_DEFAULT_MAX_RETRY_NUM * REPLICA_FACTOR);
+    pTask->maxRetryTimes = TMAX(nodeNum, tsMaxRetryTimes * REPLICA_FACTOR);
   }
 
   pTask->maxExecTimes = pTask->maxRetryTimes * (pLevel->level + 1);
