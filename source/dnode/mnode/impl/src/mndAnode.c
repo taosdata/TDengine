@@ -796,25 +796,25 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         if (code != 0) goto _end;
 
         // type
-        STR_TO_VARSTR(buf, taosAnalysisAlgoType(t));
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, taosAnalysisAlgoType(t), sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
         // name
-        STR_TO_VARSTR(buf, algo->name);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, algo->name, sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
         // status
-        STR_TO_VARSTR(buf, algo->pStatus == NULL ? "UNAVAIL" : algo->pStatus);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, algo->pStatus == NULL ? "UNAVAIL" : algo->pStatus, sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
         // note
-        STR_TO_VARSTR(buf, algo->pNote == NULL ? "" : algo->pNote);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, algo->pNote == NULL ? "" : algo->pNote, sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
