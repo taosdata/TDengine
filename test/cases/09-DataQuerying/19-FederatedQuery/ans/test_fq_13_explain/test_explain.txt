@@ -3943,17 +3943,17 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
 ---
 ### EXP-ds_string-07_mysql POS
-SQL: select REPEAT(region, 2) from fq_exp_mysql.sensor
+SQL: select REPEAT(region, 1) from fq_exp_mysql.sensor
 RESULT
--> Federated Scan on fq_exp_mysql.sensor (mysql) (width=258)
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=130)
 ---
 ### EXP-ds_string-07_pg POS
-SQL: select REPEAT(region, 2) from fq_exp_pg.sensor
+SQL: select REPEAT(region, 1) from fq_exp_pg.sensor
 RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65519)
 ---
 ### EXP-ds_string-07_influx POS
-SQL: select REPEAT(region, 2) from fq_exp_influx.sensor
+SQL: select REPEAT(region, 1) from fq_exp_influx.sensor
 RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
 ---
