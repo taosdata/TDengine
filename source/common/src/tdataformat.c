@@ -3050,6 +3050,9 @@ static int32_t tTColumnCompare(const void *p1, const void *p2) {
   return 0;
 }
 
+// Requires pTSchema->columns in ascending colId order (tBuildTSchema() keeps the caller's order and
+// does not sort); callers such as tsdbSttFileRW/tsdbDataFileRW and the TMQ scan rely on metadata
+// schemas being ordered by colId.
 const STColumn *tTSchemaSearchColumn(const STSchema *pTSchema, int16_t cid) {
   STColumn tcol = {
       .colId = cid,
