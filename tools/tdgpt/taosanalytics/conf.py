@@ -108,7 +108,7 @@ class Configure:
             "model_dir": "/usr/local/taos/taosanode/model/",
             "dynamic_model_dir": "/usr/local/taos/taosanode/model/dynamic/",
             "img_dir": "/usr/local/taos/taosanode/img/",
-            "resource_dir": "/usr/local/taos/taosanode/resource/",
+            "resource_dir": "/var/lib/taos/taosanode/resource",
             "resource_base_url": "https://downloads.taosdata.com",
             "conf_path": "/etc/taos/taosanode.config.py",
             "log_level": logging.DEBUG,
