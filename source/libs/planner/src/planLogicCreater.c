@@ -624,7 +624,6 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   }
 
   TSWAP(pScan->pVgroupList, pRealTable->pVgroupList);
-  TSWAP(pScan->pSmaIndexes, pRealTable->pSmaIndexes);
   TSWAP(pScan->pTsmas, pRealTable->pTsmas);
   TSWAP(pScan->pTsmaTargetTbVgInfo, pRealTable->tsmaTargetTbVgInfo);
   TSWAP(pScan->pTsmaTargetTbInfo, pRealTable->tsmaTargetTbInfo);

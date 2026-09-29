@@ -2408,42 +2408,6 @@ static int32_t unionDistinctSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) 
   return code;
 }
 
-typedef struct SSmaIndexSplitInfo {
-  SMergeLogicNode* pMerge;
-  SLogicSubplan*   pSubplan;
-} SSmaIndexSplitInfo;
-
-static bool smaIdxSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
-                                   SSmaIndexSplitInfo* pInfo) {
-  if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pNode) && LIST_LENGTH(pNode->pChildren) > 1) {
-    if (((SMergeLogicNode*)pNode)->node.dynamicOp) {
-      return false;
-    }
-    int32_t nodeType = nodeType(nodesListGetNode(pNode->pChildren, 0));
-    if (nodeType == QUERY_NODE_LOGIC_PLAN_EXCHANGE || nodeType == QUERY_NODE_LOGIC_PLAN_MERGE) {
-      pInfo->pMerge = (SMergeLogicNode*)pNode;
-      pInfo->pSubplan = pSubplan;
-      return true;
-    }
-  }
-  return false;
-}
-
-static int32_t smaIndexSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
-  SSmaIndexSplitInfo info = {0};
-  if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)smaIdxSplFindSplitNode, &info)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t code = unionSplitSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pMerge);
-  if (TSDB_CODE_SUCCESS == code) {
-    info.pMerge->srcGroupId = pCxt->groupId;
-  }
-  ++(pCxt->groupId);
-  pCxt->split = true;
-  return code;
-}
-
 typedef struct SInsertSelectSplitInfo {
   SLogicNode*    pQueryRoot;
   SLogicSubplan* pSubplan;
@@ -3136,7 +3100,6 @@ static const SSplitRule splitRuleSet[] = {
   {.pName = "SingleTableJoinSplit",   .splitFunc = singleTableJoinSplit},
   {.pName = "UnionAllSplit",          .splitFunc = unionAllSplit},
   {.pName = "UnionDistinctSplit",     .splitFunc = unionDistinctSplit},
-  {.pName = "SmaIndexSplit",          .splitFunc = smaIndexSplit}, // not used yet
   {.pName = "InsertSelectSplit",      .splitFunc = insertSelectSplit},
   {.pName = "VirtualtableSplit",      .splitFunc = virtualTableSplit},
   {.pName = "MergeTableScanSplit",    .splitFunc = mergeTableScanSplit},

@@ -1812,33 +1812,6 @@ static int32_t getUdfInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
   return code;
 }
 
-#if 0
-static int32_t getTableIndex(STranslateContext* pCxt, const SName* pName, SArray** pIndexes) {
-  SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectUseTable(pName, pCxt->pTables);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    if (pParCxt->async) {
-      code = getTableIndexFromCache(pCxt->pMetaCache, pName, pIndexes);
-    } else {
-      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                               .requestId = pParCxt->requestId,
-                               .requestObjRefId = pParCxt->requestRid,
-                               .mgmtEps = pParCxt->mgmtEpSet};
-
-      code = catalogGetTableIndex(pParCxt->pCatalog, &conn, pName, pIndexes);
-    }
-  }
-  if (TSDB_CODE_SUCCESS != code) {
-    parserError("QID:0x%" PRIx64 ", getTableIndex error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
-                tstrerror(code), pName->dbname, pName->tname);
-  }
-  return code;
-}
-#endif
-
 static int32_t getDnodeList(STranslateContext* pCxt, SArray** pDnodes) {
   SParseContext* pParCxt = pCxt->pParseCxt;
   int32_t        code = TSDB_CODE_SUCCESS;
