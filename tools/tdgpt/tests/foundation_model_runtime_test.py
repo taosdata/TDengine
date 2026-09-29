@@ -19,7 +19,7 @@ The runtime (venv) is installed implicitly by any model download, and can also b
 installed or destroyed on its own. Both entry points are covered here because they
 must agree on the resource's name -- one resource, one name:
 
-    foundation_model._RUNTIME_RESOURCE_NAME == resource_manifest.SHARED_RUNTIME_NAME
+    foundation_model.RUNTIME_RESOURCE_NAME == resource_manifest.SHARED_RUNTIME_NAME
 """
 
 import json
@@ -31,8 +31,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from taosanalytics.tsfmservice import foundation_model
-from taosanalytics.tsfmservice.foundation_models_db import (
+from taosanalytics.tsfm import foundation_model, foundation_util, response_event
+from taosanalytics.tsfm.foundation_models_db import (
     AsyncOperation,
     FoundationModel,
     init_dao,
@@ -95,10 +95,10 @@ def _task_state(status, done=0, total=100, kind="runtime", name="tsfm_runtime"):
 def _sse_events(dao, seen_states, task_states):
     """Drive the SSE emitter once and return the decoded payloads."""
     with patch.object(
-        foundation_model, "_read_resource_task_states", return_value=task_states
+        response_event, "_read_resource_task_states", return_value=task_states
     ):
         events = list(
-            foundation_model._emit_operation_status_updates(
+            response_event._emit_operation_status_updates(
                 dao, dao.list_async_operations(active_only=True), seen_states
             )
         )
@@ -112,7 +112,7 @@ class TestDownloadRuntime:
         """The op row and the taosanodectl target use the same name."""
         with patch.object(
             foundation_model,
-            "_validate_model_in_repository",
+            "_extract_model_status_in_repository",
             return_value=(True, RUNTIME_INFO, None),
         ) as validate, patch.object(
             foundation_model, "_trigger_model_download_background"
@@ -143,7 +143,7 @@ class TestDownloadRuntime:
     def test_rejects_runtime_missing_from_repository(self, reset_models):
         with patch.object(
             foundation_model,
-            "_validate_model_in_repository",
+            "_extract_model_status_in_repository",
             return_value=(False, None, "Runtime 'tsfm_runtime' not found in repository"),
         ), patch.object(foundation_model, "_trigger_model_download_background") as trigger:
             status, code = foundation_model.download_foundation_runtime(_request())
@@ -164,7 +164,7 @@ class TestDownloadRuntime:
 
         with patch.object(
             foundation_model,
-            "_validate_model_in_repository",
+            "_extract_model_status_in_repository",
             return_value=(True, RUNTIME_INFO, None),
         ), patch.object(foundation_model, "_trigger_model_download_background") as trigger:
             status, code = foundation_model.download_foundation_runtime(_request())
@@ -186,7 +186,7 @@ class TestDownloadRuntime:
 
         with patch.object(
             foundation_model,
-            "_validate_model_in_repository",
+            "_extract_model_status_in_repository",
             return_value=(True, RUNTIME_INFO, None),
         ), patch.object(foundation_model, "_trigger_model_download_background"):
             status, code = foundation_model.download_foundation_runtime(_request())
@@ -198,7 +198,7 @@ class TestDownloadRuntime:
     def test_forwards_release_url_and_replace(self, reset_models):
         with patch.object(
             foundation_model,
-            "_validate_model_in_repository",
+            "_extract_model_status_in_repository",
             return_value=(True, RUNTIME_INFO, None),
         ) as validate, patch.object(
             foundation_model, "_trigger_model_download_background"
@@ -237,7 +237,7 @@ class TestRuntimeRoutingFromModelEndpoints:
         with patch.object(foundation_model, "download_foundation_runtime") as runtime_download, \
                 patch.object(
                     foundation_model,
-                    "_validate_model_in_repository",
+                    "_extract_model_status_in_repository",
                     return_value=(False, None, "Model 'moirai' not found in repository"),
                 ):
             response, code = foundation_model.download_foundation_model(
@@ -269,11 +269,11 @@ class TestModelDownloadRequiresRuntime:
     def test_rejects_when_runtime_is_unusable(self, reset_models):
         with patch.object(
             foundation_model,
-            "_validate_model_in_repository",
+            "_extract_model_status_in_repository",
             return_value=(True, {"name": "moirai"}, None),
         ), patch.object(
             foundation_model,
-            "_runtime_download_blocker",
+            "_runtime_model_download_blocker",
             return_value="runtime import is incomplete",
         ), patch.object(foundation_model, "_trigger_model_download_background") as trigger:
             status, code = foundation_model.download_foundation_model(
@@ -297,9 +297,9 @@ class TestModelDownloadRequiresRuntime:
 
         with patch.object(
             foundation_model,
-            "_validate_model_in_repository",
+            "_extract_model_status_in_repository",
             return_value=(True, {"name": "moirai"}, None),
-        ), patch.object(foundation_model, "_runtime_download_blocker") as blocker, patch.object(
+        ), patch.object(foundation_model, "_runtime_model_download_blocker") as blocker, patch.object(
             foundation_model, "_trigger_model_download_background"
         ) as trigger:
             status, code = foundation_model.download_foundation_model(
@@ -322,9 +322,9 @@ class TestModelDownloadRequiresRuntime:
 
         with patch.object(
             foundation_model,
-            "_validate_model_in_repository",
+            "_extract_model_status_in_repository",
             return_value=(True, {"name": "moirai"}, None),
-        ), patch.object(foundation_model, "_runtime_download_blocker") as blocker, patch.object(
+        ), patch.object(foundation_model, "_runtime_model_download_blocker") as blocker, patch.object(
             foundation_model, "_trigger_model_download_start_background"
         ) as trigger:
             status, code = foundation_model.download_and_start_foundation_model(
@@ -346,11 +346,11 @@ class TestModelDownloadRequiresRuntime:
 
         with patch.object(
             foundation_model,
-            "_validate_model_in_repository",
+            "_extract_model_status_in_repository",
             return_value=(True, {"name": "moirai"}, None),
         ), patch.object(
             foundation_model,
-            "_runtime_download_blocker",
+            "_runtime_model_download_blocker",
             return_value="runtime import is incomplete",
         ), patch.object(foundation_model, "_trigger_model_download_background") as trigger:
             status, code = foundation_model.download_foundation_model(
@@ -509,6 +509,56 @@ class TestConcurrentRuntimeAndModelStreams:
         assert events[0]["progress"] == 17
 
 
+class TestTaskStateReadFrequency:
+    """One directory scan per poll, not one per payload.
+
+    The emitter reads the resource task files once and hands that snapshot to
+    every payload it builds: the phase rows of the active operations, the retired
+    rows, the replay and the close-out. Each of those used to reach the directory
+    again through do_build_operation_response, so a poll cost one scan per phase
+    per operation plus one more per replayed download -- on a path that runs once
+    a second for every connected client.
+    """
+
+    def test_one_scan_per_poll_across_every_loop(self, reset_models):
+        # An active download, reported through its phases...
+        reset_models.create_async_operation(AsyncOperation(
+            task_id="download-moirai-1",
+            operation="download",
+            model_name="moirai",
+            status="running",
+        ))
+        # ...a download that finished moments ago, replayed to a late subscriber...
+        reset_models.create_async_operation(AsyncOperation(
+            task_id="download-moment-2",
+            operation="download",
+            model_name="moment",
+            status="completed",
+            completed_at=time.time(),
+        ))
+        # ...and a phase this stream already reported, so the close-out runs too.
+        seen_states = {("download-moment-2", "model_download"): ("running", 10)}
+        task_states = [
+            _task_state("downloading", 10, 100, kind="model", name="moirai"),
+            _task_state("completed", 421, 421, kind="model", name="moment"),
+        ]
+
+        with patch.object(
+            response_event, "_read_resource_task_states", return_value=task_states
+        ) as read_states:
+            events = list(
+                response_event._emit_operation_status_updates(
+                    reset_models,
+                    reset_models.list_async_operations(active_only=True),
+                    seen_states,
+                )
+            )
+
+        payloads = [json.loads(event[len("data: "):]) for event in events if event]
+        assert payloads, "the phase, retired, replay and close-out loops must all have run"
+        assert read_states.call_count == 1
+
+
 class TestModelStartPhase:
     """The auto-start step of a download_start request is reported, not silent.
 
@@ -552,11 +602,11 @@ class TestModelStartPhase:
         op = reset_models.get_async_operation(task_id)
 
         with patch.object(
-            foundation_model,
+            response_event,
             "_read_resource_task_states",
             return_value=[self._installed_state()],
         ):
-            body = foundation_model._build_operation_response(op)
+            body = foundation_model.do_build_operation_response(op)
 
         assert body["phase"] == "start"
         assert body["progress"] == 0
@@ -684,7 +734,7 @@ class TestDestroyRuntime:
 
     def test_blocked_while_a_model_worker_runs(self, reset_models):
         with patch.object(
-            foundation_model, "_live_worker_names", return_value=["moirai"]
+            foundation_util, "live_worker_names", return_value=["moirai"]
         ), patch.object(foundation_model, "_trigger_model_delete_background") as trigger:
             status, code = foundation_model.delete_foundation_runtime(_request())
 
@@ -708,7 +758,7 @@ class TestDestroyRuntime:
         ))
 
         with patch.object(
-            foundation_model, "_live_worker_names", return_value=[]
+            foundation_util, "live_worker_names", return_value=[]
         ), patch.object(foundation_model, "_trigger_model_delete_background") as trigger:
             status, code = foundation_model.delete_foundation_runtime(_request())
 
@@ -723,7 +773,7 @@ class TestDestroyRuntime:
             status="running",
         ))
 
-        with patch.object(foundation_model, "_live_worker_names", return_value=[]):
+        with patch.object(foundation_util, "live_worker_names", return_value=[]):
             status, code = foundation_model.delete_foundation_runtime(_request())
 
         assert code == 400
@@ -732,7 +782,7 @@ class TestDestroyRuntime:
     def test_queued_when_idle_under_the_shared_name(self, reset_models):
         """Deletion is driven by the same name the download uses."""
         with patch.object(
-            foundation_model, "_live_worker_names", return_value=[]
+            foundation_util, "live_worker_names", return_value=[]
         ), patch.object(
             foundation_model, "_trigger_model_delete_background"
         ) as trigger:
