@@ -7026,28 +7026,28 @@ RESULT
       Remote SQL: SELECT LTRIM("region") AS "expr_1" FROM "sensor"
 ---
 ### EXP-ds_string-07_mysql POS
-SQL: select REPEAT(region, 2) from fq_exp_mysql.sensor
+SQL: select REPEAT(region, 1) from fq_exp_mysql.sensor
 RESULT
--> Federated Scan on fq_exp_mysql.sensor (mysql) (width=258)
-      Output: columns=1 width=258
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=130)
+      Output: columns=1 width=130
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT REPEAT(`region`, 2) AS `expr_1` FROM `fq_explain_m`.`sensor`
+      Remote SQL: SELECT REPEAT(`region`, 1) AS `expr_1` FROM `fq_explain_m`.`sensor`
 ---
 ### EXP-ds_string-07_pg POS
-SQL: select REPEAT(region, 2) from fq_exp_pg.sensor
+SQL: select REPEAT(region, 1) from fq_exp_pg.sensor
 RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65519)
       Output: columns=1 width=65519
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT REPEAT("region", 2) AS "expr_1" FROM "public"."sensor"
+      Remote SQL: SELECT REPEAT("region", 1) AS "expr_1" FROM "public"."sensor"
 ---
 ### EXP-ds_string-07_influx POS
-SQL: select REPEAT(region, 2) from fq_exp_influx.sensor
+SQL: select REPEAT(region, 1) from fq_exp_influx.sensor
 RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
       Output: columns=1 width=65519
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT REPEAT("region", 2) AS "expr_1" FROM "sensor"
+      Remote SQL: SELECT REPEAT("region", 1) AS "expr_1" FROM "sensor"
 ---
 ### EXP-ds_string-08_mysql POS
 SQL: select REPLACE(region, 'n', 'x') from fq_exp_mysql.sensor

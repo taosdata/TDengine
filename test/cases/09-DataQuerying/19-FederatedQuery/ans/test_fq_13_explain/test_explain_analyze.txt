@@ -5361,21 +5361,21 @@ Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
 ### EXP-ds_string-07_mysql POS
-SQL: select REPEAT(region, 2) from fq_exp_mysql.sensor
+SQL: select REPEAT(region, 1) from fq_exp_mysql.sensor
 RESULT
--> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=258)
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=130)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
 ### EXP-ds_string-07_pg POS
-SQL: select REPEAT(region, 2) from fq_exp_pg.sensor
+SQL: select REPEAT(region, 1) from fq_exp_pg.sensor
 RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65519)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
 ### EXP-ds_string-07_influx POS
-SQL: select REPEAT(region, 2) from fq_exp_influx.sensor
+SQL: select REPEAT(region, 1) from fq_exp_influx.sensor
 RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65519)
 Planning Time: <TIME> ms
