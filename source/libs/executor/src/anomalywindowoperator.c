@@ -208,6 +208,12 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
   for (int32_t i = 0; i < LIST_LENGTH(pColNodes); ++i) {
     SColumn node = extractColumnFromColumnNode((SColumnNode*)nodesListGetNode(pColNodes, i));
+    if (!IS_MATHABLE_TYPE(node.type)) {
+      qError("%s invalid column type %d for anomaly_window, must be numeric or timestamp", id, node.type);
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _error;
+    }
+
     if (i == 0) {
       tstrncpy(node.name, "val", sizeof(node.name) - 1);
     } else {
