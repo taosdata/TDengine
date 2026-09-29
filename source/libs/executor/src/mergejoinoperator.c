@@ -997,8 +997,9 @@ static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoi
 
   STargetNode* pTarget = (STargetNode*)pNode;
   if (QUERY_NODE_FUNCTION != nodeType(pTarget->pExpr) && QUERY_NODE_VALUE != nodeType(pTarget->pExpr)) {
-    qError("Invalid primary expr node type:%d", nodeType(pTarget->pExpr));
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    pCtx->type = E_PRIM_SCALAR;
+    pCtx->targetSlotId = pTarget->slotId;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (QUERY_NODE_FUNCTION == nodeType(pTarget->pExpr)) {
@@ -1032,10 +1033,12 @@ static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoi
 }
 
 static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode,
-                                  SOperatorInfo** pDownstream, int32_t idx, SQueryStat* pStat, bool sameDs) {
+                                  SOperatorInfo** pDownstream, int32_t idx, SQueryStat* pStat, bool sameDs,
+                                  SExecTaskInfo* pTaskInfo) {
   SMJoinTableCtx* pTable = &pJoin->tbs[idx];
   pTable->downStream = pDownstream[idx];
   pTable->blkId = getOperatorResultBlockId(pDownstream[idx], sameDs ? idx : 0);
+  pTable->taskInfo = pTaskInfo;
   MJ_ERR_RET(mJoinInitPrimKeyInfo(pTable, (0 == idx) ? pJoinNode->leftPrimSlotId : pJoinNode->rightPrimSlotId));
 
   MJ_ERR_RET(mJoinInitKeyColsInfo(pTable, (0 == idx) ? pJoinNode->pEqLeft : pJoinNode->pEqRight,
@@ -1086,6 +1089,16 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
   }
 
   MJ_ERR_RET(mJoinInitPrimExprCtx(pTable->primExpr, &pTable->primCtx, pTable));
+  if (E_PRIM_SCALAR == pTable->primCtx.type) {
+    SNodeList* pExprs = NULL;
+    MJ_ERR_RET(nodesListMakeAppend(&pExprs, pTable->primExpr));
+    SExprInfo* pExprInfo = NULL;
+    int32_t numOfExprs = 0;
+    int32_t code = createExprInfo(pExprs, NULL, &pExprInfo, &numOfExprs);
+    nodesClearList(pExprs);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    MJ_ERR_RET(initExprSupp(&pTable->primExprSupp, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore));
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1145,6 +1158,12 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
 
   SMJoinPrimExprCtx* pCtx = &pTable->primCtx;
   switch (pCtx->type) {
+    case E_PRIM_SCALAR:
+      qDebug("merge join prim expr launch: tableType=%s type=SCALAR srcSlot=%d targetSlot=%d",
+             MJOIN_TBTYPE(pTable->type), pTable->primCol->srcSlot, pCtx->targetSlotId);
+      return projectApplyFunctions(pTable->primExprSupp.pExprInfo, pBlock, pBlock, pTable->primExprSupp.pCtx,
+                                   pTable->primExprSupp.numOfExprs, NULL, GET_STM_RTINFO(pTable->taskInfo),
+                                   pTable->taskInfo);
     case E_PRIM_TIMESTAMP_SCALE: {
       SColumnInfoData* pPrimIn = taosArrayGet(pBlock->pDataBlock, pTable->primCol->srcSlot);
       if (NULL == pPrimIn) {
@@ -1172,9 +1191,18 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
         return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       }
 
+      int8_t srcPrec = pPrimIn->info.precision;
+      if (srcPrec != TSDB_TIME_PRECISION_MILLI && srcPrec != TSDB_TIME_PRECISION_MICRO &&
+          srcPrec != TSDB_TIME_PRECISION_NANO) {
+        srcPrec = pCtx->precision;
+      }
+
       if (pCtx->tz != NULL) {
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
           int64_t ts = ((int64_t*)pPrimIn->pData)[i];
+          if (srcPrec != pCtx->precision) {
+            ts = convertTimePrecision(ts, srcPrec, pCtx->precision);
+          }
           ((int64_t*)pPrimOut->pData)[i] = taosTimeTruncateIANA(ts, pCtx->truncateUnit,
                                                                 pCtx->fdow, pCtx->precision, pCtx->tz);
         }
@@ -1184,13 +1212,21 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
                             ((int64_t)pCtx->fdow - UNIX_EPOCH_WDAY) * 86400LL * factor : 0;
         if (0 != pCtx->timezoneUnit || 0 != weekShift) {
           for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-            int64_t rem = (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit - weekShift) % pCtx->truncateUnit;
+            int64_t ts = ((int64_t*)pPrimIn->pData)[i];
+            if (srcPrec != pCtx->precision) {
+              ts = convertTimePrecision(ts, srcPrec, pCtx->precision);
+            }
+            int64_t rem = (ts + pCtx->timezoneUnit - weekShift) % pCtx->truncateUnit;
             if (rem < 0) rem += pCtx->truncateUnit;
-            ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] - rem;
+            ((int64_t*)pPrimOut->pData)[i] = ts - rem;
           }
         } else {
           for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-            ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit;
+            int64_t ts = ((int64_t*)pPrimIn->pData)[i];
+            if (srcPrec != pCtx->precision) {
+              ts = convertTimePrecision(ts, srcPrec, pCtx->precision);
+            }
+            ((int64_t*)pPrimOut->pData)[i] = ts / pCtx->truncateUnit * pCtx->truncateUnit;
           }
         }
       }
@@ -1921,6 +1957,7 @@ void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
 
   taosArrayDestroy(pTable->eqGrps);
   taosArrayDestroyEx(pTable->pGrpArrays, destroyGrpArray);
+  cleanupExprSuppWithoutFilter(&pTable->primExprSupp);
 }
 
 void destroyMergeJoinOperator(void* param) {
@@ -2074,7 +2111,7 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
     MJ_ERR_JRET(code);
   }
 
-  code = mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0], newDownstreams);
+  code = mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0], newDownstreams, pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     int32_t opType = (pDownstream && numOfDownstream > 0 && pDownstream[0]) ? pDownstream[0]->operatorType : -1;
     qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:merge "
@@ -2084,7 +2121,7 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
     MJ_ERR_JRET(code);
   }
 
-  code = mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1], newDownstreams);
+  code = mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1], newDownstreams, pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     int32_t opType = (pDownstream && numOfDownstream > 1 && pDownstream[1]) ? pDownstream[1]->operatorType : -1;
     qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:merge "

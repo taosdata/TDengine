@@ -25,7 +25,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
 
 select_list:
     select_expr [, select_expr] ...
@@ -57,8 +57,14 @@ table_expr: {
 column_list:
     col_name type_name [, col_name type_name] ...
 
-join_clause:
-    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
+join_clause: {
+    [INNER] JOIN table_reference ON condition
+  | {LEFT|RIGHT|FULL} [OUTER] JOIN table_reference ON condition
+  | {LEFT|RIGHT} {SEMI|ANTI} JOIN table_reference ON condition
+  | CROSS JOIN table_reference
+  | {LEFT|RIGHT} ASOF JOIN table_reference [ON condition] [JLIMIT jlimit_num]
+  | {LEFT|RIGHT} WINDOW JOIN table_reference [ON condition] WINDOW_OFFSET(start_offset, end_offset) [JLIMIT jlimit_num]
+}
 
 window_clause: {
     SESSION(ts_col, tol_val)
@@ -127,7 +133,7 @@ limit_expr: {
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
 - table_expr: 指定查询数据源，可以为表名、视图名、子查询，或内联数据源（`TEXT` 或 `FILE`）。详见 [TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
 - column_list: `TEXT` 和 `FILE` 共用的列定义语法，每项为 `col_name type_name`。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
-- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参见 [关联查询](05-join.md)。
+- join_clause: 连接查询。普通 JOIN 支持子表、普通表、超级表、虚拟表和子查询。WINDOW JOIN 必须指定 `WINDOW_OFFSET(start_offset, end_offset)`，设置窗口边界相对驱动表主键时间戳的偏移；时间单位见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。`JLIMIT` 限制每行最多匹配的行数，取值范围为 `[0, 1024]`；省略时，ASOF JOIN 默认最多匹配 1 行，WINDOW JOIN 匹配窗口内的全部行。ASOF/WINDOW 的输入限制和详细语法见 [关联查询](05-join.md)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详见 [特色查询](04-distinguished.md)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
   - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 `v3.4.2.0` 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
@@ -170,6 +176,9 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 | `SKIP_TSMA`           | 无 | 显式禁用 TSMA 查询优化 | 带聚合函数的查询语句 |
 | `FAST_INTERVAL`       | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 FAST 执行路径 | 无 `PARTITION BY`、`FILL`、窗口偏移或滑动，且不使用日/周/月/年自然时间单位的超级表 `INTERVAL` 聚合查询 |
 | `EX_INTERVAL`         | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 EX 执行路径 | 满足 `FAST_INTERVAL` 的基础窗口条件，且无 `LIMIT`、`SLIMIT`；查询仅有一个表扫描、所有 vgroup 位于同一 dnode，选择列表仅支持 `_wstart`、`_wend`、`_wduration`、`COUNT`、`SUM` 和 `AVG` 的受限组合 |
+| `JOIN_ALGO` | `HASH`、`MERGE` 或 `THETA`，仅一个参数 | 自 `v3.4.3.0` 起支持，指定 JOIN 算法偏好，不适用时回退；详见 [JOIN 算法与 Hint](./05-join.md#join-算法与-hint) | 普通 JOIN |
+| `HASH_JOIN` | 无 | 已有写法，对应 `JOIN_ALGO(HASH)` | 普通 JOIN |
+| `MERGE_JOIN` | 无 | 自 `v3.4.3.0` 起支持，对应 `JOIN_ALGO(MERGE)` | 普通 JOIN |
 
 示例：
 
@@ -359,7 +368,7 @@ TDengine 支持基于时间戳主键的 `INNER JOIN`，规则如下：
 
 ## JOIN 子句
 
-`JOIN` 用于多表关联查询。自 `v3.3.0.0` 起，TDengine 除内连接外，还支持 `LEFT` / `RIGHT` / `FULL` / `SEMI` / `ANTI` 等传统连接，以及时序场景中的 `ASOF JOIN`、`WINDOW JOIN`。`JOIN` 可在子表、普通表、超级表以及子查询之间进行。
+`JOIN` 用于多表关联查询。自 `v3.3.0.0` 起，TDengine 除内连接外，还支持 `LEFT` / `RIGHT` / `FULL` / `SEMI` / `ANTI` 等传统连接，以及时序场景中的 `ASOF JOIN`、`WINDOW JOIN`。自 `v3.4.3.0` 起，普通 JOIN 支持业务列等值、表达式、范围和组合布尔条件，不再要求主时间戳等值；可在子表、普通表、超级表、虚拟表以及子查询之间关联。该版本同时支持显式 CROSS JOIN 和无 WHERE 的逗号连接；ASOF/WINDOW 的适用范围保持专用限制。详见 [普通 JOIN 的条件支持](./05-join.md#普通-join-的条件支持) 和 [JOIN 算法与 Hint](./05-join.md#join-算法与-hint)。
 
 完整语法、连接类型与限制说明参见 [关联查询](05-join.md)。
 
@@ -896,6 +905,8 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## 时间线
 
+自 `v3.4.3.0` 起，普通 JOIN 不强制要求主键时间戳列作为连接条件，优化器会根据条件与输入顺序自动选择适用算法。这个放宽仅涉及 JOIN 的执行，不取消后续时间线函数和窗口算子的时间线要求，详见 [JOIN 的主键时间线](./05-join.md#主键时间线)。
+
 TDengine 的时间线函数（如 `diff`、`derivative`、`twa`、`elapsed` 等）和窗口算子（如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）需要一条有效时间线才能执行。
 
 直接查询物理表或虚拟表时，系统时间列（主键列 `ts`/`_rowts`，以及窗口伪列 `_wstart` 等派生列）自动作为有效时间线，用户无需额外操作。
@@ -930,13 +941,13 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 - 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
 - 外层查询支持直接通过列名或\`列名\`的形式引用内层查询的列或伪列。
-- 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
+- 内层和外层查询都支持普通 JOIN；子查询结果也可参与关联。ASOF/WINDOW 的输入限制见 [关联查询](./05-join.md)。
 - 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
-  - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
+  - 如果内层排序不用于 `LIMIT` 取行，也不用于满足后续时间线运算的顺序要求，一般建议省略内层 `ORDER BY`，避免不必要的排序开销。需要最终结果有序时，应在外层指定 `ORDER BY`。
+  - 内层查询同时使用 `ORDER BY` 和 `LIMIT` 时，排序决定选取哪些行；该语义在参与 JOIN 时保持不变。
 - 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
   - 计算函数部分：
-    - 如果内层查询的结果数据未提供任何 TIMESTAMP 类型列，那么依赖时间线的函数在外层无法使用（仅 FIRST、LAST、LAST_ROW 可按输入行顺序返回结果）。如果内层查询输出了普通 TIMESTAMP 列但未输出主键列，系统会自动选择第一个 TIMESTAMP 列作为退化时间线。
-    - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES、ELAPSED、INTERP、DERIVATIVE、IRATE、TWA、DIFF、STATECOUNT、STATEDURATION、CSUM、MAVG、TAIL、UNIQUE。
+    - 后续时间线函数和窗口查询对时间列及顺序的要求，见 [时间线](#时间线)。普通 JOIN 可以执行，不代表其输出已满足这些要求。
     - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
 
 :::

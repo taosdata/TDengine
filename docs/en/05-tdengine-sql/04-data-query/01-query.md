@@ -23,7 +23,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
 
 select_list:
     select_expr [, select_expr] ...
@@ -55,8 +55,14 @@ table_expr: {
 column_list:
     col_name type_name [, col_name type_name] ...
 
-join_clause:
-    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
+join_clause: {
+    [INNER] JOIN table_reference ON condition
+  | {LEFT|RIGHT|FULL} [OUTER] JOIN table_reference ON condition
+  | {LEFT|RIGHT} {SEMI|ANTI} JOIN table_reference ON condition
+  | CROSS JOIN table_reference
+  | {LEFT|RIGHT} ASOF JOIN table_reference [ON condition] [JLIMIT jlimit_num]
+  | {LEFT|RIGHT} WINDOW JOIN table_reference [ON condition] WINDOW_OFFSET(start_offset, end_offset) [JLIMIT jlimit_num]
+}
 
 window_clause: {
     SESSION(ts_col, tol_val)
@@ -125,7 +131,7 @@ limit_expr: {
 - table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
 - table_expr: Specify the query data source, which can be a table name, view name, subquery, or an inline data source (`TEXT` or `FILE`). See [TEXT Inline Data Source](#text-inline-data-source) and [FILE CSV Data Source](#file-csv-data-source) for details.
 - column_list: Column definition list shared by `TEXT` and `FILE`. Each entry is `col_name type_name`. All types except JSON, GEOMETRY, and BLOB are supported.
-- join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision options are listed in [Time Units](../01-datatype.md#time-units) (months/quarters/years not supported), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0, 1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](./05-join.md).
+- join_clause: Join query. Starting with `v3.4.3.0`, ordinary joins support equality and general Boolean conditions between subtables, regular tables, supertables, virtual tables, and subqueries. For the applicable scope of ASOF JOIN and WINDOW JOIN, see the join query chapter. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision options are listed in [Time Units](../01-datatype.md#time-units) (months/quarters/years not supported), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of matching rows, with a value range of [0, 1024]. ASOF JOIN defaults to one matching row; WINDOW JOIN returns all matching rows in the window when JLIMIT is omitted. For detailed information, please refer to the join query chapter [TDengine Join Queries](./05-join.md).
 - window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](./04-distinguished.md).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value. Supported time units are listed in [Time Units](../01-datatype.md#time-units) (milliseconds through weeks only), such as SESSION (ts, 12s).
   - STATE_WINDOW: State window, using one or more state keys to divide windows. Multiple state keys are supported from v3.4.2.0. `EXTEND(extend_val)` specifies the boundary extension strategy. `ZEROTH_STATE(...)` specifies the zero state. TRUE_FOR specifies the filtering condition for windows.
@@ -150,8 +156,8 @@ Hints are a means for users to control the optimization of individual statement 
 
 - Hints syntax starts with `/*+` and ends with `*/`, spaces may exist before and after.
 - Hints syntax can only follow the SELECT keyword.
-- Each Hints can contain multiple Hints, separated by spaces. If multiple Hints conflict or are the same, the first one prevails.
-- If an error occurs in one of the Hints, the valid Hints before the error remain effective, and the current and subsequent Hints are ignored.
+- A Hints comment can contain multiple Hints, separated by spaces; when multiple Hints conflict or are identical, the first one takes effect.
+- When a Hint causes an error, valid preceding Hints remain effective and the current and subsequent Hints are ignored.
 - hint_param_list is the parameter list for each Hint, which varies depending on the Hint.
 
 The currently supported Hints list is as follows:
@@ -168,6 +174,9 @@ The currently supported Hints list is as follows:
 |      SKIP_TSMA      | None          | Explicitly disable TSMA query optimization                                                                                                                                            | Queries with Agg functions                      |
 |    FAST_INTERVAL    | None          | Enable the FAST execution path for eligible fixed-window `INTERVAL` aggregate queries                                                                                               | Supertable `INTERVAL` aggregate queries with no `PARTITION BY`, `FILL`, window offset, or sliding window, and without day/week/month/year calendar units |
 |     EX_INTERVAL     | None          | Enable the EX execution path for eligible fixed-window `INTERVAL` aggregate queries                                                                                                 | Queries meeting the base `FAST_INTERVAL` window conditions, without `LIMIT` or `SLIMIT`, with one table scan whose vgroups are on one dnode, and with a select list limited to `_wstart`, `_wend`, `_wduration`, and supported `COUNT`, `SUM`, or `AVG` expressions |
+| `JOIN_ALGO` | One of `HASH`, `MERGE`, `THETA` | Available from `v3.4.3.0`; join algorithm preference with fallback when inapplicable; see [Join Algorithms and Hints](./05-join.md#join-algorithms-and-hints) | Ordinary joins |
+| `HASH_JOIN` | None | Existing form corresponding to `JOIN_ALGO(HASH)` | Ordinary joins |
+| `MERGE_JOIN` | None | Available from `v3.4.3.0`; corresponds to `JOIN_ALGO(MERGE)` | Ordinary joins |
 
 Examples:
 
@@ -861,7 +870,9 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN Clause
 
-Before version 3.3.0.0, TDengine only supported inner joins. From version 3.3.0.0, TDengine supports a wider range of JOIN types, including traditional database joins like LEFT JOIN, RIGHT JOIN, FULL JOIN, SEMI JOIN, ANTI-SEMI JOIN, as well as time-series specific joins like ASOF JOIN, WINDOW JOIN. JOIN operations are supported between subtables, regular tables, supertables, and subqueries.
+Before version v3.3.0.0, TDengine only supported inner joins. From version v3.3.0.0, TDengine supports a wider range of JOIN types, including traditional database joins like LEFT JOIN, RIGHT JOIN, FULL JOIN, SEMI JOIN, ANTI-SEMI JOIN, and time-series-specific joins like ASOF JOIN and WINDOW JOIN. Starting with `v3.4.3.0`, TDengine also supports explicit CROSS JOIN and unconditional comma joins. See [Conditions Supported by Ordinary Joins](./05-join.md#conditions-supported-by-ordinary-joins) and [Join Algorithms and Hints](./05-join.md#join-algorithms-and-hints). Starting with `v3.4.3.0`, ordinary joins support equality and general Boolean conditions between subtables, regular tables, supertables, virtual tables, and subqueries. For detailed syntax and the applicable scope of ASOF JOIN and WINDOW JOIN, see the join query chapter.
+
+Ordinary JOIN inputs can lack a timeline. The optimizer can choose Hash or Theta when the inputs do not meet Merge requirements; see [Primary Key Timeline for JOIN](./05-join.md#primary-key-timeline). If a subquery contains both `ORDER BY` and `LIMIT`, its own ordering and row-selection semantics remain unchanged.
 
 ### Example
 
@@ -892,6 +903,8 @@ ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 For more information on JOIN operations, see the page [TDengine Join Queries](./05-join.md)
 
 ## Timeline
+
+Starting with `v3.4.3.0`, ordinary JOINs do not require a primary timestamp column in the join condition, and the optimizer selects an applicable algorithm based on the condition and input order. This broader JOIN support does not remove the timeline requirements of subsequent timeline functions or window operators. See [Primary Key Timeline for JOIN](./05-join.md#primary-key-timeline).
 
 TDengine timeline functions (such as `diff`, `derivative`, `twa`, and `elapsed`) and window operators (such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`) require a valid timeline to run.
 
@@ -925,13 +938,13 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 - The result of the inner query will serve as a "virtual table" for the outer query, and it is recommended to alias this virtual table for easy reference in the outer query.
 - The outer query supports direct referencing of columns or pseudocolumns from the inner query by column name or `column name`.
-- Both inner and outer queries support regular table-to-table/supertable joins. The result of the inner query can also participate in JOIN operations with data subtables.
+- Both inner and outer queries support regular table-to-table/supertable joins. The result of the inner query can also participate in ordinary joins with data subtables using equality or general Boolean conditions. The subquery input restrictions for ASOF JOIN and WINDOW JOIN remain unchanged; see the join query chapter for details.
 - The functional features supported by the inner query are consistent with those of non-nested queries.
-  - The ORDER BY clause in the inner query generally has no meaning and is recommended to be avoided to prevent unnecessary resource consumption.
+  - When inner ordering is not needed for `LIMIT` row selection or subsequent timeline operations, generally omit the inner `ORDER BY` to avoid unnecessary sorting costs. Specify `ORDER BY` in the outer query when ordered final results are required.
+  - If the inner query contains both `ORDER BY` and `LIMIT`, its own ordering and row-selection semantics remain unchanged.
 - Compared to non-nested queries, the outer query has the following limitations in supported functional features:
   - Part of calculation functions:
-    - If the inner query result provides no `TIMESTAMP` column, timeline-dependent functions cannot be used in the outer query (only `FIRST`, `LAST`, and `LAST_ROW` can return results by input-row order). If the inner query outputs an ordinary `TIMESTAMP` column but not the primary key column, TDengine automatically selects the first `TIMESTAMP` column as a degraded timeline.
-    - If the result data of the inner query is not ordered by timestamp, then functions dependent on data being ordered by time will not work properly in the outer query. Examples include: LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE.
+    - For the time-column and ordering requirements of subsequent timeline functions and window queries, see [Timeline](#timeline). A valid ordinary JOIN does not imply that its output meets these requirements.
     - Functions that require two passes of scanning will not work properly in the outer query. Examples of such functions include: PERCENTILE.
 
 :::

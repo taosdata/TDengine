@@ -67,7 +67,6 @@ from federated_query_common import (
     parity_serialize_case,
     parity_serialize_cell,
     TSDB_CODE_PAR_INVALID_COLUMN,
-    TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
     TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
 )
 
@@ -456,89 +455,89 @@ _CROSS_CASES: List[Tuple[str, str, dict]] = [
          "ORDER BY b.time",
          {"error": TSDB_CODE_PAR_INVALID_COLUMN}),
 
-    # ── Negative: unsupported JOIN types (per source) ─────────────────────
-    # neg-01 ~ neg-06: Non-TS JOIN types on each external source
+    # ── Ordinary-column Hash JOINs on external sources ────────────────────
+    # Same-source and cross-source ordinary-column JOINs use local Hash Join.
     # MySQL
-    ("neg-m-01",
+    ("join-m-01",
      "SELECT a.id, b.bid FROM {M}.ta a "
      "JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-02",
+     {"rows": 5}),
+    ("join-m-02",
      "SELECT a.id, b.bid FROM {M}.ta a "
      "FULL JOIN {M}.tb b ON a.id = b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-03",
+     {"rows": 6, "ordered": False}),
+    ("join-m-03",
      "SELECT a.id FROM {M}.ta a "
      "LEFT SEMI JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-04",
+     {"rows": 5}),
+    ("join-m-04",
      "SELECT a.id FROM {M}.ta a "
      "LEFT ANTI JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-05",
+     {"rows": 1}),
+    ("join-m-05",
      "SELECT b.bid FROM {M}.ta a "
      "RIGHT SEMI JOIN {M}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-06",
+     {"rows": 5}),
+    ("join-m-06",
      "SELECT b.bid FROM {M}.ta a "
      "RIGHT ANTI JOIN {M}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
+     {"rows": 0}),
     # PostgreSQL
-    ("neg-p-01",
+    ("join-p-01",
      "SELECT a.id, b.bid FROM {P}.ta a "
      "JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-02",
+     {"rows": 5}),
+    ("join-p-02",
      "SELECT a.id, b.bid FROM {P}.ta a "
      "FULL JOIN {P}.tb b ON a.id = b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-03",
+     {"rows": 6, "ordered": False}),
+    ("join-p-03",
      "SELECT a.id FROM {P}.ta a "
      "LEFT SEMI JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-04",
+     {"rows": 5}),
+    ("join-p-04",
      "SELECT a.id FROM {P}.ta a "
      "LEFT ANTI JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-05",
+     {"rows": 1}),
+    ("join-p-05",
      "SELECT b.bid FROM {P}.ta a "
      "RIGHT SEMI JOIN {P}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-06",
+     {"rows": 5}),
+    ("join-p-06",
      "SELECT b.bid FROM {P}.ta a "
      "RIGHT ANTI JOIN {P}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
+     {"rows": 0}),
     # InfluxDB
-    ("neg-i-01",
+    ("join-i-01",
      "SELECT a.id, b.bid FROM {I}.ta a "
      "JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-02",
+     {"rows": 5}),
+    ("join-i-02",
      "SELECT a.id, b.bid FROM {I}.ta a "
      "FULL JOIN {I}.tb b ON a.id = b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-03",
+     {"rows": 6, "ordered": False}),
+    ("join-i-03",
      "SELECT a.id FROM {I}.ta a "
      "LEFT SEMI JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-04",
+     {"rows": 5}),
+    ("join-i-04",
      "SELECT a.id FROM {I}.ta a "
      "LEFT ANTI JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-05",
+     {"rows": 1}),
+    ("join-i-05",
      "SELECT b.bid FROM {I}.ta a "
      "RIGHT SEMI JOIN {I}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-06",
+     {"rows": 5}),
+    ("join-i-06",
      "SELECT b.bid FROM {I}.ta a "
      "RIGHT ANTI JOIN {I}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
+     {"rows": 0}),
 
-    # Negative: cross-source non-TS JOIN
-    ("neg-x-01",
+    # Ordinary-column Hash JOIN across sources
+    ("join-x-01",
      "SELECT a.id FROM {M}.ta a "
      "JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
+     {"rows": 5}),
 
     # Negative: correlated subqueries on external sources
     ("neg-csub-m-01",
@@ -1017,7 +1016,7 @@ class TestFq16MultiTableParity(ParityTestBase):
         statement). UNION, IN/NOT IN, EXISTS/NOT EXISTS, ANY/ALL, scalar subquery,
         TS-PK JOIN, ASOF JOIN, WINDOW JOIN, FULL OUTER JOIN.
 
-        Part 3: Negative tests — unsupported JOIN types and correlated subqueries.
+        Part 3: Negative tests — unsupported expressions and correlated subqueries.
 
         By default every entry is executed.  Set ``PARITY_IDX`` to filter:
             PARITY_IDX=xjoin-01 pytest ...
@@ -1078,7 +1077,7 @@ class TestFq16MultiTableParity(ParityTestBase):
     def test_fq_mt_parity_disorder(self):
         """Re-run all positive cases after inserting data in shuffled order.
 
-        Re-run all positive cases after inserting data in shuffled order.
+        Verify that insertion order does not change query results.
 
         Catalog: - Query:FederatedResultParity
 

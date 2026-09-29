@@ -46,10 +46,12 @@ typedef struct STranslateContext {
   SHashObj*                pTargetTables;
   SExplainOptions*         pExplainOpt;
   SParseMetaCache*         pMetaCache;
+  int64_t                  statementTimeNs;  // Shared by time functions in this translation.
   bool                     isExprSubQ;
   bool                     isCorrelatedSubQ;
   bool                     hasNonLocalSubQ;
   bool                     hasLocalSubQ;
+  bool                     statementTimeSet;
   bool                     hasVolatileFunc;  // query/statement contains a volatile function (e.g. SLEEP)
   bool                     stableQuery;
   bool                     showRewrite;
@@ -60,6 +62,7 @@ typedef struct STranslateContext {
   bool                     skipCheck;
   bool                     refTable;
   bool                     isCurrOpIn;
+  bool                     inJoinOnCond;
   ENodeType                origStmtType;
   timezone_t               streamTimezone;     // borrowed from the current CREATE STREAM statement
   const SStreamTimeConfig* pStreamTimeConfig;  // borrowed from the current CREATE STREAM statement

@@ -3476,21 +3476,13 @@ _return:
   return code;
 }
 
-static int32_t repeatStringHelper(char *input, int32_t inputLen, int32_t count, char *output) {
-  for (int32_t i = 0; i < count; ++i) {
-    (void)memcpy(output, input, inputLen);
-    output += inputLen;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t repeatResultLength(int32_t inputLen, int32_t count, int32_t *resultLen) {
+static int32_t repeatResultLength(int32_t inputLen, uint64_t count, int32_t *resultLen) {
   if (resultLen == NULL || inputLen < 0) return TSDB_CODE_INVALID_PARA;
-  if (count <= 0) {
+  if (count == 0 || inputLen == 0) {
     *resultLen = 0;
     return TSDB_CODE_SUCCESS;
   }
-  if (inputLen > (TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE) / count) {
+  if (count > (TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE) / inputLen) {
     return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
   }
   *resultLen = inputLen * count;
@@ -3498,113 +3490,58 @@ static int32_t repeatResultLength(int32_t inputLen, int32_t count, int32_t *resu
 }
 
 int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t          code = TSDB_CODE_SUCCESS;
-  SColumnInfoData *pInputData[2];
-  SColumnInfoData *pOutputData = pOutput[0].columnData;
-  int32_t          outputLen;
-  int32_t          numOfRows;
-  int32_t          maxCount = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pStrings = pInput[0].columnData;
+  SColumnInfoData *pCounts = pInput[1].columnData;
+  int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  int32_t capacity = 0;
+  char *outputBuf = NULL;
+  bool hasNullType = IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+                     IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]));
 
-  for (int32_t i = 0; i < pInput[1].numOfRows; i++) {
-    int32_t tmpCount = 0;
-    if (colDataIsNull_s(pInput[1].columnData, i)) {
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t stringRow = pInput[0].numOfRows == 1 ? 0 : i;
+    int32_t countRow = pInput[1].numOfRows == 1 ? 0 : i;
+    if (hasNullType || colDataIsNull_s(pStrings, stringRow) ||
+        colDataIsNull_s(pCounts, countRow)) {
+      colDataSetNULL(pOutput->columnData, i);
       continue;
     }
-    GET_TYPED_DATA(tmpCount, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
-                   typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-    maxCount = TMAX(maxCount, tmpCount);
-  }
-  pInputData[0] = pInput[0].columnData;
-  pInputData[1] = pInput[1].columnData;
-  if (pInputData[0]->info.bytes < 0) return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
-  int64_t outputLen64 = (int64_t)pInputData[0]->info.bytes * maxCount + VARSTR_HEADER_SIZE;
-  if (outputLen64 > TSDB_MAX_FIELD_LEN || outputLen64 > INT32_MAX) {
-    return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
-  }
-  outputLen = (int32_t)outputLen64;
-  numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
-  char *outputBuf = taosMemoryCalloc(outputLen, 1);
-  if (outputBuf == NULL) {
-    SCL_ERR_RET(terrno);
-  }
 
-  char *output = outputBuf;
+    uint64_t count = 0;
+    if (IS_UNSIGNED_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+      GET_TYPED_DATA(count, uint64_t, GET_PARAM_TYPE(&pInput[1]),
+                     colDataGetData(pCounts, countRow),
+                     typeGetTypeModFromColInfo(&pCounts->info));
+    } else {
+      int64_t signedCount = 0;
+      GET_TYPED_DATA(signedCount, int64_t, GET_PARAM_TYPE(&pInput[1]),
+                     colDataGetData(pCounts, countRow),
+                     typeGetTypeModFromColInfo(&pCounts->info));
+      count = signedCount > 0 ? (uint64_t)signedCount : 0;
+    }
 
-  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
-  if (pInput[0].numOfRows == pInput[1].numOfRows) {
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      output = outputBuf;
-      if (colDataIsNull_s(pInputData[0], i) || colDataIsNull_s(pInputData[1], i) || hasNullType) {
-        colDataSetNULL(pOutputData, i);
-        continue;
+    char *orgStr = colDataGetData(pStrings, stringRow);
+    int32_t inputLen = varDataLen(orgStr);
+    int32_t resultLen = 0;
+    // Check actual payload bytes before allocation, multiplication or copying.
+    SCL_ERR_JRET(repeatResultLength(inputLen, count, &resultLen));
+    int32_t needed = resultLen + VARSTR_HEADER_SIZE;
+    if (needed > capacity) {
+      char *newBuf = taosMemoryRealloc(outputBuf, needed);
+      if (newBuf == NULL) {
+        code = terrno;
+        goto _return;
       }
-      int32_t count = 0;
-      GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
-                     typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-      if (count <= 0) {
-        varDataSetLen(output, 0);
-        SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-      } else {
-        char *orgStr = colDataGetData(pInputData[0], i);
-        int32_t repeatedLen = 0;
-        SCL_ERR_JRET(repeatResultLength(varDataLen(orgStr), count, &repeatedLen));
-        varDataSetLen(output, repeatedLen);
-        SCL_ERR_JRET(repeatStringHelper(varDataVal(orgStr), varDataLen(orgStr), count, varDataVal(output)));
-        SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-      }
+      outputBuf = newBuf;
+      capacity = needed;
     }
-  } else if (pInput[0].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
-      colDataSetNNULL(pOutputData, 0, pInput[1].numOfRows);
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        output = outputBuf;
-        if (colDataIsNull_s(pInputData[1], i)) {
-          colDataSetNULL(pOutputData, i);
-          continue;
-        }
-        int32_t count = 0;
-        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
-                       typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-        if (count <= 0) {
-          varDataSetLen(output, 0);
-          SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-        } else {
-          char *orgStr = colDataGetData(pInputData[0], 0);
-          int32_t repeatedLen = 0;
-          SCL_ERR_JRET(repeatResultLength(varDataLen(orgStr), count, &repeatedLen));
-          varDataSetLen(output, repeatedLen);
-          SCL_ERR_JRET(repeatStringHelper(varDataVal(orgStr), varDataLen(orgStr), count, varDataVal(output)));
-          SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-        }
-      }
+    varDataSetLen(outputBuf, resultLen);
+    // Empty strings must not loop over a potentially enormous repeat count.
+    for (int32_t offset = 0; offset < resultLen; offset += inputLen) {
+      memcpy(varDataVal(outputBuf) + offset, varDataVal(orgStr), inputLen);
     }
-  } else if (pInput[1].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
-      colDataSetNNULL(pOutputData, 0, pInput[0].numOfRows);
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        output = outputBuf;
-        if (colDataIsNull_s(pInputData[0], i)) {
-          colDataSetNULL(pOutputData, i);
-          continue;
-        }
-        int32_t count = 0;
-        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, 0),
-                       typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-        if (count <= 0) {
-          varDataSetLen(output, 0);
-          SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-        } else {
-          char *orgStr = colDataGetData(pInputData[0], i);
-          int32_t repeatedLen = 0;
-          SCL_ERR_JRET(repeatResultLength(varDataLen(orgStr), count, &repeatedLen));
-          varDataSetLen(output, repeatedLen);
-          SCL_ERR_JRET(repeatStringHelper(varDataVal(orgStr), varDataLen(orgStr), count, varDataVal(output)));
-          SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-        }
-      }
-    }
+    SCL_ERR_JRET(colDataSetVal(pOutput->columnData, i, outputBuf, false));
   }
 
   pOutput->numOfRows = numOfRows;

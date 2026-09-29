@@ -68,6 +68,128 @@ TEST_F(PlanJoinTest, multiJoin) {
   useDb("root", "test");
 
   run("SELECT t1.c1, t2.c1 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts JOIN st1s3 t3 ON t1.ts = t3.ts");
+
+  // Candidate discovery must not rewrite an inner join that is inspected
+  // before the outer hash-join candidate is selected.
+  run("SELECT t1.c1, t2.c1, t3.c1 "
+      "FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts "
+      "JOIN st1s3 t3 ON t1.c1 = t3.c1");
+
+  run("SELECT /*+ merge_join() */ t1.c1, t2.c1, t3.c1 "
+      "FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts "
+      "JOIN st1s3 t3 ON t1.c1 = t3.c1");
+  ASSERT_EQ(1, countPlanNode("PhysiMergeJoin"));
+  ASSERT_EQ(1, countPlanNode("PhysiHashJoin"));
+
+  // Exercise the opposite nesting/order so candidate selection is not tied
+  // to one join-tree traversal shape.
+  run("SELECT t1.c1, t2.c1, t3.c1 "
+      "FROM st1s1 t1 JOIN (st1s2 t2 JOIN st1s3 t3 ON t2.ts = t3.ts) "
+      "ON t1.ts = t2.ts");
+}
+
+namespace {
+void checkHashJoinInputKeys(const SPhysiNode* node, int* joins, int* thetaJoins = nullptr) {
+  if (nodeType(node) == QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN) {
+    if (thetaJoins != nullptr) ++*thetaJoins;
+    const auto* join = reinterpret_cast<const SThetaJoinPhysiNode*>(node);
+    ASSERT_EQ(2, LIST_LENGTH(node->pChildren));
+    const auto* left = reinterpret_cast<const SPhysiNode*>(nodesListGetNode(node->pChildren, 0));
+    const auto* right = reinterpret_cast<const SPhysiNode*>(nodesListGetNode(node->pChildren, 1));
+    const int64_t leftBlockId = left->pOutputDataBlockDesc->dataBlockId;
+    const int64_t rightBlockId = right->pOutputDataBlockDesc->dataBlockId;
+    EXPECT_EQ(leftBlockId, join->leftPrimSlotId);
+    EXPECT_EQ(rightBlockId, join->rightPrimSlotId);
+    EXPECT_GT(LIST_LENGTH(join->pTargets), 0);
+    SNode* target = nullptr;
+    FOREACH(target, join->pTargets) {
+      ASSERT_EQ(QUERY_NODE_TARGET, nodeType(target));
+      const SNode* expr = reinterpret_cast<STargetNode*>(target)->pExpr;
+      ASSERT_NE(nullptr, expr);
+      EXPECT_EQ(QUERY_NODE_COLUMN, nodeType(expr));
+      if (nodeType(expr) == QUERY_NODE_COLUMN) {
+        const auto* column = reinterpret_cast<const SColumnNode*>(expr);
+        EXPECT_TRUE(column->dataBlockId == leftBlockId || column->dataBlockId == rightBlockId);
+      }
+    }
+  }
+  if (nodeType(node) == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN) {
+    ++*joins;
+    const auto* join = reinterpret_cast<const SHashJoinPhysiNode*>(node);
+    ASSERT_EQ(2, LIST_LENGTH(node->pChildren));
+    const auto* left = reinterpret_cast<const SPhysiNode*>(nodesListGetNode(node->pChildren, 0));
+    const auto* right = reinterpret_cast<const SPhysiNode*>(nodesListGetNode(node->pChildren, 1));
+    for (int side = 0; side < 2; ++side) {
+      SNode* key = nullptr;
+      FOREACH(key, side == 0 ? join->pOnLeft : join->pOnRight) {
+        ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(key));
+        const auto* column = reinterpret_cast<const SColumnNode*>(key);
+        EXPECT_EQ(column->dataBlockId,
+                  (side == 0 ? left : right)->pOutputDataBlockDesc->dataBlockId);
+      }
+    }
+  }
+  SNode* child = nullptr;
+  FOREACH(child, node->pChildren) {
+    checkHashJoinInputKeys(reinterpret_cast<const SPhysiNode*>(child), joins, thetaJoins);
+  }
+}
+
+void checkPlanHashJoinInputs(const SQueryPlan* plan) {
+  int joins = 0;
+  SNode* level = nullptr;
+  FOREACH(level, plan->pSubplans) {
+    SNode* subplan = nullptr;
+    FOREACH(subplan, reinterpret_cast<SNodeListNode*>(level)->pNodeList) {
+      checkHashJoinInputKeys(reinterpret_cast<SSubplan*>(subplan)->pNode, &joins);
+    }
+  }
+  EXPECT_GT(joins, 0);
+}
+}  // namespace
+
+TEST_F(PlanJoinTest, tbnameKeysStayOnJoinInputs) {
+  useDb("root", "test");
+  runFullPlan("SELECT /*+ hash_join() */ a.c1, b.c1 FROM st1 a JOIN st2 b ON a.tbname = b.tbname",
+              checkPlanHashJoinInputs);
+  runFullPlan("SELECT /*+ hash_join() */ a.c1, b.c1 FROM st1 a JOIN st2 b ON b.tbname = a.tbname",
+              checkPlanHashJoinInputs);
+  runFullPlan("SELECT /*+ hash_join() */ a.c1, b.c1, c.c1 FROM st1 a JOIN st2 b ON a.tbname = b.tbname "
+              "JOIN st1 c ON b.tbname = c.tbname", checkPlanHashJoinInputs);
+}
+
+TEST_F(PlanJoinTest, mergeJoinWrappedTimestampSort) {
+  useDb("root", "test");
+  run("SELECT /*+ merge_join() */ a.c1, b.c1 FROM st1 a JOIN st2 b "
+      "ON timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s)");
+  ASSERT_EQ(1, countPlanNode("PhysiMergeJoin"));
+}
+
+TEST_F(PlanJoinTest, thetaProjectionAndWindowPlans) {
+  useDb("root", "test");
+  auto inspect = [](const SQueryPlan* plan) {
+    int hashJoins = 0;
+    int thetaJoins = 0;
+    SNode* level = nullptr;
+    FOREACH(level, plan->pSubplans) {
+      SNode* subplan = nullptr;
+      FOREACH(subplan, reinterpret_cast<SNodeListNode*>(level)->pNodeList) {
+        checkHashJoinInputKeys(reinterpret_cast<SSubplan*>(subplan)->pNode, &hashJoins, &thetaJoins);
+      }
+    }
+    EXPECT_GT(thetaJoins, 0);
+  };
+  runFullPlan("SELECT /*+ join_algo(theta) */ a.c1 + b.c1 AS total FROM st1s1 a JOIN st1s2 b ON a.c1 < b.c1",
+              inspect);
+  runFullPlan("SELECT /*+ join_algo(theta) */ _wstart, count(*) FROM st1s1 a JOIN st1s2 b "
+              "ON a.c1 < b.c1 INTERVAL(1s)", inspect);
+}
+
+TEST_F(PlanJoinTest, tbnameConditionOnly) {
+  useDb("root", "test");
+  run("SELECT c1 FROM st1 WHERE tbname = 'st1s1'");
+  run("SELECT /*+ hash_join() */ a.c1, b.c1 FROM st1 a JOIN st2 b ON a.c1 = b.c1 "
+      "WHERE a.tbname = 'st1s1'");
 }
 
 TEST_F(PlanJoinTest, StreamNestedOnOnlyColumnsBecomeCompositeKeys) {

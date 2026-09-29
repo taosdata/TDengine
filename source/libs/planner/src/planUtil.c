@@ -1001,16 +1001,27 @@ bool getSmallDataTsSortOptHint(SNodeList* pList) {
 
 bool getSmallDataScanSortOptHint(SNodeList* pList) { return getOptHint(pList, HINT_SMALLDATA_SCAN_SORT); }
 
-bool getHashJoinOptHint(SNodeList* pList) {
-  if (!pList) return false;
+EJoinAlgorithm getJoinAlgoHint(SNodeList* pList) {
+  if (!pList) return JOIN_ALGO_UNKNOWN;
   SNode* pNode;
   FOREACH(pNode, pList) {
     SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_JOIN_ALGO) {
+      if (NULL == pHint->pParams || 1 != taosArrayGetSize(pHint->pParams)) return JOIN_ALGO_UNKNOWN;
+      const SHintParam* pParam = taosArrayGet(pHint->pParams, 0);
+      if (0 == taosStrcasecmp(pParam->value, "HASH")) return JOIN_ALGO_HASH;
+      if (0 == taosStrcasecmp(pParam->value, "MERGE")) return JOIN_ALGO_MERGE;
+      if (0 == taosStrcasecmp(pParam->value, "THETA")) return JOIN_ALGO_THETA;
+      return JOIN_ALGO_UNKNOWN;
+    }
     if (pHint->option == HINT_HASH_JOIN) {
-      return true;
+      return JOIN_ALGO_HASH;
+    }
+    if (pHint->option == HINT_MERGE_JOIN) {
+      return JOIN_ALGO_MERGE;
     }
   }
-  return false;
+  return JOIN_ALGO_UNKNOWN;
 }
 
 
@@ -1044,6 +1055,96 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
       }
     }
   }
+  if (TSDB_CODE_SUCCESS != code) {
+    tSimpleHashCleanup(*ppRes);
+    *ppRes = NULL;
+  }
+
+  return code;
+}
+
+typedef struct SCollectTableAliasCxt {
+  SSHashObj** ppRes;
+  int32_t     code;
+} SCollectTableAliasCxt;
+
+static EDealRes collectTableAliasFromExpr(SNode* pNode, void* pContext) {
+  SCollectTableAliasCxt* pCxt = (SCollectTableAliasCxt*)pContext;
+  const char*            pTableAlias = NULL;
+  char                   tbnameTableAlias[TSDB_TABLE_NAME_LEN] = {0};
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    pTableAlias = ((SColumnNode*)pNode)->tableAlias;
+  } else if (QUERY_NODE_VALUE == nodeType(pNode)) {
+    pTableAlias = ((SValueNode*)pNode)->node.srcTable;
+  } else if (QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+    SValueNode* pVal = (pArg != NULL && QUERY_NODE_VALUE == nodeType(pArg)) ? (SValueNode*)pArg : NULL;
+    if (NULL != pVal) {
+      pTableAlias = pVal->literal;
+    } else {
+      char* pSuffix = strstr(pFunc->node.userAlias, ".tbname");
+      if (NULL != pSuffix && pSuffix != pFunc->node.userAlias) {
+        int32_t len = TMIN((int32_t)(pSuffix - pFunc->node.userAlias), TSDB_TABLE_NAME_LEN - 1);
+        memcpy(tbnameTableAlias, pFunc->node.userAlias, len);
+        tbnameTableAlias[len] = '\0';
+        pTableAlias = tbnameTableAlias;
+      }
+    }
+  }
+
+  if (NULL == pTableAlias || '\0' == pTableAlias[0]) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (NULL == *pCxt->ppRes) {
+    *pCxt->ppRes = tSimpleHashInit(5, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (NULL == *pCxt->ppRes) {
+      pCxt->code = TSDB_CODE_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+  }
+
+  pCxt->code = tSimpleHashPut(*pCxt->ppRes, pTableAlias, strlen(pTableAlias), NULL, 0);
+  return (TSDB_CODE_SUCCESS == pCxt->code) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+}
+
+static int32_t collectTableAliasFromExprs(SNodeList* pList, SSHashObj** ppRes) {
+  SCollectTableAliasCxt cxt = {.ppRes = ppRes, .code = TSDB_CODE_SUCCESS};
+  nodesWalkExprs(pList, collectTableAliasFromExpr, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.code) {
+    tSimpleHashCleanup(*ppRes);
+    *ppRes = NULL;
+  }
+  return cxt.code;
+}
+
+int32_t collectSourceTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SLogicNode* pCurr = (SLogicNode*)pNode;
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    code = collectTableAliasFromExprs(pScan->pScanCols, ppRes);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectTableAliasFromExprs(pScan->pScanPseudoCols, ppRes);
+    }
+    return code;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pCurr->pChildren) {
+    code = collectSourceTableAliasFromNodes(pChild, ppRes);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
   if (TSDB_CODE_SUCCESS != code) {
     tSimpleHashCleanup(*ppRes);
     *ppRes = NULL;

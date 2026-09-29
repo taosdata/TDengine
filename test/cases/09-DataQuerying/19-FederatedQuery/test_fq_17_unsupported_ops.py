@@ -42,8 +42,11 @@ methods substitute the real names at runtime.
 
   _QUERY_CASES — SELECT / query-like statements that must fail.
   _STMT_CASES  — Non-query statements (DML / DDL) that must fail.
+  _JOIN_CASES  — Same-source and cross-source joins that must succeed.
 
-Each entry:  (case_id, sql_template, expected_errno)
+Entry format:  ``_QUERY_CASES`` / ``_STMT_CASES`` use
+``(case_id, sql_template, expected_errno)``; ``_JOIN_CASES`` uses
+``(case_id, sql_template, expected_rows)``.
 
 Minimal data setup
 ------------------
@@ -53,8 +56,8 @@ A dedicated database is created in each external system with a single
     (not EXT_TABLE_NOT_EXIST).
   * Write / stream / topic tests just need a live connection — the write
     guard fires before any table lookup.
-  * Parser-level errors (non-ts JOIN, TAGS, correlated subquery) need no
-    real data at all.
+  * Parser-level TAGS errors and planner-level correlated-subquery errors need
+    no real data at all.
 
 Catalog: - Query:FederatedLocal
 Since: v3.4.0.0
@@ -68,7 +71,6 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     TSDB_CODE_PAR_SYNTAX_ERROR,
-    TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
     TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     TSDB_CODE_EXT_WRITE_DENIED,
@@ -120,22 +122,6 @@ _QUERY_CASES = [
     ("uq-04-i", "SELECT tags FROM {I}.orders",
      TSDB_CODE_PAR_SYNTAX_ERROR),
 
-    # -- Non-timestamp JOIN (parser-level, no table lookup needed) ----------
-    # TDengine JOIN must use timestamp-equality or ASOF/WINDOW semantics.
-    # Any JOIN with a non-ts ON-condition is rejected before table lookup.
-    ("uq-05-m", "SELECT a.ts FROM {M}.orders a JOIN {M}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
-    ("uq-05-p", "SELECT a.ts FROM {P}.orders a JOIN {P}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
-    ("uq-05-i", "SELECT a.time FROM {I}.orders a JOIN {I}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
-    # Cross-source non-ts JOIN (MySQL ↔ PostgreSQL)
-    ("uq-06-mp", "SELECT a.ts FROM {M}.orders a JOIN {P}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
-    # Cross-source non-ts JOIN (MySQL ↔ InfluxDB)
-    ("uq-06-mi", "SELECT a.ts FROM {M}.orders a JOIN {I}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
-
     # -- Correlated subquery (planner-level, no table lookup needed) --------
     # EXISTS correlated subquery not supported on external sources
     ("uq-07-m",
@@ -151,6 +137,16 @@ _QUERY_CASES = [
      "SELECT id FROM {M}.orders o WHERE NOT EXISTS "
      "(SELECT 1 FROM {M}.orders b WHERE b.id = o.id)",
      TSDB_CODE_PAR_INVALID_EXPR_SUBQ),
+]
+
+# Ordinary-column equi-joins are supported for external sources. Keep these
+# separate from _QUERY_CASES because that list is reserved for error cases.
+_JOIN_CASES = [
+    ("uq-05-m", "SELECT a.ts FROM {M}.orders a JOIN {M}.orders b ON a.id = b.id", 3),
+    ("uq-05-p", "SELECT a.ts FROM {P}.orders a JOIN {P}.orders b ON a.id = b.id", 3),
+    ("uq-05-i", "SELECT a.time FROM {I}.orders a JOIN {I}.orders b ON a.id = b.id", 3),
+    ("uq-06-mp", "SELECT a.ts FROM {M}.orders a JOIN {P}.orders b ON a.id = b.id", 3),
+    ("uq-06-mi", "SELECT a.ts FROM {M}.orders a JOIN {I}.orders b ON a.id = b.id", 3),
 ]
 
 # ---------------------------------------------------------------------------
@@ -450,13 +446,34 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         checked via tdSql.error().
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         """
         for case_id, sql_tpl, errno in _QUERY_CASES:
             sql = self._expand(sql_tpl)
             tdLog.debug(f"[{case_id}] {sql}")
             tdSql.error(sql, expectedErrno=errno)
+
+    def test_fq_ordinary_column_joins(self):
+        """Ordinary-column equi-joins succeed for same-source and cross-source FQ.
+
+        Expand each same-source and cross-source ordinary-column join case and verify
+        that the returned row count matches its expected value.
+
+        Catalog:
+            - Query:FederatedLocal
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+        """
+        for case_id, sql_tpl, expected_rows in _JOIN_CASES:
+            sql = self._expand(sql_tpl)
+            tdLog.debug(f"[{case_id}] {sql}")
+            tdSql.query(sql)
+            tdSql.checkRows(expected_rows)
 
     # -------------------------------------------------------------------
     # Test 2: unsupported non-query statements
@@ -470,7 +487,9 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         checked via tdSql.error().
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         """
         for case_id, sql_tpl, errno in _STMT_CASES:

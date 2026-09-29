@@ -161,7 +161,107 @@ class TestPartitionCompactSpill:
         assert sorted(map(tuple, tdSql.queryResult)) == expected
         print("interp reserved spill ............... [ passed ]")
 
+    def do_page_growth_capacity(self):
+        tdSql.execute("drop database if exists test_partition_page_growth")
+        tdSql.execute("create database test_partition_page_growth vgroups 1")
+        tdSql.execute("use test_partition_page_growth")
+
+        # At width 1500, both the initial page and the 16 KiB class hold
+        # only ten rows. Smaller widths also exercise successful growth.
+        for width in (128, 1400, 1500):
+            table = f"wide_{width}"
+            tdSql.execute(
+                f"create table {table} (ts timestamp, gid int, row_id int, "
+                f"value varchar({width}), extra varchar(24), metric int)"
+            )
+            expected = []
+            rowsSql = []
+
+            def append_row(row_id, gid, row):
+                value = f"{row_id}:".ljust(width, "x")
+                extra = f"value-{row_id}"
+                metric = row_id * 7
+                if row % 7 == 0:
+                    value = None
+                if row % 5 == 0:
+                    extra = None
+                if row % 4 == 0:
+                    metric = None
+                value_sql = "NULL" if value is None else f"'{value}'"
+                extra_sql = "NULL" if extra is None else f"'{extra}'"
+                metric_sql = "NULL" if metric is None else str(metric)
+                rowsSql.append(
+                    f"({self.BASE_TS + row_id}, {gid}, {row_id}, "
+                    f"{value_sql}, {extra_sql}, {metric_sql})"
+                )
+                expected.append((gid, row_id, value, extra, metric))
+
+            def flush_rows():
+                if not rowsSql:
+                    return
+                tdSql.execute(
+                    f"insert into {table} values " + " ".join(rowsSql)
+                )
+                rowsSql.clear()
+
+            def verify_partition_results():
+                partition = (
+                    f"select ts, gid, row_id, value, extra, metric "
+                    f"from {table} partition by gid"
+                )
+                queries = (
+                    "select gid, row_id, value, extra, metric "
+                    f"from ({partition}) order by row_id",
+                    "select p.gid, p.row_id, p.value, p.extra, p.metric "
+                    f"from ({partition} order by ts) p join {table} r "
+                    "on p.ts = r.ts "
+                    "order by p.row_id",
+                )
+                for sql in queries:
+                    tdSql.query(f"explain {sql}")
+                    if not any("Partition" in str(plan) for plan in tdSql.queryResult):
+                        raise AssertionError(
+                            f"Partition operator not found in explain plan: {sql}"
+                        )
+                    tdSql.query(sql)
+                    tdSql.checkRows(len(expected))
+                    for row_id, values in enumerate(expected):
+                        for col, value in enumerate(values):
+                            tdSql.checkData(row_id, col, value)
+
+            previous_rows = 0
+            for rows in (10, 11, 33):
+                for row in range(previous_rows, rows):
+                    for gid in range(3):
+                        append_row(row * 3 + gid, gid, row)
+                flush_rows()
+                previous_rows = rows
+                verify_partition_results()
+        print("partition page growth capacity .................. [ passed ]")
+
     # --- main ---
+
+    def test_page_growth_capacity(self):
+        """Verify page growth leaves room for the next row
+
+        1. Append past ten rows when adjacent classes have equal capacity
+        2. Verify normal growth and multiple pages with three column widths
+        3. Check every value and NULL after sorting and joining partitions
+
+        Catalog:
+            - Query:PartitionBy
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-08 Cover equal-capacity partition page classes
+
+        """
+        self.do_page_growth_capacity()
 
     def test_partition_compact_spill(self):
         """Verify group-level compact spill preserves partition results

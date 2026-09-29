@@ -38,6 +38,8 @@
 #define TK_WIN_OPTIMIZE_BATCH  614
 #define TK_WIN_OPTIMIZE_SINGLE 615
 #define TK_SMALLDATA_SCAN_SORT 616
+#define TK_MERGE_JOIN          617
+#define TK_JOIN_ALGO           618
 
 #define TK_NK_NIL 65535
 

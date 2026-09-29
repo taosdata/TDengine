@@ -524,6 +524,28 @@ TEST(partitionSpillTest, selectsGrowthClassForRemainingRun) {
       partitionTestSelectGrowthClass(rowCapacities, numClasses, 2, 200), 4);
 }
 
+TEST(partitionSpillTest, skipsClassesWithoutGreaterRowCapacity) {
+  const int32_t rowCapacities[] = {10, 10, 8, 20, 10};
+  int32_t numClasses = sizeof(rowCapacities) / sizeof(rowCapacities[0]);
+
+  EXPECT_EQ(partitionTestSelectGrowthClass(rowCapacities, numClasses, 0, 1),
+            3);
+  EXPECT_EQ(partitionTestSelectGrowthClass(rowCapacities, numClasses, 0, 11),
+            3);
+  EXPECT_EQ(partitionTestSelectGrowthClass(rowCapacities, numClasses, 0, 30),
+            3);
+  EXPECT_EQ(partitionTestSelectGrowthClass(rowCapacities, numClasses, 3, 21),
+            -1);
+}
+
+TEST(partitionSpillTest, cannotGrowWhenAllRemainingCapacitiesAreEqual) {
+  const int32_t rowCapacities[] = {10, 10};
+
+  EXPECT_EQ(partitionTestSelectGrowthClass(rowCapacities, 2, 0, 11), -1);
+  EXPECT_EQ(partitionTestSelectGrowthClass(rowCapacities, 2, 1, 11), -1);
+  EXPECT_FALSE(partitionTestNeedsRunSize(rowCapacities, 2, 0, 10, true));
+}
+
 TEST(partitionSpillTest, scansRunOnlyWhenPageCanGrow) {
   const int32_t rowCapacities[] = {10, 20, 40, 80, 160};
   int32_t numClasses = sizeof(rowCapacities) / sizeof(rowCapacities[0]);
@@ -536,6 +558,12 @@ TEST(partitionSpillTest, scansRunOnlyWhenPageCanGrow) {
                                          true));
   EXPECT_FALSE(partitionTestNeedsRunSize(rowCapacities, numClasses, 0, 10,
                                          false));
+}
+
+TEST(partitionSpillTest, clearsRecoveredAllocationErrorAfterForcedSpill) {
+  int32_t reportedCode = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  ASSERT_EQ(partitionSpillTestRecoveredErrno(&reportedCode), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(reportedCode, TSDB_CODE_SUCCESS);
 }
 
 TEST(partitionSpillTest, retainsFullMaxPagesUntilGroupSpill) {

@@ -8331,6 +8331,7 @@ enum {
   LOGIC_JOIN_CODE_SUB_TYPE,
   LOGIC_JOIN_CODE_FULL_ON_COND,
   LOGIC_JOIN_CODE_COL_EQ_COND,
+  LOGIC_JOIN_CODE_IS_CROSS_JOIN,
 };
 
 static int32_t logicJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -8347,6 +8348,9 @@ static int32_t logicJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code && pNode->pColEqCond != NULL) {
     code = tlvEncodeObj(pEncoder, LOGIC_JOIN_CODE_COL_EQ_COND, nodeToMsg, pNode->pColEqCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, LOGIC_JOIN_CODE_IS_CROSS_JOIN, pNode->isCrossJoin);
   }
   return code;
 }
@@ -8371,6 +8375,9 @@ static int32_t msgToLogicJoinNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case LOGIC_JOIN_CODE_COL_EQ_COND:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pColEqCond);
+        break;
+      case LOGIC_JOIN_CODE_IS_CROSS_JOIN:
+        code = tlvDecodeBool(pTlv, &pNode->isCrossJoin);
         break;
       default:
         break;
@@ -8559,6 +8566,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = physiMergeJoinNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
+      code = physiHashJoinNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN:
       code = physiHashJoinNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
@@ -8816,6 +8826,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       code = msgToPhysiMergeJoinNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
+      code = msgToPhysiHashJoinNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN:
       code = msgToPhysiHashJoinNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:

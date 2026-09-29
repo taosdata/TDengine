@@ -141,9 +141,9 @@ typedef struct SPartitionOperatorInfo {
   SHashObj*      pGroupSet;         // locates the result object per group
   SPartitionDataInfo* pLastGroupInfo;  // group used by previous input row
 
-  // Page pools ordered by increasing page size. Class 0 is the initial size
-  // every group starts at; a group that fills its page grows into a larger
-  // class. Only the first numPageClasses entries are constructed.
+  // Class 0 is the initial page pool for every group. A full page can grow
+  // only into a later class with strictly greater row capacity. Only the
+  // first numPageClasses entries are constructed.
   SPartitionPageClass pageClasses[PARTITION_MAX_PAGE_CLASSES];
   int32_t        numPageClasses;
   SArray*        sortedGroupArray;  // SPartitionDataInfo sorted by group id

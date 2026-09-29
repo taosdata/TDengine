@@ -590,6 +590,7 @@ static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDs
   CLONE_NODE_FIELD(pJLimit);
   CLONE_NODE_FIELD(addPrimCond);
   COPY_SCALAR_FIELD(hasSubQuery);
+  COPY_SCALAR_FIELD(isCrossJoin);
   COPY_SCALAR_FIELD(isLowLevelJoin);
   COPY_SCALAR_FIELD(leftNoOrderedSubQuery);
   COPY_SCALAR_FIELD(rightNoOrderedSubQuery);
@@ -1168,11 +1169,12 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(allEqTags);
   COPY_SCALAR_FIELD(isSingleTableJoin);
   COPY_SCALAR_FIELD(hasSubQuery);
+  COPY_SCALAR_FIELD(isCrossJoin);
   COPY_SCALAR_FIELD(isLowLevelJoin);
   COPY_SCALAR_FIELD(seqWinGroup);
   COPY_SCALAR_FIELD(grpJoin);
   COPY_SCALAR_FIELD(multiGroupJoin);
-  COPY_SCALAR_FIELD(hashJoinHint);
+  COPY_SCALAR_FIELD(joinAlgoHint);
   COPY_SCALAR_FIELD(batchScanHint);
   COPY_SCALAR_FIELD(noPrimKeyEqCond);
   COPY_SCALAR_FIELD(leftConstPrimGot);
@@ -2062,6 +2064,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(tagScan);
   COPY_SCALAR_FIELD(joinContains);
+  COPY_SCALAR_FIELD(hasWhereCond);
   COPY_SCALAR_FIELD(hasScalarExpr);
   COPY_SCALAR_FIELD(windowScalarMode);
   COPY_SCALAR_FIELD(mixSysTableAndActualTable);

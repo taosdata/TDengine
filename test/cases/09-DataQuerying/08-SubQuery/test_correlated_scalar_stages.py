@@ -81,15 +81,15 @@ class TestCorrelatedScalarStages:
             "(select max(x.v) from history x where x.device = r.device) "
         )
         for kind, order, expected, hints in [
-            ("left", "r.ts", [(10, 11), (20, None), (30, None)], [False, True]),
-            ("right", "h.ts", [(10, 11), (None, 22)], [False, True]),
+            ("left", "r.ts", [(10, 11), (20, None), (30, None)], ["", "hash_join()", "join_algo(hash)", "join_algo(merge)"]),
+            ("right", "h.ts", [(10, 11), (None, 22)], ["", "hash_join()", "join_algo(hash)", "join_algo(merge)"]),
             (
                 "full", "coalesce(r.ts, h.ts)",
-                [(10, 11), (20, None), (30, None), (None, 22)], [False],
+                [(10, 11), (20, None), (30, None), (None, 22)], [""],
             ),
         ]:
-            for use_hash_hint in hints:
-                hint = "/*+ hash_join() */ " if use_hash_hint else ""
+            for algorithm_hint in hints:
+                hint = f"/*+ {algorithm_hint} */ " if algorithm_hint else ""
                 sql = (
                     f"select {hint}r.v, h.v from readings r {kind} join history h "
                     + join_condition + f"order by {order}"

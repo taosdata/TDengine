@@ -1,0 +1,873 @@
+
+taos> USE join_condition_relaxation;
+Database changed.
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + a.y = b.x + b.y ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          15 |
+           3 |          12 |
+           3 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON ABS(a.x) = b.x ORDER BY 1, 2;
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON CAST(a.k AS BIGINT) = CAST(b.k - 1 AS BIGINT) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k AND LOWER(a.name) = LOWER(b.name) AND a.y < b.y + 4 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM (SELECT id, k, x, y, name FROM l_expr WHERE id <> 5) a JOIN (SELECT id, k, x, y, name FROM r_expr WHERE id <> 15) b ON a.x + a.y = b.x + b.y ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           3 |          12 |
+
+taos> SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 |          15 |
+
+taos> SELECT a.id FROM l_expr a LEFT SEMI JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           5 |
+
+taos> SELECT a.id FROM l_expr a LEFT ANTI JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1;
+     id      |
+==============
+           4 |
+
+taos> SELECT b.id FROM l_expr a RIGHT SEMI JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          15 |
+
+taos> SELECT b.id FROM l_expr a RIGHT ANTI JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1;
+     id      |
+==============
+          14 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 - 1s = b.ts2 WHERE a.ts2 IS NOT NULL AND b.ts2 IS NOT NULL ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON TIMETRUNCATE(a.ts2, 1h) + 1 = TIMETRUNCATE(b.ts2, 1h) + 1 WHERE a.ts2 IS NOT NULL AND b.ts2 IS NOT NULL ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          15 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON TIMEDIFF(NOW, a.ts2) = TIMEDIFF(NOW, b.ts2) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          12 |
+           1 |          13 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON TIMEDIFF(TODAY, a.ts2) = TIMEDIFF(TODAY, b.ts2) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          12 |
+           1 |          13 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.k = b.k - 1 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + a.y = b.x ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          15 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON b.x = a.x + a.y ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          15 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.x = b.x - b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           2 |          11 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON b.x - b.k = a.x ORDER BY 1, 2;
+     id      |     id      |
+============================
+           2 |          11 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON ABS(a.x) = ABS(b.x) ORDER BY 1, 2;
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON UPPER(a.name) = UPPER(b.name) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON LENGTH(a.name) = LENGTH(b.name) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          15 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          11 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON CAST(a.x AS BIGINT) = CAST(b.x - b.k AS BIGINT) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           2 |          11 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 = b.ts2 + 1s ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 - 1s = b.ts2 + 1s ORDER BY 1, 2;
+     id      |     id      |
+============================
+           2 |          11 |
+           3 |          11 |
+
+taos> SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON TIMETRUNCATE(a.ts2, 1h) = TIMETRUNCATE(b.ts2, 1h) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          15 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.x + a.y = b.x ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          15 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.x + a.y = b.x ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           1 |          15 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.x + a.y = b.x ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           1 |          15 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 | NULL        |
+
+taos> SELECT a.id FROM l_expr a LEFT SEMI JOIN r_expr b ON a.x + a.y = b.x ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+
+taos> SELECT a.id FROM l_expr a LEFT ANTI JOIN r_expr b ON a.x + a.y = b.x ORDER BY 1;
+     id      |
+==============
+           4 |
+           5 |
+
+taos> SELECT b.id FROM l_expr a RIGHT SEMI JOIN r_expr b ON a.x + a.y = b.x ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          15 |
+
+taos> SELECT b.id FROM l_expr a RIGHT ANTI JOIN r_expr b ON a.x + a.y = b.x ORDER BY 1;
+     id      |
+==============
+          14 |
+
+taos> SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 |          15 |
+
+taos> SELECT a.id FROM l_expr a LEFT SEMI JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           5 |
+
+taos> SELECT a.id FROM l_expr a LEFT ANTI JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1;
+     id      |
+==============
+           4 |
+
+taos> SELECT b.id FROM l_expr a RIGHT SEMI JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          15 |
+
+taos> SELECT b.id FROM l_expr a RIGHT ANTI JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1;
+     id      |
+==============
+          14 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k AND a.x + a.y = b.x ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k AND LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 - 1s = b.ts2 AND a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k AND a.id < b.id ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k AND a.y <= b.y + 3 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.k + 1 = b.k AND b.id <= 12 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           3 |          12 |
+           4 | NULL        |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.k + 1 = b.k WHERE b.id <= 12 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           3 |          12 |
+
+taos> SELECT a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.k + 1 = b.k AND a.id >= 2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          11 |
+ NULL        |          14 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.k + 1 = b.k WHERE a.id IS NULL OR b.id IS NULL ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           4 | NULL        |
+
+taos> SELECT a.id, b.id FROM (SELECT * FROM l_expr WHERE id <= 3) a JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN (SELECT * FROM r_expr WHERE id <= 13) b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT a.id, b.id FROM (SELECT id, k FROM l_expr WHERE k IS NOT NULL) a JOIN (SELECT id, k FROM r_expr WHERE k IS NOT NULL) b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM (SELECT DISTINCT id, k FROM l_expr) a JOIN (SELECT DISTINCT id, k FROM r_expr) b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM (SELECT id, MAX(k) k FROM l_expr GROUP BY id) a JOIN (SELECT id, MAX(k) k FROM r_expr GROUP BY id) b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM (SELECT id, k FROM l_expr ORDER BY id DESC LIMIT 3) a LEFT JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a RIGHT JOIN (SELECT id, k FROM r_expr ORDER BY id LIMIT 3) b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT a.id, b.id FROM (SELECT * FROM l_expr WHERE 1 = 0) a FULL JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          11 |
+ NULL        |          12 |
+ NULL        |          13 |
+ NULL        |          14 |
+ NULL        |          15 |
+
+taos> SELECT a.id, b.id FROM l_expr a FULL JOIN (SELECT * FROM r_expr WHERE 1 = 0) b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 | NULL        |
+           2 | NULL        |
+           3 | NULL        |
+           4 | NULL        |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id, c.id FROM (l_expr a JOIN r_expr b ON a.k + 1 = b.k) JOIN l_expr c ON c.k + 1 = b.k ORDER BY 1, 2, 3;
+     id      |     id      |     id      |
+==========================================
+           1 |          11 |           1 |
+           2 |          12 |           2 |
+           2 |          12 |           3 |
+           2 |          13 |           2 |
+           2 |          13 |           3 |
+           3 |          12 |           2 |
+           3 |          12 |           3 |
+           3 |          13 |           2 |
+           3 |          13 |           3 |
+           5 |          15 |           5 |
+
+taos> SELECT a.id, b.id, a.k + 1, b.k FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |          a.k + 1          |      k      |
+======================================================================
+           1 |          11 |                         2 |           2 |
+           2 |          12 |                         3 |           3 |
+           2 |          13 |                         3 |           3 |
+           3 |          12 |                         3 |           3 |
+           3 |          13 |                         3 |           3 |
+           5 |          15 |                         6 |           6 |
+
+taos> SELECT a.id, b.id, a.x + a.y, b.x FROM l_expr a JOIN r_expr b ON a.x + a.y = b.x ORDER BY 1, 2;
+     id      |     id      |         a.x + a.y         |      x      |
+======================================================================
+           1 |          11 |                         5 |           5 |
+           1 |          15 |                         5 |           5 |
+           2 |          12 |                         7 |           7 |
+           2 |          13 |                         7 |           7 |
+           3 |          12 |                         7 |           7 |
+           3 |          13 |                         7 |           7 |
+
+taos> SELECT a.id, b.id, LOWER(a.name), LOWER(b.name) FROM l_expr a JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2;
+     id      |     id      |     lower(a.name)      |     lower(b.name)      |
+==============================================================================
+           1 |          11 | alpha                  | alpha                  |
+           2 |          12 | beta                   | beta                   |
+           2 |          13 | beta                   | beta                   |
+           3 |          12 | beta                   | beta                   |
+           3 |          13 | beta                   | beta                   |
+           5 |          15 | gamma                  | gamma                  |
+
+taos> SELECT a.id, b.id, a.ts2 - 1s, b.ts2 FROM l_expr a JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1, 2;
+     id      |     id      |       a.ts2 - 1s        |           ts2           |
+================================================================================
+           1 |          11 | 2025-01-01 01:00:09.000 | 2025-01-01 01:00:09.000 |
+           2 |          12 | 2025-01-01 01:00:10.000 | 2025-01-01 01:00:10.000 |
+           2 |          13 | 2025-01-01 01:00:10.000 | 2025-01-01 01:00:10.000 |
+           3 |          12 | 2025-01-01 01:00:10.000 | 2025-01-01 01:00:10.000 |
+           3 |          13 | 2025-01-01 01:00:10.000 | 2025-01-01 01:00:10.000 |
+           5 |          15 | 2025-01-01 01:00:13.000 | 2025-01-01 01:00:13.000 |
+
+taos> SELECT DISTINCT a.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           5 |
+
+taos> SELECT a.id, COUNT(*), MIN(b.id), MAX(b.id) FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k GROUP BY a.id ORDER BY 1;
+     id      |       count(*)        |  min(b.id)  |  max(b.id)  |
+==================================================================
+           1 |                     1 |          11 |          11 |
+           2 |                     2 |          12 |          13 |
+           3 |                     2 |          12 |          13 |
+           5 |                     1 |          15 |          15 |
+
+taos> SELECT b.id, COUNT(*), SUM(a.id) FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k GROUP BY b.id ORDER BY 1;
+     id      |       count(*)        |       sum(a.id)       |
+==============================================================
+          11 |                     1 |                     1 |
+          12 |                     2 |                     5 |
+          13 |                     2 |                     5 |
+          15 |                     1 |                     5 |
+
+taos> SELECT COUNT(*), SUM(a.id), SUM(b.id) FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k;
+       count(*)        |       sum(a.id)       |       sum(b.id)       |
+========================================================================
+                     6 |                    16 |                    76 |
+
+taos> SELECT a.id, COUNT(*) FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k GROUP BY a.id HAVING COUNT(*) > 1 ORDER BY 1;
+     id      |       count(*)        |
+======================================
+           2 |                     2 |
+           3 |                     2 |
+
+taos> SELECT CASE WHEN a.id = 2 THEN 'dup' ELSE 'single' END, COUNT(*) FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k GROUP BY CASE WHEN a.id = 2 THEN 'dup' ELSE 'single' END ORDER BY 1;
+ case when a.id = 2 then 'dup' else 'single' end |       count(*)        |
+==========================================================================
+ dup                                             |                     2 |
+ single                                          |                     4 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1 DESC, 2 DESC LIMIT 2;
+     id      |     id      |
+============================
+           5 |          15 |
+           3 |          13 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2 LIMIT 2 OFFSET 2;
+     id      |     id      |
+============================
+           2 |          13 |
+           3 |          12 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id FROM l_expr a LEFT SEMI JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           5 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id FROM l_expr a LEFT ANTI JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1;
+     id      |
+==============
+           4 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ b.id FROM l_expr a RIGHT SEMI JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ b.id FROM l_expr a RIGHT ANTI JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1;
+     id      |
+==============
+          14 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 = b.ts2 + 1s ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON TIMETRUNCATE(a.ts2, 1h) = TIMETRUNCATE(b.ts2, 1h) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 - 1s = b.ts2 AND a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM (SELECT id, ts2 FROM l_expr WHERE ts2 IS NOT NULL) a JOIN (SELECT id, ts2 FROM r_expr WHERE ts2 IS NOT NULL) b ON a.ts2 - 1s = b.ts2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM (SELECT id, ts2 FROM l_expr ORDER BY id DESC LIMIT 3) a LEFT JOIN r_expr b ON a.ts2 - 1s = b.ts2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           3 |          12 |
+           3 |          13 |
+           4 | NULL        |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ COUNT(*), SUM(a.id), SUM(b.id) FROM l_expr a JOIN r_expr b ON a.ts2 - 1s = b.ts2;
+       count(*)        |       sum(a.id)       |       sum(b.id)       |
+========================================================================
+                     6 |                    16 |                    76 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 100 = b.k ORDER BY 1, 2;
+
+taos> SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.k + 1 = b.k WHERE a.k IS NULL OR b.k IS NULL ORDER BY 1, 2;
+     id      |     id      |
+============================
+           4 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON LENGTH(a.name) = LENGTH(b.name) AND a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 - 1s = b.ts2 WHERE a.id >= 2 AND b.id <= 13 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2 LIMIT 3 OFFSET 1;
+     id      |     id      |
+============================
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+
+taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x * a.y = b.x;
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + 1 = b.k ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
+taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           2 |          13 |
+           3 |          12 |
+           3 |          13 |
+           5 |          15 |
+
