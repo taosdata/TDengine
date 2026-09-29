@@ -20,32 +20,36 @@ ResourceManager for real downloads and taosanode_service for process management.
 """
 
 import json
-import logging
 import os
 import subprocess
-import sys
 import threading
 import time
-import uuid
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-from enum import Enum
 from pathlib import Path
 
-from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
-from taosanalytics.tsfmservice.foundation_models_db import (
+
+# Every helper is called through the module (foundation_util.x()), never imported
+# by name: a `from ... import` would bind a second reference at import time, so a
+# test patching a helper would have to patch each consumer instead of the single
+# place it is defined.
+from taosanalytics.tsfm import foundation_util
+from taosanalytics.tsfm.executor import (
+    submit_download_task,
+    submit_service_task,
+)
+from taosanalytics.tsfm.foundation_models_db import (
     AsyncOperation,
     FoundationModel,
     get_dao,
+    get_resource_dir,
 )
-
-# Name the shared TSFM runtime (venv) goes by everywhere: in the release manifest
-# (packaging/tdengine-tdgpt-tsfm-release-*.json), in `resource apply/delete` (see
-# SHARED_RUNTIME_NAME in tdgpt/script/resource_manifest.py), as the `model_name`
-# of a runtime operation and on the SSE stream. One resource, one name --
-# `resource apply` selects by exactly this value.
-_RUNTIME_RESOURCE_NAME = "tsfm_runtime"
+from taosanalytics.tsfm.model_state_machine import ModelStateManager, ModelStateTransitionError
+from taosanalytics.tsfm.response_event import (
+    RUNTIME_RESOURCE_NAME,
+    OperationType,
+    TaskStatus,
+    do_build_operation_response,
+)
 
 # Whether this process has already looked for deletes to resume. The recovery
 # runs from the request path (see app.before_request), not from a server hook:
@@ -54,82 +58,73 @@ _RUNTIME_RESOURCE_NAME = "tsfm_runtime"
 # gunicorn and waitress. One run per process is enough -- claiming is atomic, so
 # a second process scanning adds nothing.
 _PENDING_DELETES_RESUMED = False
-
-
-class TaskStatus(Enum):
-    """Task execution status states."""
-
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    INTERRUPTED = "interrupted"
-
-
-class OperationType(Enum):
-    """Foundation model operation types."""
-
-    DOWNLOAD = "download"
-    START = "start"
-    STOP = "stop"
-    DELETE = "delete"
-    # Combined operation: download the model, then automatically start it once
-    # the download finishes. Tracked as a single async operation so clients can
-    # watch one task from "queued" all the way to the model being running.
-    DOWNLOAD_START = "download_start"
-
-
-# Global background executors for async operations — lazily initialized to
-# avoid re-creating them inside a forked worker process (gunicorn/multiprocessing).
-# Downloads and service operations both only orchestrate a short-lived
-# taosanodectl subprocess (the heavy disk/network work runs in that child), so
-# both run on dedicated single-thread executors and stay isolated from each
-# other (a long download never blocks start/stop/delete and vice versa).
-#
-# Two different authorities gate a download, and this module only owns one:
-#
-#   * Whether an apply may run *at all* is the CLI's decision. `resource apply`
-#     takes the system-wide lifecycle lock in taosanode_service.py (non-blocking,
-#     shared with model start/stop, import and delete) and is refused with exit
-#     75 while anyone else holds it. That lock has no queue: it either runs the
-#     command or refuses it.
-#   * *When* a refused download gets to run is what the flock below decides.
-#     Each gunicorn worker has its own download executor (1 worker), so a request
-#     submits its download into the local executor queue, and the runner waits on
-#     the shared flock before marking the op running. That wait is exactly what
-#     keeps a download arriving during another one `queued` in the shared
-#     async_operations table (visible via /status & SSE) and runs it once the
-#     turn is free, instead of letting it hit the CLI's refusal and fail. No
-#     scheduler thread is needed — the executor queue + flock ordering handle
-#     sequencing, and a restart simply drops queued tasks (startup cleanup).
-#
-# The shared TSFM runtime is downloaded through this very pool as one more
-# operation: a single queue for every download, served in submission order. A
-# runtime download therefore waits for the download already running ahead of it
-# instead of jumping the queue, which is what keeps each worker process to one
-# download pool.
-_DOWNLOAD_EXECUTOR = None
-_SERVICE_EXECUTOR = None
 _MODELS_INITIALIZED = False
 
 
-def _log_invocation(action, **params):
-    """Log the parameters of a taosanodectl / model invocation at debug level.
+def reconcile_model_running_state():
+    """Rebuild the cached `running` flags from the workers that are actually alive.
 
-    Records the *resolved* values rather than the raw request, so a failed call
-    can be reproduced from the log alone (which base URL, which timeout, which
-    task). Emitted at debug level so a normal run stays quiet; it is controlled
-    by ``log_level`` in taosanode.config.py (shipped default: 'DEBUG').
+    A model worker is not a child of this service: Models.start detaches it into a
+    session of its own, so it survives a restart of the API. The cached column,
+    however, is only written when *this* API observes a start or a stop, so after
+    a restart it can hold either answer wrongly -- and both directions are
+    user-visible. A dead worker that still looks running refuses every start; a
+    live worker that looks stopped refuses every stop, and a forced replace is
+    allowed to overwrite the files it has loaded.
+
+    So the pid files are asked instead (the same source the delete path trusts)
+    and their answer is written. Liveness that could not be probed changes
+    nothing: an unknown answer is not evidence that a model is stopped.
+
+    Returns:
+        int: Number of model rows whose flag was corrected.
     """
-    if not params:
-        AppLogger.debug("%s invoked without parameters", action)
-        return
-    AppLogger.debug(
-        "%s invoked: %s",
-        action,
-        ", ".join(f"{key}={value!r}" for key, value in params.items()),
-    )
+    live = foundation_util.live_worker_names()
+    if live is None:
+        AppLogger.warning(
+            "Skipping model running-state reconciliation: worker liveness is unknown"
+        )
+        return 0
 
+    running_names = set(live)
+    dao = get_dao()
+    corrected = 0
+    for model in dao.list_models():
+        is_running = model.name in running_names
+        if model.running != is_running:
+            if dao.update_model(model.name, running=is_running):
+                corrected += 1
+                AppLogger.info(
+                    "Reconciled model '%s' running state: %s -> %s",
+                    model.name,
+                    model.running,
+                    is_running,
+                )
+
+        # Reconcile model_state for transient states left behind by an interrupted
+        # operation. Deleting is excluded: its re-queue mechanism drives the final
+        # state. Downloading is excluded: fail_stale_running_operations marks it
+        # interrupted and _complete_async_operation drives the state from there.
+        stale_state = model.model_state
+        if stale_state == "starting":
+            # The start was interrupted; no worker launched or it was killed.
+            dao.update_model(model.name, model_state="idle")
+            AppLogger.info("Reconciled model '%s' model_state: starting -> idle", model.name)
+        elif stale_state == "stopping":
+            # If the worker is still alive the stop never completed; revert to started.
+            # If the worker is gone the model is effectively stopped; treat as idle.
+            next_state = "started" if is_running else "idle"
+            dao.update_model(model.name, model_state=next_state)
+            AppLogger.info(
+                "Reconciled model '%s' model_state: stopping -> %s", model.name, next_state
+            )
+
+    AppLogger.info(
+        "Model running-state reconciliation complete: %d corrected (live workers: %s)",
+        corrected,
+        ", ".join(live) or "none",
+    )
+    return corrected
 
 def init_models_db():
     """Initialize models database with built-in model catalog.
@@ -213,24 +208,6 @@ def init_models_db():
     _MODELS_INITIALIZED = True
     AppLogger.info("Models database initialization complete")
 
-def _get_download_executor():
-    """Return the download thread executor, creating it on first use.
-
-    A single worker keeps downloads serialized within this process. The heavy
-    work runs in a taosanodectl subprocess, so a thread executor is enough here.
-    Serialization *across* processes is not this pool's job: permission comes
-    from the CLI's lifecycle lock and ordering from the flock the runner waits on
-    (see the module-level note on the download executor).
-    """
-    global _DOWNLOAD_EXECUTOR
-    if _DOWNLOAD_EXECUTOR is None:
-        AppLogger.info("Initializing download executor with 1 worker")
-        _DOWNLOAD_EXECUTOR = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="tsfm-download"
-        )
-        AppLogger.info("Download executor initialized: %s", _DOWNLOAD_EXECUTOR)
-    return _DOWNLOAD_EXECUTOR
-
 
 def _download_lock_path() -> str:
     """Return the lock file downloads take turns on before applying.
@@ -239,9 +216,8 @@ def _download_lock_path() -> str:
     whether an apply may run -- that is the CLI's lifecycle lock (see the
     module-level note on the download executor).
     """
-    config = Configure.get_instance()
-    resource_dir = config._conf.get("resource_dir", "")
-    root = Path(resource_dir) if resource_dir else Path(config.get_model_directory())
+    resource_dir = get_resource_dir()
+    root = Path(resource_dir)
     root.mkdir(parents=True, exist_ok=True)
     return str(root / ".tdgpt-download.lock")
 
@@ -299,107 +275,41 @@ def _release_download_lock(fd):
             pass
 
 
-def _submit_download_task(worker_fn, args, task_id, model_name, operation):
-    """Submit one download-family task to the download thread executor.
-
-    The executor's single worker acts as a local queue: downloads submitted to
-    this process run one at a time. Ordering across workers comes from the flock
-    the worker waits on before applying (see the module-level note on the
-    download executor), so a download that loses the race simply stays queued and
-    runs once the turn is free — it never fails because another worker is
-    downloading. Permission to apply still belongs to the CLI's lifecycle lock.
-
-    Args:
-        worker_fn: Worker function taking *args and returning a result dict
-        args: Positional args for worker_fn
-        task_id: Unique identifier for tracking this operation
-        model_name: Name of the model being operated on
-        operation: Operation name (download, download_start)
-    """
-    # One pool for every download, the shared TSFM runtime included: the pool's
-    # single worker is the local queue, so downloads are served in submission
-    # order -- the runtime does not get a pool (or a queue position) of its own.
-    executor = _get_download_executor()
-
-    def _on_done(future):
-        """Called when the runner finishes (success or failure)."""
-        try:
-            result = future.result()
-        except Exception as exc:
-            AppLogger.error(
-                "%s task raised exception: task_id=%s, model=%s, exc=%s",
-                operation, task_id, model_name, exc,
-            )
-            _complete_async_operation(task_id, model_name, operation, "failed", str(exc))
-            return
-
-        status = result.get("status", "failed") if result else "failed"
-        error = result.get("message") if result else ("Worker returned no result" if status == "failed" else None)
-        _complete_async_operation(task_id, model_name, operation, status, error)
-
-    AppLogger.info(
-        "Submitting %s task to download executor: task_id=%s, model=%s, executor=%s",
-        operation, task_id, model_name, executor,
-    )
-    future = executor.submit(worker_fn, *args)
-    future.add_done_callback(_on_done)
-    AppLogger.info(
-        "%s task submitted to download executor: task_id=%s",
-        operation.capitalize(), task_id,
-    )
-
-
-def _get_service_executor():
-    """Return the service thread executor, creating it on first use.
-
-    Service operations (start, stop, delete) only coordinate a short-lived
-    taosanodectl subprocess, so they run on a dedicated thread executor. Keeping
-    them separate from the download executor prevents long downloads from
-    blocking responsive service actions (and vice versa). A single worker keeps
-    service operations serialized, matching the previous one-per-pool semantics.
-    """
-    global _SERVICE_EXECUTOR
-    if _SERVICE_EXECUTOR is None:
-        AppLogger.info("Initializing service executor with 1 worker")
-        _SERVICE_EXECUTOR = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="tsfm-service"
-        )
-        AppLogger.info("Service executor initialized: %s", _SERVICE_EXECUTOR)
-    return _SERVICE_EXECUTOR
-
-
-def _update_model_state(model_name, downloaded=None, running=None):
-    """Update model state in database.
-
-    Args:
-        model_name: Name of the model to update
-        downloaded: Optional new value for downloaded flag
-        running: Optional new value for running flag
-    """
-    dao = get_dao()
-    success = dao.update_model(model_name, downloaded=downloaded, running=running)
-
-    if success:
-        AppLogger.info(
-            "Updated model '%s' state: downloaded=%s, running=%s",
-            model_name,
-            downloaded,
-            running,
-        )
-    else:
-        AppLogger.warning("Model '%s' not found for state update", model_name)
-
-
 def _reconcile_local_model_state(model_name, local_model):
     """Synchronize cached model state from the authoritative local inventory."""
     if local_model is None:
-        _update_model_state(model_name, downloaded=False)
+        foundation_util.update_model_state(model_name, downloaded=False)
         return
-    _update_model_state(
+    foundation_util.update_model_state(
         model_name,
         downloaded=(local_model.get("install_status") == "installed"),
         running=(local_model.get("service_status") == "running"),
     )
+
+
+def _advance_model_state(dao, model_name, operation, operation_status):
+    """Update model_state in the DB based on an operation/status transition.
+
+    Called both when an operation is first queued and when it completes, so
+    model_state tracks the full lifecycle rather than only terminal outcomes.
+    Silently skips models not in the catalog (e.g. the shared runtime).
+
+    Returns None on success, or an error message string if the transition is invalid.
+    """
+    model = dao.get_model(model_name)
+    if not model:
+        return None
+    try:
+        next_state = ModelStateManager.calculate_next_state(
+            operation=operation,
+            operation_status=operation_status,
+            current_state=model.model_state or "missing",
+        )
+        dao.update_model(model_name, model_state=next_state)
+        return None
+    except (ValueError, ModelStateTransitionError) as e:
+        AppLogger.error("Failed to advance model_state for %s: %s", model_name, e)
+        return str(e)
 
 
 def _complete_async_operation(task_id, model_name, operation, status, error=None):
@@ -441,89 +351,31 @@ def _complete_async_operation(task_id, model_name, operation, status, error=None
         duration,
     )
 
-    # Update model state based on operation and result
+    # Update unified model_state using state machine
+    _advance_model_state(dao, model_name, operation, status)
+
+    # Update legacy model state fields (for backward compatibility)
     if status == TaskStatus.COMPLETED.value:
         if operation == OperationType.DOWNLOAD.value:
             # An explicitly downloaded runtime has no model row of its own, so
             # only a model download flips the downloaded flag.
-            if model_name != _RUNTIME_RESOURCE_NAME:
-                _update_model_state(model_name, downloaded=True)
+            if model_name != RUNTIME_RESOURCE_NAME:
+                foundation_util.update_model_state(model_name, downloaded=True)
         elif operation == OperationType.START.value:
-            _update_model_state(model_name, running=True)
+            foundation_util.update_model_state(model_name, running=True)
         elif operation == OperationType.DOWNLOAD_START.value:
             # Combined operation: a successful completion means the model was
             # downloaded AND its service started.
-            _update_model_state(model_name, downloaded=True, running=True)
+            foundation_util.update_model_state(model_name, downloaded=True, running=True)
         elif operation == OperationType.STOP.value:
-            _update_model_state(model_name, running=False)
+            foundation_util.update_model_state(model_name, running=False)
         elif operation == OperationType.DELETE.value:
             # The shared runtime is a resource without a model row of its own;
             # there is nothing to update for it.
-            if model_name != _RUNTIME_RESOURCE_NAME:
-                _update_model_state(model_name, downloaded=False, running=False)
+            if model_name != RUNTIME_RESOURCE_NAME:
+                foundation_util.update_model_state(model_name, downloaded=False, running=False)
 
     dao.cleanup_old_operations(days=1)
-
-
-def _taosanodectl_log_level() -> str:
-    """Return the --log-level value forwarded to every taosanodectl child.
-
-    The level follows the configured ``log_level`` so a child process logs with
-    the same detail as this service rather than a level of its own. The shipped
-    default is DEBUG, because a failed resource/model operation is usually not
-    reproducible afterwards: the archive has been consumed and the staging
-    directory removed, so the child's own trace is the only evidence left.
-
-    Returns:
-        str: Level name ("debug", "info", ...), or the numeric level verbatim
-            when it is not a standard one — taosanode_service --log-level
-            accepts both forms.
-    """
-    level = Configure.get_instance()._conf.get("log_level", logging.DEBUG)
-    name = logging.getLevelName(level)
-    if not isinstance(name, str) or name.startswith("Level "):
-        return str(level)
-    return name.lower()
-
-
-def _get_taosanodectl_cmd():
-    """Return the command prefix for invoking taosanodectl.
-
-    Prefers the system-installed taosanodectl binary. Falls back to:
-    1. Production layout: taosanode/bin/taosanodectl.py
-    2. Development layout: tdgpt/script/taosanodectl.py
-
-    The prefix carries the child log level as well (``--log-level``, taken from
-    the configured log_level — see _taosanodectl_log_level), so every
-    taosanodectl invocation started by the service logs with the same detail
-    without having to touch each call site.
-
-    Returns:
-        list: Command prefix, e.g. ["taosanodectl", "--log-level", "debug"] or
-            [sys.executable, "/path/to/taosanodectl.py", "--log-level", "debug"]
-
-    Raises:
-        FileNotFoundError: If neither the system binary nor the script is found
-    """
-    import shutil
-    if shutil.which("taosanodectl"):
-        prefix = ["taosanodectl"]
-    else:
-        # Production layout: taosanode/bin/taosanodectl.py
-        script_dir = Path(__file__).resolve().parent.parent.parent.parent / "bin"
-        script = script_dir / "taosanodectl.py"
-        if script.exists():
-            prefix = [sys.executable, str(script)]
-        else:
-            # Development layout: tdgpt/script/taosanodectl.py
-            dev_script = Path(__file__).resolve().parent.parent.parent / "script" / "taosanodectl.py"
-            if not dev_script.exists():
-                raise FileNotFoundError(
-                    "taosanodectl not found in PATH or script directory"
-                )
-            prefix = [sys.executable, str(dev_script)]
-
-    return prefix + ["--log-level", _taosanodectl_log_level()]
 
 
 def _run_download_task(task_id, model_name, release, resource_base_url, replace):
@@ -604,8 +456,8 @@ def _run_download_task(task_id, model_name, release, resource_base_url, replace)
         # Re-check before applying: the runtime may have been destroyed while this
         # task was queued behind another download. The runtime download itself is
         # the bootstrap, so it is never gated on the runtime being ready.
-        if model_name != _RUNTIME_RESOURCE_NAME:
-            blocker = _runtime_download_blocker()
+        if model_name != RUNTIME_RESOURCE_NAME:
+            blocker = _runtime_model_download_blocker()
             if blocker:
                 AppLogger.error(
                     "Download aborted, shared TSFM runtime is not ready: task_id=%s, model=%s, reason=%s",
@@ -623,7 +475,7 @@ def _run_download_task(task_id, model_name, release, resource_base_url, replace)
         # of a download_start op runs on this same row.
         dao.mark_operation_running(task_id)
 
-        taosanodectl = _get_taosanodectl_cmd()
+        taosanodectl = foundation_util.get_taosanodectl_cmd()
 
         cmd = taosanodectl + [
             "resource",
@@ -640,7 +492,7 @@ def _run_download_task(task_id, model_name, release, resource_base_url, replace)
         if replace:
             cmd.append("--replace")
 
-        _log_invocation(
+        foundation_util.log_invocation(
             "resource apply",
             task_id=task_id,
             model_name=model_name,
@@ -708,105 +560,21 @@ def _trigger_model_download_background(task_id, model_name, release, resource_ba
         resource_base_url: Base URL for resource repository
         replace: Whether to replace existing model
     """
-    _submit_download_task(
+    submit_download_task(
         _run_download_task,
         args=(task_id, model_name, release, resource_base_url, replace),
         task_id=task_id,
         model_name=model_name,
         operation=OperationType.DOWNLOAD.value,
+        complete_async_operation_fn=_complete_async_operation,
     )
 
 
-def _resolve_resource_settings(request=None, payload=None):
-    """Resolve resource repository settings used for taosanodectl invocations.
-
-    Reads the configured defaults (``resource_base_url`` and
-    ``tsfm_resource_exec_timeout``) and allows a per-request override of the
-    base URL — taken from the query string for GET handlers or from the JSON
-    body for POST handlers.
-
-    Args:
-        request: Optional Flask request. ``resource_base_url`` may be supplied
-            as a query argument.
-        payload: Optional request JSON dict. ``resource_base_url`` may be
-            supplied in the body.
-
-    Returns:
-        tuple: (resource_base_url, exec_timeout)
-    """
-    config = Configure.get_instance()
-    default_resource_url = config._conf.get(
-        "resource_base_url", "https://download.taosdata.com"
-    )
-
-    if payload is not None:
-        source = "payload"
-        resource_base_url = payload.get("resource_base_url", default_resource_url)
-    elif request is not None:
-        source = "query"
-        resource_base_url = request.args.get("resource_base_url", default_resource_url)
-    else:
-        source = "config"
-        resource_base_url = default_resource_url
-
-    exec_timeout = config._conf.get("tsfm_resource_exec_timeout", 120)
-    _log_invocation(
-        "resource settings resolved",
-        source=source,
-        resource_base_url=resource_base_url,
-        overridden=resource_base_url != default_resource_url,
-        tsfm_resource_exec_timeout=exec_timeout,
-    )
-    return resource_base_url, exec_timeout
-
-
-# Deadline (seconds) for a model to become ready after `taosanodectl model start`
-# is invoked. Used both as the child's readiness deadline (`--timeout`) and as the
-# basis of the outer wait in `_run_model_start_task`.
-_DEFAULT_MODEL_START_TIMEOUT = 300
 
 # Extra grace (seconds) added on top of the model start deadline for the outer
 # wait, so the child process always has a chance to report its result and exit
 # before the parent gives up on it.
 _MODEL_START_GRACE_SECONDS = 30
-
-
-def _resolve_model_start_timeout():
-    """Resolve the model start timeout used by `taosanodectl model start`.
-
-    Reads ``tsfm_model_start_timeout`` from configuration. The value must be
-    greater than or equal to the model readiness deadline
-    (``timeouts['model_startup']``, default 300s) so that a slow-starting model
-    is not reported as started before it is actually ready.
-
-    Returns:
-        int: Deadline in seconds for the model readiness wait.
-    """
-    config = Configure.get_instance()
-    try:
-        start_timeout = int(
-            config._conf.get("tsfm_model_start_timeout", _DEFAULT_MODEL_START_TIMEOUT)
-        )
-    except (TypeError, ValueError):
-        AppLogger.warning(
-            "Invalid tsfm_model_start_timeout %r, falling back to %d seconds",
-            config._conf.get("tsfm_model_start_timeout"),
-            _DEFAULT_MODEL_START_TIMEOUT,
-        )
-        return _DEFAULT_MODEL_START_TIMEOUT
-
-    if start_timeout <= 0:
-        AppLogger.warning(
-            "Non-positive tsfm_model_start_timeout %d, falling back to %d seconds",
-            start_timeout,
-            _DEFAULT_MODEL_START_TIMEOUT,
-        )
-        return _DEFAULT_MODEL_START_TIMEOUT
-
-    _log_invocation(
-        "model start timeout resolved", tsfm_model_start_timeout=start_timeout
-    )
-    return start_timeout
 
 
 # Facts that describe *this host's* install of a model rather than the release the
@@ -821,7 +589,7 @@ def _local_model_state(exec_timeout):
     `resource list` is the local counterpart of `resource check`: it reports what
     is installed here -- `service_status` from the pid files, `deployed_at` from
     the per-model state file -- without contacting the repository. It is read
-    through the CLI for the same reason `_runtime_download_blocker` is: the
+    through the CLI for the same reason `_runtime_model_download_blocker` is: the
     resource layout and the state schema belong to tdgpt/script, and this module
     is a separate deployment unit that cannot import them.
 
@@ -832,13 +600,13 @@ def _local_model_state(exec_timeout):
             where the local view *is* the answer and a failure is an error.
     """
     try:
-        taosanodectl = _get_taosanodectl_cmd()
+        taosanodectl = foundation_util.get_taosanodectl_cmd()
     except FileNotFoundError as exc:
         AppLogger.warning("Cannot read the local resource view: %s", exc)
         return {}
 
     cmd = taosanodectl + ["resource", "list", "--format", "json"]
-    _log_invocation("local resource view request", cmd=" ".join(cmd))
+    foundation_util.log_invocation("local resource view request", cmd=" ".join(cmd))
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
@@ -944,8 +712,8 @@ def list_all_tsfm(request):
     try:
         # Get parameters from query string
         release = request.args.get("release", "1.0.0")
-        resource_base_url, exec_timeout = _resolve_resource_settings(request=request)
-        _log_invocation(
+        resource_base_url, exec_timeout = foundation_util.resolve_resource_settings(request=request)
+        foundation_util.log_invocation(
             "resource check request",
             release=release,
             ip=request.remote_addr,
@@ -953,7 +721,7 @@ def list_all_tsfm(request):
 
         # Construct taosanodectl command
         try:
-            taosanodectl = _get_taosanodectl_cmd()
+            taosanodectl = foundation_util.get_taosanodectl_cmd()
         except FileNotFoundError as e:
             AppLogger.error("taosanodectl not found: %s, ip:%s", str(e), request.remote_addr)
             return {
@@ -1037,7 +805,8 @@ def list_all_tsfm(request):
                     if "task_status" in resource:
                         del resource["task_status"]  # Remove transient task file status
 
-                    latest_op = dao.get_latest_operation(resource.get("name", ""))
+                    model_name = resource.get("name", "")
+                    latest_op = dao.get_latest_operation(model_name)
                     if latest_op:
                         if resource.get("state") == "missing" and latest_op.status == "completed":
                             pass
@@ -1047,6 +816,9 @@ def list_all_tsfm(request):
                     # let the frontend know that a queued downloading is inprogress for a missing model
                     if resource.get("state") == "missing" and resource.get("operation_status") == TaskStatus.QUEUED.value:
                         resource["state"] = "downloading"
+
+                    db_model = dao.get_model(model_name)
+                    resource["model_state"] = db_model.model_state if db_model else "missing"
 
                 return {
                     "status": "success",
@@ -1122,8 +894,8 @@ def get_model_info(request, model_name):
     try:
         # Get parameters from query string
         release = request.args.get("release", "1.0.0")
-        resource_base_url, exec_timeout = _resolve_resource_settings(request=request)
-        _log_invocation(
+        resource_base_url, exec_timeout = foundation_util.resolve_resource_settings(request=request)
+        foundation_util.log_invocation(
             "resource list request",
             model_name=model_name,
             release=release,
@@ -1132,7 +904,7 @@ def get_model_info(request, model_name):
 
         # Execute taosanodectl resource list to get real-time model info
         try:
-            taosanodectl = _get_taosanodectl_cmd()
+            taosanodectl = foundation_util.get_taosanodectl_cmd()
         except FileNotFoundError as e:
             AppLogger.error("taosanodectl not found: %s, ip:%s", str(e), request.remote_addr)
             return {
@@ -1241,7 +1013,7 @@ def get_model_info(request, model_name):
 
 
 
-def _validate_model_in_repository(model_name, release, resource_base_url, kind="model"):
+def _extract_model_status_in_repository(model_name, release, resource_base_url, kind="model"):
     """Validate that a resource exists in the resource repository via taosanodectl.
 
     This ensures we don't reject valid new models that were added to the repository
@@ -1261,9 +1033,9 @@ def _validate_model_in_repository(model_name, release, resource_base_url, kind="
         - error_message: Error description (if invalid)
     """
     try:
-        _, exec_timeout = _resolve_resource_settings()
+        _, exec_timeout = foundation_util.resolve_resource_settings()
         try:
-            taosanodectl = _get_taosanodectl_cmd()
+            taosanodectl = foundation_util.get_taosanodectl_cmd()
         except FileNotFoundError as e:
             return False, None, str(e)
 
@@ -1278,7 +1050,7 @@ def _validate_model_in_repository(model_name, release, resource_base_url, kind="
             resource_base_url,
         ]
 
-        _log_invocation(
+        foundation_util.log_invocation(
             "repository validation request",
             model_name=model_name,
             release=release,
@@ -1322,35 +1094,9 @@ def _validate_model_in_repository(model_name, release, resource_base_url, kind="
         return False, None, f"Error validating model: {e!s}"
 
 
-_DOWNLOAD_FAMILY = frozenset({OperationType.DOWNLOAD.value, OperationType.DOWNLOAD_START.value})
-
-
-def _get_active_download_op(model_name):
-    """Return the active (queued/running) download-family op for a model, if any.
-
-    Matches both DOWNLOAD and DOWNLOAD_START so that a concurrent download of
-    either variant is detected and reused, preventing the same model from being
-    downloaded twice.
-
-    Args:
-        model_name: Name of the model
-
-    Returns:
-        AsyncOperation or None
-    """
-    dao = get_dao()
-    for op in dao.list_async_operations(model_name=model_name, active_only=True):
-        if op.operation in _DOWNLOAD_FAMILY and op.status in (
-            TaskStatus.QUEUED.value,
-            TaskStatus.RUNNING.value,
-        ):
-            return op
-    return None
-
-
 def _reuse_download_response(active_op, model_name):
     """Build a response that reuses an already in-progress download task."""
-    detail = _build_operation_response(active_op)
+    detail = do_build_operation_response(active_op)
     return {
         "status": "success",
         "reused": True,
@@ -1381,14 +1127,14 @@ def _claim_download_operation(dao, operation, model_name):
     if dao.create_download_operation_if_idle(operation):
         return None
 
-    active_op = _get_active_download_op(model_name)
+    active_op = foundation_util.get_active_download_op(model_name)
     if active_op is None:
         # The winner finished between the insert and this lookup, so nobody owns
         # the download any more; one retry is enough to make this caller the
         # owner. If that loses too, the next lookup below reports it.
         if dao.create_download_operation_if_idle(operation):
             return None
-        active_op = _get_active_download_op(model_name)
+        active_op = foundation_util.get_active_download_op(model_name)
 
     if active_op is not None:
         return _reuse_download_response(active_op, model_name)
@@ -1436,19 +1182,20 @@ def download_foundation_runtime(request):
 
     payload = request.get_json(silent=True) or {}
     release = payload.get("release", "1.0.0")
-    resource_base_url, _ = _resolve_resource_settings(payload=payload)
+    resource_base_url, _ = foundation_util.resolve_resource_settings(payload=payload)
     replace = payload.get("replace", False)
-    _log_invocation(
+
+    foundation_util.log_invocation(
         "runtime download request parameters",
-        resource=_RUNTIME_RESOURCE_NAME,
+        resource=RUNTIME_RESOURCE_NAME,
         release=release,
         resource_base_url=resource_base_url,
         replace=replace,
         ip=request.remote_addr,
     )
 
-    is_valid, runtime_info, error_msg = _validate_model_in_repository(
-        _RUNTIME_RESOURCE_NAME, release, resource_base_url, kind="runtime"
+    is_valid, runtime_info, error_msg = _extract_model_status_in_repository(
+        RUNTIME_RESOURCE_NAME, release, resource_base_url, kind="runtime"
     )
     if not is_valid:
         AppLogger.error(
@@ -1463,18 +1210,18 @@ def download_foundation_runtime(request):
         }, 404
 
     # Deduplicate against a runtime download that is already queued/running.
-    active_op = _get_active_download_op(_RUNTIME_RESOURCE_NAME)
+    active_op = foundation_util.get_active_download_op(RUNTIME_RESOURCE_NAME)
     if active_op:
-        return _reuse_download_response(active_op, _RUNTIME_RESOURCE_NAME)
+        return _reuse_download_response(active_op, RUNTIME_RESOURCE_NAME)
 
     dao = get_dao()
-    dao.cleanup_download_operations(_RUNTIME_RESOURCE_NAME)
+    dao.cleanup_download_operations(RUNTIME_RESOURCE_NAME)
 
-    task_id = f"download-{_RUNTIME_RESOURCE_NAME}-{uuid.uuid4().hex[:8]}"
+    task_id = foundation_util.make_task_id("download", RUNTIME_RESOURCE_NAME)
     rejection = _claim_download_operation(dao, AsyncOperation(
         task_id=task_id,
         operation=OperationType.DOWNLOAD.value,
-        model_name=_RUNTIME_RESOURCE_NAME,
+        model_name=RUNTIME_RESOURCE_NAME,
         status=TaskStatus.QUEUED.value,
         data={
             "package": runtime_info.get("file", ""),
@@ -1482,7 +1229,8 @@ def download_foundation_runtime(request):
             "resource_base_url": resource_base_url,
             "replace": replace,
         },
-    ), _RUNTIME_RESOURCE_NAME)
+    ), RUNTIME_RESOURCE_NAME)
+
     if rejection:
         return rejection
 
@@ -1490,13 +1238,13 @@ def download_foundation_runtime(request):
     # `resource apply` matches on and what the resource task file records as its
     # `name`, which is how the progress poller finds it again.
     _trigger_model_download_background(
-        task_id, _RUNTIME_RESOURCE_NAME, release, resource_base_url, replace
+        task_id, RUNTIME_RESOURCE_NAME, release, resource_base_url, replace
     )
 
     AppLogger.info(
         "Runtime download initiated for resource '%s' (release: %s, resource_url: %s, "
         "replace: %s), task_id: %s, ip:%s",
-        _RUNTIME_RESOURCE_NAME,
+        RUNTIME_RESOURCE_NAME,
         release,
         resource_base_url,
         replace,
@@ -1508,7 +1256,7 @@ def download_foundation_runtime(request):
         "status": "queued",
         "task_id": task_id,
         "message": "Shared TSFM runtime download initiated",
-        "model_name": _RUNTIME_RESOURCE_NAME,
+        "model_name": RUNTIME_RESOURCE_NAME,
         "package": runtime_info.get("file", ""),
         "size_gb": (runtime_info.get("size") or 0) / (1024**3),
         "release": release,
@@ -1554,11 +1302,12 @@ def download_foundation_model(request):
     payload = request.get_json(silent=True) or {}
     model_name = payload.get("model_name")
     release = payload.get("release", "1.0.0")
+    replace = payload.get("replace", False)
 
     # Use provided resource_base_url or fall back to configured default
-    resource_base_url, _ = _resolve_resource_settings(payload=payload)
-    replace = payload.get("replace", False)
-    _log_invocation(
+    resource_base_url, _ = foundation_util.resolve_resource_settings(payload=payload)
+
+    foundation_util.log_invocation(
         "download request parameters",
         model_name=model_name,
         release=release,
@@ -1577,11 +1326,11 @@ def download_foundation_model(request):
     # model_name = "tsfm_runtime" installs the shared TSFM runtime instead of a model
     # (see download_foundation_runtime); same operation as
     # POST /api/v1/foundation-models/runtime/download.
-    if model_name == _RUNTIME_RESOURCE_NAME:
+    if model_name == RUNTIME_RESOURCE_NAME:
         return download_foundation_runtime(request)
 
     # Validate model exists in repository (real-time check)
-    is_valid, model_info, error_msg = _validate_model_in_repository(
+    is_valid, model_info, error_msg = _extract_model_status_in_repository(
         model_name, release, resource_base_url
     )
     if not is_valid:
@@ -1617,7 +1366,7 @@ def download_foundation_model(request):
     # Deduplicate: if this model already has a download queued/running, return
     # the existing task instead of enqueuing another (only one download applies
     # system-wide anyway).
-    active_op = _get_active_download_op(model_name)
+    active_op = foundation_util.get_active_download_op(model_name)
     if active_op:
         return _reuse_download_response(active_op, model_name)
 
@@ -1652,7 +1401,7 @@ def download_foundation_model(request):
 
     # Generate unique task ID for async tracking
     # Format: download-{model_name}-{random_hex}
-    task_id = f"download-{model_name}-{uuid.uuid4().hex[:8]}"
+    task_id = foundation_util.make_task_id("download", model_name)
 
     # Record async operation for progress tracking
     # This mirrors taosanodectl resource apply <model_name> workflow:
@@ -1664,7 +1413,6 @@ def download_foundation_model(request):
     # 6. Extract and install to model directory
     # 7. Record model metadata
     # 8. Release lock
-    dao = get_dao()
     operation = AsyncOperation(
         task_id=task_id,
         operation=OperationType.DOWNLOAD.value,
@@ -1682,6 +1430,9 @@ def download_foundation_model(request):
     if rejection:
         return rejection
 
+    err = _advance_model_state(dao, model_name, OperationType.DOWNLOAD.value, TaskStatus.QUEUED.value)
+    if err:
+        return {"error": err, "model_name": model_name}, 500
     # Spawn background process to download via taosanodectl
     _trigger_model_download_background(task_id, model_name, release, resource_base_url, replace)
 
@@ -1724,14 +1475,13 @@ def download_foundation_model(request):
 _CLI_EXIT_TEMPFAIL = 75  # another resource operation holds the lifecycle lock
 _CLI_EXIT_CONFLICT = 3  # permanent: a live worker, an unsafe target, ...
 
-# A delete that finds the resource busy is retried, not failed: the lock it lost
-# is held by the download it has to wait for. The waiting is deliberately not
-# done inside the worker -- the service pool has a single worker, so sleeping
-# there would starve every start/stop behind a download that can run for an hour.
-# The task is released back to `queued` and resubmitted after a growing delay.
-_DELETE_RETRY_BASE_SECONDS = 5
-_DELETE_RETRY_MAX_DELAY_SECONDS = 60
-_DELETE_RETRY_MAX_WAIT_SECONDS = 3600
+# Retry configuration for all deferrable operations (delete, start, stop).
+# All operations share the same budget: exponential backoff for up to 1 hour.
+_SHARED_RETRY_CONFIG = {
+    "base_seconds": 5,
+    "max_delay_seconds": 60,
+    "max_wait_seconds": 3600,
+}
 
 
 def _operation_data(dao, task_id):
@@ -1741,10 +1491,26 @@ def _operation_data(dao, task_id):
     return dict(data)
 
 
-def _cli_reason(result):
-    """Return the CLI's own one-line explanation of a refusal."""
-    text = (result.stderr or "").strip() or (result.stdout or "").strip()
-    return text.splitlines()[-1].strip() if text else ""
+def _cli_reason(*streams):
+    """Return the CLI's own one-line explanation of a refusal, as text.
+
+    Takes the child's captured streams in preference order (stderr first, then
+    stdout) in either form the two invocation styles produce: ``str`` from
+    ``subprocess.run(text=True)`` and ``bytes`` from ``Popen.communicate()``.
+    Decoding happens here, once, because the value is stored in the operation's
+    JSON ``data`` -- bytes would not survive json.dumps.
+
+    Returns:
+        str: The last non-empty line, or "" when the child said nothing.
+    """
+    for stream in streams:
+        if not stream:
+            continue
+        text = stream.decode("utf-8", errors="replace") if isinstance(stream, bytes) else stream
+        text = text.strip()
+        if text:
+            return text.splitlines()[-1].strip()
+    return ""
 
 
 def _schedule_service_retry(worker_fn, args, task_id, model_name, operation, result):
@@ -1754,7 +1520,7 @@ def _schedule_service_retry(worker_fn, args, task_id, model_name, operation, res
     worker thread is released immediately, so a long download behind the retry
     cannot pin the single service worker.
     """
-    delay = max(1, int(result.get("delay") or _DELETE_RETRY_BASE_SECONDS))
+    delay = max(1, int(result.get("delay") or _SHARED_RETRY_CONFIG["base_seconds"]))
     timer = threading.Timer(
         delay,
         _resubmit_service_task,
@@ -1791,66 +1557,14 @@ def _resubmit_service_task(worker_fn, args, task_id, model_name, operation):
         )
         return
 
-    _submit_service_task(
+    submit_service_task(
         worker_fn,
         args=args,
         task_id=task_id,
         model_name=model_name,
         operation=operation,
-    )
-
-
-def _submit_service_task(worker_fn, args, task_id, model_name, operation):
-    """Submit a service operation (start/stop/delete) to the service executor.
-
-    Service workers return a dict like {"status": "completed"|"failed", "message": ...}.
-    Completion (including unhandled worker exceptions) is applied via
-    _complete_async_operation, running in the executor thread. A single service
-    executor keeps service operations serialized and independent of downloads.
-
-    Args:
-        worker_fn: Worker function taking *args and returning a result dict
-        args: Positional args for worker_fn
-        task_id: Unique identifier for tracking this operation
-        model_name: Name of the model being operated on
-        operation: Operation name (start, stop, delete)
-    """
-
-    def _on_done(future):
-        """Called in the executor thread when the worker finishes."""
-        try:
-            result = future.result()
-        except Exception as exc:
-            AppLogger.error(
-                "%s task raised exception: task_id=%s, model=%s, exc=%s",
-                operation, task_id, model_name, exc,
-            )
-            _complete_async_operation(task_id, model_name, operation, "failed", str(exc))
-            return
-
-        status = result.get("status", "failed") if result else "failed"
-        if status == "deferred":
-            # Not terminal: the worker already returned the task to `queued`, so
-            # completing it here would report an outcome that has not happened.
-            # Re-arm it after its backoff instead of writing a status.
-            _schedule_service_retry(
-                worker_fn, args, task_id, model_name, operation, result or {}
-            )
-            return
-
-        error = result.get("message") if result else ("Worker returned no result" if status == "failed" else None)
-        _complete_async_operation(task_id, model_name, operation, status, error)
-
-    executor = _get_service_executor()
-    AppLogger.info(
-        "Submitting %s task to service executor: task_id=%s, model=%s, executor=%s",
-        operation, task_id, model_name, executor,
-    )
-    future = executor.submit(worker_fn, *args)
-    future.add_done_callback(_on_done)
-    AppLogger.info(
-        "%s task submitted to service executor: task_id=%s",
-        operation.capitalize(), task_id,
+        complete_async_operation_fn=_complete_async_operation,
+        retry_scheduler_fn=_schedule_service_retry,
     )
 
 
@@ -1865,54 +1579,71 @@ def _trigger_model_start_background(task_id, model_name):
 
     The executor handles async execution; caller monitors progress via get_operation_status(task_id)
     """
-    _submit_service_task(
+    submit_service_task(
         _run_model_start_task,
         args=(task_id, model_name),
         task_id=task_id,
         model_name=model_name,
-        operation="start",
+        operation=OperationType.START.value,
+        complete_async_operation_fn=_complete_async_operation,
+        retry_scheduler_fn=_schedule_service_retry,
     )
 
 
-def _defer_delete(dao, task_id, model_name, state, result):
-    """Release a delete back to the queue after a transient refusal.
+def _defer_operation(dao, task_id, model_name, operation, state, reason):
+    """Generic defer handler for operations hit by transient conflict (exit 75).
 
-    The refusal means another resource operation holds the lifecycle lock --
-    usually the download this delete has to wait for. Rather than sleeping in
-    the worker (which would pin the single service worker) the task goes back to
-    `queued` and is resubmitted after a growing delay, with the wait recorded so
-    /status and SSE can show what it is waiting for.
+    When an operation encounters the lifecycle lock held by another in-flight
+    operation (usually a download), this function defers the task instead of
+    failing. The task is put back to `queued` and resubmitted after exponential
+    backoff, with the wait budget tracked so it eventually fails if the lock
+    is held too long.
+
+    Args:
+        dao: FoundationModelsDAO instance
+        task_id: Unique task identifier
+        model_name: Name of the model being operated on
+        operation: Operation name ("delete", "start", or "stop")
+        state: Mutable dict of operation.data (retry state)
+        reason: The CLI's one-line explanation, already decoded by the caller
+            with _cli_reason -- this function has no opinion on which stream it
+            came from, or whether the child produced text or bytes
 
     Returns:
-        dict: A ``deferred`` result for the submitter's callback, or a ``failed``
-            one once the total wait budget is spent.
+        dict: {"status": "deferred", "delay": N, "waiting_for": "reason"}
+              or {"status": "failed", "message": "..."}
     """
+    if operation not in ("delete", "start", "stop"):
+        return {"status": "failed", "message": f"Unknown operation: {operation}"}
+
     now = time.time()
     attempt = int(state.get("attempt") or 0) + 1
     wait_since = float(state.get("wait_since") or now)
     waited = now - wait_since
-    waiting_for = _cli_reason(result)
+    waiting_for = reason or ""
 
-    if waited >= _DELETE_RETRY_MAX_WAIT_SECONDS:
+    if waited >= _SHARED_RETRY_CONFIG["max_wait_seconds"]:
+        operation_description = {
+            "stop": "stopping",
+            "start": "starting",
+            "delete": "deleting",
+        }
         message = (
             f"Timed out after {int(waited)}s waiting for an in-flight resource "
-            f"operation to finish before deleting '{model_name}'"
+            f"operation to finish before {operation_description.get(operation)} '{model_name}'"
             + (f": {waiting_for}" if waiting_for else "")
         )
         AppLogger.error(
-            "Delete gave up waiting for the resource operation: task_id=%s, model=%s, "
+            "%s gave up waiting for the resource operation: task_id=%s, model=%s, "
             "attempt=%d, waited=%ds, reason=%s",
-            task_id,
-            model_name,
-            attempt,
-            int(waited),
-            waiting_for or "unknown",
+            operation.capitalize(), task_id, model_name, attempt, int(waited),
+            waiting_for,
         )
         return {"status": "failed", "message": message}
 
     delay = min(
-        _DELETE_RETRY_BASE_SECONDS * (2 ** (attempt - 1)),
-        _DELETE_RETRY_MAX_DELAY_SECONDS,
+        _SHARED_RETRY_CONFIG["base_seconds"] * (2 ** (attempt - 1)),
+        _SHARED_RETRY_CONFIG["max_delay_seconds"],
     )
     state.update({
         "attempt": attempt,
@@ -1928,16 +1659,17 @@ def _defer_delete(dao, task_id, model_name, state, result):
         error=None,
     )
     AppLogger.info(
-        "Delete deferred behind an in-flight resource operation: task_id=%s, model=%s, "
+        "%s deferred behind an in-flight resource operation: task_id=%s, model=%s, "
         "attempt=%d, waited=%ds, retry_in=%ds, held_by=%s",
-        task_id,
-        model_name,
-        attempt,
-        int(waited),
-        delay,
-        waiting_for or "unknown",
+        operation.capitalize(), task_id, model_name, attempt, int(waited), delay,
+        str(waiting_for) or "unknown",
     )
-    return {"status": "deferred", "delay": delay, "waiting_for": waiting_for}
+
+    return {
+        "status": "deferred",
+        "delay": delay,
+        "waiting_for": waiting_for,
+    }
 
 
 def _run_model_delete_task(task_id, model_name):
@@ -1948,7 +1680,7 @@ def _run_model_delete_task(task_id, model_name):
 
     A transient refusal (the lifecycle lock is held by another resource
     operation -- typically the download this delete must wait for) defers the
-    task instead of failing it (see _defer_delete). A permanent refusal still
+    task instead of failing it (see _defer_operation). A permanent refusal still
     fails it, carrying the CLI's own explanation.
     """
     exec_timeout = None
@@ -1957,13 +1689,9 @@ def _run_model_delete_task(task_id, model_name):
         state = _operation_data(dao, task_id)
         dao.mark_operation_running(task_id)
 
-        taosanodectl = _get_taosanodectl_cmd()
+        taosanodectl = foundation_util.get_taosanodectl_cmd()
 
-        cmd = taosanodectl + [
-            "resource",
-            "delete",
-            model_name,
-        ]
+        cmd = taosanodectl + ["resource", "delete", model_name]
 
         AppLogger.info(
             "Starting model delete process for task_id: %s, model: %s, cmd: %s",
@@ -1972,7 +1700,7 @@ def _run_model_delete_task(task_id, model_name):
             " ".join(cmd),
         )
 
-        _, exec_timeout = _resolve_resource_settings()
+        _, exec_timeout = foundation_util.resolve_resource_settings()
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
 
         if result.returncode == 0:
@@ -1984,7 +1712,10 @@ def _run_model_delete_task(task_id, model_name):
             return {"status": "completed", "message": None}
 
         if result.returncode == _CLI_EXIT_TEMPFAIL:
-            return _defer_delete(dao, task_id, model_name, state, result)
+            return _defer_operation(
+                dao, task_id, model_name, "delete", state,
+                _cli_reason(result.stderr, result.stdout),
+            )
 
         error_msg = result.stderr or (
             f"stdout: {result.stdout.strip()}" if result.stdout.strip() else "Model delete failed"
@@ -2012,6 +1743,7 @@ def _run_model_delete_task(task_id, model_name):
         return {"status": "failed", "message": error_msg}
 
 
+
 def _trigger_model_delete_background(task_id, model_name):
     """Submit model delete task to the service thread executor.
 
@@ -2023,12 +1755,14 @@ def _trigger_model_delete_background(task_id, model_name):
 
     The executor handles async execution; caller monitors progress via get_operation_status(task_id)
     """
-    _submit_service_task(
+    submit_service_task(
         _run_model_delete_task,
         args=(task_id, model_name),
         task_id=task_id,
         model_name=model_name,
         operation="delete",
+        complete_async_operation_fn=_complete_async_operation,
+        retry_scheduler_fn=_schedule_service_retry,
     )
 
 
@@ -2042,16 +1776,21 @@ def _run_model_start_task(task_id, model_name):
     from the RESTful server's process group. This prevents the model service from
     being killed when the RESTful server stops (SIGHUP/SIGTERM to process group).
 
+    A transient refusal (the lifecycle lock is held by another resource operation
+    -- typically a download this start must wait for) defers the task instead of
+    failing it (see _defer_operation). A permanent refusal still fails it.
+
     The readiness deadline is read from the ``tsfm_model_start_timeout`` config
     setting and forwarded to ``taosanodectl model start --timeout``, so the
     parent's wait and the child's own readiness check share one value.
     """
     try:
         dao = get_dao()
+        state = _operation_data(dao, task_id)
         dao.mark_operation_running(task_id)
 
-        taosanodectl = _get_taosanodectl_cmd()
-        start_timeout = _resolve_model_start_timeout()
+        taosanodectl = foundation_util.get_taosanodectl_cmd()
+        start_timeout = foundation_util.resolve_model_start_timeout()
 
         cmd = taosanodectl + [
             "model",
@@ -2061,7 +1800,7 @@ def _run_model_start_task(task_id, model_name):
             str(start_timeout),
         ]
 
-        _log_invocation(
+        foundation_util.log_invocation(
             "model start",
             task_id=task_id,
             model_name=model_name,
@@ -2128,16 +1867,21 @@ def _run_model_start_task(task_id, model_name):
                 proc.pid,
             )
             return {"status": "completed", "message": None}
-        else:
-            error_msg = stderr.decode(errors="replace").strip() if stderr else "Model start failed"
-            AppLogger.error(
-                "Model start failed: task_id=%s, model=%s, returncode=%d, error=%s",
-                task_id,
-                model_name,
-                returncode,
-                error_msg,
+
+        if returncode == _CLI_EXIT_TEMPFAIL:
+            return _defer_operation(
+                dao, task_id, model_name, "start", state, _cli_reason(stderr)
             )
-            return {"status": "failed", "message": error_msg}
+
+        error_msg = stderr.decode(errors="replace").strip() if stderr else "Model start failed"
+        AppLogger.error(
+            "Model start failed: task_id=%s, model=%s, returncode=%d, error=%s",
+            task_id,
+            model_name,
+            returncode,
+            error_msg,
+        )
+        return {"status": "failed", "message": error_msg}
 
     except Exception as e:
         error_msg = str(e)
@@ -2148,7 +1892,6 @@ def _run_model_start_task(task_id, model_name):
             error_msg,
         )
         return {"status": "failed", "message": error_msg}
-
 
 
 def _create_async_operation_task(request, model_name, operation, operation_type, validate_fn, trigger_fn):
@@ -2189,8 +1932,8 @@ def _create_async_operation_task(request, model_name, operation, operation_type,
         }, 400
 
     # Generate task ID for async tracking
-    task_id = f"{operation_type}-{model_name}-{uuid.uuid4().hex[:8]}"
-    _log_invocation(
+    task_id = foundation_util.make_task_id(operation_type, model_name)
+    foundation_util.log_invocation(
         f"{operation} operation requested",
         model_name=model_name,
         task_id=task_id,
@@ -2198,14 +1941,17 @@ def _create_async_operation_task(request, model_name, operation, operation_type,
     )
 
     # Record async operation with timestamps
-    dao = get_dao()
     op = AsyncOperation(
         task_id=task_id,
         operation=operation_type,
         model_name=model_name,
         status=TaskStatus.QUEUED.value
     )
+
     dao.create_async_operation(op)
+    err = _advance_model_state(dao, model_name, operation_type, TaskStatus.QUEUED.value)
+    if err:
+        return {"error": err, "model_name": model_name}, 500
 
     # Spawn background process
     trigger_fn(task_id, model_name)
@@ -2264,6 +2010,31 @@ def _validate_stop_state(model, model_name, operation, ip):
     return True, None
 
 
+def _validate_delete_state(model, model_name, operation, ip):
+    """Validate model state for delete operation.
+
+    Ask the pid files rather than the cached ``models.running`` column: a worker
+    started from the CLI, or one that outlived a restart, is not reflected there.
+    When liveness cannot be determined the request is let through -- the
+    resource-delete command checks the same pids again and refuses with a clear
+    reason, so an unknown answer never deletes a live worker's directory.
+
+    A model is deletable whether or not it is downloaded: deleting a model that
+    never finished downloading is how a half-installed model is cleaned up.
+    """
+    live = foundation_util.live_worker_names()
+    if live and model_name in live:
+        AppLogger.error(
+            "%s request for running model: %s, ip:%s",
+            operation,
+            model_name,
+            ip,
+        )
+        return False, f"Cannot delete running model '{model_name}'. Stop it first."
+
+    return True, None
+
+
 def start_foundation_model(request):
     """Start a foundation model service.
 
@@ -2290,8 +2061,8 @@ def start_foundation_model(request):
     return _create_async_operation_task(
         request,
         model_name,
-        "start",
-        "start",
+        OperationType.START.value,
+        OperationType.START.value,
         _validate_start_state,
         _trigger_model_start_background,
     )
@@ -2335,21 +2106,52 @@ def _run_download_and_start_task(task_id, model_name, release, resource_base_url
 
     # Mark model as downloaded in the database before starting it, so that a
     # start-phase failure still leaves the model downloaded and usable.
-    _update_model_state(model_name, downloaded=True)
+    foundation_util.update_model_state(model_name, downloaded=True)
     AppLogger.info(
         "download_start: download completed for task_id: %s, model: %s, auto-starting model service",
         task_id,
         model_name,
     )
 
-    # Phase 2: start the model service via the service executor so that this
-    # start is serialized with any concurrent stop/delete on the same model.
-    # Submitting here and blocking (future.result()) keeps the download executor
-    # thread occupied only during the brief start window, without any deadlock
-    # risk (both executors are independent single-thread pools).
-    service_executor = _get_service_executor()
-    future = service_executor.submit(_run_model_start_task, task_id, model_name)
-    return future.result()
+    # Phase 2: start the model service through the service submission, so the
+    # start stays serialized with any concurrent stop/delete on the same model and
+    # keeps the retry wiring a refusal needs. A start the lifecycle lock refuses
+    # (exit 75) is deferred: _defer_operation puts the row back to `queued` and the
+    # retry scheduler re-arms this start phase alone -- never the download phase
+    # again. Submit the start task asynchronously: the start completes in the service
+    # executor, and the download executor releases its worker immediately to process
+    # queued downloads. Both executors are independent single-thread pools, so no
+    # deadlock risk. Return async_delegated so _handle_operation_result knows the
+    # service executor owns the outcome write.
+    submit_service_task(
+        _run_model_start_task,
+        args=(task_id, model_name),
+        task_id=task_id,
+        model_name=model_name,
+        operation=OperationType.DOWNLOAD_START.value,
+        complete_async_operation_fn=_complete_async_operation,
+        retry_scheduler_fn=_schedule_service_retry,
+    )
+    # Signal that outcome is owned by the next executor; this prevents double-write
+    # of terminal status (download executor reports to API, service executor updates DB).
+    return {"status": "async_delegated", "message": "Download completed; starting model service in background"}
+
+
+def _deferred_start_stays_queued(_status, result):
+    """Decline to write an outcome for a deferred download_start.
+
+    The refused start is not the operation's end: _defer_operation already put the
+    row back to `queued`, and the retry that will run the start phase again was
+    armed by the service submission that ran it (see _run_download_and_start_task).
+    Writing a status here would both fake an outcome and make _resubmit_service_task
+    drop the retry, because a resubmit only happens while the task is still queued.
+    """
+    AppLogger.info(
+        "download_start deferred behind an in-flight resource operation: "
+        "start phase re-armed in %ss (held_by=%s), row stays queued",
+        result.get("delay"),
+        result.get("waiting_for") or "unknown",
+    )
 
 
 def _trigger_model_download_start_background(task_id, model_name, release, resource_base_url, replace):
@@ -2367,36 +2169,24 @@ def _trigger_model_download_start_background(task_id, model_name, release, resou
         resource_base_url: Base URL for resource repository
         replace: Whether to replace existing model
     """
-    _submit_download_task(
+    submit_download_task(
         _run_download_and_start_task,
         args=(task_id, model_name, release, resource_base_url, replace),
         task_id=task_id,
         model_name=model_name,
         operation=OperationType.DOWNLOAD_START.value,
+        complete_async_operation_fn=_complete_async_operation,
+        deferred_fn=_deferred_start_stays_queued,
     )
 
 
-def _runtime_verify_reason(stdout):
-    """Extract the runtime's failure reason from `resource verify` JSON output."""
-    try:
-        payload = json.loads(stdout)
-    except (TypeError, ValueError):
-        return ""
-    if not isinstance(payload, dict):
-        return ""
-    for entry in payload.get("resources", []):
-        if isinstance(entry, dict) and entry.get("kind") == "runtime" and entry.get("status") != "valid":
-            return str(entry.get("reason") or "")
-    return ""
-
-
-def _runtime_download_blocker():
+def _runtime_model_download_blocker():
     """Return why a model download cannot start yet, or None when the runtime is ready.
 
     Model workers execute from the shared TSFM runtime, so a model must not be
     fetched while that runtime is missing or unusable.
 
-    The check runs `resource verify <runtime>` in a child process instead of
+    The check runs `resource verify tsfm_runtime` in a child process instead of
     validating the venv here: the layout and manifest schema are owned by
     tdgpt/script, and this module is a separate deployment unit that cannot
     import it. It is a local check -- no repository access -- and it is the same
@@ -2405,20 +2195,33 @@ def _runtime_download_blocker():
     Returns:
         str: Reason the runtime is unusable, or None when it is ready.
     """
+
+    def extract_reason(stdout):
+        """Extract the runtime environment's failure reason from `resource verify` JSON output."""
+        try:
+            payload = json.loads(stdout)
+        except (TypeError, ValueError):
+            return ""
+
+        if not isinstance(payload, dict):
+            return ""
+
+        for entry in payload.get("resources", []):
+            if isinstance(entry, dict) and entry.get("kind") == "runtime" and entry.get("status") != "valid":
+                return str(entry.get("reason") or "")
+
+        return ""
+
+
     try:
-        taosanodectl = _get_taosanodectl_cmd()
+        taosanodectl = foundation_util.get_taosanodectl_cmd()
     except FileNotFoundError as exc:
         return str(exc)
 
-    _, exec_timeout = _resolve_resource_settings()
-    cmd = taosanodectl + [
-        "resource",
-        "verify",
-        _RUNTIME_RESOURCE_NAME,
-        "--format",
-        "json",
-    ]
-    _log_invocation("runtime readiness probe", cmd=" ".join(cmd))
+    _, exec_timeout = foundation_util.resolve_resource_settings()
+    cmd = taosanodectl + ["resource", "verify", RUNTIME_RESOURCE_NAME, "--format", "json"]
+
+    foundation_util.log_invocation("runtime readiness probe", cmd=" ".join(cmd))
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
@@ -2430,15 +2233,16 @@ def _runtime_download_blocker():
     if result.returncode == 0:
         return None
 
-    reason = _runtime_verify_reason(result.stdout)
-    if not reason:
+    reason = extract_reason(result.stdout)
+    if reason:
+        return reason
+    else:
         AppLogger.warning(
             "Cannot determine why the shared TSFM runtime is not ready (exit=%s): %s",
             result.returncode,
             (result.stderr or "").strip()[:500],
         )
         return "shared TSFM runtime is not installed or invalid"
-    return reason
 
 
 def _reject_download_without_runtime(model_name, ip):
@@ -2454,7 +2258,7 @@ def _reject_download_without_runtime(model_name, ip):
     Returns:
         tuple: (response_dict, 400) when the runtime is unusable, else None.
     """
-    runtime_download = _get_active_download_op(_RUNTIME_RESOURCE_NAME)
+    runtime_download = foundation_util.get_active_download_op(RUNTIME_RESOURCE_NAME)
     if runtime_download:
         AppLogger.info(
             "Model download allowed while the shared TSFM runtime is being downloaded: "
@@ -2466,7 +2270,7 @@ def _reject_download_without_runtime(model_name, ip):
         )
         return None
 
-    blocker = _runtime_download_blocker()
+    blocker = _runtime_model_download_blocker()
     if not blocker:
         return None
 
@@ -2514,9 +2318,10 @@ def download_and_start_foundation_model(request):
     release = payload.get("release", "1.0.0")
 
     # Use provided resource_base_url or fall back to configured default
-    resource_base_url, _ = _resolve_resource_settings(payload=payload)
+    resource_base_url, _ = foundation_util.resolve_resource_settings(payload=payload)
     replace = payload.get("replace", False)
-    _log_invocation(
+
+    foundation_util.log_invocation(
         "download-and-start request parameters",
         model_name=model_name,
         release=release,
@@ -2534,7 +2339,7 @@ def download_and_start_foundation_model(request):
 
     # The shared runtime has no model worker to start, so a download-start
     # request for it degrades to a plain runtime download.
-    if model_name == _RUNTIME_RESOURCE_NAME:
+    if model_name == RUNTIME_RESOURCE_NAME:
         response, code = download_foundation_runtime(request)
         if isinstance(response, dict) and response.get("status") == "queued":
             response["message"] = (
@@ -2574,7 +2379,7 @@ def download_and_start_foundation_model(request):
 
     # Validate the model exists in the repository (real-time check). Only needed
     # when a download is actually going to run.
-    is_valid, model_info, error_msg = _validate_model_in_repository(model_name, release, resource_base_url)
+    is_valid, model_info, error_msg = _extract_model_status_in_repository(model_name, release, resource_base_url)
     if not is_valid:
         AppLogger.error(
             "Download-and-start request for invalid model: %s, error: %s, ip:%s",
@@ -2603,7 +2408,7 @@ def download_and_start_foundation_model(request):
 
     # Deduplicate: if this model already has a download-and-start queued/running,
     # reuse that task instead of enqueuing a duplicate.
-    active_op = _get_active_download_op(model_name)
+    active_op = foundation_util.get_active_download_op(model_name)
     if active_op:
         return _reuse_download_response(active_op, model_name)
 
@@ -2614,7 +2419,7 @@ def download_and_start_foundation_model(request):
         return rejection
 
     # Generate a unique task ID for async tracking.
-    task_id = f"download-start-{model_name}-{uuid.uuid4().hex[:8]}"
+    task_id = foundation_util.make_task_id("download-start", model_name)
 
     # Record the combined async operation. The worker downloads the model and,
     # only on success, starts the model service.
@@ -2635,10 +2440,11 @@ def download_and_start_foundation_model(request):
     if rejection:
         return rejection
 
+    err = _advance_model_state(dao, model_name, OperationType.DOWNLOAD_START.value, TaskStatus.QUEUED.value)
+    if err:
+        return {"error": err, "model_name": model_name}, 500
     # Spawn the background download-then-start task.
-    _trigger_model_download_start_background(
-        task_id, model_name, release, resource_base_url, replace
-    )
+    _trigger_model_download_start_background(task_id, model_name, release, resource_base_url, replace)
 
     AppLogger.info(
         "Download-and-start initiated for model '%s' (package: %s, release: %s, resource_url: %s, "
@@ -2667,116 +2473,6 @@ def download_and_start_foundation_model(request):
     }, 202
 
 
-def _live_worker_names():
-    """Return the model workers whose process is actually alive, or None if unknown.
-
-    Reads the pid files through `taosanodectl model status` -- the same source
-    taosanode_service.py uses to decide whether a worker exists -- instead of the
-    cached `models.running` column. That column is only written when *this* API
-    reports a successful start, so it goes stale in both directions: a crashed
-    worker keeps looking running, and a worker started from the CLI looks stopped.
-
-    Returns:
-        list[str]: Names of models with a live worker process (sorted).
-        None: Liveness could not be determined -- callers must not read that as
-            "nothing is running"; the resource-delete guard in
-            taosanode_service.py checks the same pids again before removing
-            anything, so an unknown answer is safe to pass through.
-    """
-    try:
-        taosanodectl = _get_taosanodectl_cmd()
-    except FileNotFoundError as exc:
-        AppLogger.warning("Cannot probe model worker liveness: %s", exc)
-        return None
-
-    _, exec_timeout = _resolve_resource_settings()
-    cmd = taosanodectl + ["model", "status", "--format", "json"]
-    _log_invocation("model worker liveness probe", cmd=" ".join(cmd))
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
-    except subprocess.TimeoutExpired:
-        AppLogger.warning("Model worker liveness probe timed out (>%ss)", exec_timeout)
-        return None
-    except (OSError, subprocess.SubprocessError) as exc:
-        AppLogger.warning("Model worker liveness probe failed: %s", exc)
-        return None
-
-    if result.returncode != 0:
-        AppLogger.warning(
-            "Model worker liveness probe exited %s: %s",
-            result.returncode,
-            (result.stderr or "").strip()[:500],
-        )
-        return None
-
-    try:
-        statuses = json.loads(result.stdout)
-    except (TypeError, ValueError):
-        AppLogger.warning(
-            "Cannot parse model worker liveness output: %s", (result.stdout or "")[:200]
-        )
-        return None
-
-    if not isinstance(statuses, list):
-        return None
-
-    return sorted(
-        str(entry.get("model"))
-        for entry in statuses
-        if isinstance(entry, dict) and entry.get("running") and entry.get("model")
-    )
-
-
-def reconcile_model_running_state():
-    """Rebuild the cached `running` flags from the workers that are actually alive.
-
-    A model worker is not a child of this service: Models.start detaches it into a
-    session of its own, so it survives a restart of the API. The cached column,
-    however, is only written when *this* API observes a start or a stop, so after
-    a restart it can hold either answer wrongly -- and both directions are
-    user-visible. A dead worker that still looks running refuses every start; a
-    live worker that looks stopped refuses every stop, and a forced replace is
-    allowed to overwrite the files it has loaded.
-
-    So the pid files are asked instead (the same source the delete path trusts)
-    and their answer is written. Liveness that could not be probed changes
-    nothing: an unknown answer is not evidence that a model is stopped.
-
-    Returns:
-        int: Number of model rows whose flag was corrected.
-    """
-    live = _live_worker_names()
-    if live is None:
-        AppLogger.warning(
-            "Skipping model running-state reconciliation: worker liveness is unknown"
-        )
-        return 0
-
-    running_names = set(live)
-    dao = get_dao()
-    corrected = 0
-    for model in dao.list_models():
-        is_running = model.name in running_names
-        if model.running == is_running:
-            continue
-        if dao.update_model(model.name, running=is_running):
-            corrected += 1
-            AppLogger.info(
-                "Reconciled model '%s' running state: %s -> %s",
-                model.name,
-                model.running,
-                is_running,
-            )
-
-    AppLogger.info(
-        "Model running-state reconciliation complete: %d corrected (live workers: %s)",
-        corrected,
-        ", ".join(live) or "none",
-    )
-    return corrected
-
-
 def _runtime_delete_blocker(dao):
     """Return why the shared TSFM runtime must not be destroyed, if at all.
 
@@ -2798,7 +2494,7 @@ def _runtime_delete_blocker(dao):
     Returns:
         str: Error message, or None when deleting the runtime is safe.
     """
-    live = _live_worker_names()
+    live = foundation_util.live_worker_names()
     if live:
         return (
             "Cannot delete shared TSFM runtime while model workers are running: "
@@ -2825,29 +2521,36 @@ def _runtime_delete_blocker(dao):
 
 
 def _start_delete_operation(model_name, message):
-    """Queue the async delete of one resource and build its 202 response.
+    """Queue the async delete of the shared TSFM runtime and build its 202 response.
 
-    Shared by the model-delete and runtime-destroy entry points: both record the
-    same kind of operation row and hand it to the same background worker, so
-    only the validation performed before this call differs.
+    Only the runtime-destroy entry point uses this now: a model delete goes
+    through the generic ``_create_async_operation_task``, because it shares the
+    model lookup and state validation that start/stop already define. The
+    runtime has no model row to look up, so it keeps its own queue path.
 
     Args:
-        model_name: Resource to delete; ``_RUNTIME_RESOURCE_NAME`` for the
-            shared TSFM runtime, a model name otherwise.
+        model_name: Resource to delete; ``RUNTIME_RESOURCE_NAME`` for the
+            shared TSFM runtime.
         message: Human readable message for the response body.
 
     Returns:
         tuple: (response_dict, 202)
     """
     dao = get_dao()
-    task_id = f"delete-{model_name}-{uuid.uuid4().hex[:8]}"
-    _log_invocation("delete operation queued", model_name=model_name, task_id=task_id)
+    task_id = foundation_util.make_task_id("delete", model_name)
+
+    foundation_util.log_invocation("delete operation queued", model_name=model_name, task_id=task_id)
     dao.create_async_operation(AsyncOperation(
         task_id=task_id,
         operation=OperationType.DELETE.value,
         model_name=model_name,
         status=TaskStatus.QUEUED.value,
     ))
+
+    err = _advance_model_state(dao, model_name, OperationType.DELETE.value, TaskStatus.QUEUED.value)
+    if err:
+        return {"error": err, "model_name": model_name}, 500
+
     _trigger_model_delete_background(task_id, model_name)
     return {
         "status": "queued",
@@ -2890,7 +2593,7 @@ def delete_foundation_runtime(request):
         }, 400
 
     response, code = _start_delete_operation(
-        _RUNTIME_RESOURCE_NAME, "Shared TSFM runtime deletion initiated"
+        RUNTIME_RESOURCE_NAME, "Shared TSFM runtime deletion initiated"
     )
     AppLogger.info(
         "Shared TSFM runtime deletion initiated, task_id: %s, ip:%s",
@@ -2940,12 +2643,15 @@ def resume_pending_delete_operations():
             op.task_id,
             op.model_name,
         )
-        _submit_service_task(
+
+        submit_service_task(
             _run_model_delete_task,
             args=(op.task_id, op.model_name),
             task_id=op.task_id,
             model_name=op.model_name,
             operation=OperationType.DELETE.value,
+            complete_async_operation_fn=_complete_async_operation,
+            retry_scheduler_fn=_schedule_service_retry,
         )
 
 
@@ -2976,44 +2682,17 @@ def delete_foundation_model(request):
             "message": "Missing required field: model_name",
         }, 400
 
-    if model_name == _RUNTIME_RESOURCE_NAME:
+    if model_name == RUNTIME_RESOURCE_NAME:
         return delete_foundation_runtime(request)
 
-    dao = get_dao()
-    model = dao.get_model(model_name)
-    if not model:
-        AppLogger.error(
-            "Delete request for non-existent model: %s, ip:%s",
-            model_name,
-            request.remote_addr,
-        )
-        return {
-            "status": "error",
-            "message": f"Model '{model_name}' not found",
-        }, 404
-
-    # Ask the pid files rather than the cached `models.running` column: a worker
-    # started from the CLI, or one that outlived a restart, is not reflected
-    # there. When liveness cannot be determined the request is let through -- the
-    # resource-delete command checks the same pids again and refuses with a clear
-    # reason, so an unknown answer never deletes a live worker's directory.
-    live = _live_worker_names()
-    if live and model_name in live:
-        return {
-            "status": "error",
-            "message": f"Cannot delete running model '{model_name}'. Stop it first.",
-        }, 400
-
-    response, code = _start_delete_operation(
-        model_name, f"Model '{model_name}' deletion initiated"
-    )
-    AppLogger.info(
-        "Delete initiated for model '%s', task_id: %s, ip:%s",
+    return _create_async_operation_task(
+        request,
         model_name,
-        response["task_id"],
-        request.remote_addr,
+        OperationType.DELETE.value,
+        OperationType.DELETE.value,
+        _validate_delete_state,
+        _trigger_model_delete_background,
     )
-    return response, code
 
 
 def _run_model_stop_task(task_id, model_name):
@@ -3021,19 +2700,20 @@ def _run_model_stop_task(task_id, model_name):
 
     This runs in an executor thread; completion is applied by the caller via
     _complete_async_operation after this returns its result dict.
+
+    A transient refusal (the lifecycle lock is held by another resource operation
+    -- typically a download this stop must wait for) defers the task instead of
+    failing it (see _defer_operation). A permanent refusal still fails it.
     """
     try:
         dao = get_dao()
+        state = _operation_data(dao, task_id)
         dao.mark_operation_running(task_id)
 
-        taosanodectl = _get_taosanodectl_cmd()
-        _, exec_timeout = _resolve_resource_settings()
+        taosanodectl = foundation_util.get_taosanodectl_cmd()
+        _, exec_timeout = foundation_util.resolve_resource_settings()
 
-        cmd = taosanodectl + [
-            "model",
-            "stop",
-            model_name,
-        ]
+        cmd = taosanodectl + ["model", "stop", model_name]
 
         AppLogger.info(
             "Starting model stop process for task_id: %s, model: %s, cmd: %s",
@@ -3051,15 +2731,21 @@ def _run_model_stop_task(task_id, model_name):
                 model_name,
             )
             return {"status": "completed", "message": None}
-        else:
-            error_msg = result.stderr or "Model stop failed"
-            AppLogger.error(
-                "Model stop failed for task_id: %s, model: %s, error: %s",
-                task_id,
-                model_name,
-                error_msg,
+
+        if result.returncode == _CLI_EXIT_TEMPFAIL:
+            return _defer_operation(
+                dao, task_id, model_name, "stop", state,
+                _cli_reason(result.stderr, result.stdout),
             )
-            return {"status": "failed", "message": error_msg}
+
+        error_msg = result.stderr or "Model stop failed"
+        AppLogger.error(
+            "Model stop failed for task_id: %s, model: %s, error: %s",
+            task_id,
+            model_name,
+            error_msg,
+        )
+        return {"status": "failed", "message": error_msg}
 
     except subprocess.TimeoutExpired:
         error_msg = f"Model stop timeout {exec_timeout}sec"
@@ -3087,12 +2773,14 @@ def _trigger_model_stop_background(task_id, model_name):
 
     The executor handles async execution; caller monitors progress via get_operation_status(task_id)
     """
-    _submit_service_task(
+    submit_service_task(
         _run_model_stop_task,
         args=(task_id, model_name),
         task_id=task_id,
         model_name=model_name,
-        operation="stop",
+        operation=OperationType.STOP.value,
+        complete_async_operation_fn=_complete_async_operation,
+        retry_scheduler_fn=_schedule_service_retry,
     )
 
 
@@ -3122,702 +2810,8 @@ def stop_foundation_model(request):
     return _create_async_operation_task(
         request,
         model_name,
-        "stop",
-        "stop",
+        OperationType.STOP.value,
+        OperationType.STOP.value,
         _validate_stop_state,
         _trigger_model_stop_background,
     )
-
-
-def _build_operation_response(operation_info):
-    """Build a detailed response dict for an async operation.
-
-    Args:
-        operation_info: AsyncOperation dataclass from DAO
-
-    Returns:
-        dict with all operation details (task_id, status, progress, errors, etc.)
-    """
-    task_id = operation_info.task_id
-    operation = operation_info.operation
-    model_name = operation_info.model_name
-
-    response_data = {
-        "task_id": task_id,
-        "operation": operation,
-        "model_name": model_name,
-        "progress": operation_info.progress,
-        "status": operation_info.status,
-    }
-
-    if operation in (OperationType.DOWNLOAD.value, OperationType.DOWNLOAD_START.value):
-        data = operation_info.data or {}
-        response_data.update({
-            "model_id": data.get("model_id", ""),
-            "package": data.get("package", ""),
-            "release": data.get("release", "1.0.0"),
-            "resource_base_url": data.get("resource_base_url", ""),
-            "replace": data.get("replace", False),
-        })
-
-    if operation == OperationType.DOWNLOAD_START.value:
-        response_data["auto_start"] = True
-
-    # A download is reported in the same per-phase terms the SSE stream uses: the
-    # phase it is in, and that phase's own 0-100 progress. There is deliberately
-    # no monotonic whole-operation value any more, so a client that falls back to
-    # polling renders exactly the bars a streaming client does.
-    _apply_download_phase(response_data, operation_info)
-
-    # A delete that is waiting for an in-flight resource operation is still
-    # `queued`: say what it waits for, so a client can tell waiting from stuck.
-    if operation_info.status == TaskStatus.QUEUED.value:
-        data = operation_info.data if isinstance(operation_info.data, dict) else {}
-        if data.get("waiting_for"):
-            response_data["waiting_for"] = data["waiting_for"]
-            response_data["attempt"] = data.get("attempt", 0)
-            response_data["retry_after"] = data.get("retry_after")
-
-    if operation_info.status == TaskStatus.FAILED.value:
-        response_data["error"] = operation_info.error or "Unknown error"
-        response_data["error_code"] = operation_info.error_code or ""
-
-    return response_data
-
-
-def get_operation_status(request, task_id):
-    """Get status of an async operation by task_id.
-
-    This endpoint allows clients to query the progress of long-running operations
-    like model downloads. It mirrors the behavior of resource management operations.
-
-    Mock implementation: async task execution via taosanodectl subprocess.
-    In production, this would:
-    1. Query the DynamicResourceManager's operation state
-    2. Return real download progress (bytes downloaded / total size)
-    3. Report current installation step
-    4. Return detailed error information on failure
-
-    Args:
-        request: Flask request object
-        task_id: Unique identifier for the async operation
-                Format: {operation}-{model_name}-{random_hex}
-                Example: download-moirai-abc123ef
-
-    Returns:
-        JSON response with operation status and detailed progress information
-
-    Response states:
-        queued     - Task created, waiting for pool worker to pick it up
-        running    - Task is being executed by pool worker
-        completed  - Task finished successfully
-        failed     - Task execution failed with error
-    """
-    AppLogger.debug("Received operation status request for task_id: %s, ip:%s", task_id, request.remote_addr)
-
-    dao = get_dao()
-    operation_info = dao.get_async_operation(task_id)
-    if not operation_info:
-        AppLogger.warning("Status request for non-existent task_id: %s, ip:%s", task_id, request.remote_addr)
-        return {
-            "status": "error",
-            "message": f"Task '{task_id}' not found",
-        }, 404
-
-    response_data = _build_operation_response(operation_info)
-    return {
-        "status": "success",
-        "data": response_data,
-    }, 200
-
-
-# A download operation installs exactly one resource -- the shared TSFM runtime
-# (venv) or a model -- and that resource goes through two sequential phases:
-# download the archive, then unpack/install it. The whole request stays ONE row
-# in async_operations.
-#
-# So that clients can label and render each phase separately, every phase is
-# pushed as its own synthetic operation name with its own 0-100 progress, and the
-# operation's own row is never streamed as `download`. These names are never
-# written to async_operations and cannot be queried through /status; only the real
-# operation row can. The operation lifecycle (single-flight de-duplication,
-# cancellation, terminal state) stays exactly as it is.
-#
-# A download_start request has one step more than a plain download: after the
-# install it starts the model worker. That step is reported too, as `start` --
-# the same name an explicit start operation streams under, so a client renders the
-# auto-start with the code path and label it already has for a start it asked for.
-# See _auto_start_phase_events: it is derived from the operation row, because
-# there is no archive or byte counter behind it.
-_RUNTIME_DOWNLOAD = "runtime_download"
-_RUNTIME_IMPORT = "runtime_import"
-_MODEL_DOWNLOAD = "model_download"
-_MODEL_IMPORT = "model_import"
-_MODEL_START = "start"
-
-# How long after a download-family operation finished its phases are replayed to
-# a client that subscribes to the stream. A reconnected EventSource or a reloaded
-# page has no phase history of its own, and the stream only closes out streams it
-# reported itself -- without this the client would never learn how the operation
-# ended. The window is deliberately short: it covers a reconnect around the
-# completion without handing a long-lived client the history of everything that
-# finished while it was away.
-_FINISHED_DOWNLOAD_REPLAY_SECONDS = 60
-
-# Per-resource task states (written by taosanodectl into
-# <resource_dir>/state/tasks/<sha256>.json), grouped by phase.
-_DOWNLOAD_PHASE_STATES = frozenset({"downloading", "verifying"})
-_IMPORT_PHASE_STATES = frozenset({"importing"})
-
-# `downloaded` means the archive is complete and verified on disk: the download
-# phase is finished, but the install phase has not reported a state of its own yet.
-_DOWNLOAD_COMPLETE_STATES = frozenset({"downloaded"})
-
-# Terminal statuses of the operation row itself, as opposed to the task-file
-# status of one resource.
-_TERMINAL_OPERATION_STATES = (
-    TaskStatus.COMPLETED.value,
-    TaskStatus.FAILED.value,
-    TaskStatus.INTERRUPTED.value,
-)
-
-
-def _parse_resource_timestamp(value):
-    """Parse the `updated_at` field written into a resource task file."""
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
-
-
-def _read_resource_task_states():
-    """Read the per-resource task files written by taosanodectl.
-
-    Returns an empty list when ``resource_dir`` is not configured or the task
-    directory does not exist yet, so the SSE stream degrades to model-only
-    updates instead of failing.
-    """
-    resource_dir = Configure.get_instance()._conf.get("resource_dir", "")
-    if not resource_dir:
-        return []
-
-    task_root = Path(resource_dir) / "state" / "tasks"
-    if not task_root.is_dir():
-        return []
-
-    states = []
-    for task_file in task_root.glob("*.json"):
-        try:
-            with task_file.open() as file_obj:
-                value = json.load(file_obj)
-        except (OSError, json.JSONDecodeError):
-            continue
-        if isinstance(value, dict):
-            states.append(value)
-    return states
-
-
-def _find_resource_state(op_info, task_states, kind, name=None):
-    """Return the task state written for one resource during this operation.
-
-    Task files are keyed by archive SHA-256 and persist across runs, so a file
-    from an earlier attempt must not be mistaken for the current one: only
-    entries updated after the operation started (or was created, while it is
-    still queued behind another download) are considered.
-
-    Args:
-        kind: "runtime" or "model", matching the task file's `kind` field
-        name: Model name to match; ignored for the runtime, which is shared
-
-    Returns:
-        dict: Newest matching task state, or None when this operation is not
-            touching that resource (e.g. it is already installed, in which case
-            no task file is written).
-    """
-    since = op_info.started_at or op_info.created_at
-    newest_state = None
-    newest_at = None
-    for state in task_states:
-        if state.get("kind") != kind:
-            continue
-        if name is not None and state.get("name") != name:
-            continue
-        updated_at = _parse_resource_timestamp(state.get("updated_at"))
-        if updated_at is None or updated_at.timestamp() < since:
-            continue
-        if newest_at is None or updated_at > newest_at:
-            newest_state, newest_at = state, updated_at
-    return newest_state
-
-
-def _phase_progress(done, total):
-    """Scale a phase's byte counters to 0-99 (100 means the phase finished)."""
-    if total <= 0:
-        return 0
-    ratio = min(1.0, max(0.0, done / total))
-    return min(99, int(ratio * 100))
-
-
-def _resource_phase_events(download_op, import_op, state, import_seen):
-    """Build the (operation, progress, status) tuples for one resource.
-
-    The download phase is reported as finished as soon as the archive is on
-    disk; the install phase owns the terminal status of the resource.
-
-    Args:
-        download_op: Synthetic operation name of the download phase
-        import_op: Synthetic operation name of the install phase
-        state: Resource task state (see _find_resource_state)
-        import_seen: Whether the install phase was already reported to clients
-
-    Returns:
-        list: Phase events for this resource, empty while it has nothing to
-            report (already installed, or not started yet).
-    """
-    if state is None:
-        return []
-
-    status = state.get("status")
-    done = state.get("bytes_done") or 0
-    total = state.get("bytes_total") or 0
-    progress = _phase_progress(done, total)
-
-    if status in _DOWNLOAD_PHASE_STATES:
-        return [(download_op, progress, TaskStatus.RUNNING.value)]
-
-    # `downloaded` and everything after it mean the archive is fully on disk.
-    download_done = (download_op, 100, TaskStatus.COMPLETED.value)
-
-    if status in _DOWNLOAD_COMPLETE_STATES:
-        return [download_done]
-
-    if status in _IMPORT_PHASE_STATES:
-        return [download_done, (import_op, progress, TaskStatus.RUNNING.value)]
-
-    if status == "completed":
-        return [download_done, (import_op, 100, TaskStatus.COMPLETED.value)]
-
-    if status == "failed":
-        # The failure belongs to whichever phase was in flight: the install
-        # phase when it had already been reported, otherwise the download phase.
-        if import_seen:
-            return [download_done, (import_op, progress, TaskStatus.FAILED.value)]
-        return [(download_op, progress, TaskStatus.FAILED.value)]
-
-    return []
-
-
-def _download_phase_snapshot(op_info):
-    """Return the phase a download is in, in the terms the SSE stream reports.
-
-    The phase names, the per-phase progress and the task-file selection all come
-    from the helpers the SSE emitter uses, so a client that falls back to polling
-    /status renders the same bars as one that streams. That is also why the
-    operation row no longer carries a monotonic value of its own: the task file
-    already holds the truth.
-
-    Returns:
-        tuple: (phase_name, progress), where progress is None when the operation
-            has no resource task file yet -- it is still queued, or the resource
-            was already installed so `resource apply` wrote none.
-    """
-    task_states = _read_resource_task_states()
-
-    if op_info.model_name == _RUNTIME_RESOURCE_NAME:
-        download_op, import_op = _RUNTIME_DOWNLOAD, _RUNTIME_IMPORT
-        state = _find_resource_state(op_info, task_states, "runtime")
-    else:
-        download_op, import_op = _MODEL_DOWNLOAD, _MODEL_IMPORT
-        state = _find_resource_state(op_info, task_states, "model", op_info.model_name)
-
-    if state is None:
-        # No task file: the download phase is the one this operation will start
-        # in, which is the identity the SSE stand-in row carries as well.
-        return download_op, None
-
-    # A task file records that the resource failed, not which phase it failed in.
-    # The SSE stream knows, because it saw the install phase reported first; a
-    # poll cannot, so the failure is attributed to the download phase here and the
-    # status is what tells the client the operation did not succeed.
-    events = _resource_phase_events(download_op, import_op, state, import_seen=False)
-    if not events:
-        return download_op, None
-
-    # The auto-start step follows the install; report it in the same terms the
-    # stream uses, so a polling client sees the same sequence of phases.
-    installed = any(
-        operation == import_op and status == TaskStatus.COMPLETED.value
-        for operation, _, status in events
-    )
-    start_events = _auto_start_phase_events(op_info, installed)
-    if start_events:
-        phase, progress, _ = start_events[-1]
-        return phase, progress
-
-    phase, progress, _ = events[-1]
-    return phase, progress
-
-
-def _apply_download_phase(response_data, op_info):
-    """Attach the per-phase view of a download to an operation response."""
-    if op_info.operation not in _DOWNLOAD_FAMILY:
-        return
-
-    phase, progress = _download_phase_snapshot(op_info)
-    response_data["phase"] = phase
-    if progress is not None:
-        response_data["progress"] = progress
-
-
-def _build_phase_response(op_info, operation, model_name, progress, status, state):
-    """Wrap one phase event into the standard SSE payload.
-
-    The payload reuses the exact field set of the model-level response so the
-    stream stays compatible; only `operation`, `model_name`, `progress` and
-    `status` are substituted. `model_id`/`package`/`release` are copied from the
-    operation row, so a phase event carries the same metadata as its envelope.
-    """
-    response_data = _build_operation_response(op_info)
-    response_data["operation"] = operation
-    response_data["model_name"] = model_name
-    response_data["progress"] = progress
-    response_data["status"] = status
-    if status == TaskStatus.FAILED.value and state is not None:
-        # A phase backed by a task file fails for the resource's own reason; one
-        # without a task file (the auto-start step) keeps the operation's error,
-        # which _build_operation_response already put in the payload.
-        response_data["error"] = state.get("message") or "Resource install failed"
-    return response_data
-
-
-def _auto_start_phase_events(op_info, installed):
-    """Build the events for the auto-start step of a download_start operation.
-
-    A download_start request runs two jobs on one row: install the resource, then
-    start its worker. The install is reported from the resource task file; the
-    start has no such file, and it used to be invisible -- the stream went quiet
-    once `model_import` reached 100 and, both install phase streams having already
-    reported their terminal state, said nothing when the model was up either.
-    Deriving it from the row is also what lets a client that connects late still
-    learn that the step ran.
-
-    Args:
-        op_info: Operation row
-        installed: Whether the install phase has been reported finished
-
-    Returns:
-        list: One event while the start runs, one terminal event once it ends;
-            empty for any other operation, and before the install has finished.
-    """
-    if op_info.operation != OperationType.DOWNLOAD_START.value or not installed:
-        return []
-
-    status = op_info.status
-    if status == TaskStatus.COMPLETED.value:
-        return [(_MODEL_START, 100, TaskStatus.COMPLETED.value)]
-    if status in (TaskStatus.FAILED.value, TaskStatus.INTERRUPTED.value):
-        return [(_MODEL_START, 0, status)]
-    if status == TaskStatus.RUNNING.value:
-        return [(_MODEL_START, 0, TaskStatus.RUNNING.value)]
-    return []
-
-
-def _build_resource_phase_responses(op_info, task_states, seen_states):
-    """Build the per-phase payloads for the resource this operation installs.
-
-    An operation installs exactly one resource: ``tsfm_runtime`` installs the
-    shared runtime, any other name installs that model. Matching a task file by
-    kind alone is no longer enough -- the runtime can be downloaded on its own
-    now, so a runtime task file belonging to a *concurrent* runtime download must
-    not be reported as this model operation's runtime phase.
-    """
-    if op_info.operation not in _DOWNLOAD_FAMILY:
-        return []
-
-    if op_info.model_name == _RUNTIME_RESOURCE_NAME:
-        resources = (
-            (
-                _RUNTIME_DOWNLOAD,
-                _RUNTIME_IMPORT,
-                _RUNTIME_RESOURCE_NAME,
-                _find_resource_state(op_info, task_states, "runtime"),
-            ),
-        )
-    else:
-        resources = (
-            (
-                _MODEL_DOWNLOAD,
-                _MODEL_IMPORT,
-                op_info.model_name,
-                _find_resource_state(op_info, task_states, "model", op_info.model_name),
-            ),
-        )
-
-    responses = []
-    for download_op, import_op, resource_name, state in resources:
-        import_seen = (op_info.task_id, import_op) in seen_states
-        events = _resource_phase_events(download_op, import_op, state, import_seen)
-        for operation, progress, status in events:
-            responses.append(
-                _build_phase_response(
-                    op_info, operation, resource_name, progress, status, state
-                )
-            )
-
-        # The auto-start step only exists once the install it follows is done, so
-        # it is derived from that outcome rather than from a file of its own.
-        installed = any(
-            operation == import_op and status == TaskStatus.COMPLETED.value
-            for operation, _, status in events
-        )
-        for operation, progress, status in _auto_start_phase_events(op_info, installed):
-            responses.append(
-                _build_phase_response(
-                    op_info, operation, resource_name, progress, status, None
-                )
-            )
-    return responses
-
-
-def _emit_operation_status_updates(dao, all_ops, seen_states):
-    """Check for operation state changes and yield SSE events.
-
-    Updates seen_states dict and yields SSE events for:
-    - Active operations that have changed state
-    - Tasks that disappeared from active list (now completed/failed)
-
-    A download operation is reported entirely by its phase streams (see
-    _RUNTIME_DOWNLOAD and friends): the operation's own row is never streamed as
-    `download`, it only stands in for the download phase while that phase has
-    nothing to report yet -- still queued, or failed before a resource task file
-    was written -- and then under the phase's own name. Operations without phases
-    (start/stop/delete) stream their row as before. Phase streams report their
-    own 0-100 progress and their own terminal status, so a client can label each
-    phase instead of inferring it from the progress value.
-
-    Args:
-        dao: Data access object for fetching operation details
-        all_ops: List of active AsyncOperation objects
-        seen_states: Dict tracking (task_id, operation) -> (status, progress)
-
-    Yields:
-        SSE formatted strings ("data: {...}\n\n") or empty string if no changes
-    """
-    changed = False
-    task_states = _read_resource_task_states()
-
-    # Check each operation for state changes
-    for op_info in all_ops:
-        if op_info.operation in _DOWNLOAD_FAMILY:
-            # The generic `download` row would only repeat the download phase
-            # (same task, same resource, same moment), so a download operation is
-            # streamed through its phase names only. The row stands in for the
-            # download phase only while that phase has nothing to report yet, so
-            # the task is never silent.
-            phases = _build_resource_phase_responses(op_info, task_states, seen_states)
-            if phases:
-                responses = phases
-            else:
-                row = _build_operation_response(op_info)
-                row["operation"] = (
-                    _RUNTIME_DOWNLOAD
-                    if op_info.model_name == _RUNTIME_RESOURCE_NAME
-                    else _MODEL_DOWNLOAD
-                )
-                responses = [row]
-        else:
-            # start/stop/delete have no phases: their row is the whole story.
-            responses = [_build_operation_response(op_info)]
-
-        for response_data in responses:
-            key = (op_info.task_id, response_data.get("operation"))
-            current_state = (response_data.get("status"), response_data.get("progress"))
-
-            # Emit if state changed
-            if seen_states.get(key) == current_state:
-                continue
-            seen_states[key] = current_state
-
-            yield f"data: {json.dumps(response_data)}\n\n"
-            changed = True
-
-    # Check for tasks that were active but have now disappeared
-    # They may have completed, failed, or been interrupted
-    active_task_ids = {op.task_id for op in all_ops}
-
-    # The tail phase of an operation can start and finish between two polls: the
-    # row is retired as soon as taosanodectl exits, which happens right after the
-    # last import. A phase that was never observed as running would then never be
-    # reported at all, because the loop below only closes out streams it already
-    # knows about. Synthesize those payloads from the resource task files so a
-    # client always learns how every phase ended.
-    for retired_task_id in {
-        task_id for task_id, _ in seen_states.keys() if task_id not in active_task_ids
-    }:
-        retired_op = dao.get_async_operation(retired_task_id)
-        if not retired_op or retired_op.status not in _TERMINAL_OPERATION_STATES:
-            continue
-        for response_data in _build_resource_phase_responses(
-            retired_op, task_states, seen_states
-        ):
-            key = (retired_task_id, response_data.get("operation"))
-            if key in seen_states:
-                # Already tracked: the loop below reports its terminal state
-                # (and deletes the entry) instead of emitting a duplicate here.
-                continue
-            seen_states[key] = (
-                response_data.get("status"),
-                response_data.get("progress"),
-            )
-            yield f"data: {json.dumps(response_data)}\n\n"
-            changed = True
-
-    # A client that subscribes around the end of a download -- a reconnected
-    # EventSource, a reloaded page -- has no phase stream of its own here, so the
-    # loops below would tell it nothing at all. Replay what finished moments ago so
-    # the outcome is never lost; the window keeps this from becoming a history
-    # dump on every reconnect.
-    for finished_op in dao.list_recently_finished_downloads(
-        time.time() - _FINISHED_DOWNLOAD_REPLAY_SECONDS
-    ):
-        if finished_op.task_id in active_task_ids:
-            continue
-        for response_data in _build_resource_phase_responses(
-            finished_op, task_states, seen_states
-        ):
-            key = (finished_op.task_id, response_data.get("operation"))
-            if key in seen_states:
-                continue
-            seen_states[key] = (
-                response_data.get("status"),
-                response_data.get("progress"),
-            )
-            yield f"data: {json.dumps(response_data)}\n\n"
-            changed = True
-
-    for key in list(seen_states.keys()):
-        task_id, operation = key
-        if task_id in active_task_ids:
-            continue
-
-        # Task is no longer in the active list — check if it has completed
-        completed_op = dao.get_async_operation(task_id)
-        if not completed_op:
-            # The row was removed (e.g. cancelled); nothing left to report.
-            del seen_states[key]
-            continue
-        if completed_op.status not in _TERMINAL_OPERATION_STATES:
-            continue
-
-        # Send the final completion/failure status
-        last_seen_state = seen_states[key]
-        if last_seen_state[0] in _TERMINAL_OPERATION_STATES:
-            # This stream already reported its own terminal state (e.g. the
-            # runtime finished while the operation row stayed alive) — the
-            # operation's outcome says nothing new about it.
-            continue
-
-        response_data = _build_operation_response(completed_op)
-        if operation != completed_op.operation:
-            # A synthetic phase stream: keep its identity instead of replacing
-            # it with the operation's.
-            response_data["operation"] = operation
-            if completed_op.status == TaskStatus.COMPLETED.value:
-                # The operation only completes once every phase has finished, so
-                # a phase still marked running did reach 100.
-                response_data["progress"] = 100
-            else:
-                # Keep the progress this phase last reported.
-                response_data["progress"] = last_seen_state[1]
-            if operation.startswith("runtime_"):
-                response_data["model_name"] = _RUNTIME_RESOURCE_NAME
-
-        # Record the terminal state instead of deleting the entry so the
-        # replay loop does not re-emit it within its window.
-        seen_states[key] = (
-            response_data.get("status"),
-            response_data.get("progress"),
-        )
-        yield f"data: {json.dumps(response_data)}\n\n"
-        changed = True
-
-    if not changed:
-        yield ""
-
-
-def get_all_operations_stream(request):
-    """Stream all foundation model operations status via Server-Sent Events (SSE).
-
-    Single connection pushes updates for ALL running tasks.
-    Clients subscribe once and receive all task status changes.
-
-    Client usage:
-        const sse = new EventSource(`/api/v1/foundation-models/status/stream/all`)
-        sse.onmessage = (e) => {
-            const op = JSON.parse(e.data)
-            console.log(`Task ${op.task_id}: ${op.status} (${op.progress}%)`)
-        }
-
-    Downloads are streamed through their phase events instead of the generic
-    `download` row: `operation: "model_download"` then `"model_import"` for a
-    model, and `"runtime_download"` then `"runtime_import"` (with
-    `model_name: "tsfm_runtime"`) for the shared runtime. A download_start request
-    adds `"start"` once the install has finished, because it goes on to start the
-    worker -- under the name an explicit start streams under, so a client renders
-    it with one code path. Phase operations are stream-only and are not queryable
-    via the /status endpoint. An operation that finished moments ago is replayed
-    to a client that subscribes after the fact (see
-    _FINISHED_DOWNLOAD_REPLAY_SECONDS), so a reconnected stream cannot miss the
-    outcome.
-
-    Returns:
-        SSE stream of operation updates: {task_id, status, progress, ...}
-    """
-    from flask import Response
-
-    def event_stream():
-        """Generator yielding SSE events for all active operations."""
-        dao = get_dao()
-        seen_states = {}  # (task_id, operation) -> (status, progress)
-        no_change_count = 0
-        max_no_change = 3600  # 1 hour of no change = timeout
-
-        while True:
-            try:
-                # Get all active (non-completed) operations
-                all_ops = dao.list_async_operations(active_only=True)
-
-                # Emit updates for changed operations
-                had_changes = False
-                for event in _emit_operation_status_updates(dao, all_ops, seen_states):
-                    if event:  # Skip empty strings (no changes)
-                        yield event
-                        had_changes = True
-
-                # Send keep-alive every 15s if no changes
-                no_change_count += 1
-                if no_change_count % 15 == 0:
-                    yield ":keepalive\n\n"
-
-                if had_changes:
-                    no_change_count = 0
-
-                # Timeout if no changes for 60 minutes
-                if no_change_count >= max_no_change:
-                    yield f"data: {json.dumps({'error': 'No status changes for 60 minutes, stream closed'})}\n\n"
-                    return
-
-                time.sleep(1)
-
-            except Exception as e:
-                AppLogger.error("SSE all-ops stream error: %s", e)
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
-                return
-
-    AppLogger.info("SSE stream opened for all operations, ip:%s", request.remote_addr)
-    return Response(event_stream(), mimetype="text/event-stream")

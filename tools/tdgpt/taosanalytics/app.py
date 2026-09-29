@@ -44,20 +44,22 @@ from taosanalytics.handlers.regression import handle_regression
 from taosanalytics.log import AppLogger
 from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.service_registry import loader
-from taosanalytics.tsfmservice.foundation_model import (
+from taosanalytics.tsfm.foundation_model import (
     delete_foundation_model,
     delete_foundation_runtime,
     download_and_start_foundation_model,
     download_foundation_model,
     download_foundation_runtime,
     ensure_pending_deletes_resumed,
-    get_all_operations_stream,
     get_model_info,
-    get_operation_status,
     init_models_db,
     list_all_tsfm,
     start_foundation_model,
     stop_foundation_model,
+)
+from taosanalytics.tsfm.response_event import (
+    get_all_operations_stream,
+    get_operation_status,
 )
 
 
