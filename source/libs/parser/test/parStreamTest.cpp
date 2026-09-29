@@ -3189,6 +3189,32 @@ TEST_F(ParserStreamTest, CreateStreamResolvesFinalTimeContextValues) {
   }
 }
 
+TEST_F(ParserStreamTest, TodayUsesStreamTimezoneInsteadOfConnectionTimezone) {
+  timezone_t timezone = tzalloc("Asia/Shanghai");
+  if (timezone == nullptr) {
+    GTEST_SKIP() << "Asia/Shanghai timezone data is unavailable";
+  }
+  tzfree(timezone);
+  const char* sql =
+      "create stream stream_streamdb.s_today_context interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 "
+      "stream_options(config(timezone='Asia/Shanghai') | calc_notify_only) "
+      "as select ts, today() as stream_today from stream_querydb.stream_t2";
+  array<char, 1024> msgBuf = {0};
+  SQuery* query = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql, &query, msgBuf.data(), msgBuf.size(), "UTC"))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> guard(query, qDestroyQuery);
+  const auto* stmt = reinterpret_cast<const SCreateStreamStmt*>(query->pRoot);
+  const auto* select = reinterpret_cast<const SSelectStmt*>(stmt->pQuery);
+  const SNode* value = nodesListGetNode(select->pProjectionList, 1);
+  ASSERT_EQ(QUERY_NODE_VALUE, nodeType(value));
+  const auto* today = reinterpret_cast<const SValueNode*>(value);
+  // Shanghai midnight is 16:00 UTC on the preceding UTC date (no DST).
+  int64_t seconds = convertTimePrecision(today->datum.i, today->node.resType.precision, TSDB_TIME_PRECISION_MILLI) / 1000;
+  EXPECT_EQ((seconds % 86400 + 86400) % 86400, 16 * 3600);
+}
+
 TEST_F(ParserStreamTest, CreateStreamRejectsInvalidFinalTimeContextBeforeCommand) {
   struct TestCase {
     const char* sql;
@@ -7091,7 +7117,7 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinUnsupportedOnCondition
       "where ts >= _twstart and ts < _twend) a join "
       "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
       "where ts >= _twstart and ts < _twend) b on ";
-  run(prefix + "a.ts = b.ts or a.cnt = b.minv", TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND, PARSER_STAGE_TRANSLATE);
+  run(prefix + "a.ts = b.ts or a.cnt = b.minv");
   run(prefix + "a.ts = b.ts and a.cnt > b.minv");
   run(prefix + "a.ts = b.ts and abs(a.cnt) = b.minv");
   run(prefix + "a.ts = b.ts and a.cnt = 1");

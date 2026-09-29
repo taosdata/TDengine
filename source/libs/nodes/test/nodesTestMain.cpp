@@ -133,6 +133,60 @@ TEST(NodesTest, sort) {
   nodesDestroyList(l);
 }
 
+TEST(NodesTest, mergeNodeTransfersAdditionalConditionToEmptyTarget) {
+  SNode* pCondition = NULL;
+  SNode* pAdditional = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pAdditional));
+  SNode* pExpected = pAdditional;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMergeNode(&pCondition, &pAdditional));
+  EXPECT_EQ(pCondition, pExpected);
+  EXPECT_EQ(pAdditional, nullptr);
+
+  nodesDestroyNode(pCondition);
+}
+
+TEST(NodesTest, mergeNodeCreatesAndFromTwoValues) {
+  SNode* pCondition = NULL;
+  SNode* pAdditional = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pCondition));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pAdditional));
+  SNode* pOriginalCondition = pCondition;
+  SNode* pOriginalAdditional = pAdditional;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMergeNode(&pCondition, &pAdditional));
+  ASSERT_NE(pCondition, nullptr);
+  EXPECT_EQ(pAdditional, nullptr);
+  ASSERT_EQ(nodeType(pCondition), QUERY_NODE_LOGIC_CONDITION);
+  EXPECT_EQ(((SLogicConditionNode*)pCondition)->condType, LOGIC_COND_TYPE_AND);
+  EXPECT_EQ(LIST_LENGTH(((SLogicConditionNode*)pCondition)->pParameterList), 2);
+  EXPECT_EQ(nodesListGetNode(((SLogicConditionNode*)pCondition)->pParameterList, 0), pOriginalAdditional);
+  EXPECT_EQ(nodesListGetNode(((SLogicConditionNode*)pCondition)->pParameterList, 1), pOriginalCondition);
+
+  nodesDestroyNode(pCondition);
+}
+
+TEST(NodesTest, mergeNodeTransfersAdditionalConditionToAndNode) {
+  SNode* pCondition = NULL;
+  SNode* pFirst = NULL;
+  SNode* pAdditional = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pCondition));
+  SLogicConditionNode* pAnd = (SLogicConditionNode*)pCondition;
+  pAnd->condType = LOGIC_COND_TYPE_AND;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pFirst));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pAnd->pParameterList, pFirst));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pAdditional));
+  SNode* pOriginalAdditional = pAdditional;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMergeNode(&pCondition, &pAdditional));
+  EXPECT_EQ(pCondition, (SNode*)pAnd);
+  EXPECT_EQ(pAdditional, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pAnd->pParameterList), 2);
+  EXPECT_EQ(nodesListGetNode(pAnd->pParameterList, 0), pFirst);
+  EXPECT_EQ(nodesListGetNode(pAnd->pParameterList, 1), pOriginalAdditional);
+  nodesDestroyNode(pCondition);
+}
+
 TEST(NodesTest, match) {
   SNode* pOperator = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOperator);

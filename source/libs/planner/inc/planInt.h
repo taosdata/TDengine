@@ -93,16 +93,19 @@ int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQue
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
 int32_t planCheckRequiredExtColumns(const SExtTableNode* pExtNode, const SNodeList* pScanCols);
+bool    planFqOuterJoinNeedsNestedFallback(const SJoinLogicNode* pJoin);
 
 bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);
 bool        getParaTablesSortOptHint(SNodeList* pList);
 bool        getSmallDataTsSortOptHint(SNodeList* pList);
 bool        getSmallDataScanSortOptHint(SNodeList* pList);
-bool        getHashJoinOptHint(SNodeList* pList);
+EJoinAlgorithm getJoinAlgoHint(SNodeList* pList);
 bool        getOptHint(SNodeList* pList, EHintOption hint);
 SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
 int32_t     collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
+// Collect only aliases that identify scan sources, excluding expression references.
+int32_t     collectSourceTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 bool        isPartTableAgg(SAggLogicNode* pAgg);
 bool        isPartTagAgg(SAggLogicNode* pAgg);
 bool        isPartTableWinodw(SWindowLogicNode* pWindow);

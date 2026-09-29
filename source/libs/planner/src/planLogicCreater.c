@@ -1509,6 +1509,44 @@ static EStreamExtJoinKey streamExtJoinTableKeyType(const SPlanStreamContext* pSt
   return info.timeKey;
 }
 
+static bool streamExternalWindowHasOrderedTwstartProjection(SNode* pTable) {
+  if (NULL == pTable || QUERY_NODE_TEMP_TABLE != nodeType(pTable)) {
+    return false;
+  }
+
+  SNode* pSubquery = ((STempTableNode*)pTable)->pSubquery;
+  if (NULL == pSubquery || QUERY_NODE_SELECT_STMT != nodeType(pSubquery)) {
+    return false;
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pSubquery;
+  if (NULL == pSelect->pWindow || QUERY_NODE_EXTERNAL_WINDOW != nodeType(pSelect->pWindow) ||
+      hasExternalWindowDerivedFromSubquery(pSelect) || NULL == pSelect->pOrderByList ||
+      0 == LIST_LENGTH(pSelect->pOrderByList)) {
+    return false;
+  }
+
+  SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0);
+  if (NULL == pOrder || QUERY_NODE_COLUMN != nodeType(pOrder->pExpr)) {
+    return false;
+  }
+
+  SColumnNode* pOrderCol = (SColumnNode*)pOrder->pExpr;
+  SNode*       pProjection = NULL;
+  FOREACH(pProjection, pSelect->pProjectionList) {
+    SExprNode* pExpr = (SExprNode*)pProjection;
+    if (!streamExtJoinExprNameMatches(pExpr, pOrderCol->colName)) {
+      continue;
+    }
+    if (QUERY_NODE_FUNCTION == nodeType(pProjection)) {
+      return FUNCTION_TYPE_TWSTART == ((SFunctionNode*)pProjection)->funcType;
+    }
+    return QUERY_NODE_COLUMN == nodeType(pProjection) &&
+           COLUMN_TYPE_WINDOW_START == ((SColumnNode*)pProjection)->colType;
+  }
+  return false;
+}
+
 static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SJoinTableNode* pJoinTable,
                                    SLogicNode** pLogicNode) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -1523,15 +1561,22 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->joinAlgo = JOIN_ALGO_UNKNOWN;
   pJoin->isSingleTableJoin = pJoinTable->table.singleTable;
   pJoin->hasSubQuery = pJoinTable->hasSubQuery;
+  pJoin->isCrossJoin = pJoinTable->isCrossJoin;
   pJoin->node.inputTsOrder = ORDER_ASC;
   pJoin->node.groupAction = GROUP_ACTION_CLEAR;
-  pJoin->hashJoinHint = getHashJoinOptHint(pSelect->pHint);
+  pJoin->joinAlgoHint = getJoinAlgoHint(pSelect->pHint);
+  // Keep the selected algorithm as a hint until join-condition normalization.
   // Correlated ON predicates must be evaluated for every candidate pair.
-  if (pJoin->hashJoinHint && nodesExprHasCorrelation(pJoinTable->pOnCond)) {
-    pJoin->hashJoinHint = false;
+  if (JOIN_ALGO_HASH == pJoin->joinAlgoHint &&
+      nodesExprHasCorrelation(pJoinTable->pOnCond)) {
+    pJoin->joinAlgoHint = JOIN_ALGO_UNKNOWN;
   }
   pJoin->batchScanHint = getBatchScanOptionFromHint(pSelect->pHint);
-  pJoin->node.requireDataOrder = (pJoin->hashJoinHint || pJoinTable->leftNoOrderedSubQuery || pJoinTable->rightNoOrderedSubQuery) ? DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
+  pJoin->node.requireDataOrder =
+      (JOIN_ALGO_HASH == pJoin->joinAlgoHint || JOIN_ALGO_THETA == pJoin->joinAlgoHint ||
+       pJoinTable->leftNoOrderedSubQuery || pJoinTable->rightNoOrderedSubQuery)
+          ? DATA_ORDER_LEVEL_NONE
+          : DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
   pJoin->leftNoOrderedSubQuery = pJoinTable->leftNoOrderedSubQuery;
@@ -1566,6 +1611,19 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = doCreateLogicNodeByTable(pCxt, pSelect, pJoinTable->pRight, &pRight);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pJoin->node.pChildren, (SNode*)pRight);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && inStreamCalcClause(pCxt->pPlanCxt)) {
+    if (pJoin->leftNoOrderedSubQuery && streamExternalWindowHasOrderedTwstartProjection(pJoinTable->pLeft)) {
+      pJoin->leftNoOrderedSubQuery = false;
+    }
+    if (pJoin->rightNoOrderedSubQuery && streamExternalWindowHasOrderedTwstartProjection(pJoinTable->pRight)) {
+      pJoin->rightNoOrderedSubQuery = false;
+    }
+    if (!pJoin->leftNoOrderedSubQuery && !pJoin->rightNoOrderedSubQuery &&
+        JOIN_ALGO_HASH != pJoin->joinAlgoHint && JOIN_ALGO_THETA != pJoin->joinAlgoHint) {
+      pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
     }
   }
 

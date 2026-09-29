@@ -222,12 +222,13 @@ class TestJoinCondition:
         self.__join_check_old(["ct2", "ct4"], -1, join_flag=False)
         tdLog.printNoPrefix("==========err sql condition check in has no join condition over==========")
 
-        tdSql.error( f"select c1, c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{INT_COL}=ct4.{INT_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{TS_COL}=ct4.{TS_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{TS_COL}" )
+        tdSql.query( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
+        tdSql.query( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{INT_COL}=ct4.{INT_COL}" )
+        tdSql.query( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{TS_COL}=ct4.{TS_COL}" )
+        tdSql.query( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{TS_COL}" )
         tdSql.error( f"select ct2.c1, ct1.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
-        tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and c1 is not null " )
+        tdSql.error(f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and c1 is not null")
+        tdSql.query( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and ct2.c1 is not null " )
         tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and ct1.c1 is not null " )
 
         tbname = ["ct1", "ct2", "ct4", "t1"]
@@ -349,6 +350,7 @@ class TestJoinCondition:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -374,4 +376,3 @@ class TestJoinCondition:
         self.all_test()
 
         #tdSql.close()
-

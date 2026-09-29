@@ -331,6 +331,8 @@ typedef enum EHintOption {
   HINT_SMALLDATA_SCAN_SORT,
   HINT_FAST_INTERVAL,
   HINT_EX_INTERVAL,
+  HINT_MERGE_JOIN,
+  HINT_JOIN_ALGO,
 } EHintOption;
 
 // A Hint parameter keeps the original token type and text for later consumers.
@@ -619,6 +621,7 @@ typedef enum EJoinAlgorithm {
   JOIN_ALGO_UNKNOWN = 0,
   JOIN_ALGO_MERGE,
   JOIN_ALGO_HASH,
+  JOIN_ALGO_THETA,
 } EJoinAlgorithm;
 
 typedef enum EDynQueryType {
@@ -638,6 +641,7 @@ typedef struct SJoinTableNode {
   SNode*       pJLimit;
   SNode*       addPrimCond;
   bool         hasSubQuery;
+  bool         isCrossJoin;
   bool         isLowLevelJoin;
   bool         leftNoOrderedSubQuery;
   bool         rightNoOrderedSubQuery;
@@ -1017,6 +1021,7 @@ typedef struct SSelectStmt {
   bool            groupSort;
   bool            tagScan;
   bool            joinContains;
+  bool            hasWhereCond;
   bool            mixSysTableAndActualTable;
   bool            hasScalarExpr;
   bool            windowScalarMode;

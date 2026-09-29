@@ -10,61 +10,220 @@ The table that drives the join query. In the Left Join series, the left table is
 
 ### Join Conditions
 
-Join conditions refer to the conditions specified for table joins. All join queries supported by TDengine require specifying join conditions, which typically (except for Inner Join and Window Join) appear after `ON`. Semantically, conditions that appear after `WHERE` in an Inner Join can also be considered join conditions, while Window Join specifies join conditions through `WINDOW_OFFSET`.
+Join conditions specify which rows from the two inputs can match. Joins that match rows by a condition must specify that condition explicitly. An inner join can also be written as `FROM a, b WHERE condition`; for ordinary row-level conditions, this returns the same matching row pairs as `FROM a INNER JOIN b ON condition`. A Window Join uses `WINDOW_OFFSET` to specify its time window.
 
-  Except for ASOF Join, all Join types supported by TDengine must explicitly specify join conditions. ASOF Join has implicit default join conditions, so it is not necessary to specify them explicitly if the default conditions are sufficient.
+Use explicit `CROSS JOIN` or comma syntax for an unconditional join; both return the Cartesian product of the two inputs. `ASOF JOIN` is the exception that allows `ON` to be omitted: without it, the default time-matching condition is used. Write `ON` to specify another supported time-matching condition or grouping conditions.
 
-Apart from ASOF/Window Join, join conditions can include any number of additional conditions besides the main join condition, which must be related by `AND` with the main join condition, while there is no such restriction between other conditions. These additional conditions can include any logical combination of primary key columns, Tags, ordinary columns, constants, and their scalar functions or operations.
+JOIN conditions must be evaluable as Boolean expressions. Whole `JSON` values, `BLOB`, and `MEDIUMBLOB` cannot be used as equality match keys. Aggregate and window functions cannot be written directly in `ON`, but columns computed by a subquery can participate in a join.
 
-For example, with smart meters, the following SQL statements all contain valid join conditions:
-
-```sql
-SELECT a.* FROM meters a LEFT JOIN meters b ON a.ts = b.ts AND a.ts > '2023-10-18 10:00:00.000';
-SELECT a.* FROM meters a LEFT JOIN meters b ON a.ts = b.ts AND (a.ts > '2023-10-18 10:00:00.000' OR a.ts < '2023-10-17 10:00:00.000');
-SELECT a.* FROM meters a LEFT JOIN meters b ON timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s) AND (a.ts + 1s > '2023-10-18 10:00:00.000' OR a.groupId > 0);
-SELECT a.* FROM meters a LEFT ASOF JOIN meters b ON timetruncate(a.ts, 1s) < timetruncate(b.ts, 1s) AND a.groupId = b.groupId;
-```
-
-### Main Join Condition
-
-As a time-series database, all join queries in TDengine revolve around the primary key timestamp column. Therefore, all join queries (except ASOF/Window Join) must include an equality condition on the primary key column, and the first primary key column equality condition that appears in the join conditions will be considered the main join condition. ASOF Join's main join condition can include non-equality conditions, while Window Join's main join condition is specified through `WINDOW_OFFSET`.
-Starting from version 3.3.6.0, TDengine supports constant timestamps in subqueries (including constant functions with return timestamps such as today (), now (), etc., constant timestamps and their addition and subtraction operations) as equivalent primary key columns that can appear in the main join condition. For example:
-
-```sql
-SELECT * from d1001 a JOIN (SELECT today() as ts1, * from d1002 WHERE ts = '2025-03-19 10:00:00.000') b ON timetruncate(a.ts, 1d) = b.ts1;
-```
-
-The above example SQL will perform join operation between all records in table d1001 today and a certain time record in table d1002. It should be noticed that the constant time string appears in SQL will not be treated as a timestamp by default. For example, "2025-03-19 10:00:00.000" will only be treated as a string instead of a timestamp. Therefore, when it needs to be treated as a constant timestamp, you can specify the constant string as a timestamp type by using the type prefix timestamp. For example:
-
-```sql
-SELECT * from d1001 a JOIN (SELECT timestamp '2025-03-19 10:00:00.000' as ts1, * from d1002 WHERE ts = '2025-03-19 10:00:00.000') b ON timetruncate(a.ts, 1d) = b.ts1;
-```
-
-Apart from Window Join, TDengine supports the `timetruncate` function operation in the main join condition, such as `ON timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s)`, but does not support other functions and scalar operations.
+ASOF JOIN's main condition is based on primary timestamps and supports the specified comparison operators or `TIMETRUNCATE` expressions. Tags and ordinary columns can only be used as equality grouping conditions. See [Left/Right ASOF Join](#leftright-asof-join) for details. WINDOW JOIN specifies its time range through `WINDOW_OFFSET`; see its section for other condition restrictions.
 
 ### Grouping Conditions
 
-The characteristic ASOF/Window Join of time-series databases supports grouping the input data of join queries and then performing join operations within each group. Grouping only affects the input of the join query, and the output results will not include group information. Equality conditions that appear after `ON` in ASOF/Window Join (except for ASOF's main join condition) will be considered as grouping conditions.
+The characteristic ASOF/Window Join of time-series databases supports grouping the input data of join queries and then performing join operations within each group. Grouping restricts which rows can match; it is not GROUP BY aggregation. Equality conditions that appear after `ON` in ASOF/Window Join (except for ASOF's main join condition) will be considered as grouping conditions.
 
 ### Primary Key Timeline
 
-As a time-series database, TDengine requires each table (subtable) to have a primary key timestamp column, which will serve as the primary key timeline for many time-related operations. The result of a subquery or the result of a Join operation also needs to clearly identify which column will be considered the primary key timeline for subsequent time-related operations. In subqueries, the first appearing ordered primary key column (or its operation) or a pseudocolumn equivalent to the primary key column (`_wstart`/`_wend`) will be considered the primary key timeline of the output table. In addition, starting with version 3.3.6.0, TDengine also supports constant timestamp columns in subquery results as the primary key timeline for the output table. The selection of the primary key timeline in Join output results follows these rules:
+A timeline identifies the time column and ordering used for time-related operations. A table's primary timestamp column provides its timeline. Whether a subquery or JOIN result has a usable timeline depends on its output columns and ordering.
 
-- In the Left/Right Join series, the primary key column of the driving table (subquery) will be used as the primary key timeline for subsequent queries; additionally, within the Window Join window, since both tables are ordered, any table's primary key column can be used as the primary key timeline, with a preference for the primary key column of the same table.
-- Inner Join can use the primary key column of any table as the primary key timeline, but when there are grouping conditions similar to tag column equality conditions related by `AND` with the main join condition, it will not produce a primary key timeline.
-- Full Join cannot produce any valid primary key sequence, thus it has no primary key timeline, which means that time-related operations cannot be performed in Full Join.
+Starting with `v3.4.3.0`, ordinary JOINs do not require a primary timestamp column in the join condition. The optimizer selects an applicable algorithm based on the condition and input order. A subquery that outputs no time column can still join on business columns.
+
+Timelines still apply to subsequent timeline functions and window queries. Hash and Theta do not guarantee time-ordered output, so a successful JOIN does not imply that its result meets those requirements. Retain the necessary time column and follow the [timeline rules in Data Querying](./01-query.md#timeline) for subsequent time-related operations. Use ORDER BY for ordinary result sorting.
+
+## Conditions Supported by Ordinary Joins
+
+Starting with `v3.4.3.0`, ordinary joins no longer require primary timestamp equality in the join condition. You can join by business columns, expressions, ranges, or combined Boolean conditions. ASOF JOIN and WINDOW JOIN retain their respective time-matching rules.
+
+| Condition | Example | Behavior |
+| --- | --- | --- |
+| Business-column equality | `a.groupId = b.groupId` | No additional `a.ts = b.ts` is required |
+| Separate expressions | `a.voltage + 1 = b.voltage` | Each expression references its respective input; result types must be compatible |
+| Equality referencing both inputs | `a.voltage + b.groupId = b.voltage` | The complete condition determines matches |
+| Range | `a.voltage < b.voltage` | An equality condition is not required |
+| Combined Boolean conditions | `a.voltage = b.voltage OR a.current > b.current` | The complete condition determines matches, preserving SQL three-valued logic |
+| One-sided or constant conditions | `a.voltage > 220`, `TRUE`, `FALSE` | Only TRUE matches; outer joins still preserve unmatched rows |
+
+The examples use smart-meter data: the `meters` supertable has columns `ts TIMESTAMP`, `current FLOAT`, `voltage INT`, and `phase FLOAT`, and tags `groupId INT` and `location BINARY(64)`. Tables `d1001` and `d1002` are its subtables. Create and populate these tables before running the queries. Result order is not guaranteed without `ORDER BY`.
+
+### Timestamp Equality with Additional Conditions
+
+The existing timestamp-based join syntax remains valid. This query compares voltages of rows with matching timestamps:
+
+```sql
+SELECT a.ts, a.voltage, b.voltage
+FROM d1001 a JOIN d1002 b
+ON a.ts = b.ts AND a.voltage > b.voltage;
+```
+
+Additional conditions can contain `OR`. This left join preserves every row from `d1001`; right-side columns are populated only when both the timestamp and date conditions match:
+
+```sql
+SELECT a.ts, b.ts, b.voltage
+FROM d1001 a LEFT JOIN d1002 b
+ON a.ts = b.ts
+AND (a.ts < '2025-01-01 00:00:00.000'
+     OR a.ts >= '2025-01-02 00:00:00.000');
+```
+
+### Joining at a Time Granularity with TIMETRUNCATE
+
+Truncate timestamps to seconds and return all row pairs within the same second where the left current exceeds the right current:
+
+```sql
+SELECT a.ts, b.ts, a.current, b.current
+FROM d1001 a JOIN d1002 b
+ON TIMETRUNCATE(a.ts, 1s) = TIMETRUNCATE(b.ts, 1s)
+AND a.current > b.current;
+```
+
+### Equality on Business Columns and Expressions
+
+Starting with `v3.4.3.0`, joins can match business columns without an additional primary timestamp equality condition. This query matches records with the same group and location, then compares voltages. Matching rows can have different timestamps:
+
+```sql
+SELECT a.ts, b.ts, a.voltage, b.voltage
+FROM meters a JOIN meters b
+ON a.groupId = b.groupId AND a.location = b.location
+AND a.voltage > b.voltage;
+```
+
+Expressions can reference their respective inputs separately, or the complete condition can reference both inputs:
+
+```sql
+-- The left voltage plus 1 equals the right voltage
+SELECT a.ts, b.ts, a.voltage, b.voltage
+FROM d1001 a LEFT JOIN d1002 b
+ON a.voltage + 1 = b.voltage;
+
+-- Compare after explicit casts
+SELECT a.ts, b.ts
+FROM d1001 a JOIN d1002 b
+ON CAST(a.voltage AS BIGINT) = CAST(b.voltage AS BIGINT);
+
+-- An equality referencing both inputs; the system selects an applicable algorithm
+SELECT a.ts, b.ts
+FROM meters a JOIN meters b
+ON a.voltage + b.groupId = b.voltage;
+```
+
+### Range and Combined Boolean Conditions
+
+These queries contain no equality condition. They match using a voltage range and a combined Boolean condition, respectively:
+
+```sql
+SELECT a.ts, b.ts, a.voltage, b.voltage
+FROM d1001 a JOIN d1002 b
+ON a.voltage BETWEEN b.voltage - 5 AND b.voltage + 5;
+
+SELECT a.ts, b.ts
+FROM d1001 a JOIN d1002 b
+ON a.voltage < b.voltage OR a.current > b.current;
+```
+
+### ON and WHERE in INNER JOIN
+
+For these ordinary row-level conditions, both forms return the same row pairs:
+
+```sql
+SELECT a.ts, b.ts
+FROM d1001 a INNER JOIN d1002 b
+ON a.voltage = b.voltage AND a.current > 10;
+
+SELECT a.ts, b.ts
+FROM d1001 a, d1002 b
+WHERE a.voltage = b.voltage AND a.current > 10;
+```
+
+This equivalence does not apply to outer joins. The first query below preserves all left-side rows and fills right-side columns with NULL when no row matches. The second query filters out those unmatched rows:
+
+```sql
+SELECT a.ts, b.ts, b.voltage
+FROM d1001 a LEFT JOIN d1002 b
+ON a.ts = b.ts AND b.voltage > 220;
+
+SELECT a.ts, b.ts, b.voltage
+FROM d1001 a LEFT JOIN d1002 b
+ON a.ts = b.ts
+WHERE b.voltage > 220;
+```
+
+### One-Sided Conditions, Constants, and Unconditional Joins
+
+One-sided ON conditions are also evaluated for row pairs. In the first query, left-side rows with voltage greater than 220 match every right-side row; unmatched left-side rows receive NULL values on the right. The second query has no matches: all left-side rows are preserved, with NULL in every right-side column:
+
+```sql
+SELECT a.ts, b.ts
+FROM d1001 a LEFT JOIN d1002 b ON a.voltage > 220;
+
+SELECT a.ts, b.ts
+FROM d1001 a LEFT JOIN d1002 b ON FALSE;
+```
+
+Use `CROSS JOIN` or comma syntax for an unconditional join. Both queries return the complete Cartesian product:
+
+```sql
+SELECT a.ts, b.ts FROM d1001 a CROSS JOIN d1002 b;
+SELECT a.ts, b.ts FROM d1001 a, d1002 b;
+```
+
+Ordinary `JOIN` still requires `ON`. `CROSS JOIN` does not accept `ON`; use `WHERE` to filter its results.
+
+### Joining Subqueries Without Time Columns
+
+Neither aggregate subquery below outputs a time column, but they can still join on `groupId`. A successful ordinary JOIN does not imply that its result can be used directly by subsequent timeline functions or window queries:
+
+```sql
+SELECT a.groupId, a.avg_voltage, b.avg_current
+FROM (SELECT groupId, AVG(voltage) AS avg_voltage
+      FROM meters GROUP BY groupId) a
+JOIN (SELECT groupId, AVG(current) AS avg_current
+      FROM meters GROUP BY groupId) b
+ON a.groupId = b.groupId;
+```
+
+Broader condition support does not remove existing type, input-source, or nested-join restrictions. See the following ASOF/WINDOW sections for their examples and specific rules.
+
+## Join Algorithms and Hints
+
+The following ordinary JOIN algorithm selection and JOIN_ALGO Hint are supported starting with `v3.4.3.0`. Theta supports the newly available range and general Boolean join conditions.
+
+The optimizer normally selects the algorithm without a Hint. Algorithm selection preserves the join type, complete condition, and duplicate-row semantics. It does not guarantee output order without ORDER BY.
+
+| Algorithm | Applicable conditions | Main costs |
+| --- | --- | --- |
+| Merge | Supported timestamp equality expressions with appropriately ordered inputs | Additional sorting when needed; subquery ORDER BY/LIMIT semantics remain unchanged |
+| Hash | Compatible equality keys, including supported expressions | Build-side memory, key computation, and duplicate-key candidate matching |
+| Theta | Range or general Boolean conditions without a usable equality key, and unconditional joins | Checks input row pairs; runtime and memory costs can be high for large inputs |
+
+Filtering out unnecessary data first can reduce join input and matching costs. For tuning, inspect the algorithm with EXPLAIN and compare execution on representative data.
+
+Place `/*+ JOIN_ALGO(algorithm) */` after SELECT. The algorithm parameter is HASH, MERGE, or THETA:
+
+```sql
+EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, b.ts
+FROM meters a JOIN meters b ON a.groupId = b.groupId;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, b.ts
+FROM meters a JOIN meters b ON a.ts = b.ts;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(THETA) */ a.ts, b.ts
+FROM meters a JOIN meters b ON a.voltage < b.voltage;
+```
+
+- A Hint expresses an algorithm preference. An inapplicable Merge preference can fall back to Hash; without usable equality keys, execution can fall back to Theta. Check EXPLAIN for the actual algorithm rather than inferring it from the Hint.
+- The existing parameterless `HASH_JOIN` form corresponds to `JOIN_ALGO(HASH)`. The parameterless `MERGE_JOIN` shorthand, introduced in `v3.4.3.0`, corresponds to `JOIN_ALGO(MERGE)`. Use the unified `JOIN_ALGO` form for new SQL.
+- ASOF/WINDOW retain their time-matching rules regardless of the algorithm Hint.
+
+For general syntax and other options, see [Hints in Data Querying](./01-query.md#hints).
 
 ## Syntax Explanation
 
-In the following sections, the Left/Right Join series will be introduced in a shared manner. Therefore, subsequent introductions including Outer, Semi, Anti-Semi, ASOF, and Window series all adopt a similar "left/right" notation to introduce Left/Right Join simultaneously. Here is a brief explanation of this notation: the part written before "/" applies to Left Join, while the part written after "/" applies to Right Join.
+The following sections describe Left and Right Join together. In expressions such as "left/right", the part before `/` applies to Left Join and the part after `/` applies to Right Join.
 
 For example:
 
-"left/right table" means for Left Join, it refers to "left table", and for Right Join, it refers to "right table";
-
-Similarly,
-
-"right/left table" means for Left Join, it refers to "right table", and for Right Join, it refers to "left table";
+- "left/right table" means the left table for Left Join and the right table for Right Join.
+- "right/left table" means the right table for Left Join and the left table for Right Join.
 
 ## Join Features
 
@@ -72,43 +231,45 @@ Similarly,
 
 #### Definition
 
-Inner Join - Only the data that meets the join conditions in both the left and right tables will be returned, which can be seen as the intersection of data that meets the join conditions from both tables.
+Inner Join returns all left/right row pairs that satisfy the join condition. A row can match multiple rows from the other input, and each matching pair is returned.
 
 #### Syntax
 
 ```sql
-SELECT ... FROM table_name1 [INNER] JOIN table_name2 [ON ...] [WHERE ...] [...]
+SELECT ... FROM table_name1 [INNER] JOIN table_name2 ON ... [WHERE ...] [...]
 or
-SELECT ... FROM table_name1, table_name2 WHERE ... [...]
+SELECT ... FROM table_name1 CROSS JOIN table_name2 [WHERE ...] [...]
+or
+SELECT ... FROM table_name1, table_name2 [WHERE ...] [...]
 ```
 
 #### Result Set
 
-The Cartesian product set of rows from the left and right tables that meet the join conditions.
+All left/right row pairs that satisfy the join condition.
 
 #### Applicable Scope
 
-Supports Inner Join between supertables, basic tables, subtables, and subqueries.
+Supports Inner Join between supertables, basic tables, subtables, virtual tables, and subqueries.
 
 #### Explanation
 
-- For the first syntax, the `INNER` keyword is optional, `ON` and/or `WHERE` can specify the main join conditions and other join conditions, and `WHERE` can also specify filter conditions. At least one of `ON`/`WHERE` must be specified.
-- For the second syntax, you can specify the main join conditions, other join conditions, and filter conditions in `WHERE`.
-- When performing an Inner Join on supertables, the tag column equality conditions related to the main join condition `AND` will be used as grouping conditions, so the output results cannot be guaranteed to be ordered.
+- For the first syntax, the `INNER` keyword is optional and `ON` is required to specify the join condition. `WHERE` filters rows after the Join.
+- `CROSS JOIN` and comma syntax represent unconditional joins. Without `WHERE`, they return the complete Cartesian product; with `WHERE`, they filter that product.
+- Tag equality conditions can be combined with other equality conditions. Specify ORDER BY when ordered results are required.
 
 #### Example
 
 Moments when both table d1001 and table d1002 have voltages greater than 220V and their respective voltage values:
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a JOIN d1002 b ON a.ts = b.ts and a.voltage > 220 and b.voltage > 220
+SELECT a.ts, a.voltage, b.voltage FROM d1001 a JOIN d1002 b ON a.ts = b.ts AND a.voltage > 220 AND b.voltage > 220;
 ```
 
 ### Left/Right Outer Join
 
 #### Definition
 
-Left/Right (Outer) Join - Includes both the data set that meets the join conditions from both tables and the data set from the left/right table that does not meet the join conditions.
+Left/Right (Outer) Join returns all matching row pairs and preserves unmatched rows from the left/right table.
 
 #### Syntax
 
@@ -118,11 +279,11 @@ SELECT ... FROM table_name1 LEFT|RIGHT [OUTER] JOIN table_name2 ON ... [WHERE ..
 
 #### Result Set
 
-The result set of Inner Join + rows from the left/right table that do not meet the join conditions and rows composed of null data (`NULL`) from the right/left table.
+The Inner Join result, plus unmatched rows from the left/right table with `NULL` values for columns from the right/left table.
 
 #### Applicable Scope
 
-Supports Left/Right Join between supertables, basic tables, subtables, and subqueries.
+Supports Left/Right Join between supertables, basic tables, subtables, virtual tables, and subqueries.
 
 #### Explanation
 
@@ -130,10 +291,10 @@ Supports Left/Right Join between supertables, basic tables, subtables, and subqu
 
 #### Example
 
-All moments of voltage values from table d1001 and moments when both tables have voltages greater than 220V and their respective voltage values:
+Return every timestamp and voltage from `d1001`. Include the voltage from `d1002` only when the timestamps match and both voltages exceed 220V:
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT JOIN d1002 b ON a.ts = b.ts and a.voltage > 220 and b.voltage > 220
+SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT JOIN d1002 b ON a.ts = b.ts AND a.voltage > 220 AND b.voltage > 220;
 ```
 
 ### Left/Right Semi Join
@@ -154,21 +315,21 @@ The row data set composed of rows from the left/right table that meet the join c
 
 #### Applicable Scope
 
-Supports Left/Right Semi Join between supertables, basic tables, subtables, and subqueries.
+Supports Left/Right Semi Join between supertables, basic tables, subtables, virtual tables, and subqueries.
 
 #### Example
 
 Times in table d1001 when the voltage is greater than 220V and there are other meters at the same moment with voltage also greater than 220V:
 
 ```sql
-SELECT a.ts FROM d1001 a LEFT SEMI JOIN meters b ON a.ts = b.ts and a.voltage > 220 and b.voltage > 220 and b.tbname != 'd1001'
+SELECT a.ts FROM d1001 a LEFT SEMI JOIN meters b ON a.ts = b.ts AND a.voltage > 220 AND b.voltage > 220 AND b.tbname != 'd1001';
 ```
 
 ### Left/Right Anti-Semi Join
 
 #### Definition
 
-Left/Right Anti Join - Opposite to the logic of Left/Right Semi Join, usually expresses the meaning of `NOT IN`/`NOT EXISTS`. That is, for any row in the left/right table, it returns the row data from the left/right table only if there is no corresponding data in the right/left table that meets the join condition.
+Left/Right Anti Join - Opposite to the logic of Left/Right Semi Join, usually expresses the meaning of `NOT EXISTS`. That is, for any row in the left/right table, it returns the row data from the left/right table only if there is no corresponding data in the right/left table that meets the join condition.
 
 #### Syntax
 
@@ -178,18 +339,18 @@ SELECT ... FROM table_name1 LEFT|RIGHT ANTI JOIN table_name2 ON ... [WHERE ...] 
 
 #### Result Set
 
-The result set consists of rows from the left/right table that do not meet the join condition and rows from the right/left table filled with null data (`NULL`).
+Unmatched rows from the left/right table, with `NULL` values for columns from the right/left table.
 
 #### Applicable Scenarios
 
-Supports Left/Right Anti-Semi Join between supertables, basic tables, subtables, and subqueries.
+Supports Left/Right Anti-Semi Join between supertables, basic tables, subtables, virtual tables, and subqueries.
 
 #### Example
 
 Times when the voltage in table d1001 is greater than 220V and there is no other electric meter at the same time with a voltage also greater than 220V:
 
 ```sql
-SELECT a.ts FROM d1001 a LEFT ANTI JOIN meters b ON a.ts = b.ts and b.voltage > 220 and b.tbname != 'd1001' WHERE a.voltage > 220
+SELECT a.ts FROM d1001 a LEFT ANTI JOIN meters b ON a.ts = b.ts AND b.voltage > 220 AND b.tbname != 'd1001' WHERE a.voltage > 220;
 ```
 
 ### Left/Right ASOF Join
@@ -215,7 +376,7 @@ Supports Left/Right ASOF Join between supertables, basic tables, and subtables.
 #### Notes
 
 - Only supports ASOF Join between tables, not between subqueries.
-- The ON clause supports specifying a single match rule based on the primary key column or the timetruncate function of the primary key column (does not support other scalar operations and functions). The supported operators and their meanings are as follows:
+- The ON clause supports specifying a single match rule based on the primary key column or the timetruncate function of the primary key column (does not support other scalar operations and functions). The following table assumes `a.ts operator b.ts`, where `a` is the left table and `b` is the right table:
 
   |    **Operator**   |       **Meaning for Left ASOF**       |
   | :-------------: | ------------------------ |
@@ -225,19 +386,19 @@ Supports Left/Right ASOF Join between supertables, basic tables, and subtables.
   | \<    | Matches rows in the right table where the primary key timestamp is greater than and closest to the left table's primary key timestamp  |
   | \<=    | Matches rows in the right table where the primary key timestamp is greater than or equal to and closest to the left table's primary key timestamp  |
 
-  For Right ASOF, the meanings of the operators are the opposite.
+  For Right ASOF, each right-side row selects the closest records from the left table that satisfy the comparison. For example, `ON a.ts <= b.ts` matches left-side records at or before the right-side timestamp.
 
-- If the ON clause is absent or does not specify a primary key column match rule, the default primary key match rule operator is `>=`, i.e., rows in the right table where the primary key timestamp is less than or equal to the left table's primary key timestamp. Multiple primary join conditions are not supported.
+- If the ON clause is absent or does not specify a primary key match rule, the default matches records at or before the driving row's timestamp: Left ASOF is equivalent to `ON a.ts >= b.ts`, and Right ASOF to `ON a.ts <= b.ts`, where `a` is the left table and `b` is the right table. Multiple primary join conditions are not supported.
 - The ON clause can also specify equality conditions between tags or normal columns (scalar functions and operations not supported) for grouped calculations, other types of conditions are not supported.
 - All conditions in the ON clause only support the `AND` operation.
-- `JLIMIT` specifies the maximum number of rows for a single row match, optional, default value is 1, i.e., each row from the left/right table can obtain up to one matching row from the right/left table. `JLIMIT` range is [0, 1024]. The `jlimit_num` matching rows do not need to have the same timestamp, and if there are fewer than `jlimit_num` rows in the right/left table that meet the conditions, the number of result rows may be less than `jlimit_num`; if there are more than `jlimit_num` rows that meet the conditions, if the timestamps are the same, `jlimit_num` rows will be returned randomly.
+- `JLIMIT` optionally specifies the maximum number of matches per driving row. The default is `1`, so each left/right row obtains at most one match from the right/left table. The range is `[0, 1024]`; `JLIMIT 0` returns an empty result. The matching rows need not share a timestamp. Fewer than `jlimit_num` rows may be returned if fewer matches exist. When more matches exist, the choice among rows tied at the cutoff timestamp is unspecified.
 
 #### Example
 
-Times and respective voltage values when the voltage in table d1001 is greater than 220V and table d1002 has a voltage greater than 220V at the same or slightly earlier time:
+For each row in `d1001`, first match the row in `d1002` at the same timestamp or the closest earlier timestamp. Then retain only results where both voltages exceed 220V. If the closest record fails the voltage filter, the query does not search for an earlier record:
 
 ```sql
-SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a.ts >= b.ts where a.voltage > 220 and b.voltage > 220 
+SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a.ts >= b.ts WHERE a.voltage > 220 AND b.voltage > 220;
 ```
 
 ### Left/Right Window Join
@@ -254,8 +415,10 @@ SELECT ... FROM table_name1 LEFT|RIGHT WINDOW JOIN table_name2 [ON ...] WINDOW_O
 
 #### Result Set
 
-The Cartesian product set of each row of data in the left/right table with up to `jlimit_num` rows of data or no data (`NULL`) from the right/left table within the window defined by the primary timestamp column of the left/right table and `WINDOW_OFFSET`, or
-The row data set consisting of the aggregation results of each row of data in the left/right table with up to `jlimit_num` rows of data or no data (`NULL`) from the right/left table within the window defined by the primary timestamp column of the left/right table and `WINDOW_OFFSET`.
+One of the following:
+
+- Each left/right row paired with up to `jlimit_num` right/left rows within the window defined by the driving row's primary timestamp and `WINDOW_OFFSET`, or with `NULL` values if no match exists.
+- Each left/right row combined with aggregate results over up to `jlimit_num` rows in that window. With no matches, the result depends on the aggregate function: for example, `COUNT(b.voltage)` is `0`, whereas `AVG(b.voltage)` is `NULL`, where `b` is the table being matched.
 
 #### Applicable Scenarios
 
@@ -266,41 +429,46 @@ Supports Left/Right Window Join between supertables, basic tables, and subtables
 - Only supports Window Join between tables, not between subqueries;
 - The `ON` clause is optional, only supports specifying equality conditions between tags and normal columns (excluding scalar functions and operations) other than the primary key column for grouped calculations, and only supports `AND` operations between all conditions;
 - `WINDOW_OFFSET` is used to specify the left and right boundaries of the window relative to the primary key timestamp of the left/right table, supporting formats with built-in time units, for example: `WINDOW_OFFSET(-1a, 1a)` for a Left Window Join, represents each window as [left table primary key timestamp - 1 millisecond, left table primary key timestamp + 1 millisecond], both boundaries are closed intervals. The time units following the numbers can be `b` (nanoseconds), `u` (microseconds), `a` (milliseconds), `s` (seconds), `m` (minutes), `h` (hours), `d` (days), `w` (weeks), does not support natural months (`n`), natural years (`y`), and the smallest supported time unit is the database precision, the precision of the databases of the left and right tables must be consistent.
-- `JLIMIT` is used to specify the maximum number of matching rows within a single window, optional, by default retrieves all matching rows within each window. The range of `JLIMIT` is [0, 1024], when there are no `jlimit_num` rows of data in the right table that meet the conditions, the number of result rows may be less than `jlimit_num`; when there are more than `jlimit_num` rows of data in the right table that meet the conditions, it prioritizes returning the `jlimit_num` rows of data with the smallest primary key timestamps within the window.
+- `JLIMIT` optionally specifies the maximum number of matching rows in each window. By default, all matching rows are used. The range is `[0, 1024]`; `JLIMIT 0` returns an empty result. If the input being matched has fewer than `jlimit_num` matches, fewer rows may be returned. If it has more, the `jlimit_num` rows with the earliest primary timestamps in the window are used.
 - SQL statements cannot contain other `GROUP BY`/`PARTITION BY`/window queries;
 - Supports scalar filtering in the `WHERE` clause, supports aggregation function filtering for each window in the `HAVING` clause (does not support scalar filtering), does not support `SLIMIT`, does not support various window pseudocolumns;
 
 #### Examples
 
-Voltage values from table d1001 greater than 220V within a 1-second interval before and after from table d1002:
+For each row in `d1001` whose voltage exceeds 220V, return voltages from `d1002` within one second before or after its timestamp:
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET (-1s, 1s) where a.voltage > 220
+SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) WHERE a.voltage > 220;
 ```
 
-Timestamps and voltage values from table d1001 greater than 220V and the average voltage value from table d1002 also greater than 220V within a 1-second interval before and after:
+For each row in `d1001` whose voltage exceeds 220V, calculate the average voltage of `d1002` within one second before or after its timestamp. Return the timestamp, voltage, and average only when that average also exceeds 220V:
 
 ```sql
-SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET (-1s, 1s) where a.voltage > 220 HAVING(avg(b.voltage) > 220)
+SELECT a.ts, a.voltage, AVG(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) WHERE a.voltage > 220 HAVING (AVG(b.voltage) > 220);
 ```
 
 ### Full Outer Join
 
 #### Definition
 
-Full (Outer) Join - Includes both the data set where both left and right tables meet the join conditions and the data set where either table does not meet the join conditions.
+Full (Outer) Join returns all matching row pairs and preserves unmatched rows from both tables.
 
 #### Syntax
 
+```sql
 SELECT ... FROM table_name1 FULL [OUTER] JOIN table_name2 ON ... [WHERE ...] [...]
+```
 
 #### Result Set
 
-The result set of Inner Join + rows from the left table that do not meet the join conditions combined with empty data from the right table + rows from the right table that do not meet the join conditions combined with empty data (`NULL`) from the left table.
+The Inner Join result, plus:
+
+- Unmatched left-side rows with `NULL` values for right-side columns.
+- Unmatched right-side rows with `NULL` values for left-side columns.
 
 #### Applicable Scenarios
 
-Supports Full Outer Join between supertables, basic tables, subtables, and subqueries.
+Supports Full Outer Join between supertables, basic tables, subtables, virtual tables, and subqueries.
 
 #### Notes
 
@@ -311,22 +479,27 @@ Supports Full Outer Join between supertables, basic tables, subtables, and subqu
 Records of all moments and voltage values in tables d1001 and d1002:
 
 ```sql
-SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b on a.ts = b.ts
+SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b ON a.ts = b.ts;
 ```
 
 ## Constraints and Limitations
 
 ### Input Timeline Limitations
 
-- Currently, all Joins require input data containing a valid primary key timeline; all table queries can meet this requirement, but subqueries need to ensure that the output data contains a valid primary key timeline.
+- Ordinary JOINs do not require a primary timestamp column in the join condition; subqueries without a time column can still join on other columns. See [Primary Key Timeline](#primary-key-timeline).
+- A JOIN algorithm Hint does not change the ordering or row-selection semantics of a subquery.
+- A subquery's ORDER BY and LIMIT still determine which rows it selects before the join; JOIN does not change that behavior.
+- ASOF/WINDOW still require table inputs and primary key timelines; see their respective sections.
 
 ### Join Condition Limitations
 
-- Except for ASOF and Window Join, other Joins must include the primary key column in the main join conditions; and
-- Only `AND` operations are supported between the main join condition and other conditions;
-- The primary key column used as the main join condition only supports the `timetruncate` function (other functions and scalar operations are not supported); there are no restrictions when used as other join conditions;
+- Joins that match rows by a condition require an explicit join condition. An inner join can also use comma syntax with `WHERE`; unconditional joins use `CROSS JOIN` or comma syntax without a matching condition. `ASOF JOIN` allows `ON` to be omitted, and `WINDOW JOIN` specifies its time range through `WINDOW_OFFSET`. See their respective sections for details;
+- Except for ASOF JOIN and WINDOW JOIN, JOIN conditions do not require primary timestamp equality or another equality condition; business-column comparisons, ranges, and combined Boolean conditions are supported;
+- `ON` expressions must be evaluable as Boolean expressions, and compared values must have compatible types. Compute aggregate and window functions in a subquery before using their output in a join.
 
 ### Grouping Condition Limitations
+
+These restrictions apply to grouping for ASOF/WINDOW matching:
 
 - Only supports equality conditions for Tags and ordinary columns other than the primary key column;
 - Scalar operations are not supported;
@@ -334,9 +507,7 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b on a.ts =
 
 ### Query Result Order Limitations
 
-- In scenarios with basic tables, subtables, subqueries without grouping conditions and without sorting, the query results will be output in the order of the primary key column of the driving table;
-- In scenarios with supertable queries, Full Join, or with grouping conditions but without sorting, there is no fixed order of output;
-Therefore, in scenarios where sorting is needed and the output order is not fixed, sorting operations are needed. Some functions dependent on the timeline may not execute due to the lack of a valid timeline.
+- Ordinary JOINs do not guarantee result order, including joins between regular tables, subtables, and subqueries. Use explicit `ORDER BY` when a defined order is required.
 
 ### Nested Join and Multi-table Join Limitations
 

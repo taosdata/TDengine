@@ -1831,20 +1831,25 @@ RESULT
       Output: columns=3 width=20
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Full Join (columns=5 width=280 input_order=asc algo=Merge)
+   -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
          Output: columns=5 width=280
-         Join Prim Cond: (`fq_exp_mysql`.`s`.`time` = `fq_exp_mysql`.`r`.`time`)
-         Left Equal Cond: `s`.`region` 
-         Right Equal Cond: `r`.`region` 
-         Join Full Cond: (`fq_exp_mysql`.`s`.`region` = `fq_exp_mysql`.`r`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Join Full Cond: (`fq_exp_mysql`.`s`.`time` = `fq_exp_mysql`.`r`.`time`) AND (`fq_exp_mysql`.`s`.`region` = `fq_exp_mysql`.`r`.`region`)
+      -> Partition on Column region (width=146)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Data Exchange 1:1 (width=142)
             Output: columns=3 width=142
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
+         -> Partition on Column region (width=142)
+               Output: columns=3 width=142
+               Partition Key: partitions=1
+            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+                  Output: columns=3 width=142
+                  Source: 127.0.0.1:13306 user=root
+                  Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
 ---
 ### EXP-join_full-01_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
@@ -1869,19 +1874,25 @@ RESULT
       Output: columns=3 width=20
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Inner Join (columns=5 width=65669 input_order=asc algo=Merge)
+   -> Inner Join (columns=5 width=65669 input_order=asc algo=Hash)
          Output: columns=5 width=65669
-         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`)
-         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
-         Join Col Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+      -> Partition on Column region (width=146)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Data Exchange 1:1 (width=65531)
             Output: columns=3 width=65531
-            Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
+         -> Partition on Column region (width=65531)
+               Output: columns=3 width=65531
+               Partition Key: partitions=1
+            -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+                  Output: columns=3 width=65531
+                  Source: 127.0.0.1:15434 user=postgres
+                  Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
 ---
 ### EXP-join_cross_source-01_mysql_influx POS
 SQL: select m.`time`, m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
@@ -1890,19 +1901,23 @@ RESULT
       Output: columns=3 width=24
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Inner Join (columns=5 width=65673 input_order=asc algo=Merge)
+   -> Inner Join (columns=5 width=65673 input_order=asc algo=Hash)
          Output: columns=5 width=65673
-         Join Prim Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
-         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-         Join Col Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Join Full Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Partition on Column region (width=154)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Partition on Column region (width=65535)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
 ---
 ### EXP-join_cross_source-01_pg_influx POS
 SQL: select m.`time`, m.voltage, p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
@@ -1911,20 +1926,23 @@ RESULT
       Output: columns=3 width=24
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Inner Join (columns=5 width=131062 input_order=asc algo=Merge)
+   -> Inner Join (columns=5 width=131062 input_order=asc algo=Hash)
          Output: columns=5 width=131062
-         Join Prim Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
-         Left Equal Cond: `m`.`region` 
-         Right Equal Cond: `p`.`region` 
-         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+         Join Full Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Partition on Column region (width=65543)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:15434 user=postgres
+               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+      -> Partition on Column region (width=65535)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
 ---
 ### EXP-join_inner_with_where-01_mysql POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s inner join fq_exp_mysql.region_info r on s.`time` = r.`time` and s.region = r.region where s.voltage > 220.0
@@ -6063,19 +6081,25 @@ RESULT
       Output: columns=2 width=12
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Inner Join (columns=4 width=65661 input_order=asc algo=Merge)
+   -> Inner Join (columns=4 width=65661 input_order=asc algo=Hash)
          Output: columns=4 width=65661
-         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`)
-         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
-         Join Col Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+      -> Partition on Column region (width=146)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Data Exchange 1:1 (width=65531)
             Output: columns=3 width=65531
-            Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
+         -> Partition on Column region (width=65531)
+               Output: columns=3 width=65531
+               Partition Key: partitions=1
+            -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+                  Output: columns=3 width=65531
+                  Source: 127.0.0.1:15434 user=postgres
+                  Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
 ---
 ### EXP-combo_XS_join_pushfunc-01_mysql_influx POS
 SQL: select abs(m.voltage - 220.0), p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
@@ -6084,19 +6108,23 @@ RESULT
       Output: columns=2 width=16
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Inner Join (columns=4 width=65665 input_order=asc algo=Merge)
+   -> Inner Join (columns=4 width=65665 input_order=asc algo=Hash)
          Output: columns=4 width=65665
-         Join Prim Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
-         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-         Join Col Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Join Full Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Partition on Column region (width=154)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Partition on Column region (width=65535)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
 ---
 ### EXP-combo_XS_join_pushfunc-01_pg_influx POS
 SQL: select abs(m.voltage - 220.0), p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
@@ -6105,78 +6133,94 @@ RESULT
       Output: columns=2 width=16
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Inner Join (columns=4 width=131054 input_order=asc algo=Merge)
+   -> Inner Join (columns=4 width=131054 input_order=asc algo=Hash)
          Output: columns=4 width=131054
-         Join Prim Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
-         Left Equal Cond: `m`.`region` 
-         Right Equal Cond: `p`.`region` 
-         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+         Join Full Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Partition on Column region (width=65543)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:15434 user=postgres
+               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+      -> Partition on Column region (width=65535)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
 ---
 ### EXP-combo_XS_join_localfunc-01_mysql_pg POS
 SQL: select csum(m.voltage), p.current from fq_exp_mysql.sensor m join fq_exp_pg.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Indefinite Rows Function (functions=2 width=12)
       Output: columns=2 width=12
-   -> Inner Join (columns=5 width=65669 input_order=asc algo=Merge)
+   -> Inner Join (columns=5 width=65669 input_order=asc algo=Hash)
          Output: columns=5 width=65669
-         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`)
-         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
-         Join Col Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+      -> Partition on Column region (width=146)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Data Exchange 1:1 (width=65531)
             Output: columns=3 width=65531
-            Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
+         -> Partition on Column region (width=65531)
+               Output: columns=3 width=65531
+               Partition Key: partitions=1
+            -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+                  Output: columns=3 width=65531
+                  Source: 127.0.0.1:15434 user=postgres
+                  Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
 ---
 ### EXP-combo_XS_join_localfunc-01_mysql_influx POS
 SQL: select csum(m.voltage), p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Indefinite Rows Function (functions=2 width=16)
       Output: columns=2 width=16
-   -> Inner Join (columns=5 width=65673 input_order=asc algo=Merge)
+   -> Inner Join (columns=5 width=65673 input_order=asc algo=Hash)
          Output: columns=5 width=65673
-         Join Prim Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
-         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-         Join Col Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Join Full Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Partition on Column region (width=154)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Partition on Column region (width=65535)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
 ---
 ### EXP-combo_XS_join_localfunc-01_pg_influx POS
 SQL: select csum(m.voltage), p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Indefinite Rows Function (functions=2 width=16)
       Output: columns=2 width=16
-   -> Inner Join (columns=5 width=131062 input_order=asc algo=Merge)
+   -> Inner Join (columns=5 width=131062 input_order=asc algo=Hash)
          Output: columns=5 width=131062
-         Join Prim Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
-         Left Equal Cond: `m`.`region` 
-         Right Equal Cond: `p`.`region` 
-         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+         Join Full Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Partition on Column region (width=65543)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:15434 user=postgres
+               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+      -> Partition on Column region (width=65535)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
 ---
 ### EXP-combo_XS_join_with_where-01_mysql_pg POS
 SQL: select m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_pg.sensor p on m.`time` = p.`time` and m.region = p.region where m.voltage > 219.0 and p.current > 1.0
@@ -6185,19 +6229,26 @@ RESULT
       Output: columns=2 width=12
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Inner Join (columns=2 width=12 input_order=asc algo=Merge)
+   -> Inner Join (columns=2 width=12 input_order=asc algo=Hash)
          Output: columns=2 width=12
-         Filter: conditions=((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_pg`.`p`.`current` > 1.000000e+00))
-         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`)
-         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Filter: ((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_pg`.`p`.`current` > 1.000000e+00))
+         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+      -> Partition on Column region (width=146)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
+      -> Data Exchange 1:1 (width=65531)
             Output: columns=3 width=65531
-            Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
+         -> Partition on Column region (width=65531)
+               Output: columns=3 width=65531
+               Partition Key: partitions=1
+            -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+                  Output: columns=3 width=65531
+                  Source: 127.0.0.1:15434 user=postgres
+                  Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
 ---
 ### EXP-combo_XS_join_with_where-01_mysql_influx POS
 SQL: select m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region where m.voltage > 219.0 and p.current > 1.0
@@ -6206,19 +6257,24 @@ RESULT
       Output: columns=2 width=16
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Inner Join (columns=2 width=16 input_order=asc algo=Merge)
+   -> Inner Join (columns=2 width=16 input_order=asc algo=Hash)
          Output: columns=2 width=16
-         Filter: conditions=((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_influx`.`p`.`current` > 1.000000e+00))
-         Join Prim Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
-         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Filter: ((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_influx`.`p`.`current` > 1.000000e+00))
+         Join Full Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Partition on Column region (width=154)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
+      -> Partition on Column region (width=65535)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "region", "current" FROM "sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
 ---
 ### EXP-combo_XS_join_with_where-01_pg_influx POS
 SQL: select m.voltage, p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region where m.voltage > 219.0 and p.current > 1.0
@@ -6227,19 +6283,24 @@ RESULT
       Output: columns=2 width=16
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Inner Join (columns=2 width=16 input_order=asc algo=Merge)
+   -> Inner Join (columns=2 width=16 input_order=asc algo=Hash)
          Output: columns=2 width=16
-         Filter: conditions=((`fq_exp_pg`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_influx`.`p`.`current` > 1.000000e+00))
-         Join Prim Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
-         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+         Filter: ((`fq_exp_pg`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_influx`.`p`.`current` > 1.000000e+00))
+         Join Full Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Partition on Column region (width=65543)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:15434 user=postgres
+               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
+      -> Partition on Column region (width=65535)
             Output: columns=3 width=65535
-            Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "region", "current" FROM "sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
 ---
 ### EXP-ds_math-01_mysql POS
 SQL: select ABS(voltage - 220.0) from fq_exp_mysql.sensor
@@ -6967,24 +7028,24 @@ RESULT
 ### EXP-ds_string-07_mysql POS
 SQL: select REPEAT(region, 2) from fq_exp_mysql.sensor
 RESULT
--> Federated Scan on fq_exp_mysql.sensor (mysql) (width=260)
-      Output: columns=1 width=260
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=258)
+      Output: columns=1 width=258
       Source: 127.0.0.1:13306 user=root
       Remote SQL: SELECT REPEAT(`region`, 2) AS `expr_1` FROM `fq_explain_m`.`sensor`
 ---
 ### EXP-ds_string-07_pg POS
 SQL: select REPEAT(region, 2) from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (width=131038)
-      Output: columns=1 width=131038
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65519)
+      Output: columns=1 width=65519
       Source: 127.0.0.1:15434 user=postgres
       Remote SQL: SELECT REPEAT("region", 2) AS "expr_1" FROM "public"."sensor"
 ---
 ### EXP-ds_string-07_influx POS
 SQL: select REPEAT(region, 2) from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (width=131038)
-      Output: columns=1 width=131038
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
+      Output: columns=1 width=65519
       Source: 127.0.0.1:18086 user=u
       Remote SQL: SELECT REPEAT("region", 2) AS "expr_1" FROM "sensor"
 ---
@@ -10706,20 +10767,25 @@ RESULT
       Output: columns=3 width=20
       Output: Ignore Group Id: true
       Merge ResBlocks: True
-   -> Full Join (columns=5 width=280 input_order=asc algo=Merge)
+   -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
          Output: columns=5 width=280
-         Join Prim Cond: (`fq_exp_mysql`.`s`.`time` = `fq_exp_mysql`.`r`.`time`)
-         Left Equal Cond: `s`.`region` 
-         Right Equal Cond: `r`.`region` 
-         Join Full Cond: (`fq_exp_mysql`.`s`.`region` = `fq_exp_mysql`.`r`.`region`)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+         Join Full Cond: (`fq_exp_mysql`.`s`.`time` = `fq_exp_mysql`.`r`.`time`) AND (`fq_exp_mysql`.`s`.`region` = `fq_exp_mysql`.`r`.`region`)
+      -> Partition on Column region (width=146)
             Output: columns=3 width=146
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+            Partition Key: partitions=1
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+               Output: columns=3 width=146
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Data Exchange 1:1 (width=142)
             Output: columns=3 width=142
-            Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
+         -> Partition on Column region (width=142)
+               Output: columns=3 width=142
+               Partition Key: partitions=1
+            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+                  Output: columns=3 width=142
+                  Source: 127.0.0.1:13306 user=root
+                  Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
 ---
 ### EXP-ds_join-04_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
@@ -10743,7 +10809,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=20)
       Output: columns=3 width=20
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `s`.`time`, `s`.`voltage`, `r`.`area` FROM `fq_explain_m`.`sensor` `s` INNER JOIN `fq_explain_m`.`region_info` `r` ON ((`s`.`time` = `r`.`time`) AND (`s`.`region` = `r`.`region`)) WHERE (((`s`.`voltage` > 220.0) AND (`r`.`area` = 1)))
+      Remote SQL: SELECT `s`.`time`, `s`.`voltage`, `r`.`area` FROM `fq_explain_m`.`sensor` `s` INNER JOIN `fq_explain_m`.`region_info` `r` ON ((`s`.`time` = `r`.`time`) AND (`s`.`region` = `r`.`region`)) WHERE ((`s`.`voltage` > 220.0)) AND ((`r`.`area` = 1))
 ---
 ### EXP-ds_join-05_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s inner join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region where s.voltage > 220.0 and r.area = 1
@@ -10751,7 +10817,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=20)
       Output: columns=3 width=20
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "s"."time", "s"."voltage", "r"."area" FROM "public"."sensor" "s" INNER JOIN "public"."region_info" "r" ON (("s"."time" = "r"."time") AND ("s"."region" = "r"."region")) WHERE ((("s"."voltage" > 220.0) AND ("r"."area" = 1)))
+      Remote SQL: SELECT "s"."time", "s"."voltage", "r"."area" FROM "public"."sensor" "s" INNER JOIN "public"."region_info" "r" ON (("s"."time" = "r"."time") AND ("s"."region" = "r"."region")) WHERE (("s"."voltage" > 220.0)) AND (("r"."area" = 1))
 ---
 ### EXP-ds_join-05_influx POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_influx.sensor s inner join fq_exp_influx.region_info r on s.`time` = r.`time` and s.region = r.region where s.voltage > 220.0 and r.area = 1
@@ -10759,7 +10825,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=24)
       Output: columns=3 width=24
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "s"."time", "s"."voltage", "r"."area" FROM "sensor" "s" INNER JOIN "region_info" "r" ON (("s"."time" = "r"."time") AND ("s"."region" = "r"."region")) WHERE ((("s"."voltage" > 220.0) AND ("r"."area" = 1)))
+      Remote SQL: SELECT "s"."time", "s"."voltage", "r"."area" FROM "sensor" "s" INNER JOIN "region_info" "r" ON (("s"."time" = "r"."time") AND ("s"."region" = "r"."region")) WHERE (("s"."voltage" > 220.0)) AND (("r"."area" = 1))
 ---
 ### EXP-ds_join-06_mysql POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s inner join fq_exp_mysql.region_info r on s.`time` = r.`time` and s.region = r.region order by s.`time` limit 5

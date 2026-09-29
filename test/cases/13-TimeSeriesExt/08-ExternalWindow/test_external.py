@@ -1699,9 +1699,10 @@ class TestExternal:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "cross_mix_and_join")
         self.cross_mix_and_join_no_sort()
 
-        # Join over derived subqueries that each contain EXTERNAL_WINDOW is still
-        # rejected by planner/executor with 0x80002664. Keep as negative coverage.
-        tdSql.error(
+        # The first derived EXTERNAL_WINDOW subquery returns no rows; joining it
+        # with another derived EXTERNAL_WINDOW subquery should succeed with an
+        # empty result.
+        tdSql.query(
             "SELECT "
             "a.ws, "
             "a.c AS c_a, "
@@ -1727,10 +1728,10 @@ class TestExternal:
             ") b "
             "ON a.ws = b.ws "
             "ORDER BY a.ws",
-            expectedErrno=0x80002664,
         )
+        tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             "SELECT "
             "a.ws, "
             "a.c AS c_a, "
@@ -1756,8 +1757,8 @@ class TestExternal:
             ") b "
             "ON a.ws = b.ws "
             "ORDER BY a.ws",
-            expectedErrno=0x80002664,
         )
+        tdSql.checkRows(0)
 
     def cross_mix_and_join_no_sort(self):
         tdLog.info("=============== external window: cross mix and join no sort")

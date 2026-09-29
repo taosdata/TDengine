@@ -1149,13 +1149,13 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                 ("ts", "TIMESTAMP", 8, ""), ("c_char", "NCHAR", 4, ""),
                 ("c_varchar", "NCHAR", 8, ""), ("c_bin", "VARBINARY", 8, ""),
                 ("c_blob", "VARBINARY", 65517, ""), ("c_json", "NCHAR", 16379, ""),
-                ("c_dec", "DECIMAL(18, 4)", 134222340, ""), ("c_geom", "GEOMETRY", 65517, ""),
+                ("c_dec", "DECIMAL(18, 4)", 8, ""), ("c_geom", "GEOMETRY", 65517, ""),
             ),
             _PG: (
                 ("ts", "TIMESTAMP", 8, ""), ("c_char", "NCHAR", 4, ""),
                 ("c_varchar", "NCHAR", 8, ""), ("c_bin", "VARBINARY", 65517, ""),
                 ("c_json", "NCHAR", 16379, ""), ("c_xml", "NCHAR", 16379, ""),
-                ("c_array", "NCHAR", 16379, ""), ("c_dec", "DECIMAL(18, 4)", 134222340, ""),
+                ("c_array", "NCHAR", 16379, ""), ("c_dec", "DECIMAL(18, 4)", 8, ""),
             ),
             _INFLUX: (
                 ("time", "TIMESTAMP", 8, ""), ("c_float", "DOUBLE", 8, ""),

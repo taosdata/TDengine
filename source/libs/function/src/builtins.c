@@ -2349,16 +2349,20 @@ static int32_t translateRepeat(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   uint8_t type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
-  int32_t resLen;
+  int32_t resLen = TSDB_MAX_FIELD_LEN;
   if (nodeType(nodesListGetNode(pFunc->pParameterList, 1)) == QUERY_NODE_VALUE) {
-    int64_t repeatCount = TMAX(((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i, 1);
-    if (orgLen < 0 || repeatCount > TSDB_MAX_FIELD_LEN ||
-        (repeatCount > 0 && orgLen > TSDB_MAX_FIELD_LEN / repeatCount)) {
-      return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+    SValueNode* pCount = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    uint64_t repeatCount = IS_UNSIGNED_NUMERIC_TYPE(pCount->node.resType.type)
+                               ? pCount->datum.u : (uint64_t)TMAX(pCount->datum.i, 0);
+    if (orgLen < 0) return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+    int32_t payloadLen = TMAX(orgLen - (int32_t)VARSTR_HEADER_SIZE, 0);
+    // A column's declared capacity does not determine its actual value length.
+    // Saturate metadata; the scalar function checks each result before copying.
+    if (repeatCount == 0 || payloadLen == 0) {
+      resLen = VARSTR_HEADER_SIZE;
+    } else if (repeatCount <= (TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE) / payloadLen) {
+      resLen = payloadLen * repeatCount + VARSTR_HEADER_SIZE;
     }
-    resLen = (int32_t)((int64_t)orgLen * repeatCount);
-  } else {
-    resLen = TSDB_MAX_BINARY_LEN;
   }
   pFunc->node.resType = (SDataType){.bytes = resLen, .type = type};
   return TSDB_CODE_SUCCESS;

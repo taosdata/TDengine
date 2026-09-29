@@ -1,0 +1,33 @@
+use test_join_tcol;
+
+select 'A1_inner_join_on_ts', count(*) from ct1 a join ct2 b on a.ts = b.ts;
+
+select 'A2_left_join_on_ts', count(*) from ct1 a left join ct2 b on a.ts = b.ts;
+
+select 'A3_full_join_on_ts', count(*) from ct1 a full join ct2 b on a.ts = b.ts;
+
+select 'A4_asof_join_on_ts', count(*) from ct1 a left asof join ct2 b on a.ts >= b.ts;
+
+select 'A5_window_join_on_ts', count(*) from (select a.ts, a.val, b.val from ct1 a left window join ct2 b window_offset(-1h, 1h));
+
+select 'C1_ts_primary_tcol_equal_secondary', count(*) from ct1 a join ct2 b on a.ts = b.ts and a.t_col = b.t_col;
+
+select 'C2_ts_primary_tcol_gt_secondary', count(*) from ct1 a join ct2 b on a.ts = b.ts and a.t_col > b.t_col;
+
+select 'D1_window_join_on_tcol', count(*) from (select a.ts, a.t_col, a.val, b.ts, b.t_col, b.val from ct1 a left window join ct2 b on a.t_col = b.t_col window_offset(-1h, 1h));
+
+select 'D2_window_join_on_tcol_wider_offset', count(*) from (select a.ts, a.t_col, a.val, b.ts, b.t_col, b.val from ct1 a left window join ct2 b on a.t_col = b.t_col window_offset(-2h, 2h));
+
+select 'D3_window_join_on_tcol_zero_offset', count(*) from (select a.ts, a.t_col, a.val, b.ts, b.t_col, b.val from ct1 a left window join ct2 b on a.t_col = b.t_col window_offset(0h, 0h));
+
+select 'F1_supertable_join_on_ts', count(*) from stb a join stb b on a.ts = b.ts and a.g = 1 and b.g = 2;
+
+create table ct3 using stb tags(3);
+
+insert into ct3 values ('2024-01-01 00:00:00', NULL, 100) ('2024-01-01 01:00:00', '2024-01-01 10:00:00', 200);
+
+select 'D4_window_join_on_tcol_with_null', count(*) from (select a.ts, a.t_col, a.val, b.val from ct3 a left window join ct2 b on a.t_col = b.t_col window_offset(-1h, 1h));
+
+select 'G1_fallback_timeline_first_last', first(val), last(val) from (select t_col, val from ct1);
+
+select 'G2_fallback_timeline_order_by', t_col, val from (select t_col, val from ct1 order by t_col) order by t_col, val;

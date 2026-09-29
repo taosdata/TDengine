@@ -1917,6 +1917,9 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->currLevel = 0;
   pCxt->levelNo = 0;
   pCxt->currClause = 0;
+  pCxt->inJoinOnCond = false;
+  pCxt->statementTimeSet = false;
+  pCxt->statementTimeNs = 0;
   pCxt->origStmtType = 0;
   pCxt->vtbRefErrMsgSet = false;
   pCxt->pMetaCache = pMetaCache;
@@ -1935,6 +1938,13 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
     }
   }
   return isSubCtx ? TSDB_CODE_SUCCESS : nodesMakeList(&pCxt->pSubQueries);
+}
+
+static void inheritStatementTime(const STranslateContext* pParent, STranslateContext* pChild) {
+  if (pParent->statementTimeSet) {
+    pChild->statementTimeSet = true;
+    pChild->statementTimeNs = pParent->statementTimeNs;
+  }
 }
 
 static int32_t resetHighLevelTranslateNamespace(STranslateContext* pCxt) {
@@ -2200,6 +2210,66 @@ static bool isGlobalTimeLineQuery(SNode* pStmt) {
   } else {
     return false;
   }
+}
+
+// Only the raw primary timestamp, possibly exposed through a select-value or
+// group-key wrapper, provides primary-timestamp ordering. Time expressions
+// such as TIMETRUNCATE may use different buckets/timezones and are not enough.
+static bool isRawPrimaryKeyOrderExpr(SNode* pExpr) {
+  if (NULL == pExpr) {
+    return false;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    return ((SColumnNode*)pExpr)->isPrimTs;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+    if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType) {
+      return isRawPrimaryKeyOrderExpr(nodesListGetNode(pFunc->pParameterList, 0));
+    }
+  }
+  return false;
+}
+
+static bool isPrimaryKeyOrderAlias(SNode* pExpr, SNodeList* pProjectionList) {
+  if (QUERY_NODE_COLUMN != nodeType(pExpr)) {
+    return false;
+  }
+  SColumnNode* pCol = (SColumnNode*)pExpr;
+  SNode*       pProjection = NULL;
+  FOREACH(pProjection, pProjectionList) {
+    SExprNode* pProjectionExpr = (SExprNode*)pProjection;
+    if (0 == strcmp(pCol->colName, pProjectionExpr->userAlias) && isRawPrimaryKeyOrderExpr(pProjection)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// A subquery remains a sortable time-series input when its first ORDER BY key
+// is the raw primary timestamp in either direction. The optimizer can align
+// opposite ASC/DESC directions before Merge Join.
+static bool isPrimaryKeyOrderQuery(SNode* pStmt) {
+  SNodeList* pOrderBy = NULL;
+  SNodeList* pProjectionList = NULL;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    pOrderBy = ((SSelectStmt*)pStmt)->pOrderByList;
+    pProjectionList = ((SSelectStmt*)pStmt)->pProjectionList;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
+    pOrderBy = ((SSetOperator*)pStmt)->pOrderByList;
+    pProjectionList = ((SSetOperator*)pStmt)->pProjectionList;
+  }
+  if (NULL == pOrderBy || pOrderBy->length == 0) {
+    return true;
+  }
+  SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesListGetNode(pOrderBy, 0);
+  return pOrder != NULL && (ORDER_ASC == pOrder->order || ORDER_DESC == pOrder->order) &&
+         (isRawPrimaryKeyOrderExpr(pOrder->pExpr) ||
+          isPrimaryKeyOrderAlias(pOrder->pExpr, pProjectionList));
+}
+
+static bool isOrderedTimeSeriesInput(SNode* pSubquery) {
+  return pSubquery != NULL && isGlobalTimeLineQuery(pSubquery) && isPrimaryKeyOrderQuery(pSubquery);
 }
 
 static bool isCurGlobalTimeLineQuery(SNode* pStmt) {
@@ -4333,6 +4403,7 @@ static int32_t createSimpleSubQStmt(STranslateContext* pCxt, char* stmtName, SNo
   cxt.isExprSubQ = true;
 
   code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
+  inheritStatementTime(pCxt, &cxt);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pSelect);
     destroyTranslateContext(&cxt);
@@ -5077,6 +5148,12 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   }
 
   if (TSDB_CODE_SUCCESS != code) {
+    if (pCxt->inJoinOnCond && TSDB_CODE_BLOB_OP_NOT_SUPPORTED == code && OP_TYPE_EQUAL == pOp->opType) {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                              "Not supported join since 'Hash Join does not support JSON, BLOB or "
+                                              "MEDIUMBLOB as equality key'");
+      return DEAL_RES_ERROR;
+    }
     if (TSDB_CODE_PAR_INVALID_COL_JSON == code) {
       (void)generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);
     }
@@ -7083,7 +7160,29 @@ static int32_t rewriteClientPseudoColumnFunc(STranslateContext* pCxt, SNode** pN
                                  ((SFunctionNode*)*pNode)->functionName, ((SFunctionNode*)*pNode)->funcType);
 }
 
+static int32_t rewriteStatementTimeFunc(STranslateContext* pCxt, SNode** pNode) {
+  SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+  if (!pCxt->statementTimeSet) {
+    pCxt->statementTimeNs = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    pCxt->statementTimeSet = true;
+  }
+  int32_t precision = pFunc->node.resType.precision;
+  int64_t value = convertTimePrecision(pCxt->statementTimeNs,
+                                      TSDB_TIME_PRECISION_NANO, precision);
+  if (FUNCTION_TYPE_TODAY == pFunc->funcType) {
+    const int64_t millisecondsPerDay = 86400000;
+    int64_t day = convertTimePrecision(millisecondsPerDay,
+                                      TSDB_TIME_PRECISION_MILLI, precision);
+    value = taosTimeTruncateIANA(value, day, 0, precision, pFunc->tz);
+  }
+  return rewriteQueryTimeFunc(pCxt, value, pNode);
+}
+
 static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pFunc) {
+  if (FUNCTION_TYPE_NOW == (*pFunc)->funcType ||
+      FUNCTION_TYPE_TODAY == (*pFunc)->funcType) {
+    return rewriteStatementTimeFunc(pCxt, (SNode**)pFunc);
+  }
   if (fmIsSystemInfoFunc((*pFunc)->funcId)) {
     return rewriteSystemInfoFunc(pCxt, (SNode**)pFunc);
   }
@@ -9819,6 +9918,13 @@ static bool isExternalRealTable(const SRealTableNode* pTable) {
 }
 
 static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
+  if (!pJoinTable->isCrossJoin && NULL == pJoinTable->pOnCond &&
+      (JOIN_STYPE_NONE == pJoinTable->subType || JOIN_STYPE_OUTER == pJoinTable->subType ||
+       JOIN_STYPE_SEMI == pJoinTable->subType || JOIN_STYPE_ANTI == pJoinTable->subType)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "JOIN requires an ON clause; use CROSS JOIN for an unconditional join");
+  }
+
   if (JOIN_STYPE_NONE != pJoinTable->subType && getBothJoinContais(pJoinTable->pLeft, pJoinTable->pRight)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN, "unsupported nested join type");
   }
@@ -9911,7 +10017,7 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
   }
 
   if (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
-      !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) {
+      !isOrderedTimeSeriesInput(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) {
     if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
                                      "Join requires valid time series input");
@@ -9920,7 +10026,7 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
   }
 
   if (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pRight) &&
-      !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pRight)->pSubquery)) {
+      !isOrderedTimeSeriesInput(((STempTableNode*)pJoinTable->pRight)->pSubquery)) {
     if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
                                      "Join requires valid time series input");
@@ -10078,51 +10184,6 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   nodesWalkExpr(pJoinTable->pOnCond, joinCondsValidater, &code);
 
   return code;
-}
-
-// ---------------------------------------------------------------------------
-// checkExtSourceJoinCond
-// External-table JOINs must use the primary timestamp column in the ON
-// condition (DS section 5.3.10.3.4 Rule 7).  Non-ts-pk JOINs are rejected here
-// with TSDB_CODE_PAR_NOT_SUPPORT_JOIN (0x2664).
-//
-// Applies to all external sources and JOIN types (including PG FULL OUTER JOIN).
-// ---------------------------------------------------------------------------
-static EDealRes extJoinTsColWalker(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    if (TSDB_DATA_TYPE_TIMESTAMP == ((SColumnNode*)pNode)->node.resType.type) {
-      *(bool*)pContext = true;
-      return DEAL_RES_END;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static bool extJoinOnCondHasTs(SNode* pOnCond) {
-  bool found = false;
-  nodesWalkExpr(pOnCond, extJoinTsColWalker, &found);
-  return found;
-}
-
-static int32_t checkExtSourceJoinCond(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
-  bool leftIsExt  = (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pLeft)  &&
-                     ((SRealTableNode*)pJoinTable->pLeft)->pExtTableNode  != NULL);
-  bool rightIsExt = (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pRight) &&
-                     ((SRealTableNode*)pJoinTable->pRight)->pExtTableNode != NULL);
-  if (!leftIsExt && !rightIsExt) {
-    return TSDB_CODE_SUCCESS;
-  }
-  // WINDOW JOIN and ASOF JOIN use implicit time-based matching via WINDOW_OFFSET
-  // or JLIMIT  -  they do not require an explicit ts column in ON condition.
-  if (IS_WINDOW_JOIN(pJoinTable->subType) || IS_ASOF_JOIN(pJoinTable->subType)) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if (extJoinOnCondHasTs(pJoinTable->pOnCond)) {
-    return TSDB_CODE_SUCCESS;  // ts-pk JOIN  -  valid
-  }
-  // Non-ts-pk JOIN on external table.
-  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                  "External source JOIN requires primary timestamp column in ON condition");
 }
 
 static int32_t cloneVgroups(SVgroupsInfo** pDst, SVgroupsInfo* pSrc) {
@@ -13323,8 +13384,11 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SNode** pTable, bool 
     }
   }
 
-  PAR_ERR_JRET(translateExpr(pCxt, &pJoinTable->pOnCond));
-  PAR_ERR_JRET(checkExtSourceJoinCond(pCxt, pJoinTable));
+  bool origInJoinOnCond = pCxt->inJoinOnCond;
+  pCxt->inJoinOnCond = true;
+  code = translateExpr(pCxt, &pJoinTable->pOnCond);
+  pCxt->inJoinOnCond = origInJoinOnCond;
+  PAR_ERR_JRET(code);
   pJoinTable->hasSubQuery =
       (nodeType(pJoinTable->pLeft) != QUERY_NODE_REAL_TABLE) || (nodeType(pJoinTable->pRight) != QUERY_NODE_REAL_TABLE);
   if (nodeType(pJoinTable->pLeft) == QUERY_NODE_JOIN_TABLE) {
@@ -33607,6 +33671,10 @@ static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateConte
 
 void updateContextFromSubQ(STranslateContext* pCxt, SNode* pNode, STranslateContext* pChild) {
   if (pChild) {
+    if (!pCxt->statementTimeSet && pChild->statementTimeSet) {
+      pCxt->statementTimeSet = true;
+      pCxt->statementTimeNs = pChild->statementTimeNs;
+    }
     if (pChild->hasNonLocalSubQ) {
       pCxt->hasNonLocalSubQ = true;
     }
@@ -33789,6 +33857,7 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
   int64_t exprId = pCxt->pCorrelation->nextExprId++;
 
   code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
+  inheritStatementTime(pCxt, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
     code = updateStreamSubquery(pCxt, &cxt);
   }

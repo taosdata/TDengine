@@ -4803,18 +4803,25 @@ static const SExtTableNode* renderJoinFindLeafExtSource(const SLogicNode* pSourc
 }
 
 static int32_t renderJoinDerivedSource(const SLogicNode* pSource, EExtSQLDialect dialect,
-                                       const SNodesRemoteSQLCtx* pCtx, SDynSQL* s) {
+                                       const SNodesRemoteSQLCtx* pCtx, SDynSQL* s,
+                                       const char* pFallbackAlias) {
   const SExtTableNode* pLeafExt = renderJoinFindLeafExtSource(pSource);
   const char*          pAlias = (NULL != pLeafExt && pLeafExt->table.tableAlias[0] != '\0')
                                     ? pLeafExt->table.tableAlias
-                                    : "_sq";
+                                    : pFallbackAlias;
 
   qDebug("FQ-SQL: render join source derived nodeType=%s source=%p alias=%s leafTable=%s",
          nodesNodeName(nodeType((SNode*)pSource)), pSource, pAlias,
          (NULL != pLeafExt) ? pLeafExt->table.tableName : "(null)");
 
+  // This SELECT remains inside the remote statement. Keep timestamp columns in
+  // their source type; epoch transport conversion belongs only to the final
+  // SELECT returned to TDengine.
+  SNodesRemoteSQLCtx derivedCtx = pCtx ? *pCtx : (SNodesRemoteSQLCtx){0};
+  derivedCtx.convertTimestampOutputToEpoch = false;
+
   dynSQLAppendChar(s, '(');
-  int32_t code = renderNode(pSource, dialect, pCtx, s);
+  int32_t code = renderNode(pSource, dialect, &derivedCtx, s);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -4824,7 +4831,8 @@ static int32_t renderJoinDerivedSource(const SLogicNode* pSource, EExtSQLDialect
 }
 
 static int32_t renderJoinSource(const SLogicNode* pSource, EExtSQLDialect dialect,
-                                const SNodesRemoteSQLCtx* pCtx, SDynSQL* s, bool wrapJoin) {
+                                const SNodesRemoteSQLCtx* pCtx, SDynSQL* s, bool wrapJoin,
+                                bool deriveFilteredScan, const char* pFallbackAlias) {
   if (NULL == pSource) {
     qError("FQ-SQL: renderJoinSource got NULL source");
     return TSDB_CODE_INVALID_PARA;
@@ -4836,6 +4844,11 @@ static int32_t renderJoinSource(const SLogicNode* pSource, EExtSQLDialect dialec
       if (NULL == pScan->pExtTableNode) {
         qError("FQ-SQL: renderJoinSource scan missing pExtTableNode scan=%p", pScan);
         return TSDB_CODE_EXT_SQL_RENDER_ERROR;
+      }
+      if (deriveFilteredScan && NULL != pScan->node.pConditions) {
+        qDebug("FQ-SQL: render join source filtered scan=%p alias=%s as derived source",
+               pScan, ((const SExtTableNode*)pScan->pExtTableNode)->table.tableAlias);
+        return renderJoinDerivedSource(pSource, dialect, pCtx, s, pFallbackAlias);
       }
       qDebug("FQ-SQL: render join source scan=%p alias=%s table=%s",
              pScan, ((const SExtTableNode*)pScan->pExtTableNode)->table.tableAlias,
@@ -4868,7 +4881,7 @@ static int32_t renderJoinSource(const SLogicNode* pSource, EExtSQLDialect dialec
     default:
       qDebug("FQ-SQL: render join source fallback to derived table nodeType=%s source=%p",
              nodesNodeName(nodeType((SNode*)pSource)), pSource);
-      return renderJoinDerivedSource(pSource, dialect, pCtx, s);
+      return renderJoinDerivedSource(pSource, dialect, pCtx, s, pFallbackAlias);
   }
 }
 
@@ -4899,8 +4912,47 @@ static int32_t renderJoinTreeCondition(const SNode* pCond, const SExtTableMeta* 
   return s->err ? s->err : TSDB_CODE_SUCCESS;
 }
 
+typedef enum {
+  FQ_JOIN_LEG_PLAIN = 0,
+  FQ_JOIN_LEG_PUSH_TO_ON,
+  FQ_JOIN_LEG_DERIVED,
+  FQ_JOIN_LEG_UNSUPPORTED,
+} EFqJoinLegRenderMode;
+
+static EFqJoinLegRenderMode classifyJoinLegRenderMode(const SJoinLogicNode* pJoin,
+                                                       const SLogicNode* pLeg, bool isLeft) {
+  if (NULL == pJoin || NULL == pLeg || NULL == pLeg->pConditions) {
+    return FQ_JOIN_LEG_PLAIN;
+  }
+
+  if (JOIN_TYPE_INNER == pJoin->joinType) {
+    return FQ_JOIN_LEG_PLAIN;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType((SNode*)pLeg)) {
+    if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pLeg) &&
+        ((JOIN_TYPE_LEFT == pJoin->joinType && isLeft) ||
+         (JOIN_TYPE_RIGHT == pJoin->joinType && !isLeft))) {
+      return FQ_JOIN_LEG_PLAIN;
+    }
+    return FQ_JOIN_LEG_UNSUPPORTED;
+  }
+
+  switch (pJoin->joinType) {
+    case JOIN_TYPE_LEFT:
+      return isLeft ? FQ_JOIN_LEG_DERIVED : FQ_JOIN_LEG_PUSH_TO_ON;
+    case JOIN_TYPE_RIGHT:
+      return isLeft ? FQ_JOIN_LEG_PUSH_TO_ON : FQ_JOIN_LEG_DERIVED;
+    case JOIN_TYPE_FULL:
+      return FQ_JOIN_LEG_DERIVED;
+    default:
+      return FQ_JOIN_LEG_PLAIN;
+  }
+}
+
 static int32_t renderJoinTreeWhere(const SLogicNode* pNode, EExtSQLDialect dialect,
-                                   const SNodesRemoteSQLCtx* pCtx, SDynSQL* s, bool* pWroteAny) {
+                                   const SNodesRemoteSQLCtx* pCtx, SDynSQL* s, bool* pWroteAny,
+                                   bool skipSelfCondition) {
   if (NULL == pNode || NULL == pWroteAny) {
     qError("FQ-SQL: renderJoinTreeWhere invalid input node=%p wroteAny=%p", pNode, pWroteAny);
     return TSDB_CODE_INVALID_PARA;
@@ -4909,7 +4961,7 @@ static int32_t renderJoinTreeWhere(const SLogicNode* pNode, EExtSQLDialect diale
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
-      if (NULL == pScan->node.pConditions) {
+      if (skipSelfCondition || NULL == pScan->node.pConditions) {
         return TSDB_CODE_SUCCESS;
       }
       if (NULL == pScan->pExtTableNode) {
@@ -4919,7 +4971,8 @@ static int32_t renderJoinTreeWhere(const SLogicNode* pNode, EExtSQLDialect diale
       const SExtTableNode* pExt = (const SExtTableNode*)pScan->pExtTableNode;
       qDebug("FQ-SQL: render join-tree scan WHERE scan=%p alias=%s hasCond=1",
              pScan, pExt->table.tableAlias);
-      return renderJoinTreeCondition(pScan->node.pConditions, pExt->pExtMeta, dialect, pCtx, s, pWroteAny);
+      return renderJoinTreeCondition(pScan->node.pConditions, pExt->pExtMeta,
+                                     dialect, pCtx, s, pWroteAny);
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
       const SJoinLogicNode* pJoin = (const SJoinLogicNode*)pNode;
@@ -4937,14 +4990,26 @@ static int32_t renderJoinTreeWhere(const SLogicNode* pNode, EExtSQLDialect diale
              pRight ? nodesNodeName(nodeType((SNode*)pRight)) : "(null)",
              NULL != pJoin->node.pConditions);
 
-      int32_t code = renderJoinTreeWhere(pLeft, dialect, pCtx, s, pWroteAny);
+      const EFqJoinLegRenderMode leftMode = classifyJoinLegRenderMode(pJoin, pLeft, true);
+      const EFqJoinLegRenderMode rightMode = classifyJoinLegRenderMode(pJoin, pRight, false);
+      if (FQ_JOIN_LEG_UNSUPPORTED == leftMode || FQ_JOIN_LEG_UNSUPPORTED == rightMode) {
+        qError("FQ-SQL: filtered nested JOIN leg is not renderable join=%p leftMode=%d rightMode=%d",
+               pJoin, (int)leftMode, (int)rightMode);
+        return TSDB_CODE_EXT_SQL_RENDER_ERROR;
+      }
+
+      int32_t code = renderJoinTreeWhere(pLeft, dialect, pCtx, s, pWroteAny,
+                                         FQ_JOIN_LEG_PLAIN != leftMode);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
-      code = renderJoinTreeWhere(pRight, dialect, pCtx, s, pWroteAny);
+      code = renderJoinTreeWhere(pRight, dialect, pCtx, s, pWroteAny,
+                                 FQ_JOIN_LEG_PLAIN != rightMode);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
+      // A JOIN leg is either PLAIN or rejected above, so skipSelfCondition only
+      // applies to SCAN legs that were rendered as derived sources or in ON.
       return renderJoinTreeCondition(pJoin->node.pConditions, NULL, dialect, pCtx, s, pWroteAny);
     }
     default:
@@ -8919,31 +8984,81 @@ static int32_t renderJoin(const SJoinLogicNode* pJoin, EExtSQLDialect dialect,
   SNodesRemoteSQLCtx joinCtx = pCtx ? *pCtx : (SNodesRemoteSQLCtx){0};
   joinCtx.useJoinLegAlias = true;
 
-  int32_t code = renderJoinSource(pLeft, dialect, pCtx, s, nodeType((SNode*)pLeft) == QUERY_NODE_LOGIC_PLAN_JOIN);
+  // The condition-pushdown rule only moves ON predicates to the nullable leg
+  // of an outer join.  Render that leg as a plain source and append its filter
+  // to ON below.  A condition on the preserved leg comes from WHERE and must
+  // remain a pre-filtered derived source.
+  const EFqJoinLegRenderMode leftMode = classifyJoinLegRenderMode(pJoin, pLeft, true);
+  const EFqJoinLegRenderMode rightMode = classifyJoinLegRenderMode(pJoin, pRight, false);
+  if (FQ_JOIN_LEG_UNSUPPORTED == leftMode || FQ_JOIN_LEG_UNSUPPORTED == rightMode) {
+    qError("FQ-SQL: filtered nested JOIN leg is not renderable join=%p leftMode=%d rightMode=%d",
+           pJoin, (int)leftMode, (int)rightMode);
+    return TSDB_CODE_EXT_SQL_RENDER_ERROR;
+  }
+
+  int32_t code = renderJoinSource(pLeft, dialect, pCtx, s,
+                                  nodeType((SNode*)pLeft) == QUERY_NODE_LOGIC_PLAN_JOIN,
+                                  FQ_JOIN_LEG_DERIVED == leftMode, "_sq_l");
   if (TSDB_CODE_SUCCESS != code) {
     qError("FQ-SQL: render JOIN left source failed join=%p code=0x%x", pJoin, code);
     return code;
   }
-  switch (pJoin->joinType) {
-    case JOIN_TYPE_LEFT:  dynSQLAppendStr(s, " LEFT JOIN ");  break;
-    case JOIN_TYPE_RIGHT: dynSQLAppendStr(s, " RIGHT JOIN "); break;
-    case JOIN_TYPE_FULL:  dynSQLAppendStr(s, " FULL JOIN ");  break;
-    default:              dynSQLAppendStr(s, " INNER JOIN "); break;
+  if (pJoin->isCrossJoin) {
+    dynSQLAppendStr(s, " CROSS JOIN ");
+  } else {
+    switch (pJoin->joinType) {
+      case JOIN_TYPE_LEFT:  dynSQLAppendStr(s, " LEFT JOIN ");  break;
+      case JOIN_TYPE_RIGHT: dynSQLAppendStr(s, " RIGHT JOIN "); break;
+      case JOIN_TYPE_FULL:  dynSQLAppendStr(s, " FULL JOIN ");  break;
+      default:              dynSQLAppendStr(s, " INNER JOIN "); break;
+    }
   }
-  code = renderJoinSource(pRight, dialect, pCtx, s, nodeType((SNode*)pRight) == QUERY_NODE_LOGIC_PLAN_JOIN);
+  code = renderJoinSource(pRight, dialect, pCtx, s,
+                          nodeType((SNode*)pRight) == QUERY_NODE_LOGIC_PLAN_JOIN,
+                          FQ_JOIN_LEG_DERIVED == rightMode, "_sq_r");
   if (TSDB_CODE_SUCCESS != code) {
     qError("FQ-SQL: render JOIN right source failed join=%p code=0x%x", pJoin, code);
     return code;
   }
   const SNode* pOnCond = pJoin->pFullOnCond ? pJoin->pFullOnCond
                        : (pJoin->pColEqCond ? pJoin->pColEqCond : NULL);
-  if (pOnCond) {
-    qDebug("FQ-SQL: render JOIN ON join=%p condType=%s", pJoin, nodesNodeName(nodeType((SNode*)pOnCond)));
+  const SNode* pPushedOnCond = FQ_JOIN_LEG_PUSH_TO_ON == leftMode
+                                   ? pLeft->pConditions
+                                   : (FQ_JOIN_LEG_PUSH_TO_ON == rightMode ? pRight->pConditions : NULL);
+  const bool combineOnConditions = NULL != pOnCond && NULL != pPushedOnCond;
+  if (pOnCond || pPushedOnCond) {
+    qDebug("FQ-SQL: render JOIN ON join=%p condType=%s pushedCondType=%s", pJoin,
+           pOnCond ? nodesNodeName(nodeType((SNode*)pOnCond)) : "(null)",
+           pPushedOnCond ? nodesNodeName(nodeType((SNode*)pPushedOnCond)) : "(null)");
     dynSQLAppendStr(s, " ON ");
-    code = dynAppendExpr(s, pOnCond, dialect, NULL, &joinCtx);
-    if (TSDB_CODE_SUCCESS != code) {
-      qError("FQ-SQL: render JOIN ON failed join=%p code=0x%x", pJoin, code);
-      return code;
+    if (pOnCond) {
+      if (combineOnConditions) {
+        dynSQLAppendChar(s, '(');
+      }
+      code = dynAppendExpr(s, pOnCond, dialect, NULL, &joinCtx);
+      if (TSDB_CODE_SUCCESS != code) {
+        qError("FQ-SQL: render JOIN ON failed join=%p code=0x%x", pJoin, code);
+        return code;
+      }
+      if (combineOnConditions) {
+        dynSQLAppendChar(s, ')');
+      }
+    }
+    if (pPushedOnCond) {
+      if (pOnCond) {
+        dynSQLAppendStr(s, " AND ");
+      }
+      if (combineOnConditions) {
+        dynSQLAppendChar(s, '(');
+      }
+      code = dynAppendExpr(s, pPushedOnCond, dialect, NULL, &joinCtx);
+      if (TSDB_CODE_SUCCESS != code) {
+        qError("FQ-SQL: render JOIN pushed ON failed join=%p code=0x%x", pJoin, code);
+        return code;
+      }
+      if (combineOnConditions) {
+        dynSQLAppendChar(s, ')');
+      }
     }
   }
   return s->err ? s->err : TSDB_CODE_SUCCESS;
@@ -8956,7 +9071,7 @@ static bool renderJoinLegWhere(const SJoinLogicNode* pJoin, EExtSQLDialect diale
   SNodesRemoteSQLCtx joinCtx = pCtx ? *pCtx : (SNodesRemoteSQLCtx){0};
   joinCtx.useJoinLegAlias = true;
   bool wroteAny = false;
-  int32_t code = renderJoinTreeWhere((const SLogicNode*)pJoin, dialect, &joinCtx, s, &wroteAny);
+  int32_t code = renderJoinTreeWhere((const SLogicNode*)pJoin, dialect, &joinCtx, s, &wroteAny, false);
   if (TSDB_CODE_SUCCESS != code) {
     qError("FQ-SQL: renderJoinLegWhere failed join=%p code=0x%x", pJoin, code);
     return false;

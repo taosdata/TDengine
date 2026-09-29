@@ -2482,7 +2482,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:{
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
+    case QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN:{
       SHashJoinPhysiNode *pJoinNode = (SHashJoinPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_JOIN_FORMAT, gJoinTypeStr[pJoinNode->joinType][pJoinNode->subType]);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
@@ -2497,7 +2498,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_ORDER_FORMAT, EXPLAIN_ORDER_STRING(pJoinNode->node.inputTsOrder));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-      EXPLAIN_ROW_APPEND(EXPLAIN_JOIN_ALGO, "Hash");
+      EXPLAIN_ROW_APPEND(EXPLAIN_JOIN_ALGO,
+                         QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN == nodeType(pNode) ? "Theta(BlockNestedLoop)" : "Hash");
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));

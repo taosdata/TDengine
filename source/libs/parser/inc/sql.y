@@ -44,6 +44,11 @@
     A = addJLimitClause(pCxt, A, H);                                           \
   }
 
+#define SET_CROSS_JOIN(A)                                                       \
+  do {                                                                          \
+    if (NULL != (A)) ((SJoinTableNode*)(A))->isCrossJoin = true;                \
+  } while (0)
+
 int32_t taosParseShortWeekday(const char* str);
 }
 
@@ -73,7 +78,7 @@ int32_t taosParseShortWeekday(const char* str);
 %right NOT.
 %left NK_ARROW.
 
-%right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW JOIN ON WINDOW_OFFSET JLIMIT ANY SOME EXISTS.
+%right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW CROSS JOIN ON WINDOW_OFFSET JLIMIT ANY SOME EXISTS.
 
 /************************************************ create/alter account *****************************************/
 cmd ::= CREATE ACCOUNT NK_ID PASS NK_STRING account_options.                      { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
@@ -2828,7 +2833,7 @@ from_clause_opt(A) ::= .                                                        
 from_clause_opt(A) ::= FROM table_reference_list(B).                              { A = B; }
 
 table_reference_list(A) ::= table_reference(B).                                   { A = B; }
-table_reference_list(A) ::= table_reference_list(B) NK_COMMA table_reference(C).  { A = createJoinTableNode(pCxt, JOIN_TYPE_INNER, JOIN_STYPE_NONE, B, C, NULL); }
+table_reference_list(A) ::= table_reference_list(B) NK_COMMA table_reference(C).  { A = createJoinTableNode(pCxt, JOIN_TYPE_INNER, JOIN_STYPE_NONE, B, C, NULL); SET_CROSS_JOIN(A); }
 
 /************************************************ table_reference *****************************************************/
 table_reference(A) ::= table_primary(B).                                          { A = B; }
@@ -2904,38 +2909,41 @@ inner_joined(A) ::=
 inner_joined(A) ::=
   table_reference(B) INNER JOIN table_reference(E) join_on_clause_opt(F).         { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_NONE, A, B, E, F, NULL, NULL); }
 
+inner_joined(A) ::=
+  table_reference(B) CROSS JOIN table_reference(E).                               { JOINED_TABLE_MK(JOIN_TYPE_INNER, JOIN_STYPE_NONE, A, B, E, NULL, NULL, NULL); SET_CROSS_JOIN(A); }
+
 /************************************************ outer join **********************************************************/
 outer_joined(A) ::=
-  table_reference(B) LEFT JOIN table_reference(E) join_on_clause(F).              { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
+  table_reference(B) LEFT JOIN table_reference(E) join_on_clause_opt(F).          { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
 
 outer_joined(A) ::=
-  table_reference(B) RIGHT JOIN table_reference(E) join_on_clause(F).             { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
+  table_reference(B) RIGHT JOIN table_reference(E) join_on_clause_opt(F).         { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
 
 outer_joined(A) ::=
-  table_reference(B) FULL JOIN table_reference(E) join_on_clause(F).              { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
+  table_reference(B) FULL JOIN table_reference(E) join_on_clause_opt(F).          { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
 
 outer_joined(A) ::=
-  table_reference(B) LEFT OUTER JOIN table_reference(E) join_on_clause(F).        { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
+  table_reference(B) LEFT OUTER JOIN table_reference(E) join_on_clause_opt(F).    { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
 
 outer_joined(A) ::=
-  table_reference(B) RIGHT OUTER JOIN table_reference(E) join_on_clause(F).       { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
+  table_reference(B) RIGHT OUTER JOIN table_reference(E) join_on_clause_opt(F).   { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
 
 outer_joined(A) ::=
-  table_reference(B) FULL OUTER JOIN table_reference(E) join_on_clause(F).        { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
+  table_reference(B) FULL OUTER JOIN table_reference(E) join_on_clause_opt(F).    { JOINED_TABLE_MK(JOIN_TYPE_FULL, JOIN_STYPE_OUTER, A, B, E, F, NULL, NULL); }
 
 /************************************************ semi join ***********************************************************/
 semi_joined(A) ::=
-  table_reference(B) LEFT SEMI JOIN table_reference(E) join_on_clause(F).         { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_SEMI, A, B, E, F, NULL, NULL); }
+  table_reference(B) LEFT SEMI JOIN table_reference(E) join_on_clause_opt(F).     { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_SEMI, A, B, E, F, NULL, NULL); }
 
 semi_joined(A) ::=
-  table_reference(B) RIGHT SEMI JOIN table_reference(E) join_on_clause(F).        { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_SEMI, A, B, E, F, NULL, NULL); }
+  table_reference(B) RIGHT SEMI JOIN table_reference(E) join_on_clause_opt(F).    { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_SEMI, A, B, E, F, NULL, NULL); }
 
 /************************************************ ansi join ***********************************************************/
 anti_joined(A) ::=
-  table_reference(B) LEFT ANTI JOIN table_reference(E) join_on_clause(F).         { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_ANTI, A, B, E, F, NULL, NULL); }
+  table_reference(B) LEFT ANTI JOIN table_reference(E) join_on_clause_opt(F).     { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_ANTI, A, B, E, F, NULL, NULL); }
 
 anti_joined(A) ::=
-  table_reference(B) RIGHT ANTI JOIN table_reference(E) join_on_clause(F).        { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_ANTI, A, B, E, F, NULL, NULL); }
+  table_reference(B) RIGHT ANTI JOIN table_reference(E) join_on_clause_opt(F).    { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_ANTI, A, B, E, F, NULL, NULL); }
 
 /************************************************ asof join ***********************************************************/
 asof_joined(A) ::=

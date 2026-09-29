@@ -3854,6 +3854,9 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
 
   pInfo->win = pTaskInfo->window;
   setOptrBasicInfoOrder(&pInfo->binfo, &pPhyNode->window.node);
+  if (downstream != NULL && downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN) {
+    pInfo->binfo.inputDataOrder = DATA_ORDER_LEVEL_NONE;
+  }
   pInfo->interval = interval;
   pInfo->twAggSup = as;
   pInfo->binfo.mergeResultBlock = pPhyNode->window.mergeDataBlock;

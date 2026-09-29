@@ -205,7 +205,8 @@ static void rewriteConstCondition(SNode** pCond, bool* pAlwaysFalse) {
   if (QUERY_NODE_VALUE != nodeType(*pCond)) {
     return;
   }
-  if (((SValueNode*)*pCond)->datum.b) {
+  SValueNode* pValue = (SValueNode*)*pCond;
+  if (!pValue->isNull && pValue->datum.b) {
     nodesDestroyNode(*pCond);
     *pCond = NULL;
   } else {

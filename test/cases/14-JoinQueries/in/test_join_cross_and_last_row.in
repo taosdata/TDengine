@@ -1,0 +1,6 @@
+USE join_db0;
+
+SELECT COUNT(*) FROM join_tb0, join_tb1;
+SELECT * FROM join_tb0, join_tb1 ORDER BY join_tb0.ts, join_tb1.ts LIMIT 3;
+SELECT last_row(*) FROM join_tb0, join_tb1;
+SELECT last_row(*) FROM join_tb1, join_tb0 WHERE join_tb1.ts < now;

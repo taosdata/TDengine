@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -69,6 +70,75 @@ void addReferences(ExtMetaFixture* fixture, int32_t begin, int32_t end) {
   for (int32_t i = begin; i < end; ++i) {
     fixture->addReference(i);
   }
+}
+
+SNode* makeTestColumn(const char* name) {
+  SColumnNode* pColumn = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pColumn);
+  if (TSDB_CODE_SUCCESS != code) {
+    ADD_FAILURE() << "failed to create test column, code=" << code;
+    return NULL;
+  }
+  tstrncpy(pColumn->colName, name, sizeof(pColumn->colName));
+  pColumn->node.resType.type = TSDB_DATA_TYPE_INT;
+  pColumn->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+  pColumn->colType = COLUMN_TYPE_COLUMN;
+  return (SNode*)pColumn;
+}
+
+SNode* makeTestQualifiedColumn(const char* tableAlias, const char* name) {
+  SColumnNode* pColumn = (SColumnNode*)makeTestColumn(name);
+  if (NULL == pColumn) return NULL;
+  tstrncpy(pColumn->tableAlias, tableAlias, sizeof(pColumn->tableAlias));
+  return (SNode*)pColumn;
+}
+
+SNode* makeTestPredicate(const char* tableAlias) {
+  SOperatorNode* pOp = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
+  if (TSDB_CODE_SUCCESS != code) {
+    ADD_FAILURE() << "failed to create test predicate, code=" << code;
+    return NULL;
+  }
+  pOp->opType = OP_TYPE_GREATER_THAN;
+  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  pOp->pLeft = makeTestQualifiedColumn(tableAlias, "val");
+  if (NULL == pOp->pLeft) {
+    nodesDestroyNode((SNode*)pOp);
+    return NULL;
+  }
+  code = nodesMakeValueNodeFromInt64(20, &pOp->pRight);
+  if (TSDB_CODE_SUCCESS != code) {
+    ADD_FAILURE() << "failed to create test predicate value, code=" << code;
+    nodesDestroyNode((SNode*)pOp);
+    return NULL;
+  }
+  return (SNode*)pOp;
+}
+
+SScanLogicNode* makeTestScan(const char* tableAlias, SNode* pRemotePlan) {
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> remoteOwner(pRemotePlan, nodesDestroyNode);
+  SScanLogicNode* pScan = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    ADD_FAILURE() << "failed to create test scan, code=" << code;
+    return NULL;
+  }
+  pScan->pRemoteLogicPlan = remoteOwner.release();
+  pScan->scanType = SCAN_TYPE_EXTERNAL;
+  SNode* pTarget = makeTestQualifiedColumn(tableAlias, "val");
+  if (NULL == pTarget) {
+    nodesDestroyNode((SNode*)pScan);
+    return NULL;
+  }
+  code = nodesListMakeStrictAppend(&pScan->node.pTargets, pTarget);
+  if (TSDB_CODE_SUCCESS != code) {
+    ADD_FAILURE() << "failed to append test scan target, code=" << code;
+    nodesDestroyNode((SNode*)pScan);
+    return NULL;
+  }
+  return pScan;
 }
 
 }  // namespace
@@ -286,3 +356,96 @@ TEST_P(PlanFederatedStoredFilterTest, DoesNotMarkAnUnfilteredScanAsRequired) {
 
 INSTANTIATE_TEST_SUITE_P(MySqlAndPostgreSql, PlanFederatedStoredFilterTest,
                          testing::Values(EXT_SOURCE_MYSQL, EXT_SOURCE_POSTGRESQL));
+
+TEST(PlanFederatedJoinFallbackTest, DetectsFilteredJoinHiddenByDockingScan) {
+  struct TestCase {
+    EJoinType joinType;
+    bool      nestedOnLeft;
+    bool      expectedFallback;
+  } cases[] = {
+      {JOIN_TYPE_LEFT, true, false},
+      {JOIN_TYPE_LEFT, false, true},
+      {JOIN_TYPE_RIGHT, true, true},
+      {JOIN_TYPE_RIGHT, false, false},
+      {JOIN_TYPE_FULL, true, true},
+      {JOIN_TYPE_FULL, false, true},
+  };
+
+  for (const TestCase& test : cases) {
+    SJoinLogicNode* pRemoteJoin = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN, (SNode**)&pRemoteJoin));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> remoteOwner((SNode*)pRemoteJoin, nodesDestroyNode);
+    pRemoteJoin->joinType = JOIN_TYPE_INNER;
+    pRemoteJoin->node.pConditions = makeTestColumn("filtered_remote_join");
+    ASSERT_NE(nullptr, pRemoteJoin->node.pConditions);
+
+    SScanLogicNode* pNested = makeTestScan("nested", remoteOwner.release());
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> nestedOwner((SNode*)pNested, nodesDestroyNode);
+    ASSERT_NE(nullptr, pNested);
+    SScanLogicNode* pFlat = makeTestScan("flat", NULL);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> flatOwner((SNode*)pFlat, nodesDestroyNode);
+    ASSERT_NE(nullptr, pFlat);
+    SJoinLogicNode* pParent = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN, (SNode**)&pParent));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> parentOwner((SNode*)pParent, nodesDestroyNode);
+    pParent->joinType = test.joinType;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesListMakeStrictAppend(&pParent->node.pChildren,
+                                        test.nestedOnLeft ? nestedOwner.release() : flatOwner.release()));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesListMakeStrictAppend(&pParent->node.pChildren,
+                                        test.nestedOnLeft ? flatOwner.release() : nestedOwner.release()));
+
+    EXPECT_EQ(test.expectedFallback, planFqOuterJoinNeedsNestedFallback(pParent));
+    EXPECT_EQ((SNode*)pRemoteJoin, pNested->pRemoteLogicPlan);
+  }
+}
+
+TEST(PlanFederatedJoinFallbackTest, DetectsParentWhereTargetingHiddenJoinLeg) {
+  struct TestCase {
+    EJoinType joinType;
+    bool      nestedOnLeft;
+    const char* nestedAlias;
+    bool      expectedFallback;
+  } cases[] = {
+      {JOIN_TYPE_LEFT, false, "right_nested", true},
+      {JOIN_TYPE_RIGHT, true, "left_nested", true},
+      {JOIN_TYPE_LEFT, true, "left_nested", false},
+      {JOIN_TYPE_RIGHT, false, "right_nested", false},
+  };
+
+  for (const TestCase& test : cases) {
+    SJoinLogicNode* pRemoteJoin = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN, (SNode**)&pRemoteJoin));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> remoteOwner((SNode*)pRemoteJoin, nodesDestroyNode);
+    pRemoteJoin->joinType = JOIN_TYPE_INNER;
+
+    SScanLogicNode* pNested = makeTestScan(test.nestedAlias, remoteOwner.release());
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> nestedOwner((SNode*)pNested, nodesDestroyNode);
+    ASSERT_NE(nullptr, pNested);
+    SScanLogicNode* pFlat = makeTestScan("flat", NULL);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> flatOwner((SNode*)pFlat, nodesDestroyNode);
+    ASSERT_NE(nullptr, pFlat);
+
+    SJoinLogicNode* pParent = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN, (SNode**)&pParent));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> parentOwner((SNode*)pParent, nodesDestroyNode);
+    pParent->joinType = test.joinType;
+    pParent->subType = JOIN_STYPE_OUTER;
+    pParent->node.pConditions = makeTestPredicate(test.nestedAlias);
+    ASSERT_NE(nullptr, pParent->node.pConditions);
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesListMakeStrictAppend(&pParent->node.pChildren,
+                                        test.nestedOnLeft ? nestedOwner.release() : flatOwner.release()));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesListMakeStrictAppend(&pParent->node.pChildren,
+                                        test.nestedOnLeft ? flatOwner.release() : nestedOwner.release()));
+
+    EXPECT_EQ(test.expectedFallback, planFqOuterJoinNeedsNestedFallback(pParent));
+    EXPECT_EQ((SNode*)pRemoteJoin, pNested->pRemoteLogicPlan);
+  }
+}
