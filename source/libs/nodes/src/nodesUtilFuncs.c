@@ -1367,6 +1367,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
       code = makeNode(type, sizeof(SHashJoinPhysiNode), &pNode);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN:
+      code = makeNode(type, sizeof(SThetaJoinPhysiNode), &pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       code = makeNode(type, sizeof(SAggPhysiNode), &pNode);
       break;
@@ -3133,6 +3136,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pColOnCond);
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {
       SHashJoinPhysiNode* pPhyNode = (SHashJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);

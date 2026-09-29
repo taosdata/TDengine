@@ -149,6 +149,9 @@ partitionGetOrCreateGroupInfo(SPartitionOperatorInfo* pInfo,
 static void* partitionGetWritablePageForRows(
     SPartitionOperatorInfo* pInfo, SPartitionDataInfo* pGroupInfo,
     int32_t pendingRows, const SPartitionPageClass** ppClass);
+STATIC_EXCEPT_TEST int32_t partitionSelectGrowthClass(
+    const SPartitionOperatorInfo* pInfo, int32_t currentClass,
+    int32_t requiredRows);
 STATIC_EXCEPT_TEST int32_t* setupColumnOffset(const SSDataBlock* pBlock,
                                               int32_t            rowCapacity);
 static int32_t  setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo, int32_t numOfCols, char* pData,
@@ -2303,15 +2306,24 @@ static int32_t partitionAcquireWritePage(
     return terrno;
   }
 
+  int32_t pageRows = *(int32_t*)pPage;
+  // A writable page must have room for at least one more row. Full pages are
+  // grown or replaced by partitionGetWritablePageForRows before returning.
+  if (pageRows < 0 || pageRows >= pClass->rowCapacity) {
+    qError("%s %s invalid write page, rows:%d, capacity:%d",
+           GET_TASKID(pInfo->pTaskInfo), __func__, pageRows,
+           pClass->rowCapacity);
+    releaseBufPage(pClass->pBuf, pPage);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
   pWritePage->pPage = pPage;
   pWritePage->pGroup = pGroup;
   pWritePage->pClass = pClass;
   return TSDB_CODE_SUCCESS;
 }
 
-// True when the group has outgrown its current page size and a larger class
-// exists, which is the only case where scanning ahead for the run length pays
-// for itself.
+// Scan ahead only when the group can grow to a greater row capacity.
 STATIC_EXCEPT_TEST bool partitionNeedsRunSize(
     const SPartitionOperatorInfo* pInfo,
     const SPartitionDataInfo* pGroup) {
@@ -2331,7 +2343,7 @@ STATIC_EXCEPT_TEST bool partitionNeedsRunSize(
   }
 
   int32_t classIndex = partitionPageRefClass(pageRef);
-  if (classIndex + 1 >= pInfo->numPageClasses) {
+  if (partitionSelectGrowthClass(pInfo, classIndex, 1) < 0) {
     return false;
   }
   return pGroup->residentRows >= pInfo->pageClasses[classIndex].rowCapacity;
@@ -2686,10 +2698,17 @@ STATIC_EXCEPT_TEST int32_t partitionSelectGrowthClass(
     return -1;
   }
 
-  int32_t newClass = currentClass + 1;
-  while (newClass + 1 < pInfo->numPageClasses &&
-         pInfo->pageClasses[newClass].rowCapacity < requiredRows) {
-    newClass += 1;
+  int32_t currentCapacity = pInfo->pageClasses[currentClass].rowCapacity;
+  int32_t newClass = -1;
+  for (int32_t i = currentClass + 1; i < pInfo->numPageClasses; ++i) {
+    int32_t capacity = pInfo->pageClasses[i].rowCapacity;
+    if (capacity <= currentCapacity) {
+      continue;
+    }
+    newClass = i;
+    if (capacity >= requiredRows) {
+      break;
+    }
   }
   return newClass;
 }
@@ -2707,6 +2726,15 @@ static void* partitionGrowPage(SPartitionOperatorInfo* pInfo,
 
   const SPartitionPageClass* pOldClass = partitionGetPageClass(pInfo, oldRef);
   if (pOldClass == NULL) {
+    return NULL;
+  }
+
+  const SPartitionPageClass* pNewClass = &pInfo->pageClasses[newClass];
+  if (pNewClass->rowCapacity <= pOldClass->rowCapacity) {
+    qError("%s %s failed at line %d, group:%" PRIu64 ", oldClass:%d, newClass:%d, oldCapacity:%d, newCapacity:%d",
+           GET_TASKID(pInfo->pTaskInfo), __func__, __LINE__, pGroupInfo->groupId,
+           oldClass, newClass, pOldClass->rowCapacity, pNewClass->rowCapacity);
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     return NULL;
   }
 
@@ -2733,7 +2761,6 @@ static void* partitionGrowPage(SPartitionOperatorInfo* pInfo,
     return NULL;
   }
 
-  const SPartitionPageClass* pNewClass = &pInfo->pageClasses[newClass];
   code = partitionCopyPage(pInfo, pOldClass, pOldPage, pNewClass, pNewPage);
   if (code == TSDB_CODE_SUCCESS) {
     code = partitionSetSpillGroupLevel(pInfo, pGroupInfo, newClass);
@@ -2810,9 +2837,9 @@ _end:
 }
 
 // A full page grows directly to the smallest class that can hold the rows
-// expected from the current run. At the maximum class, the full page remains
-// resident and a new page of the same class is appended. Memory pressure can
-// spill all pages of the group into one fragment before allocation retries.
+// expected from the current run. If no class has greater row capacity, the
+// full page remains resident and a new page of the same class is appended.
+// Memory pressure can spill the group before allocation retries.
 static void* partitionGetWritablePageForRows(
     SPartitionOperatorInfo* pInfo, SPartitionDataInfo* pGroupInfo,
     int32_t pendingRows, const SPartitionPageClass** ppClass) {
@@ -2846,11 +2873,14 @@ static void* partitionGetWritablePageForRows(
   releaseBufPage(pClass->pBuf, pPage);
 
   int32_t classIndex = partitionPageRefClass(*pPageRef);
+  int32_t targetClass = -1;
   if (classIndex + 1 < pInfo->numPageClasses) {
     int64_t requiredRows = (int64_t)pageRows + TMAX(1, pendingRows);
-    int32_t targetClass = partitionSelectGrowthClass(
+    targetClass = partitionSelectGrowthClass(
         pInfo, classIndex,
         requiredRows > INT32_MAX ? INT32_MAX : (int32_t)requiredRows);
+  }
+  if (targetClass >= 0) {
     pPage = partitionGrowPage(pInfo, pGroupInfo, pPageRef, targetClass,
                               ppClass);
   } else {

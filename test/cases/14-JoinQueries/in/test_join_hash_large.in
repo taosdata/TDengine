@@ -1,0 +1,47 @@
+USE hash_join_snap;
+
+SELECT a.device, a.region, a.seq, a.val, b.seq, b.metric, b.status FROM l_complex a JOIN r_complex b ON a.device = b.device AND a.region = b.region ORDER BY a.val DESC, b.metric ASC, a.seq, b.seq LIMIT 10;
+
+SELECT COUNT(*) FROM l_complex a JOIN r_complex b ON a.device = b.device AND a.region = b.region AND a.val < b.metric AND b.status = 1;
+
+SELECT COUNT(*) FROM l_complex a JOIN r_complex b ON a.device = b.device AND a.region = b.region AND (a.val < b.metric OR b.status = 1);
+
+SELECT a.device, a.region, COUNT(*), SUM(a.val), SUM(b.metric) FROM l_complex a JOIN r_complex b ON a.device = b.device AND a.region = b.region PARTITION BY a.device, a.region ORDER BY 1, 2;
+
+SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k;
+
+SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard;
+
+SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric AND b.status = 1 AND a.flag = 1;
+
+SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND (a.val < b.metric OR b.status = 1) WHERE a.group_id IN (1, 3, 5);
+
+SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.ts = b.ts;
+
+SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.ts < b.ts WHERE a.flag = 1 AND b.status = 1;
+
+SELECT a.group_id, COUNT(*), SUM(a.val), SUM(b.metric) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric WHERE a.flag = 1 AND b.status = 1 PARTITION BY a.group_id ORDER BY 1;
+
+SELECT a.k, a.shard, a.val, b.metric FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard WHERE a.flag = 1 AND b.status = 1 ORDER BY a.val DESC, b.metric ASC, a.k, a.shard LIMIT 15;
+
+SELECT COUNT(*), COUNT(b.metric), SUM(a.val), SUM(b.metric) FROM l_scale a LEFT JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND b.status = 1 WHERE a.flag = 1;
+
+SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM (SELECT ts, k, shard, group_id, val FROM l_scale WHERE group_id = 0) a FULL JOIN (SELECT ts, k, shard, group_id, metric FROM r_scale WHERE group_id = 0) b ON a.k = b.k AND a.shard = b.shard;
+
+SELECT COUNT(*), COUNT(b.metric), SUM(a.val), SUM(b.metric) FROM l_scale a LEFT JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric WHERE a.group_id IN (2, 4, 6);
+
+SELECT COUNT(*), COUNT(a.val), SUM(a.val), SUM(b.metric) FROM l_scale a RIGHT JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric WHERE b.group_id IN (2, 4, 6);
+
+SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM l_scale a FULL JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric WHERE a.group_id = 7 OR b.group_id = 7;
+
+SELECT COUNT(*) FROM l_scale a LEFT SEMI JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND b.status = 1 WHERE a.flag = 1;
+
+SELECT COUNT(*) FROM l_scale a LEFT ANTI JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND b.status = 1 WHERE a.flag = 1;
+
+SELECT COUNT(*) FROM l_scale a RIGHT SEMI JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.flag = 1 WHERE b.status = 1;
+
+SELECT COUNT(*) FROM l_scale a RIGHT ANTI JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.flag = 1 WHERE b.status = 1;
+
+SELECT a.group_id, COUNT(*), SUM(a.val), SUM(b.metric) FROM (SELECT ts, k, shard, group_id, val, flag FROM l_scale WHERE flag = 1) a JOIN (SELECT ts, k, shard, group_id, metric, status FROM r_scale WHERE status = 1) b ON a.k = b.k AND a.shard = b.shard AND a.group_id = b.group_id PARTITION BY a.group_id ORDER BY 1;
+
+SELECT COUNT(*) FROM (SELECT ts, k, shard, group_id, val FROM l_scale WHERE group_id IN (1, 2, 3)) a JOIN (SELECT ts, k, shard, group_id, metric FROM r_scale WHERE group_id IN (1, 2, 3)) b ON a.k = b.k AND a.shard = b.shard AND a.ts < b.ts;

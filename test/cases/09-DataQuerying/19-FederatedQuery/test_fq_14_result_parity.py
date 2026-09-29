@@ -56,6 +56,7 @@ from typing import Dict, List, Tuple
 
 import datetime as _datetime
 import os
+import re
 import time
 import pytest
 
@@ -129,6 +130,7 @@ _MYSQL_DB      = "fq_parity_m"
 _PG_DB         = "fq_parity_p"
 _INFLUX_BUCKET = "fq_parity_i"
 _LOCAL_DB      = "fq_parity_local"
+_LOCAL_US_DB   = "fq_parity_local_us"
 _LOCAL_TBL     = "parity_t"
 _FLOAT_TOL     = 1e-4
 
@@ -520,29 +522,18 @@ _PARITY_GROUPS: Dict[str, list] = {
     ],
     # ── join: JOIN（INNER / LEFT / RIGHT / FULL OUTER / CROSS / 3-way）────────
     "join": [
-        ("SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id ORDER BY a.id",
-         dict(positive=False, reason="INNER JOIN without primary timestamp equal condition in ON clause not supported")),
-        ("SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.id = b.id AND b.val > 30 ORDER BY a.id",
-         dict(positive=False, reason="LEFT JOIN without primary timestamp equal condition in ON clause not supported")),
-        ("SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.id = b.id AND a.val < 30 ORDER BY b.id",
-         dict(positive=False, reason="RIGHT JOIN without primary timestamp equal condition in ON clause not supported")),
-        ("SELECT a.id AS aid, b.id AS bid FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.id = b.id + 3 ORDER BY a.id, b.id",
-         dict(positive=False, reason="FULL OUTER JOIN without primary timestamp equal condition in ON clause not supported")),
-        ("SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {tbl} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {tbl} WHERE id >= 4) b ORDER BY a.id, b.id",
-         dict(positive=False, reason="CROSS JOIN syntax not supported (0x80002600)")),
-        ("SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id GROUP BY a.label ORDER BY a.label",
-         dict(positive=False, reason="INNER JOIN without primary timestamp equal condition in ON clause not supported")),
-        ("SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id INNER JOIN {tbl} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id",
-         dict(positive=False, reason="3-way INNER JOIN without primary timestamp equal condition not supported")),
-        # SEMI / ANTI JOIN — 非 ts-pk（负例，源自 fq_04 join_types）
-        ("SELECT a.id, a.val FROM {tbl} a LEFT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY a.id",
-         dict(positive=False, reason="LEFT SEMI JOIN without primary timestamp equal condition not supported")),
-        ("SELECT a.id, a.val FROM {tbl} a LEFT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY a.id",
-         dict(positive=False, reason="LEFT ANTI JOIN without primary timestamp equal condition not supported")),
-        ("SELECT b.id, b.val FROM {tbl} a RIGHT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY b.id",
-         dict(positive=False, reason="RIGHT SEMI JOIN without primary timestamp equal condition not supported")),
-        ("SELECT b.id, b.val FROM {tbl} a RIGHT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY b.id",
-         dict(positive=False, reason="RIGHT ANTI JOIN without primary timestamp equal condition not supported")),
+        ("SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.id = b.id AND b.val > 30 ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.id = b.id AND a.val < 30 ORDER BY b.id",),
+        ("SELECT a.id AS aid, b.id AS bid FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.id = b.id + 3 ORDER BY a.id, b.id",),
+        ("SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {tbl} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {tbl} WHERE id >= 4) b ORDER BY a.id, b.id",),
+        ("SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id GROUP BY a.label ORDER BY a.label",),
+        ("SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id INNER JOIN {tbl} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id",),
+        # SEMI / ANTI JOIN — ordinary-column Hash Join positive cases
+        ("SELECT a.id, a.val FROM {tbl} a LEFT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY a.id",),
+        ("SELECT a.id, a.val FROM {tbl} a LEFT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY a.id",),
+        ("SELECT b.id, b.val FROM {tbl} a RIGHT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY b.id",),
+        ("SELECT b.id, b.val FROM {tbl} a RIGHT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY b.id",),
         # ts-pk 自连接 — 正例（源自 fq_06 013/033/s03）
         ("SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time ORDER BY a.id",),
         ("SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.time = b.time ORDER BY a.id",),
@@ -567,6 +558,45 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT COUNT(*) AS cnt, SUM(a.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time WHERE a.val > 20", dict(ordered=False)),
         # 3-way INNER JOIN with ts-pk
         ("SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time INNER JOIN {tbl} c ON b.time = c.time WHERE a.id <= 3 ORDER BY a.id",),
+        # OUTER JOIN + ts-pk equality + one-sided predicate in ON
+        ("SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.time = b.time AND b.val > 30 ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time AND a.val < 30 ORDER BY b.id",),
+        # RIGHT JOIN + nullable-side WHERE; unmatched rows must be filtered out.
+        ("SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time WHERE a.val < 30 ORDER BY b.id",),
+        # RIGHT JOIN + preserved-side WHERE filter
+        ("SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time WHERE b.val > 20 ORDER BY b.id",),
+        # JOIN TIMETRUNCATE sort-compatibility with external sources on both
+        # branches.  These mirror the internal-domain coverage in
+        # test_join_ts_sort.py, but validate result parity for MySQL/PG/Influx
+        # federated scans.
+        ("SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl}) a "
+         "JOIN (SELECT time, id, val FROM {tbl}) b "
+         "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY time DESC) a "
+         "JOIN {tbl} b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM {tbl} a "
+         "JOIN (SELECT time, id, val FROM {tbl} ORDER BY time DESC) b "
+         "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY time) a "
+         "JOIN (SELECT time, id, val FROM {tbl} ORDER BY time) b "
+         "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY val DESC) a "
+         "JOIN (SELECT time, id, val FROM {tbl} ORDER BY time) b "
+         "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY val DESC LIMIT 3) a "
+         "JOIN {tbl} b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM {tbl} a "
+         "JOIN (SELECT time, id, val FROM {tbl} ORDER BY val LIMIT 2) b "
+         "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY time DESC LIMIT 2) a "
+         "JOIN (SELECT time, id, val FROM {tbl} ORDER BY time DESC LIMIT 2) b "
+         "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.time DESC LIMIT 2",),
+        ("SELECT a.id, b.id FROM (SELECT time, id, val FROM {tbl} ORDER BY val DESC LIMIT 3) a "
+         "JOIN (SELECT time, id, val FROM {tbl} ORDER BY val DESC LIMIT 3) b "
+         "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",),
+        ("SELECT a.id, b.id FROM (SELECT time, id, val FROM {tbl} ORDER BY TIMETRUNCATE(time, 1m)) a "
+         "JOIN (SELECT time, id, val FROM {tbl} ORDER BY val DESC) b "
+         "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id LIMIT 3",),
     ],
     # ── asof: ASOF JOIN（源自 fq_04 asof_join）───────────────────────────────
     "asof": [
@@ -960,6 +990,89 @@ _WIN_EPOCH_CASES: List[Tuple[str, str, dict]] = [
 ]
 
 
+# Explicit-source matrix for JOIN TIMETRUNCATE sort compatibility.  Unlike
+# _PARITY_GROUPS, these templates can mix local/MySQL/PG in one SQL.
+# Each entry: (case_id, sql_template, opts).  The local reference SQL is built
+# by replacing every source placeholder with the local TDengine table.
+#
+# Keep this matrix on same-precision sources (MySQL/PG are both us).  InfluxDB
+# is still covered by _PARITY_GROUPS single-source parity cases; mixing it with
+# MySQL/PG/local under TIMETRUNCATE produces cross-precision join semantics that
+# are outside this sort-compatibility regression.
+_JOIN_TS_EXT_SORT_MATRIX: list[tuple[str, str, dict]] = [
+    ("mx-01",
+     "SELECT a.id, b.val FROM (SELECT time, id, val FROM {mysql}) a "
+     "JOIN (SELECT time, id, val FROM {pg}) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",
+     {}),
+    ("mx-02",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {mysql} ORDER BY time DESC LIMIT 3) a "
+     "JOIN (SELECT time, id, val FROM {pg} ORDER BY time ASC LIMIT 3) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",
+     {}),
+    ("mx-03",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {mysql} ORDER BY val DESC LIMIT 3) a "
+     "JOIN (SELECT time, id, val FROM {pg} ORDER BY val ASC LIMIT 3) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",
+     {}),
+    ("tz-01",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {mysql} ORDER BY TIMETRUNCATE(time, 1d, 0)) a "
+     "JOIN (SELECT time, id, val FROM {pg} ORDER BY TIMETRUNCATE(time, 1d, 1)) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",
+     {}),
+    ("tz-02",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {mysql} ORDER BY TIMETRUNCATE(time, 1d, 0)) a "
+     "JOIN (SELECT time, id, val FROM {pg} ORDER BY time) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",
+     {}),
+    ("tz-03",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {pg} ORDER BY TIMETRUNCATE(time, 1d, 1)) a "
+     "JOIN (SELECT time, id, val FROM {mysql} ORDER BY time DESC) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",
+     {}),
+    ("gran-01",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {mysql} ORDER BY TIMETRUNCATE(time, 1h)) a "
+     "JOIN (SELECT time, id, val FROM {pg} ORDER BY val DESC) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",
+     {}),
+    ("gran-02",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {pg} ORDER BY TIMETRUNCATE(time, 1w)) a "
+     "JOIN (SELECT time, id, val FROM {mysql} ORDER BY time DESC) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",
+     {}),
+    ("nlim-01",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {mysql} ORDER BY time DESC LIMIT 2) a "
+     "JOIN (SELECT time, id, val FROM {pg} ORDER BY time DESC LIMIT 2) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) LIMIT 2",
+     dict(ordered=False)),
+    ("left-01",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {mysql} ORDER BY val DESC LIMIT 3) a "
+     "LEFT JOIN (SELECT time, id, val FROM {pg} WHERE id <= 2 ORDER BY time) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",
+     {}),
+    ("right-01",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {pg} WHERE id <= 2 ORDER BY time) a "
+     "RIGHT JOIN (SELECT time, id, val FROM {mysql} ORDER BY val DESC LIMIT 3) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY b.id, a.id",
+     {}),
+    ("local-01",
+     "SELECT a.id, b.val FROM (SELECT time, id, val FROM {local_us} ORDER BY time DESC LIMIT 3) a "
+     "JOIN (SELECT time, id, val FROM {mysql}) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",
+     {}),
+    ("local-02",
+     "SELECT a.id, b.val FROM (SELECT time, id, val FROM {pg} ORDER BY val DESC LIMIT 3) a "
+     "JOIN (SELECT time, id, val FROM {local_us} ORDER BY time) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id",
+     {}),
+    ("local-03",
+     "SELECT a.id, b.id FROM (SELECT time, id, val FROM {local_us} ORDER BY time DESC LIMIT 2) a "
+     "JOIN (SELECT time, id, val FROM {pg} ORDER BY time ASC LIMIT 5) b "
+     "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id",
+     {}),
+]
+
+
 # 5 rows, 2024-01-01 00:00-04:00 UTC, 1-minute spacing
 # Columns: ts_ms, id, val, score, label, nullable_val, lat, lon, wkt_point, wkt_poly, ts_str
 _POLY = "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"
@@ -1042,6 +1155,23 @@ _LOCAL_SETUP = [
     for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS
 ]
 
+_LOCAL_US_SETUP = [
+    f"DROP DATABASE IF EXISTS {_LOCAL_US_DB}",
+    f"CREATE DATABASE {_LOCAL_US_DB} PRECISION 'us'",
+    f"USE {_LOCAL_US_DB}",
+    f"CREATE TABLE {_LOCAL_TBL} ("
+    f"  time TIMESTAMP, id INT, val INT, `Mapped_Val` INT, score DOUBLE, label NCHAR(32),"
+    f"  nullable_val INT, lat DOUBLE, lon DOUBLE,"
+    f"  wkt_point NCHAR(64), wkt_poly NCHAR(256), ts_str NCHAR(32)"
+    f")",
+] + [
+    "INSERT INTO {} VALUES ({})".format(
+        _LOCAL_TBL,
+        ", ".join(parity_sql_val(x) for x in (ts, i, v, 100 + i, s, l, nv, lat, lon, wp, wy, tss))
+    )
+    for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS_DT
+]
+
 # 乱序写入：刻意打乱插入顺序（row-3, row-1, row-5, row-2, row-4），
 # 验证无论插入顺序如何，查询结果都与顺序写入一致。
 _DISORDER_IDX = [2, 0, 4, 1, 3]
@@ -1062,6 +1192,9 @@ class TestFq14ResultParity(ParityTestBase):
     _FLOAT_TOL = _FLOAT_TOL
     _BASELINE_FILE = os.path.join(os.path.dirname(__file__), "ans", "test_fq_14_result_parity.txt")
     _EPOCH_BASELINE_FILE = os.path.join(os.path.dirname(__file__), "ans", "test_fq_14_win_epoch.txt")
+    _PUSHDOWN_BASELINE_FILE = os.path.join(
+        os.path.dirname(__file__), "ans", "test_fq_14_join_pushdown.txt"
+    )
     _PARITY_CASES = _PARITY_CASES
     _PARITY_TZ = _FIXED_TZ  # Pin epoch→datetime to UTC (matches ALTER LOCAL below)
 
@@ -1075,6 +1208,52 @@ class TestFq14ResultParity(ParityTestBase):
             ("PG",       f"{self._SRC_PG}.parity_t"),
             ("InfluxDB", f"{self._SRC_INFLUX}.parity_t"),
         ]
+
+    def _join_ts_source_map(self, *, local_ref=False):
+        local_tbl = self._local_tbl
+        local_us_tbl = f"{_LOCAL_US_DB}.{_LOCAL_TBL}"
+        if local_ref:
+            return {
+                "local": local_us_tbl,
+                "local_us": local_us_tbl,
+                "mysql": local_us_tbl,
+                "pg": local_us_tbl,
+                "influx": local_us_tbl,
+            }
+        return {
+            "local": local_tbl,
+            "local_us": local_us_tbl,
+            "mysql": f"{self._SRC_MYSQL}.parity_t",
+            "pg": f"{self._SRC_PG}.parity_t",
+            "influx": f"{self._SRC_INFLUX}.parity_t",
+        }
+
+    def _run_join_ts_external_sort_matrix(self):
+        failed = []
+        for case_id, sql_template, opts in _JOIN_TS_EXT_SORT_MATRIX:
+            ordered = opts.get("ordered", True)
+            ref_sql = sql_template.format(**self._join_ts_source_map(local_ref=True))
+            mix_sql = sql_template.format(**self._join_ts_source_map())
+            try:
+                ref = self._get_rows(ref_sql)
+                rows = self._get_rows(mix_sql)
+                if not ordered:
+                    ref = sorted(ref, key=lambda r: [str(x) for x in r])
+                    rows = sorted(rows, key=lambda r: [str(x) for x in r])
+                self._compare_rows(ref, rows, ref_sql, mix_sql, case_id, set())
+                tdLog.info(f"[join-ts-ext {case_id}] PASS")
+            except (AssertionError, QueryError) as exc:
+                failed.append((case_id, sql_template, str(exc)))
+                tdLog.info(f"[join-ts-ext {case_id}] FAIL: {str(exc).splitlines()[0]}")
+
+        if failed:
+            all_errors = "\n".join(
+                f"\n[{case_id}] {sql}\n  {detail}" for case_id, sql, detail in failed
+            )
+            raise AssertionError(
+                f"{len(failed)} of {len(_JOIN_TS_EXT_SORT_MATRIX)} "
+                f"JOIN TIMETRUNCATE external sort case(s) failed:{all_errors}"
+            )
 
     def setup_method(self, method):
         if TestFq14ResultParity._class_setup_done:
@@ -1092,6 +1271,8 @@ class TestFq14ResultParity(ParityTestBase):
         ExtSrcEnv.ensure_env()
 
         tdSql.executes(_LOCAL_SETUP)
+        tdSql.executes(_LOCAL_US_SETUP)
+        tdSql.execute(f"USE {_LOCAL_DB}")
 
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_DB)
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_DB, _MYSQL_SETUP)
@@ -1121,6 +1302,7 @@ class TestFq14ResultParity(ParityTestBase):
         tmp = TestFq14ResultParity()
         tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX)
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
+        tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_US_DB}")
         for drop in [
             lambda: ExtSrcEnv.mysql_drop_db_cfg(tmp._mysql_cfg(), _MYSQL_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(tmp._pg_cfg(), _PG_DB),
@@ -1155,9 +1337,233 @@ class TestFq14ResultParity(ParityTestBase):
         History:
             - 2026-04-21 wpan Initial implementation
             - 2026-05-14 wpan Switch to group-based case IDs (grp-NN format)
+            - 2026-08-25 wpan Verify outer-join WHERE predicates reach the remote scan
         """
 
-        self.run_parity_cases(_PARITY_CASES, parity_groups=_PARITY_GROUPS)
+        selected = {
+            part.strip()
+            for part in os.getenv("PARITY_IDX", "").split(",")
+            if part.strip()
+        }
+        auxiliary_ids = {"full-flat"}
+        standard_ids = selected - auxiliary_ids
+        run_standard = not selected or bool(standard_ids)
+        run_full_flat = not selected or "join" in selected or "full-flat" in selected
+
+        original_selector = os.environ.get("PARITY_IDX")
+        try:
+            if run_standard:
+                if selected:
+                    os.environ["PARITY_IDX"] = ",".join(sorted(standard_ids))
+                self.run_parity_cases(_PARITY_CASES, parity_groups=_PARITY_GROUPS)
+                self.do_verify_outer_join_where_scan_pushdown()
+        finally:
+            if original_selector is None:
+                os.environ.pop("PARITY_IDX", None)
+            else:
+                os.environ["PARITY_IDX"] = original_selector
+
+        if run_full_flat:
+            self.do_verify_filtered_full_join()
+
+    def do_verify_filtered_full_join(self):
+        selected = {
+            part.strip()
+            for part in os.getenv("PARITY_IDX", "").split(",")
+            if part.strip()
+        }
+        valid_ids = {"full-flat"}
+        if selected and "join" not in selected and not (selected & valid_ids):
+            return
+
+        # The post-join predicate keeps FULL JOIN local while both external inputs
+        # remain remote scans. Derived-leg SQL rendering is covered by nodesTest.
+        sql_template = (
+            "SELECT a.id, b.val FROM {tbl} a FULL OUTER JOIN {tbl} b "
+            "ON a.time = b.time AND a.id < 4 "
+            "WHERE a.val > 20 OR a.id IS NULL ORDER BY a.id, b.val"
+        )
+        self._assert_parity_all(sql_template)
+        for label, table in self._ext_sources():
+            sql = sql_template.format(tbl=table)
+            tdSql.query(f"EXPLAIN VERBOSE TRUE {sql}")
+            plan_lines = [
+                str(cell)
+                for row in (tdSql.queryResult or [])
+                for cell in row
+                if cell is not None
+            ]
+            remote_lines = [line for line in plan_lines if "remote sql:" in line.lower()]
+            local_lines = [line for line in plan_lines if "remote sql:" not in line.lower()]
+            local_full_join = any("full join" in line.lower() for line in local_lines)
+            remote_full_join = any(" full join " in line.lower() or
+                                   " full outer join " in line.lower()
+                                   for line in remote_lines)
+            if local_full_join:
+                assert len(remote_lines) == 2, (
+                    f"[full-flat {label}] expected two remote input scans: {remote_lines!r}"
+                )
+                assert all(" join " not in line.lower() for line in remote_lines), (
+                    f"[full-flat {label}] JOIN leaked into a remote input scan: {remote_lines!r}"
+                )
+            else:
+                assert len(remote_lines) == 1 and remote_full_join, (
+                    f"[full-flat {label}] expected either a local FULL JOIN with two remote "
+                    f"scans or one pushed-down FULL JOIN: local={local_lines!r} "
+                    f"remote={remote_lines!r}"
+                )
+            assert all(" select " in line.lower() and " from " in line.lower()
+                       for line in remote_lines), (
+                f"[full-flat {label}] malformed Remote SQL: {remote_lines!r}"
+            )
+
+    def do_verify_outer_join_where_scan_pushdown(self):
+        selected = {
+            part.strip()
+            for part in os.getenv("PARITY_IDX", "").split(",")
+            if part.strip()
+        }
+        plan_cases = [
+            (
+                "join-22",
+                "SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b "
+                "ON a.time = b.time WHERE a.val > 20 ORDER BY a.id",
+            ),
+            (
+                "join-27",
+                "SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b "
+                "ON a.time = b.time WHERE a.val < 30 ORDER BY b.id",
+            ),
+            (
+                "join-28",
+                "SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b "
+                "ON a.time = b.time WHERE b.val > 20 ORDER BY b.id",
+            ),
+        ]
+        if selected and "join" not in selected and not any(case[0] in selected for case in plan_cases):
+            return
+
+        compare_full_baseline = not selected or "join" in selected
+        if selected and "join" not in selected:
+            plan_cases = [case for case in plan_cases if case[0] in selected]
+
+        result_blocks = []
+        for case_id, sql_template in plan_cases:
+            for label, table in self._ext_sources():
+                sql = sql_template.format(tbl=table)
+                tdSql.query(f"EXPLAIN VERBOSE TRUE {sql}")
+                plan_lines = [
+                    str(cell)
+                    for row in (tdSql.queryResult or [])
+                    for cell in row
+                    if cell is not None
+                ]
+                remote_lines = [line for line in plan_lines if "remote sql:" in line.lower()]
+                assert remote_lines, f"[{case_id} {label}] EXPLAIN has no Remote SQL: {plan_lines!r}"
+
+                local_plan = "\n".join(
+                    line for line in plan_lines if "remote sql:" not in line.lower()
+                )
+                remote_sql = re.sub(r"\s+", " ", " ".join(remote_lines)).strip()
+                remote_sql = re.sub(r"^remote sql:\s*", "", remote_sql, flags=re.IGNORECASE)
+                plan_details = [f"REMOTE SQL: {remote_sql}"]
+                normalized_sql = remote_sql.upper()
+                outer_tail = normalized_sql.rsplit(" ON ", 1)[-1]
+                outer_tail = outer_tail.split(" ORDER BY ", 1)[0]
+                outer_where = " WHERE " in outer_tail
+                if case_id in ("join-22", "join-28"):
+                    if case_id == "join-22":
+                        derived_pattern = r"FROM \(SELECT .+ WHERE .+\) [`\"]?a[`\"]? LEFT JOIN"
+                    else:
+                        derived_pattern = r"RIGHT JOIN \(SELECT .+ WHERE .+\) [`\"]?b[`\"]? ON"
+                    preserved_derived = re.search(
+                        derived_pattern, remote_sql, flags=re.IGNORECASE
+                    ) is not None
+                    predicate_count = len(
+                        re.findall(r"[`\"]?val[`\"]?\s*>\s*20", remote_sql, re.IGNORECASE)
+                    )
+                    assert preserved_derived, (
+                        f"[{case_id} {label}] preserved side is not a filtered derived table: "
+                        f"{remote_sql}"
+                    )
+                    assert not outer_where, (
+                        f"[{case_id} {label}] preserved-side predicate leaked to outer WHERE: "
+                        f"{remote_sql}"
+                    )
+                    assert predicate_count == 1, (
+                        f"[{case_id} {label}] expected one preserved-side predicate, got "
+                        f"{predicate_count}: {remote_sql}"
+                    )
+                    plan_details = [
+                        "PRESERVED DERIVED: YES",
+                        "OUTER WHERE: NO",
+                        "PREDICATE COUNT: 1",
+                    ]
+                elif case_id == "join-27":
+                    predicate_count = len(
+                        re.findall(r"[`\"]?val[`\"]?\s*<\s*30", remote_sql, re.IGNORECASE)
+                    )
+                    assert outer_where, (
+                        f"[{case_id} {label}] nullable-side predicate is not in outer WHERE: "
+                        f"{remote_sql}"
+                    )
+                    assert predicate_count == 1, (
+                        f"[{case_id} {label}] expected one nullable-side predicate, got "
+                        f"{predicate_count}: {remote_sql}"
+                    )
+                    plan_details = [
+                        "NULLABLE OUTER WHERE: YES",
+                        "PREDICATE COUNT: 1",
+                    ]
+                result_blocks.append(
+                    "\n".join(
+                        [
+                            f"### {case_id} {label}",
+                            f"SQL: {sql}",
+                            *plan_details,
+                            f"LOCAL FILTER: {'YES' if 'filter' in local_plan.lower() else 'NO'}",
+                            "---",
+                        ]
+                    )
+                )
+
+        if not compare_full_baseline:
+            return
+
+        actual = "\n".join(result_blocks) + "\n"
+        baseline_file = self._PUSHDOWN_BASELINE_FILE
+        tmp_file = os.path.join(
+            "/tmp", f"{os.path.basename(baseline_file)}.{os.getpid()}.tmp"
+        )
+        with open(tmp_file, "w") as f:
+            f.write(actual)
+
+        if not os.path.isfile(baseline_file):
+            raise FileNotFoundError(
+                f"Pushdown baseline not found: {baseline_file}; actual: {tmp_file}"
+            )
+        with open(baseline_file, "r") as f:
+            expected = f.read()
+        if actual != expected:
+            actual_lines = actual.splitlines()
+            expected_lines = expected.splitlines()
+            diff_line = next(
+                (
+                    i + 1
+                    for i in range(max(len(actual_lines), len(expected_lines)))
+                    if (actual_lines[i] if i < len(actual_lines) else "<EOF>")
+                    != (expected_lines[i] if i < len(expected_lines) else "<EOF>")
+                ),
+                -1,
+            )
+            raise AssertionError(
+                "JOIN pushdown baseline mismatch:\n"
+                f"  baseline: {baseline_file}\n"
+                f"  actual:   {tmp_file}\n"
+                f"  first diff at line {diff_line}"
+            )
+        os.remove(tmp_file)
+        print("OUTER JOIN WHERE scan pushdown ..................... [ passed ]")
 
     def test_fq_parity_epoch_window(self):
         """Epoch-precision parity for window queries with _wstart/_wend.
@@ -1223,6 +1629,29 @@ class TestFq14ResultParity(ParityTestBase):
             tdSql.checkData(0, 1, 104)
             tdSql.checkData(1, 0, 5)
             tdSql.checkData(1, 1, 105)
+
+    def test_fq_join_timetruncate_external_sort_matrix(self):
+        """JOIN TIMETRUNCATE sort compatibility with explicit external sources.
+
+        1. Mixed MySQL/PostgreSQL source joins in one SQL
+        2. TIMETRUNCATE timezone and granularity sort-compatibility cases
+        3. Opposite ASC/DESC subquery ordering with inner LIMIT
+        4. Outer LIMIT without outer ORDER BY when the join result is stable
+        5. LEFT/RIGHT JOIN paths with external-source branches
+        6. Local TDengine branch joined with external-source branches
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Codex Add explicit external-source JOIN TIMETRUNCATE sort matrix
+        """
+        self._run_join_ts_external_sort_matrix()
 
     def _run_ext_op_with_recover(self, op_name, fn):
         """Run one external-source operation — no retry, failures surface immediately."""

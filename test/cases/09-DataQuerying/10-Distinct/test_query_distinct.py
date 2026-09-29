@@ -308,7 +308,8 @@ class TestDistinct:
         tdSql.query(f"select distinct  t0, t1 from {dbname}.stb1 where c1 > 2")
         tdSql.query(f"select distinct  t0, t1 from {dbname}.stb1 where t1 > 3 and t1 < 5")
         tdSql.checkRows(1)
-        tdSql.error(f"select distinct  stb1.t0, stb1.t1 from {dbname}.stb1, {dbname}.stb2 where stb1.t2=stb2.t4")
+        tdSql.query(f"select distinct  stb1.t0, stb1.t1 from {dbname}.stb1, {dbname}.stb2 where stb1.t2=stb2.t4")
+        tdSql.checkRows(maxRemainderNum)
         tdSql.error(f"select distinct  t0, t1 from {dbname}.stb1 where stb2.t4 > 2")
         tdSql.error(f"select distinct  t0, t1 from {dbname}.stb1 where t1 > 3 group by t0")
         tdSql.error(f"select distinct  t0, t1 from {dbname}.stb1 where t1 > 3 interval(1d) fill(next)")
@@ -392,6 +393,7 @@ class TestDistinct:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

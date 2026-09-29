@@ -36,6 +36,7 @@ class TestJoinMultitables:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1496,46 +1497,90 @@ class TestJoinMultitables:
         tdSql.checkData(0, 8, "2021-03-01 05:00:00")
         tdSql.checkData(0, 9, 9925)
 
-        tdSql.error(
+        tdSql.query(
             f"select tb0_1.*, tb1_1.* from tb0_1, tb1_1 where tb0_1.f1=tb1_1.f1;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select tb0_1.*, tb1_1.* from tb0_1, tb1_1 where tb0_1.ts=tb1_1.ts and tb0_1.id1=tb1_1.id2;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select tb0_5.*, tb1_5.*,tb2_5.*,tb3_5.*,tb4_5.*,tb5_5.*, tb6_5.*,tb7_5.*,tb8_5.*,tb9_5.*,tba_5.* from tb0_5, tb1_5, tb2_5, tb3_5, tb4_5,tb5_5, tb6_5, tb7_5, tb8_5, tb9_5, tba_5 where tb9_5.ts=tb8_5.ts and tb8_5.ts=tb7_5.ts and tb7_5.ts=tb6_5.ts and tb6_5.ts=tb5_5.ts and tb5_5.ts=tb4_5.ts and tb4_5.ts=tb3_5.ts and tb3_5.ts=tb2_5.ts and tb2_5.ts=tb1_5.ts and tb1_5.ts=tb0_5.ts and tb0_5.ts=tba_5.ts;"
         )
+        tdSql.checkRows(5)
 
         tdSql.query(f"select * from st0, st1 where st0.ts=st1.ts;")
-        tdSql.error(f"select * from st0, st1 where st0.id1=st1.id1;")
-        tdSql.error(f"select * from st0, st1 where st0.f1=st1.f1 and st0.id1=st1.id1;")
+        tdSql.checkRows(25)
+        tdSql.query(f"select * from st0, st1 where st0.id1=st1.id1;")
+        tdSql.checkRows(125)
+        tdSql.query(f"select * from st0, st1 where st0.f1=st1.f1 and st0.id1=st1.id1;")
+        tdSql.checkRows(0)
         tdSql.query(
             f"select * from st0, st1, st2, st3 where st0.id1=st1.id1 and st2.id1=st3.id1 and st0.ts=st1.ts and st1.ts=st2.ts and st2.ts=st3.ts;"
         )
-        tdSql.error(f"select * from st0, st1, st2 where st0.id1=st1.id1;")
-        tdSql.error(
+        tdSql.checkRows(25)
+        self.do_nested_hash_join_order()
+        tdSql.query(f"select * from st0, st1, st2 where st0.id1=st1.id1;")
+        tdSql.checkRows(3125)
+        tdSql.query(
             f"select * from st0, st1 where st0.id1=st1.id1 and st0.id2=st1.id3;"
         )
-        tdSql.error(f"select * from st0, st1 where st0.id1=st1.id1 or st0.ts=st1.ts;")
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(f"select * from st0, st1 where st0.id1=st1.id1 or st0.ts=st1.ts;")
+        tdSql.checkRows(125)
+        tdSql.query(
             f"select * from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 or st0.id2=st1.id2;"
         )
-        tdSql.error(
+        tdSql.checkRows(125)
+        tdSql.query(
             f"select * from st0, st1, st2 where st0.ts=st1.ts and st0.id1=st1.id1;"
         )
-        tdSql.error(f"select * from st0, st1 where st0.id1=st1.ts and st0.ts=st1.id1;")
+        tdSql.checkRows(625)
+        tdSql.query(f"select * from st0, st1 where st0.id1=st1.ts and st0.ts=st1.id1;")
+        tdSql.checkRows(0)
         tdSql.query(f"select * from st0, st1 where st0.id1=st1.id2 and st0.ts=st1.ts;")
+        tdSql.checkRows(0)
         tdSql.query(f"select * from st0, st1 where st1.id4=st0.id4 and st1.ts=st0.ts;")
-        tdSql.query(f"select * from st0, st1 where st0.id1=st1.id2 and st1.ts=st0.ts;")
+        tdSql.checkRows(25)
         tdSql.error(
             f"select * from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval 10a;"
         )
         tdSql.error(
             f"select last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 group by f1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select st0.*,st1.*,st2.*,st3.*,st4.*,st5.*,st6.*,st7.*,st8.*,st9.* from st0,st1,st2,st3,st4,st5,st6,st7,st8,st9 where st0.ts=st2.ts and st0.ts=st4.ts and st0.ts=st6.ts and st0.ts=st8.ts and st1.ts=st3.ts and st3.ts=st5.ts and st5.ts=st7.ts and st7.ts=st9.ts and st0.id1=st2.id1 and st0.id1=st4.id1 and st0.id1=st6.id1 and st0.id1=st8.id1 and st1.id1=st3.id1 and st3.id1=st5.id1 and st5.id1=st7.id1 and st7.id1=st9.id1;"
         )
+        tdSql.checkRows(625)
         tdSql.query(
             f"select st0.*,st1.*,st2.*,st3.*,st4.*,st5.*,st6.*,st7.*,st8.*,st9.* from st0,st1,st2,st3,st4,st5,st6,st7,st8,st9,sta where st0.ts=st2.ts and st0.ts=st4.ts and st0.ts=st6.ts and st0.ts=st8.ts and st1.ts=st3.ts and st3.ts=st5.ts and st5.ts=st7.ts and st7.ts=st9.ts and st0.ts=st1.ts and st0.id1=st2.id1 and st0.id1=st4.id1 and st0.id1=st6.id1 and st0.id1=st8.id1 and st1.id1=st3.id1 and st3.id1=st5.id1 and st5.id1=st7.id1 and st7.id1=st9.id1 and st0.id1=st1.id1 and st0.id1=sta.id1 and st0.ts=sta.ts;"
         )
+        tdSql.checkRows(5)
+        # sta has id1=0 for every child; timestamp equality keeps only hour 01.
+        for row in range(tdSql.queryRows):
+            tdSql.checkData(row, 1, 9901)
+            tdSql.checkData(row, 10, 9911)
+            tdSql.checkEqual(tdSql.getData(row, 0), tdSql.getData(row, 36))
+
+    def do_nested_hash_join_order(self):
+        # Hash groups are internally ordered, but timestamps rewind between groups.
+        expected = [
+            (f"2021-03-{day:02d} {hour:02d}:00:00", hour - 1)
+            for day in range(1, 6)
+            for hour in range(1, 6)
+        ]
+        for tables, conditions in (
+            ("st0,st1,st2", "st0.id1=st1.id1 and st0.ts=st1.ts and st1.ts=st2.ts"),
+            ("st0,st1,st2,st3", "st0.id1=st1.id1 and st2.id1=st3.id1 "
+             "and st0.ts=st1.ts and st1.ts=st2.ts and st2.ts=st3.ts"),
+        ):
+            for hint in ("", "/*+ join_algo(hash) */", "/*+ join_algo(merge) */"):
+                for order in ("", " order by st0.ts asc", " order by st0.ts desc"):
+                    tdSql.query(f"select {hint} st0.ts,st0.id1 from {tables} where {conditions}{order}")
+                    tdSql.checkRows(25)
+                    actual = [(str(row[0]), row[1]) for row in tdSql.queryResult]
+                    if not order:
+                        actual.sort()
+                    tdSql.checkEqual(actual, expected[::-1] if order.endswith("desc") else expected)
+        tdLog.info("nested hash join order [passed]")

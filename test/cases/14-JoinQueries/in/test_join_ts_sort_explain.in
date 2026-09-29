@@ -1,0 +1,7 @@
+use test_join_tt_sort;
+
+select count(*) from (select ts, val from stb1 order by timetruncate(ts, 1d, 0)) a join (select ts, val from stb1 order by timetruncate(ts, 1d, 1)) b on timetruncate(a.ts, 1d, 0) = timetruncate(b.ts, 1d, 1);
+
+explain verbose true select count(*) from (select ts, val from stb1 order by timetruncate(ts, 1d, 0)) a join (select ts, val from stb1 order by timetruncate(ts, 1d, 1)) b on timetruncate(a.ts, 1d, 0) = timetruncate(b.ts, 1d, 1) \G
+
+explain verbose true select /*+ hash_join() */ count(*) from (select ts, val from t1 order by val) a join (select ts, val from t1 order by val) b on a.val = b.val and timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d) \G

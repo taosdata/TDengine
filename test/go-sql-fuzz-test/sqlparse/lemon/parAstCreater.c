@@ -772,6 +772,7 @@ static bool hasHint(SNodeList* pHintList, EHintOption hint) {
 bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SToken* paramList,
                        int32_t paramNum) {
   void* value = NULL;
+  int8_t algo = JOIN_ALGO_UNKNOWN;
   switch (opt) {
     case HINT_SKIP_TSMA:
     case HINT_BATCH_SCAN:
@@ -794,7 +795,37 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
       if (paramNum > 0 || hasHint(*ppHintList, HINT_SMALLDATA_TS_SORT)) return true;
       break;
     case HINT_HASH_JOIN:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN) || hasHint(*ppHintList, HINT_MERGE_JOIN) ||
+          hasHint(*ppHintList, HINT_JOIN_ALGO)) {
+        return true;
+      }
+      break;
+    case HINT_MERGE_JOIN:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN) || hasHint(*ppHintList, HINT_MERGE_JOIN) ||
+          hasHint(*ppHintList, HINT_JOIN_ALGO)) {
+        return true;
+      }
+      break;
+    case HINT_JOIN_ALGO:
+      if (paramNum != 1 || hasHint(*ppHintList, HINT_HASH_JOIN) || hasHint(*ppHintList, HINT_MERGE_JOIN) ||
+          hasHint(*ppHintList, HINT_JOIN_ALGO)) {
+        return true;
+      }
+      if (paramList[0].n == 4 && 0 == taosStrncasecmp(paramList[0].z, "HASH", 4)) {
+        algo = JOIN_ALGO_HASH;
+      } else if (paramList[0].n == 5 && 0 == taosStrncasecmp(paramList[0].z, "MERGE", 5)) {
+        algo = JOIN_ALGO_MERGE;
+      } else if (paramList[0].n == 5 && 0 == taosStrncasecmp(paramList[0].z, "THETA", 5)) {
+        algo = JOIN_ALGO_THETA;
+      } else {
+        return true;
+      }
+      value = taosMemoryMalloc(sizeof(algo));
+      if (NULL == value) {
+        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+        return true;
+      }
+      *(int8_t*)value = algo;
       break;
     case HINT_WIN_OPTIMIZE_BATCH:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_BATCH)) return true;
@@ -809,6 +840,7 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
   SHintNode* hint = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_HINT, (SNode**)&hint);
   if (!hint) {
+    taosMemoryFree(value);
     return true;
   }
   hint->option = opt;
@@ -911,6 +943,22 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         opt = HINT_HASH_JOIN;
         break;
+      case TK_MERGE_JOIN:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_MERGE_JOIN;
+        break;
+      case TK_JOIN_ALGO:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_JOIN_ALGO;
+        break;
       case TK_SKIP_TSMA:
         lastComma = false;
         if (0 != opt || inParamList) {
@@ -954,8 +1002,12 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         break;
       case TK_NK_ID:
+      case TK_MERGE:
+        // MERGE is a keyword token; only JOIN_ALGO accepts this algorithm parameter.
         lastComma = false;
         if (0 == opt || !inParamList) {
+          quit = true;
+        } else if (paramNum >= (int32_t)(sizeof(paramList) / sizeof(paramList[0]))) {
           quit = true;
         } else {
           paramList[paramNum++] = t0;

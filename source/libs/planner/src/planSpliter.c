@@ -2062,14 +2062,19 @@ static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubp
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pChild = NULL;
   FOREACH(pChild, pJoin->node.pChildren) {
-    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
-      if (((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_EXTERNAL) {
-        code = stbSplSplitExternalScanNode(pCxt, pSubplan, (SScanLogicNode*)pChild, pInfo);
+    SLogicNode* pSplitChild = (SLogicNode*)pChild;
+    if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pSplitChild) && 1 == LIST_LENGTH(pSplitChild->pChildren)) {
+      pSplitChild = (SLogicNode*)nodesListGetNode(pSplitChild->pChildren, 0);
+    }
+
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pSplitChild)) {
+      if (((SScanLogicNode*)pSplitChild)->scanType == SCAN_TYPE_EXTERNAL) {
+        code = stbSplSplitExternalScanNode(pCxt, pSubplan, (SScanLogicNode*)pSplitChild, pInfo);
       } else {
-        code = stbSplSplitMergeScanNode(pCxt, pSubplan, (SScanLogicNode*)pChild, pJoin->grpJoin ? true : false, pInfo);
+        code = stbSplSplitMergeScanNode(pCxt, pSubplan, (SScanLogicNode*)pSplitChild, pJoin->grpJoin ? true : false, pInfo);
       }
-    } else if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
-      code = stbSplSplitJoinNodeImpl(pCxt, pSubplan, (SJoinLogicNode*)pChild, pInfo);
+    } else if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pSplitChild)) {
+      code = stbSplSplitJoinNodeImpl(pCxt, pSubplan, (SJoinLogicNode*)pSplitChild, pInfo);
     } else {
       code = TSDB_CODE_PLAN_INTERNAL_ERROR;
     }

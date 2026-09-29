@@ -344,6 +344,7 @@ int32_t partitionSpillTestNullRoundTrip(const int32_t* pRowsPerPage,
                                         uint32_t nullRowMask,
                                         SPartitionSpillTestNullResult* pResult);
 int32_t partitionSpillTestErrnoPropagation(int32_t* pReportedCode);
+int32_t partitionSpillTestRecoveredErrno(int32_t* pReportedCode);
 int32_t partitionTestNotLoadedBlock(SPartitionNotLoadedTestResult* pResult);
 int32_t partitionTestRetainMaxPages(int32_t numPages,
                                     SPartitionMaxPageTestResult* pResult);

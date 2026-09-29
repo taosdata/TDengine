@@ -1,0 +1,165 @@
+
+taos> USE hash_join_snap;
+Database changed.
+
+taos> SELECT a.device, a.region, a.seq, a.val, b.seq, b.metric, b.status FROM l_complex a JOIN r_complex b ON a.device = b.device AND a.region = b.region ORDER BY a.val DESC, b.metric ASC, a.seq, b.seq LIMIT 10;
+       device       |       region       |     seq     |     val     |     seq     |   metric    |   status    |
+================================================================================================================
+ mix01              | north              |           1 |          90 |          12 |          18 |           1 |
+ mix01              | north              |           1 |          90 |          10 |         140 |           1 |
+ mix02              | north              |           6 |          88 |          15 |          87 |           1 |
+ mix02              | north              |           6 |          88 |          16 |          95 |           0 |
+ mix03              | south              |           9 |          54 |          19 |          55 |           1 |
+ mix03              | south              |           9 |          54 |          14 |         210 |           0 |
+ mix01              | east               |           3 |          45 |          13 |          60 |           1 |
+ mix02              | north              |           5 |          33 |          15 |          87 |           1 |
+ mix02              | north              |           5 |          33 |          16 |          95 |           0 |
+ mix03              | south              |           4 |          23 |          19 |          55 |           1 |
+
+taos> SELECT COUNT(*) FROM l_complex a JOIN r_complex b ON a.device = b.device AND a.region = b.region AND a.val < b.metric AND b.status = 1;
+       count(*)        |
+========================
+                     7 |
+
+taos> SELECT COUNT(*) FROM l_complex a JOIN r_complex b ON a.device = b.device AND a.region = b.region AND (a.val < b.metric OR b.status = 1);
+       count(*)        |
+========================
+                    13 |
+
+taos> SELECT a.device, a.region, COUNT(*), SUM(a.val), SUM(b.metric) FROM l_complex a JOIN r_complex b ON a.device = b.device AND a.region = b.region PARTITION BY a.device, a.region ORDER BY 1, 2;
+       device       |       region       |       count(*)        |      sum(a.val)       |     sum(b.metric)     |
+==================================================================================================================
+ mix01              | east               |                     1 |                    45 |                    60 |
+ mix01              | north              |                     4 |                   210 |                   316 |
+ mix02              | north              |                     4 |                   242 |                   364 |
+ mix03              | south              |                     4 |                   154 |                   530 |
+
+taos> SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k;
+       count(*)        |
+========================
+                156469 |
+
+taos> SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard;
+       count(*)        |
+========================
+                  8291 |
+
+taos> SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric AND b.status = 1 AND a.flag = 1;
+       count(*)        |
+========================
+                  1644 |
+
+taos> SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND (a.val < b.metric OR b.status = 1) WHERE a.group_id IN (1, 3, 5);
+       count(*)        |
+========================
+                  2349 |
+
+taos> SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.ts = b.ts;
+       count(*)        |
+========================
+                    16 |
+
+taos> SELECT COUNT(*) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.ts < b.ts WHERE a.flag = 1 AND b.status = 1;
+       count(*)        |
+========================
+                 24066 |
+
+taos> SELECT a.group_id, COUNT(*), SUM(a.val), SUM(b.metric) FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric WHERE a.flag = 1 AND b.status = 1 PARTITION BY a.group_id ORDER BY 1;
+  group_id   |       count(*)        |      sum(a.val)       |     sum(b.metric)     |
+======================================================================================
+           0 |                   130 |                107307 |                236007 |
+           1 |                   170 |                130386 |                293520 |
+           2 |                   130 |                102825 |                236445 |
+           3 |                   179 |                145291 |                316403 |
+           4 |                   128 |                102029 |                225543 |
+           5 |                   167 |                133717 |                292084 |
+           6 |                   135 |                110508 |                242010 |
+           7 |                   131 |                108901 |                233784 |
+           8 |                   166 |                128545 |                290702 |
+           9 |                   133 |                107052 |                232212 |
+          10 |                   175 |                146291 |                320306 |
+
+taos> SELECT a.k, a.shard, a.val, b.metric FROM l_scale a JOIN r_scale b ON a.k = b.k AND a.shard = b.shard WHERE a.flag = 1 AND b.status = 1 ORDER BY a.val DESC, b.metric ASC, a.k, a.shard LIMIT 15;
+      k      |    shard    |     val     |   metric    |
+========================================================
+         601 |          15 |        1999 |        1133 |
+         823 |           5 |        1999 |        2321 |
+         702 |          15 |        1997 |        1505 |
+         589 |           8 |        1997 |        1899 |
+         468 |          18 |        1995 |        1083 |
+          22 |          11 |        1994 |        1481 |
+         569 |          18 |        1993 |        1455 |
+         347 |           9 |        1993 |        2667 |
+         898 |           2 |        1992 |         665 |
+         448 |           9 |        1991 |         639 |
+         664 |           5 |        1990 |        2643 |
+         765 |           5 |        1988 |         615 |
+         866 |           5 |        1986 |         987 |
+         644 |          15 |        1986 |        2199 |
+         523 |           6 |        1984 |        1383 |
+
+taos> SELECT COUNT(*), COUNT(b.metric), SUM(a.val), SUM(b.metric) FROM l_scale a LEFT JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND b.status = 1 WHERE a.flag = 1;
+       count(*)        |    count(b.metric)    |      sum(a.val)       |     sum(b.metric)     |
+================================================================================================
+                  5143 |                  2365 |               5140296 |               3548160 |
+
+taos> SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM (SELECT ts, k, shard, group_id, val FROM l_scale WHERE group_id = 0) a FULL JOIN (SELECT ts, k, shard, group_id, metric FROM r_scale WHERE group_id = 0) b ON a.k = b.k AND a.shard = b.shard;
+       count(*)        |     count(a.val)      |    count(b.metric)    |
+========================================================================
+                  2214 |                  1091 |                  1182 |
+
+taos> SELECT COUNT(*), COUNT(b.metric), SUM(a.val), SUM(b.metric) FROM l_scale a LEFT JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric WHERE a.group_id IN (2, 4, 6);
+       count(*)        |    count(b.metric)    |      sum(a.val)       |     sum(b.metric)     |
+================================================================================================
+                  3273 |                  1387 |               3270573 |               2480052 |
+
+taos> SELECT COUNT(*), COUNT(a.val), SUM(a.val), SUM(b.metric) FROM l_scale a RIGHT JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric WHERE b.group_id IN (2, 4, 6);
+       count(*)        |     count(a.val)      |      sum(a.val)       |     sum(b.metric)     |
+================================================================================================
+                  3545 |                  1573 |               1274118 |               5309668 |
+
+taos> SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM l_scale a FULL JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric WHERE a.group_id = 7 OR b.group_id = 7;
+       count(*)        |     count(a.val)      |    count(b.metric)    |
+========================================================================
+                   943 |                   943 |                   943 |
+
+taos> SELECT COUNT(*) FROM l_scale a LEFT SEMI JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND b.status = 1 WHERE a.flag = 1;
+       count(*)        |
+========================
+                  2365 |
+
+taos> SELECT COUNT(*) FROM l_scale a LEFT ANTI JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND b.status = 1 WHERE a.flag = 1;
+       count(*)        |
+========================
+                  2778 |
+
+taos> SELECT COUNT(*) FROM l_scale a RIGHT SEMI JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.flag = 1 WHERE b.status = 1;
+       count(*)        |
+========================
+                  2365 |
+
+taos> SELECT COUNT(*) FROM l_scale a RIGHT ANTI JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.flag = 1 WHERE b.status = 1;
+       count(*)        |
+========================
+                  6301 |
+
+taos> SELECT a.group_id, COUNT(*), SUM(a.val), SUM(b.metric) FROM (SELECT ts, k, shard, group_id, val, flag FROM l_scale WHERE flag = 1) a JOIN (SELECT ts, k, shard, group_id, metric, status FROM r_scale WHERE status = 1) b ON a.k = b.k AND a.shard = b.shard AND a.group_id = b.group_id PARTITION BY a.group_id ORDER BY 1;
+  group_id   |       count(*)        |      sum(a.val)       |     sum(b.metric)     |
+======================================================================================
+           0 |                    16 |                 14006 |                 20987 |
+           1 |                    24 |                 21581 |                 40269 |
+           2 |                    16 |                 16907 |                 20994 |
+           3 |                    22 |                 21801 |                 34934 |
+           4 |                    18 |                 15866 |                 29052 |
+           5 |                    22 |                 21775 |                 29466 |
+           6 |                    17 |                 18475 |                 31072 |
+           7 |                    18 |                 15092 |                 23910 |
+           8 |                    22 |                 21390 |                 32959 |
+           9 |                    18 |                 13728 |                 26532 |
+          10 |                    23 |                 25380 |                 37584 |
+
+taos> SELECT COUNT(*) FROM (SELECT ts, k, shard, group_id, val FROM l_scale WHERE group_id IN (1, 2, 3)) a JOIN (SELECT ts, k, shard, group_id, metric FROM r_scale WHERE group_id IN (1, 2, 3)) b ON a.k = b.k AND a.shard = b.shard AND a.ts < b.ts;
+       count(*)        |
+========================
+                   316 |
+

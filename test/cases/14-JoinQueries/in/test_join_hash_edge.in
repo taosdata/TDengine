@@ -1,0 +1,133 @@
+USE hash_join_snap;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device WHERE a.note = 'l_null' ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device WHERE a.device = 'd3' ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_empty a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a JOIN r_empty b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND (a.val > b.metric OR b.status = 1) ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND (a.val > b.metric AND b.status = 1) ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND a.val > b.metric AND b.status = 1 ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device AND (a.val > b.metric OR b.status = 1) ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device AND (a.val > b.metric AND b.status = 1) ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_empty a LEFT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_empty b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM l_empty a RIGHT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT JOIN r_empty b ON a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+
+SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM l_empty a FULL JOIN r_norm b ON a.device = b.device;
+
+SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM l_norm a FULL JOIN r_empty b ON a.device = b.device;
+
+SELECT a.device, a.val FROM l_empty a LEFT SEMI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM l_norm a LEFT SEMI JOIN r_empty b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM l_empty a LEFT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_empty b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_empty a RIGHT SEMI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_empty b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_empty a RIGHT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_empty b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.region, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM l_full_null a FULL JOIN r_full_null b ON a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+
+SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a LEFT JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a RIGHT JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a FULL JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a FULL JOIN r_full_partial b ON a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric FROM l_full_partial a LEFT JOIN r_full_partial b ON a.device = b.device WHERE b.metric IS NULL ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_full_partial a RIGHT JOIN r_full_partial b ON a.device = b.device WHERE a.val IS NULL ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val FROM l_full_partial a LEFT SEMI JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM l_full_partial a LEFT ANTI JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_full_partial a RIGHT SEMI JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_full_partial a RIGHT ANTI JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+
+SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device AND (a.val > b.metric OR b.status = 1) ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device AND (a.val > b.metric AND b.status = 1) ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3 LIMIT 5;
+
+SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3 LIMIT 6;
+
+SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2 LIMIT 3;
+
+SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2 LIMIT 3;
+
+SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM sl a FULL JOIN sr b ON a.device = b.device;
+
+SELECT a.device, a.val, b.metric FROM sl a FULL JOIN sr b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val FROM sl a LEFT SEMI JOIN sr b ON a.device = b.device AND a.val < b.metric ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM sl a LEFT ANTI JOIN sr b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM sl a RIGHT SEMI JOIN sr b ON a.device = b.device AND a.val < b.metric ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM sl a RIGHT ANTI JOIN sr b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+
+SELECT a.device, COUNT(*) FROM sl a JOIN sr b ON a.device = b.device AND a.region = b.region WHERE a.device = 'dleft' PARTITION BY a.device ORDER BY 1;
+
+SELECT a.device, a.val, b.metric FROM v_l_norm a FULL JOIN v_r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val FROM v_l_norm a LEFT ANTI JOIN v_r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+
+SELECT b.device, b.metric FROM v_l_norm a RIGHT ANTI JOIN v_r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;

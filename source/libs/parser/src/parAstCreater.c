@@ -969,6 +969,31 @@ static bool isExIntervalHint(const SToken* pToken) {
          0 == strncasecmp(pToken->z, kExIntervalHint, pToken->n);
 }
 
+static EJoinAlgorithm getHintJoinAlgo(SNodeList* pHintList) {
+  if (!pHintList) return JOIN_ALGO_UNKNOWN;
+
+  SNode* pNode;
+  FOREACH(pNode, pHintList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_JOIN_ALGO) {
+      if (NULL == pHint->pParams || 1 != taosArrayGetSize(pHint->pParams)) return JOIN_ALGO_UNKNOWN;
+      const SHintParam* pParam = taosArrayGet(pHint->pParams, 0);
+      if (0 == taosStrcasecmp(pParam->value, "HASH")) return JOIN_ALGO_HASH;
+      if (0 == taosStrcasecmp(pParam->value, "MERGE")) return JOIN_ALGO_MERGE;
+      if (0 == taosStrcasecmp(pParam->value, "THETA")) return JOIN_ALGO_THETA;
+      return JOIN_ALGO_UNKNOWN;
+    }
+    if (pHint->option == HINT_HASH_JOIN) {
+      return JOIN_ALGO_HASH;
+    }
+    if (pHint->option == HINT_MERGE_JOIN) {
+      return JOIN_ALGO_MERGE;
+    }
+  }
+
+  return JOIN_ALGO_UNKNOWN;
+}
+
 static void destroyHintParam(void* pParam) { taosMemoryFree(((SHintParam*)pParam)->value); }
 
 static bool appendHintParam(SAstCreateContext* pCxt, SArray** ppParams, const SToken* pToken) {
@@ -994,6 +1019,7 @@ static bool appendHintParam(SAstCreateContext* pCxt, SArray** ppParams, const ST
 }
 
 static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SArray** ppParams) {
+  size_t paramNum = NULL == *ppParams ? 0 : taosArrayGetSize(*ppParams);
   switch (opt) {
     case HINT_SKIP_TSMA:
     case HINT_BATCH_SCAN:
@@ -1017,8 +1043,35 @@ static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, E
       if (hasHint(*ppHintList, HINT_SMALLDATA_SCAN_SORT)) return true;
       break;
     case HINT_HASH_JOIN:
-      if (hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
+      if (paramNum > 0) {
+        return true;
+      }
+      if (getHintJoinAlgo(*ppHintList) != JOIN_ALGO_UNKNOWN) {
+        return true;
+      }
       break;
+    case HINT_MERGE_JOIN:
+      if (paramNum > 0) {
+        return true;
+      }
+      if (getHintJoinAlgo(*ppHintList) != JOIN_ALGO_UNKNOWN) {
+        return true;
+      }
+      break;
+    case HINT_JOIN_ALGO: {
+      if (paramNum != 1) {
+        return true;
+      }
+      const SHintParam* pParam = taosArrayGet(*ppParams, 0);
+      if (0 != taosStrcasecmp(pParam->value, "HASH") && 0 != taosStrcasecmp(pParam->value, "MERGE") &&
+          0 != taosStrcasecmp(pParam->value, "THETA")) {
+        return true;
+      }
+      if (getHintJoinAlgo(*ppHintList) != JOIN_ALGO_UNKNOWN) {
+        return true;
+      }
+      break;
+    }
     case HINT_WIN_OPTIMIZE_BATCH:
       if (hasHint(*ppHintList, HINT_WIN_OPTIMIZE_BATCH)) return true;
       break;
@@ -1046,6 +1099,7 @@ static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, E
     }
   }
 
+  // Strict append consumes the node even when allocation fails.
   pCxt->errCode = nodesListStrictAppend(*ppHintList, (SNode*)hint);
   if (pCxt->errCode) {
     return true;
@@ -1142,12 +1196,23 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         opt = HINT_SMALLDATA_SCAN_SORT;
         break;
       case TK_HASH_JOIN:
-        lastComma = false;
+      case TK_MERGE_JOIN:
+      case TK_JOIN_ALGO:
         if (0 != opt || inParamList) {
-          quit = true;
-          break;
+          if (inParamList || !lastComma || addHintNodeToList(pCxt, &pHintList, opt, &pParams)) {
+            quit = true;
+            break;
+          }
+          opt = 0;
         }
-        opt = HINT_HASH_JOIN;
+        lastComma = false;
+        if (TK_HASH_JOIN == t0.type) {
+          opt = HINT_HASH_JOIN;
+        } else if (TK_MERGE_JOIN == t0.type) {
+          opt = HINT_MERGE_JOIN;
+        } else {
+          opt = HINT_JOIN_ALGO;
+        }
         break;
       case TK_SKIP_TSMA:
         lastComma = false;
@@ -1209,6 +1274,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           opt = HINT_EX_INTERVAL;
           break;
         }
+      case TK_MERGE:
         lastComma = false;
         if (0 == opt || !inParamList) {
           quit = true;
@@ -1229,6 +1295,10 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         quit = true;
         break;
     }
+  }
+
+  if (!quit && !inParamList && (HINT_HASH_JOIN == opt || HINT_MERGE_JOIN == opt || HINT_JOIN_ALGO == opt)) {
+    quit = addHintNodeToList(pCxt, &pHintList, opt, &pParams);
   }
 
   taosMemoryFree(hint);
@@ -2920,7 +2990,9 @@ _err:
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere) {
   CHECK_PARSER_STATUS(pCxt);
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    ((SSelectStmt*)pStmt)->pWhere = pWhere;
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt;
+    pSelect->pWhere = pWhere;
+    pSelect->hasWhereCond = NULL != pWhere;
   }
   return pStmt;
 _err:

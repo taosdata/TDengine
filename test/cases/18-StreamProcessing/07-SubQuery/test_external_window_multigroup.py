@@ -51,6 +51,7 @@ class TestExternalWindowMultiGroup:
         History:
             - 2026-08-26 OpenAI Added five-leaf multi-group JOIN regression
             - 2026-08-28 OpenAI Added singleton request protocol regression
+            - 2026-09-18 OpenAI Added ordered-leaf fallback regression
         """
 
         tdStream.dropAllStreamsAndDbs()
@@ -59,6 +60,7 @@ class TestExternalWindowMultiGroup:
             self._create_normal_streams(tables)
             self._create_force_output_streams(tables)
             self._create_fallback_stream()
+            self._create_ordered_leaf_fallback_stream()
             self._create_spill_streams(tables)
             tdStream.checkStreamStatus()
             self._write_trigger_rows(tables[:1])
@@ -67,6 +69,7 @@ class TestExternalWindowMultiGroup:
             self._assert_normal_results(tables)
             self._assert_force_output_results(tables)
             self._assert_fallback_result(tables)
+            self._assert_ordered_leaf_fallback_result(tables)
             self._assert_spill_results(tables)
         finally:
             tdStream.dropAllStreamsAndDbs()
@@ -899,6 +902,25 @@ class TestExternalWindowMultiGroup:
             f"{fallback_query}"
         )
 
+    def _create_ordered_leaf_fallback_stream(self):
+        query = (
+            "select a.ts,a.v0,b.v1,c.v2 from "
+            f"(select _twstart ts,max(soc) v0 from {self.DB}.realtime "
+            "where ts>=_twstart and ts<_twend) a join "
+            f"(select _twstart ts,max(soc) v1 from {self.DB}.realtime "
+            "where ts>=_twstart and ts<_twend) b on a.ts=b.ts join "
+            f"(select _twstart ts,max(soc) v2 from {self.DB}.realtime "
+            "where ts>=_twstart and ts<_twend order by ts) c on b.ts=c.ts"
+        )
+        tdSql.execute(
+            f"create stream {self.DB}.s_ordered_leaf_fallback "
+            "interval(10s) sliding(10s) "
+            f"from {self.DB}.realtime partition by tbname "
+            f"into {self.DB}.r_ordered_leaf_fallback "
+            "(ts,v0,v1,v2) tags(base_table varchar(64) as %%1) as "
+            f"{query}"
+        )
+
     def _create_spill_streams(self, tables):
         grouped_query = self._five_leaf_query(
             "%%tbname", station_rule="station_rule_spill", pile_filter="pile_code = %%2"
@@ -1162,6 +1184,27 @@ class TestExternalWindowMultiGroup:
                 (table_name, *row) for row in self._query_rows(baseline_sql)
             )
         assert fallback == self._sorted_rows(baseline), (fallback, baseline)
+
+    def _assert_ordered_leaf_fallback_result(self, tables):
+        result_sql = (
+            "select base_table,ts,v0,v1,v2 "
+            f"from {self.DB}.r_ordered_leaf_fallback"
+        )
+        closed_windows_per_table = 11
+        self._wait_count(result_sql, len(tables) * closed_windows_per_table)
+        result = self._sorted_rows(self._query_rows(result_sql))
+
+        baseline = []
+        for table_name, _, _ in tables:
+            rows = self._query_rows(
+                f"select ts,soc from {self.DB}.{table_name} "
+                "where ts < '2026-08-26 01:03:20'"
+            )
+            baseline.extend(
+                (table_name, ts, soc, soc, soc) for ts, soc in rows
+            )
+        baseline = self._sorted_rows(baseline)
+        assert result == baseline, (result, baseline)
 
     def _assert_spill_results(self, tables):
         per_shared_table = 4 * self.SPILL_RULES

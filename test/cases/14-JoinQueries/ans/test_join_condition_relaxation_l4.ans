@@ -1,0 +1,1176 @@
+
+taos> USE join_condition_relaxation;
+Database changed.
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON a.v <> b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           3 |          12 |
+           3 |          14 |
+           4 |          11 |
+           4 |          12 |
+           4 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON a.v <> b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           3 |          12 |
+           3 |          14 |
+           4 |          11 |
+           4 |          12 |
+           4 |          14 |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON a.v <> b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          15 |
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           3 |          12 |
+           3 |          14 |
+           4 |          11 |
+           4 |          12 |
+           4 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON a.v <> b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          15 |
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           3 |          12 |
+           3 |          14 |
+           4 |          11 |
+           4 |          12 |
+           4 |          14 |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON a.v < b.v OR a.grp = b.grp ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          13 |
+           3 |          14 |
+           4 |          13 |
+           4 |          14 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON a.v < b.v OR a.grp = b.grp ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          13 |
+           3 |          14 |
+           4 |          13 |
+           4 |          14 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON a.v < b.v OR a.grp = b.grp ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          13 |
+           3 |          14 |
+           4 |          13 |
+           4 |          14 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON a.v < b.v OR a.grp = b.grp ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          13 |
+           3 |          14 |
+           4 |          13 |
+           4 |          14 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON NOT (a.v < b.v) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           2 |          11 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON NOT (a.v < b.v) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 | NULL        |
+           2 |          11 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON NOT (a.v < b.v) ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+ NULL        |          15 |
+           2 |          11 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON NOT (a.v < b.v) ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+ NULL        |          15 |
+           1 | NULL        |
+           2 |          11 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON a.v = 2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON a.v = 2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 | NULL        |
+           2 | NULL        |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON a.v = 2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON a.v = 2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 | NULL        |
+           2 | NULL        |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON b.v > 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON b.v > 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON b.v > 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          11 |
+ NULL        |          15 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON b.v > 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          11 |
+ NULL        |          15 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON 1 = 1 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON 1 = 1 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON 1 = 1 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON 1 = 1 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+           5 |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON 1 = 0 ORDER BY 1, 2;
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON 1 = 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 | NULL        |
+           2 | NULL        |
+           3 | NULL        |
+           4 | NULL        |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON 1 = 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          11 |
+ NULL        |          12 |
+ NULL        |          13 |
+ NULL        |          14 |
+ NULL        |          15 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON 1 = 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          11 |
+ NULL        |          12 |
+ NULL        |          13 |
+ NULL        |          14 |
+ NULL        |          15 |
+           1 | NULL        |
+           2 | NULL        |
+           3 | NULL        |
+           4 | NULL        |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON a.v * b.v < b.hi ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           4 |          11 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON a.v * b.v < b.hi ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           4 |          11 |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON a.v * b.v < b.hi ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          15 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           4 |          11 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON a.v * b.v < b.hi ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          15 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           4 |          11 |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON a.grp <> b.grp OR a.v = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON a.grp <> b.grp OR a.v = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON a.grp <> b.grp OR a.v = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON a.grp <> b.grp OR a.v = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON (a.v + b.v) % 2 = 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          13 |
+           1 |          14 |
+           2 |          13 |
+           2 |          14 |
+           3 |          13 |
+           3 |          14 |
+           4 |          13 |
+           4 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON (a.v + b.v) % 2 = 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          13 |
+           1 |          14 |
+           2 |          13 |
+           2 |          14 |
+           3 |          13 |
+           3 |          14 |
+           4 |          13 |
+           4 |          14 |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a RIGHT JOIN r_range b ON (a.v + b.v) % 2 = 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          11 |
+ NULL        |          12 |
+ NULL        |          15 |
+           1 |          13 |
+           1 |          14 |
+           2 |          13 |
+           2 |          14 |
+           3 |          13 |
+           3 |          14 |
+           4 |          13 |
+           4 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON (a.v + b.v) % 2 = 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          11 |
+ NULL        |          12 |
+ NULL        |          15 |
+           1 |          13 |
+           1 |          14 |
+           2 |          13 |
+           2 |          14 |
+           3 |          13 |
+           3 |          14 |
+           4 |          13 |
+           4 |          14 |
+           5 | NULL        |
+
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON a.v <> b.v ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON a.v <> b.v ORDER BY 1;
+     id      |
+==============
+           5 |
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON a.v <> b.v ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          14 |
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON a.v <> b.v ORDER BY 1;
+     id      |
+==============
+          15 |
+
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON a.v < b.v OR a.grp = b.grp ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON a.v < b.v OR a.grp = b.grp ORDER BY 1;
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON a.v < b.v OR a.grp = b.grp ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          14 |
+          15 |
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON a.v < b.v OR a.grp = b.grp ORDER BY 1;
+
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON NOT (a.v < b.v) ORDER BY 1;
+     id      |
+==============
+           2 |
+           3 |
+           4 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON NOT (a.v < b.v) ORDER BY 1;
+     id      |
+==============
+           1 |
+           5 |
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON NOT (a.v < b.v) ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON NOT (a.v < b.v) ORDER BY 1;
+     id      |
+==============
+          14 |
+          15 |
+
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON a.v = 2 ORDER BY 1;
+     id      |
+==============
+           3 |
+           4 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON a.v = 2 ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           5 |
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON a.v = 2 ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          14 |
+          15 |
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON a.v = 2 ORDER BY 1;
+
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON b.v > 0 ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON b.v > 0 ORDER BY 1;
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON b.v > 0 ORDER BY 1;
+     id      |
+==============
+          12 |
+          13 |
+          14 |
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON b.v > 0 ORDER BY 1;
+     id      |
+==============
+          11 |
+          15 |
+
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON 1 = 1 ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON 1 = 1 ORDER BY 1;
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON 1 = 1 ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          14 |
+          15 |
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON 1 = 1 ORDER BY 1;
+
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON 1 = 0 ORDER BY 1;
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON 1 = 0 ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON 1 = 0 ORDER BY 1;
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON 1 = 0 ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          14 |
+          15 |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b WHERE a.v = b.v ORDER BY 1, 2;
+
+DB error: JOIN requires an ON clause; use CROSS JOIN for an unconditional join [0x80002600]
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b WHERE a.v = b.v OR a.ts = b.ts ORDER BY 1, 2;
+
+DB error: JOIN requires an ON clause; use CROSS JOIN for an unconditional join [0x80002600]
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b WHERE a.id <= 2 ORDER BY 1, 2;
+
+DB error: JOIN requires an ON clause; use CROSS JOIN for an unconditional join [0x80002600]
+taos> SELECT a.id, b.id, c.id FROM l_range a JOIN r_range b JOIN r_range c WHERE a.v = b.v AND b.id = c.id ORDER BY 1, 2, 3;
+
+DB error: JOIN requires an ON clause; use CROSS JOIN for an unconditional join [0x80002600]
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON a.v * b.v < b.hi ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON a.v * b.v < b.hi ORDER BY 1;
+     id      |
+==============
+           5 |
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON a.v * b.v < b.hi ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          14 |
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON a.v * b.v < b.hi ORDER BY 1;
+     id      |
+==============
+          15 |
+
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON a.grp <> b.grp OR a.v = b.v ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON a.grp <> b.grp OR a.v = b.v ORDER BY 1;
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON a.grp <> b.grp OR a.v = b.v ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          14 |
+          15 |
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON a.grp <> b.grp OR a.v = b.v ORDER BY 1;
+
+taos> SELECT a.id FROM l_range a LEFT SEMI JOIN r_range b ON (a.v + b.v) % 2 = 0 ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON (a.v + b.v) % 2 = 0 ORDER BY 1;
+     id      |
+==============
+           5 |
+
+taos> SELECT b.id FROM l_range a RIGHT SEMI JOIN r_range b ON (a.v + b.v) % 2 = 0 ORDER BY 1;
+     id      |
+==============
+          13 |
+          14 |
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON (a.v + b.v) % 2 = 0 ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          15 |
+
+taos> SELECT a.id, b.id, a.v + b.v FROM l_range a JOIN r_range b ON a.v <> b.v ORDER BY 1, 2;
+     id      |     id      |         a.v + b.v         |
+========================================================
+           1 |          11 |                        -3 |
+           1 |          12 |                        -1 |
+           1 |          13 |                         0 |
+           1 |          14 |                         2 |
+           2 |          11 |                        -1 |
+           2 |          12 |                         1 |
+           2 |          13 |                         2 |
+           2 |          14 |                         4 |
+           3 |          11 |                         1 |
+           3 |          12 |                         3 |
+           3 |          14 |                         6 |
+           4 |          11 |                         1 |
+           4 |          12 |                         3 |
+           4 |          14 |                         6 |
+
+taos> SELECT a.id, b.id, a.v * b.v FROM l_range a JOIN r_range b ON a.v * b.v < b.hi ORDER BY 1, 2;
+     id      |     id      |         a.v * b.v         |
+========================================================
+           1 |          12 |                        -2 |
+           1 |          13 |                        -4 |
+           1 |          14 |                        -8 |
+           2 |          11 |                        -0 |
+           2 |          12 |                         0 |
+           2 |          13 |                         0 |
+           2 |          14 |                         0 |
+           3 |          11 |                        -2 |
+           4 |          11 |                        -2 |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON a.v <> b.v WHERE a.grp <= 2 AND b.grp <= 2 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           3 |          12 |
+           3 |          14 |
+           4 |          11 |
+           4 |          12 |
+           4 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON a.v = 2 WHERE b.id IS NULL OR b.id <= 13 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 | NULL        |
+           2 | NULL        |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           5 | NULL        |
+
+taos> SELECT a.id, COUNT(*), MIN(b.id), MAX(b.id) FROM l_range a JOIN r_range b ON a.v <> b.v GROUP BY a.id ORDER BY 1;
+     id      |       count(*)        |  min(b.id)  |  max(b.id)  |
+==================================================================
+           1 |                     4 |          11 |          14 |
+           2 |                     4 |          11 |          14 |
+           3 |                     3 |          11 |          14 |
+           4 |                     3 |          11 |          14 |
+
+taos> SELECT b.id, COUNT(*), SUM(a.id) FROM l_range a JOIN r_range b ON a.v < b.v OR a.grp = b.grp GROUP BY b.id ORDER BY 1;
+     id      |       count(*)        |       sum(a.id)       |
+==============================================================
+          11 |                     2 |                     3 |
+          12 |                     2 |                     3 |
+          13 |                     4 |                    10 |
+          14 |                     4 |                    10 |
+          15 |                     1 |                     5 |
+
+taos> SELECT COUNT(*), SUM(a.id), SUM(b.id) FROM l_range a JOIN r_range b ON 1 = 1;
+       count(*)        |       sum(a.id)       |       sum(b.id)       |
+========================================================================
+                    25 |                    75 |                   325 |
+
+taos> SELECT COUNT(*), SUM(a.id), SUM(b.id) FROM l_range a JOIN r_range b ON 1 = 0;
+       count(*)        |       sum(a.id)       |       sum(b.id)       |
+========================================================================
+                     0 | NULL                  | NULL                  |
+
+taos> SELECT a.id, b.id FROM (SELECT * FROM l_range WHERE id <= 3) a JOIN r_range b ON a.v <> b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           3 |          12 |
+           3 |          14 |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN (SELECT * FROM r_range WHERE id >= 13) b ON NOT (a.v < b.v) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           3 |          13 |
+           4 |          13 |
+
+taos> SELECT DISTINCT a.id FROM l_range a JOIN r_range b ON b.v > 0 ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON a.v <> b.v ORDER BY 1 DESC, 2 DESC LIMIT 5;
+     id      |     id      |
+============================
+           4 |          14 |
+           4 |          12 |
+           4 |          11 |
+           3 |          14 |
+           3 |          12 |
+
+taos> SELECT a.id, b.id FROM l_range a JOIN r_range b ON a.v <> b.v ORDER BY 1, 2 LIMIT 5 OFFSET 3;
+     id      |     id      |
+============================
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+
+taos> SELECT CASE WHEN a.v IS NULL THEN 'null' ELSE 'value' END, COUNT(*) FROM l_range a JOIN r_range b ON 1 = 1 GROUP BY CASE WHEN a.v IS NULL THEN 'null' ELSE 'value' END ORDER BY 1;
+ case when a.v is null then 'null' else 'value' end |       count(*)        |
+=============================================================================
+ null                                               |                     5 |
+ value                                              |                    20 |
+
+taos> SELECT a.id, b.id FROM (SELECT DISTINCT id, v, grp FROM l_range) a FULL JOIN (SELECT DISTINCT id, v, grp, hi FROM r_range) b ON a.grp <> b.grp OR a.v = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+
+taos> SELECT a.id, b.id FROM (SELECT id, MAX(v) v FROM l_range GROUP BY id) a JOIN (SELECT id, MAX(v) v, MAX(hi) hi FROM r_range GROUP BY id) b ON a.v * b.v < b.hi ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           3 |          11 |
+           4 |          11 |
+
+taos> SELECT a.id, b.id FROM l_range a FULL JOIN r_range b ON 1 = 0 ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          11 |
+ NULL        |          12 |
+ NULL        |          13 |
+ NULL        |          14 |
+ NULL        |          15 |
+           1 | NULL        |
+           2 | NULL        |
+           3 | NULL        |
+           4 | NULL        |
+           5 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_range a LEFT JOIN r_range b ON 1 = 1 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           1 |          12 |
+           1 |          13 |
+           1 |          14 |
+           1 |          15 |
+           2 |          11 |
+           2 |          12 |
+           2 |          13 |
+           2 |          14 |
+           2 |          15 |
+           3 |          11 |
+           3 |          12 |
+           3 |          13 |
+           3 |          14 |
+           3 |          15 |
+           4 |          11 |
+           4 |          12 |
+           4 |          13 |
+           4 |          14 |
+           4 |          15 |
+           5 |          11 |
+           5 |          12 |
+           5 |          13 |
+           5 |          14 |
+           5 |          15 |
+
+taos> SELECT a.id FROM l_range a LEFT ANTI JOIN r_range b ON 1 = 1 ORDER BY 1;
+
+taos> SELECT b.id FROM l_range a RIGHT ANTI JOIN r_range b ON 1 = 0 ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+          14 |
+          15 |
+

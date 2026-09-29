@@ -224,11 +224,13 @@ typedef struct SJoinLogicNode {
   bool           allEqTags;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
+  bool           isCrossJoin;
   bool           isLowLevelJoin;
   bool           seqWinGroup;
   bool           grpJoin;
   bool           multiGroupJoin;
-  bool           hashJoinHint;
+  // Algorithm hint consumed by planner; rules may reset it when the request is incompatible.
+  EJoinAlgorithm joinAlgoHint;
   bool           batchScanHint;
   
   // FOR CONST JOIN
@@ -1067,6 +1069,9 @@ typedef struct SHashJoinPhysiNode {
   SNode* pTagEqCond;
   bool   multiGroupJoin;
 } SHashJoinPhysiNode;
+
+// Theta join currently uses the hash join physical layout and wire codec.
+typedef SHashJoinPhysiNode SThetaJoinPhysiNode;
 
 typedef struct SGroupCachePhysiNode {
   SPhysiNode node;

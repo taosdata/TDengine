@@ -1,0 +1,84 @@
+
+taos> USE join_condition_relaxation_3dn;
+Database changed.
+
+taos> SELECT a.id, b.id FROM l_dist a JOIN r_dist b ON a.v + b.k = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           3 |          13 |
+
+taos> SELECT a.id, b.id FROM l_dist a LEFT JOIN r_dist b ON a.v + b.k = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           1 |          11 |
+           2 |          12 |
+           3 |          13 |
+           4 | NULL        |
+
+taos> SELECT a.id, b.id FROM l_dist a RIGHT JOIN r_dist b ON a.v + b.k = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           2 |          12 |
+           3 |          13 |
+
+taos> SELECT a.id, b.id FROM l_dist a FULL JOIN r_dist b ON a.v + b.k = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+ NULL        |          14 |
+           1 |          11 |
+           2 |          12 |
+           3 |          13 |
+           4 | NULL        |
+
+taos> SELECT a.id FROM l_dist a LEFT SEMI JOIN r_dist b ON a.v + b.k = b.v ORDER BY 1;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+
+taos> SELECT a.id FROM l_dist a LEFT ANTI JOIN r_dist b ON a.v + b.k = b.v ORDER BY 1;
+     id      |
+==============
+           4 |
+
+taos> SELECT b.id FROM l_dist a RIGHT SEMI JOIN r_dist b ON a.v + b.k = b.v ORDER BY 1;
+     id      |
+==============
+          11 |
+          12 |
+          13 |
+
+taos> SELECT b.id FROM l_dist a RIGHT ANTI JOIN r_dist b ON a.v + b.k = b.v ORDER BY 1;
+     id      |
+==============
+          14 |
+
+taos> SELECT a.id, b.id, a.v + b.k FROM l_dist a JOIN r_dist b ON a.v + b.k = b.v ORDER BY 1, 2;
+     id      |     id      |         a.v + b.k         |
+========================================================
+           1 |          11 |                         2 |
+           2 |          12 |                         4 |
+           3 |          13 |                         6 |
+
+taos> SELECT a.id, b.id FROM (SELECT id, v FROM l_dist WHERE id >= 2) a JOIN (SELECT id, v, k FROM r_dist WHERE id <= 12) b ON a.v + b.k = b.v ORDER BY 1, 2;
+     id      |     id      |
+============================
+           2 |          12 |
+
+taos> SELECT a.id, COUNT(*), SUM(b.id) FROM l_dist a JOIN r_dist b ON a.v + b.k = b.v GROUP BY a.id ORDER BY 1;
+     id      |       count(*)        |       sum(b.id)       |
+==============================================================
+           1 |                     1 |                    11 |
+           2 |                     1 |                    12 |
+           3 |                     1 |                    13 |
+
+taos> SELECT a.id, b.id FROM l_dist a JOIN r_dist b ON a.v + b.k = b.v WHERE a.id >= 2 AND b.id <= 12 ORDER BY 1, 2;
+     id      |     id      |
+============================
+           2 |          12 |
+

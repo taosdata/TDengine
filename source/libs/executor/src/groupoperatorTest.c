@@ -1470,6 +1470,54 @@ _cleanup:
   return code;
 }
 
+// Force the only resident group to spill while acquiring its next page.
+int32_t partitionSpillTestRecoveredErrno(int32_t* pReportedCode) {
+  if (pReportedCode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pReportedCode = TSDB_CODE_SUCCESS;
+
+  SPartitionOperatorInfo info = {0};
+  SPartitionDataInfo group = {.groupId = 1001};
+  int32_t pageId = 0;
+  int32_t code = partitionSpillTestCreateInfo(&info, 1024, 1, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _cleanup;
+  }
+  group.pPageList = taosArrayInit(1, sizeof(int32_t));
+  if (group.pPageList == NULL) {
+    code = terrno;
+    goto _cleanup;
+  }
+  code = partitionSpillTestAddPage(&info, &group, 0,
+                                  info.pageClasses[0].rowCapacity, 0, &pageId);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _cleanup;
+  }
+  code = partitionSetSpillGroupLevel(&info, &group, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _cleanup;
+  }
+  info.memBudgetBytes = info.pageClasses[0].pageSize;
+  info.pLastGroupInfo = &group;
+  terrno = TSDB_CODE_SUCCESS;
+  void* pPage = partitionGetWritablePage(&info, &group);
+  if (pPage == NULL) {
+    code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto _cleanup;
+  }
+  *pReportedCode = terrno;
+  releaseBufPage(info.pageClasses[0].pBuf, pPage);
+  if (info.spillStat.forcedCurrentSpills != 1) {
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+_cleanup:
+  partitionClearSpillBuckets(&info);
+  partitionSpillTestCleanupInfo(&info, &group);
+  return code;
+}
+
 int32_t partitionTestRetainMaxPages(
     int32_t numPages, SPartitionMaxPageTestResult* pResult) {
   if (numPages <= 1 || pResult == NULL) {
