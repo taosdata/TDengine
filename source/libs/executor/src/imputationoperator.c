@@ -423,8 +423,8 @@ int32_t doCacheBlockForCorrelation(SCorrelationSupp* pSupp, const char* id, SSDa
     }
   }
 
-  if (pSupp->base.numOfRows > ANALY_CORRELATION_INPUT_MAX_ROWS) {
-    qError("%s too many rows for correlation, maximum allowed:%d, input:%d", id, ANALY_CORRELATION_INPUT_MAX_ROWS,
+  if (pSupp->base.numOfRows > ANALY_GENERIC_INPUT_MAX_ROWS) {
+    qError("%s too many rows for correlation, maximum allowed:%d, input:%d", id, ANALY_GENERIC_INPUT_MAX_ROWS,
            pSupp->base.numOfRows);
     return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
   }
@@ -559,8 +559,25 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     return code;
   }
 
+  if (rows > ANALY_GENERIC_OUTPUT_MAX_ROWS) {
+    qError("%s anode response rows %d exceeds maximum %d", pId, rows, ANALY_GENERIC_OUTPUT_MAX_ROWS);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _OVER;
+  }
+
   if (code < 0) {
     goto _OVER;
+  }
+
+  // Ensure block capacity before any writes for all analysis types
+  if (resCurRow + rows > pBlock->info.capacity) {
+    int32_t total = resCurRow + rows;
+
+    code = blockDataEnsureCapacity(pBlock, total);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed to ensure block capacity, code:%s", pId, tstrerror(code));
+      goto _OVER;
+    }
   }
 
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
@@ -578,14 +595,16 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
       goto _OVER;
     }
 
-    if (resCurRow + rows > pBlock->info.capacity) {
-      int32_t total = resCurRow + rows;
+    int32_t tsLen = tjsonGetArraySize(pTsList);
+    if (tsLen != rows) {
+      qError("%s anode ts array size %d does not match rows %d", pId, tsLen, rows);
+      goto _OVER;
+    }
 
-      code = blockDataEnsureCapacity(pBlock, total);
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        return code;
-      }
+    int32_t maskLen = tjsonGetArraySize(pMask);
+    if (maskLen != rows) {
+      qError("%s anode mask array size %d does not match rows %d", pId, maskLen, rows);
+      goto _OVER;
     }
 
     if (pInfo->imputatSup.resTsSlot != -1) {
@@ -593,6 +612,11 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
       if (pResTsCol != NULL) {
         for (int32_t i = 0; i < rows; ++i) {
           SJson* tsJson = tjsonGetArrayItem(pTsList, i);
+          if (tsJson == NULL) {
+            qError("%s anode response ts array item %d is NULL", pId, i);
+            code = TSDB_CODE_INVALID_PARA;
+            goto _OVER;
+          }
           tjsonGetObjectValueBigInt(tsJson, &tmpI64);
           colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
           resCurRow++;
@@ -604,6 +628,11 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     if (pResTargetCol->info.type == TSDB_DATA_TYPE_DOUBLE) {
       for (int32_t i = 0; i < rows; ++i) {
         SJson* targetJson = tjsonGetArrayItem(pTarget, i);
+        if (targetJson == NULL) {
+          qError("%s anode response target array item %d is NULL", pId, i);
+          code = TSDB_CODE_INVALID_PARA;
+          goto _OVER;
+        }
         tjsonGetObjectValueDouble(targetJson, &tmpDouble);
         colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
         resCurRow++;
@@ -611,6 +640,11 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     } else if (pResTargetCol->info.type == TSDB_DATA_TYPE_INT) {
       for (int32_t i = 0; i < rows; ++i) {
         SJson* targetJson = tjsonGetArrayItem(pTarget, i);
+        if (targetJson == NULL) {
+          qError("%s anode response target array item %d is NULL", pId, i);
+          code = TSDB_CODE_INVALID_PARA;
+          goto _OVER;
+        }
         tjsonGetObjectValueDouble(targetJson, &tmpDouble);
         int32_t t = tmpDouble;
         colDataSetInt32(pResTargetCol, resCurRow, &t);
@@ -619,6 +653,11 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     } else if (pResTargetCol->info.type == TSDB_DATA_TYPE_FLOAT) {
       for (int32_t i = 0; i < rows; ++i) {
         SJson* targetJson = tjsonGetArrayItem(pTarget, i);
+        if (targetJson == NULL) {
+          qError("%s anode response target array item %d is NULL", pId, i);
+          code = TSDB_CODE_INVALID_PARA;
+          goto _OVER;
+        }
         tjsonGetObjectValueDouble(targetJson, &tmpDouble);
         float t = tmpDouble;
         colDataSetFloat(pResTargetCol, resCurRow, &t);
@@ -632,6 +671,11 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
         resCurRow = pBlock->info.rows;
         for (int32_t i = 0; i < rows; ++i) {
           SJson* markJson = tjsonGetArrayItem(pMask, i);
+          if (markJson == NULL) {
+            qError("%s anode response mask array item %d is NULL", pId, i);
+            code = TSDB_CODE_INVALID_PARA;
+            goto _OVER;
+          }
           tjsonGetObjectValueBigInt(markJson, &tmpI64);
           int32_t v = tmpI64;
           colDataSetInt32(pResMarkCol, resCurRow, &v);
@@ -686,12 +730,34 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     SJson* pCcfVals = tjsonGetObjectItem(pJson, "ccf_vals");
     if (pCcfVals == NULL) goto _OVER;
 
+    int32_t lagsLen = tjsonGetArraySize(pLags);
+    if (lagsLen != rows) {
+      qError("%s anode lags array size %d does not match rows %d", pId, lagsLen, rows);
+      goto _OVER;
+    }
+
+    int32_t ccfLen = tjsonGetArraySize(pCcfVals);
+    if (ccfLen != rows) {
+      qError("%s anode ccf_vals array size %d does not match rows %d", pId, ccfLen, rows);
+      goto _OVER;
+    }
+
     for (int32_t i = 0; i < rows; ++i) {
       SJson* ccfValJson = tjsonGetArrayItem(pCcfVals, i);
+      if (ccfValJson == NULL) {
+        qError("%s anode response ccf_vals array item %d is NULL", pId, i);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _OVER;
+      }
       tjsonGetObjectValueDouble(ccfValJson, &tmpDouble);
 
       int64_t index = 0;
       SJson*  pLastIndexJson = tjsonGetArrayItem(pLags, i);
+      if (pLastIndexJson == NULL) {
+        qError("%s anode response lags array item %d is NULL", pId, i);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _OVER;
+      }
       tjsonGetObjectValueBigInt(pLastIndexJson, &index);
 
       char    buf[128 + VARSTR_HEADER_SIZE] = {0};
@@ -705,9 +771,6 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
       code = colDataSetVal(pResTargetCol, resCurRow, buf, false);
       resCurRow++;
     }
-
-    tjsonGetObjectValueDouble(pLags, &tmpDouble);
-    colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
   }
 
   pBlock->info.rows += rows;
@@ -783,6 +846,11 @@ static int32_t doParseInputForImputation(SAnalysisOperatorInfo* pInfo, SImputati
           pSupp->targetSlot = pTargetNode->slotId;
           pSupp->targetType = pTargetNode->node.resType.type;
 
+          if (!IS_MATHABLE_TYPE(pSupp->targetType)) {
+            qError("invalid target column type %d for imputation, must be numeric or timestamp", pSupp->targetType);
+            return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          }
+
           // let's set the moment as the default imputation algorithm
           pInfo->options = taosStrdup("algo=moment");
         } else {
@@ -797,6 +865,11 @@ static int32_t doParseInputForImputation(SAnalysisOperatorInfo* pInfo, SImputati
 
           pSupp->targetSlot = pTargetNode->slotId;
           pSupp->targetType = pTargetNode->node.resType.type;
+
+          if (!IS_MATHABLE_TYPE(pSupp->targetType)) {
+            qError("invalid target column type %d for imputation, must be numeric or timestamp", pSupp->targetType);
+            return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          }
 
           for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
             SNode* pNode = nodesListGetNode(pFunc->pParameterList, i);
@@ -1072,6 +1145,12 @@ int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
     regfree(&regex);
     if (res != 0) {
       qError("%s invalid freq parameter: %s", id, p);
+      taosMemoryFreeClear(p);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    if (len >= sizeof(pSupp->freq)) {
+      qError("%s freq parameter length %d exceeds maximum %zu", id, len, sizeof(pSupp->freq) - 1);
       taosMemoryFreeClear(p);
       return TSDB_CODE_INVALID_PARA;
     }

@@ -586,6 +586,11 @@ static int32_t taosAnalyJsonBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex
   bool first = (colIndex == 0);
   bool last = (colIndex == pBuf->numOfCols - 1);
 
+  if (colType < 0 || colType >= TSDB_DATA_TYPE_MAX) {
+    uError("taosAnalyJsonBufWriteColMeta: invalid colType %d, must be in [0, %d)", colType, TSDB_DATA_TYPE_MAX);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (first) {
     if (taosAnalyJsonBufWriteStr(pBuf, "\"schema\": [\n", 0) != 0) {
       return terrno;
@@ -911,7 +916,13 @@ int32_t taosAnalysisParseAlgo(const char* pOpt, char* pAlgoName, char* pUrl, int
     return TSDB_CODE_ANA_ALGO_NOT_FOUND;
   }
 
-  tstrncpy(pAlgoName, pAlgo, taosHashGetValueSize(pAlgo) + 1);
+  int32_t algoLen = taosHashGetValueSize(pAlgo);
+  if (algoLen >= TSDB_ANALYTIC_ALGO_NAME_LEN) {
+    uError("%s analysis algorithm name length %d exceeds maximum %d", id, algoLen, TSDB_ANALYTIC_ALGO_NAME_LEN - 1);
+    return TSDB_CODE_ANA_ALGO_NOT_FOUND;
+  }
+
+  tstrncpy(pAlgoName, pAlgo, algoLen+1);
 
   if (taosAnalyGetAlgoUrl(pAlgoName, type, pUrl, len) != 0) {
     uError("%s failed to get analysis algorithm url from %s", id, pAlgoName);
