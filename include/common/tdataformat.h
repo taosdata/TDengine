@@ -460,6 +460,9 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
       pTSchema = NULL;            \
     }                             \
   } while (0)
+// Binary search on pTSchema->columns by colId. The columns must be stored in ascending colId order;
+// tBuildTSchema() does not sort and keeps the caller's column order (TDengine metadata schemas are
+// ordered by colId). A miss does not distinguish "column absent" from "unordered schema".
 const STColumn *tTSchemaSearchColumn(const STSchema *pTSchema, int16_t cid);
 
 struct SValueColumn {

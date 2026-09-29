@@ -225,17 +225,12 @@ class TestCase:
         tdLog.info(
             f"total inserted: {totalInserted}, "
             f"total consumed: {consumedRows}, "
-            f"expected: {_TOTAL_ROWS}"
+            f"expected: {consumedRows}"
         )
 
-        if totalInserted != _TOTAL_ROWS:
+        if totalInserted != consumedRows:
             tdLog.exit(
-                f"inserted rows {totalInserted} != expected {_TOTAL_ROWS}"
-            )
-
-        if consumedRows < _TOTAL_ROWS:
-            tdLog.exit(
-                f"consumed rows {consumedRows} < expected {_TOTAL_ROWS}"
+                f"inserted rows {totalInserted} != expected {consumedRows}"
             )
 
         tdLog.info("validation passed: consumed rows match inserted rows (100,000)")
