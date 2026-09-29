@@ -93,6 +93,16 @@
   } while (0)
 #endif
 
+#ifndef TD_ENTERPRISE
+static int32_t getExternalTableMeta(STranslateContext* pCxt, const SExtSourceInfo* pSrcInfo,
+                                    const char* sourceName, const char* cacheMid0, const char* cacheMid1,
+                                    const char* dbName, const char* schemaName, const char* tableName,
+                                    bool forceRefresh, SExtTableMeta** ppExtMeta) {
+  *ppExtMeta = NULL;
+  return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OSS_NOT_SUPPORT, "External table");
+}
+#endif
+
 typedef struct SRewriteTbNameContext {
   int32_t errCode;
   char*   pTbName;
