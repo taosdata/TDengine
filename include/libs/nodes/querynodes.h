@@ -474,7 +474,6 @@ typedef struct SRealTableNode {
   SVgroupsInfo*      pVgroupList;
   char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   double             ratio;
-  SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
   int8_t             stbRewrite;
   SArray*            pTsmas;
@@ -549,7 +548,6 @@ typedef struct SViewNode {
   SVgroupsInfo*      pVgroupList;
   char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   double             ratio;
-  SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
 } SViewNode;
 

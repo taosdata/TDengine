@@ -158,7 +158,6 @@ typedef struct SScanLogicNode {
   int64_t            deleteMark;
   int8_t             igExpired;
   int8_t             igCheckUpdate;
-  SArray*            pSmaIndexes;
   SArray*            pTsmas;
   SArray*            pTsmaTargetTbVgInfo;
   SArray*            pTsmaTargetTbInfo;
