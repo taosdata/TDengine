@@ -1055,13 +1055,15 @@ static int32_t tqProcessSubmitCol(SArray*         pCols,
   return code;
 }
 
-static int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData) {
+static int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData, bool* pSchemaChanged) {
   int32_t vgId = pReader->pWalReader->pWal->cfg.vgId;
   int32_t sversion = pSubmitTbData->sver;
   int64_t suid = pSubmitTbData->suid;
   int64_t uid = pSubmitTbData->uid;
+  *pSchemaChanged = false;
   if ((suid != 0 && pReader->cachedSchemaSuid != suid) || (suid == 0 && pReader->cachedSchemaUid != uid) ||
       (pReader->cachedSchemaVer != sversion)) {
+    *pSchemaChanged = true;
     tDeleteSchemaWrapper(pReader->pSchemaWrapper);
     taosMemoryFreeClear(pReader->extSchema);
     taosMemoryFreeClear(pReader->pTSchema);
@@ -1084,6 +1086,62 @@ static int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData) {
   return TSDB_CODE_SUCCESS;
 }
 
+// The byte width of the output block columns comes from the schema that was known when the
+// subscription was created, so a schema change afterwards (e.g. another varchar length) has to be
+// propagated to the projected columns before the rows of this submit are written into the block.
+// Only the projected columns are visited (the colId -> slot mapping built by buildCol2SlotId()),
+// instead of walking every column of the schema: for a wide table with a narrow projection the
+// latter issued one hash lookup per schema column for every submitted data block, which is a
+// reachable degradation for sparse column-format consumption (4096 columns, ts+c1 projected).
+// The refresh runs once per detected schema version change in tqRetrieveCols(), before the block
+// grows; schema changes are rare, so it is effectively free.
+static int32_t tqSyncProjectedColBytes(STqReader* pReader, const SSubmitTbData* pSubmitTbData,
+                                       SSDataBlock* pBlock, SHashObj* pCol2SlotId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t line = 0;
+
+  if (pReader == NULL || pReader->pTSchema == NULL || pSubmitTbData == NULL || pBlock == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  void* pSlotIter = NULL;
+  while ((pSlotIter = taosHashIterate(pCol2SlotId, pSlotIter)) != NULL) {
+    const col_id_t* pColId = (const col_id_t*)taosHashGetKey(pSlotIter, NULL);
+    if (pColId == NULL) {
+      continue;
+    }
+
+    const STColumn* pSchemaCol = tTSchemaSearchColumn(pReader->pTSchema, *pColId);
+    if (pSchemaCol == NULL) {  // projected column is not part of the current schema
+      continue;
+    }
+
+    int16_t          slotId   = *(int16_t*)pSlotIter;
+    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, slotId);
+    if (pColData == NULL) {
+      code = (terrno != TSDB_CODE_SUCCESS) ? terrno : TSDB_CODE_TMQ_INVALID_MSG;
+      line = __LINE__;
+      break;  // the iteration lock is released right below
+    }
+
+    if (pColData->info.bytes != pSchemaCol->bytes) {
+      tqDebug("uid:%" PRId64 " schema version:%d column:%d slot:%d update block bytes:%d to:%d",
+              pSubmitTbData->uid, pSubmitTbData->sver, *pColId, slotId, pColData->info.bytes, pSchemaCol->bytes);
+      if (pBlock->info.rowSize != 0) {
+        pBlock->info.rowSize += pSchemaCol->bytes - pColData->info.bytes;
+      }
+      pColData->info.bytes = pSchemaCol->bytes;
+    }
+  }
+  // the current entry stays locked until the iteration is cancelled
+  taosHashCancelIterate(pCol2SlotId, pSlotIter);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("%s failed at line:%d, uid:%" PRId64 ", msg:%s", __func__, line, pSubmitTbData->uid, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t tqRetrieveCols(STqReader* pReader, SSDataBlock* pBlock, SHashObj* pCol2SlotId) {
   if (pReader == NULL || pBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -1104,26 +1162,17 @@ static int32_t tqRetrieveCols(STqReader* pReader, SSDataBlock* pBlock, SHashObj*
     numOfRows = taosArrayGetSize(pSubmitTbData->aRowP);
   }
 
-  code = tqCheckSchema(pReader, pSubmitTbData);
+  bool schemaChanged = false;
+  code = tqCheckSchema(pReader, pSubmitTbData, &schemaChanged);
   TSDB_CHECK_CODE(code, line, END);
 
-  for (int32_t schemaIdx = 0; schemaIdx < pReader->pTSchema->numOfCols; ++schemaIdx) {
-    const STColumn* pSchemaCol = &pReader->pTSchema->columns[schemaIdx];
-    const int16_t* pSlotId = taosHashGet(pCol2SlotId, &pSchemaCol->colId, sizeof(pSchemaCol->colId));
-    if (pSlotId == NULL) {
-      continue;
-    }
-    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, *pSlotId);
-    TSDB_CHECK_NULL(pColData, code, line, END, terrno);
-    if (pColData->info.bytes != pSchemaCol->bytes) {
-      tqDebug("uid:%" PRId64 " schema version:%d column:%d slot:%d update block bytes:%d to:%d",
-              pSubmitTbData->uid, pSubmitTbData->sver, pSchemaCol->colId, *pSlotId,
-              pColData->info.bytes, pSchemaCol->bytes);
-      if (pBlock->info.rowSize != 0) {
-        pBlock->info.rowSize += pSchemaCol->bytes - pColData->info.bytes;
-      }
-      pColData->info.bytes = pSchemaCol->bytes;
-    }
+  // A schema version change is rare, so the projected column widths are refreshed exactly once,
+  // before blockDataEnsureCapacity() sizes the block. This keeps info.bytes/rowSize consistent with
+  // the current schema without comparing the projection with the schema for every submitted data
+  // block (in practice only varchar widths change).
+  if (schemaChanged) {
+    code = tqSyncProjectedColBytes(pReader, pSubmitTbData, pBlock, pCol2SlotId);
+    TSDB_CHECK_CODE(code, line, END);
   }
 
   code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + numOfRows);
@@ -1133,12 +1182,12 @@ static int32_t tqRetrieveCols(STqReader* pReader, SSDataBlock* pBlock, SHashObj*
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
     SArray* pCols = pSubmitTbData->aCol;
     code = tqProcessSubmitCol(pCols, pBlock, pCol2SlotId, pSubmitTbData->pBlobSet);
-    TSDB_CHECK_CODE(code, line, END);
   } else {
-    SArray*         pRows = pSubmitTbData->aRowP;
+    SArray* pRows = pSubmitTbData->aRowP;
     code = tqProcessSubmitRow(pRows, pBlock, pCol2SlotId, pReader, pSubmitTbData->pBlobSet);
-    TSDB_CHECK_CODE(code, line, END);
   }
+  TSDB_CHECK_CODE(code, line, END);
+
   pBlock->info.rows += numOfRows;
 END:
   if (code != 0) {
