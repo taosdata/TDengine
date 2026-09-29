@@ -941,6 +941,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_groupcache_stable_join_regression.py
 
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_json_tag_conditions.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full2.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func_cursor.py
@@ -953,8 +954,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_condition.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_ns_db.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_ts_sort.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_6604237597.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_left_asof_join_diff_64bit.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_hash.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_hash_memory.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_condition_relaxation.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_condition_relaxation.py::TestJoinConditionRelaxation::test_join_condition_relaxation_l4
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_condition_relaxation.py::TestJoinConditionRelaxation::test_join_condition_relaxation_three_dnodes -N 3
 
 # 15-TagIndices
 

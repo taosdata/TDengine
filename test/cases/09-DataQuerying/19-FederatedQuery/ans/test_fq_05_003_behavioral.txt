@@ -121,7 +121,7 @@ RESULT
 ---
 ### 027
 SQL: select val, delay from fq05_qt_m.slow_v limit 1
-ERROR -0x7fff9c00: External source connection failed [source=fq05_qt_m, type=mysql, remote_code=2013]
+ERROR -0x7fff9c00: External source connection failed [source=fq05_qt_m, type=mysql, remote_code=2013, diag_kind=0, reason=13]
 ---
 ### 028
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
@@ -140,7 +140,7 @@ RESULT
 ---
 ### 031
 SQL: select val, delay from fq05_qt_m.slow_v limit 1
-ERROR -0x7fff9c00: External source connection failed [source=fq05_qt_m, type=mysql, remote_code=2013]
+ERROR -0x7fff9c00: External source connection failed [source=fq05_qt_m, type=mysql, remote_code=2013, diag_kind=0, reason=13]
 ---
 ### 032
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryQueryTimeoutMs'

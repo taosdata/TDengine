@@ -66,7 +66,23 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
         PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
+
 add_test(NAME hashJoinMultiGroupTests COMMAND hashJoinMultiGroupTests)
+
+ADD_EXECUTABLE(hashJoinTests hashJoinTests.cpp)
+DEP_ext_gtest(hashJoinTests)
+DEP_ext_cppstub(hashJoinTests)
+TARGET_LINK_LIBRARIES(
+        hashJoinTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        hashJoinTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
 
 ADD_EXECUTABLE(queryPlanTests queryPlanTests.cpp)
 DEP_ext_gtest(queryPlanTests)

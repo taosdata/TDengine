@@ -76,7 +76,6 @@ from federated_query_common import (
     TSDB_CODE_OPS_NOT_SUPPORT,
     TSDB_CODE_PAR_INVALID_COLUMN,
     TSDB_CODE_PAR_INVALID_TAGS_PC,
-    TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
     parity_serialize_case,
     parity_serialize_cell,
 )
@@ -261,13 +260,13 @@ _CASES = [
     ("vw-m-01",
      "SELECT * FROM {M_VIEW}.{M_VIEW_DB}.v_summary ORDER BY status",
      True, None, {}),
-    # v_users JOIN orders: non-ts JOIN → PAR_NOT_SUPPORT_JOIN
+    # v_users JOIN orders: ordinary-column JOIN is supported for external views
     ("vw-m-02",
      "SELECT v.id, v.name, SUM(o.amount) AS total "
      "FROM {M_VIEW}.{M_VIEW_DB}.v_users v "
      "JOIN {M_VIEW}.{M_VIEW_DB}.orders o ON v.id = o.user_id "
      "GROUP BY v.id, v.name ORDER BY v.id",
-     False, TSDB_CODE_PAR_NOT_SUPPORT_JOIN, {}),
+     True, None, {}),
 
     # ── PostgreSQL: VIEW query (vw-p group) ────────────────────────────────────────
     ("vw-p-01",
@@ -278,7 +277,7 @@ _CASES = [
      "FROM {P_VIEW}.public.v_users v "
      "JOIN {P_VIEW}.public.orders o ON v.id = o.user_id "
      "GROUP BY v.id, v.name ORDER BY v.id",
-     False, TSDB_CODE_PAR_NOT_SUPPORT_JOIN, {}),
+     True, None, {}),
 
     # ── InfluxDB: "ts" column not found (i-neg group) ─────────────────────────
     # InfluxDB primary key is always "time"; querying with "ts" must fail at
@@ -650,7 +649,9 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
           i04-02    AVG(usage_idle) PARTITION BY tbname → {77.5, 87.5} (unordered)
           minfo-01  MySQL INFORMATION_SCHEMA.TABLES count ≥ 1
           vw-m-01   MySQL VIEW v_summary → 2 rows
+          vw-m-02   MySQL v_users JOIN orders with grouped totals
           vw-p-01   PostgreSQL VIEW v_summary → 2 rows
+          vw-p-02   PostgreSQL v_users JOIN orders with grouped totals
 
         Catalog: - Query:FederatedSourceSpecific
 
@@ -659,6 +660,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         Labels: common,ci
 
         History:
+            - 2026-09-24 Document vw-m-02/vw-p-02 positive view JOIN coverage
             - 2026-06-xx wpan  Migrated from fq_04 test_fq_sql_influxdb_tags_partition,
                                 fq_04 test_fq_sql_infoschema,
                                 and fq_06 test_fq_push_s04_influx_partition_tbname_to_groupby_tags

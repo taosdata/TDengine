@@ -1,0 +1,201 @@
+
+taos> USE hash_join_snap;
+Database changed.
+
+taos> SELECT a.k1, b.k2, c.k3, a.aval, b.bval, c.cval FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2 ORDER BY 1, 2, 3, 4, 5, 6;
+     k1      |     k2      |     k3      |    aval     |    bval     |    cval     |
+====================================================================================
+           1 |          10 |         100 |         100 |        1000 |          11 |
+           2 |          20 |         200 |         200 |        2000 |          22 |
+           2 |          20 |         200 |         220 |        2000 |          22 |
+           2 |          21 |         210 |         200 |        2100 |          23 |
+           2 |          21 |         210 |         220 |        2100 |          23 |
+           3 |          30 |         300 |         300 |        3000 |          33 |
+           3 |          30 |         300 |         300 |        3100 |          33 |
+           3 |          30 |         301 |         300 |        3000 |          34 |
+           3 |          30 |         301 |         300 |        3100 |          34 |
+
+taos> SELECT COUNT(*), SUM(a.aval), SUM(b.bval), SUM(c.cval) FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2;
+       count(*)        |      sum(a.aval)      |      sum(b.bval)      |      sum(c.cval)      |
+================================================================================================
+                     9 |                  2140 |                 21400 |                   235 |
+
+taos> SELECT a.k1, COUNT(*), SUM(a.aval), SUM(b.bval), SUM(c.cval) FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2 GROUP BY a.k1 ORDER BY 1;
+     k1      |       count(*)        |      sum(a.aval)      |      sum(b.bval)      |      sum(c.cval)      |
+==============================================================================================================
+           1 |                     1 |                   100 |                  1000 |                    11 |
+           2 |                     4 |                   840 |                  8200 |                    90 |
+           3 |                     4 |                  1200 |                 12200 |                   134 |
+
+taos> SELECT a.k1, b.k2, c.k3, a.aval, b.bval, c.cval FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND a.ts < c.ts AND (b.status = 1 OR c.flag = 1) ORDER BY 1, 2, 3, 4, 5, 6;
+     k1      |     k2      |     k3      |    aval     |    bval     |    cval     |
+====================================================================================
+           1 |          10 |         100 |         100 |        1000 |          11 |
+           2 |          20 |         200 |         200 |        2000 |          22 |
+           2 |          20 |         200 |         220 |        2000 |          22 |
+           3 |          30 |         300 |         300 |        3000 |          33 |
+           3 |          30 |         300 |         300 |        3100 |          33 |
+           3 |          30 |         301 |         300 |        3000 |          34 |
+           3 |          30 |         301 |         300 |        3100 |          34 |
+
+taos> SELECT a.k1, b.k2, c.k3, d.marker, a.aval, b.bval, c.cval, d.dval FROM mt_a a, mt_b b, mt_c c, mt_d d WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND c.k3 = d.k3 AND a.grp = d.grp ORDER BY 1, 2, 3, 4, 5, 6, 7, 8;
+     k1      |     k2      |     k3      |       marker       |    aval     |    bval     |    cval     |    dval     |
+=======================================================================================================================
+           1 |          10 |         100 | d100               |         100 |        1000 |          11 |           7 |
+           2 |          20 |         200 | d200               |         200 |        2000 |          22 |           8 |
+           2 |          20 |         200 | d200               |         220 |        2000 |          22 |           8 |
+           2 |          21 |         210 | d210               |         200 |        2100 |          23 |           9 |
+           2 |          21 |         210 | d210               |         220 |        2100 |          23 |           9 |
+           3 |          30 |         300 | d300               |         300 |        3000 |          33 |          10 |
+           3 |          30 |         300 | d300               |         300 |        3100 |          33 |          10 |
+           3 |          30 |         301 | d301               |         300 |        3000 |          34 |          11 |
+           3 |          30 |         301 | d301               |         300 |        3100 |          34 |          11 |
+
+taos> SELECT a.k1, b.k2, c.k3, d.marker, e.eval FROM mt_a a, mt_b b, mt_c c, mt_d d, mt_e e WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND c.k3 = d.k3 AND a.grp = d.grp AND e.k1 = a.k1 AND e.k3 = d.k3 AND e.grp = a.grp ORDER BY 1, 2, 3, 4, 5;
+     k1      |     k2      |     k3      |       marker       |    eval     |
+=============================================================================
+           1 |          10 |         100 | d100               |          70 |
+           2 |          20 |         200 | d200               |          80 |
+           2 |          20 |         200 | d200               |          80 |
+           2 |          21 |         210 | d210               |          90 |
+           2 |          21 |         210 | d210               |          90 |
+           3 |          30 |         300 | d300               |         100 |
+           3 |          30 |         300 | d300               |         100 |
+           3 |          30 |         301 | d301               |         110 |
+           3 |          30 |         301 | d301               |         110 |
+
+taos> SELECT a.k1, b.k2, c.k3, d.marker, e.eval FROM mt_a a, mt_b b, mt_c c, mt_d d, mt_e e WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND c.k3 = d.k3 AND a.grp = d.grp AND e.k1 = a.k1 AND e.k3 = d.k3 AND e.grp = a.grp ORDER BY e.eval DESC, d.marker, a.k1 LIMIT 4;
+     k1      |     k2      |     k3      |       marker       |    eval     |
+=============================================================================
+           3 |          30 |         301 | d301               |         110 |
+           3 |          30 |         301 | d301               |         110 |
+           3 |          30 |         300 | d300               |         100 |
+           3 |          30 |         300 | d300               |         100 |
+
+taos> SELECT a.k1, COUNT(*), SUM(a.aval), SUM(e.eval) FROM mt_a a, mt_b b, mt_c c, mt_d d, mt_e e WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND c.k3 = d.k3 AND a.grp = d.grp AND e.k1 = a.k1 AND e.k3 = d.k3 AND e.grp = a.grp AND c.flag = 1 AND e.eval >= 80 GROUP BY a.k1 ORDER BY 4 DESC, 1 LIMIT 2;
+     k1      |       count(*)        |      sum(a.aval)      |      sum(e.eval)      |
+======================================================================================
+           3 |                     4 |                  1200 |                   420 |
+           2 |                     2 |                   420 |                   160 |
+
+taos> SELECT a.k1, b.k2, c.k3, a.aval, b.bval, c.cval FROM (SELECT k1, k2, grp, aval FROM mt_a WHERE aval >= 200) a, (SELECT k1, k2, grp, bval, status FROM mt_b WHERE status = 1) b, (SELECT k2, k3, grp, cval, flag FROM mt_c WHERE flag = 1) c WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND a.grp = c.grp ORDER BY 1, 2, 3, 4, 5, 6;
+     k1      |     k2      |     k3      |    aval     |    bval     |    cval     |
+====================================================================================
+           2 |          20 |         200 |         200 |        2000 |          22 |
+           2 |          20 |         200 |         220 |        2000 |          22 |
+           3 |          30 |         300 |         300 |        3000 |          33 |
+           3 |          30 |         300 |         300 |        3100 |          33 |
+           3 |          30 |         301 |         300 |        3000 |          34 |
+           3 |          30 |         301 |         300 |        3100 |          34 |
+
+taos> SELECT a.k1, b.k2, c.k3 FROM mt_a a, mt_b b, mt_c c WHERE a.ts = b.ts AND a.k1 = b.k1 AND b.k2 = c.k2 ORDER BY 1, 2, 3;
+
+taos> SELECT a.ts, a.k, b.k2, c.marker, a.v, b.v, c.v FROM mt_ta a, mt_tb b, mt_tc c WHERE a.ts = b.ts AND b.ts = c.ts AND a.k = b.k AND b.k2 = c.k2 AND a.grp = c.grp ORDER BY 1, 2, 3, 4;
+           ts            |      k      |     k2      |       marker       |      v      |      v      |      v      |
+=====================================================================================================================
+ 2025-01-13 00:00:01.000 |           1 |          10 | tc10               |         100 |        1000 |          11 |
+ 2025-01-13 00:00:02.000 |           2 |          20 | tc20               |         200 |        2000 |          22 |
+
+taos> SELECT a.ts, a.k, b.k2, c.k2, d.marker, a.v, b.v, c.v, d.v FROM mt_ta a, mt_tb b, mt_tc c, mt_td d WHERE a.k = b.k AND c.k2 = d.k2 AND a.ts = b.ts AND b.ts = c.ts AND c.ts = d.ts AND b.grp = c.grp AND c.grp = d.grp ORDER BY 1, 2, 3, 4, 5;
+           ts            |      k      |     k2      |     k2      |       marker       |      v      |      v      |      v      |      v      |
+=================================================================================================================================================
+ 2025-01-13 00:00:01.000 |           1 |          10 |          10 | td10               |         100 |        1000 |          11 |         101 |
+ 2025-01-13 00:00:02.000 |           2 |          20 |          20 | td20               |         200 |        2000 |          22 |         202 |
+ 2025-01-13 00:00:03.000 |           3 |          30 |          31 | td31               |         300 |        3000 |          34 |         313 |
+
+taos> SELECT COUNT(*), SUM(a.v), SUM(b.v), SUM(c.v), SUM(d.v) FROM mt_ta a, mt_tb b, mt_tc c, mt_td d WHERE a.k = b.k AND c.k2 = d.k2 AND a.ts = b.ts AND b.ts = c.ts AND c.ts = d.ts AND b.grp = c.grp AND c.grp = d.grp;
+       count(*)        |       sum(a.v)        |       sum(b.v)        |       sum(c.v)        |       sum(d.v)        |
+========================================================================================================================
+                     3 |                   600 |                  6000 |                    67 |                   616 |
+
+taos> SELECT COUNT(*), SUM(a.v), SUM(b.v), SUM(c.v) FROM mt_ta a, mt_tb b, mt_tc c WHERE a.ts = b.ts AND b.ts = c.ts AND a.k = b.k AND b.k2 = c.k2 AND a.grp = c.grp;
+       count(*)        |       sum(a.v)        |       sum(b.v)        |       sum(c.v)        |
+================================================================================================
+                     2 |                   300 |                  3000 |                    33 |
+
+taos> SELECT a.k, b.k2, c.marker FROM mt_ta a, mt_tb b, mt_tc c WHERE a.k = b.k AND b.k2 = c.k2 AND a.v < b.v AND (a.grp = c.grp OR c.v > 30) ORDER BY 1, 2, 3;
+      k      |     k2      |       marker       |
+=================================================
+           1 |          10 | tc10               |
+           2 |          20 | tc20               |
+
+taos> SELECT a.k, b.k2, c.marker FROM mt_ta a, mt_tb b, mt_tc c WHERE a.v < b.v AND b.k2 = c.k2 ORDER BY 1, 2, 3;
+      k      |     k2      |       marker       |
+=================================================
+           1 |          10 | tc10               |
+           1 |          20 | tc20               |
+           2 |          10 | tc10               |
+           2 |          20 | tc20               |
+           3 |          10 | tc10               |
+           3 |          20 | tc20               |
+           4 |          10 | tc10               |
+           4 |          20 | tc20               |
+
+taos> SELECT a.k, b.k2, c.marker FROM mt_ta a LEFT JOIN mt_tb b ON a.k = b.k JOIN mt_tc c ON b.k2 = c.k2 ORDER BY 1, 2, 3;
+      k      |     k2      |       marker       |
+=================================================
+           1 |          10 | tc10               |
+           2 |          20 | tc20               |
+
+taos> EXPLAIN SELECT a.k1, b.k2, c.k3 FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2 \G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=3 width=12 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Inner Join (columns=4 width=16 input_order=asc algo=Hash)
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Partition on Column k2 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> Inner Join (columns=3 width=12 input_order=asc algo=Hash)
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Partition on Column k1 (width=12)
+*************************** 6.row ***************************
+QUERY_PLAN:                -> Table Scan on mt_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Data Exchange 1:1 (width=16)
+*************************** 8.row ***************************
+QUERY_PLAN:                -> Partition on Column k1 (width=16)
+*************************** 9.row ***************************
+QUERY_PLAN:                   -> Table Scan on mt_b (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=16)
+*************************** 11.row ***************************
+QUERY_PLAN:          -> Partition on Column k2 (width=16)
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Scan on mt_c (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> EXPLAIN SELECT a.k, b.k2, c.k2, d.marker FROM mt_ta a, mt_tb b, mt_tc c, mt_td d WHERE a.k = b.k AND c.k2 = d.k2 AND a.ts = b.ts AND b.ts = c.ts AND c.ts = d.ts AND b.grp = c.grp AND c.grp = d.grp \G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=4 width=30 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Inner Join (columns=7 width=42 input_order=asc algo=Hash)
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Partition on Column k2 (width=48)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> Inner Join (columns=9 width=48 input_order=asc algo=Hash)
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Partition on Column grp (width=32)
+*************************** 6.row ***************************
+QUERY_PLAN:                -> Inner Join (columns=6 width=32 input_order=asc algo=Hash)
+*************************** 7.row ***************************
+QUERY_PLAN:                   -> Partition on Column k (width=12)
+*************************** 8.row ***************************
+QUERY_PLAN:                      -> Table Scan on mt_ta (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 9.row ***************************
+QUERY_PLAN:                   -> Data Exchange 1:1 (width=20)
+*************************** 10.row ***************************
+QUERY_PLAN:                      -> Partition on Column k (width=20)
+*************************** 11.row ***************************
+QUERY_PLAN:                         -> Table Scan on mt_tb (columns=4 width=20 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Data Exchange 1:1 (width=16)
+*************************** 13.row ***************************
+QUERY_PLAN:                -> Partition on Column grp (width=16)
+*************************** 14.row ***************************
+QUERY_PLAN:                   -> Table Scan on mt_tc (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 15.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=34)
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Partition on Column k2 (width=34)
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Scan on mt_td (columns=4 width=34 order=[asc|1 desc|0] mode=ts_order data_load=data)
+

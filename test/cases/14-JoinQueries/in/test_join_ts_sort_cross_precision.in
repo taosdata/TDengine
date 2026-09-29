@@ -1,0 +1,15 @@
+use test_join_tt_sort_ms;
+
+select 'X1_cross_precision_left_desc_limit_2', a.ts, a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val desc limit 2) a left join (select ts, val from test_join_tt_sort_us.t_us order by val desc limit 2) b on a.ts = b.ts order by a.ts desc;
+
+select 'X2_cross_precision_right_asc_limit_2', a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val desc limit 2) a right join (select ts, val from test_join_tt_sort_us.t_us order by val limit 2) b on a.ts = b.ts order by b.val desc;
+
+select 'X3_cross_precision_right_desc_limit_2', a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val limit 2) a right join (select ts, val from test_join_tt_sort_us.t_us order by val desc limit 2) b on a.ts = b.ts order by b.val;
+
+select 'X4_cross_precision_left_no_limit_mixed_order', a.ts, a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val) a left join (select ts, val from test_join_tt_sort_us.t_us order by val desc) b on a.ts = b.ts order by a.ts desc;
+
+select 'X5_cross_precision_right_no_limit_mixed_order', a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val desc) a right join (select ts, val from test_join_tt_sort_us.t_us order by val) b on a.ts = b.ts order by b.val desc;
+
+select 'X6_cross_precision_left_asc_limit_outer_desc', a.ts, a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val limit 2) a left join (select ts, val from test_join_tt_sort_us.t_us order by val desc limit 2) b on a.ts = b.ts order by a.val desc;
+
+select 'X7_cross_precision_right_desc_limit_outer_asc', a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val desc limit 2) a right join (select ts, val from test_join_tt_sort_us.t_us order by val desc limit 2) b on a.ts = b.ts order by b.val;

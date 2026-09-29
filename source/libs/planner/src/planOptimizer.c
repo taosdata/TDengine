@@ -333,6 +333,10 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
         return;
       }
     case QUERY_NODE_LOGIC_PLAN_JOIN:
+      if (JOIN_ALGO_HASH == ((SJoinLogicNode*)pNode)->joinAlgo) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      }
       pNode->outputTsOrder = order;
       break;
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
@@ -676,7 +680,8 @@ _return:
 static int32_t pushDownCondOptCalcTimeRange(SOptimizeContext* pCxt, STimeWindow* pScanRange, SNode** pPrimaryKeyCond,
                                             SNode** pOtherCond, SNode** pRemotePrimaryCond) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pCxt->pPlanCxt->topicQuery) {
+  if (pCxt->pPlanCxt->topicQuery || inStreamTriggerClause(pCxt->pPlanCxt)) {
+    // Trigger readers use runtime scan ranges, so PRE_FILTER time bounds must remain as row filters.
     PLAN_ERR_JRET(nodesMergeNode(pOtherCond, pPrimaryKeyCond));
   } else {
     bool isStrict = false, hasRemoteNode = false;
@@ -1178,27 +1183,110 @@ static bool pdcColBelongThisTable(SNode* pCondCol, SNodeList* pTableCols) {
 }
 
 static bool pdcJoinColInTableColList(SNode* pNode, SNodeList* pTableCols) {
-  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    return pdcColBelongThisTable(pNode, pTableCols);
+  }
+
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    char           tbnameTableAlias[TSDB_TABLE_NAME_LEN] = {0};
+    char*          pTableAlias = NULL;
+    SValueNode*    pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+    if (NULL != pVal) {
+      pTableAlias = pVal->literal;
+    } else {
+      char* pSuffix = NULL;
+      if (NULL != pFunc->node.userAlias) {
+        pSuffix = strstr(pFunc->node.userAlias, ".tbname");
+      }
+      if (NULL != pSuffix && pSuffix != pFunc->node.userAlias) {
+        int32_t len = TMIN((int32_t)(pSuffix - pFunc->node.userAlias), TSDB_TABLE_NAME_LEN - 1);
+        memcpy(tbnameTableAlias, pFunc->node.userAlias, len);
+        tbnameTableAlias[len] = '\0';
+        pTableAlias = tbnameTableAlias;
+      }
+    }
+    if (NULL == pTableAlias) {
+      return pdcColBelongThisTable(pNode, pTableCols);
+    }
+
+    SNode* pTableCol = NULL;
+    FOREACH(pTableCol, pTableCols) {
+      if (QUERY_NODE_COLUMN == nodeType(pTableCol) &&
+          0 == strcmp(pTableAlias, ((SColumnNode*)pTableCol)->tableAlias)) {
+        return true;
+      }
+      if (nodesEqualNode(pNode, pTableCol)) {
+        return true;
+      }
+    }
     return false;
   }
-  SColumnNode* pCol = (SColumnNode*)pNode;
-  return pdcColBelongThisTable(pNode, pTableCols);
+
+  return false;
 }
 
 static bool pdcJoinColInTableList(SNode* pCondCol, SSHashObj* pTables) {
   char* pTableAlias = NULL;
+  char  tbnameTableAlias[TSDB_TABLE_NAME_LEN] = {0};
   if (QUERY_NODE_COLUMN == nodeType(pCondCol)) {
     SColumnNode* pTableCol = (SColumnNode*)pCondCol;
     pTableAlias = pTableCol->tableAlias;
   } else if (QUERY_NODE_VALUE == nodeType(pCondCol)) {
     SValueNode* pVal = (SValueNode*)pCondCol;
     pTableAlias = pVal->node.srcTable;
+  } else if (QUERY_NODE_FUNCTION == nodeType(pCondCol) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pCondCol)->funcType) {
+    SFunctionNode* pFunc = (SFunctionNode*)pCondCol;
+    SValueNode*    pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+    if (NULL != pVal) {
+      pTableAlias = pVal->literal;
+    } else {
+      char* pSuffix = NULL;
+      if (NULL != pFunc->node.userAlias) {
+        pSuffix = strstr(pFunc->node.userAlias, ".tbname");
+      }
+      if (NULL != pSuffix && pSuffix != pFunc->node.userAlias) {
+        int32_t len = TMIN((int32_t)(pSuffix - pFunc->node.userAlias), TSDB_TABLE_NAME_LEN - 1);
+        memcpy(tbnameTableAlias, pFunc->node.userAlias, len);
+        tbnameTableAlias[len] = '\0';
+        pTableAlias = tbnameTableAlias;
+      }
+    }
   }
-  
+
+  if (NULL == pTableAlias) {
+    return false;
+  }
+
   if (NULL == tSimpleHashGet(pTables, pTableAlias, strlen(pTableAlias))) {
     return false;
   }
   return true;
+}
+
+static bool pdcJoinEqKeyTypesCompatible(const SDataType* pLeft, const SDataType* pRight) {
+  if (TSDB_DATA_TYPE_JSON == pLeft->type || TSDB_DATA_TYPE_BLOB == pLeft->type ||
+      TSDB_DATA_TYPE_MEDIUMBLOB == pLeft->type || TSDB_DATA_TYPE_JSON == pRight->type ||
+      TSDB_DATA_TYPE_BLOB == pRight->type || TSDB_DATA_TYPE_MEDIUMBLOB == pRight->type) {
+    return false;
+  }
+
+  if (pLeft->type == pRight->type) {
+    return IS_VAR_DATA_TYPE(pLeft->type) || pLeft->bytes == pRight->bytes;
+  }
+
+  // Hash Join normalizes numeric keys to the common type before hashing, just
+  // as scalar comparison does. Non-numeric keys still require an exact type.
+  if (!IS_NUMERIC_TYPE(pLeft->type) || !IS_NUMERIC_TYPE(pRight->type)) {
+    return false;
+  }
+
+  return vectorGetConvertType(pLeft->type, pRight->type) >= TSDB_DATA_TYPE_NULL;
+}
+
+static bool pdcJoinHashEqKeyTypeUnsupported(const SDataType* pType) {
+  return TSDB_DATA_TYPE_JSON == pType->type || TSDB_DATA_TYPE_BLOB == pType->type ||
+         TSDB_DATA_TYPE_MEDIUMBLOB == pType->type;
 }
 
 static EDealRes pdcJoinIsCrossTableCond(SNode* pNode, void* pContext) {
@@ -1608,7 +1696,29 @@ static int32_t pdcPushDownCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild
   return code;
 }
 
-static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bool* constPrimGot) {
+static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bool allowExpr, bool* constPrimGot) {
+  if (allowExpr && nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode) && QUERY_NODE_VALUE != nodeType(pNode) &&
+      nodesContainsColumn(pNode)) {
+    if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)pNode)->resType.type) {
+      return false;
+    }
+    SNodeList* pCols = NULL;
+    if (TSDB_CODE_SUCCESS != nodesCollectColumnsFromNode(pNode, NULL, COLLECT_COL_TYPE_ALL, &pCols) ||
+        NULL == pCols || 0 == LIST_LENGTH(pCols)) {
+      nodesDestroyList(pCols);
+      return false;
+    }
+    bool belongs = true;
+    SNode* pCol = NULL;
+    FOREACH(pCol, pCols) {
+      if (!pdcJoinColInTableList(pCol, pTables)) {
+        belongs = false;
+        break;
+      }
+    }
+    nodesDestroyList(pCols);
+    return belongs;
+  }
   if (QUERY_NODE_COLUMN != nodeType(pNode) && QUERY_NODE_FUNCTION != nodeType(pNode) &&
       (!constAsPrim || QUERY_NODE_VALUE != nodeType(pNode))) {
     return false;
@@ -1635,6 +1745,14 @@ static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bo
         FUNCTION_TYPE_TIMESTAMP_SCALE != pFunc->funcType) {
       return false;
     }
+    // A supported time function over a constant expression is a constant
+    // primary-key join side as well. For example, TIMETRUNCATE(CAST(...) +
+    // interval, ...) has no input column, but is not reduced to
+    // QUERY_NODE_VALUE before join-condition classification.
+    if (constAsPrim && !nodesContainsColumn(pNode)) {
+      *constPrimGot = true;
+      return true;
+    }
     SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 0);
     if (NULL == pCell || NULL == pCell->pNode || QUERY_NODE_COLUMN != nodeType(pCell->pNode)) {
       return false;
@@ -1655,6 +1773,32 @@ static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bo
     return false;
   }
   return pdcJoinColInTableList(pNode, pTables);
+}
+
+static bool pdcJoinProjectKeyHasInputColumn(SNode* pKey, SLogicNode* pChild) {
+  if (QUERY_NODE_COLUMN != nodeType(pKey) || NULL == pChild ||
+      QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pChild)) {
+    return true;
+  }
+
+  SColumnNode*       pCol = (SColumnNode*)pKey;
+  SProjectLogicNode* pProject = (SProjectLogicNode*)pChild;
+  SNode*              pProjection = NULL;
+  FOREACH(pProjection, pProject->pProjections) {
+    SExprNode* pExpr = (SExprNode*)pProjection;
+    if (0 == strcmp(pCol->colName, pExpr->aliasName) ||
+        0 == strcmp(pCol->colName, pExpr->userAlias)) {
+      if (QUERY_NODE_FUNCTION == nodeType(pProjection)) {
+        EFunctionType funcType = ((SFunctionNode*)pProjection)->funcType;
+        if (FUNCTION_TYPE_TWSTART == funcType || FUNCTION_TYPE_TWEND == funcType) {
+          return true;
+        }
+      }
+      return nodesContainsColumn(pProjection);
+    }
+  }
+
+  return true;
 }
 
 static EOperatorType asofJoinGetReverseOp(EOperatorType opType) {
@@ -1771,15 +1915,15 @@ static bool pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHas
 
   bool leftDummy = false;
   bool rightDummy = false;
-  bool primOnLeft = pdcJoinIsPrim(pOper->pLeft, pTables, false, &leftDummy);
-  bool primOnRight = pdcJoinIsPrim(pOper->pRight, pTables, false, &rightDummy);
+  bool primOnLeft = pdcJoinIsPrim(pOper->pLeft, pTables, false, false, &leftDummy);
+  bool primOnRight = pdcJoinIsPrim(pOper->pRight, pTables, false, false, &rightDummy);
   if (primOnLeft == primOnRight) {
     return false;
   }
 
   if (primOnLeft) {
     bool rightConst = false;
-    if (!pdcJoinIsPrim(pOper->pRight, pTables, true, &rightConst) || !rightConst) {
+    if (!pdcJoinIsPrim(pOper->pRight, pTables, true, false, &rightConst) || !rightConst) {
       return false;
     }
     if (OP_TYPE_GREATER_THAN == pOper->opType || OP_TYPE_GREATER_EQUAL == pOper->opType) {
@@ -1789,7 +1933,7 @@ static bool pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHas
   }
 
   bool leftConst = false;
-  if (!pdcJoinIsPrim(pOper->pLeft, pTables, true, &leftConst) || !leftConst) {
+  if (!pdcJoinIsPrim(pOper->pLeft, pTables, true, false, &leftConst) || !leftConst) {
     return false;
   }
   if (OP_TYPE_LOWER_THAN == pOper->opType || OP_TYPE_LOWER_EQUAL == pOper->opType) {
@@ -1797,6 +1941,8 @@ static bool pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHas
   }
   return asofJoinCanDeriveMatchedLowerBound(pJoin);
 }
+static void pdcJoinNormalizeConstPrimOrder(SJoinLogicNode* pJoin);
+
 static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool constAsPrim) {
   if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
     return false;
@@ -1825,24 +1971,58 @@ static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool con
     return code;
   }
 
-  bool res = false, constGot = false;
-  if (pdcJoinIsPrim(pOper->pLeft, pLeftTables, constAsPrim, &pJoin->leftConstPrimGot)) {
-    res = pdcJoinIsPrim(pOper->pRight, pRightTables, constAsPrim, &pJoin->rightConstPrimGot);
-  } else if (pdcJoinIsPrim(pOper->pLeft, pRightTables, constAsPrim, &pJoin->rightConstPrimGot)) {
-    res = pdcJoinIsPrim(pOper->pRight, pLeftTables, constAsPrim, &pJoin->leftConstPrimGot);
-    if (pJoin->rightConstPrimGot || pJoin->leftConstPrimGot) {
+  bool res = false;
+  bool leftConstPrimGot = false;
+  bool rightConstPrimGot = false;
+  SLogicNode* pLeftChild = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode* pRightChild = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  bool allowExpr = JOIN_ALGO_MERGE == pJoin->joinAlgoHint;
+  if (pdcJoinProjectKeyHasInputColumn(pOper->pLeft, pLeftChild) &&
+      pdcJoinIsPrim(pOper->pLeft, pLeftTables, constAsPrim, allowExpr, &leftConstPrimGot)) {
+    res = pdcJoinProjectKeyHasInputColumn(pOper->pRight, pRightChild) &&
+          pdcJoinIsPrim(pOper->pRight, pRightTables, constAsPrim, allowExpr, &rightConstPrimGot);
+  } else if (pdcJoinProjectKeyHasInputColumn(pOper->pLeft, pRightChild) &&
+             pdcJoinIsPrim(pOper->pLeft, pRightTables, constAsPrim, allowExpr, &rightConstPrimGot)) {
+    res = pdcJoinProjectKeyHasInputColumn(pOper->pRight, pLeftChild) &&
+          pdcJoinIsPrim(pOper->pRight, pLeftTables, constAsPrim, allowExpr, &leftConstPrimGot);
+    if (rightConstPrimGot || leftConstPrimGot) {
       TSWAP(pOper->pLeft, pOper->pRight);
     }
   }
 
-  if (constAsPrim && ((pJoin->leftNoOrderedSubQuery && !pJoin->leftConstPrimGot) || (pJoin->rightNoOrderedSubQuery && !pJoin->rightConstPrimGot))) {
-    res = false;
+  if (constAsPrim) {
+    if ((pJoin->leftNoOrderedSubQuery && !leftConstPrimGot) ||
+        (pJoin->rightNoOrderedSubQuery && !rightConstPrimGot)) {
+      res = false;
+    }
   }
-
+  if (res) {
+    pJoin->leftConstPrimGot = leftConstPrimGot;
+    pJoin->rightConstPrimGot = rightConstPrimGot;
+    if (constAsPrim) {
+      pdcJoinNormalizeConstPrimOrder(pJoin);
+    }
+  }
   tSimpleHashCleanup(pLeftTables);
   tSimpleHashCleanup(pRightTables);
 
   return res;
+}
+
+// A constant primary-key expression is ordered by definition, regardless of
+// the physical order of the rows that produce it. Normalize this property at
+// condition classification time so merge selection, sort insertion, and
+// physical-plan validation all consume the same input-order state.
+static void pdcJoinNormalizeConstPrimOrder(SJoinLogicNode* pJoin) {
+  if (NULL == pJoin) {
+    return;
+  }
+  if (pJoin->leftConstPrimGot) {
+    pJoin->leftNoOrderedSubQuery = false;
+  }
+  if (pJoin->rightConstPrimGot) {
+    pJoin->rightNoOrderedSubQuery = false;
+  }
 }
 
 static bool pdcJoinPrimEqualCondHasFunc(SNode* pCond) {
@@ -1930,19 +2110,14 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppInpu
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    nodesDestroyNode(*ppInput);
-    *ppInput = NULL;
-
     if (NULL != *ppPrimEqCond) {
+      nodesDestroyNode(*ppInput);
+      *ppInput = NULL;
       *ppOnCond = pTempOnCond;
       return TSDB_CODE_SUCCESS;
     }
     
     nodesDestroyNode(pTempOnCond);
-    if (!constAsPrim) {
-      planError("no primary key equal cond found, condListNum:%d", pLogicCond->pParameterList->length);
-      return TSDB_CODE_PLAN_INTERNAL_ERROR;
-    }
   } else {
     nodesDestroyList(pOnConds);
     nodesDestroyNode(pTempOnCond);
@@ -1968,6 +2143,9 @@ static int32_t pdcJoinSplitPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNode* pJ
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    if (NULL == pPrimKeyEqCond) {
+      return TSDB_CODE_SUCCESS;
+    }
     pJoin->pPrimKeyEqCond = pPrimKeyEqCond;
     pJoin->pFullOnCond = pJoinOnCond;
   } else {
@@ -1977,93 +2155,242 @@ static int32_t pdcJoinSplitPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNode* pJ
   return code;
 }
 
+// Return whether an expression references only one Join input. Join keys are
+// evaluated row-by-row on one side after any L2 normalization.
+static bool pdcJoinExprBelongsToChild(SJoinLogicNode* pJoin, SNode* pExpr, int32_t childIdx) {
+  if (NULL == pJoin || NULL == pExpr || childIdx < 0 || childIdx > 1) {
+    return false;
+  }
+
+  SNodeList* pCols = NULL;
+  if (TSDB_CODE_SUCCESS != nodesCollectColumnsFromNode(pExpr, NULL, COLLECT_COL_TYPE_ALL, &pCols) ||
+      NULL == pCols || LIST_LENGTH(pCols) <= 0) {
+    nodesDestroyList(pCols);
+    return false;
+  }
+
+  SNodeList* pTargets = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, childIdx))->pTargets;
+  bool       belongs = true;
+  SNode*     pCol = NULL;
+  FOREACH(pCol, pCols) {
+    if (!pdcJoinColInTableColList(pCol, pTargets)) {
+      belongs = false;
+      break;
+    }
+  }
+  nodesDestroyList(pCols);
+  return belongs;
+}
+
+static EDealRes pdcJoinUnsupportedKeyFuncWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pNode;
+  // Statement time functions are constants before join key selection.
+  if (FUNCTION_TYPE_NOW == pFunc->funcType || FUNCTION_TYPE_TODAY == pFunc->funcType ||
+      fmIsAggFunc(pFunc->funcId) || fmIsVolatileFunc(pFunc->funcId)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool pdcJoinIsSupportedKeyExpr(SNode* pExpr) {
+  if (NULL == pExpr) {
+    return false;
+  }
+
+  bool unsupported = false;
+  nodesWalkExpr(pExpr, pdcJoinUnsupportedKeyFuncWalker, &unsupported);
+  return !unsupported;
+}
+
+static SColumnNode* pdcJoinGetJsonSourceColumn(SNode* pExpr) {
+  if (NULL == pExpr || QUERY_NODE_OPERATOR != nodeType(pExpr) ||
+      OP_TYPE_JSON_GET_VALUE != ((SOperatorNode*)pExpr)->opType) {
+    return NULL;
+  }
+
+  SNode* pSource = ((SOperatorNode*)pExpr)->pLeft;
+  return QUERY_NODE_COLUMN == nodeType(pSource) ? (SColumnNode*)pSource : NULL;
+}
+
+static int32_t pdcJoinBuildL2NormalizedEq(SOperatorNode* pEq, SOperatorNode* pMixed, SNode* pOther,
+                                         SNode* pIsolated, SNode* pSameSide) {
+  SNode* pNewIsolated = NULL;
+  SNode* pNewSameSide = NULL;
+  int32_t code = nodesCloneNode(pIsolated, &pNewIsolated);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode((SNode*)pMixed, &pNewSameSide);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pNewIsolated);
+    nodesDestroyNode(pNewSameSide);
+    return code;
+  }
+
+  SOperatorNode* pNewOp = (SOperatorNode*)pNewSameSide;
+  nodesDestroyNode(pNewOp->pLeft);
+  nodesDestroyNode(pNewOp->pRight);
+  pNewOp->pLeft = NULL;
+  pNewOp->pRight = NULL;
+  pNewOp->opType = OP_TYPE_SUB;
+  code = nodesCloneNode(pOther, &pNewOp->pLeft);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode(pSameSide, &pNewOp->pRight);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pNewIsolated);
+    nodesDestroyNode(pNewSameSide);
+    return code;
+  }
+
+  nodesDestroyNode(pEq->pLeft);
+  nodesDestroyNode(pEq->pRight);
+  pEq->pLeft = pNewIsolated;
+  pEq->pRight = pNewSameSide;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t pdcJoinTryNormalizeL2Eq(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond) || OP_TYPE_EQUAL != ((SOperatorNode*)pCond)->opType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SOperatorNode* pEq = (SOperatorNode*)pCond;
+  SNode* pSides[2] = {pEq->pLeft, pEq->pRight};
+  for (int32_t mixedIdx = 0; mixedIdx < 2; ++mixedIdx) {
+    SNode* pMixedNode = pSides[mixedIdx];
+    SNode* pOther = pSides[1 - mixedIdx];
+    if (QUERY_NODE_OPERATOR != nodeType(pMixedNode) || OP_TYPE_ADD != ((SOperatorNode*)pMixedNode)->opType) {
+      continue;
+    }
+
+    SOperatorNode* pMixed = (SOperatorNode*)pMixedNode;
+    SNode* pTerms[2] = {pMixed->pLeft, pMixed->pRight};
+    int32_t termChild[2] = {-1, -1};
+    for (int32_t termIdx = 0; termIdx < 2; ++termIdx) {
+      if (pdcJoinExprBelongsToChild(pJoin, pTerms[termIdx], 0)) termChild[termIdx] = 0;
+      else if (pdcJoinExprBelongsToChild(pJoin, pTerms[termIdx], 1)) termChild[termIdx] = 1;
+    }
+    if (termChild[0] < 0 || termChild[1] < 0 || termChild[0] == termChild[1]) continue;
+
+    int32_t otherChild = pdcJoinExprBelongsToChild(pJoin, pOther, 0) ? 0 :
+                         (pdcJoinExprBelongsToChild(pJoin, pOther, 1) ? 1 : -1);
+    if (otherChild < 0) continue;
+
+    int32_t sameIdx = termChild[0] == otherChild ? 0 : 1;
+    int32_t isolatedIdx = 1 - sameIdx;
+    int8_t otherType = ((SExprNode*)pOther)->resType.type;
+    int8_t sameType = ((SExprNode*)pTerms[sameIdx])->resType.type;
+    int8_t isolatedType = ((SExprNode*)pTerms[isolatedIdx])->resType.type;
+    bool signedIntegerRule = IS_SIGNED_NUMERIC_TYPE(otherType) && IS_SIGNED_NUMERIC_TYPE(sameType) &&
+                             IS_SIGNED_NUMERIC_TYPE(isolatedType);
+    bool timestampOffsetRule = TSDB_DATA_TYPE_TIMESTAMP == otherType && IS_SIGNED_NUMERIC_TYPE(sameType) &&
+                               TSDB_DATA_TYPE_TIMESTAMP == isolatedType;
+    if (!signedIntegerRule && !timestampOffsetRule) continue;
+    return pdcJoinBuildL2NormalizedEq(pEq, pMixed, pOther, pTerms[isolatedIdx], pTerms[sameIdx]);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t pdcJoinNormalizeL2Conds(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (NULL == pCond) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) && LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pCond)->condType) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, ((SLogicConditionNode*)pCond)->pParameterList) {
+      int32_t code = pdcJoinTryNormalizeL2Eq(pJoin, pNode);
+      if (TSDB_CODE_SUCCESS != code) return code;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  return pdcJoinTryNormalizeL2Eq(pJoin, pCond);
+}
+
+static bool pdcJoinIsMergeTimestampExprEq(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond) || OP_TYPE_EQUAL != ((SOperatorNode*)pCond)->opType) return false;
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (!((pdcJoinExprBelongsToChild(pJoin, pOp->pLeft, 0) && pdcJoinExprBelongsToChild(pJoin, pOp->pRight, 1)) ||
+        (pdcJoinExprBelongsToChild(pJoin, pOp->pLeft, 1) && pdcJoinExprBelongsToChild(pJoin, pOp->pRight, 0)))) return false;
+  SNode* exprs[2] = {pOp->pLeft, pOp->pRight};
+  for (int32_t i = 0; i < 2; ++i) {
+    if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)exprs[i])->resType.type ||
+        !pdcJoinIsSupportedKeyExpr(exprs[i])) return false;
+  }
+  return true;
+}
+
 static int32_t pdcJoinIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond, bool* allTags, bool* pRes) {
   *pRes = false;
-  int32_t code = 0;
+  // Correlated predicates need the candidate row and must remain residuals.
+  if (nodesExprHasCorrelation(pCond)) {
+    *allTags = false;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = pdcJoinTryNormalizeL2Eq(pJoin, pCond);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
     return code;
   }
   SOperatorNode* pOper = (SOperatorNode*)pCond;
 
-  // Helper lambda-like checks: accept COLUMN, JSON_GET_VALUE operator, or timestamp-scale/timetruncate function
-  bool leftOk = false, rightOk = false;
-  if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
-    leftOk = true;
-  } else if (QUERY_NODE_OPERATOR == nodeType(pOper->pLeft) &&
-             OP_TYPE_JSON_GET_VALUE == ((SOperatorNode*)pOper->pLeft)->opType) {
-    leftOk = true;
-  } else if (QUERY_NODE_FUNCTION == nodeType(pOper->pLeft)) {
-    SFunctionNode* pFunc = (SFunctionNode*)pOper->pLeft;
-    if (FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
-      SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 0);
-      if (pCell && pCell->pNode && QUERY_NODE_COLUMN == nodeType(pCell->pNode)) {
-        leftOk = true;
+  if (NULL == pOper->pRight || OP_TYPE_EQUAL != pOper->opType) {
+    return code;
+  }
+  if (!pdcJoinIsSupportedKeyExpr(pOper->pLeft) || !pdcJoinIsSupportedKeyExpr(pOper->pRight)) {
+    return code;
+  }
+  SNode* eqExprs[2] = {pOper->pLeft, pOper->pRight};
+  for (int32_t i = 0; i < 2; ++i) {
+    if (QUERY_NODE_FUNCTION == nodeType(eqExprs[i])) {
+      SFunctionNode* pFunc = (SFunctionNode*)eqExprs[i];
+      if (FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType || FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType) {
+        SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+        if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) return code;
       }
     }
   }
-  if (NULL == pOper->pRight) {
-    return code;
-  }
-  if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
-    rightOk = true;
-  } else if (QUERY_NODE_OPERATOR == nodeType(pOper->pRight) &&
-             OP_TYPE_JSON_GET_VALUE == ((SOperatorNode*)pOper->pRight)->opType) {
-    rightOk = true;
-  } else if (QUERY_NODE_FUNCTION == nodeType(pOper->pRight)) {
-    SFunctionNode* pFunc = (SFunctionNode*)pOper->pRight;
-    if (FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
-      SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 0);
-      if (pCell && pCell->pNode && QUERY_NODE_COLUMN == nodeType(pCell->pNode)) {
-        rightOk = true;
-      }
-    }
-  }
-  if (!leftOk || !rightOk) {
+  bool leftOnLeft = pdcJoinExprBelongsToChild(pJoin, pOper->pLeft, 0);
+  bool rightOnRight = pdcJoinExprBelongsToChild(pJoin, pOper->pRight, 1);
+  bool leftOnRight = pdcJoinExprBelongsToChild(pJoin, pOper->pLeft, 1);
+  bool rightOnLeft = pdcJoinExprBelongsToChild(pJoin, pOper->pRight, 0);
+  if ((!leftOnLeft || !rightOnRight) && (!leftOnRight || !rightOnLeft)) {
     return code;
   }
 
-  if (OP_TYPE_EQUAL != pOper->opType) {
-    return code;
-  }
-
-  if ((QUERY_NODE_OPERATOR == nodeType(pOper->pLeft) || QUERY_NODE_OPERATOR == nodeType(pOper->pRight)) &&
-      !(IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType))) {
-    return code;
-  }
-
-  // Extract the inner column node, unwrapping __timestamp_scale / timetruncate / JSON operators
-  SColumnNode* pLeft = NULL;
+  SColumnNode* pLeft = pdcJoinGetJsonSourceColumn(pOper->pLeft);
   if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
     pLeft = (SColumnNode*)(pOper->pLeft);
-  } else if (QUERY_NODE_OPERATOR == nodeType(pOper->pLeft)) {
-    pLeft = (SColumnNode*)((SOperatorNode*)pOper->pLeft)->pLeft;
-  } else if (QUERY_NODE_FUNCTION == nodeType(pOper->pLeft)) {
-    SListCell* pCell = nodesListGetCell(((SFunctionNode*)pOper->pLeft)->pParameterList, 0);
-    pLeft = (SColumnNode*)pCell->pNode;
   }
 
-  SColumnNode* pRight = NULL;
+  SColumnNode* pRight = pdcJoinGetJsonSourceColumn(pOper->pRight);
   if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
     pRight = (SColumnNode*)(pOper->pRight);
-  } else if (QUERY_NODE_OPERATOR == nodeType(pOper->pRight)) {
-    pRight = (SColumnNode*)((SOperatorNode*)pOper->pRight)->pLeft;
-  } else if (QUERY_NODE_FUNCTION == nodeType(pOper->pRight)) {
-    SListCell* pCell = nodesListGetCell(((SFunctionNode*)pOper->pRight)->pParameterList, 0);
-    pRight = (SColumnNode*)pCell->pNode;
   }
 
-  *allTags = (COLUMN_TYPE_TAG == pLeft->colType) && (COLUMN_TYPE_TAG == pRight->colType);
+  *allTags = (NULL != pLeft && NULL != pRight && COLUMN_TYPE_TAG == pLeft->colType && COLUMN_TYPE_TAG == pRight->colType);
 
-  if (pLeft->node.resType.type != pRight->node.resType.type ||
-      pLeft->node.resType.bytes != pRight->node.resType.bytes) {
+  bool jsonTagEqual = (IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) && NULL != pLeft &&
+                      NULL != pRight && QUERY_NODE_OPERATOR == nodeType(pOper->pLeft) &&
+                      QUERY_NODE_OPERATOR == nodeType(pOper->pRight) &&
+                      pLeft->node.resType.type == pRight->node.resType.type &&
+                      pLeft->node.resType.bytes == pRight->node.resType.bytes;
+  if (!jsonTagEqual &&
+      (!nodesIsExprNode(pOper->pLeft) || !nodesIsExprNode(pOper->pRight) ||
+       !pdcJoinEqKeyTypesCompatible(&((SExprNode*)pOper->pLeft)->resType,
+                                    &((SExprNode*)pOper->pRight)->resType))) {
     return code;
   }
-  SNodeList* pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
-  SNodeList* pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
-  bool       isEqual = false;
-  if (pdcJoinColInTableColList((SNode*)pLeft, pLeftCols)) {
-    isEqual = pdcJoinColInTableColList((SNode*)pRight, pRightCols);
-    if (isEqual) {
+
+  bool normalOrder = leftOnLeft && rightOnRight;
+  bool isEqual = normalOrder || (leftOnRight && rightOnLeft);
+  if (isEqual) {
       SNode* pNewLeft = NULL;
       code = nodesCloneNode(pOper->pLeft, &pNewLeft);
       if (TSDB_CODE_SUCCESS != code) return code;
@@ -2072,6 +2399,9 @@ static int32_t pdcJoinIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond, bool* a
       if (TSDB_CODE_SUCCESS != code) {
         nodesDestroyNode(pNewLeft);
         return code;
+      }
+      if (!normalOrder) {
+        TSWAP(pNewLeft, pNewRight);
       }
       code = nodesListMakeStrictAppend(&pJoin->pLeftEqNodes, pNewLeft);
       if (TSDB_CODE_SUCCESS != code) {
@@ -2079,31 +2409,118 @@ static int32_t pdcJoinIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond, bool* a
         return code;
       }
       code = nodesListMakeStrictAppend(&pJoin->pRightEqNodes, pNewRight);
-    }
-  } else if (pdcJoinColInTableColList((SNode*)pLeft, pRightCols)) {
-    isEqual = pdcJoinColInTableColList((SNode*)pRight, pLeftCols);
-    if (isEqual) {
-      SNode* pNewLeft = NULL;
-      code = nodesCloneNode(pOper->pLeft, &pNewLeft);
-      if (TSDB_CODE_SUCCESS != code) return code;
-      SNode* pNewRight = NULL;
-      code = nodesCloneNode(pOper->pRight, &pNewRight);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode(pNewLeft);
-        return code;
-      }
-      code = nodesListMakeStrictAppend(&pJoin->pLeftEqNodes, pNewRight);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode(pNewLeft);
-        return code;
-      }
-      code = nodesListMakeStrictAppend(&pJoin->pRightEqNodes, pNewLeft);
-    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     *pRes = isEqual;
   }
   return code;
+}
+
+static bool pdcJoinIsHashEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+
+  SOperatorNode* pOper = (SOperatorNode*)pCond;
+  if (OP_TYPE_EQUAL != pOper->opType || NULL == pOper->pLeft || NULL == pOper->pRight) {
+    return false;
+  }
+
+  if (!pdcJoinEqKeyTypesCompatible(&((SExprNode*)pOper->pLeft)->resType, &((SExprNode*)pOper->pRight)->resType)) {
+    return false;
+  }
+  if (!pdcJoinIsSupportedKeyExpr(pOper->pLeft) || !pdcJoinIsSupportedKeyExpr(pOper->pRight)) {
+    return false;
+  }
+  return (pdcJoinExprBelongsToChild(pJoin, pOper->pLeft, 0) && pdcJoinExprBelongsToChild(pJoin, pOper->pRight, 1)) ||
+         (pdcJoinExprBelongsToChild(pJoin, pOper->pLeft, 1) && pdcJoinExprBelongsToChild(pJoin, pOper->pRight, 0));
+}
+
+static bool pdcJoinHasHashEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (NULL == pCond) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) && LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pCond)->condType) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, ((SLogicConditionNode*)pCond)->pParameterList) {
+      if (pdcJoinHasHashEqualOnCond(pJoin, pNode)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return pdcJoinIsHashEqualOnCond(pJoin, pCond);
+}
+
+static bool pdcJoinIsCrossTableEqCond(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (NULL == pJoin || NULL == pCond) {
+    return false;
+  }
+
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SSHashObj* pLeftTables = NULL;
+  SSHashObj* pRightTables = NULL;
+  code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    return false;
+  }
+  code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    tSimpleHashCleanup(pLeftTables);
+    return false;
+  }
+
+  SCpdIsMultiTableCondCxt cxt = {
+      .pLeftTbls = pLeftTables, .pRightTbls = pRightTables, .havaLeftCol = false, .haveRightCol = false};
+  nodesWalkExpr(pCond, pdcJoinIsCrossTableCond, &cxt);
+
+  tSimpleHashCleanup(pLeftTables);
+  tSimpleHashCleanup(pRightTables);
+  return cxt.havaLeftCol && cxt.haveRightCol;
+}
+
+static const char* pdcJoinGetHashEqualRejectMsg(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (NULL == pCond) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) && LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pCond)->condType) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, ((SLogicConditionNode*)pCond)->pParameterList) {
+      const char* pMsg = pdcJoinGetHashEqualRejectMsg(pJoin, pNode);
+      if (NULL != pMsg) {
+        return pMsg;
+      }
+    }
+    return NULL;
+  }
+
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return NULL;
+  }
+
+  SOperatorNode* pOper = (SOperatorNode*)pCond;
+  if (OP_TYPE_EQUAL != pOper->opType || NULL == pOper->pLeft || NULL == pOper->pRight ||
+      !pdcJoinIsCrossTableEqCond(pJoin, pCond)) {
+    return NULL;
+  }
+
+  if (pdcJoinHashEqKeyTypeUnsupported(&((SExprNode*)pOper->pLeft)->resType) ||
+      pdcJoinHashEqKeyTypeUnsupported(&((SExprNode*)pOper->pRight)->resType)) {
+    return "Hash Join does not support JSON, BLOB or MEDIUMBLOB as equality key";
+  }
+
+  if (!pdcJoinIsSupportedKeyExpr(pOper->pLeft) || !pdcJoinIsSupportedKeyExpr(pOper->pRight)) {
+    return "Hash Join does not support scalar expression as equality key";
+  }
+
+  if (!pdcJoinEqKeyTypesCompatible(&((SExprNode*)pOper->pLeft)->resType, &((SExprNode*)pOper->pRight)->resType)) {
+    return "Hash Join equality keys must have the same supported type";
+  }
+
+  return NULL;
 }
 
 static int32_t pdcJoinPartLogicEqualOnCond(SJoinLogicNode* pJoin) {
@@ -2343,6 +2760,8 @@ static int32_t pdcJoinAddParentOnColsToTarget(SOptimizeContext* pCxt, SJoinLogic
   return code;
 }
 
+static int32_t hashJoinOptAddCurrentCondColsToChildren(SJoinLogicNode* pJoin);
+
 # if 0
 static int32_t pdcJoinAddPreFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pFullOnCond) {
@@ -2465,37 +2884,192 @@ static int32_t pdcJoinSplitConstPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNod
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    if (NULL == pPrimKeyEqCond) {
+      return TSDB_CODE_SUCCESS;
+    }
     pJoin->pPrimKeyEqCond = pPrimKeyEqCond;
     *ppCond = pJoinOnCond;
     if (pJoin->pPrimKeyEqCond && (pJoin->rightConstPrimGot || pJoin->leftConstPrimGot)) {
       code = scalarConvertOpValueNodeTs((SOperatorNode*)pJoin->pPrimKeyEqCond);
-    }    
+      if (TSDB_CODE_SUCCESS == code) {
+        pJoin->noPrimKeyEqCond = false;
+      }
+    }
   } else {
     nodesDestroyNode(pPrimKeyEqCond);
     nodesDestroyNode(pJoinOnCond);
   }
-  
+
   return code;
 }
 
 
 
+typedef struct SJoinExprSideCxt {
+  SSHashObj* pTables;
+  bool       hasColumn;
+  bool       belongs;
+} SJoinExprSideCxt;
+
+static EDealRes pdcJoinExprSideWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) return DEAL_RES_CONTINUE;
+
+  SJoinExprSideCxt* pCxt = pContext;
+  pCxt->hasColumn = true;
+  if (!pdcJoinColInTableList(pNode, pCxt->pTables)) {
+    pCxt->belongs = false;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool pdcJoinExprBelongsToTables(SNode* pExpr, SSHashObj* pTables) {
+  SJoinExprSideCxt cxt = {.pTables = pTables, .hasColumn = false, .belongs = true};
+  nodesWalkExpr(pExpr, pdcJoinExprSideWalker, &cxt);
+  return cxt.hasColumn && cxt.belongs;
+}
+
+static bool pdcJoinIsL3TimeBandExpr(SNode* pExpr, SSHashObj* pLeftTables, SSHashObj* pRightTables) {
+  if (QUERY_NODE_FUNCTION != nodeType(pExpr) || FUNCTION_TYPE_ABS != ((SFunctionNode*)pExpr)->funcType) {
+    return false;
+  }
+  SNode* pAbsParam = nodesListGetNode(((SFunctionNode*)pExpr)->pParameterList, 0);
+  if (NULL == pAbsParam || QUERY_NODE_FUNCTION != nodeType(pAbsParam) ||
+      FUNCTION_TYPE_TIMEDIFF != ((SFunctionNode*)pAbsParam)->funcType) {
+    return false;
+  }
+
+  SFunctionNode* pTimeDiff = (SFunctionNode*)pAbsParam;
+  SNode* pFirst = nodesListGetNode(pTimeDiff->pParameterList, 0);
+  SNode* pSecond = nodesListGetNode(pTimeDiff->pParameterList, 1);
+  if (NULL == pFirst || NULL == pSecond) return false;
+  bool normalOrder = pdcJoinExprBelongsToTables(pFirst, pLeftTables) &&
+                     pdcJoinExprBelongsToTables(pSecond, pRightTables);
+  bool reverseOrder = pdcJoinExprBelongsToTables(pFirst, pRightTables) &&
+                      pdcJoinExprBelongsToTables(pSecond, pLeftTables);
+  return normalOrder || reverseOrder;
+}
+
+static bool pdcJoinIsL3TimeBandOp(SJoinLogicNode* pJoin, SOperatorNode* pOp) {
+  if (OP_TYPE_LOWER_THAN != pOp->opType && OP_TYPE_LOWER_EQUAL != pOp->opType) return false;
+
+  SNodeList* pLimitCols = NULL;
+  int32_t code = nodesCollectColumnsFromNode(pOp->pRight, NULL, COLLECT_COL_TYPE_ALL, &pLimitCols);
+  bool constantLimit = TSDB_CODE_SUCCESS == code && (NULL == pLimitCols || 0 == LIST_LENGTH(pLimitCols));
+  nodesDestroyList(pLimitCols);
+  if (!constantLimit) return false;
+  SNode* pBandExpr = pOp->pLeft;
+
+  SSHashObj* pLeftTables = NULL;
+  SSHashObj* pRightTables = NULL;
+  code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
+  }
+  bool isBand = TSDB_CODE_SUCCESS == code && pdcJoinIsL3TimeBandExpr(pBandExpr, pLeftTables, pRightTables);
+  tSimpleHashCleanup(pLeftTables);
+  tSimpleHashCleanup(pRightTables);
+  return isBand;
+}
+
+static bool pdcJoinIsL3RangeOp(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) return false;
+
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (NULL == pOp->pLeft || NULL == pOp->pRight) return false;
+  if (OP_TYPE_GREATER_THAN != pOp->opType && OP_TYPE_GREATER_EQUAL != pOp->opType &&
+      OP_TYPE_LOWER_THAN != pOp->opType && OP_TYPE_LOWER_EQUAL != pOp->opType) {
+    return false;
+  }
+  if (pdcJoinIsL3TimeBandOp(pJoin, pOp)) return true;
+
+  SSHashObj* pLeftTables = NULL;
+  SSHashObj* pRightTables = NULL;
+  int32_t code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
+  }
+  bool normalOrder = TSDB_CODE_SUCCESS == code && pdcJoinExprBelongsToTables(pOp->pLeft, pLeftTables) &&
+                     pdcJoinExprBelongsToTables(pOp->pRight, pRightTables);
+  bool reverseOrder = TSDB_CODE_SUCCESS == code && pdcJoinExprBelongsToTables(pOp->pLeft, pRightTables) &&
+                      pdcJoinExprBelongsToTables(pOp->pRight, pLeftTables);
+  tSimpleHashCleanup(pLeftTables);
+  tSimpleHashCleanup(pRightTables);
+  return (normalOrder || reverseOrder) && pdcJoinEqKeyTypesCompatible(&((SExprNode*)pOp->pLeft)->resType,
+                                                                      &((SExprNode*)pOp->pRight)->resType);
+}
+
+static bool pdcJoinIsL3StructuredCond(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (pdcJoinIsL3RangeOp(pJoin, pCond)) return true;
+  if (QUERY_NODE_LOGIC_CONDITION != nodeType(pCond) ||
+      LOGIC_COND_TYPE_AND != ((SLogicConditionNode*)pCond)->condType) {
+    return false;
+  }
+
+  bool hasRangeAnchor = false;
+  SNode* pNode = NULL;
+  FOREACH(pNode, ((SLogicConditionNode*)pCond)->pParameterList) {
+    if (pdcJoinIsL3RangeOp(pJoin, pNode)) {
+      hasRangeAnchor = true;
+      continue;
+    }
+    if (QUERY_NODE_OPERATOR != nodeType(pNode)) return false;
+    SOperatorNode* pOp = (SOperatorNode*)pNode;
+    if (NULL == pOp->pLeft || NULL == pOp->pRight ||
+        (OP_TYPE_EQUAL != pOp->opType && OP_TYPE_GREATER_THAN != pOp->opType &&
+         OP_TYPE_GREATER_EQUAL != pOp->opType && OP_TYPE_LOWER_THAN != pOp->opType &&
+         OP_TYPE_LOWER_EQUAL != pOp->opType)) {
+      return false;
+    }
+  }
+  return hasRangeAnchor;
+}
+
 static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  SNode* pThetaCond = pJoin->pFullOnCond;
+  if (NULL == pThetaCond && IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType)) {
+    pThetaCond = pJoin->node.pConditions;
+  }
+  if (IS_WINDOW_JOIN(pJoin->subType) || IS_ASOF_JOIN(pJoin->subType)) {
+    // Time joins retain their dedicated matching semantics for any hint.
+    pJoin->joinAlgoHint = JOIN_ALGO_UNKNOWN;
+  } else if (JOIN_ALGO_THETA == pJoin->joinAlgoHint) {
+    if (NULL != pThetaCond && !pdcJoinIsSupportedKeyExpr(pThetaCond)) {
+      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen,
+                                 TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
+    }
+    pJoin->joinAlgo = JOIN_ALGO_THETA;
+    return TSDB_CODE_SUCCESS;
+  }
+  bool hasPrimEqualCond = NULL != pJoin->pFullOnCond &&
+                          (pdcJoinHasPrimEqualCond(pJoin, pJoin->pFullOnCond, NULL) ||
+                           pdcJoinIsPrimEqualCond(pJoin, pJoin->pFullOnCond, true));
+  bool canUseTheta = !IS_WINDOW_JOIN(pJoin->subType) && !IS_ASOF_JOIN(pJoin->subType) &&
+      NULL == pJoin->pPrimKeyEqCond && NULL == pJoin->pColEqCond && NULL == pJoin->pTagEqCond &&
+      !hasPrimEqualCond && !pdcJoinHasHashEqualOnCond(pJoin, pThetaCond);
+  if (NULL != pThetaCond && canUseTheta && pdcJoinIsL3StructuredCond(pJoin, pThetaCond)) {
+    pJoin->joinAlgo = JOIN_ALGO_THETA;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != pThetaCond && canUseTheta && pdcJoinIsSupportedKeyExpr(pThetaCond)) {
+    pJoin->joinAlgo = JOIN_ALGO_THETA;
+    return TSDB_CODE_SUCCESS;
+  }
   if (NULL == pJoin->pFullOnCond) {
     if (IS_WINDOW_JOIN(pJoin->subType) || IS_ASOF_JOIN(pJoin->subType)) {
       return TSDB_CODE_SUCCESS;
     }
 
-    if (NULL == pJoin->node.pConditions) {
-      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
-    }
-
-    if (!IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType)) {
-      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
+    if (NULL == pJoin->node.pConditions ||
+        !IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType)) {
+      pJoin->joinAlgo = JOIN_ALGO_THETA;
+      return TSDB_CODE_SUCCESS;
     }
   }
 
   SNode** ppCond = pJoin->pFullOnCond ? &pJoin->pFullOnCond : &pJoin->node.pConditions;
+  bool hashEqualCondGot = !IS_WINDOW_JOIN(pJoin->subType) && !IS_ASOF_JOIN(pJoin->subType) &&
+                          pdcJoinHasHashEqualOnCond(pJoin, *ppCond);
   bool   errCond = false;
   bool   primCondGot = pdcJoinHasPrimEqualCond(pJoin, *ppCond, &errCond);
   if (!primCondGot) {
@@ -2504,8 +3078,8 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
       return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
     }
 
-    if (IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) && NULL != pJoin->pFullOnCond &&
-        NULL != pJoin->node.pConditions) {
+    if (!hashEqualCondGot && IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) &&
+        NULL != pJoin->pFullOnCond && NULL != pJoin->node.pConditions) {
       primCondGot = pdcJoinHasPrimEqualCond(pJoin, pJoin->node.pConditions, &errCond);  
       if (primCondGot) {
         return TSDB_CODE_SUCCESS;
@@ -2520,7 +3094,8 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
     }
   } 
 
-  if ((!pJoin->hashJoinHint) && (pJoin->leftNoOrderedSubQuery || pJoin->rightNoOrderedSubQuery || !primCondGot)) {
+  if (JOIN_ALGO_HASH != pJoin->joinAlgoHint && !hashEqualCondGot &&
+      (pJoin->leftNoOrderedSubQuery || pJoin->rightNoOrderedSubQuery || !primCondGot)) {
     pJoin->noPrimKeyEqCond = true;
     int32_t code = pdcJoinSplitConstPrimEqCond(pCxt, pJoin, ppCond);
     if (code || (pJoin->pPrimKeyEqCond)) {
@@ -2533,6 +3108,16 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
       if (code || pJoin->pPrimKeyEqCond) {
         return code;
       }
+    }
+
+    const char* pHashEqualRejectMsg = pdcJoinGetHashEqualRejectMsg(pJoin, *ppCond);
+    if (NULL == pHashEqualRejectMsg && IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) &&
+        NULL != pJoin->pFullOnCond && NULL != pJoin->node.pConditions) {
+      pHashEqualRejectMsg = pdcJoinGetHashEqualRejectMsg(pJoin, pJoin->node.pConditions);
+    }
+    if (NULL != pHashEqualRejectMsg) {
+      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                 pHashEqualRejectMsg);
     }
 
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
@@ -2592,7 +3177,8 @@ static int32_t pdcJoinHandleGrpJoinCond(SOptimizeContext* pCxt, SJoinLogicNode* 
 static EDealRes pdcCheckTableCondType(SNode* pNode, void* pContext) {
   SCpdIsMultiTableCondCxt* pCxt = pContext;
   switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN: {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_FUNCTION: {
       if (pdcJoinColInTableList(pNode, pCxt->pLeftTbls)) {
         pCxt->havaLeftCol = true;
       } else if (pdcJoinColInTableList(pNode, pCxt->pRightTbls)) {
@@ -3195,7 +3781,17 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   SNode*       pOnCond = NULL;
   SNode*       pLeftChildCond = NULL;
   SNode*       pRightChildCond = NULL;
-  int32_t      code = pdcJoinCheckAllCond(pCxt, pJoin);
+  int32_t      code = hashJoinOptAddCurrentCondColsToChildren(pJoin);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pdcJoinNormalizeL2Conds(pJoin, pJoin->pFullOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pdcJoinCheckAllCond(pCxt, pJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code && JOIN_ALGO_THETA == pJoin->joinAlgo) {
+    OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (TSDB_CODE_SUCCESS == code && IS_ASOF_JOIN(pJoin->subType) && NULL != pJoin->pFullOnCond &&
       NULL == pJoin->addPrimEqCond && NULL == pJoin->pPrimKeyEqCond) {
@@ -3245,7 +3841,13 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
 
   if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pFullOnCond && !IS_WINDOW_JOIN(pJoin->subType) &&
       NULL == pJoin->addPrimEqCond && NULL == pJoin->pPrimKeyEqCond) {
-    code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
+    bool errCond = false;
+    if (pdcJoinHasPrimEqualCond(pJoin, pJoin->pFullOnCond, &errCond)) {
+      code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
+    } else if (errCond && JOIN_ALGO_HASH != pJoin->joinAlgoHint) {
+      code = generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen,
+                                 TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
+    }
   }
 
   // This pass visits parents first. ON-only columns must already be exposed by
@@ -4604,6 +5206,11 @@ static int32_t sortPriKeyOptHandleJoinSort(SLogicNode* pNode, bool groupSort, SS
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
   int32_t         code = TSDB_CODE_SUCCESS;
 
+  if (JOIN_ALGO_HASH == pJoin->joinAlgo) {
+    *pNotOptimize = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   switch (pJoin->joinType) {
     case JOIN_TYPE_LEFT:
     case JOIN_TYPE_RIGHT: {
@@ -4879,7 +5486,8 @@ static const char* getJoinCondPKTable(SNode* pNode) {
     return ((SColumnNode*)pNode)->tableAlias;
   } else if (QUERY_NODE_FUNCTION == type) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (pFunc->funcType != FUNCTION_TYPE_TIMETRUNCATE || LIST_LENGTH(pFunc->pParameterList) == 0) {
+    if ((pFunc->funcType != FUNCTION_TYPE_TIMETRUNCATE && pFunc->funcType != FUNCTION_TYPE_TIMESTAMP_SCALE) ||
+        LIST_LENGTH(pFunc->pParameterList) == 0) {
       return NULL;
     }
     SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
@@ -4894,6 +5502,152 @@ static const char* getJoinCondPKTable(SNode* pNode) {
   return NULL;
 }
 
+static EOrder joinInputExplicitPKOrder(SLogicNode* pNode, bool* pFound) {
+  if (NULL == pNode) {
+    return TSDB_ORDER_NONE;
+  }
+
+  // Sorting below a hash join or partition does not order its output.
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) ||
+      (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode) &&
+       JOIN_ALGO_HASH == ((SJoinLogicNode*)pNode)->joinAlgo)) {
+    *pFound = true;
+    return TSDB_ORDER_NONE;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode)) {
+    SSortLogicNode* pSort = (SSortLogicNode*)pNode;
+    *pFound = true;
+    if (!sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys)) {
+      return TSDB_ORDER_NONE;
+    }
+    return ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->order;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    EOrder order = joinInputExplicitPKOrder((SLogicNode*)pChild, pFound);
+    if (*pFound) {
+      return order;
+    }
+  }
+  return TSDB_ORDER_NONE;
+}
+
+typedef enum {
+  JOIN_MERGE_INPUT_INVALID = 0,
+  JOIN_MERGE_INPUT_READY,
+  JOIN_MERGE_INPUT_NEED_SORT,
+} EJoinMergeInputState;
+
+// Classify Merge Join input ordering once for both default algorithm
+// selection and explicit-Merge sort insertion. Constant keys do not impose an
+// input ordering requirement; a non-constant key must follow primary-ts order
+// and also determines the join's physical input direction.
+static EJoinMergeInputState joinClassifyMergeInputs(SJoinLogicNode* pJoin, bool updateInputOrder) {
+  if (NULL == pJoin || NULL == pJoin->node.pChildren || pJoin->node.pChildren->length != 2 ||
+      NULL == pJoin->pPrimKeyEqCond || IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) {
+    return JOIN_MERGE_INPUT_INVALID;
+  }
+
+  SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  if (NULL == pLeft || NULL == pRight) {
+    return JOIN_MERGE_INPUT_INVALID;
+  }
+
+  // The condition is scalar after folding. Preserve the legacy Merge path
+  // until constant-true/false joins are rewritten as cross/empty plans.
+  if (pJoin->leftConstPrimGot && pJoin->rightConstPrimGot) {
+    return JOIN_MERGE_INPUT_READY;
+  }
+
+  bool leftHasSort = false;
+  bool rightHasSort = false;
+  EOrder leftOrder = joinInputExplicitPKOrder(pLeft, &leftHasSort);
+  EOrder rightOrder = joinInputExplicitPKOrder(pRight, &rightHasSort);
+
+  // A constant join key is ordered independently of the input row order. In
+  // this case only the non-constant side needs explicit primary-key ordering.
+  if (pJoin->leftConstPrimGot != pJoin->rightConstPrimGot) {
+    if (pJoin->leftConstPrimGot) {
+      if (!rightHasSort) {
+        rightOrder = pRight->outputTsOrder;
+      }
+      if (!pJoin->rightNoOrderedSubQuery && (ORDER_ASC == rightOrder || ORDER_DESC == rightOrder)) {
+        if (updateInputOrder) {
+          pJoin->node.inputTsOrder = rightOrder;
+        }
+        return JOIN_MERGE_INPUT_READY;
+      }
+      return JOIN_MERGE_INPUT_NEED_SORT;
+    }
+    if (!leftHasSort) {
+      leftOrder = pLeft->outputTsOrder;
+    }
+    if (!pJoin->leftNoOrderedSubQuery && (ORDER_ASC == leftOrder || ORDER_DESC == leftOrder)) {
+      if (updateInputOrder) {
+        pJoin->node.inputTsOrder = leftOrder;
+      }
+      return JOIN_MERGE_INPUT_READY;
+    }
+    return JOIN_MERGE_INPUT_NEED_SORT;
+  }
+
+  if (pJoin->leftNoOrderedSubQuery || pJoin->rightNoOrderedSubQuery) {
+    return JOIN_MERGE_INPUT_NEED_SORT;
+  }
+  if (leftHasSort || rightHasSort) {
+    if (leftHasSort && rightHasSort && (ORDER_ASC == leftOrder || ORDER_DESC == leftOrder) &&
+        leftOrder == rightOrder) {
+      if (updateInputOrder) {
+        pJoin->node.inputTsOrder = leftOrder;
+      }
+      return JOIN_MERGE_INPUT_READY;
+    }
+    return JOIN_MERGE_INPUT_NEED_SORT;
+  }
+
+  if ((ORDER_ASC == pLeft->outputTsOrder || ORDER_DESC == pLeft->outputTsOrder) &&
+      pLeft->outputTsOrder == pRight->outputTsOrder) {
+    if (updateInputOrder) {
+      pJoin->node.inputTsOrder = pLeft->outputTsOrder;
+    }
+    return JOIN_MERGE_INPUT_READY;
+  }
+  return JOIN_MERGE_INPUT_NEED_SORT;
+}
+
+static SNode* getJoinSortExprInChild(SLogicNode* pChild, SNode* pJoinExpr) {
+  SNode* pKey = pJoinExpr;
+  if (QUERY_NODE_FUNCTION == nodeType(pKey)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pKey;
+    if ((FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType &&
+         FUNCTION_TYPE_TIMESTAMP_SCALE != pFunc->funcType) ||
+        LIST_LENGTH(pFunc->pParameterList) == 0) {
+      return NULL;
+    }
+    pKey = nodesListGetNode(pFunc->pParameterList, 0);
+  }
+  if (NULL == pChild || QUERY_NODE_COLUMN != nodeType(pKey)) {
+    return NULL;
+  }
+
+  SColumnNode* pKeyCol = (SColumnNode*)pKey;
+  SNode* pTarget = NULL;
+  FOREACH(pTarget, pChild->pTargets) {
+    if (QUERY_NODE_COLUMN != nodeType(pTarget)) {
+      continue;
+    }
+    SColumnNode* pTargetCol = (SColumnNode*)pTarget;
+    if (0 == strcmp(pKeyCol->colName, pTargetCol->colName) &&
+        (pKeyCol->isPrimTs || pTargetCol->isPrimTs || pTargetCol->isPk)) {
+      return pTarget;
+    }
+  }
+  return NULL;
+}
+
 static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SJoinLogicNode* pJoin) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -4903,21 +5657,51 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   SLogicNode*     pChild = NULL;
   SNode**         pChildPos = NULL;
   EOrder          targetOrder = 0;
+
   SSHashObj*      pTables = NULL;
 
-  if (pJoin->node.inputTsOrder) {
-    targetOrder = pJoin->node.inputTsOrder;
+  SOperatorNode* pPrimOp = QUERY_NODE_OPERATOR == nodeType(pJoin->pPrimKeyEqCond)
+                              ? (SOperatorNode*)pJoin->pPrimKeyEqCond : NULL;
+  bool exprPrim = NULL != pPrimOp &&
+                  (QUERY_NODE_OPERATOR == nodeType(pPrimOp->pLeft) || QUERY_NODE_OPERATOR == nodeType(pPrimOp->pRight));
 
-    if (pRight->outputTsOrder == pJoin->node.inputTsOrder) {
+  if (exprPrim) {
+    targetOrder = ORDER_ASC;
+    pJoin->node.inputTsOrder = targetOrder;
+    if (QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pLeft)) {
       pChild = pLeft;
       pChildPos = &pJoin->node.pChildren->pHead->pNode;
-    } else if (pLeft->outputTsOrder == pJoin->node.inputTsOrder) {
-      pChild = pRight;
-      pChildPos = &pJoin->node.pChildren->pTail->pNode;
     } else {
       pChild = pRight;
       pChildPos = &pJoin->node.pChildren->pTail->pNode;
-      targetOrder = pLeft->outputTsOrder;
+    }
+  } else if (pJoin->node.inputTsOrder) {
+    targetOrder = pJoin->node.inputTsOrder;
+
+    if (IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) {
+      if (pRight->outputTsOrder == pJoin->node.inputTsOrder) {
+        pChild = pLeft;
+        pChildPos = &pJoin->node.pChildren->pHead->pNode;
+      } else if (pLeft->outputTsOrder == pJoin->node.inputTsOrder) {
+        pChild = pRight;
+        pChildPos = &pJoin->node.pChildren->pTail->pNode;
+      } else {
+        pChild = pRight;
+        pChildPos = &pJoin->node.pChildren->pTail->pNode;
+        targetOrder = pLeft->outputTsOrder;
+      }
+    } else {
+      // For regular merge join, an existing inputTsOrder is the required join input/output direction.
+      if (pLeft->outputTsOrder != targetOrder) {
+        pChild = pLeft;
+        pChildPos = &pJoin->node.pChildren->pHead->pNode;
+      } else if (pRight->outputTsOrder != targetOrder) {
+        pChild = pRight;
+        pChildPos = &pJoin->node.pChildren->pTail->pNode;
+      } else {
+        pChild = pRight;
+        pChildPos = &pJoin->node.pChildren->pTail->pNode;
+      }
     }
   } else {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) &&
@@ -4940,6 +5724,13 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
     pJoin->node.inputTsOrder = targetOrder;
   }
 
+  // When both children have outputTsOrder==0 (e.g. ORDER BY val), targetOrder remains 0.
+  // Default to ASC so the inserted SORT node has a valid direction.
+  if (0 == targetOrder) {
+    targetOrder = ORDER_ASC;
+    pJoin->node.inputTsOrder = ORDER_ASC;
+  }
+
   if (QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
     code = TSDB_CODE_PLAN_INTERNAL_ERROR;
     QUERY_CHECK_CODE(code, lino, _return);
@@ -4947,15 +5738,24 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
 
   bool           res = false;
   SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+  SNode* pOrderByNode = NULL;
+  int32_t childIdx = pChild == pLeft ? 0 : 1;
+  if (QUERY_NODE_OPERATOR == nodeType(pOp->pLeft) || QUERY_NODE_OPERATOR == nodeType(pOp->pRight)) {
+    if (pdcJoinExprBelongsToChild(pJoin, pOp->pLeft, childIdx)) pOrderByNode = pOp->pLeft;
+    else if (pdcJoinExprBelongsToChild(pJoin, pOp->pRight, childIdx)) pOrderByNode = pOp->pRight;
+    if (NULL == pOrderByNode) {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+  } else {
 
   if ((QUERY_NODE_COLUMN != nodeType(pOp->pLeft) && QUERY_NODE_VALUE != nodeType(pOp->pLeft) &&
        QUERY_NODE_FUNCTION != nodeType(pOp->pLeft)) ||
       (QUERY_NODE_COLUMN != nodeType(pOp->pRight) && QUERY_NODE_VALUE != nodeType(pOp->pRight) &&
        QUERY_NODE_FUNCTION != nodeType(pOp->pRight))) {
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _return);
   }
-
-  SNode* pOrderByNode = NULL;
 
   code = collectTableAliasFromNodes((SNode*)pChild, &pTables);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -4975,6 +5775,25 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   }
 
   tSimpleHashCleanup(pTables);
+  pTables = NULL;
+
+  if (NULL == pOrderByNode) {
+    pOrderByNode = getJoinSortExprInChild(pChild, pOp->pLeft);
+    if (NULL == pOrderByNode) {
+      pOrderByNode = getJoinSortExprInChild(pChild, pOp->pRight);
+    }
+  }
+  }
+
+  // If the join key wraps ts, use the raw ts column as sort key so merge join input is ordered by ts.
+  if (NULL != pOrderByNode && QUERY_NODE_FUNCTION == nodeType(pOrderByNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pOrderByNode;
+    if ((FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType ||
+         FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType) &&
+        LIST_LENGTH(pFunc->pParameterList) > 0) {
+      pOrderByNode = nodesListGetNode(pFunc->pParameterList, 0);
+    }
+  }
 
   if (NULL == pOrderByNode) {
     code = TSDB_CODE_PLAN_INTERNAL_ERROR;
@@ -5024,6 +5843,11 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   }
   *pChildPos = (SNode*)pSort;
   pSort->node.pParent = (SLogicNode*)pJoin;
+  if (pChild == pLeft) {
+    pJoin->leftNoOrderedSubQuery = false;
+  } else if (pChild == pRight) {
+    pJoin->rightNoOrderedSubQuery = false;
+  }
 
 _return:
   if (TSDB_CODE_SUCCESS == code) {
@@ -5041,26 +5865,51 @@ static bool sortForJoinOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
-  if (pNode->pChildren->length != 2 || !pJoin->hasSubQuery || pJoin->isLowLevelJoin) {
+  bool exprPrim = false;
+  if (NULL != pJoin->pPrimKeyEqCond && QUERY_NODE_OPERATOR == nodeType(pJoin->pPrimKeyEqCond)) {
+    SOperatorNode* pEq = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+    exprPrim = QUERY_NODE_OPERATOR == nodeType(pEq->pLeft) || QUERY_NODE_OPERATOR == nodeType(pEq->pRight);
+  }
+  if (pJoin->joinAlgo == JOIN_ALGO_HASH || pNode->pChildren->length != 2 ||
+      (!pJoin->hasSubQuery && !exprPrim) || pJoin->isLowLevelJoin || NULL == pJoin->pPrimKeyEqCond) {
     return false;
   }
-
   SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
   SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
 
-  if (ORDER_ASC != pLeft->outputTsOrder && ORDER_DESC != pLeft->outputTsOrder) {
-    pLeft->outputTsOrder = ORDER_ASC;
+  if (JOIN_ALGO_MERGE == pJoin->joinAlgoHint && QUERY_NODE_OPERATOR == nodeType(pJoin->pPrimKeyEqCond)) {
+    SOperatorNode* pEq = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+    if (QUERY_NODE_OPERATOR == nodeType(pEq->pLeft) || QUERY_NODE_OPERATOR == nodeType(pEq->pRight)) {
+      return QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pLeft) || QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pRight);
+    }
   }
-  if (ORDER_ASC != pRight->outputTsOrder && ORDER_DESC != pRight->outputTsOrder) {
-    pRight->outputTsOrder = ORDER_ASC;
+
+  // SortPrimaryKey runs after algorithm selection and may propagate the
+  // constant-side physical order to this Join. Reclassify every Merge
+  // candidate here so the non-constant key restores the required direction.
+  EJoinMergeInputState mergeState = joinClassifyMergeInputs(pJoin, true);
+  if (JOIN_MERGE_INPUT_INVALID == mergeState || JOIN_MERGE_INPUT_READY == mergeState) {
+    return false;
+  }
+  if (JOIN_ALGO_MERGE != pJoin->joinAlgoHint) {
+    return false;
   }
 
   if (pJoin->leftConstPrimGot) {
     pJoin->node.inputTsOrder = pRight->outputTsOrder;
-    return false;
+    return true;
   } else if (pJoin->rightConstPrimGot) {
     pJoin->node.inputTsOrder = pLeft->outputTsOrder;
-    return false;
+    return true;
+  }
+
+  // outputTsOrder==0 means the child is not ts-ordered (e.g. ORDER BY val or TIMETRUNCATE with
+  // mismatched tz/granularity).  Return true so sortForJoinOptimizeImpl inserts a ts SORT node.
+  if (ORDER_ASC != pLeft->outputTsOrder && ORDER_DESC != pLeft->outputTsOrder) {
+    return true;
+  }
+  if (ORDER_ASC != pRight->outputTsOrder && ORDER_DESC != pRight->outputTsOrder) {
+    return true;
   }
 
   if (pLeft->outputTsOrder == pRight->outputTsOrder) {
@@ -8891,6 +9740,21 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
       }
       break;
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
+      // A LIMIT below an ORDER BY is only equivalent when the join already
+      // produces the requested order. Otherwise pushing it into the join can
+      // discard rows that the outer sort would have selected.
+      if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNodeWithLimit)) {
+        SSortLogicNode* pSort = (SSortLogicNode*)pNodeWithLimit;
+        SJoinLogicNode* pJoin = (SJoinLogicNode*)pNodeLimitPushTo;
+        // Hash join output is not ordered.  Pushing LIMIT/OFFSET below an
+        // ORDER BY would truncate rows before the outer sort can select the
+        // requested page.
+        if (1 != LIST_LENGTH(pSort->pSortKeys) || pJoin->joinAlgo == JOIN_ALGO_HASH ||
+            pNodeLimitPushTo->resultDataOrder < DATA_ORDER_LEVEL_GLOBAL ||
+            pNodeLimitPushTo->outputTsOrder != sortPriKeyOptGetPriKeyOrder(pSort)) {
+          break;
+        }
+      }
       code = cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT, &cloned);
       break;
     }
@@ -9437,7 +10301,126 @@ static int32_t sortNonPriKeyOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return TSDB_CODE_SUCCESS;
 }
 
+static SLogicNode* hashJoinOptGetTargetChild(SLogicNode* pChild) {
+  if (NULL == pChild || QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pChild) || 1 != LIST_LENGTH(pChild->pChildren)) {
+    return pChild;
+  }
+
+  return (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);
+}
+
+static int32_t hashJoinOptAppendMissingTargets(SLogicNode* pNode, SNodeList* pTargets) {
+  if (NULL == pNode || NULL == pTargets) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNodeTarget = NULL;
+  FOREACH(pNodeTarget, pTargets) {
+    bool   found = false;
+    SNode* pTarget = NULL;
+    FOREACH(pTarget, pNode->pTargets) {
+      if (nodesEqualNode(pTarget, pNodeTarget)) {
+        found = true;
+        break;
+      }
+    }
+    if (found) {
+      continue;
+    }
+
+    SNode* pNew = NULL;
+    code = nodesCloneNode(pNodeTarget, &pNew);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    if (NULL == pNode->pTargets) {
+      code = nodesListMakeStrictAppend(&pNode->pTargets, pNew);
+    } else {
+      code = nodesListStrictAppend(pNode->pTargets, pNew);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hashJoinOptAddCurrentCondColsToChild(SJoinLogicNode* pJoin, SLogicNode* pChild) {
+  SLogicNode* pTargetChild = hashJoinOptGetTargetChild(pChild);
+  if (NULL == pTargetChild) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pCondCols = NULL;
+  code = nodesMakeList(&pCondCols);
+  if (NULL == pCondCols) {
+    return code;
+  }
+
+  SSHashObj* pTables = NULL;
+  code = collectSourceTableAliasFromNodes((SNode*)pTargetChild, &pTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pCondCols);
+    return code;
+  }
+
+  SCpdCollectTableColCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS,
+      .pTables = pTables,
+      .pResCols = pCondCols,
+      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+  if (NULL == cxt.pColHash) {
+    tSimpleHashCleanup(pTables);
+    nodesDestroyList(pCondCols);
+    return terrno;
+  }
+
+  nodesWalkExpr(pJoin->pPrimKeyEqCond, pdcJoinCollectCondCol, &cxt);
+  nodesWalkExpr(pJoin->node.pConditions, pdcJoinCollectCondCol, &cxt);
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    nodesWalkExpr(pJoin->pFullOnCond, pdcJoinCollectCondCol, &cxt);
+  }
+  taosHashCleanup(cxt.pColHash);
+  tSimpleHashCleanup(pTables);
+
+  SNodeList* pTargets = NULL;
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    code = createColumnByRewriteExprs(pCondCols, &pTargets);
+  } else {
+    code = cxt.errCode;
+  }
+  nodesDestroyList(pCondCols);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = hashJoinOptAppendMissingTargets(pTargetChild, pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code && pTargetChild != pChild) {
+    code = hashJoinOptAppendMissingTargets(pChild, pTargets);
+  }
+
+  nodesDestroyList(pTargets);
+  return code;
+}
+
+static int32_t hashJoinOptAddCurrentCondColsToChildren(SJoinLogicNode* pJoin) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pChild = NULL;
+  FOREACH(pChild, pJoin->node.pChildren) {
+    code = hashJoinOptAddCurrentCondColsToChild(pJoin, (SLogicNode*)pChild);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
+  return code;
+}
+
 static bool hashJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
+  (void)pCtx;
   bool res = false;
   if (QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode)) {
     return res;
@@ -9455,11 +10438,54 @@ static bool hashJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
     return res;
   }
 
-  if (!pJoin->hashJoinHint) {
+  // Candidate discovery must remain side-effect free.  Target expansion,
+  // condition normalization and data-order changes are applied only after a
+  // join has been selected by hashJoinOptimize().
+
+  bool hasUnorderedPrimKey =
+      NULL != pJoin->pPrimKeyEqCond &&
+      !(QUERY_NODE_OPERATOR == nodeType(pJoin->pPrimKeyEqCond) &&
+        QUERY_NODE_VALUE == nodeType(((SOperatorNode*)pJoin->pPrimKeyEqCond)->pLeft) &&
+        QUERY_NODE_VALUE == nodeType(((SOperatorNode*)pJoin->pPrimKeyEqCond)->pRight)) &&
+      !pJoin->leftConstPrimGot && !pJoin->rightConstPrimGot &&
+      (pJoin->leftNoOrderedSubQuery || pJoin->rightNoOrderedSubQuery);
+  bool hasSecondaryHashKey = NULL != pJoin->pTagEqCond ||
+                             (NULL != pJoin->pColEqCond &&
+                              (NULL == pJoin->pPrimKeyEqCond ||
+                               !nodesEqualNode(pJoin->pColEqCond, pJoin->pPrimKeyEqCond))) ||
+                             (NULL == pJoin->pColEqCond &&
+                              pdcJoinHasHashEqualOnCond(pJoin, pJoin->pFullOnCond));
+  bool mergeIsReady = JOIN_MERGE_INPUT_READY == joinClassifyMergeInputs(pJoin, false);
+  if (JOIN_ALGO_MERGE == pJoin->joinAlgoHint) {
+    return res;
+  }
+
+  // Preserve Merge Join when the primary timestamp inputs are already
+  // globally ordered. A secondary column/tag equality is a real Hash key and
+  // must still select Hash Join even when the timestamp happens to be
+  // ordered, because Merge Join cannot consume that composite key here.
+  if (mergeIsReady && !hasSecondaryHashKey && JOIN_ALGO_HASH != pJoin->joinAlgoHint) {
     goto _return;
   }
 
-  if ((JOIN_STYPE_NONE != pJoin->subType && JOIN_STYPE_OUTER != pJoin->subType) || JOIN_TYPE_FULL == pJoin->joinType ||
+  // Default planning must not hide missing ordering evidence by inserting a
+  // Sort and then selecting Merge. Explicit MERGE is handled above and may
+  // request a logical Sort; the default path uses Hash when a primary-key
+  // equi-join is not already merge-ready.
+  if (!IS_ASOF_JOIN(pJoin->subType) && !IS_WINDOW_JOIN(pJoin->subType) &&
+      NULL != pJoin->pPrimKeyEqCond && !mergeIsReady &&
+      JOIN_ALGO_HASH != pJoin->joinAlgoHint) {
+    res = true;
+    goto _return;
+  }
+
+  if (JOIN_ALGO_HASH != pJoin->joinAlgoHint && NULL == pJoin->pColEqCond && NULL == pJoin->pTagEqCond &&
+      !pdcJoinHasHashEqualOnCond(pJoin, pJoin->pFullOnCond) && !hasUnorderedPrimKey) {
+    goto _return;
+  }
+
+  if ((JOIN_STYPE_NONE != pJoin->subType && JOIN_STYPE_OUTER != pJoin->subType &&
+       JOIN_STYPE_SEMI != pJoin->subType && JOIN_STYPE_ANTI != pJoin->subType) ||
       pNode->pChildren->length != 2) {
     goto _return;
   }
@@ -9468,16 +10494,78 @@ static bool hashJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
 
 _return:
 
-  if (!res && DATA_ORDER_LEVEL_NONE == pJoin->node.requireDataOrder) {
-    pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-    int32_t* pCode = pCtx;
-    int32_t  code = adjustLogicNodeDataRequirement(pNode, pJoin->node.requireDataOrder);
-    if (TSDB_CODE_SUCCESS != code) {
-      *pCode = code;
+  return res;
+}
+
+static SLogicNode* hashJoinOptFindPossibleNode(SLogicNode* pNode, int32_t* pCode) {
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SLogicNode* pScanNode = hashJoinOptFindPossibleNode((SLogicNode*)pChild, pCode);
+    if (NULL != pScanNode || TSDB_CODE_SUCCESS != *pCode) {
+      return pScanNode;
     }
   }
 
-  return res;
+  return hashJoinOptShouldBeOptimized(pNode, pCode) ? pNode : NULL;
+}
+
+static SLogicNode* hashJoinOptFindMergeHintNode(SLogicNode* pNode) {
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SLogicNode* pJoin = hashJoinOptFindMergeHintNode((SLogicNode*)pChild);
+    if (NULL != pJoin) {
+      return pJoin;
+    }
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode)) {
+    SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+    if (JOIN_ALGO_UNKNOWN == pJoin->joinAlgo && JOIN_ALGO_MERGE == pJoin->joinAlgoHint) {
+      return pNode;
+    }
+  }
+  return NULL;
+}
+
+static int32_t hashJoinOptApplyMergeHint(SLogicNode* pNode) {
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  if (NULL == pJoin->pPrimKeyEqCond && NULL != pJoin->pColEqCond &&
+      pdcJoinIsMergeTimestampExprEq(pJoin, pJoin->pColEqCond)) {
+    pJoin->pPrimKeyEqCond = pJoin->pColEqCond;
+    pJoin->pColEqCond = NULL;
+  }
+  if (NULL == pJoin->pPrimKeyEqCond && NULL != pJoin->pFullOnCond &&
+      pdcJoinIsMergeTimestampExprEq(pJoin, pJoin->pFullOnCond)) {
+    pJoin->pPrimKeyEqCond = pJoin->pFullOnCond;
+    pJoin->pFullOnCond = NULL;
+  }
+  if (NULL == pJoin->pPrimKeyEqCond) {
+    pJoin->joinAlgoHint = JOIN_ALGO_UNKNOWN;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  (void)joinClassifyMergeInputs(pJoin, true);
+  pJoin->joinAlgo = JOIN_ALGO_MERGE;
+  if (DATA_ORDER_LEVEL_NONE == pJoin->node.requireDataOrder) {
+    pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+    return adjustLogicNodeDataRequirement(pNode, pJoin->node.requireDataOrder);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void hashJoinOptResetEqualConds(SJoinLogicNode* pJoin) {
+  nodesDestroyNode(pJoin->pColEqCond);
+  pJoin->pColEqCond = NULL;
+  nodesDestroyNode(pJoin->pTagEqCond);
+  pJoin->pTagEqCond = NULL;
+  nodesDestroyNode(pJoin->pColOnCond);
+  pJoin->pColOnCond = NULL;
+  nodesDestroyNode(pJoin->pTagOnCond);
+  pJoin->pTagOnCond = NULL;
+  nodesDestroyList(pJoin->pLeftEqNodes);
+  pJoin->pLeftEqNodes = NULL;
+  nodesDestroyList(pJoin->pRightEqNodes);
+  pJoin->pRightEqNodes = NULL;
 }
 
 static int32_t hashJoinOptSplitPrimFromLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond) {
@@ -9557,11 +10645,159 @@ int32_t hashJoinOptSplitPrimCond(SNode** pCondition, SNode** pPrimaryKeyCond) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t hashJoinOptCreatePartitionNode(SLogicNode* pParent, SLogicNode* pChild, bool leftChild,
+                                              SLogicNode** pNew) {
+  SPartitionLogicNode* pPartition = NULL;
+  int32_t              code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PARTITION, (SNode**)&pPartition);
+  if (NULL == pPartition) {
+    return code;
+  }
+
+  pPartition->node.groupAction = GROUP_ACTION_SET;
+  pPartition->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pPartition->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+
+  code = nodesCloneList(pChild->pTargets, &pPartition->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pPartition);
+    return code;
+  }
+
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pParent;
+  code = nodesCloneList(leftChild ? pJoin->pLeftEqNodes : pJoin->pRightEqNodes, &pPartition->pPartitionKeys);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pPartition);
+    return code;
+  }
+
+  code = nodesListMakeStrictAppend(&pPartition->node.pChildren, (SNode*)pChild);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pNew = (SLogicNode*)pPartition;
+    pChild->pParent = (SLogicNode*)pPartition;
+    pPartition->node.pParent = pParent;
+  } else {
+    nodesDestroyNode((SNode*)pPartition);
+  }
+
+  return code;
+}
+
+static int32_t hashJoinOptInsertPartitionNode(SLogicNode* pJoinNode) {
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pJoinNode;
+  // Multi-group joins consume trigger-group DATA/EOG blocks. Ordinary
+  // partitioning replaces their group IDs and does not preserve that protocol.
+  // The join still evaluates the equality conditions as hash keys.
+  if (pJoin->multiGroupJoin) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL == pJoin->pLeftEqNodes || pJoin->pLeftEqNodes->length <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  SNode*  pNew = NULL;
+  bool    leftChild = true;
+  FOREACH(pNode, pJoinNode->pChildren) {
+    code = hashJoinOptCreatePartitionNode(pJoinNode, (SLogicNode*)pNode, leftChild, (SLogicNode**)&pNew);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    REPLACE_NODE(pNew);
+    leftChild = false;
+  }
+
+  return code;
+}
+
+static EDealRes hashJoinOptCondHasTbnameImpl(SNode* pNode, void* pContext) {
+  if ((QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType) ||
+      (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType)) {
+    *((bool*)pContext) = true;
+    return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static bool hashJoinOptCondHasTbname(SNode* pCond) {
+  bool hasTbname = false;
+  nodesWalkExpr(pCond, hashJoinOptCondHasTbnameImpl, &hasTbname);
+  return hasTbname;
+}
+
+static int32_t hashJoinOptRestoreScanTagConds(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (NULL != pScan->pTagIndexCond && !hashJoinOptCondHasTbname(pScan->pTagIndexCond)) {
+      SNode* pTagIndexCond = NULL;
+      code = nodesCloneNode(pScan->pTagIndexCond, &pTagIndexCond);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesMergeNode(&pScan->node.pConditions, &pTagIndexCond);
+      }
+      nodesDestroyNode(pTagIndexCond);
+    }
+    if (TSDB_CODE_SUCCESS == code && NULL != pScan->pTagCond && !hashJoinOptCondHasTbname(pScan->pTagCond)) {
+      SNode* pTagCond = NULL;
+      code = nodesCloneNode(pScan->pTagCond, &pTagCond);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesMergeNode(&pScan->node.pConditions, &pTagCond);
+      }
+      nodesDestroyNode(pTagCond);
+    }
+    return code;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    code = hashJoinOptRestoreScanTagConds((SLogicNode*)pChild);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
+  return code;
+}
+
 static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode, SLogicSubplan* pLogicSubplan) {
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
   int32_t         code = TSDB_CODE_SUCCESS;
 
+
   pJoin->joinAlgo = JOIN_ALGO_HASH;
+
+  code = hashJoinOptAddCurrentCondColsToChildren(pJoin);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (NULL != pJoin->pFullOnCond) {
+    hashJoinOptResetEqualConds(pJoin);
+    code = pdcJoinPartEqualOnCond(pCxt, pJoin);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  if (NULL == pJoin->pPrimKeyEqCond && NULL == pJoin->pColEqCond && NULL == pJoin->pTagEqCond) {
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen,
+                               TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
+  }
+
+  code = hashJoinOptInsertPartitionNode(pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  code = hashJoinOptRestoreScanTagConds(pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   if (NULL != pJoin->pColOnCond) {
 #if 0  
@@ -9628,6 +10864,7 @@ static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode,
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
+    TAOS_SET_OBJ_ALIGNED(&pJoin->timeRange, TSWINDOW_INITIALIZER);
     if (NULL != pPrimaryKeyCond) {
       bool isStrict = false;
       code = getTimeRangeFromNode(&pPrimaryKeyCond, &pJoin->timeRange, &isStrict);
@@ -9741,6 +10978,15 @@ static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode,
     }
   }
 
+  pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  // Hash output follows hash groups, not global primary timestamp order.
+  pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  pJoin->node.outputTsOrder = TSDB_ORDER_NONE;
+  code = adjustLogicNodeDataRequirement(pNode, pJoin->node.requireDataOrder);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
   pCxt->optimized = true;
   OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_STB_JOIN);
 
@@ -9749,12 +10995,19 @@ static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode,
 
 static int32_t hashJoinOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   int32_t     code = 0;
-  SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode, hashJoinOptShouldBeOptimized, &code);
+  SLogicNode* pNode = hashJoinOptFindPossibleNode(pLogicSubplan->pNode, &code);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
   if (NULL == pNode) {
-    return TSDB_CODE_SUCCESS;
+    pNode = hashJoinOptFindMergeHintNode(pLogicSubplan->pNode);
+    if (NULL != pNode) {
+      code = hashJoinOptApplyMergeHint(pNode);
+      if (TSDB_CODE_SUCCESS == code) {
+        pCxt->optimized = true;
+      }
+    }
+    return code;
   }
 
   return hashJoinOptRewriteJoin(pCxt, pNode, pLogicSubplan);
@@ -9767,10 +11020,12 @@ static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
-  if (pJoin->multiGroupJoin) {
+  if (pJoin->multiGroupJoin || JOIN_ALGO_MERGE == pJoin->joinAlgoHint ||
+      (JOIN_ALGO_HASH == pJoin->joinAlgoHint && pJoin->joinAlgo == JOIN_ALGO_UNKNOWN)) {
     return false;
   }
   if (pJoin->joinAlgo == JOIN_ALGO_UNKNOWN) {
+    (void)joinClassifyMergeInputs(pJoin, true);
     pJoin->joinAlgo = JOIN_ALGO_MERGE;
   }
 
@@ -18328,6 +19583,46 @@ static int32_t fqBuildRemoteJoin(SJoinLogicNode* pJoin, SScanLogicNode* pScanFor
     return code;
   }
 
+  // Condition pushdown is deliberately skipped on the local external JOIN so
+  // the complete WHERE clause remains available while the remote tree is
+  // built.  Apply the normal JOIN split rules to the cloned remote tree now:
+  // for an outer join this moves only preserved-side filters to that leg and
+  // leaves nullable-side filters at the JOIN level.
+  if (pRemoteJoin->node.pConditions != NULL) {
+    SNode* pOnCond = NULL;
+    SNode* pLeftChildCond = NULL;
+    SNode* pRightChildCond = NULL;
+    code = pdcJoinSplitCond(pJoin, &pRemoteJoin->node.pConditions, &pOnCond,
+                            &pLeftChildCond, &pRightChildCond, true);
+    if (TSDB_CODE_SUCCESS == code && pOnCond != NULL) {
+      code = nodesMergeNode(&pRemoteJoin->pFullOnCond, &pOnCond);
+    }
+    bool leftNested = QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pLeftRemote);
+    bool rightNested = QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pRightRemote);
+    bool leftPreserved = JOIN_TYPE_LEFT == pJoin->joinType;
+    bool rightPreserved = JOIN_TYPE_RIGHT == pJoin->joinType;
+    if (TSDB_CODE_SUCCESS == code && pLeftChildCond != NULL) {
+      SNode** ppTarget = leftNested && leftPreserved ? &pRemoteJoin->node.pConditions
+                                                     : &pLeftRemote->pConditions;
+      code = nodesMergeNode(ppTarget, &pLeftChildCond);
+    }
+    if (TSDB_CODE_SUCCESS == code && pRightChildCond != NULL) {
+      SNode** ppTarget = rightNested && rightPreserved ? &pRemoteJoin->node.pConditions
+                                                       : &pRightRemote->pConditions;
+      code = nodesMergeNode(ppTarget, &pRightChildCond);
+    }
+    nodesDestroyNode(pOnCond);
+    nodesDestroyNode(pLeftChildCond);
+    nodesDestroyNode(pRightChildCond);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-buildRemoteJoin: split remote JOIN WHERE failed join=%p code=0x%x", pJoin, code);
+      nodesDestroyNode((SNode*)pRemoteJoin);
+      nodesDestroyNode((SNode*)pLeftRemote);
+      nodesDestroyNode((SNode*)pRightRemote);
+      return code;
+    }
+  }
+
   code = nodesMakeList(&pRemoteJoin->node.pChildren);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pRemoteJoin);
@@ -20129,6 +21424,8 @@ static bool fqJoinNodeClausePushable(const SJoinLogicNode* pJoin, const SExtSour
   return true;
 }
 
+static const SLogicNode* fqJoinEffectiveRemoteRoot(const SLogicNode* pNode);
+
 static bool fqJoinLegSubtreePushable(SLogicNode* pNode, const SExtSourceCapability* pCap,
                                      const SExtCapSessionOverlay* pOverlay,
                                      int8_t sourceType, const char* pSourceName) {
@@ -20136,7 +21433,6 @@ static bool fqJoinLegSubtreePushable(SLogicNode* pNode, const SExtSourceCapabili
     planDebug("FqJoinLegSubtreePushable: no - NULL subtree");
     return false;
   }
-
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
     if (SCAN_TYPE_EXTERNAL != pScan->scanType) {
@@ -20178,22 +21474,203 @@ static bool fqJoinLegSubtreePushable(SLogicNode* pNode, const SExtSourceCapabili
   return false;
 }
 
+static const SLogicNode* fqJoinEffectiveRemoteRoot(const SLogicNode* pNode) {
+  if (NULL != pNode && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
+    const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
+    if (NULL != pScan->pRemoteLogicPlan) return (const SLogicNode*)pScan->pRemoteLogicPlan;
+  }
+  return pNode;
+}
+
+static bool fqJoinSubtreeHasFilter(const SLogicNode* pNode) {
+  pNode = fqJoinEffectiveRemoteRoot(pNode);
+  if (NULL == pNode) return false;
+  if (NULL != pNode->pConditions) return true;
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (fqJoinSubtreeHasFilter((const SLogicNode*)pChild)) return true;
+  }
+  return false;
+}
+
+static bool fqJoinWhereTargetsNestedLeg(const SJoinLogicNode* pJoin, const SLogicNode* pLeft,
+                                        const SLogicNode* pRight) {
+  if (NULL == pJoin || NULL == pJoin->node.pConditions) return false;
+
+  const SLogicNode* pLeftRoot = fqJoinEffectiveRemoteRoot(pLeft);
+  const SLogicNode* pRightRoot = fqJoinEffectiveRemoteRoot(pRight);
+  bool leftNeedsDerived = JOIN_TYPE_RIGHT == pJoin->joinType || JOIN_TYPE_FULL == pJoin->joinType;
+  bool rightNeedsDerived = JOIN_TYPE_LEFT == pJoin->joinType || JOIN_TYPE_FULL == pJoin->joinType;
+  bool hasRiskyNestedLeg =
+      (leftNeedsDerived && NULL != pLeftRoot &&
+       QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pLeftRoot)) ||
+      (rightNeedsDerived && NULL != pRightRoot &&
+       QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pRightRoot));
+  if (!hasRiskyNestedLeg) return false;
+
+  SNode* pWhere = NULL;
+  SNode* pOnCond = NULL;
+  SNode* pLeftCond = NULL;
+  SNode* pRightCond = NULL;
+  int32_t code = nodesCloneNode(pJoin->node.pConditions, &pWhere);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pdcJoinSplitCond((SJoinLogicNode*)pJoin, &pWhere, &pOnCond, &pLeftCond, &pRightCond, true);
+  }
+
+  bool targetsNested = (TSDB_CODE_SUCCESS != code && hasRiskyNestedLeg) ||
+                       (leftNeedsDerived && NULL != pLeftCond && NULL != pLeftRoot &&
+                        QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pLeftRoot)) ||
+                       (rightNeedsDerived && NULL != pRightCond && NULL != pRightRoot &&
+                        QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pRightRoot));
+  // A WHERE predicate on an outer join can remain at the parent instead of
+  // being classified for either child. In that case, rendering a nullable
+  // nested leg without a derived table can change its outer-join semantics.
+  if (!targetsNested && NULL != pWhere) targetsNested = true;
+  nodesDestroyNode(pWhere);
+  nodesDestroyNode(pOnCond);
+  nodesDestroyNode(pLeftCond);
+  nodesDestroyNode(pRightCond);
+  return targetsNested;
+}
+
+bool planFqOuterJoinNeedsNestedFallback(const SJoinLogicNode* pJoin) {
+  if (NULL == pJoin || (JOIN_TYPE_LEFT != pJoin->joinType && JOIN_TYPE_RIGHT != pJoin->joinType &&
+                        JOIN_TYPE_FULL != pJoin->joinType) ||
+      NULL == pJoin->node.pChildren || LIST_LENGTH(pJoin->node.pChildren) != 2) {
+    return false;
+  }
+
+  SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  const SLogicNode* pLeftRoot = fqJoinEffectiveRemoteRoot(pLeft);
+  const SLogicNode* pRightRoot = fqJoinEffectiveRemoteRoot(pRight);
+  bool leftNeedsDerived = JOIN_TYPE_RIGHT == pJoin->joinType || JOIN_TYPE_FULL == pJoin->joinType;
+  bool rightNeedsDerived = JOIN_TYPE_LEFT == pJoin->joinType || JOIN_TYPE_FULL == pJoin->joinType;
+  if ((leftNeedsDerived && NULL != pLeftRoot && QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pLeftRoot) &&
+       fqJoinSubtreeHasFilter(pLeftRoot)) ||
+      (rightNeedsDerived && NULL != pRightRoot && QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pRightRoot) &&
+       fqJoinSubtreeHasFilter(pRightRoot))) {
+    return true;
+  }
+  return fqJoinWhereTargetsNestedLeg(pJoin, pLeft, pRight);
+}
+
+// A scalar function may be valid in a remote SELECT/WHERE expression without
+// being valid in the remote dialect's JOIN ... ON expression.  In particular,
+// the local planner supports time-bucketing join keys such as
+// TIMETRUNCATE(left.ts, ...) = TIMETRUNCATE(right.ts, ...), while the
+// federated JOIN renderer/connector does not provide an equivalent ON-clause
+// contract for such expressions.  Do not use the scalar-function capability
+// bitmap alone to decide that a JOIN condition is remotely executable.
+typedef struct SFqJoinCondCtx {
+  bool hasFunction;
+} SFqJoinCondCtx;
+
+static EDealRes fqJoinCondFunctionWalker(SNode* pNode, void* pContext) {
+  SFqJoinCondCtx* pCtx = (SFqJoinCondCtx*)pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    pCtx->hasFunction = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool fqJoinConditionIsPushable(SNode* pCond, SScanLogicNode* pScan,
+                                      const SExtSourceCapability* pCap,
+                                      const SExtCapSessionOverlay* pOverlay,
+                                      const SPlanContext* pPlanCxt) {
+  if (NULL == pCond) return true;
+
+  SFqJoinCondCtx ctx = {.hasFunction = false};
+  nodesWalkExpr(pCond, fqJoinCondFunctionWalker, &ctx);
+  if (ctx.hasFunction) {
+    planDebug("FqJoinIsPushable: no — JOIN ON contains a function; keep JOIN local");
+    return false;
+  }
+
+  return fqExprIsPushable(pCond, pScan, pCap, pOverlay, pPlanCxt);
+}
+
+static bool fqJoinConditionListIsPushable(const SNodeList* pConds, SScanLogicNode* pScan,
+                                          const SExtSourceCapability* pCap,
+                                          const SExtCapSessionOverlay* pOverlay,
+                                          const SPlanContext* pPlanCxt) {
+  if (NULL == pConds) return true;
+
+  SNode* pCond = NULL;
+  FOREACH(pCond, pConds) {
+    if (!fqJoinConditionIsPushable(pCond, pScan, pCap, pOverlay, pPlanCxt)) return false;
+  }
+  return true;
+}
+
+static bool fqJoinConditionIsSimpleEquality(const SNode* pCond) {
+  if (NULL == pCond) return true;
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
+    const SLogicConditionNode* pLogic = (const SLogicConditionNode*)pCond;
+    if (LOGIC_COND_TYPE_AND != pLogic->condType) return false;
+
+    const SNode* pChild = NULL;
+    FOREACH(pChild, pLogic->pParameterList) {
+      if (!fqJoinConditionIsSimpleEquality(pChild)) return false;
+    }
+    return true;
+  }
+
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) return false;
+  const SOperatorNode* pOp = (const SOperatorNode*)pCond;
+  if (OP_TYPE_EQUAL != pOp->opType) return false;
+
+  return (QUERY_NODE_COLUMN == nodeType(pOp->pLeft) || QUERY_NODE_VALUE == nodeType(pOp->pLeft)) &&
+         (QUERY_NODE_COLUMN == nodeType(pOp->pRight) || QUERY_NODE_VALUE == nodeType(pOp->pRight));
+}
+
 // Read-only pushability judge for a JOIN node - extracted from fqConvertJoin's
 // judgment half (JOIN main gate + subtype + jointype clause matrices, same-source
 // external leg subtrees).  No mutation, no error.
 static bool fqJoinIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
                              const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay,
                              const SPlanContext* pPlanCxt) {
-  (void)pScan;
-  (void)pPlanCxt;
   const SJoinLogicNode* pJoin = (const SJoinLogicNode*)pNode;
 
   if (!fqJoinNodeClausePushable(pJoin, pCap, pOverlay)) return false;
+
+  // The current remote renderer has no reliable equivalent for TDengine's
+  // SEMI/ANTI join output contract.  Keep these joins local; the local join
+  // executor already implements their exact NULL and duplicate semantics.
+  if (JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_ANTI == pJoin->subType) {
+    planDebug("FqJoinIsPushable: no — SEMI/ANTI JOIN stays local");
+    return false;
+  }
+
+  // For outer joins, a residual ON predicate must remain part of the join
+  // match test.  Pushing it as a remote WHERE can remove the required
+  // unmatched NULL-padded rows.  Only pure equality ON conditions are safe to
+  // render remotely until the connector has a separate outer-join predicate
+  // contract.
+  if (JOIN_TYPE_INNER != pJoin->joinType) {
+    const SNode* outerConds[] = {
+        pJoin->pFullOnCond, pJoin->pColOnCond, pJoin->pTagOnCond,
+        pJoin->pLeftOnCond, pJoin->pRightOnCond,
+    };
+    for (size_t i = 0; i < sizeof(outerConds) / sizeof(outerConds[0]); ++i) {
+      if (!fqJoinConditionIsSimpleEquality(outerConds[i])) {
+        planDebug("FqJoinIsPushable: no — outer JOIN has residual ON condition slot %zu", i);
+        return false;
+      }
+    }
+  }
 
   // Structural precondition: exactly two same-source external leg subtrees.
   if (pNode->pChildren == NULL || LIST_LENGTH(pNode->pChildren) != 2) return false;
   SLogicNode* pL = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   SLogicNode* pR = (SLogicNode*)nodesListGetNode(pNode->pChildren, 1);
+  if (planFqOuterJoinNeedsNestedFallback(pJoin)) {
+    planDebug("FqJoinIsPushable: no - outer JOIN requires unsupported nested-leg filtering join=%p", pJoin);
+    return false;
+  }
   SScanLogicNode* pFirstLeaf = fqFindExternalLogicLeafScan(pL);
   if (NULL == pFirstLeaf || NULL == pFirstLeaf->pExtTableNode) {
     planDebug("FqJoinIsPushable: no - left subtree has no external leaf");
@@ -20203,6 +21680,28 @@ static bool fqJoinIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
   if (!fqJoinLegSubtreePushable(pL, pCap, pOverlay, pBaseExt->sourceType, pBaseExt->sourceName) ||
       !fqJoinLegSubtreePushable(pR, pCap, pOverlay, pBaseExt->sourceType, pBaseExt->sourceName)) {
     planDebug("FqJoinIsPushable: no - child subtree not pushable/same-source join=%p", pJoin);
+    return false;
+  }
+
+  // Check every normalized ON-condition slot.  The optimizer may split the
+  // original ON expression into primary-key, column, tag, and residual
+  // conditions before FQ collection reaches this point.
+  const SNode* conds[] = {
+      pJoin->addPrimEqCond, pJoin->pPrimKeyEqCond, pJoin->pColEqCond,
+      pJoin->pColOnCond,    pJoin->pTagEqCond,     pJoin->pTagOnCond,
+      pJoin->pFullOnCond,   pJoin->pLeftOnCond,    pJoin->pRightOnCond,
+  };
+  for (size_t i = 0; i < sizeof(conds) / sizeof(conds[0]); ++i) {
+    if (!fqJoinConditionIsPushable((SNode*)conds[i], pScan ? pScan : pFirstLeaf, pCap, pOverlay, pPlanCxt)) {
+      planDebug("FqJoinIsPushable: no — ON condition slot %zu is not remotely executable", i);
+      return false;
+    }
+  }
+
+  if (!fqJoinConditionIsPushable(pJoin->node.pConditions, pScan ? pScan : pFirstLeaf, pCap, pOverlay, pPlanCxt) ||
+      !fqJoinConditionListIsPushable(pJoin->pLeftEqNodes, pScan ? pScan : pFirstLeaf, pCap, pOverlay, pPlanCxt) ||
+      !fqJoinConditionListIsPushable(pJoin->pRightEqNodes, pScan ? pScan : pFirstLeaf, pCap, pOverlay, pPlanCxt)) {
+    planDebug("FqJoinIsPushable: no — JOIN condition list is not remotely executable");
     return false;
   }
   return true;
@@ -21499,6 +22998,8 @@ static int32_t fqCommitPushChain(SOptimizeContext* pCxt, SScanLogicNode* pScan,
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = TSDB_CODE_SUCCESS;
+  bool preserveSubqueryAliases = QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pBoundary) &&
+                                 '\0' != ((SProjectLogicNode*)pBoundary)->stmtName[0];
   planDebug("FQ-commit: enter scan=%p boundary type=%d", pScan, (int)nodeType(pBoundary));
   fqPlanDebugLogNodeOutputs("commit.boundary", pBoundary);
   for (SLogicNode* pDbg = pBoundary; pDbg != NULL; pDbg = fqFirstChild(pDbg)) {
@@ -21589,6 +23090,18 @@ static int32_t fqCommitPushChain(SOptimizeContext* pCxt, SScanLogicNode* pScan,
     SNodeList* pNewTargets = NULL;
     code = nodesCloneList(pRemoteSubtree->pTargets, &pNewTargets);
     if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteSubtree); return code; }
+    // Remote rendering normalizes aliases; retain the outer aliases needed by local joins.
+    if (preserveSubqueryAliases && LIST_LENGTH(pBoundary->pTargets) == LIST_LENGTH(pNewTargets)) {
+      SNode* pBoundaryTarget = NULL;
+      SNode* pNewTarget = NULL;
+      FORBOTH(pBoundaryTarget, pBoundary->pTargets, pNewTarget, pNewTargets) {
+        if (QUERY_NODE_COLUMN == nodeType(pBoundaryTarget) && QUERY_NODE_COLUMN == nodeType(pNewTarget) &&
+            '\0' != ((SColumnNode*)pBoundaryTarget)->tableAlias[0]) {
+          tstrncpy(((SColumnNode*)pNewTarget)->tableAlias, ((SColumnNode*)pBoundaryTarget)->tableAlias,
+                   sizeof(((SColumnNode*)pNewTarget)->tableAlias));
+        }
+      }
+    }
     nodesDestroyList(pScan->node.pTargets);
     pScan->node.pTargets = pNewTargets;
     planDebug("FQ-commit: docking scan targets cloned from remote root type=%d len=%d",

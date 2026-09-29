@@ -1,0 +1,39 @@
+USE hash_join_snap;
+
+SELECT a.k1, b.k2, c.k3, a.aval, b.bval, c.cval FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2 ORDER BY 1, 2, 3, 4, 5, 6;
+
+SELECT COUNT(*), SUM(a.aval), SUM(b.bval), SUM(c.cval) FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2;
+
+SELECT a.k1, COUNT(*), SUM(a.aval), SUM(b.bval), SUM(c.cval) FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2 GROUP BY a.k1 ORDER BY 1;
+
+SELECT a.k1, b.k2, c.k3, a.aval, b.bval, c.cval FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND a.ts < c.ts AND (b.status = 1 OR c.flag = 1) ORDER BY 1, 2, 3, 4, 5, 6;
+
+SELECT a.k1, b.k2, c.k3, d.marker, a.aval, b.bval, c.cval, d.dval FROM mt_a a, mt_b b, mt_c c, mt_d d WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND c.k3 = d.k3 AND a.grp = d.grp ORDER BY 1, 2, 3, 4, 5, 6, 7, 8;
+
+SELECT a.k1, b.k2, c.k3, d.marker, e.eval FROM mt_a a, mt_b b, mt_c c, mt_d d, mt_e e WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND c.k3 = d.k3 AND a.grp = d.grp AND e.k1 = a.k1 AND e.k3 = d.k3 AND e.grp = a.grp ORDER BY 1, 2, 3, 4, 5;
+
+SELECT a.k1, b.k2, c.k3, d.marker, e.eval FROM mt_a a, mt_b b, mt_c c, mt_d d, mt_e e WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND c.k3 = d.k3 AND a.grp = d.grp AND e.k1 = a.k1 AND e.k3 = d.k3 AND e.grp = a.grp ORDER BY e.eval DESC, d.marker, a.k1 LIMIT 4;
+
+SELECT a.k1, COUNT(*), SUM(a.aval), SUM(e.eval) FROM mt_a a, mt_b b, mt_c c, mt_d d, mt_e e WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND c.k3 = d.k3 AND a.grp = d.grp AND e.k1 = a.k1 AND e.k3 = d.k3 AND e.grp = a.grp AND c.flag = 1 AND e.eval >= 80 GROUP BY a.k1 ORDER BY 4 DESC, 1 LIMIT 2;
+
+SELECT a.k1, b.k2, c.k3, a.aval, b.bval, c.cval FROM (SELECT k1, k2, grp, aval FROM mt_a WHERE aval >= 200) a, (SELECT k1, k2, grp, bval, status FROM mt_b WHERE status = 1) b, (SELECT k2, k3, grp, cval, flag FROM mt_c WHERE flag = 1) c WHERE a.k1 = b.k1 AND b.k2 = c.k2 AND a.grp = c.grp ORDER BY 1, 2, 3, 4, 5, 6;
+
+SELECT a.k1, b.k2, c.k3 FROM mt_a a, mt_b b, mt_c c WHERE a.ts = b.ts AND a.k1 = b.k1 AND b.k2 = c.k2 ORDER BY 1, 2, 3;
+
+SELECT a.ts, a.k, b.k2, c.marker, a.v, b.v, c.v FROM mt_ta a, mt_tb b, mt_tc c WHERE a.ts = b.ts AND b.ts = c.ts AND a.k = b.k AND b.k2 = c.k2 AND a.grp = c.grp ORDER BY 1, 2, 3, 4;
+
+SELECT a.ts, a.k, b.k2, c.k2, d.marker, a.v, b.v, c.v, d.v FROM mt_ta a, mt_tb b, mt_tc c, mt_td d WHERE a.k = b.k AND c.k2 = d.k2 AND a.ts = b.ts AND b.ts = c.ts AND c.ts = d.ts AND b.grp = c.grp AND c.grp = d.grp ORDER BY 1, 2, 3, 4, 5;
+
+SELECT COUNT(*), SUM(a.v), SUM(b.v), SUM(c.v), SUM(d.v) FROM mt_ta a, mt_tb b, mt_tc c, mt_td d WHERE a.k = b.k AND c.k2 = d.k2 AND a.ts = b.ts AND b.ts = c.ts AND c.ts = d.ts AND b.grp = c.grp AND c.grp = d.grp;
+
+SELECT COUNT(*), SUM(a.v), SUM(b.v), SUM(c.v) FROM mt_ta a, mt_tb b, mt_tc c WHERE a.ts = b.ts AND b.ts = c.ts AND a.k = b.k AND b.k2 = c.k2 AND a.grp = c.grp;
+
+SELECT a.k, b.k2, c.marker FROM mt_ta a, mt_tb b, mt_tc c WHERE a.k = b.k AND b.k2 = c.k2 AND a.v < b.v AND (a.grp = c.grp OR c.v > 30) ORDER BY 1, 2, 3;
+
+SELECT a.k, b.k2, c.marker FROM mt_ta a, mt_tb b, mt_tc c WHERE a.v < b.v AND b.k2 = c.k2 ORDER BY 1, 2, 3;
+
+SELECT a.k, b.k2, c.marker FROM mt_ta a LEFT JOIN mt_tb b ON a.k = b.k JOIN mt_tc c ON b.k2 = c.k2 ORDER BY 1, 2, 3;
+
+EXPLAIN SELECT a.k1, b.k2, c.k3 FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2 \G;
+
+EXPLAIN SELECT a.k, b.k2, c.k2, d.marker FROM mt_ta a, mt_tb b, mt_tc c, mt_td d WHERE a.k = b.k AND c.k2 = d.k2 AND a.ts = b.ts AND b.ts = c.ts AND c.ts = d.ts AND b.grp = c.grp AND c.grp = d.grp \G;

@@ -38,6 +38,7 @@ class Test_Nevados:
         Since: v3.3.3.7
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -220,11 +221,12 @@ class Test_Nevados:
         )
 
         sql = "select window_start, window_hourly, site, id, windspeed_hourly_maximum from dev.windspeeds_hourly where id='id_1';"
-        exp_sql = "select _wstart, _wend, site, id, max(speed) from t1 interval(1h);"
+        exp_sql = "select _wstart, _wend, site, id, max(speed) from t1 where _ts >= '2025-02-01' interval(1h);"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
 
         sql = "select count(*) from dev.windspeeds_hourly;"
-        exp_sql = "select count(*) from (select _wstart, _wend, site, id, max(speed) from windspeeds partition by tbname interval(1h));"
+        exp_sql = ("select count(*) from (select _wstart, _wend, site, id, max(speed) "
+                   "from windspeeds where _ts >= '2025-02-01' partition by tbname interval(1h));")
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
 
     def windspeeds_daily(self): 

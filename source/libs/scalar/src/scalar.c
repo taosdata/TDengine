@@ -1302,6 +1302,9 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
       WHERE_EACH(tnode, pParamList) {
         if (!SCL_IS_CONST_NODE(tnode)) {
           WHERE_NEXT;
+        } else if (SCL_IS_NULL_VALUE_NODE(tnode)) {
+          SCL_ERR_JRET(sclInitParam(tnode, &paramList[i], ctx, rowNum));
+          WHERE_NEXT;
         } else {
           SCL_ERR_JRET(sclInitParam(tnode, &paramList[i], ctx, rowNum));
           ERASE_NODE(pParamList);
@@ -1759,6 +1762,8 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   bool complete = true;
   for (int32_t i = 0; i < rowNum; ++i) {
     complete = true;
+    bool hasNull = false;
+    value = LOGIC_COND_TYPE_AND == node->condType;
     //sclInfo("logic row:%d start", i);
     for (int32_t m = 0; m < paramNum; ++m) {
       if (NULL == params[m].columnData) {
@@ -1769,6 +1774,10 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
 
       // 1=1 and tag_column = 1
       int32_t ind = (i >= params[m].numOfRows) ? (params[m].numOfRows - 1) : i;
+      if (colDataIsNull_s(params[m].columnData, ind)) {
+        hasNull = true;
+        continue;
+      }
       char   *p = colDataGetData(params[m].columnData, ind);
 
       GET_TYPED_DATA(value, bool, params[m].columnData->info.type, p,
@@ -1792,8 +1801,11 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
 
     if (complete) {
       //sclInfo("logic row:%d complete value:%d", i, value);
-      SCL_ERR_JRET(colDataSetVal(output->columnData, i, (char *)&value, false));
-      if (value) {
+      bool isNull = hasNull &&
+                    !((LOGIC_COND_TYPE_AND == node->condType && !value) ||
+                      (LOGIC_COND_TYPE_OR == node->condType && value));
+      SCL_ERR_JRET(colDataSetVal(output->columnData, i, isNull ? NULL : (char *)&value, isNull));
+      if (value && !isNull) {
         numOfQualified++;
         //sclInfo("logic row:%d complete numOfQualified:%d", i, numOfQualified);
       }
@@ -2635,15 +2647,19 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   res->translate = true;
 
   tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
-  int32_t type = output.columnData->info.type;
-  if (IS_VAR_DATA_TYPE(type)) {
-    res->datum.p = output.columnData->pData;
-    output.columnData->pData = NULL;
+  if (colDataIsNull_s(output.columnData, 0)) {
+    res->isNull = true;
   } else {
-    ctx->code = nodesSetValueNodeValue(res, output.columnData->pData);
-    if (ctx->code) {
-      sclFreeParam(&output);
-      return DEAL_RES_ERROR;
+    int32_t type = output.columnData->info.type;
+    if (IS_VAR_DATA_TYPE(type)) {
+      res->datum.p = output.columnData->pData;
+      output.columnData->pData = NULL;
+    } else {
+      ctx->code = nodesSetValueNodeValue(res, output.columnData->pData);
+      if (ctx->code) {
+        sclFreeParam(&output);
+        return DEAL_RES_ERROR;
+      }
     }
   }
 

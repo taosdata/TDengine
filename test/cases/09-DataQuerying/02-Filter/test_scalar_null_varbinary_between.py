@@ -49,6 +49,7 @@ class TestScalarNullVarbinaryBetween:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: TD-6948526778
 
         History:
@@ -113,26 +114,23 @@ class TestScalarNullVarbinaryBetween:
         tdSql.checkData(0, 2, 17)
 
         # --- WHERE clause variants: null string type in BETWEEN timestamp range ---
-        # NOT (NULL BETWEEN now() AND ts) evaluates to true in TDengine when the
-        # left operand is a null constant (treated as false in BETWEEN, negated to
-        # true), so all rows pass the filter.
+        # NULL BETWEEN ... evaluates to UNKNOWN. NOT preserves UNKNOWN, so the
+        # WHERE predicate filters out the row while still exercising conversion
+        # of each null string constant to the timestamp comparison type.
         tdSql.query(
             "select id from t1 where not (cast(null as binary(16)) between now() and ts);"
         )
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
+        tdSql.checkRows(0)
 
         tdSql.query(
             "select id from t2 where not (cast(null as varchar(16)) between now() and ts);"
         )
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 2)
+        tdSql.checkRows(0)
 
         tdSql.query(
             "select id from t3 where not (cast(null as nchar(16)) between now() and ts);"
         )
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 3)
+        tdSql.checkRows(0)
 
         tdSql.execute("drop database tdsqlsmith_shared")
         tdLog.success(f"{__file__} successfully executed")

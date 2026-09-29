@@ -1,0 +1,61 @@
+use test_join_tt_sort;
+
+select '1_1_baseline_order_by_ts', count(*) from (select ts, val from stb1 order by ts) a join (select ts, val from stb1 order by ts) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '1_2_order_by_tt_tz0_join_on_tz1', count(*) from (select ts, val from stb1 order by timetruncate(ts, 1d, 0)) a join (select ts, val from stb1 order by timetruncate(ts, 1d, 0)) b on timetruncate(a.ts, 1d, 1) = timetruncate(b.ts, 1d, 1);
+
+select '1_3_order_by_tt_tz1_join_on_tz0', count(*) from (select ts, val from stb1 order by timetruncate(ts, 1d, 1)) a join (select ts, val from stb1 order by timetruncate(ts, 1d, 1)) b on timetruncate(a.ts, 1d, 0) = timetruncate(b.ts, 1d, 0);
+
+select '2_1_cross_tz_on_condition', count(*) from (select ts, val from stb1 order by timetruncate(ts, 1d, 0)) a join (select ts, val from stb1 order by timetruncate(ts, 1d, 1)) b on timetruncate(a.ts, 1d, 0) = timetruncate(b.ts, 1d, 1);
+
+select '3_1_order_by_1w_join_on_1d', count(*) from (select ts, val from stb1 order by timetruncate(ts, 1w)) a join (select ts, val from stb1 order by timetruncate(ts, 1w)) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '3_2_order_by_1h_join_on_1d', count(*) from (select ts, val from stb1 order by timetruncate(ts, 1h)) a join (select ts, val from stb1 order by timetruncate(ts, 1h)) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '4_1_order_by_ts_plus_1', count(*) from (select ts, val from stb1 order by ts + 1) a join (select ts, val from stb1 order by ts + 1) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '4_2_order_by_cast_ts_bigint', count(*) from (select ts, val from stb1 order by cast(ts as bigint)) a join (select ts, val from stb1 order by cast(ts as bigint)) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '4_3_order_by_ts_mul_1', count(*) from (select ts, val from stb1 order by ts * 1) a join (select ts, val from stb1 order by ts * 1) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '5_1_order_by_val', count(*) from (select ts, val from stb1 order by val) a join (select ts, val from stb1 order by val) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '5_2_order_by_val_desc', count(*) from (select ts, val from stb1 order by val desc) a join (select ts, val from stb1 order by val desc) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '5_3_mixed_one_side_val_other_ts', count(*) from (select ts, val from stb1 order by val) a join (select ts, val from stb1 order by ts) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '5_4_mixed_val_desc_and_ts', count(*) from (select ts, val from stb1 order by val desc) a join (select ts, val from stb1 order by ts) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '5_5_right_join_order_by_val_rows', b.ts, b.val, a.val from (select ts, val from t1 order by val desc) a right join (select ts, val from t2 order by val) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d) order by b.ts desc, a.val desc limit 3;
+
+select '5_6_full_join_exact_ts_order_by_val_rows', a.ts, a.val, b.ts, b.val from (select ts, val from t1 order by val desc) a full join (select ts, val from t2 order by val) b on a.ts = b.ts order by a.ts, b.ts limit 6;
+
+select '5_7_right_semi_order_by_val_rows', b.ts, b.val from (select ts, val from t1 order by val desc) a right semi join (select ts, val from t2 order by val) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d) order by b.ts desc limit 3;
+
+select '5_8_right_anti_exact_ts_order_by_val_rows', b.ts, b.val from (select ts, val from t1 order by val desc) a right anti join (select ts, val from t2 order by val) b on a.ts = b.ts order by b.ts desc limit 3;
+
+select '6_1_outer_order_by_desc_limit', a.ts, b.ts from (select ts, val from stb1 order by timetruncate(ts, 1d, 0)) a join (select ts, val from stb1 order by timetruncate(ts, 1d, 0)) b on timetruncate(a.ts, 1d, 1) = timetruncate(b.ts, 1d, 1) order by a.ts desc, b.ts desc limit 5;
+
+select '6_3_outer_order_desc_overrides_child_val_order', a.ts, b.ts from (select ts, val from stb1 order by val) a join (select ts, val from stb1 order by val) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d) order by a.ts desc, b.ts desc limit 5;
+
+select '9_1_no_order_by_supertable', count(*) from (select ts, val from stb1) a join (select ts, val from stb1) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '9_2_order_by_ts_regression', count(*) from (select ts, val from stb1 order by ts) a join (select ts, val from stb1 order by ts) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select '9_3_plain_ts_join_regression', count(*) from (select ts, val from stb1 order by ts) a join (select ts, val from stb1 order by ts) b on a.ts = b.ts;
+
+select '9_4_single_table_join_regression', count(*) from (select ts, val from t1 order by timetruncate(ts, 1d, 0)) a join (select ts, val from t2 order by timetruncate(ts, 1d, 0)) b on timetruncate(a.ts, 1d, 1) = timetruncate(b.ts, 1d, 1);
+
+select '9_5_hash_join_not_affected', count(*) from (select ts, val from stb1 order by val) a join (select ts, val from stb1 order by val) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select 'M1_upgrade_to_ts_row_detail', a.ts, a.val, b.val from (select ts, val from t1 order by timetruncate(ts, 1d, 0)) a join (select ts, val from t2 order by timetruncate(ts, 1d, 1)) b on timetruncate(a.ts, 1d, 1) = timetruncate(b.ts, 1d, 1) order by a.ts, b.ts;
+
+select 'M2_dir_limit_desc_subquery', count(*) from (select ts, val from t1 order by ts desc limit 2) a join (select ts, val from t2 order by ts desc limit 2) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select 'M2_1_dir_limit_mixed_desc_asc_subquery', count(*) from (select ts, val from t1 order by ts desc limit 2) a join (select ts, val from t2 order by ts limit 2) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select 'M3_groupby_subquery_join', count(*) from (select first(ts) ts, count(*) cnt from stb1 partition by tbname) a join (select first(ts) ts, count(*) cnt from stb1 partition by tbname) b on a.ts = b.ts;
+
+select 'M5_supertable_to_child_timetruncate_join', count(*) from (select ts, val from stb1 order by val) a join (select ts, val from ct1 order by cast(ts as bigint)) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);
+
+select 'M6_mixed_val_and_cast_order', count(*) from (select ts, val from stb1 order by val) a join (select ts, val from stb1 order by cast(ts as bigint)) b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d);

@@ -1092,9 +1092,12 @@ RESULT
 SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s full join fq_exp_mysql.region_info r on s.`time` = r.`time` and s.region = r.region
 RESULT
 -> Projection (columns=3 width=20 input_order=unknown)
-   -> Full Join (columns=5 width=280 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+   -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
+      -> Partition on Column region (width=146)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Data Exchange 1:1 (width=142)
+         -> Partition on Column region (width=142)
+            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
 ---
 ### EXP-join_full-01_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
@@ -1110,25 +1113,32 @@ RESULT
 SQL: select m.`time`, m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_pg.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Projection (columns=3 width=20 input_order=unknown)
-   -> Inner Join (columns=5 width=65669 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+   -> Inner Join (columns=5 width=65669 input_order=asc algo=Hash)
+      -> Partition on Column region (width=146)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Data Exchange 1:1 (width=65531)
+         -> Partition on Column region (width=65531)
+            -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
 ---
 ### EXP-join_cross_source-01_mysql_influx POS
 SQL: select m.`time`, m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Projection (columns=3 width=24 input_order=unknown)
-   -> Inner Join (columns=5 width=65673 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+   -> Inner Join (columns=5 width=65673 input_order=asc algo=Hash)
+      -> Partition on Column region (width=154)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Partition on Column region (width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
 ---
 ### EXP-join_cross_source-01_pg_influx POS
 SQL: select m.`time`, m.voltage, p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Projection (columns=3 width=24 input_order=unknown)
-   -> Inner Join (columns=5 width=131062 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+   -> Inner Join (columns=5 width=131062 input_order=asc algo=Hash)
+      -> Partition on Column region (width=65543)
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+      -> Partition on Column region (width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
 ---
 ### EXP-join_inner_with_where-01_mysql POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s inner join fq_exp_mysql.region_info r on s.`time` = r.`time` and s.region = r.region where s.voltage > 220.0
@@ -3392,73 +3402,94 @@ RESULT
 SQL: select abs(m.voltage - 220.0), p.current from fq_exp_mysql.sensor m join fq_exp_pg.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Projection (columns=2 width=12 input_order=unknown)
-   -> Inner Join (columns=4 width=65661 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+   -> Inner Join (columns=4 width=65661 input_order=asc algo=Hash)
+      -> Partition on Column region (width=146)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Data Exchange 1:1 (width=65531)
+         -> Partition on Column region (width=65531)
+            -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
 ---
 ### EXP-combo_XS_join_pushfunc-01_mysql_influx POS
 SQL: select abs(m.voltage - 220.0), p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Projection (columns=2 width=16 input_order=unknown)
-   -> Inner Join (columns=4 width=65665 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+   -> Inner Join (columns=4 width=65665 input_order=asc algo=Hash)
+      -> Partition on Column region (width=154)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Partition on Column region (width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
 ---
 ### EXP-combo_XS_join_pushfunc-01_pg_influx POS
 SQL: select abs(m.voltage - 220.0), p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Projection (columns=2 width=16 input_order=unknown)
-   -> Inner Join (columns=4 width=131054 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+   -> Inner Join (columns=4 width=131054 input_order=asc algo=Hash)
+      -> Partition on Column region (width=65543)
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+      -> Partition on Column region (width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
 ---
 ### EXP-combo_XS_join_localfunc-01_mysql_pg POS
 SQL: select csum(m.voltage), p.current from fq_exp_mysql.sensor m join fq_exp_pg.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Indefinite Rows Function (functions=2 width=12)
-   -> Inner Join (columns=5 width=65669 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+   -> Inner Join (columns=5 width=65669 input_order=asc algo=Hash)
+      -> Partition on Column region (width=146)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Data Exchange 1:1 (width=65531)
+         -> Partition on Column region (width=65531)
+            -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
 ---
 ### EXP-combo_XS_join_localfunc-01_mysql_influx POS
 SQL: select csum(m.voltage), p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Indefinite Rows Function (functions=2 width=16)
-   -> Inner Join (columns=5 width=65673 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+   -> Inner Join (columns=5 width=65673 input_order=asc algo=Hash)
+      -> Partition on Column region (width=154)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Partition on Column region (width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
 ---
 ### EXP-combo_XS_join_localfunc-01_pg_influx POS
 SQL: select csum(m.voltage), p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
 RESULT
 -> Indefinite Rows Function (functions=2 width=16)
-   -> Inner Join (columns=5 width=131062 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+   -> Inner Join (columns=5 width=131062 input_order=asc algo=Hash)
+      -> Partition on Column region (width=65543)
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+      -> Partition on Column region (width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
 ---
 ### EXP-combo_XS_join_with_where-01_mysql_pg POS
 SQL: select m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_pg.sensor p on m.`time` = p.`time` and m.region = p.region where m.voltage > 219.0 and p.current > 1.0
 RESULT
 -> Projection (columns=2 width=12 input_order=unknown)
-   -> Inner Join (columns=2 width=12 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+   -> Inner Join (columns=2 width=12 input_order=asc algo=Hash)
+      -> Partition on Column region (width=146)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Data Exchange 1:1 (width=65531)
+         -> Partition on Column region (width=65531)
+            -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
 ---
 ### EXP-combo_XS_join_with_where-01_mysql_influx POS
 SQL: select m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region where m.voltage > 219.0 and p.current > 1.0
 RESULT
 -> Projection (columns=2 width=16 input_order=unknown)
-   -> Inner Join (columns=2 width=16 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+   -> Inner Join (columns=2 width=16 input_order=asc algo=Hash)
+      -> Partition on Column region (width=154)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Partition on Column region (width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
 ---
 ### EXP-combo_XS_join_with_where-01_pg_influx POS
 SQL: select m.voltage, p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region where m.voltage > 219.0 and p.current > 1.0
 RESULT
 -> Projection (columns=2 width=16 input_order=unknown)
-   -> Inner Join (columns=2 width=16 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
-      -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+   -> Inner Join (columns=2 width=16 input_order=asc algo=Hash)
+      -> Partition on Column region (width=65543)
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+      -> Partition on Column region (width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
 ---
 ### EXP-ds_math-01_mysql POS
 SQL: select ABS(voltage - 220.0) from fq_exp_mysql.sensor
@@ -3914,17 +3945,17 @@ RESULT
 ### EXP-ds_string-07_mysql POS
 SQL: select REPEAT(region, 2) from fq_exp_mysql.sensor
 RESULT
--> Federated Scan on fq_exp_mysql.sensor (mysql) (width=260)
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=258)
 ---
 ### EXP-ds_string-07_pg POS
 SQL: select REPEAT(region, 2) from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (width=131038)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65519)
 ---
 ### EXP-ds_string-07_influx POS
 SQL: select REPEAT(region, 2) from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (width=131038)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
 ---
 ### EXP-ds_string-08_mysql POS
 SQL: select REPLACE(region, 'n', 'x') from fq_exp_mysql.sensor
@@ -6080,9 +6111,12 @@ RESULT
 SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s full join fq_exp_mysql.region_info r on s.`time` = r.`time` and s.region = r.region
 RESULT
 -> Projection (columns=3 width=20 input_order=unknown)
-   -> Full Join (columns=5 width=280 input_order=asc algo=Merge)
-      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+   -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
+      -> Partition on Column region (width=146)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Data Exchange 1:1 (width=142)
+         -> Partition on Column region (width=142)
+            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
 ---
 ### EXP-ds_join-04_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region

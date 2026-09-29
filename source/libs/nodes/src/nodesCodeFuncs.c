@@ -618,6 +618,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiMergeJoin";
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
       return "PhysiHashJoin";
+    case QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN:
+      return "PhysiThetaJoin";
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       return "PhysiAgg";
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
@@ -2516,6 +2518,7 @@ static const char* jkJoinLogicPlanOnConditions = "OtherOnCond";
 static const char* jkJoinLogicPlanPrimKeyEqCondition = "PrimKeyEqCond";
 static const char* jkJoinLogicPlanColEqCondition = "ColumnEqCond";
 static const char* jkJoinLogicPlanTagEqCondition = "TagEqCond";
+static const char* jkJoinLogicPlanIsCrossJoin = "IsCrossJoin";
 
 static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   const SJoinLogicNode* pNode = (const SJoinLogicNode*)pObj;
@@ -2541,6 +2544,9 @@ static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkMultiGroupJoin, pNode->multiGroupJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkJoinLogicPlanIsCrossJoin, pNode->isCrossJoin);
   }
   return code;
 }
@@ -2569,6 +2575,9 @@ static int32_t jsonToLogicJoinNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkMultiGroupJoin, &pNode->multiGroupJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkJoinLogicPlanIsCrossJoin)) {
+    code = tjsonGetBoolValue(pJson, jkJoinLogicPlanIsCrossJoin, &pNode->isCrossJoin);
   }
 
   return code;
@@ -8760,6 +8769,7 @@ static const char* jkJoinTableSubType = "SubType";
 static const char* jkJoinTableLeft = "Left";
 static const char* jkJoinTableRight = "Right";
 static const char* jkJoinTableOnCond = "OnCond";
+static const char* jkJoinTableIsCrossJoin = "IsCrossJoin";
 
 static int32_t joinTableNodeToJson(const void* pObj, SJson* pJson) {
   const SJoinTableNode* pNode = (const SJoinTableNode*)pObj;
@@ -8779,6 +8789,9 @@ static int32_t joinTableNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkJoinTableOnCond, nodeToJson, pNode->pOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkJoinTableIsCrossJoin, pNode->isCrossJoin);
   }
 
   return code;
@@ -8802,6 +8815,9 @@ static int32_t jsonToJoinTableNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkJoinTableOnCond, &pNode->pOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkJoinTableIsCrossJoin)) {
+    code = tjsonGetBoolValue(pJson, jkJoinTableIsCrossJoin, &pNode->isCrossJoin);
   }
 
   return code;
@@ -10702,6 +10718,7 @@ static const char* jkSelectStmtInterpFuncs = "HasInterpFuncs";
 static const char* jkSelectStmtInterpFill = "InterpFill";
 static const char* jkSelectStmtInterpEvery = "InterpEvery";
 static const char* jkSelectStmtTwaOrElapsedFuncs = "HasTwaOrElapsedFuncs";
+static const char* jkSelectStmtHasWhereCond = "HasWhereCond";
 
 static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   const SSelectStmt* pNode = (const SSelectStmt*)pObj;
@@ -10765,6 +10782,9 @@ static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSelectStmtInterpEvery, nodeToJson, pNode->pEvery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSelectStmtHasWhereCond, pNode->hasWhereCond);
   }
   return code;
 }
@@ -10831,6 +10851,9 @@ static int32_t jsonToSelectStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSelectStmtInterpEvery, &pNode->pEvery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSelectStmtHasWhereCond, &pNode->hasWhereCond);
   }
 
   return code;
@@ -14572,6 +14595,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiMergeJoinNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
       return physiHashJoinNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN:
+      return physiHashJoinNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       return physiAggNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
@@ -15126,6 +15151,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
       return jsonToPhysiMergeJoinNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
+      return jsonToPhysiHashJoinNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN:
       return jsonToPhysiHashJoinNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       return jsonToPhysiAggNode(pJson, pObj);

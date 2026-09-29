@@ -18,6 +18,8 @@
 #ifndef TDENGINE_MERGEJOIN_H
 #define TDENGINE_MERGEJOIN_H
 
+#include "executorInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -46,7 +48,8 @@ typedef enum EJoinTableType {
 typedef enum EPrimExprType {
   E_PRIM_TIMETRUNCATE = 1,
   E_PRIM_VALUE,
-  E_PRIM_TIMESTAMP_SCALE
+  E_PRIM_TIMESTAMP_SCALE,
+  E_PRIM_SCALAR
 } EPrimExprType;
 
 
@@ -121,6 +124,8 @@ typedef struct SMJoinTableCtx {
   bool               dsFetchDone;
   SNode*             primExpr;
   SMJoinPrimExprCtx  primCtx;
+  SExprSupp          primExprSupp;
+  SExecTaskInfo*     taskInfo;
 
   int64_t            blkId;
   SQueryStat         inputStat;

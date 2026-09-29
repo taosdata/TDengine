@@ -1971,6 +1971,77 @@ TEST(constantTest, greater_and_lower) {
   nodesDestroyNode(res);
 }
 
+TEST(constantTest, null_boolean_three_valued_logic) {
+  struct TestCase {
+    ELogicConditionType type;
+    bool                other;
+    bool                expectedNull;
+    bool                expectedValue;
+  } cases[] = {
+      {LOGIC_COND_TYPE_AND, false, false, false},
+      {LOGIC_COND_TYPE_AND, true, true, false},
+      {LOGIC_COND_TYPE_OR, false, true, false},
+      {LOGIC_COND_TYPE_OR, true, false, true},
+  };
+
+  for (const TestCase &tc : cases) {
+    SNode *nullValue = NULL, *boolValue = NULL, *logicNode = NULL, *res = NULL;
+    bool   placeholder = false;
+    bool   other = tc.other;
+    ASSERT_EQ(scltMakeValueNode(&nullValue, TSDB_DATA_TYPE_BOOL, &placeholder), TSDB_CODE_SUCCESS);
+    ((SValueNode *)nullValue)->isNull = true;
+    ASSERT_EQ(scltMakeValueNode(&boolValue, TSDB_DATA_TYPE_BOOL, &other), TSDB_CODE_SUCCESS);
+    SNode *params[] = {nullValue, boolValue};
+    ASSERT_EQ(scltMakeLogicNode(&logicNode, tc.type, params, 2), TSDB_CODE_SUCCESS);
+
+    ASSERT_EQ(scalarCalculateConstants(logicNode, &res), TSDB_CODE_SUCCESS);
+    ASSERT_NE(res, nullptr);
+    ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+    SValueNode *value = (SValueNode *)res;
+    EXPECT_EQ(value->isNull, tc.expectedNull);
+    if (!tc.expectedNull) EXPECT_EQ(value->datum.b, tc.expectedValue);
+    nodesDestroyNode(res);
+  }
+}
+
+TEST(constantTest, null_operator_and_function_propagation) {
+  int64_t placeholder = 0;
+  int64_t one = 1;
+
+  SNode *nullValue = NULL, *oneValue = NULL, *opNode = NULL, *res = NULL;
+  ASSERT_EQ(scltMakeValueNode(&nullValue, TSDB_DATA_TYPE_BIGINT, &placeholder), TSDB_CODE_SUCCESS);
+  ((SValueNode *)nullValue)->isNull = true;
+  ASSERT_EQ(scltMakeValueNode(&oneValue, TSDB_DATA_TYPE_BIGINT, &one), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeOpNode(&opNode, OP_TYPE_ADD, TSDB_DATA_TYPE_BIGINT, nullValue, oneValue), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculateConstants(opNode, &res), TSDB_CODE_SUCCESS);
+  ASSERT_NE(res, nullptr);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  EXPECT_TRUE(((SValueNode *)res)->isNull);
+  EXPECT_EQ(((SValueNode *)res)->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  nodesDestroyNode(res);
+
+  SFunctionNode *func = NULL;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode **)&func), TSDB_CODE_SUCCESS);
+  ASSERT_NE(func, nullptr);
+  func->funcId = fmGetFuncId("abs");
+  ASSERT_GE(func->funcId, 0);
+  func->funcType = fmGetFuncTypeFromId(func->funcId);
+  func->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  func->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  nullValue = NULL;
+  ASSERT_EQ(scltMakeValueNode(&nullValue, TSDB_DATA_TYPE_BIGINT, &placeholder), TSDB_CODE_SUCCESS);
+  ((SValueNode *)nullValue)->isNull = true;
+  ASSERT_EQ(nodesListMakeStrictAppend(&func->pParameterList, nullValue), TSDB_CODE_SUCCESS);
+
+  res = NULL;
+  ASSERT_EQ(scalarCalculateConstants((SNode *)func, &res), TSDB_CODE_SUCCESS);
+  ASSERT_NE(res, nullptr);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  EXPECT_TRUE(((SValueNode *)res)->isNull);
+  EXPECT_EQ(((SValueNode *)res)->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  nodesDestroyNode(res);
+}
+
 TEST(constantTest, column_and_value1) {
   scltInitLogFile();
 
@@ -3359,6 +3430,108 @@ static void scltMakeRawStringRows(SScalarParam *pParam, int32_t type,
     taosMemoryFree(buf);
   }
   pParam->numOfRows = rows;
+}
+
+TEST(ScalarFunctionTest, repeatActualLength) {
+  for (int type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+    for (uint64_t count : {uint64_t(0), uint64_t(1), uint64_t(2), uint64_t(INT32_MAX),
+                           uint64_t(4294967297ULL), UINT64_MAX}) {
+      for (int len : {0, 4, 32756, 32760, 65516, 65517, 65518}) {
+        if (type == TSDB_DATA_TYPE_NCHAR && len % TSDB_NCHAR_SIZE != 0) continue;
+        SCOPED_TRACE(::testing::Message() << type << ":" << count << ":" << len);
+        std::string value(len, 'x');
+        SScalarParam input[2] = {}, output = {};
+        scltMakeRawStringParam(&input[0], type, value.data(), len);
+        input[0].columnData->info.bytes = TSDB_MAX_FIELD_LEN;
+        SScalarParam *counts = nullptr;
+        ASSERT_EQ(scltMakeDataBlock(&counts, TSDB_DATA_TYPE_BIGINT, &count, 1, true), 0);
+        counts->columnData->info.type = TSDB_DATA_TYPE_UBIGINT;
+        input[1] = *counts;
+        scltMakeRawStringParam(&output, type, "", 0);
+        output.columnData->info.bytes = TSDB_MAX_FIELD_LEN;
+        bool overflow = len > 0 && count > (TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE) / len;
+        EXPECT_EQ(repeatFunction(input, 2, &output),
+                  overflow ? TSDB_CODE_FUNC_INVALID_RES_LENGTH : TSDB_CODE_SUCCESS);
+        if (!overflow) {
+          char *result = colDataGetData(output.columnData, 0);
+          EXPECT_EQ(varDataLen(result), len * count);
+          EXPECT_EQ(std::string(varDataVal(result), varDataLen(result)),
+                    std::string(len * count, 'x'));
+        }
+        colDataDestroy(input[0].columnData);
+        taosMemoryFree(input[0].columnData);
+        scltDestroyDataBlock(counts);
+        colDataDestroy(output.columnData);
+        taosMemoryFree(output.columnData);
+      }
+    }
+  }
+}
+
+TEST(ScalarFunctionTest, repeatBroadcastAndNull) {
+  for (int stringRows : {1, 3}) {
+    for (int countRows : {1, 3}) {
+      SScalarParam input[2] = {}, output = {};
+      const char *values[] = {"ab", "x", "z"};
+      int lengths[] = {2, 1, 1};
+      scltMakeRawStringRows(&input[0], TSDB_DATA_TYPE_VARCHAR, values, lengths, stringRows);
+      input[0].columnData->info.bytes = TSDB_MAX_FIELD_LEN;
+      if (stringRows == 3) colDataSetNULL(input[0].columnData, 2);
+      int64_t count = 2;
+      SScalarParam *counts = nullptr;
+      ASSERT_EQ(scltMakeDataBlock(&counts, TSDB_DATA_TYPE_BIGINT, &count, countRows, true), 0);
+      if (countRows == 3) {
+        int64_t negative = -1;
+        ASSERT_EQ(colDataSetVal(counts->columnData, 1, (const char *)&negative, false), 0);
+        colDataSetNULL(counts->columnData, 2);
+      }
+      input[1] = *counts;
+      scltMakeRawStringRows(&output, TSDB_DATA_TYPE_VARCHAR, values, lengths, 3);
+      ASSERT_EQ(repeatFunction(input, 2, &output), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(output.numOfRows, std::max(stringRows, countRows));
+      char *first = colDataGetData(output.columnData, 0);
+      EXPECT_EQ(std::string(varDataVal(first), varDataLen(first)), "abab");
+      if (output.numOfRows == 3) {
+        char *second = colDataGetData(output.columnData, 1);
+        EXPECT_EQ(std::string(varDataVal(second), varDataLen(second)), countRows == 3 ? "" : "xx");
+        EXPECT_TRUE(colDataIsNull_s(output.columnData, 2));
+      }
+      colDataDestroy(input[0].columnData);
+      taosMemoryFree(input[0].columnData);
+      scltDestroyDataBlock(counts);
+      colDataDestroy(output.columnData);
+      taosMemoryFree(output.columnData);
+    }
+  }
+}
+
+TEST(ScalarFunctionTest, repeatTranslateCapacity) {
+  for (int type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+    for (int bytes : {34, TSDB_MAX_FIELD_LEN}) {
+      for (uint64_t count : {uint64_t(0), uint64_t(2), UINT64_MAX}) {
+        SFunctionNode *func = nullptr;
+        SColumnNode *column = nullptr;
+        SValueNode *times = nullptr;
+        ASSERT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode **)&func), 0);
+        ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&column), 0);
+        ASSERT_EQ(nodesMakeNode(QUERY_NODE_VALUE, (SNode **)&times), 0);
+        tstrncpy(func->functionName, "repeat", sizeof(func->functionName));
+        column->node.resType.type = type;
+        column->node.resType.bytes = bytes;
+        times->node.resType.type = TSDB_DATA_TYPE_UBIGINT;
+        times->node.resType.bytes = sizeof(uint64_t);
+        times->datum.u = count;
+        ASSERT_EQ(nodesListMakeStrictAppend(&func->pParameterList, (SNode *)column), 0);
+        ASSERT_EQ(nodesListMakeStrictAppend(&func->pParameterList, (SNode *)times), 0);
+        char error[256] = {};
+        ASSERT_EQ(fmGetFuncInfo(func, error, sizeof(error)), TSDB_CODE_SUCCESS) << error;
+        int expected = count == 0 ? VARSTR_HEADER_SIZE :
+                       bytes == 34 && count == 2 ? 66 : TSDB_MAX_FIELD_LEN;
+        EXPECT_EQ(func->node.resType.bytes, expected);
+        nodesDestroyNode((SNode *)func);
+      }
+    }
+  }
 }
 
 // Temporarily overrides the process-global tsCharsetCxt and guarantees it is

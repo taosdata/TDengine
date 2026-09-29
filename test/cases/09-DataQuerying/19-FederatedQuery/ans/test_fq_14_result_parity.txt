@@ -2006,49 +2006,92 @@ RESULT
 40
 50
 ---
-### join-01 NEG
+### join-01 POS
 SQL: SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id ORDER BY a.id
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10|north
+2|20|south
+3|30|north
+4|40|south
+5|50|east
 ---
-### join-02 NEG
+### join-02 POS
 SQL: SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.id = b.id AND b.val > 30 ORDER BY a.id
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|NULL
+2|NULL
+3|NULL
+4|40
+5|50
 ---
-### join-03 NEG
+### join-03 POS
 SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.id = b.id AND a.val < 30 ORDER BY b.id
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10
+2|20
+NULL|30
+NULL|40
+NULL|50
 ---
-### join-04 NEG
+### join-04 POS
 SQL: SELECT a.id AS aid, b.id AS bid FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.id = b.id + 3 ORDER BY a.id, b.id
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+NULL|3
+NULL|4
+NULL|5
+1|NULL
+2|NULL
+3|NULL
+4|1
+5|2
 ---
-### join-05 NEG
+### join-05 POS
 SQL: SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {tbl} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {tbl} WHERE id >= 4) b ORDER BY a.id, b.id
-ERROR -0x7fffda00: syntax error near "cross join (select id from fq_parity_local.parity_t where id >= 4) b order by a.id, b.id"
+RESULT
+1|4
+1|5
+2|4
+2|5
 ---
-### join-06 NEG
+### join-06 POS
 SQL: SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id GROUP BY a.label ORDER BY a.label
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+east|1|50
+north|2|40
+south|2|60
 ---
-### join-07 NEG
+### join-07 POS
 SQL: SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id INNER JOIN {tbl} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10|north
+2|20|south
+3|30|north
 ---
-### join-08 NEG
+### join-08 POS
 SQL: SELECT a.id, a.val FROM {tbl} a LEFT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY a.id
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
 ---
-### join-09 NEG
+### join-09 POS
 SQL: SELECT a.id, a.val FROM {tbl} a LEFT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY a.id
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
 ---
-### join-10 NEG
+### join-10 POS
 SQL: SELECT b.id, b.val FROM {tbl} a RIGHT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY b.id
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
 ---
-### join-11 NEG
+### join-11 POS
 SQL: SELECT b.id, b.val FROM {tbl} a RIGHT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY b.id
-ERROR -0x7fffd99c: join is not supported for 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
 ---
 ### join-12 POS
 SQL: SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time ORDER BY a.id
@@ -2146,6 +2189,115 @@ RESULT
 1|10|north
 2|20|south
 3|30|north
+---
+### join-25 POS
+SQL: SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.time = b.time AND b.val > 30 ORDER BY a.id
+RESULT
+1|NULL
+2|NULL
+3|NULL
+4|40
+5|50
+---
+### join-26 POS
+SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time AND a.val < 30 ORDER BY b.id
+RESULT
+1|10
+2|20
+NULL|30
+NULL|40
+NULL|50
+---
+### join-27 POS
+SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time WHERE a.val < 30 ORDER BY b.id
+RESULT
+1|10
+2|20
+---
+### join-28 POS
+SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time WHERE b.val > 20 ORDER BY b.id
+RESULT
+3|30
+4|40
+5|50
+---
+### join-29 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl}) a JOIN (SELECT time, id, val FROM {tbl}) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-30 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY time DESC) a JOIN {tbl} b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-31 POS
+SQL: SELECT a.id, b.val FROM {tbl} a JOIN (SELECT time, id, val FROM {tbl} ORDER BY time DESC) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-32 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY time) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY time) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-33 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY val DESC) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY time) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-34 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY val DESC LIMIT 3) a JOIN {tbl} b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+3|30
+4|40
+5|50
+---
+### join-35 POS
+SQL: SELECT a.id, b.val FROM {tbl} a JOIN (SELECT time, id, val FROM {tbl} ORDER BY val LIMIT 2) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+---
+### join-36 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY time DESC LIMIT 2) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY time DESC LIMIT 2) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.time DESC LIMIT 2
+RESULT
+5|50
+4|40
+---
+### join-37 POS
+SQL: SELECT a.id, b.id FROM (SELECT time, id, val FROM {tbl} ORDER BY val DESC LIMIT 3) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY val DESC LIMIT 3) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id
+RESULT
+3|3
+4|4
+5|5
+---
+### join-38 POS
+SQL: SELECT a.id, b.id FROM (SELECT time, id, val FROM {tbl} ORDER BY TIMETRUNCATE(time, 1m)) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY val DESC) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id LIMIT 3
+RESULT
+1|1
+2|2
+3|3
 ---
 ### asof-01 POS
 SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time >= b.time ORDER BY a.time

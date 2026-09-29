@@ -1,0 +1,64 @@
+USE hash_join_snap;
+
+EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device \G;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts \G;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm GROUP BY ts, device) a JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm GROUP BY ts, device) b ON a.ts = b.ts \G;
+
+EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device \G;
+
+EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.device = b.device \G;
+
+EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device \G;
+
+EXPLAIN SELECT a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.device = b.device \G;
+
+EXPLAIN SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device \G;
+
+EXPLAIN SELECT b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.device = b.device \G;
+
+EXPLAIN SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device \G;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM hj_l_stb a JOIN hj_r_stb b ON a.ts = b.ts \G;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts \G;
+SELECT a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts ORDER BY a.ts, a.device;
+SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts ORDER BY a.ts, a.device;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM hj_l_stb a JOIN hj_r_stb b ON a.ts = b.ts \G;
+SELECT a.ts, a.device, b.metric FROM hj_l_stb a JOIN hj_r_stb b ON a.ts = b.ts ORDER BY a.ts, a.device;
+SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM hj_l_stb a JOIN hj_r_stb b ON a.ts = b.ts ORDER BY a.ts, a.device;
+
+EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device \G;
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device ORDER BY a.device, a.val, b.metric;
+SELECT /*+ JOIN_ALGO(HASH) */ a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device ORDER BY a.device, a.val, b.metric;
+
+SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm GROUP BY ts, device) a JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm GROUP BY ts, device) b ON a.ts = b.ts ORDER BY a.ts, a.device;
+SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm GROUP BY ts, device) a JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm GROUP BY ts, device) b ON a.ts = b.ts ORDER BY a.ts, a.device;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY ts) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY ts) b ON a.ts = b.ts \G;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY val) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY metric) b ON a.ts = b.ts \G;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY ts DESC) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY ts ASC) b ON a.ts = b.ts \G;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY TIMETRUNCATE(ts, 1d, 1)) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY ts) b ON a.ts = b.ts \G;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY val) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY metric) b ON a.ts = b.ts \G;
+SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY val) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY metric) b ON a.ts = b.ts ORDER BY a.ts, a.device;
+SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY val) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY metric) b ON a.ts = b.ts ORDER BY a.ts, a.device;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY val) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY metric) b ON a.ts = b.ts ORDER BY a.ts, a.device;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts \G;
+EXPLAIN SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts \G;
+
+SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts ORDER BY a.ts;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts ORDER BY a.ts;
+SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts AND b.status = 1 AND a.val < b.metric ORDER BY a.ts;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts AND b.status = 1 AND a.val < b.metric ORDER BY a.ts;
+
+SELECT /*+ JOIN_ALGO(HASH) */ a.device, b.ts, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.ts = b.ts ORDER BY b.ts;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.device, b.ts, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.ts = b.ts ORDER BY b.ts;
+SELECT /*+ JOIN_ALGO(HASH) */ a.device, b.ts, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.ts = b.ts AND a.region = b.region AND a.val < b.metric ORDER BY b.ts;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.device, b.ts, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.ts = b.ts AND a.region = b.region AND a.val < b.metric ORDER BY b.ts;

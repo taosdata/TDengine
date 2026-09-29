@@ -275,81 +275,152 @@ ERROR -0x7fffd9fe: Invalid column name: ts
 SQL: SELECT a.val, b.bid, b.val2 FROM {I}.ta a RIGHT ASOF JOIN {P}.tb b ON b.time >= a.ts ORDER BY b.time
 ERROR -0x7fffd9fe: Invalid column name: ts
 ---
-### neg-m-01 NEG
+### join-m-01 POS
 SQL: SELECT a.id, b.bid FROM {M}.ta a JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
 ---
-### neg-m-02 NEG
+### join-m-02 POS
 SQL: SELECT a.id, b.bid FROM {M}.ta a FULL JOIN {M}.tb b ON a.id = b.bid
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
+6|NULL
 ---
-### neg-m-03 NEG
+### join-m-03 POS
 SQL: SELECT a.id FROM {M}.ta a LEFT SEMI JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1
+2
+3
+4
+5
 ---
-### neg-m-04 NEG
+### join-m-04 POS
 SQL: SELECT a.id FROM {M}.ta a LEFT ANTI JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+6
 ---
-### neg-m-05 NEG
+### join-m-05 POS
 SQL: SELECT b.bid FROM {M}.ta a RIGHT SEMI JOIN {M}.tb b ON a.id = b.bid ORDER BY b.bid
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1
+2
+3
+4
+5
 ---
-### neg-m-06 NEG
+### join-m-06 POS
 SQL: SELECT b.bid FROM {M}.ta a RIGHT ANTI JOIN {M}.tb b ON a.id = b.bid ORDER BY b.bid
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
 ---
-### neg-p-01 NEG
+### join-p-01 POS
 SQL: SELECT a.id, b.bid FROM {P}.ta a JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
 ---
-### neg-p-02 NEG
+### join-p-02 POS
 SQL: SELECT a.id, b.bid FROM {P}.ta a FULL JOIN {P}.tb b ON a.id = b.bid
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
+6|NULL
 ---
-### neg-p-03 NEG
+### join-p-03 POS
 SQL: SELECT a.id FROM {P}.ta a LEFT SEMI JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1
+2
+3
+4
+5
 ---
-### neg-p-04 NEG
+### join-p-04 POS
 SQL: SELECT a.id FROM {P}.ta a LEFT ANTI JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+6
 ---
-### neg-p-05 NEG
+### join-p-05 POS
 SQL: SELECT b.bid FROM {P}.ta a RIGHT SEMI JOIN {P}.tb b ON a.id = b.bid ORDER BY b.bid
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1
+2
+3
+4
+5
 ---
-### neg-p-06 NEG
+### join-p-06 POS
 SQL: SELECT b.bid FROM {P}.ta a RIGHT ANTI JOIN {P}.tb b ON a.id = b.bid ORDER BY b.bid
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
 ---
-### neg-i-01 NEG
+### join-i-01 POS
 SQL: SELECT a.id, b.bid FROM {I}.ta a JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
 ---
-### neg-i-02 NEG
+### join-i-02 POS
 SQL: SELECT a.id, b.bid FROM {I}.ta a FULL JOIN {I}.tb b ON a.id = b.bid
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
+6|NULL
 ---
-### neg-i-03 NEG
+### join-i-03 POS
 SQL: SELECT a.id FROM {I}.ta a LEFT SEMI JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1
+2
+3
+4
+5
 ---
-### neg-i-04 NEG
+### join-i-04 POS
 SQL: SELECT a.id FROM {I}.ta a LEFT ANTI JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+6
 ---
-### neg-i-05 NEG
+### join-i-05 POS
 SQL: SELECT b.bid FROM {I}.ta a RIGHT SEMI JOIN {I}.tb b ON a.id = b.bid ORDER BY b.bid
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1
+2
+3
+4
+5
 ---
-### neg-i-06 NEG
+### join-i-06 POS
 SQL: SELECT b.bid FROM {I}.ta a RIGHT ANTI JOIN {I}.tb b ON a.id = b.bid ORDER BY b.bid
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
 ---
-### neg-x-01 NEG
+### join-x-01 POS
 SQL: SELECT a.id FROM {M}.ta a JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id
-ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+RESULT
+1
+2
+3
+4
+5
 ---
 ### neg-csub-m-01 NEG
 SQL: SELECT id FROM {M}.ta a WHERE EXISTS (SELECT 1 FROM {M}.tb b WHERE b.ref_id = a.id) ORDER BY id
