@@ -1673,8 +1673,6 @@ static void destroyTableCfg(STableCfg* pCfg) {
   taosMemoryFree(pCfg);
 }
 
-static void destroySmaIndex(void* pIndex) { taosMemoryFree(((STableIndexInfo*)pIndex)->expr); }
-
 void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
 
 static void destroyHintParam(void* pParam) { taosMemoryFree(((SHintParam*)pParam)->value); }
@@ -1851,7 +1849,6 @@ void nodesDestroyNode(SNode* pNode) {
       queryFreeTableMeta(pReal->pMeta);
       pReal->pMeta = NULL;
       taosMemoryFreeClear(pReal->pVgroupList);
-      taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
       taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
       nodesDestroyNode(pReal->pExtTableNode);
@@ -2168,7 +2165,6 @@ void nodesDestroyNode(SNode* pNode) {
       SViewNode* pView = (SViewNode*)pNode;
       taosMemoryFreeClear(pView->pMeta);
       taosMemoryFreeClear(pView->pVgroupList);
-      taosArrayDestroyEx(pView->pSmaIndexes, destroySmaIndex);
       break;
     }
     case QUERY_NODE_WINDOW_OFFSET: {
@@ -2778,7 +2774,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pDynamicScanFuncs);
       nodesDestroyNode(pLogicNode->pTagCond);
       nodesDestroyNode(pLogicNode->pTagIndexCond);
-      taosArrayDestroyEx(pLogicNode->pSmaIndexes, destroySmaIndex);
       nodesDestroyList(pLogicNode->pGroupTags);
       taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
       taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, NULL);

@@ -308,7 +308,6 @@ typedef struct SParseMetaCache {
   SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
   SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool
   SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
-  SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
   SHashObj* pViews;        // key is viewFName, element is SViewMeta*
   SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>

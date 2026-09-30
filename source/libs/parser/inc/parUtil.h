@@ -172,7 +172,6 @@ int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pD
 int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable,
                                    EPrivType privType, EPrivObjType objType, SParseMetaCache* pMetaCache);
 int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache);
-int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache);
 int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
@@ -204,7 +203,6 @@ int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFNam
 int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo);
 int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, SUserAuthInfo* pAuthReq, SUserAuthRes* pAuthRes);
 int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo);
-int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes);
 int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput);
 int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pOutput);
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);
