@@ -6504,7 +6504,14 @@ static int32_t translateForbidFillFunc(STranslateContext* pCxt, SFunctionNode* p
   if (!fmIsForbidFillFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (hasFillClause(pCxt->pCurrStmt)) {
+  bool externalFill = false;
+  if (isSelectStmt(pCxt->pCurrStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    externalFill = pSelect->pWindow != NULL &&
+                   nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW &&
+                   ((SExternalWindowNode*)pSelect->pWindow)->pFill != NULL;
+  }
+  if (hasFillClause(pCxt->pCurrStmt) || externalFill) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC, pFunc->functionName);
   }
   return TSDB_CODE_SUCCESS;
@@ -16812,6 +16819,17 @@ static int32_t checkExternalWindowFillQueryType(STranslateContext* pCxt, SSelect
   SExternalWindowNode* pExtWin = (SExternalWindowNode*)pSelect->pWindow;
   if (NULL == pExtWin->pFill || pSelect->hasAggFuncs) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (pSelect->hasIndefiniteRowsFunc) {
+    EFillMode mode = ((SFillNode*)pExtWin->pFill)->mode;
+    if (mode == FILL_MODE_NONE || mode == FILL_MODE_NULL || mode == FILL_MODE_NULL_F ||
+        mode == FILL_MODE_VALUE || mode == FILL_MODE_VALUE_F) {
+      return TSDB_CODE_SUCCESS;
+    }
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
+                                   "Only FILL(NONE/NULL/NULL_F/VALUE/VALUE_F) is supported "
+                                   "with sequence functions");
   }
 
   return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,

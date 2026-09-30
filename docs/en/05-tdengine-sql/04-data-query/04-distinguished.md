@@ -694,7 +694,6 @@ The SQL above defines three one-minute external windows. If a window contains no
 - The first two columns of the window subquery must be of timestamp type, representing the window start and end times respectively.
 - The window rows returned by the subquery must remain ordered: in the ungrouped case, they must be sorted by window start time, that is, the first column, in ascending order; in the grouped case, they must be sorted by window start time in ascending order within each group. If this requirement is not met, execution fails with an error.
 - If the external window, meaning the inner subquery, uses grouping, the outer query must also use PARTITION BY; otherwise, a syntax error is raised.
-- Variable-row functions such as DIFF and INTERP are not supported within window scope.
 
 ### Window Projection Mode
 

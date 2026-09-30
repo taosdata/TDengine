@@ -85,6 +85,47 @@ class TestStreamDistinctExternalWindow:
             time.sleep(2)
         raise AssertionError(f"{table}: window ts={ts}, tag={tag_tbname} was not emitted")
 
+    def test_stream_external_window_set_functions(self):
+        """Sequence and selection results in the stream external-window path.
+
+        Verify CSUM and TOP results from stream subqueries after the window closes.
+
+        Catalog:
+            - Streams:SubQuery:ExternalWindow
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-09-29 Cover relaxed set functions in stream subqueries.
+        """
+        b = self.BASE + 300000
+        cases = (("csum", "csum(v)", 7), ("top", "top(v, 1)", 4))
+        try:
+            for name, function, _ in cases:
+                tdSql.execute(
+                    f"create stream sdw_src.sdw_set_{name} interval(10s) sliding(10s) "
+                    f"from sdw_src.stb partition by tbname into sdw_out.r_set_{name} as "
+                    f"select _twend as ts, max(result) as result from ("
+                    f"select {function} as result from %%tbname "
+                    "where _c0 >= _twstart and _c0 < _twend)"
+                )
+                tdStream.checkStreamStatus(f"sdw_set_{name}")
+            tdSql.execute(
+                f"insert into sdw_src.t1 values "
+                f"({b}, 'S1', 1),({b + 1000}, 'S2', 2),({b + 2000}, 'S3', 4),"
+                f"({b + 20000}, 'S4', 8)"
+            )
+            for name, _, expected in cases:
+                rows = self._wait_window_row(
+                    f"sdw_out.r_set_{name}", b + 10000, "t1", "result"
+                )
+                assert rows == [(expected,)], (name, rows)
+        finally:
+            for name, _, _ in cases:
+                tdSql.execute(f"drop stream if exists sdw_src.sdw_set_{name}")
+
     def test_stream_count_distinct_external_window(self):
         """COUNT(DISTINCT) in a stream external-window sub-query
 

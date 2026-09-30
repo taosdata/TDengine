@@ -21,6 +21,203 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom
 
 
 class TestExternal:
+    def do_set_function_windows(self):
+        tdSql.execute("drop database if exists ext_set_functions")
+        tdSql.execute("create database ext_set_functions")
+        tdSql.execute("use ext_set_functions")
+        tdSql.execute("create table samples(ts timestamp, v bigint)")
+        tdSql.execute("create table windows(ts timestamp, end_ts timestamp, label int)")
+        base = 1600000000000
+        values = [1, 2, 4, 8, None, 16]
+        tdSql.execute("insert into samples values " + " ".join(
+            f"({base + i * 1000}, {'NULL' if v is None else v})"
+            for i, v in enumerate(values)
+        ))
+        windows = [(0, 3000), (2000, 6000), (6000, 7000)]
+        tdSql.execute("insert into windows values " + " ".join(
+            f"({base + start}, {base + end - 1}, {i})"
+            for i, (start, end) in enumerate(windows)
+        ))
+        clause = "external_window((select ts, end_ts, label from windows order by ts) w)"
+        functions = [
+            "diff(v)", "derivative(v, 1s, 0)", "csum(v)", "mavg(v, 2)",
+            "statecount(v, 'GT', 0)", "stateduration(v, 'GT', 0, 1s)",
+            "lag(v, 1)", "lead(v, 1)", "fill_forward(v)",
+            "top(v, 2)", "bottom(v, 2)",
+            "histogram(v, 'user_input', '[0,3,10,20]', 0)",
+            "csum(v), csum(v * 2)", "lag(v, 1), lead(v, 1)",
+            "mavg(v, 2), mavg(v * 2, 2)",
+        ]
+        natural_results = {}
+        for function in functions:
+            expected = []
+            for start, end in windows:
+                # A single interval over the same input is the existing window baseline.
+                tdSql.query(
+                    f"select {function} from samples where ts >= {base + start} "
+                    f"and ts < {base + end} interval(1d)"
+                )
+                expected.extend((base + start, *row) for row in tdSql.queryResult)
+            tdSql.query(f"select cast(_wstart as bigint), {function} from samples {clause}")
+            assert tdSql.queryResult == expected, function
+            natural_results[function] = list(expected)
+
+        tdSql.query(f"select w.label, cast(ts as bigint), sample(v, 2) from samples {clause}")
+        tdSql.checkRows(4)
+        values_by_ts = {base + i * 1000: value for i, value in enumerate(values)}
+        for label, ts, value in tdSql.queryResult:
+            assert label in (0, 1)
+            assert base + (0 if label == 0 else 2000) <= ts < base + (3000 if label == 0 else 6000)
+            assert value == values_by_ts[ts]
+
+        # Check window attributes and original-row association for selection results.
+        tdSql.query(f"select w.label, cast(ts as bigint), top(v, 2) from samples {clause}")
+        assert sorted(tdSql.queryResult) == [
+            (0, base + 1000, 2), (0, base + 2000, 4),
+            (1, base + 3000, 8), (1, base + 5000, 16),
+        ]
+        for function in [
+            "tail(v, 2)", "unique(v)", "interp(v)",
+            "csum(v), lag(v, 1)", "diff(v), derivative(v, 1s, 0)",
+            "mavg(v, 2), mavg(v, 3)", "sum(v), top(v, 2)",
+            "top(v, 2), bottom(v, 3)",
+        ]:
+            for window in ["interval(1d)", clause]:
+                tdSql.error(f"select {function} from samples {window}")
+        for function in ["top(v, 2)", "bottom(v, 2)", "sample(v, 2)",
+                         "histogram(v, 'user_input', '[0,3,10,20]', 0)"]:
+            for fill in ["none", "null", "null_f", "value, 7", "value_f, 7", "prev", "next", "linear"]:
+                for window in ["interval(1d)", clause]:
+                    tdSql.error(f"select {function} from samples {window} fill({fill})")
+
+        for function in functions[:9]:
+            natural = natural_results[function]
+            for fill, value in [("none", None), ("null", None), ("null_f", None),
+                                ("value, 7", 7), ("value_f, 7", 7)]:
+                expected = natural + ([] if fill == "none" else [(base + 6000, value)])
+                tdSql.query(f"select cast(_wstart as bigint), {function} from samples {clause} fill({fill})")
+                assert tdSql.queryResult == expected, (function, fill)
+            for fill in ["prev", "next", "linear"]:
+                for window in ["interval(1d)", clause]:
+                    tdSql.error(f"select {function} from samples where ts >= {base} "
+                                f"and ts < {base + 7000} {window} fill({fill})")
+
+        projected = [(1, base), (3, base), (7, base),
+                     (4, base + 2000), (12, base + 2000), (28, base + 2000)]
+        tdSql.query(f"select abs(csum(v)), cast(_wstart as bigint) from samples {clause}")
+        assert tdSql.queryResult == projected
+        tdSql.query(f"select cast(_wstart as bigint), abs(csum(v)) from samples {clause}")
+        assert tdSql.queryResult == [(ws, value) for value, ws in projected]
+        for projection in ["lag(v, 1), abs(csum(v))", "csum(v), abs(lag(v, 1))"]:
+            tdSql.error(f"select {projection} from samples {clause}")
+
+        tdSql.query(f"select cast(_wstart as bigint), abs(csum(v)) + 1 from samples {clause} fill(value, 7)")
+        assert tdSql.queryResult == [
+            (base, 2), (base, 4), (base, 8),
+            (base + 2000, 5), (base + 2000, 13), (base + 2000, 29),
+            (base + 6000, 7),
+        ]
+
+        # Forced fill emits empty windows even when no input matches any window.
+        for fill, value in [("none", None), ("null", None), ("value, 7", 7),
+                            ("null_f", None), ("value_f, 7", 7)]:
+            tdSql.query(f"select cast(_wstart as bigint), csum(v) from samples "
+                        f"where ts > {base + 10000} {clause} fill({fill})")
+            expected = [(base + start, value) for start, _ in windows] if "_f" in fill else []
+            assert tdSql.queryResult == expected, fill
+
+        tdSql.execute("delete from windows")
+        tdSql.execute(f"insert into windows values ({base}, {base}, 0) "
+                      f"({base + 1000}, {base + 3000}, 1)")
+        tdSql.query(f"select cast(_wstart as bigint), mavg(v, 2) from samples {clause}")
+        assert tdSql.queryResult == [(base + 1000, 3.0), (base + 1000, 6.0)]
+        tdSql.execute("drop database ext_set_functions")
+        print("external window set functions ......................... [ passed ]")
+
+    def do_set_function_partition_blocks(self):
+        tdSql.execute("drop database if exists ext_set_blocks")
+        tdSql.execute("create database ext_set_blocks vgroups 2")
+        tdSql.execute("use ext_set_blocks")
+        tdSql.execute("create stable samples(ts timestamp, v int) tags(device int)")
+        base = 1600000000000
+        for device in (1, 2):
+            tdSql.execute(f"create table d{device} using samples tags({device})")
+            for start in range(0, 5000, 500):
+                rows = " ".join(
+                    f"({base + i}, {'NULL' if i % 997 == 0 else device})"
+                    for i in range(start, start + 500)
+                )
+                tdSql.execute(f"insert into d{device} values {rows}")
+        tdSql.execute("create table windows(ts timestamp, end_ts timestamp)")
+        ranges = [(0, 4999), (2500, 4999)]
+        tdSql.execute("insert into windows values " + " ".join(
+            f"({base + start}, {base + end})" for start, end in ranges
+        ))
+        for function in [
+            "csum(v)", "mavg(v, 3)", "diff(v)", "lag(v, 1)", "lead(v, 1)",
+            "statecount(v, 'GT', 0)", "stateduration(v, 'GT', 0, 1s)",
+        ]:
+            expected = []
+            for device in (1, 2):
+                for start, end in ranges:
+                    if function == "lead(v, 1)":
+                        # Use explicit values: the existing INTERVAL cross-block LEAD path
+                        # has an independent out-of-bounds pending-output bug.
+                        expected.extend(
+                            (device, base + start,
+                             None if i == end or (i + 1) % 997 == 0 else device)
+                            for i in range(start, end + 1)
+                        )
+                    else:
+                        tdSql.query(
+                            f"select {function} from d{device} "
+                            f"where ts >= {base + start} and ts <= {base + end} interval(1d)"
+                        )
+                        expected.extend((device, base + start, *row) for row in tdSql.queryResult)
+            tdSql.query(
+                f"select device, cast(_wstart as bigint), {function} from samples "
+                "partition by tbname, device external_window((select ts, end_ts from windows order by ts) w)"
+            )
+            actual_groups = {}
+            expected_groups = {}
+            for row in tdSql.queryResult:
+                actual_groups.setdefault(row[:2], []).append(row[2:])
+            for row in expected:
+                expected_groups.setdefault(row[:2], []).append(row[2:])
+            assert actual_groups == expected_groups, function
+        tdSql.execute(f"insert into windows values ({base + 6000}, {base + 7000})")
+        tdSql.query(
+            "select device, cast(_wstart as bigint), csum(v) from samples "
+            "partition by tbname, device external_window((select ts, end_ts from windows order by ts) w) fill(value, 7)"
+        )
+        filled = [row for row in tdSql.queryResult if row[1] == base + 6000]
+        assert sorted(filled) == [(1, base + 6000, 7), (2, base + 6000, 7)]
+        tdSql.execute("drop database ext_set_blocks")
+        print("external window partitioned set functions ......................... [ passed ]")
+
+    def test_set_function_windows(self):
+        """External window set functions follow existing window rules.
+
+        1. Compare sequence, selection and histogram results with interval queries.
+        2. Check overlapping windows, NULLs, empty windows and companion columns.
+        3. Preserve existing invalid function and coexistence rules.
+        4. Compare partitioned windows spanning multiple input and output blocks.
+
+        Catalog:
+            - Timeseries:ExternalWindow
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-16 xsren: Open external window set functions and verify results.
+        """
+        self.do_set_function_windows()
+        self.do_set_function_partition_blocks()
+
     def _check_no_sort_rows(self, sql_rows):
         for sql, rows in sql_rows:
             tdSql.query(sql)
@@ -1469,6 +1666,21 @@ class TestExternal:
             expectErrInfo="External window query cannot be used in a stream query"
         )
 
+        for function in [
+            "diff(v)", "derivative(v, 1s, 0)", "csum(v)", "mavg(v, 2)",
+            "statecount(v, 'GT', 0)", "stateduration(v, 'GT', 0, 1s)",
+            "lag(v, 1)", "lead(v, 1)", "fill_forward(v)",
+            "top(v, 2)", "bottom(v, 2)", "sample(v, 2)",
+            "histogram(v, 'user_input', '[0,10,20,30]', 0)",
+        ]:
+            tdSql.error(
+                f"create stream stream_ext_set interval(10m) sliding(10m) "
+                "from ext_win into stream_out_a as (select _wstart, "
+                f"{function} from ext_cx_src external_window((select ts, endtime from ext_cx_win) w))",
+                fullMatched=False,
+                expectErrInfo="External window query cannot be used in a stream query",
+            )
+
         tdSql.error(
             "create stream stream1 interval(10m) sliding(10m) from ext_win into stream_out_a "
             "as (select cast(_wstart as bigint) as ws, first(v) as fv, last(v) as lv from ext_cx_src partition "
@@ -1485,18 +1697,29 @@ class TestExternal:
             expectErrInfo="External window query cannot be used in a topic query"
         )
 
-        tdSql.error(
+        for function in [
+            "diff(v)", "derivative(v, 1s, 0)", "csum(v)", "mavg(v, 2)",
+            "statecount(v, 'GT', 0)", "stateduration(v, 'GT', 0, 1s)",
+            "lag(v, 1)", "lead(v, 1)", "fill_forward(v)",
+            "top(v, 2)", "bottom(v, 2)", "sample(v, 2)",
+            "histogram(v, 'user_input', '[0,10,20,30]', 0)",
+        ]:
+            tdSql.error(
+                f"create topic topic_ext_set as select _wstart, {function} "
+                "from ext_cx_src external_window((select ts, endtime from ext_cx_win) w)",
+                expectedErrno=0x80002639,
+            )
+
+        tdSql.query(
             "select cast(_wstart as bigint) as ws, top(v, 2) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
             "order by ws",
-            fullMatched=False,
         )
 
-        tdSql.error(
+        tdSql.query(
             "select cast(_wstart as bigint) as ws, bottom(v, 2) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
             "order by ws",
-            fullMatched=False,
         )
 
         tdSql.error(
@@ -1592,11 +1815,10 @@ class TestExternal:
             tdSql.checkData(row, 1, ws)
             tdSql.checkData(row, 2, cd)
 
-        # HISTOGRAM produces multi-row output per group, not compatible with window queries
-        tdSql.error(
+        # HISTOGRAM returns one row per bin in each external window.
+        tdSql.query(
             "select cast(_wstart as bigint) as ws, histogram(v, 'user_input', '[0,10,20,30]', 0) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);",
-            fullMatched=False,
         )
 
     def complex_semantics_regression(self):
