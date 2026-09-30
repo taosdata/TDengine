@@ -204,6 +204,9 @@ static int32_t deserializeRowsetBlocks(const SRowsetSourcePhysiNode* pPhyNode,
     }
     pCur += blockSize;
 
+    // blockDataFromBufWithCapacity() leaves hasNull unset after decoding.
+    blockDataUpdateHasNull(pBlock);
+
     if (taosArrayPush(pArr, &pBlock) == NULL) {
       blockDataDestroy(pBlock);
       code = terrno;

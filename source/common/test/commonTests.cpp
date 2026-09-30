@@ -17,8 +17,9 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
-#include <vector>
+#include <memory>
 #include <string>
+#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -610,6 +611,41 @@ TEST(XnodeDsnConfigTest, LaterConfigSyncKeepsStartupPublicKey) {
 
   taosArrayDestroy(args);
   taosCleanupCfg();
+}
+
+TEST(testCase, blockDataUpdateHasNull_preserves_existing_flags) {
+  for (int32_t type : {TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_VARCHAR}) {
+    SCOPED_TRACE(type);
+    SSDataBlock* pBlock = nullptr;
+    ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> block(
+        pBlock, blockDataDestroy);
+
+    int32_t number = 42;
+    char text[VARSTR_HEADER_SIZE + 3] = {};
+    varDataSetLen(text, 3);
+    memcpy(varDataVal(text), "abc", 3);
+    int32_t bytes = type == TSDB_DATA_TYPE_INT ? sizeof(number) : sizeof(text);
+    auto col = createColumnInfoData(type, bytes, 0);
+    ASSERT_EQ(blockDataAppendColInfo(pBlock, &col), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataEnsureCapacity(pBlock, 1), TSDB_CODE_SUCCESS);
+    auto* pCol = static_cast<SColumnInfoData*>(
+        taosArrayGet(pBlock->pDataBlock, 0));
+    ASSERT_NE(pCol, nullptr);
+    const char* value = type == TSDB_DATA_TYPE_INT ?
+                        reinterpret_cast<const char*>(&number) : text;
+    ASSERT_EQ(colDataSetVal(pCol, 0, value, false), TSDB_CODE_SUCCESS);
+    pBlock->info.rows = 1;
+
+    // A conservative flag may remain after all NULL rows have been removed.
+    for (bool hasNull : {false, true}) {
+      SCOPED_TRACE(hasNull);
+      pCol->hasNull = hasNull;
+      blockDataUpdateHasNull(pBlock);
+      EXPECT_EQ(pCol->hasNull, hasNull);
+      EXPECT_FALSE(colDataIsNull_s(pCol, 0));
+    }
+  }
 }
 
 TEST(testCase, toUIntegerEx_test) {

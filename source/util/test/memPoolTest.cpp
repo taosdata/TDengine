@@ -46,7 +46,6 @@
 #include "taos.h"
 #include "tdef.h"
 #include "tvariant.h"
-#include "stub.h"
 #include "../inc/tmempoolInt.h"
 #include "tglobal.h"
 
@@ -361,31 +360,6 @@ static int32_t MPT_TRY_LOCK(int32_t type, SRWLatch *_lock) {
 
 
 
-
-#if 0
-void joinTestReplaceRetrieveFp() {
-  static Stub stub;
-  stub.set(getNextBlockFromDownstreamRemain, getDummyInputBlock);
-  {
-#ifdef WINDOWS
-    AddrAny                       any;
-    std::map<std::string, void *> result;
-    any.get_func_addr("getNextBlockFromDownstreamRemain", result);
-    for (const auto &f : result) {
-      stub.set(f.second, getDummyInputBlock);
-    }
-#endif
-#ifdef LINUX
-    AddrAny                       any("libexecutor.so");
-    std::map<std::string, void *> result;
-    any.get_global_func_addr_dynsym("^getNextBlockFromDownstreamRemain$", result);
-    for (const auto &f : result) {
-      stub.set(f.second, getDummyInputBlock);
-    }
-#endif
-  }
-}
-#endif
 
 void mptInitLogFile() {
   const char   *defaultLogFileNamePrefix = "mplog";

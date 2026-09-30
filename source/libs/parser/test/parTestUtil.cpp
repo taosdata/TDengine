@@ -68,7 +68,7 @@ void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
-static void initKeywordsTableOnce() {
+void initKeywordsTableOnce() {
   static once_flag once;
   call_once(once, []() {
     int32_t code = qInitKeywordsTable();

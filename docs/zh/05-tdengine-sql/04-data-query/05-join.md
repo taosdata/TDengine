@@ -181,7 +181,7 @@ JOIN (SELECT groupId, AVG(current) AS avg_current
 ON a.groupId = b.groupId;
 ```
 
-条件放宽不解除现有类型、输入来源和嵌套连接限制。ASOF/WINDOW 示例及其专用规则见后续对应章节。
+条件放宽不解除现有类型和输入来源限制。ASOF/WINDOW 示例及其专用规则见后续对应章节。
 
 ## JOIN 算法与 Hint
 
@@ -373,9 +373,11 @@ SELECT ... FROM table_name1 LEFT|RIGHT ASOF JOIN table_name2 [ON ...] [JLIMIT jl
 
 支持超级表、普通表、子表之间的 Left/Right ASOF Join。
 
+从 `v3.4.3.0` 开始，两侧也可以使用虚拟表、FROM 子查询或 JOIN 结果。
+JOIN 结果作为输入的规则见 [多表混合嵌套 JOIN](#多表混合嵌套-join)。
+
 #### 说明
 
-- 只支持表之间的 `ASOF JOIN`，不支持子查询之间的 `ASOF JOIN`。
 - `ON` 子句中支持指定主键列，或主键列经 `TIMETRUNCATE` 运算后的单个匹配规则（主连接条件）；不支持其他标量运算及函数。下表以 `a.ts 运算符 b.ts` 为例，其中 `a` 为左表、`b` 为右表：
 
   | 运算符 | Left ASOF 时含义 |
@@ -405,12 +407,16 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a
 
 #### 定义
 
-左/右窗口连接：根据左/右表每一行的主键时间戳和窗口边界构造窗口并据此连接，支持在窗口内做投影、标量和聚合。
+左/右窗口连接：根据左/右输入每一行的时间参照值和窗口边界构造窗口并据此连接，支持在窗口内做投影、标量和聚合。
 
 #### 语法
 
 ```sql
-SELECT ... FROM table_name1 LEFT|RIGHT WINDOW JOIN table_name2 [ON ...] WINDOW_OFFSET(start_offset, end_offset) [JLIMIT jlimit_num] [WHERE ...] [...]
+SELECT ... FROM table_reference1
+LEFT|RIGHT WINDOW JOIN table_reference2 [ON ...]
+[WINDOW_TIME(left_time_column, right_time_column)]
+WINDOW_OFFSET(start_offset, end_offset)
+[JLIMIT jlimit_num] [WHERE ...] [...]
 ```
 
 #### 结果集
@@ -424,14 +430,26 @@ SELECT ... FROM table_name1 LEFT|RIGHT WINDOW JOIN table_name2 [ON ...] WINDOW_O
 
 支持超级表、普通表、子表之间的 Left/Right Window Join。
 
+从 `v3.4.3.0` 开始，两侧也可以使用虚拟表、FROM 子查询或 JOIN 结果，
+并支持使用 `WINDOW_TIME` 子句指定 WINDOW JOIN 两侧的时间参照列。
+JOIN 结果作为输入的规则见 [多表混合嵌套 JOIN](#多表混合嵌套-join)。
+
 #### 说明
 
-- 只支持表之间的 `WINDOW JOIN`，不支持子查询之间的 `WINDOW JOIN`。
 - `ON` 子句可选，只支持指定除主键列外的标签、普通列（不支持标量函数及运算）之间的等值条件用于分组；所有条件之间只支持 `AND`。
 - `WINDOW_OFFSET` 用于指定窗口左右边界相对左/右表主键时间戳的偏移量，支持自带时间单位的写法，例如 `WINDOW_OFFSET(-1a, 1a)`。对 Left Window Join，表示每个窗口为 `[左表主键时间戳 - 1 毫秒, 左表主键时间戳 + 1 毫秒]`，左右边界均为闭区间。数字后的时间单位可为 `b`（纳秒）、`u`（微秒）、`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周）；不支持自然月（`n`）、自然年（`y`）。支持的最小时间单位为数据库精度，左右表所在数据库精度需一致。
 - `JLIMIT` 用于指定单个窗口内的最大匹配行数，可选；未指定时默认获取每个窗口内的全部匹配行。`JLIMIT` 取值范围为 `[0, 1024]`；指定 `JLIMIT 0` 时返回空结果。若被匹配一侧不足 `jlimit_num` 条，返回行数可能更少；若超过 `jlimit_num` 条，优先返回窗口内主键时间戳最小的 `jlimit_num` 条。
 - SQL 中不能再含其他 `GROUP BY` / `PARTITION BY` / 窗口查询。
 - 支持在 `WHERE` 中做标量过滤；支持在 `HAVING` 中针对每个窗口做聚合函数过滤（不支持标量过滤）；不支持 `SLIMIT`；不支持各种窗口伪列。
+- `WINDOW_TIME` 的第一个参数只在左输入中解析，第二个参数只在右输入中解析。
+  参数只能是 `TIMESTAMP` 列，可以使用输入别名限定；
+  不支持常量、函数或其它表达式。
+- 实际表、虚拟表和 FROM 子查询均可指定非主键 `TIMESTAMP` 列。
+- 未指定 `WINDOW_TIME` 时，实际表和虚拟表使用自身主时间列；FROM 子查询优先使用
+  输出列表中从左到右第一个保留主时间列语义的 `TIMESTAMP` 列。没有这样的列时，
+  使用第一个 `TIMESTAMP` 列，包括常量时间列。选择不依赖子查询的排序状态。
+  主时间列语义的保留规则与 ASOF JOIN 相同。
+- 时间参照列为 `NULL` 的行不参与连接，也不会作为未匹配行返回。
 
 #### 示例
 
@@ -489,7 +507,8 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b ON a.ts =
 - 普通 JOIN 不强制要求主键时间戳列作为连接条件；子查询未输出时间列时仍可按其他列关联，详见 [主键时间线](#主键时间线)。
 - 指定 Merge Hint 不改变子查询自身的排序和取行语义。
 - 子查询内部的 `ORDER BY` 与 `LIMIT` 仍先决定选取哪些行，JOIN 不改变该语义。
-- ASOF/WINDOW 仍要求表输入及主键时间线，详见对应章节。
+- ASOF/WINDOW 仍须满足各自的时间输入要求；使用 JOIN 结果时，
+  详见 [多表混合嵌套 JOIN](#多表混合嵌套-join)。
 
 ### 连接条件限制
 
@@ -509,6 +528,46 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b ON a.ts =
 
 - 普通 JOIN 不保证结果顺序，包括普通表、子表和子查询之间的 JOIN。需要确定顺序时，应显式指定 `ORDER BY`。
 
-### 嵌套 JOIN 与多表 JOIN 限制
+## 多表混合嵌套 JOIN
 
-- 目前除 `INNER JOIN` 支持嵌套与多表 Join 外，其他类型的 Join 暂不支持嵌套与多表 Join。
+自 `v3.4.3.0` 起，JOIN 结果可以作为另一个 JOIN 的左输入或右输入。
+`INNER`、`CROSS`、`LEFT`、`RIGHT`、`FULL`、`SEMI`、`ANTI`、`ASOF`
+和 `WINDOW JOIN` 可以混合嵌套，每层仍遵循对应连接类型的匹配和保留行规则。
+
+使用括号明确连接分组，每层 `ON` 中引用的列须属于该层的左右输入。
+将 JOIN 写在 FROM 子查询中时，外层只能通过子查询别名访问其输出列。
+外连接、SEMI/ANTI 和时序 JOIN 的分组方式会影响结果，不能任意交换连接次序。
+
+### 示例
+
+以下示例还使用 `meters` 的子表 `d1003`，执行前需创建该表并写入数据。
+先按时刻关联两块电表，再为左侧电表的每条记录匹配第三块电表同一时刻或此前最近的读数：
+
+```sql
+SELECT a.ts, a.voltage, b.voltage, c.voltage
+FROM (d1001 a LEFT JOIN d1002 b ON a.ts = b.ts)
+LEFT ASOF JOIN d1003 c ON a.ts >= c.ts;
+```
+
+右输入也可以是 JOIN 结果。下例按 `b.ts` 匹配 `a.ts` 前后 1 秒内的两表关联记录：
+
+```sql
+SELECT a.ts, b.voltage, c.voltage
+FROM d1001 a
+LEFT WINDOW JOIN (d1002 b JOIN d1003 c ON b.ts = c.ts)
+WINDOW_TIME(a.ts, b.ts) WINDOW_OFFSET(-1s, 1s);
+```
+
+### JOIN 结果作为 ASOF/WINDOW 输入
+
+JOIN 结果继续参与 ASOF/WINDOW 时，须提供可用的 `TIMESTAMP` 时间参照列。
+可以在 ASOF 的时间匹配条件或 WINDOW 的 `WINDOW_TIME` 中指定输入的时间列。
+未显式指定时：
+
+- 对普通 JOIN 结果，INNER/CROSS/FULL 从两侧列中选择，LEFT 系列从左侧列中选择，
+  RIGHT 系列从右侧列中选择；按列顺序优先取第一个主时间列，
+  没有主时间列时取第一个 `TIMESTAMP` 列。
+- 对 ASOF/WINDOW 结果，沿用其驱动侧的时间参照列。
+- 对 FROM 子查询，按对应章节的子查询时间列规则选择，所需时间列须在子查询中输出。
+
+选定时间列为 `NULL` 的行不参与外层 ASOF/WINDOW，即使位于驱动侧也不保留。

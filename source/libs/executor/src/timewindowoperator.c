@@ -5480,7 +5480,15 @@ static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock
       pTaskInfo->code = code;
       return code;
     }
-    while (getNextBlockFromDownstreamRemain(pOperator, 0) != NULL) {
+    while (true) {
+      SSDataBlock* pBlock = NULL;
+      code = getNextBlockFromDownstreamChecked(pOperator, 0, false,
+                                               &pBlock);
+      if (TSDB_CODE_SUCCESS != code) {
+        pTaskInfo->code = code;
+        return code;
+      }
+      if (NULL == pBlock) break;
     }
     code = buildExMergeIntervalResultBlock(pOperator);
     if (TSDB_CODE_SUCCESS != code) {

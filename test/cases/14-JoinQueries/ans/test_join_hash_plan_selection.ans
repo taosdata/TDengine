@@ -4,7 +4,7 @@ Database changed.
 
 taos> EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=26 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=26 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Inner Join (columns=4 width=44 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -52,7 +52,7 @@ QUERY_PLAN:                -> Table Scan on r_norm (columns=3 width=30 order=[as
 
 taos> EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=26 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=26 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Left Join (columns=4 width=44 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -68,7 +68,7 @@ QUERY_PLAN:             -> Table Scan on r_norm (columns=3 width=30 order=[asc|1
 
 taos> EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=26 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=26 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Right Join (columns=4 width=44 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -84,7 +84,7 @@ QUERY_PLAN:             -> Table Scan on r_norm (columns=3 width=30 order=[asc|1
 
 taos> EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=26 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=26 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Full Join (columns=4 width=44 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -100,7 +100,7 @@ QUERY_PLAN:             -> Table Scan on r_norm (columns=3 width=30 order=[asc|1
 
 taos> EXPLAIN SELECT a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=22 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=22 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Left Semi Join (columns=3 width=40 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -116,7 +116,7 @@ QUERY_PLAN:             -> Table Scan on r_norm (columns=2 width=26 order=[asc|1
 
 taos> EXPLAIN SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=22 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=22 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Left Anti Join (columns=3 width=40 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -132,7 +132,7 @@ QUERY_PLAN:             -> Table Scan on r_norm (columns=2 width=26 order=[asc|1
 
 taos> EXPLAIN SELECT b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=22 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=22 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Right Semi Join (columns=3 width=40 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -148,7 +148,7 @@ QUERY_PLAN:             -> Table Scan on r_norm (columns=3 width=30 order=[asc|1
 
 taos> EXPLAIN SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=22 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=22 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Right Anti Join (columns=3 width=40 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -190,7 +190,7 @@ QUERY_PLAN:             -> Table Merge Scan on hj_r_stb (columns=2 width=12 orde
 
 taos> EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=30 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=30 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Inner Join (columns=3 width=30 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -220,7 +220,7 @@ taos> SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a JOIN 
 
 taos> EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM hj_l_stb a JOIN hj_r_stb b ON a.ts = b.ts \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=30 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=30 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Inner Join (columns=3 width=30 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -250,7 +250,7 @@ taos> SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM hj_l_stb a JOI
 
 taos> EXPLAIN SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=26 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=26 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Inner Join (columns=4 width=44 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -417,7 +417,7 @@ taos> SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM (SELECT ts, d
 
 taos> EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=30 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=30 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Left Semi Join (columns=3 width=30 input_order=asc algo=Hash)
 *************************** 3.row ***************************

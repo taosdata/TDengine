@@ -609,7 +609,142 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
   return code;
 }
 
+// Propagates a timestamp order from pNode toward the root until an operator
+// establishes or destroys order. pNodeForcePropagate lets one such boundary
+// adopt the supplied order and continue propagation, for example when its
+// Sort is removed. Temporal joins propagate their effective output order
+// instead of a child's physical timestamp order.
+void planSetParentOrder(SLogicNode* pNode, EOrder order,
+                        SLogicNode* pNodeForcePropagate) {
+  if (NULL == pNode) {
+    return;
+  }
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode) &&
+      (IS_ASOF_JOIN(((SJoinLogicNode*)pNode)->subType) ||
+       IS_WINDOW_JOIN(((SJoinLogicNode*)pNode)->subType))) {
+    // Child physical-ts order is not necessarily the effective-time order.
+    planSetParentOrder(pNode->pParent, pNode->outputTsOrder,
+                       pNodeForcePropagate);
+    return;
+  }
+  pNode->inputTsOrder = order;
+  switch (nodeType(pNode)) {
+    // Stop at operators that establish their own output order.
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+      if (pNode == pNodeForcePropagate) {
+        pNode->outputTsOrder = order;
+        break;
+      } else {
+        return;
+      }
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      // Hash output does not preserve the order of its input.
+      if (JOIN_ALGO_HASH == ((SJoinLogicNode*)pNode)->joinAlgo) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      }
+      // Theta may emit unmatched rows after all matched rows, regardless
+      // of the input order. Its parent must establish any required order.
+      if (JOIN_ALGO_THETA == ((SJoinLogicNode*)pNode)->joinAlgo) {
+        order = TSDB_ORDER_NONE;
+        pNode->inputTsOrder = TSDB_ORDER_NONE;
+      }
+      pNode->outputTsOrder = order;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      if (((SWindowLogicNode*)pNode)->winType == WINDOW_TYPE_INTERVAL &&
+          pNode->groupAction != GROUP_ACTION_KEEP) {
+        return;
+      }
+      // Use the window's own order, not its original input order.
+      order = pNode->outputTsOrder;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      if (projectCouldMergeUnsortDataBlock((SProjectLogicNode*)pNode)) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      }
+      pNode->outputTsOrder = order;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION: {
+      return;
+    }
+    default:
+      pNode->outputTsOrder = order;
+      break;
+  }
+  planSetParentOrder(pNode->pParent, order, pNodeForcePropagate);
+}
+
+int32_t planCreateIsNotNullCond(const SNode* pExpr, SNode** ppCond) {
+  SOperatorNode* pOp = NULL;
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp));
+  pOp->opType = OP_TYPE_IS_NOT_NULL;
+  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+
+  int32_t code = nodesCloneNode(pExpr, &pOp->pLeft);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pOp);
+    return code;
+  }
+
+  *ppCond = (SNode*)pOp;
+  return TSDB_CODE_SUCCESS;
+}
+
+SNode* planGetTemporalJoinTimeCond(const SJoinLogicNode* pJoin) {
+  // planPrepareAsofJoinTimeCondition() destroys addPrimEqCond once it has
+  // produced pPrimKeyEqCond, so at most one of the two is live. Prefer the
+  // resolved one so every consumer reads the same operator.
+  return NULL != pJoin->pPrimKeyEqCond ? pJoin->pPrimKeyEqCond :
+                                         pJoin->addPrimEqCond;
+}
+
+int32_t planCreateJoinInputSort(SLogicNode* pChild, SNode* pKey, EOrder order,
+                                SLogicNode** ppSort) {
+  SSortLogicNode* pSort = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSort);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pSort->node.outputTsOrder = order;
+  code = nodesCloneList(pChild->pTargets, &pSort->node.pTargets);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = stbSplCreateMergeKeysByExpr(pKey, order, &pSort->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeAppend(&pSort->node.pChildren, (SNode*)pChild);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSort);
+    return code;
+  }
+  // The caller splices pSort into its slot and owns pSort->node.pParent.
+  pChild->pParent = (SLogicNode*)pSort;
+  *ppSort = (SLogicNode*)pSort;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel requirement) {
+  // Temporal inputs have already been aligned by their effective-time keys,
+  // which may differ from their physical primary timestamps. Require GLOBAL
+  // physical-ts order only when a child advertises it; otherwise a blanket
+  // GLOBAL requirement could reorder the subtree by the wrong time column.
+  if (IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pJoin->node.pChildren) {
+      SLogicNode* pChild = (SLogicNode*)pNode;
+      // The join's GLOBAL requirement concerns its effective-time keys.
+      EDataOrderLevel level = TSDB_ORDER_NONE == pChild->outputTsOrder ?
+          DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
+      int32_t code = adjustLogicNodeDataRequirement(pChild, level);
+      if (TSDB_CODE_SUCCESS != code) return code;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
   // The lowest sort level of join input and output data is DATA_ORDER_LEVEL_GLOBAL
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pJoin->leftConstPrimGot) {

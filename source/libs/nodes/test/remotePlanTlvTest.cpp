@@ -656,3 +656,188 @@ TEST_F(RemotePlanTlvTest, rejectsFilteredNestedNullableLeg) {
     EXPECT_EQ(pSql, nullptr);
   }
 }
+
+namespace {
+
+std::string remoteSortPlanJson(const SNode* node) {
+  char* json = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(node, false, &json, nullptr));
+  std::string result = json == nullptr ? "" : json;
+  taosMemoryFree(json);
+  return result;
+}
+
+SSortLogicNode* makeFilteredRemoteSort(EOrder order, ENullOrder nullOrder) {
+  SScanLogicNode* scan = makeJoinScan("parity_t", "a", false);
+  if (scan == nullptr) return nullptr;
+  auto* ext = (SExtTableNode*)scan->pExtTableNode;
+  tstrncpy(ext->table.tableName, "parity_t", sizeof(ext->table.tableName));
+  tstrncpy(ext->schemaName, "public", sizeof(ext->schemaName));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(
+      (SNode*)scan, nodesDestroyNode);
+  if (!appendTestNode(&scan->pScanCols, makeQualifiedColumn("a", "time"))) {
+    return nullptr;
+  }
+  SNode* column = nullptr;
+  FOREACH(column, scan->pScanCols) {
+    auto* col = (SColumnNode*)column;
+    tstrncpy(col->node.aliasName, col->colName, sizeof(col->node.aliasName));
+    tstrncpy(col->node.userAlias, col->colName, sizeof(col->node.userAlias));
+  }
+  auto* time = (SColumnNode*)nodesListGetNode(scan->pScanCols, 2);
+  time->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  time->node.resType.bytes = sizeof(int64_t);
+  tstrncpy(time->node.aliasName, "time_slot", sizeof(time->node.aliasName));
+  tstrncpy(time->node.userAlias, "event_time", sizeof(time->node.userAlias));
+
+  SSortLogicNode* sort = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&sort));
+  if (sort == nullptr) return nullptr;
+  if (!appendTestNode(&sort->node.pChildren, owner.release())) {
+    nodesDestroyNode((SNode*)sort);
+    return nullptr;
+  }
+  owner.reset((SNode*)sort);
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            nodesCloneList(scan->pScanCols, &sort->node.pTargets));
+  for (int index : {2, 1}) {
+    SOrderByExprNode* key = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&key));
+    if (key == nullptr) return nullptr;
+    key->order = index == 2 ? order : ORDER_DESC;
+    key->nullOrder = index == 2 ? nullOrder : NULL_ORDER_LAST;
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              nodesCloneNode(nodesListGetNode(scan->pScanCols, index),
+                             &key->pExpr));
+    if (!appendTestNode(&sort->pSortKeys, (SNode*)key)) return nullptr;
+  }
+  SNode* value = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeValueNodeFromInt64(20, &value));
+  sort->node.pConditions = makeBinaryOp(
+      OP_TYPE_GREATER_THAN, makeQualifiedColumn("a", "val"), value);
+  return (SSortLogicNode*)owner.release();
+}
+
+}  // namespace
+
+TEST_F(RemotePlanTlvTest, filteredSortOrdersFinalSqlAfterLimitWrapper) {
+  for (int8_t source : {EXT_SOURCE_MYSQL, EXT_SOURCE_POSTGRESQL,
+                       EXT_SOURCE_INFLUXDB}) {
+    for (EOrder order : {ORDER_ASC, ORDER_DESC}) {
+      for (ENullOrder nullOrder : {NULL_ORDER_FIRST, NULL_ORDER_LAST}) {
+        SCOPED_TRACE(source);
+        SCOPED_TRACE(order);
+        SCOPED_TRACE(nullOrder);
+        auto* sort = makeFilteredRemoteSort(order, nullOrder);
+        ASSERT_NE(sort, nullptr);
+        std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(
+            (SNode*)sort, nodesDestroyNode);
+        SLimitNode* limit = nullptr;
+        ASSERT_EQ(TSDB_CODE_SUCCESS,
+                  nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&limit));
+        sort->node.pLimit = (SNode*)limit;
+        ASSERT_EQ(TSDB_CODE_SUCCESS,
+                  nodesMakeValueNodeFromInt64(3, (SNode**)&limit->limit));
+        ASSERT_EQ(TSDB_CODE_SUCCESS,
+                  nodesMakeValueNodeFromInt64(1, (SNode**)&limit->offset));
+        EXPECT_EQ(sort, nodesGetRemoteQueryOutputSort(&sort->node));
+
+        const auto original = remoteSortPlanJson((SNode*)sort);
+        char* sql = nullptr;
+        ASSERT_EQ(TSDB_CODE_SUCCESS,
+                  nodesRemotePlanToSQL(&sort->node, source, nullptr, &sql));
+        EXPECT_EQ(original, remoteSortPlanJson((SNode*)sort));
+        std::string text(sql);
+        taosMemoryFree(sql);
+        SCOPED_TRACE(text);
+        const auto wrapper = text.rfind(") _sq WHERE ");
+        ASSERT_NE(wrapper, std::string::npos);
+        EXPECT_LT(text.find(" LIMIT 3 OFFSET 1"), wrapper);
+        const auto outer = text.substr(wrapper);
+        EXPECT_EQ(outer.find(" LIMIT "), std::string::npos);
+        ASSERT_NE(outer.find(" ORDER BY "), std::string::npos);
+        const std::string quote = source == EXT_SOURCE_MYSQL ? "`" : "\"";
+        const std::string key = quote + "time_slot" + quote;
+        EXPECT_NE(outer.find(key + (order == ORDER_ASC ? " ASC" : " DESC")),
+                  std::string::npos);
+        EXPECT_NE(outer.find(quote + "val" + quote + " DESC"),
+                  std::string::npos);
+        if (source == EXT_SOURCE_MYSQL) {
+          EXPECT_NE(outer.find("ISNULL(" + key + ")" +
+                                  (nullOrder == NULL_ORDER_FIRST ?
+                                       " DESC" : " ASC")),
+                    std::string::npos);
+        } else {
+          EXPECT_NE(outer.find(key +
+                                  (order == ORDER_ASC ? " ASC" : " DESC") +
+                                  (nullOrder == NULL_ORDER_FIRST ?
+                                       " NULLS FIRST" : " NULLS LAST")),
+                    std::string::npos);
+        }
+      }
+    }
+  }
+}
+
+TEST_F(RemotePlanTlvTest, outputOrderProofStopsAtSqlScopeBoundary) {
+  auto* sort = makeFilteredRemoteSort(ORDER_ASC, NULL_ORDER_FIRST);
+  ASSERT_NE(sort, nullptr);
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(
+      (SNode*)sort, nodesDestroyNode);
+  SProjectLogicNode* project = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&project));
+  ASSERT_TRUE(appendTestNode(&project->node.pChildren, owner.release()));
+  owner.reset((SNode*)project);
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesCloneList(sort->node.pTargets, &project->pProjections));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesCloneList(sort->node.pTargets, &project->node.pTargets));
+  EXPECT_EQ(nullptr, nodesGetRemoteQueryOutputSort(&project->node));
+  EXPECT_EQ(sort, nodesGetRemoteQueryOutputSort(&sort->node));
+
+  project->node.pConditions = sort->node.pConditions;
+  sort->node.pConditions = nullptr;
+  EXPECT_EQ(nullptr, nodesGetRemoteQueryOutputSort(&project->node));
+  nodesDestroyNode(project->node.pConditions);
+  project->node.pConditions = nullptr;
+  EXPECT_EQ(sort, nodesGetRemoteQueryOutputSort(&project->node));
+
+  for (SLogicNode* node : {&project->node, &sort->node}) {
+    SLimitNode* limit = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&limit));
+    node->pLimit = (SNode*)limit;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeValueNodeFromInt64(2, (SNode**)&limit->limit));
+  }
+  EXPECT_EQ(nullptr, nodesGetRemoteQueryOutputSort(&project->node));
+  EXPECT_EQ(sort, nodesGetRemoteQueryOutputSort(&sort->node));
+}
+
+TEST_F(RemotePlanTlvTest, filteredSortRejectsHiddenWrapperKey) {
+  auto* sort = makeFilteredRemoteSort(ORDER_ASC, NULL_ORDER_FIRST);
+  ASSERT_NE(sort, nullptr);
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(
+      (SNode*)sort, nodesDestroyNode);
+  nodesListErase(sort->node.pTargets,
+                 nodesListGetCell(sort->node.pTargets, 2));
+  EXPECT_EQ(nullptr, nodesGetRemoteQueryOutputSort(&sort->node));
+  char* sql = nullptr;
+  EXPECT_EQ(TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+            nodesRemotePlanToSQL(&sort->node, EXT_SOURCE_INFLUXDB, nullptr,
+                                 &sql));
+  taosMemoryFree(sql);
+}
+
+TEST_F(RemotePlanTlvTest, filteredSortRejectsKeyFromAnotherRelation) {
+  auto* sort = makeFilteredRemoteSort(ORDER_ASC, NULL_ORDER_FIRST);
+  ASSERT_NE(sort, nullptr);
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(
+      (SNode*)sort, nodesDestroyNode);
+  auto* time = (SColumnNode*)nodesListGetNode(sort->node.pTargets, 2);
+  tstrncpy(time->tableAlias, "b", sizeof(time->tableAlias));
+  EXPECT_EQ(nullptr, nodesGetRemoteQueryOutputSort(&sort->node));
+}

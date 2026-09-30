@@ -84,6 +84,34 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
+ADD_EXECUTABLE(thetaJoinTests thetaJoinTests.cpp)
+DEP_ext_gtest(thetaJoinTests)
+DEP_ext_cppstub(thetaJoinTests)
+TARGET_LINK_LIBRARIES(
+        thetaJoinTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        thetaJoinTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+
+ADD_EXECUTABLE(joinResetTests joinResetTests.cpp)
+DEP_ext_gtest(joinResetTests)
+TARGET_LINK_LIBRARIES(
+        joinResetTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+TARGET_INCLUDE_DIRECTORIES(
+        joinResetTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+
 ADD_EXECUTABLE(queryPlanTests queryPlanTests.cpp)
 DEP_ext_gtest(queryPlanTests)
 DEP_ext_cppstub(queryPlanTests)

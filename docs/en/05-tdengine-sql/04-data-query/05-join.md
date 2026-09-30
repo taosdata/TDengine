@@ -181,7 +181,9 @@ JOIN (SELECT groupId, AVG(current) AS avg_current
 ON a.groupId = b.groupId;
 ```
 
-Broader condition support does not remove existing type, input-source, or nested-join restrictions. See the following ASOF/WINDOW sections for their examples and specific rules.
+Broader condition support does not remove existing type or input-source
+restrictions. See the following ASOF/WINDOW sections for their examples and
+specific rules.
 
 ## Join Algorithms and Hints
 
@@ -373,10 +375,16 @@ The Cartesian product of each row from the left/right table with up to `jlimit_n
 
 Supports Left/Right ASOF Join between supertables, basic tables, and subtables.
 
+Starting with `v3.4.3.0`, either input can also be a virtual table, a FROM
+subquery, or a JOIN result. For rules on using JOIN results as inputs, see
+[Mixed Nested Joins](#mixed-nested-joins).
+
 #### Notes
 
-- Only supports ASOF Join between tables, not between subqueries.
-- The ON clause supports specifying a single match rule based on the primary key column or the timetruncate function of the primary key column (does not support other scalar operations and functions). The following table assumes `a.ts operator b.ts`, where `a` is the left table and `b` is the right table:
+- The ON clause supports specifying a single match rule based on the primary key
+  column or the timetruncate function of the primary key column (does not
+  support other scalar operations and functions). The following table assumes
+  `a.ts operator b.ts`, where `a` is the left table and `b` is the right table:
 
   |    **Operator**   |       **Meaning for Left ASOF**       |
   | :-------------: | ------------------------ |
@@ -388,10 +396,21 @@ Supports Left/Right ASOF Join between supertables, basic tables, and subtables.
 
   For Right ASOF, each right-side row selects the closest records from the left table that satisfy the comparison. For example, `ON a.ts <= b.ts` matches left-side records at or before the right-side timestamp.
 
-- If the ON clause is absent or does not specify a primary key match rule, the default matches records at or before the driving row's timestamp: Left ASOF is equivalent to `ON a.ts >= b.ts`, and Right ASOF to `ON a.ts <= b.ts`, where `a` is the left table and `b` is the right table. Multiple primary join conditions are not supported.
-- The ON clause can also specify equality conditions between tags or normal columns (scalar functions and operations not supported) for grouped calculations, other types of conditions are not supported.
+- If the ON clause is absent or does not specify a primary key match rule, the
+  default matches records at or before the driving row's timestamp: Left ASOF is
+  equivalent to `ON a.ts >= b.ts`, and Right ASOF to `ON a.ts <= b.ts`, where
+  `a` is the left table and `b` is the right table. Multiple primary join
+  conditions are not supported.
+- The ON clause can also specify equality conditions between tags or normal
+  columns (scalar functions and operations not supported) for grouped
+  calculations, other types of conditions are not supported.
 - All conditions in the ON clause only support the `AND` operation.
-- `JLIMIT` optionally specifies the maximum number of matches per driving row. The default is `1`, so each left/right row obtains at most one match from the right/left table. The range is `[0, 1024]`; `JLIMIT 0` returns an empty result. The matching rows need not share a timestamp. Fewer than `jlimit_num` rows may be returned if fewer matches exist. When more matches exist, the choice among rows tied at the cutoff timestamp is unspecified.
+- `JLIMIT` optionally specifies the maximum number of matches per driving row.
+  The default is `1`, so each left/right row obtains at most one match from the
+  right/left table. The range is `[0, 1024]`; `JLIMIT 0` returns an empty
+  result. The matching rows need not share a timestamp. Fewer than `jlimit_num`
+  rows may be returned if fewer matches exist. When more matches exist, the
+  choice among rows tied at the cutoff timestamp is unspecified.
 
 #### Example
 
@@ -405,33 +424,78 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a
 
 #### Definition
 
-Left/Right Window Join - Constructs windows based on the primary key timestamps of each row in the left/right table and the window boundaries, and performs window joins accordingly, supporting projection, scalar, and aggregation operations within the window.
+Left/Right Window Join - Constructs windows based on the time reference values
+of each row in the left/right input and the window boundaries, and performs
+window joins accordingly, supporting projection, scalar, and aggregation
+operations within the window.
 
 #### Syntax
 
 ```sql
-SELECT ... FROM table_name1 LEFT|RIGHT WINDOW JOIN table_name2 [ON ...] WINDOW_OFFSET(start_offset, end_offset) [JLIMIT jlimit_num] [WHERE ...] [...]
+SELECT ... FROM table_reference1
+LEFT|RIGHT WINDOW JOIN table_reference2 [ON ...]
+[WINDOW_TIME(left_time_column, right_time_column)]
+WINDOW_OFFSET(start_offset, end_offset)
+[JLIMIT jlimit_num] [WHERE ...] [...]
 ```
 
 #### Result Set
 
 One of the following:
 
-- Each left/right row paired with up to `jlimit_num` right/left rows within the window defined by the driving row's primary timestamp and `WINDOW_OFFSET`, or with `NULL` values if no match exists.
-- Each left/right row combined with aggregate results over up to `jlimit_num` rows in that window. With no matches, the result depends on the aggregate function: for example, `COUNT(b.voltage)` is `0`, whereas `AVG(b.voltage)` is `NULL`, where `b` is the table being matched.
+- Each left/right row paired with up to `jlimit_num` right/left rows within the
+  window defined by the driving row's primary timestamp and `WINDOW_OFFSET`, or
+  with `NULL` values if no match exists.
+- Each left/right row combined with aggregate results over up to `jlimit_num`
+  rows in that window. With no matches, the result depends on the aggregate
+  function: for example, `COUNT(b.voltage)` is `0`, whereas `AVG(b.voltage)` is
+  `NULL`, where `b` is the table being matched.
 
 #### Applicable Scenarios
 
 Supports Left/Right Window Join between supertables, basic tables, and subtables.
 
+Starting with `v3.4.3.0`, either input can also be a virtual table, a FROM
+subquery, or a JOIN result. The `WINDOW_TIME` clause can specify the time
+reference column for each WINDOW JOIN input. For rules on using JOIN results
+as inputs, see [Mixed Nested Joins](#mixed-nested-joins).
+
 #### Notes
 
-- Only supports Window Join between tables, not between subqueries;
 - The `ON` clause is optional, only supports specifying equality conditions between tags and normal columns (excluding scalar functions and operations) other than the primary key column for grouped calculations, and only supports `AND` operations between all conditions;
-- `WINDOW_OFFSET` is used to specify the left and right boundaries of the window relative to the primary key timestamp of the left/right table, supporting formats with built-in time units, for example: `WINDOW_OFFSET(-1a, 1a)` for a Left Window Join, represents each window as [left table primary key timestamp - 1 millisecond, left table primary key timestamp + 1 millisecond], both boundaries are closed intervals. The time units following the numbers can be `b` (nanoseconds), `u` (microseconds), `a` (milliseconds), `s` (seconds), `m` (minutes), `h` (hours), `d` (days), `w` (weeks), does not support natural months (`n`), natural years (`y`), and the smallest supported time unit is the database precision, the precision of the databases of the left and right tables must be consistent.
-- `JLIMIT` optionally specifies the maximum number of matching rows in each window. By default, all matching rows are used. The range is `[0, 1024]`; `JLIMIT 0` returns an empty result. If the input being matched has fewer than `jlimit_num` matches, fewer rows may be returned. If it has more, the `jlimit_num` rows with the earliest primary timestamps in the window are used.
+- `WINDOW_OFFSET` is used to specify the left and right boundaries of the window
+  relative to the primary key timestamp of the left/right table, supporting
+  formats with built-in time units, for example: `WINDOW_OFFSET(-1a, 1a)` for a
+  Left Window Join, represents each window as
+  [left table primary key timestamp - 1 millisecond,
+  left table primary key timestamp + 1 millisecond], with both boundaries
+  included. The time units following the numbers can be
+  `b` (nanoseconds), `u` (microseconds), `a` (milliseconds), `s` (seconds), `m`
+  (minutes), `h` (hours), `d` (days), `w` (weeks), does not support natural
+  months (`n`), natural years (`y`), and the smallest supported time unit is the
+  database precision, the precision of the databases of the left and right
+  tables must be consistent.
+- `JLIMIT` optionally specifies the maximum number of matching rows in each
+  window. By default, all matching rows are used. The range is `[0, 1024]`;
+  `JLIMIT 0` returns an empty result. If the input being matched has fewer than
+  `jlimit_num` matches, fewer rows may be returned. If it has more, the
+  `jlimit_num` rows with the earliest primary timestamps in the window are used.
 - SQL statements cannot contain other `GROUP BY`/`PARTITION BY`/window queries;
 - Supports scalar filtering in the `WHERE` clause, supports aggregation function filtering for each window in the `HAVING` clause (does not support scalar filtering), does not support `SLIMIT`, does not support various window pseudocolumns;
+- The first `WINDOW_TIME` argument is resolved only in the left input, and the
+  second only in the right input. Arguments must be `TIMESTAMP` columns and can
+  be qualified by input aliases. Constants, functions, and other expressions
+  are not supported.
+- Actual tables, virtual tables, and FROM subqueries can specify a non-primary
+  key `TIMESTAMP` column.
+- Without `WINDOW_TIME`, actual and virtual tables use their primary timestamp
+  column. A FROM subquery prefers the first `TIMESTAMP` column in its output
+  list that preserves primary timestamp semantics. If no such column exists,
+  it uses the first `TIMESTAMP` column, including a constant timestamp.
+  Selection is independent of input ordering. The rules for preserving primary
+  timestamp semantics are the same as for ASOF JOIN.
+- Rows with a `NULL` time reference do not participate in the join and are not
+  returned as unmatched rows.
 
 #### Examples
 
@@ -489,7 +553,8 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b ON a.ts =
 - Ordinary JOINs do not require a primary timestamp column in the join condition; subqueries without a time column can still join on other columns. See [Primary Key Timeline](#primary-key-timeline).
 - A JOIN algorithm Hint does not change the ordering or row-selection semantics of a subquery.
 - A subquery's ORDER BY and LIMIT still determine which rows it selects before the join; JOIN does not change that behavior.
-- ASOF/WINDOW still require table inputs and primary key timelines; see their respective sections.
+- ASOF/WINDOW inputs must still meet their respective time requirements.
+  For JOIN results as inputs, see [Mixed Nested Joins](#mixed-nested-joins).
 
 ### Join Condition Limitations
 
@@ -509,6 +574,55 @@ These restrictions apply to grouping for ASOF/WINDOW matching:
 
 - Ordinary JOINs do not guarantee result order, including joins between regular tables, subtables, and subqueries. Use explicit `ORDER BY` when a defined order is required.
 
-### Nested Join and Multi-table Join Limitations
+## Mixed Nested Joins
 
-- Currently, except for Inner Join which supports nested and multi-table Joins, other types of Joins do not support nested and multi-table Joins.
+Starting with `v3.4.3.0`, a JOIN result can be the left or right input of
+another JOIN. `INNER`, `CROSS`, `LEFT`, `RIGHT`, `FULL`, `SEMI`, `ANTI`,
+`ASOF`, and `WINDOW JOIN` can be mixed and nested across multiple tables.
+Each JOIN follows its own rules for matching and retaining rows.
+
+Use parentheses to specify the grouping of joins. Columns referenced in each
+`ON` clause must belong to that JOIN's left or right input. When a JOIN is
+inside a FROM subquery, the outer query can access only the subquery's output
+columns through its alias. Grouping affects the results of outer, SEMI/ANTI,
+and temporal joins, so their order cannot be changed arbitrarily.
+
+### Examples
+
+These examples also use `d1003`, a subtable of `meters`. Create it and insert
+data before running the queries. The first example joins two meters by time,
+then matches each row from the left meter with the third meter's nearest
+reading at or before that time:
+
+```sql
+SELECT a.ts, a.voltage, b.voltage, c.voltage
+FROM (d1001 a LEFT JOIN d1002 b ON a.ts = b.ts)
+LEFT ASOF JOIN d1003 c ON a.ts >= c.ts;
+```
+
+The right input can also be a JOIN result. This example uses `b.ts` to match
+the joined rows from two tables within one second before or after `a.ts`:
+
+```sql
+SELECT a.ts, b.voltage, c.voltage
+FROM d1001 a
+LEFT WINDOW JOIN (d1002 b JOIN d1003 c ON b.ts = c.ts)
+WINDOW_TIME(a.ts, b.ts) WINDOW_OFFSET(-1s, 1s);
+```
+
+### JOIN Results as ASOF/WINDOW Inputs
+
+A JOIN result used as an ASOF/WINDOW input must provide a usable `TIMESTAMP`
+time reference column. Specify it in the ASOF time matching condition or the
+WINDOW `WINDOW_TIME` clause. If it is not specified explicitly:
+
+- For ordinary JOIN results, INNER/CROSS/FULL select from both sides, LEFT
+  variants select from the left side, and RIGHT variants select from the
+  right side. The first primary timestamp column in column order takes
+  precedence; if none exists, the first `TIMESTAMP` column is used.
+- For ASOF/WINDOW results, the driving side's time reference column is reused.
+- For FROM subqueries, follow the subquery time column rules in the respective
+  sections. The required time column must be included in the subquery output.
+
+Rows whose selected time column is `NULL` do not participate in the outer
+ASOF/WINDOW JOIN, even on the driving side.

@@ -1366,6 +1366,77 @@ class TestFq14ResultParity(ParityTestBase):
         if run_full_flat:
             self.do_verify_filtered_full_join()
 
+    def test_fq_temporal_join_filtered_input_order(self):
+        """Temporal JOIN preserves remote input order after filtering.
+
+        1. Check explicit ASOF and WINDOW results for both preserved sides.
+        2. Cover aliases, descending inputs, LIMIT and OFFSET.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-28 Tony Zhang Verify filtered temporal input ordering
+        """
+        self.do_verify_temporal_join_filtered_input_order()
+
+    def do_verify_temporal_join_filtered_input_order(self):
+        asof_rows = [(3, 30, 30), (4, 40, 40), (5, 50, 50)]
+        window_rows = [
+            (3, 30, 10), (3, 30, 20), (3, 30, 30),
+            (3, 30, 40), (3, 30, 50),
+            (4, 40, 20), (4, 40, 30), (4, 40, 40), (4, 40, 50),
+            (5, 50, 30), (5, 50, 40), (5, 50, 50),
+        ]
+        cases = []
+        for side, preserved, other in [("LEFT", "a", "b"),
+                                        ("RIGHT", "b", "a")]:
+            for kind, clause, expected in [
+                ("ASOF", f"ON {preserved}.time >= {other}.time",
+                 asof_rows),
+                ("WINDOW", "WINDOW_OFFSET(-2m, 2m)", window_rows),
+            ]:
+                sql = (
+                    f"SELECT {preserved}.id, {preserved}.val, {other}.val "
+                    f"FROM {{tbl}} a {side} {kind} JOIN {{tbl}} b "
+                    f"{clause} WHERE {preserved}.val > 20 "
+                    f"ORDER BY {preserved}.time, {other}.time"
+                )
+                cases.append((sql, expected))
+                cases.append((sql.replace(" > 20 ", " > 50 "), []))
+
+        limited_input = (
+            "(SELECT event_time, id, val FROM "
+            "(SELECT time AS event_time, id, val FROM {tbl} "
+            "ORDER BY time DESC LIMIT 3 OFFSET 1) s)"
+        )
+        for kind, clause, expected in [
+            ("ASOF", "ON a.event_time >= b.time", asof_rows[:2]),
+            ("WINDOW", "WINDOW_OFFSET(-2m, 2m)", window_rows[:9]),
+        ]:
+            sql = (
+                "SELECT a.id, a.val, b.val FROM " + limited_input +
+                f" a LEFT {kind} JOIN {{tbl}} b {clause} "
+                "WHERE a.val > 20 ORDER BY a.event_time, b.time"
+            )
+            cases.append((sql, expected))
+
+        sources = [("local", self._local_tbl)] + self._ext_sources()
+        for label, table in sources:
+            for template, expected in cases:
+                sql = template.format(tbl=table)
+                tdSql.query(sql)
+                actual = [tuple(row) for row in tdSql.queryResult]
+                assert actual == expected, (
+                    f"[{label}] temporal input order mismatch: {sql}\n"
+                    f"expected={expected!r}\nactual={actual!r}"
+                )
+
     def do_verify_filtered_full_join(self):
         selected = {
             part.strip()

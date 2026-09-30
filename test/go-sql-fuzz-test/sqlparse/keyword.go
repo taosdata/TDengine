@@ -373,6 +373,7 @@ var Keywords = map[string]int{
 	"WINDOW_OPEN":           WINDOW_OPEN,
 	"WINDOW_CLOSE":          WINDOW_CLOSE,
 	"WINDOW_OFFSET":         WINDOW_OFFSET,
+	"WINDOW_TIME":           WINDOW_TIME,
 	"WIN_OPTIMIZE_BATCH":    WIN_OPTIMIZE_BATCH,
 	"WIN_OPTIMIZE_SINGLE":   WIN_OPTIMIZE_SINGLE,
 	"WITH":                  WITH,

@@ -2610,44 +2610,41 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
   return TSDB_CODE_SUCCESS;
 }
 
-static void setColumnPrimTs(STranslateContext* pCxt, SColumnNode* pCol, const STableNode* pTable) {
-  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId || TSDB_DATA_TYPE_TIMESTAMP != pCol->node.resType.type) {
-    return;
+static bool joinPreservesTablePrimaryTs(const SNode* pNode,
+                                        const char* pTableAlias) {
+  if (QUERY_NODE_JOIN_TABLE != nodeType(pNode)) {
+    return 0 == strcmp(((const STableNode*)pNode)->tableAlias, pTableAlias);
   }
-
-  bool            joinQuery = false;
-  SJoinTableNode* pJoinTable = NULL;
-  if (QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
-      QUERY_NODE_JOIN_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
-    joinQuery = true;
-    pJoinTable = (SJoinTableNode*)((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
+  const SJoinTableNode* pJoin = (const SJoinTableNode*)pNode;
+  if (IS_SEMI_JOIN(pJoin->subType)) {
+    return joinPreservesTablePrimaryTs(pJoin->pLeft, pTableAlias) ||
+           joinPreservesTablePrimaryTs(pJoin->pRight, pTableAlias);
   }
-
-  pCol->isPrimTs = true;
-
-  if (!joinQuery) {
-    return;
-  }
-
-  switch (pJoinTable->joinType) {
+  switch (pJoin->joinType) {
     case JOIN_TYPE_INNER:
-      pCol->isPrimTs = true;
-      break;
+      return joinPreservesTablePrimaryTs(pJoin->pLeft, pTableAlias) ||
+             joinPreservesTablePrimaryTs(pJoin->pRight, pTableAlias);
     case JOIN_TYPE_LEFT:
-      if (!IS_SEMI_JOIN(pJoinTable->subType) &&
-          0 != strcmp(pTable->tableAlias, ((STableNode*)pJoinTable->pLeft)->tableAlias)) {
-        pCol->isPrimTs = false;
-      }
-      break;
+      return joinPreservesTablePrimaryTs(pJoin->pLeft, pTableAlias);
     case JOIN_TYPE_RIGHT:
-      if (!IS_SEMI_JOIN(pJoinTable->subType) &&
-          0 != strcmp(pTable->tableAlias, ((STableNode*)pJoinTable->pRight)->tableAlias)) {
-        pCol->isPrimTs = false;
-      }
-      break;
+      return joinPreservesTablePrimaryTs(pJoin->pRight, pTableAlias);
     default:
-      pCol->isPrimTs = false;
-      break;
+      return false;
+  }
+}
+
+static void setColumnPrimTs(STranslateContext* pCxt, SColumnNode* pCol,
+                            const STableNode* pTable) {
+  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId ||
+      TSDB_DATA_TYPE_TIMESTAMP != pCol->node.resType.type) {
+    return;
+  }
+  pCol->isPrimTs = true;
+  if (QUERY_NODE_SELECT_STMT != nodeType(pCxt->pCurrStmt)) return;
+
+  SNode* pFrom = ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
+  if (NULL != pFrom && QUERY_NODE_JOIN_TABLE == nodeType(pFrom)) {
+    pCol->isPrimTs = joinPreservesTablePrimaryTs(pFrom, pTable->tableAlias);
   }
 }
 
@@ -9799,31 +9796,224 @@ _return:
   return code;
 }
 
-static int32_t addPrimJoinEqCond(SNode** pCond, SRealTableNode* leftTable, SRealTableNode* rightTable,
+typedef struct SJoinTimeInput {
+  SNode*         pTable;
+  SExprNode*     pProjection;
+  const SSchema* pSchema;
+  SColumnNode*   pExplicitCol;
+  uint8_t        precision;
+} SJoinTimeInput;
+
+static void setJoinInputFromMeta(SJoinTimeInput* pInput,
+                                 struct STableMeta* pMeta) {
+  pInput->pSchema = findPrimaryTsSchema(pMeta);
+  pInput->precision = pMeta->tableInfo.precision;
+}
+
+static bool joinInputContainsColumn(SNode* pTable,
+                                    const SColumnNode* pColumn) {
+  if (QUERY_NODE_JOIN_TABLE != nodeType(pTable)) {
+    return belongTable(pColumn, (STableNode*)pTable);
+  }
+  SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+  return joinInputContainsColumn(pJoin->pLeft, pColumn) ||
+         joinInputContainsColumn(pJoin->pRight, pColumn);
+}
+
+static int32_t findJoinTimeColumn(STranslateContext* pCxt, SNode* pTable,
+                                  SNode** ppColumn, bool qualified,
+                                  bool* pFound) {
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+    PAR_ERR_RET(findJoinTimeColumn(pCxt, pJoin->pLeft, ppColumn, qualified,
+                                  pFound));
+    PAR_ERR_RET(findJoinTimeColumn(pCxt, pJoin->pRight, ppColumn, qualified,
+                                  pFound));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnNode* pColumn = (SColumnNode*)*ppColumn;
+  if (qualified && !belongTable(pColumn, (STableNode*)pTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  bool found = false;
+  int32_t code = findAndSetColumn(pCxt, (SColumnNode**)ppColumn,
+                                (STableNode*)pTable, &found, true);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  if (found && *pFound) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf,
+                               TSDB_CODE_PAR_AMBIGUOUS_COLUMN,
+                               pColumn->colName);
+  }
+  *pFound |= found;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Resolves a WINDOW_TIME column against the join side it was written for,
+// rewriting it in place the same way an ordinary column reference is bound.
+static int32_t resolveJoinTimeColumn(STranslateContext* pCxt, SNode* pTable,
+                                     SNode** ppColumn) {
+  SColumnNode* pColumn = (SColumnNode*)*ppColumn;
+  if ('\0' != pColumn->tableAlias[0] &&
+      !joinInputContainsColumn(pTable, pColumn)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                TSDB_CODE_PAR_INVALID_COLUMN,
+                                pColumn->colName);
+  }
+
+  bool    found = false;
+  int32_t code = findJoinTimeColumn(pCxt, pTable, ppColumn,
+                                   '\0' != pColumn->tableAlias[0], &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pColumn = (SColumnNode*)*ppColumn;
+  if (!found) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                TSDB_CODE_PAR_INVALID_COLUMN,
+                                pColumn->colName);
+  }
+  if (TSDB_DATA_TYPE_TIMESTAMP != pColumn->node.resType.type) {
+    return generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+        "WINDOW_TIME requires TIMESTAMP columns");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static SExprNode* findJoinTimeProjection(SNode* pSubquery,
+                                         const char* pColName) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, getProjectList(pSubquery)) {
+    SExprNode* pExpr = (SExprNode*)pNode;
+    if (0 == strcmp(pColName, pExpr->aliasName)) {
+      return pExpr;
+    }
+  }
+  return NULL;
+}
+
+// Resolves the effective time input of one join side. ppExplicitCol, when not
+// NULL, points at the WINDOW_TIME column supplied for this side and replaces
+// the default discovery; otherwise the time column is inferred.
+static int32_t resolveJoinTimeInput(STranslateContext* pCxt, SNode* pTable,
+                                    SNode** ppExplicitCol,
+                                    SJoinTimeInput* pInput) {
+  pInput->pTable = pTable;
+  pInput->pExplicitCol = NULL;
+
+  SColumnNode* pExplicitCol = NULL;
+  if (NULL != ppExplicitCol) {
+    int32_t code = resolveJoinTimeColumn(pCxt, pTable, ppExplicitCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    pExplicitCol = (SColumnNode*)*ppExplicitCol;
+    pInput->pExplicitCol = pExplicitCol;
+    if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
+      pInput->precision = pExplicitCol->node.resType.precision;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    SRealTableNode* pReal = (SRealTableNode*)pTable;
+    if (TSDB_SUPER_TABLE != pReal->pMeta->tableType &&
+        TSDB_CHILD_TABLE != pReal->pMeta->tableType &&
+        TSDB_NORMAL_TABLE != pReal->pMeta->tableType) {
+      return generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+          "Unsupported ASOF/WINDOW join table type");
+    }
+    setJoinInputFromMeta(pInput, pReal->pMeta);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+    setJoinInputFromMeta(pInput, ((SVirtualTableNode*)pTable)->pMeta);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pTable)) {
+    SNode* pSubquery = ((STempTableNode*)pTable)->pSubquery;
+    if (NULL != pExplicitCol) {
+      pInput->pProjection =
+          findJoinTimeProjection(pSubquery, pExplicitCol->colName);
+    } else {
+      // Prefer a primary time column regardless of input ordering. Keep the
+      // first TIMESTAMP projection, including constants, as the fallback.
+      SNode*     pNode = NULL;
+      SExprNode* pTimeExpr = NULL;
+      FOREACH(pNode, getProjectList(pSubquery)) {
+        SExprNode* pExpr = (SExprNode*)pNode;
+        if (TSDB_DATA_TYPE_TIMESTAMP != pExpr->resType.type) {
+          continue;
+        }
+        if (isPrimaryKeyImpl(pNode)) {
+          pTimeExpr = pExpr;
+          break;
+        }
+        if (NULL == pTimeExpr) {
+          pTimeExpr = pExpr;
+        }
+      }
+      pInput->pProjection = pTimeExpr;
+    }
+    if (NULL != pInput->pProjection) {
+      pInput->precision = pInput->pProjection->resType.precision;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return generateSyntaxErrMsgExt(
+      &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+      "Join requires a TIMESTAMP input");
+}
+
+static int32_t setJoinTimeColumn(const SJoinTimeInput* pInput,
+                                 SNode** ppColumn) {
+  int32_t code = NULL != pInput->pExplicitCol ?
+      nodesCloneNode((SNode*)pInput->pExplicitCol, ppColumn) :
+      nodesMakeNode(QUERY_NODE_COLUMN, ppColumn);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  // An explicit WINDOW_TIME column is already bound, except on a subquery
+  // input where it must be re-resolved against the projection list below.
+  if (NULL != pInput->pExplicitCol &&
+      QUERY_NODE_TEMP_TABLE != nodeType(pInput->pTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)*ppColumn;
+  if (QUERY_NODE_REAL_TABLE == nodeType(pInput->pTable)) {
+    SRealTableNode* pReal = (SRealTableNode*)pInput->pTable;
+    setColumnInfoBySchema(pReal, pInput->pSchema, -1, pCol, NULL);
+    pCol->isPrimTs = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_VIRTUAL_TABLE == nodeType(pInput->pTable)) {
+    SVirtualTableNode* pVirtual = (SVirtualTableNode*)pInput->pTable;
+    setVtbColumnInfoBySchema(pVirtual, pInput->pSchema, -1, NULL, pCol);
+    pCol->isPrimTs = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STempTableNode* pTemp = (STempTableNode*)pInput->pTable;
+  code = setColumnInfoByExpr(pTemp, pInput->pProjection,
+                             (SColumnNode**)ppColumn, true);
+  if (TSDB_CODE_SUCCESS == code) {
+    ((SColumnNode*)*ppColumn)->projRefIdx = pInput->pProjection->projIdx;
+  }
+  return code;
+}
+
+static int32_t addPrimJoinEqCond(SNode** pCond,
+                                 const SJoinTimeInput* pLeftInput,
+                                 const SJoinTimeInput* pRightInput,
                                  EJoinType joinType, EJoinSubType subType) {
-  struct STableMeta* pLMeta = leftTable->pMeta;
-  struct STableMeta* pRMeta = rightTable->pMeta;
-
-  // Find the primary timestamp column index for each side.
-  // For native TDengine tables schema[0] is always the timestamp, but for
-  // external tables (e.g. InfluxDB) columns may be alphabetically ordered
-  // and the timestamp can be at any position.
-  int32_t leftPrimIdx = 0;
-  for (int32_t i = 0; i < pLMeta->tableInfo.numOfColumns; ++i) {
-    if (TSDB_DATA_TYPE_TIMESTAMP == pLMeta->schema[i].type) {
-      leftPrimIdx = i;
-      break;
-    }
-  }
-  int32_t rightPrimIdx = 0;
-  for (int32_t i = 0; i < pRMeta->tableInfo.numOfColumns; ++i) {
-    if (TSDB_DATA_TYPE_TIMESTAMP == pRMeta->schema[i].type) {
-      rightPrimIdx = i;
-      break;
-    }
-  }
-
-  *pCond = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR, pCond);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
@@ -9832,49 +10022,20 @@ static int32_t addPrimJoinEqCond(SNode** pCond, SRealTableNode* leftTable, SReal
   SOperatorNode* pOp = (SOperatorNode*)*pCond;
   pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
   pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-  if (IS_WINDOW_JOIN(subType)) {
-    pOp->opType = OP_TYPE_EQUAL;
-  } else if (JOIN_TYPE_LEFT == joinType) {
-    pOp->opType = OP_TYPE_GREATER_EQUAL;
-  } else {
-    pOp->opType = OP_TYPE_LOWER_EQUAL;
-  }
+  pOp->opType = IS_WINDOW_JOIN(subType)
+                    ? OP_TYPE_EQUAL
+                    : (JOIN_TYPE_LEFT == joinType ? OP_TYPE_GREATER_EQUAL
+                                                  : OP_TYPE_LOWER_EQUAL);
 
-  SColumnNode* pLeft = NULL;
-  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pLeft);
+  code = setJoinTimeColumn(pLeftInput, &pOp->pLeft);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setJoinTimeColumn(pRightInput, &pOp->pRight);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode(*pCond);
-    return code;
+    *pCond = NULL;
   }
-  pLeft->node.resType.type = pLMeta->schema[leftPrimIdx].type;
-  pLeft->node.resType.bytes = pLMeta->schema[leftPrimIdx].bytes;
-  pLeft->tableId = pLMeta->uid;
-  pLeft->colId = pLMeta->schema[leftPrimIdx].colId;
-  pLeft->colType = COLUMN_TYPE_COLUMN;
-  tstrncpy(pLeft->tableName, leftTable->table.tableName, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pLeft->tableAlias, leftTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pLeft->colName, pLMeta->schema[leftPrimIdx].name, TSDB_COL_NAME_LEN);
-
-  pOp->pLeft = (SNode*)pLeft;
-
-  SColumnNode* pRight = NULL;
-  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pRight);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(*pCond);
-    return code;
-  }
-  pRight->node.resType.type = pRMeta->schema[rightPrimIdx].type;
-  pRight->node.resType.bytes = pRMeta->schema[rightPrimIdx].bytes;
-  pRight->tableId = pRMeta->uid;
-  pRight->colId = pRMeta->schema[rightPrimIdx].colId;
-  pRight->colType = COLUMN_TYPE_COLUMN;
-  tstrncpy(pRight->tableName, rightTable->table.tableName, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pRight->tableAlias, rightTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pRight->colName, pRMeta->schema[rightPrimIdx].name, TSDB_COL_NAME_LEN);
-
-  pOp->pRight = (SNode*)pRight;
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static bool getJoinContais(SNode* pNode) {
@@ -9934,90 +10095,154 @@ static bool isExternalRealTable(const SRealTableNode* pTable) {
   return pTable != NULL && pTable->pExtTableNode != NULL;
 }
 
+static bool isNoOrderedSubQuery(SNode* pTable) {
+  if (QUERY_NODE_TEMP_TABLE != nodeType(pTable)) {
+    return false;
+  }
+  return !isOrderedTimeSeriesInput(((STempTableNode*)pTable)->pSubquery);
+}
+
+// Table kinds accepted as a direct input of an ASOF/WINDOW join. A JOIN
+// result is accepted here but its time input is resolved by the planner,
+// not by resolveJoinTimeInput().
+static bool isTemporalJoinInput(SNode* pTable) {
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_REAL_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
+    case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_JOIN_TABLE:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// A WINDOW_OFFSET may not be finer than the join's time precision.
+static int32_t checkWindowJoinOffsetUnits(STranslateContext* pCxt,
+                                          SJoinTableNode* pJoinTable,
+                                          uint8_t winPrec) {
+  SWindowOffsetNode* pWinOffset =
+      (SWindowOffsetNode*)pJoinTable->pWindowOffset;
+  SValueNode* pStart = (SValueNode*)pWinOffset->pStartOffset;
+  SValueNode* pEnd = (SValueNode*)pWinOffset->pEndOffset;
+  switch (winPrec) {
+    case TSDB_TIME_PRECISION_MILLI:
+      if (TIME_UNIT_NANOSECOND == pStart->unit ||
+          TIME_UNIT_MICROSECOND == pStart->unit) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                    TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT,
+                                    pStart->unit);
+      }
+      if (TIME_UNIT_NANOSECOND == pEnd->unit ||
+          TIME_UNIT_MICROSECOND == pEnd->unit) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                    TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT,
+                                    pEnd->unit);
+      }
+      break;
+    case TSDB_TIME_PRECISION_MICRO:
+      if (TIME_UNIT_NANOSECOND == pStart->unit) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                    TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT,
+                                    pStart->unit);
+      }
+      if (TIME_UNIT_NANOSECOND == pEnd->unit) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                    TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT,
+                                    pEnd->unit);
+      }
+      break;
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   if (!pJoinTable->isCrossJoin && NULL == pJoinTable->pOnCond &&
-      (JOIN_STYPE_NONE == pJoinTable->subType || JOIN_STYPE_OUTER == pJoinTable->subType ||
-       JOIN_STYPE_SEMI == pJoinTable->subType || JOIN_STYPE_ANTI == pJoinTable->subType)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "JOIN requires an ON clause; use CROSS JOIN for an unconditional join");
+      (JOIN_STYPE_NONE == pJoinTable->subType ||
+       JOIN_STYPE_OUTER == pJoinTable->subType ||
+       JOIN_STYPE_SEMI == pJoinTable->subType ||
+       JOIN_STYPE_ANTI == pJoinTable->subType)) {
+    return generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+        "JOIN requires an ON clause; use CROSS JOIN for an unconditional join");
   }
 
-  if (JOIN_STYPE_NONE != pJoinTable->subType && getBothJoinContais(pJoinTable->pLeft, pJoinTable->pRight)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN, "unsupported nested join type");
+  bool temporalJoin = IS_ASOF_JOIN(pJoinTable->subType) ||
+                      IS_WINDOW_JOIN(pJoinTable->subType);
+
+  if (temporalJoin && (!isTemporalJoinInput(pJoinTable->pLeft) ||
+                       !isTemporalJoinInput(pJoinTable->pRight))) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+                                   TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                   "Unsupported ASOF/WINDOW join input");
   }
 
-  if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {
-    if (QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pLeft) || QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pRight)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "only ASOF/WINDOW join between tables is supported");
+  bool hasJoinInput = getBothJoinContais(pJoinTable->pLeft,
+                                        pJoinTable->pRight);
+  // Default JOIN time keys and their precision are selected by the planner.
+  // Explicit keys remain bound to their public input columns here.
+  if (temporalJoin && (!hasJoinInput || NULL != pJoinTable->pWindowTime)) {
+    SJoinTimeInput leftInput = {0};
+    SJoinTimeInput rightInput = {0};
+    SNode**        ppLeftCol = NULL;
+    SNode**        ppRightCol = NULL;
+    if (NULL != pJoinTable->pWindowTime) {
+      SListCell* pLeftCell = nodesListGetCell(pJoinTable->pWindowTime, 0);
+      SListCell* pRightCell = nodesListGetCell(pJoinTable->pWindowTime, 1);
+      if (NULL == pLeftCell || NULL == pRightCell) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      ppLeftCol = &pLeftCell->pNode;
+      ppRightCol = &pRightCell->pNode;
     }
-
-    SRealTableNode* pLeft = (SRealTableNode*)pJoinTable->pLeft;
-    if (TSDB_SUPER_TABLE != pLeft->pMeta->tableType && TSDB_CHILD_TABLE != pLeft->pMeta->tableType &&
-        TSDB_NORMAL_TABLE != pLeft->pMeta->tableType) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "Unsupported ASOF/WINDOW join table type");
+    int32_t code = resolveJoinTimeInput(pCxt, pJoinTable->pLeft, ppLeftCol,
+                                        &leftInput);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = resolveJoinTimeInput(pCxt, pJoinTable->pRight, ppRightCol,
+                                  &rightInput);
     }
-
-    SRealTableNode* pRight = (SRealTableNode*)pJoinTable->pRight;
-    if (TSDB_SUPER_TABLE != pRight->pMeta->tableType && TSDB_CHILD_TABLE != pRight->pMeta->tableType &&
-        TSDB_NORMAL_TABLE != pRight->pMeta->tableType) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "Unsupported ASOF/WINDOW join table type");
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
     }
-
-    bool isFederated = isExternalRealTable(pLeft) || isExternalRealTable(pRight);
+    bool isFederated = tableHasExternalTable(pJoinTable->pLeft) ||
+                       tableHasExternalTable(pJoinTable->pRight);
     if (IS_WINDOW_JOIN(pJoinTable->subType)) {
-      uint8_t leftPrec  = pLeft->pMeta ? pLeft->pMeta->tableInfo.precision : pLeft->table.precision;
-      uint8_t rightPrec = pRight->pMeta ? pRight->pMeta->tableInfo.precision : pRight->table.precision;
+      uint8_t leftPrec = leftInput.precision;
+      uint8_t rightPrec = rightInput.precision;
       if (leftPrec != rightPrec && !isFederated) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                       "only WINDOW join between tables with the same precision is supported");
+        return generateSyntaxErrMsgExt(
+            &pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+            "Only support WINDOW join between tables with same precision");
       }
 
       uint8_t winPrec = isFederated ? TMAX(leftPrec, rightPrec) : leftPrec;
-      SWindowOffsetNode* pWinOffset = (SWindowOffsetNode*)pJoinTable->pWindowOffset;
-      SValueNode*        pStart = (SValueNode*)pWinOffset->pStartOffset;
-      SValueNode*        pEnd = (SValueNode*)pWinOffset->pEndOffset;
-      switch (winPrec) {
-        case TSDB_TIME_PRECISION_MILLI:
-          if (TIME_UNIT_NANOSECOND == pStart->unit || TIME_UNIT_MICROSECOND == pStart->unit) {
-            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pStart->unit);
-          }
-          if (TIME_UNIT_NANOSECOND == pEnd->unit || TIME_UNIT_MICROSECOND == pEnd->unit) {
-            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pEnd->unit);
-          }
-          break;
-        case TSDB_TIME_PRECISION_MICRO:
-          if (TIME_UNIT_NANOSECOND == pStart->unit) {
-            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pStart->unit);
-          }
-          if (TIME_UNIT_NANOSECOND == pEnd->unit) {
-            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pEnd->unit);
-          }
-          break;
-        default:
-          break;
+      int32_t offsetCode =
+          checkWindowJoinOffsetUnits(pCxt, pJoinTable, winPrec);
+      if (TSDB_CODE_SUCCESS != offsetCode) {
+        return offsetCode;
       }
     }
 
-    int32_t code =
-        addPrimJoinEqCond(&pJoinTable->addPrimCond, pLeft, pRight, pJoinTable->joinType, pJoinTable->subType);
+    code = addPrimJoinEqCond(&pJoinTable->addPrimCond, &leftInput,
+                             &rightInput, pJoinTable->joinType,
+                             pJoinTable->subType);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
 
     if (isFederated) {
-      uint8_t lPrec = pLeft->pMeta ? pLeft->pMeta->tableInfo.precision : pLeft->table.precision;
-      uint8_t rPrec = pRight->pMeta ? pRight->pMeta->tableInfo.precision : pRight->table.precision;
-      if (lPrec != rPrec) {
-        int8_t targetPrec = (int8_t)TMAX(lPrec, rPrec);
+      uint8_t leftPrec = leftInput.precision;
+      uint8_t rightPrec = rightInput.precision;
+      if (leftPrec != rightPrec) {
+        int8_t targetPrec = (int8_t)TMAX(leftPrec, rightPrec);
         SOperatorNode* pOp = (SOperatorNode*)pJoinTable->addPrimCond;
-        if (lPrec < (uint8_t)targetPrec) {
+        if (leftPrec < (uint8_t)targetPrec) {
           code = createTimestampScaleNode(pOp->pLeft, targetPrec, &pOp->pLeft);
           if (TSDB_CODE_SUCCESS != code) return code;
         }
-        if (rPrec < (uint8_t)targetPrec) {
+        if (rightPrec < (uint8_t)targetPrec) {
           code = createTimestampScaleNode(pOp->pRight, targetPrec, &pOp->pRight);
           if (TSDB_CODE_SUCCESS != code) return code;
         }
@@ -10033,22 +10258,10 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
     }
   }
 
-  if (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
-      !isOrderedTimeSeriesInput(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) {
-    if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "Join requires valid time series input");
-    }
-    pJoinTable->leftNoOrderedSubQuery = true;
-  }
-
-  if (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pRight) &&
-      !isOrderedTimeSeriesInput(((STempTableNode*)pJoinTable->pRight)->pSubquery)) {
-    if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "Join requires valid time series input");
-    }
-    pJoinTable->rightNoOrderedSubQuery = true;
+  if (!temporalJoin) {
+    pJoinTable->leftNoOrderedSubQuery = isNoOrderedSubQuery(pJoinTable->pLeft);
+    pJoinTable->rightNoOrderedSubQuery =
+        isNoOrderedSubQuery(pJoinTable->pRight);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -10124,7 +10337,23 @@ static int32_t translateJoinTableImpl(STranslateContext* pCxt, SJoinTableNode* p
   return code;
 }
 
+typedef struct SJoinCondsValidateContext {
+  SJoinTableNode* pJoin;
+  int32_t        code;
+} SJoinCondsValidateContext;
+
+static bool isJoinConditionTimeColumn(SJoinTableNode* pJoin,
+                                      SColumnNode* pColumn) {
+  if (PRIMARYKEY_TIMESTAMP_COL_ID == pColumn->colId) return true;
+  if (TSDB_DATA_TYPE_TIMESTAMP != pColumn->node.resType.type) return false;
+  return (getJoinContais(pJoin->pLeft) &&
+          joinInputContainsColumn(pJoin->pLeft, pColumn)) ||
+         (getJoinContais(pJoin->pRight) &&
+          joinInputContainsColumn(pJoin->pRight, pColumn));
+}
+
 EDealRes joinCondsValidater(SNode* pNode, void* pContext) {
+  SJoinCondsValidateContext* pCxt = pContext;
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_CONDITION: {
       SLogicConditionNode* pLogic = (SLogicConditionNode*)pNode;
@@ -10148,13 +10377,15 @@ EDealRes joinCondsValidater(SNode* pNode, void* pContext) {
       }
       if (QUERY_NODE_COLUMN == nodeType(pOp->pLeft)) {
         SColumnNode* pCol = (SColumnNode*)pOp->pLeft;
-        if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId && OP_TYPE_EQUAL != pOp->opType) {
+        if (OP_TYPE_EQUAL != pOp->opType &&
+            !isJoinConditionTimeColumn(pCxt->pJoin, pCol)) {
           break;
         }
       }
       if (QUERY_NODE_COLUMN == nodeType(pOp->pRight)) {
         SColumnNode* pCol = (SColumnNode*)pOp->pRight;
-        if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId && OP_TYPE_EQUAL != pOp->opType) {
+        if (OP_TYPE_EQUAL != pOp->opType &&
+            !isJoinConditionTimeColumn(pCxt->pJoin, pCol)) {
           break;
         }
       }
@@ -10188,7 +10419,7 @@ EDealRes joinCondsValidater(SNode* pNode, void* pContext) {
       break;
   }
 
-  *(int32_t*)pContext = TSDB_CODE_QRY_INVALID_JOIN_CONDITION;
+  pCxt->code = TSDB_CODE_QRY_INVALID_JOIN_CONDITION;
   return DEAL_RES_ERROR;
 }
 
@@ -10197,10 +10428,10 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = 0;
-  nodesWalkExpr(pJoinTable->pOnCond, joinCondsValidater, &code);
+  SJoinCondsValidateContext cxt = {.pJoin = pJoinTable};
+  nodesWalkExpr(pJoinTable->pOnCond, joinCondsValidater, &cxt);
 
-  return code;
+  return cxt.code;
 }
 
 static int32_t cloneVgroups(SVgroupsInfo** pDst, SVgroupsInfo* pSrc) {

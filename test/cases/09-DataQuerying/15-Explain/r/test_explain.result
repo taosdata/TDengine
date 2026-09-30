@@ -2399,7 +2399,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> Sort input_order=asc output_order=desc  (columns=3 width=16)
+QUERY_PLAN:    -> Sort input_order=unknown output_order=desc  (columns=3 width=16)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=3 width=16
 *************************** 7.row ***************************
@@ -2457,7 +2457,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> Sort input_order=asc output_order=asc  (columns=3 width=16)
+QUERY_PLAN:    -> Sort input_order=unknown output_order=asc  (columns=3 width=16)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=3 width=16
 *************************** 7.row ***************************

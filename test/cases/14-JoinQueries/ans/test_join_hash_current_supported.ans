@@ -238,7 +238,7 @@ taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device =
 
 taos> EXPLAIN SELECT a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=30 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=30 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Inner Join (columns=4 width=48 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -254,7 +254,7 @@ QUERY_PLAN:             -> Table Scan on r_norm (columns=3 width=30 order=[asc|1
 
 taos> EXPLAIN SELECT a.ts, a.device, a.val FROM l_full_partial a LEFT SEMI JOIN r_full_partial b ON a.device = b.device AND b.status = 1 \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=30 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=30 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Left Semi Join (columns=4 width=48 input_order=asc algo=Hash)
 *************************** 3.row ***************************

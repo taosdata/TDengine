@@ -2016,6 +2016,9 @@ int32_t clearStatesForOperator(SOperatorInfo* pOper) {
     code = pOper->fpSet.resetStateFn(pOper);
   }
   pOper->status = OP_NOT_OPENED;
+  // recordOpExecEnd() accumulates this for every operator, so the generic
+  // reset walk owns clearing it rather than each operator's resetStateFn.
+  pOper->resultInfo.totalRows = 0;
   for (int32_t i = 0; i < pOper->numOfDownstream && code == 0; ++i) {
     code = clearStatesForOperator(pOper->pDownstream[i]);
   }

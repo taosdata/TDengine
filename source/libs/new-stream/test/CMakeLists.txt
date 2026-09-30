@@ -30,6 +30,7 @@ TARGET_INCLUDE_DIRECTORIES(
   PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
   PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PRIVATE "${TD_SOURCE_DIR}/source/libs/executor/inc"
 )
 
 TARGET_LINK_LIBRARIES(
