@@ -42,7 +42,6 @@ productName="TDengine"
 serverName="taosd"
 clientName="taos"
 configFile="taos.cfg"
-tarName="package.tar.gz"
 dumpName="taosdump"
 benchmarkName="taosBenchmark"
 toolsName="taostools"
@@ -285,15 +284,6 @@ if [ "$verMode" == "cloud" ]; then
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 
-cd ${release_dir}
-rm -f "${tarName}"
-if ! tar -zcv -f "${tarName}" -C "${install_dir}" --exclude="./${tarName}" .; then
-  echo "failed to pack ${tarName} !!!"
-  exit 1
-fi
-find "${install_dir}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-mv -f "${tarName}" "${install_dir}/${tarName}"
-
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
 cp ${install_dir}/install.sh install_temp.sh
@@ -456,10 +446,10 @@ if [ "$pagMode" == "lite" ]; then
 fi
 
 
-final_pkg_name="$(basename "${pkg_name}").tar.gz"
+final_pkg_name="$(basename "${pkg_name}").tar.xz"
 rm -f "${final_pkg_name}"
-if ! tar -zcv -f "${final_pkg_name}" "$(basename "${install_dir}")"; then
-  echo "failed to pack ${final_pkg_name} !!!"
+if ! tar -Jcv -f "${final_pkg_name}" "$(basename "${install_dir}")"; then
+  echo "tar ${final_pkg_name} error !!!"
   exit 1
 fi
 [ -n "${install_dir}" ] && [ "${install_dir}" != "/" ] && rm -rf "${install_dir}"

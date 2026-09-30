@@ -40,7 +40,6 @@ clientName="taos"
 benchmarkName="taosBenchmark"
 dumpName="taosdump"
 configFile="taos.cfg"
-tarName="package.tar.gz"
 
 benchmarkName2="${clientName2}Benchmark"
 dumpName2="${clientName2}dump"
@@ -158,17 +157,6 @@ if [ -f ${build_dir}/bin/jemalloc-config ]; then
   if [ -f ${build_dir}/share/man/man3/jemalloc.3 ]; then
     cp ${build_dir}/share/man/man3/jemalloc.3 ${install_dir}/jemalloc/share/man/man3
   fi
-fi
-
-cd ${install_dir}
-
-if [ "$osType" != "Darwin" ]; then
-  tar -zcv -f ${tarName} * --remove-files || :
-else
-  tar -zcv -f ${tarName} * || :
-  mv ${tarName} ..
-  rm -rf ./*
-  mv ../${tarName} .
 fi
 
 cd ${curr_dir}
@@ -298,10 +286,10 @@ if [ "$pagMode" == "lite" ]; then
 fi
 
 if [ "$osType" != "Darwin" ]; then
-  tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
+  tar -Jcv -f "$(basename ${pkg_name}).tar.xz" $(basename ${install_dir}) --remove-files || :
 else
-  tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) || :
-#  mv "$(basename ${pkg_name}).tar.gz" ..
+  tar -Jcv -f "$(basename ${pkg_name}).tar.xz" $(basename ${install_dir}) || :
+#  mv "$(basename ${pkg_name}).tar.xz" ..
   rm -rf ${install_dir} ||:
-#  mv ../"$(basename ${pkg_name}).tar.gz" .
+#  mv ../"$(basename ${pkg_name}).tar.xz" .
 fi

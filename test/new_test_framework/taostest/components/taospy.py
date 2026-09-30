@@ -66,12 +66,12 @@ class TaosPy:
         if installFlag == True:
             # get package from server
             filePath = f"{rootPath}/v{client_version}/enterprise"
-            fileName = f"TDengine-enterprise-client-{client_version}-Linux-x64.tar.gz"
+            fileName = f"tdengine-tsdb-enterprise-client-{client_version}-linux-x64.tar.xz"
             self._remote.get(server, f"{filePath}/{fileName}", "/tmp/", password)
             # push package to host
             filePath = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
             filePath = f"taostest-install-{filePath}"
-            pkgDir = f"TDengine-enterprise-client-{client_version}"
+            pkgDir = f"tdengine-tsdb-enterprise-client-{client_version}"
             self._remote.put(host, f"/tmp/{fileName}", f"/tmp/{filePath}")
             # extract package && install
             cmds = [f"pip3 install taospy=={version}"]
@@ -86,7 +86,7 @@ class TaosPy:
         self._remote.put(host, package, f"/tmp/{filePath}")
         # extract package && install
         fileName = os.path.basename(package)
-        cmds = [f"cd /tmp/{filePath}", f"tar xzf {fileName}", f"rm -f {fileName}", f"ls | tail -n1"]
+        cmds = [f"cd /tmp/{filePath}", f"tar -xf {fileName}", f"rm -f {fileName}", f"ls | tail -n1"]
         pkgDir = self._remote.cmd(host, cmds)
         if not pkgDir is None:
             pkgDir = pkgDir.strip()

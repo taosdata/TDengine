@@ -2,6 +2,7 @@
 
 # Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
+# pack_community_tar.sh — Generate community edition tar.xz packages (server + client)
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # This program is free software: you can use, redistribute, and/or modify
@@ -12,6 +13,9 @@
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 # FITNESS FOR A PARTICULAR PURPOSE.
 #
+# Output:
+#   <community_dir>/release/TDengine-server-<ver>-Linux-<arch>.tar.xz
+#   <community_dir>/release/TDengine-client-<ver>-Linux-<arch>.tar.xz
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
@@ -238,11 +242,6 @@ for header in \
   copy_if_exists "$header" "${server_dir}/inc/"
 done
 
-# --- Create inner package.tar.gz ---
-echo "  Creating inner package.tar.gz..."
-cd "${server_dir}"
-tar -zcf package.tar.gz bin cfg inc --remove-files
-
 # --- Outer package: driver/ ---
 mkdir -p "${server_dir}/driver"
 cp "${build_dir}/lib/libtaos.so" "${server_dir}/driver/libtaos.so.${version}"
@@ -322,12 +321,12 @@ echo "  Creating server tar.gz..."
 cd "${release_dir}"
 
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
-  server_tar_name="${server_pkg_name}-${verType}-${os_type}-${arch}.tar.gz"
+  server_tar_name="${server_pkg_name}-${verType}-${os_type}-${arch}.tar.xz"
 else
-  server_tar_name="${server_pkg_name}-${os_type}-${arch}.tar.gz"
+  server_tar_name="${server_pkg_name}-${os_type}-${arch}.tar.xz"
 fi
 
-tar -zcf "${server_tar_name}" "$(basename "$server_dir")" --remove-files
+tar -Jcf "${server_tar_name}" "$(basename "$server_dir")" --remove-files
 echo "  ✓ Server package: ${release_dir}/${server_tar_name}"
 
 # ======================== Build Client Package ========================
@@ -374,11 +373,6 @@ for header in \
   copy_if_exists "$header" "${client_dir}/inc/"
 done
 
-# --- Create inner package.tar.gz ---
-echo "  Creating inner package.tar.gz..."
-cd "${client_dir}"
-tar -zcf package.tar.gz bin cfg inc --remove-files
-
 # --- Outer package: driver/ ---
 mkdir -p "${client_dir}/driver"
 cp "${build_dir}/lib/libtaos.so" "${client_dir}/driver/libtaos.so.${version}"
@@ -401,12 +395,12 @@ echo "  Creating client tar.gz..."
 cd "${release_dir}"
 
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
-  client_tar_name="${client_pkg_name}-${verType}-${os_type}-${arch}.tar.gz"
+  client_tar_name="${client_pkg_name}-${verType}-${os_type}-${arch}.tar.xz"
 else
-  client_tar_name="${client_pkg_name}-${os_type}-${arch}.tar.gz"
+  client_tar_name="${client_pkg_name}-${os_type}-${arch}.tar.xz"
 fi
 
-tar -zcf "${client_tar_name}" "$(basename "$client_dir")" --remove-files
+tar -Jcf "${client_tar_name}" "$(basename "$client_dir")" --remove-files
 echo "  ✓ Client package: ${release_dir}/${client_tar_name}"
 
 # ======================== Summary ========================

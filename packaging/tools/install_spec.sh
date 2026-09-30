@@ -37,7 +37,6 @@ productName="TDengine"
 emailName="taosdata.com"
 uninstallScript="rm${PREFIX}"
 historyFile="${PREFIX}_history"
-tarName="package.tar.gz"
 
 adapterName="${PREFIX}adapter"
 benchmarkName="${PREFIX}Benchmark"
@@ -954,10 +953,6 @@ function updateProduct() {
   fi
 
   # Start to update
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
 
   if echo $osinfo | grep -qwi "centos"; then
     rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
@@ -965,7 +960,6 @@ function updateProduct() {
     dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
   fi
 
-  tar -zxf ${tarName}
   # install_jemalloc
 
   echo "Start to update ${productName}..."
@@ -1056,11 +1050,6 @@ function updateProduct() {
 
 function installProduct() {
   # Start to install
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
-  tar -zxf ${tarName}
 
   echo "Start to install ${productName}..."
 
@@ -1145,7 +1134,6 @@ function installProduct() {
 
   cd $script_dir
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 
 
   if grep -q "export PATH=\$bin_link_dir:\$PATH" ~/.bashrc; then

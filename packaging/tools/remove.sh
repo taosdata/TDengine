@@ -21,6 +21,8 @@ set -e
 verMode=edge
 osType=$(uname)
 entMode=full
+packageRole=full
+packageRoleExplicit=0
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
@@ -52,13 +54,14 @@ function usage() {
   echo "  yes: remove the data, log, and configuration files."
   echo "  no:  don't remove the data, log, and configuration files."
   echo "-d: (optional) custom install directory, e.g. /usr/local/${PREFIX} (only needed if auto-detect fails)"
+  echo "-m: package role (full, core or extension)"
 }
 
 # main
 interactive_remove="yes"
 remove_flag="false"
 customDir=""
-while getopts "e:d:h" opt; do
+while getopts "e:d:hm:" opt; do
   case $opt in
     e)
       interactive_remove="no"
@@ -76,6 +79,15 @@ while getopts "e:d:h" opt; do
       ;;
     d)
       customDir="$OPTARG"
+      ;;
+    m)
+      packageRole=$(echo "$OPTARG" | tr '[:upper:]' '[:lower:]')
+      packageRoleExplicit=1
+      if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+        echo "Invalid package role: $OPTARG"
+        usage
+        exit 1
+      fi
       ;;
     h | *)
       usage
@@ -118,6 +130,9 @@ else
     exit 1
   fi
 fi
+
+# An installed extension records its role in the installation directory.
+# Explicit -m remains the override for recovery and compatibility cases.
 
 
 validate_safe_path() {
@@ -164,6 +179,18 @@ else
   config_dir="${installDir}/cfg"
   service_config_dir="$HOME/.config/systemd/user"
   sysctl_cmd="systemctl --user"
+fi
+
+if [ "$packageRoleExplicit" -eq 0 ]; then
+  if [ -f "${installDir}/.package-role" ]; then
+    packageRole=$(tr '[:upper:]' '[:lower:]' < "${installDir}/.package-role")
+  elif [ -f "${installDir}/.extension-files" ] && [ ! -f "${installDir}/uninstall.sh" ]; then
+    packageRole=extension
+  fi
+fi
+if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+  echo "Invalid installed package role: $packageRole"
+  exit 1
 fi
 
 # 4. All other path variables are based on installDir
@@ -469,12 +496,79 @@ function remove_install_dir() {
   if [ -f "${install_main_dir:?}/.install_path" ]; then
     rm -f "${install_main_dir:?}/.install_path"
   fi
+  if [ -f "${install_main_dir:?}/.package-role" ]; then
+    rm -f "${install_main_dir:?}/.package-role"
+  fi
   if [ -d "${install_main_dir:?}" ] && [ -z "$(ls -A "${install_main_dir:?}")" ]; then
     rm -rf "${install_main_dir:?}" || :
   fi
 }
 
+function remove_extension_files() {
+  local manifest="${install_main_dir}/.extension-files"
+  if [ ! -f "$manifest" ]; then
+    echo "Extension ownership manifest not found: $manifest"
+    echo "No files were removed."
+    exit 1
+  fi
+  while IFS= read -r path || [ -n "$path" ]; do
+    [ -z "$path" ] && continue
+    [[ "$path" == /* || "$path" == *".."* ]] && {
+      echo "Invalid path in extension manifest: $path" >&2
+      exit 1
+    }
+    rm -f -- "${install_main_dir}/${path}"
+  done < "$manifest"
+  clean_fq_runtime_links
+  rm -f "$manifest"
+  rm -f "${install_main_dir}/.package-role.extension"
+  find "${install_main_dir}" -depth -type d -empty -delete
+  echo "TDengine extension package is removed successfully!"
+}
+
+function clean_fq_runtime_links() {
+  local dir name target link_name target_name
+  for dir in "$lib_link_dir" "$lib64_link_dir"; do
+    [ -d "$dir" ] || continue
+    for name in "$dir"/libmariadb.so* "$dir"/libmysqlclient.so* "$dir"/libpq.so* \
+                "$dir"/libarrow*.so* "$dir"/libparquet.so* "$dir"/libtaos_ext_influx_arrow.so* \
+                "$dir"/libssl.so* "$dir"/libcrypto.so* "$dir"/libz.so*; do
+      [ -L "$name" ] || continue
+      target=$(readlink "$name")
+      case "$target" in
+        "${dir}/"*) target=$(readlink "$target" 2>/dev/null || :) ;;
+      esac
+      case "$target" in
+        "${install_main_dir}/driver/"*) rm -f "$name" ;;
+      esac
+    done
+  done
+  while read -r link_name target_name; do
+    name="${install_main_dir}/driver/${link_name}"
+    if [ -L "$name" ] && [ "$(readlink "$name")" = "$target_name" ]; then
+      rm -f "$name"
+    fi
+  done <<'LINKS'
+libarrow.so libarrow.so.1900
+libarrow_flight.so libarrow_flight.so.1900
+libarrow_flight_sql.so libarrow_flight_sql.so.1900
+libparquet.so libparquet.so.1900
+libmariadb.so libmariadb.so.3
+libpq.so.5 libpq.so.5.16
+libpq.so libpq.so.5
+libssl.so libssl.so.3
+libcrypto.so libcrypto.so.3
+libz.so libz.so.1
+LINKS
+  [ "$(id -u)" -eq 0 ] && ldconfig 2>/dev/null || :
+}
+
 # ====== main logic starts here ======
+if [ "$packageRole" == "extension" ]; then
+  remove_extension_files
+  exit 0
+fi
+
 if [ "$interactive_remove" == "yes" ]; then
   echo -e "\nDo you want to remove all the data, log and configuration files? [y/n]"
   read answer
@@ -500,6 +594,7 @@ remove_bin
 clean_header
 # Remove lib file
 clean_lib
+clean_fq_runtime_links
 # Remove link log directory
 clean_log
 # Remove link configuration file

@@ -29,7 +29,6 @@ serverName="taosd"
 clientName="taos"
 uninstallScript="rmtaos"
 configFile="taos.cfg"
-tarName="package.tar.gz"
 
 osType=Linux
 pagMode=full
@@ -332,11 +331,6 @@ function install_examples() {
 
 function update_TDengine() {
     # Start to update
-    if [ ! -e ${tarName} ]; then
-        echo "File ${tarName} does not exist"
-        exit 1
-    fi
-    tar -zxf ${tarName}
     echo -e "${GREEN}Start to update ${productName2} client...${NC}"
     # Stop the client shell if running
     if ps aux | grep -v grep | grep ${clientName2} &> /dev/null; then
@@ -361,16 +355,10 @@ function update_TDengine() {
     echo
     echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
 
-    rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 function install_TDengine() {
     # Start to install
-    if [ ! -e ${tarName} ]; then
-        echo "File ${tarName} does not exist"
-        exit 1
-    fi
-    tar -zxf ${tarName}
     echo -e "${GREEN}Start to install ${productName2} client...${NC}"
 
     install_main_path
@@ -389,7 +377,6 @@ function install_TDengine() {
     echo
     echo -e "\033[44;32;1m${productName2} client is installed successfully!${NC}"
 
-    rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 
