@@ -3488,7 +3488,9 @@ TEST(ScalarFunctionTest, repeatBroadcastAndNull) {
       input[1] = *counts;
       scltMakeRawStringRows(&output, TSDB_DATA_TYPE_VARCHAR, values, lengths, 3);
       ASSERT_EQ(repeatFunction(input, 2, &output), TSDB_CODE_SUCCESS);
-      EXPECT_EQ(output.numOfRows, std::max(stringRows, countRows));
+      /* Parenthesised: <windows.h> defines min/max as macros, see the note in
+       * common/test/readerFetchBenchmarkTest.h. */
+      EXPECT_EQ(output.numOfRows, (std::max)(stringRows, countRows));
       char *first = colDataGetData(output.columnData, 0);
       EXPECT_EQ(std::string(varDataVal(first), varDataLen(first)), "abab");
       if (output.numOfRows == 3) {
@@ -6302,7 +6304,9 @@ static int32_t invokeCorrelationScalarMock(SCorrelationTaskSession *pSession,
     return code;
   }
   auto *pResult = reinterpret_cast<SValueNode *>(pNode);
-  pResult->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pResult->node.resType = {};
+  pResult->node.resType.type = TSDB_DATA_TYPE_INT;
+  pResult->node.resType.bytes = sizeof(int32_t);
   pResult->isNull = value == pMock->nullOnValue;
   pResult->typeData = value * 10;
   *ppResult = pResult;
@@ -6341,7 +6345,9 @@ static int32_t invokeCorrelationVarMock(SCorrelationTaskSession *pSession,
     return code;
   }
   auto *pResult = reinterpret_cast<SValueNode *>(pNode);
-  pResult->node.resType = {.type = TSDB_DATA_TYPE_VARCHAR, .bytes = 32};
+  pResult->node.resType = {};
+  pResult->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+  pResult->node.resType.bytes = 32;
   pResult->isNull = pValue->isNull;
   if (!pValue->isNull) {
     pResult->datum.p = static_cast<char *>(taosMemoryMalloc(pValue->length));
@@ -6361,7 +6367,9 @@ static SCorrelatedSubqueryNode *makeCorrelationScalarNode(int64_t blockId) {
     return nullptr;
   }
   auto *pCall = reinterpret_cast<SCorrelatedSubqueryNode *>(pNode);
-  pCall->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pCall->node.resType = {};
+  pCall->node.resType.type = TSDB_DATA_TYPE_INT;
+  pCall->node.resType.bytes = sizeof(int32_t);
   pCall->templateId = 0;
   pCall->exprId = 1;
   pCall->scopeId = 2;
@@ -6374,7 +6382,9 @@ static SCorrelatedSubqueryNode *makeCorrelationScalarNode(int64_t blockId) {
   }
   auto *pBinding = reinterpret_cast<SCorrelationParamBindingNode *>(pBindingNode);
   pBinding->paramId = 0;
-  pBinding->dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pBinding->dataType = {};
+  pBinding->dataType.type = TSDB_DATA_TYPE_INT;
+  pBinding->dataType.bytes = sizeof(int32_t);
   pBinding->sourceKind = CORRELATION_SOURCE_BLOCK;
   pBinding->sourceBlockId = blockId;
   pBinding->sourceSlotId = 0;
@@ -6408,7 +6418,9 @@ TEST(CorrelationScalarTest, UsesExactBlockAndOriginalRows) {
   ASSERT_EQ(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pOtherNode), TSDB_CODE_SUCCESS);
   auto *pOtherBinding = reinterpret_cast<SCorrelationParamBindingNode *>(pOtherNode);
   pOtherBinding->paramId = 1;
-  pOtherBinding->dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pOtherBinding->dataType = {};
+  pOtherBinding->dataType.type = TSDB_DATA_TYPE_INT;
+  pOtherBinding->dataType.bytes = sizeof(int32_t);
   pOtherBinding->sourceKind = CORRELATION_SOURCE_BLOCK;
   pOtherBinding->sourceBlockId = pFirst->info.id.blockId;
   pOtherBinding->sourceSlotId = 0;
@@ -6421,8 +6433,9 @@ TEST(CorrelationScalarTest, UsesExactBlockAndOriginalRows) {
   ops.invokeScalar = invokeCorrelationScalarMock;
   ops.reserveResultMemory = reserveCorrelationResultMock;
   ops.releaseResultMemory = releaseCorrelationResultMock;
-  SCorrelationEvalContext correlation = {
-      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
   SScalarExtraInfo extra = {};
   extra.pCorrelation = &correlation;
   SColumnInfoData result = {};
@@ -6486,12 +6499,12 @@ TEST(CorrelationScalarTest, RangePreservesOtherRowsAndFailureStopsParent) {
   ops.invokeScalar = invokeCorrelationScalarMock;
   ops.reserveResultMemory = reserveCorrelationResultMock;
   ops.releaseResultMemory = releaseCorrelationResultMock;
-  SCorrelationEvalContext correlation = {
-      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock),
-      .pOps = &ops,
-      .hasRowRange = true,
-      .rowStart = 1,
-      .rowEnd = 1};
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  correlation.hasRowRange = true;
+  correlation.rowStart = 1;
+  correlation.rowEnd = 1;
   SScalarExtraInfo extra = {};
   extra.pCorrelation = &correlation;
   SColumnInfoData result = {};
@@ -6532,7 +6545,9 @@ TEST(CorrelationScalarTest, RangePreservesOtherRowsAndFailureStopsParent) {
   SNode *pColumnNode = nullptr;
   ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pColumnNode), TSDB_CODE_SUCCESS);
   auto *pColumn = reinterpret_cast<SColumnNode *>(pColumnNode);
-  pColumn->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pColumn->node.resType = {};
+  pColumn->node.resType.type = TSDB_DATA_TYPE_INT;
+  pColumn->node.resType.bytes = sizeof(int32_t);
   pColumn->dataBlockId = pBlock->info.id.blockId;
   pColumn->slotId = 0;
   SNode *pParent = nullptr;
@@ -6571,8 +6586,9 @@ TEST(CorrelationScalarTest, EmptyBlockDoesNotInvoke) {
   ops.invokeScalar = invokeCorrelationScalarMock;
   ops.reserveResultMemory = reserveCorrelationResultMock;
   ops.releaseResultMemory = releaseCorrelationResultMock;
-  SCorrelationEvalContext correlation = {
-      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
   SScalarExtraInfo extra = {};
   extra.pCorrelation = &correlation;
   SColumnInfoData result = {};
@@ -6605,11 +6621,13 @@ TEST(CorrelationScalarTest, InheritedParameterIsCopiedForEachRow) {
   pBinding->sourceSlotId = -1;
   pBinding->inheritedParamId = 7;
   int32_t inheritedData = 42;
-  SCorrelationParamValue inherited = {
-      .paramId = 7,
-      .dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)},
-      .length = sizeof(int32_t),
-      .pData = &inheritedData};
+  SCorrelationParamValue inherited = {};
+  inherited.paramId = 7;
+  inherited.dataType = {};
+  inherited.dataType.type = TSDB_DATA_TYPE_INT;
+  inherited.dataType.bytes = sizeof(int32_t);
+  inherited.length = sizeof(int32_t);
+  inherited.pData = &inheritedData;
   SArray *pInherited = taosArrayInit(1, sizeof(SCorrelationParamValue));
   ASSERT_NE(pInherited, nullptr);
   ASSERT_NE(taosArrayPush(pInherited, &inherited), nullptr);
@@ -6622,8 +6640,9 @@ TEST(CorrelationScalarTest, InheritedParameterIsCopiedForEachRow) {
   ops.getInheritedParams = getInheritedCorrelationParamsMock;
   ops.reserveResultMemory = reserveCorrelationResultMock;
   ops.releaseResultMemory = releaseCorrelationResultMock;
-  SCorrelationEvalContext correlation = {
-      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
   SScalarExtraInfo extra = {};
   extra.pCorrelation = &correlation;
   SColumnInfoData result = {};
@@ -6662,17 +6681,21 @@ TEST(CorrelationScalarTest, CurrentRowAndAncestorUseChildParameterIds) {
   ASSERT_EQ(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pAncestorNode), TSDB_CODE_SUCCESS);
   auto *pAncestor = reinterpret_cast<SCorrelationParamBindingNode *>(pAncestorNode);
   pAncestor->paramId = 1;
-  pAncestor->dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pAncestor->dataType = {};
+  pAncestor->dataType.type = TSDB_DATA_TYPE_INT;
+  pAncestor->dataType.bytes = sizeof(int32_t);
   pAncestor->sourceKind = CORRELATION_SOURCE_INHERITED;
   pAncestor->inheritedParamId = 7;
   ASSERT_EQ(nodesListStrictAppend(pCall->pParamBindings, pAncestorNode), TSDB_CODE_SUCCESS);
 
   int32_t ancestorData = 42;
-  SCorrelationParamValue inherited = {
-      .paramId = 7,
-      .dataType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)},
-      .length = sizeof(int32_t),
-      .pData = &ancestorData};
+  SCorrelationParamValue inherited = {};
+  inherited.paramId = 7;
+  inherited.dataType = {};
+  inherited.dataType.type = TSDB_DATA_TYPE_INT;
+  inherited.dataType.bytes = sizeof(int32_t);
+  inherited.length = sizeof(int32_t);
+  inherited.pData = &ancestorData;
   SArray *pInherited = taosArrayInit(1, sizeof(SCorrelationParamValue));
   ASSERT_NE(pInherited, nullptr);
   ASSERT_NE(taosArrayPush(pInherited, &inherited), nullptr);
@@ -6689,9 +6712,12 @@ TEST(CorrelationScalarTest, CurrentRowAndAncestorUseChildParameterIds) {
   ops.getInheritedParams = getInheritedCorrelationParamsMock;
   ops.reserveResultMemory = reserveCorrelationResultMock;
   ops.releaseResultMemory = releaseCorrelationResultMock;
-  SCorrelationEvalContext correlation = {
-      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops,
-      .pSubquerySources = pSources, .pStatsContext = &mock, .recordStats = recordCorrelationStatsMock};
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  correlation.pSubquerySources = pSources;
+  correlation.pStatsContext = &mock;
+  correlation.recordStats = recordCorrelationStatsMock;
   SScalarExtraInfo extra = {};
   extra.pCorrelation = &correlation;
   SColumnInfoData result = {};
@@ -6743,7 +6769,9 @@ TEST(CorrelationScalarTest, CaseCountsUnselectedBranchWithRepeatedParameters) {
   ((SWhenThenNode *)pBranch)->pThen = pThen;
   ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &pCase), TSDB_CODE_SUCCESS);
   auto *pCaseWhen = reinterpret_cast<SCaseWhenNode *>(pCase);
-  pCaseWhen->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pCaseWhen->node.resType = {};
+  pCaseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  pCaseWhen->node.resType.bytes = sizeof(int32_t);
   pCaseWhen->pElse = reinterpret_cast<SNode *>(makeCorrelationScalarNode(pBlock->info.id.blockId));
   ASSERT_NE(pCaseWhen->pElse, nullptr);
   ASSERT_EQ(nodesListMakeStrictAppend(&pCaseWhen->pWhenThenList, pBranch), TSDB_CODE_SUCCESS);
@@ -6753,9 +6781,11 @@ TEST(CorrelationScalarTest, CaseCountsUnselectedBranchWithRepeatedParameters) {
   ops.invokeScalar = invokeCorrelationScalarMock;
   ops.reserveResultMemory = reserveCorrelationResultMock;
   ops.releaseResultMemory = releaseCorrelationResultMock;
-  SCorrelationEvalContext correlation = {
-      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops,
-      .pStatsContext = &mock, .recordStats = recordCorrelationStatsMock};
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  correlation.pStatsContext = &mock;
+  correlation.recordStats = recordCorrelationStatsMock;
   SScalarExtraInfo extra = {};
   extra.pCorrelation = &correlation;
   SColumnInfoData result = {};
@@ -6804,7 +6834,9 @@ TEST(CorrelationScalarTest, VariableInputAndResultOwnTheirBytes) {
 
   SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
   ASSERT_NE(pCall, nullptr);
-  pCall->node.resType = {.type = TSDB_DATA_TYPE_VARCHAR, .bytes = 32};
+  pCall->node.resType = {};
+  pCall->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+  pCall->node.resType.bytes = 32;
   auto *pBinding = reinterpret_cast<SCorrelationParamBindingNode *>(
       nodesListGetNode(pCall->pParamBindings, 0));
   pBinding->dataType = pCall->node.resType;
@@ -6815,8 +6847,9 @@ TEST(CorrelationScalarTest, VariableInputAndResultOwnTheirBytes) {
   ops.invokeScalar = invokeCorrelationVarMock;
   ops.reserveResultMemory = reserveCorrelationResultMock;
   ops.releaseResultMemory = releaseCorrelationResultMock;
-  SCorrelationEvalContext correlation = {
-      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
   SScalarExtraInfo extra = {};
   extra.pCorrelation = &correlation;
   SColumnInfoData result = {};
@@ -6859,7 +6892,9 @@ TEST(CorrelationScalarTest, FilterUsesTemporaryResultAndPropagatesErrors) {
   SNode *pColumnNode = nullptr;
   ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pColumnNode), TSDB_CODE_SUCCESS);
   auto *pColumn = reinterpret_cast<SColumnNode *>(pColumnNode);
-  pColumn->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pColumn->node.resType = {};
+  pColumn->node.resType.type = TSDB_DATA_TYPE_INT;
+  pColumn->node.resType.bytes = sizeof(int32_t);
   pColumn->dataBlockId = pBlock->info.id.blockId;
   pColumn->slotId = 1;
   SNode *pCondition = nullptr;
@@ -6873,8 +6908,9 @@ TEST(CorrelationScalarTest, FilterUsesTemporaryResultAndPropagatesErrors) {
   ops.invokeScalar = invokeCorrelationScalarMock;
   ops.reserveResultMemory = reserveCorrelationResultMock;
   ops.releaseResultMemory = releaseCorrelationResultMock;
-  SCorrelationEvalContext correlation = {
-      .pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock), .pOps = &ops};
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
   SColumnInfoData *pMask = nullptr;
   int32_t status = 0;
   int32_t filterCode = filterExecuteWithCorrelation(pFilter, pBlock, &pMask, nullptr, 2, &status, &correlation);

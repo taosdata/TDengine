@@ -55,7 +55,12 @@
 #include "streamMsg.h"
 
 // The vnode test entry links metadata objects without the dnode daemon.
+// C linkage is required: metaEntry2.c references this symbol from C, while MSVC
+// mangles C++ globals that have no linkage specification (GCC/Clang happen to
+// leave global-namespace names unmangled, so this only breaks on Windows).
+extern "C" {
 SDmNotifyHandle dmNotifyHdl = {};
+}
 #include "stub.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -3675,7 +3680,9 @@ static int32_t invokeExecutorCorrelationMock(SCorrelationTaskSession* pSession,
     return code;
   }
   auto* pValue = reinterpret_cast<SValueNode*>(pNode);
-  pValue->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pValue->node.resType = {};
+  pValue->node.resType.type = TSDB_DATA_TYPE_INT;
+  pValue->node.resType.bytes = sizeof(int32_t);
   pValue->typeData = *static_cast<const int32_t*>(pParam->pData) * 10;
   *ppResult = pValue;
   return TSDB_CODE_SUCCESS;
@@ -3693,7 +3700,9 @@ static SCorrelatedSubqueryNode* makeExecutorCorrelationCall(int64_t blockId) {
     return nullptr;
   }
   auto* pCall = reinterpret_cast<SCorrelatedSubqueryNode*>(pNode);
-  pCall->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pCall->node.resType = {};
+  pCall->node.resType.type = TSDB_DATA_TYPE_INT;
+  pCall->node.resType.bytes = sizeof(int32_t);
   SNode* pBindingNode = nullptr;
   if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pBindingNode)) {
     nodesDestroyNode(pNode);
@@ -3777,13 +3786,17 @@ TEST(CorrelationExecutorTest, FilterKeepsInputColumnsAndPropagatesCallError) {
   SNode* pColumnNode = nullptr;
   ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pColumnNode), TSDB_CODE_SUCCESS);
   auto* pColumn = reinterpret_cast<SColumnNode*>(pColumnNode);
-  pColumn->node.resType = {.type = TSDB_DATA_TYPE_INT, .bytes = sizeof(int32_t)};
+  pColumn->node.resType = {};
+  pColumn->node.resType.type = TSDB_DATA_TYPE_INT;
+  pColumn->node.resType.bytes = sizeof(int32_t);
   pColumn->dataBlockId = pBlock->info.id.blockId;
   pColumn->slotId = 1;
   SNode* pCondition = nullptr;
   ASSERT_EQ(nodesMakeNode(QUERY_NODE_OPERATOR, &pCondition), TSDB_CODE_SUCCESS);
   auto* pOperator = reinterpret_cast<SOperatorNode*>(pCondition);
-  pOperator->node.resType = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  pOperator->node.resType = {};
+  pOperator->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOperator->node.resType.bytes = sizeof(bool);
   pOperator->opType = OP_TYPE_GREATER_THAN;
   pOperator->pLeft = pColumnNode;
   pOperator->pRight = reinterpret_cast<SNode*>(pCall);
@@ -20078,7 +20091,7 @@ int32_t trackReceivePrepare(const SStreamRuntimeFuncInfo *source, int32_t nodeId
   if (code == TSDB_CODE_SUCCESS) {
     ++fetchReceiveLifetime.viewCreated;
     ++fetchReceiveLifetime.viewLive;
-    fetchReceiveLifetime.viewPeak = std::max(fetchReceiveLifetime.viewPeak, fetchReceiveLifetime.viewLive);
+    fetchReceiveLifetime.viewPeak = (std::max)(fetchReceiveLifetime.viewPeak, fetchReceiveLifetime.viewLive);
     if (fetchReceiveLifetime.activeView != nullptr) ++fetchReceiveLifetime.ownershipErrors;
     fetchReceiveLifetime.activeView = view;
   }
@@ -20104,19 +20117,19 @@ int32_t trackReceiveDecode(void *buf, int32_t bufLen, SResFetchReq *request) {
     ++fetchReceiveLifetime.decodedRequestCreated;
     ++fetchReceiveLifetime.decodedRequestLive;
     fetchReceiveLifetime.decodedRequestPeak =
-        std::max(fetchReceiveLifetime.decodedRequestPeak, fetchReceiveLifetime.decodedRequestLive);
+        (std::max)(fetchReceiveLifetime.decodedRequestPeak, fetchReceiveLifetime.decodedRequestLive);
     if (request->pStRtFuncInfo != nullptr) {
       fetchReceiveLifetime.activeDecodedRuntime = request->pStRtFuncInfo;
       ++fetchReceiveLifetime.decodedRuntimeCreated;
       ++fetchReceiveLifetime.decodedRuntimeLive;
       fetchReceiveLifetime.decodedRuntimePeak =
-          std::max(fetchReceiveLifetime.decodedRuntimePeak, fetchReceiveLifetime.decodedRuntimeLive);
+          (std::max)(fetchReceiveLifetime.decodedRuntimePeak, fetchReceiveLifetime.decodedRuntimeLive);
       fetchReceiveLifetime.activeDecodedContext = request->pStRtFuncInfo->pAncestorContext;
       if (fetchReceiveLifetime.activeDecodedContext != nullptr) {
         ++fetchReceiveLifetime.decodedContextCreated;
         ++fetchReceiveLifetime.decodedContextLive;
         fetchReceiveLifetime.decodedContextPeak =
-            std::max(fetchReceiveLifetime.decodedContextPeak, fetchReceiveLifetime.decodedContextLive);
+            (std::max)(fetchReceiveLifetime.decodedContextPeak, fetchReceiveLifetime.decodedContextLive);
       }
     }
   }
@@ -20142,7 +20155,7 @@ void trackReceiveRequestDestroy(SResFetchReq *request) {
       if (previous == nullptr) {
         ++fetchReceiveLifetime.installedContextLive;
         fetchReceiveLifetime.installedContextPeak =
-            std::max(fetchReceiveLifetime.installedContextPeak, fetchReceiveLifetime.installedContextLive);
+            (std::max)(fetchReceiveLifetime.installedContextPeak, fetchReceiveLifetime.installedContextLive);
       } else {
         ++fetchReceiveLifetime.installedContextRetired;
         retiresInstalledContext = true;
@@ -20271,7 +20284,7 @@ class StreamReaderFetchReceiveTest : public StreamRunnerContextSendTest {
     }
     ++fetchReceiveLifetime.messageAcquired;
     ++fetchReceiveLifetime.messageLive;
-    fetchReceiveLifetime.messagePeak = std::max(fetchReceiveLifetime.messagePeak, fetchReceiveLifetime.messageLive);
+    fetchReceiveLifetime.messagePeak = (std::max)(fetchReceiveLifetime.messagePeak, fetchReceiveLifetime.messageLive);
     if (fetchReceiveLifetime.activeMessage != nullptr) ++fetchReceiveLifetime.ownershipErrors;
     fetchReceiveLifetime.activeMessage = wire;
     SRpcMsg msg = {};

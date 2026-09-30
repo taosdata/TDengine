@@ -342,7 +342,9 @@ TEST_F(PlanSubqeuryTest, correlatedTimeRangeInitializesPrivateInstances) {
                   SNodeList* pInitList = nullptr;
                   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneList(pTemplate->pTimeRangeInit, &pInitList));
                   std::unique_ptr<SNodeList, void (*)(SNodeList*)> inits(pInitList, nodesDestroyList);
-                  BoundTimeParam param = {.value = bound, .code = TSDB_CODE_SUCCESS};
+                  BoundTimeParam param = {};
+                  param.value = bound;
+                  param.code = TSDB_CODE_SUCCESS;
                   SNode* pInit = nullptr;
                   FOREACH(pInit, pInitList) {
                     nodesRewriteExpr(&((SCorrelationTimeRangeInitNode*)pInit)->pRangeExpr,
@@ -401,7 +403,9 @@ TEST_F(PlanSubqeuryTest, correlatedDurationUsesClosedIntervalPrecision) {
                 ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pInitList, pInitNode));
                 std::unique_ptr<SNodeList, void (*)(SNodeList*)> inits(pInitList, nodesDestroyList);
                 SCorrelationTimeRangeInitNode* pInit = (SCorrelationTimeRangeInitNode*)pInitNode;
-                BoundTimeParam param = {.value = bound, .code = TSDB_CODE_SUCCESS};
+                BoundTimeParam param = {};
+                param.value = bound;
+                param.code = TSDB_CODE_SUCCESS;
                 nodesRewriteExpr(&pInit->pRangeExpr, bindTimeRangeParam, &param);
                 ASSERT_EQ(TSDB_CODE_SUCCESS, param.code);
 
@@ -485,7 +489,9 @@ TEST_F(PlanSubqeuryTest, correlatedInterpAndFillCarryRangeDescriptors) {
                 ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pInitList, pClone));
                 std::unique_ptr<SNodeList, void (*)(SNodeList*)> inits(pInitList, nodesDestroyList);
                 SCorrelationTimeRangeInitNode* pInit = (SCorrelationTimeRangeInitNode*)pClone;
-                BoundTimeParam param = {.value = 123456, .code = TSDB_CODE_SUCCESS};
+                BoundTimeParam param = {};
+                param.value = 123456;
+                param.code = TSDB_CODE_SUCCESS;
                 nodesRewriteExpr(&pInit->pRangeExpr, bindTimeRangeParam, &param);
                 ASSERT_EQ(TSDB_CODE_SUCCESS, param.code);
                 SSubplan* pPrivate = nullptr;
@@ -534,7 +540,9 @@ TEST_F(PlanSubqeuryTest, correlatedWindowAndFillInitializeAfterBinding) {
                   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pInitList, pClone));
                   std::unique_ptr<SNodeList, void (*)(SNodeList*)> inits(pInitList, nodesDestroyList);
                   SCorrelationTimeRangeInitNode* pInit = (SCorrelationTimeRangeInitNode*)pClone;
-                  BoundTimeParam param = {.value = 123456, .code = TSDB_CODE_SUCCESS};
+                  BoundTimeParam param = {};
+                  param.value = 123456;
+                  param.code = TSDB_CODE_SUCCESS;
                   nodesRewriteExpr(&pInit->pRangeExpr, bindTimeRangeParam, &param);
                   ASSERT_EQ(TSDB_CODE_SUCCESS, param.code);
 
@@ -579,19 +587,25 @@ TEST_F(PlanSubqeuryTest, deferredFillRangeChecksUseBoundPrecision) {
     int64_t ticksPerMs = precision == TSDB_TIME_PRECISION_MILLI ? 1 :
                          precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1000000;
     int64_t interval = 10000 * ticksPerMs;
-    STimeWindow finite = {.skey = 0, .ekey = interval * 10 - 1};
+    STimeWindow finite = {};
+    finite.skey = 0;
+    finite.ekey = interval * 10 - 1;
     EXPECT_EQ(TSDB_CODE_SUCCESS,
               filterValidateFillTimeRange(&finite, interval, TIME_UNIT_SECOND, precision, false));
-    STimeWindow tooLarge = {.skey = 0, .ekey = interval * MAX_INTERVAL_TIME_WINDOW};
+    STimeWindow tooLarge = {};
+    tooLarge.skey = 0;
+    tooLarge.ekey = interval * MAX_INTERVAL_TIME_WINDOW;
     EXPECT_EQ(TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
               filterValidateFillTimeRange(&tooLarge, interval, TIME_UNIT_SECOND, precision, false));
   }
-  STimeWindow unknown = TSWINDOW_INITIALIZER;
+  // TSWINDOW_*_INITIALIZER are C compound literals, which MSVC rejects in C++
+  // (C4576), so spell the same values out here.
+  STimeWindow unknown = {INT64_MIN, INT64_MAX};
   EXPECT_EQ(TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
             filterValidateFillTimeRange(&unknown, 10000, TIME_UNIT_SECOND, TSDB_TIME_PRECISION_MILLI, false));
   EXPECT_EQ(TSDB_CODE_SUCCESS,
             filterValidateFillTimeRange(&unknown, 10000, TIME_UNIT_SECOND, TSDB_TIME_PRECISION_MILLI, true));
-  STimeWindow empty = TSWINDOW_DESC_INITIALIZER;
+  STimeWindow empty = {INT64_MAX, INT64_MIN};
   EXPECT_EQ(TSDB_CODE_SUCCESS,
             filterValidateFillTimeRange(&empty, 10000, TIME_UNIT_SECOND, TSDB_TIME_PRECISION_MILLI, false));
 }
