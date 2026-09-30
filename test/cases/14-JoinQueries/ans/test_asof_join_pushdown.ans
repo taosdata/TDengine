@@ -13,7 +13,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -27,22 +27,26 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 13.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 15.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801002;
@@ -54,7 +58,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801002\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -68,24 +72,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(`db_asof_pushdown`.`b`.`ts` >= 1767196801002)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=(`db_asof_pushdown`.`b`.`ts` >= 1767196801002)
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801002, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801000 and b.ts <= 1767196801002;
@@ -97,7 +105,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801000 and b.ts <= 1767196801002\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -111,24 +119,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801000) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801002))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801000) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801002))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (b.ts <= 1767196801001 or b.ts >= 1767196801003);
@@ -141,7 +153,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (b.ts <= 1767196801001 or b.ts >= 1767196801003)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -155,24 +167,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` <= 1767196801001) OR (`db_asof_pushdown`.`b`.`ts` >= 1767196801003))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` <= 1767196801001) OR (`db_asof_pushdown`.`b`.`ts` >= 1767196801003))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004;
@@ -186,7 +202,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -200,22 +216,26 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`b`.`ts` >= `db_asof_pushdown`.`a`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 13.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 15.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and a.ts >= 1767196801002;
@@ -227,7 +247,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and a.ts >= 1767196801002\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -241,24 +261,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(`db_asof_pushdown`.`a`.`ts` >= 1767196801002)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`b`.`ts` >= `db_asof_pushdown`.`a`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=(`db_asof_pushdown`.`a`.`ts` >= 1767196801002)
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801002, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801002, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and a.ts >= 1767196801000 and a.ts <= 1767196801002;
@@ -270,7 +294,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and a.ts >= 1767196801000 and a.ts <= 1767196801002\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -284,24 +308,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801000) AND (`db_asof_pushdown`.`a`.`ts` <= 1767196801002))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`b`.`ts` >= `db_asof_pushdown`.`a`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801000) AND (`db_asof_pushdown`.`a`.`ts` <= 1767196801002))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and (a.ts <= 1767196801001 or a.ts >= 1767196801003);
@@ -314,7 +342,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and (a.ts <= 1767196801001 or a.ts >= 1767196801003)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -328,24 +356,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` <= 1767196801001) OR (`db_asof_pushdown`.`a`.`ts` >= 1767196801003))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`b`.`ts` >= `db_asof_pushdown`.`a`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` <= 1767196801001) OR (`db_asof_pushdown`.`a`.`ts` >= 1767196801003))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts > b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004;
@@ -359,7 +391,7 @@ taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts > b.ts w
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts > b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -373,22 +405,26 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` > `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` > `db_asof_pushdown`.`b`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 13.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 15.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 18.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts < b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004;
@@ -402,7 +438,7 @@ taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts < b.ts w
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts < b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -416,22 +452,26 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` < `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` < `db_asof_pushdown`.`b`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 13.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 15.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 18.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 9223372036854775807]
 
 taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004;
@@ -445,7 +485,7 @@ taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts w
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -459,22 +499,26 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` = `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` = `db_asof_pushdown`.`b`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 13.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 15.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 18.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, b.ts bts from sa2 a left asof join sb2 b on a.ts <= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004;
@@ -488,7 +532,7 @@ taos> select a.ts ats, b.ts bts from sa2 a left asof join sb2 b on a.ts <= b.ts 
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa2 a left asof join sb2 b on a.ts <= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -502,22 +546,26 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Table Scan on sa2 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa2 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 13.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Table Scan on sb2 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 15.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on sb2 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 18.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 9223372036854775807]
 
 taos> select a.ts ats, b.ts bts from sa3 a left asof join sb3 b on a.ts <= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801003 and b.ts >= 1767196801001 and b.ts <= 1767196801003;
@@ -529,7 +577,7 @@ taos> select a.ts ats, b.ts bts from sa3 a left asof join sb3 b on a.ts <= b.ts 
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa3 a left asof join sb3 b on a.ts <= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801003 and b.ts >= 1767196801001 and b.ts <= 1767196801003\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -543,24 +591,28 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801003))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa3 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801003))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801003]
+QUERY_PLAN:       -> Table Scan on sa3 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801003]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb3 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb3 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801003]
 
 taos> select a.ts ats, b.ts bts from sa4 a right asof join sb4 b on a.ts >= b.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004;
@@ -574,7 +626,7 @@ taos> select a.ts ats, b.ts bts from sa4 a right asof join sb4 b on a.ts >= b.ts
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa4 a right asof join sb4 b on a.ts >= b.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -588,22 +640,26 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Table Scan on sa4 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 9223372036854775807]
+QUERY_PLAN:       -> Table Scan on sa4 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 13.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 9223372036854775807]
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Table Scan on sb4 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 15.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on sb4 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 18.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, b.ts bts from sa5 a right asof join sb5 b on a.ts >= b.ts where b.ts >= 1767196801000 and b.ts <= 1767196801003 and a.ts >= 1767196801001 and a.ts <= 1767196801003;
@@ -615,7 +671,7 @@ taos> select a.ts ats, b.ts bts from sa5 a right asof join sb5 b on a.ts >= b.ts
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa5 a right asof join sb5 b on a.ts >= b.ts where b.ts >= 1767196801000 and b.ts <= 1767196801003 and a.ts >= 1767196801001 and a.ts <= 1767196801003\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -629,24 +685,28 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`a`.`ts` <= 1767196801003))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa5 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`a`.`ts` <= 1767196801003))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801003]
+QUERY_PLAN:       -> Table Scan on sa5 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801003]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb5 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb5 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801003]
 
 taos> select a.ts ats, b.ts bts from sa6 a right asof join sb6 b on b.ts < a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801001;
@@ -657,7 +717,7 @@ taos> select a.ts ats, b.ts bts from sa6 a right asof join sb6 b on b.ts < a.ts 
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa6 a right asof join sb6 b on b.ts < a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801001\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -671,22 +731,26 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`b`.`ts` < `db_asof_pushdown`.`a`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Table Scan on sa6 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` > `db_asof_pushdown`.`b`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 9223372036854775807]
+QUERY_PLAN:       -> Table Scan on sa6 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 13.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 9223372036854775807]
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Table Scan on sb6 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 15.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on sb6 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 18.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801001]
 
 taos> select count(*) from ((select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801000 and b.ts <= 1767196801004) union all (select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004));
@@ -700,7 +764,7 @@ QUERY_PLAN: -> Data Exchange 2:1 (width=16)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN:    -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=2 width=16
 *************************** 5.row ***************************
@@ -714,56 +778,64 @@ QUERY_PLAN:             Output: columns=2 width=16
 *************************** 9.row ***************************
 QUERY_PLAN:             Join Param: asof_op='>=' group_join=0 
 *************************** 10.row ***************************
-QUERY_PLAN:             Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801000) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801004))
+QUERY_PLAN:             Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 11.row ***************************
-QUERY_PLAN:             Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:             Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 12.row ***************************
-QUERY_PLAN:          -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801000) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801004))
 *************************** 13.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
-*************************** 14.row ***************************
-QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
-*************************** 15.row ***************************
-QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
-*************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
-*************************** 17.row ***************************
-QUERY_PLAN:             -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 18.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 19.row ***************************
-QUERY_PLAN:                   Time Range: [1767196801000, 1767196801004]
-*************************** 20.row ***************************
-QUERY_PLAN:    -> Projection (columns=2 width=16 input_order=asc)
-*************************** 21.row ***************************
-QUERY_PLAN:          Output: columns=2 width=16
-*************************** 22.row ***************************
-QUERY_PLAN:          Output: Ignore Group Id: true
-*************************** 23.row ***************************
-QUERY_PLAN:          Merge ResBlocks: False
-*************************** 24.row ***************************
-QUERY_PLAN:       -> Left ASOF Join (columns=2 width=16 input_order=asc algo=Merge)
-*************************** 25.row ***************************
-QUERY_PLAN:             Output: columns=2 width=16
-*************************** 26.row ***************************
-QUERY_PLAN:             Join Param: asof_op='>=' group_join=0 
-*************************** 27.row ***************************
 QUERY_PLAN:             Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
-*************************** 28.row ***************************
+*************************** 14.row ***************************
 QUERY_PLAN:          -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 29.row ***************************
+*************************** 15.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
-*************************** 30.row ***************************
+*************************** 16.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
-*************************** 31.row ***************************
+*************************** 17.row ***************************
 QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
-*************************** 32.row ***************************
+*************************** 18.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
-*************************** 33.row ***************************
+*************************** 19.row ***************************
 QUERY_PLAN:             -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 34.row ***************************
+*************************** 20.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 21.row ***************************
+QUERY_PLAN:                   Time Range: [1767196801000, 1767196801004]
+*************************** 22.row ***************************
+QUERY_PLAN:    -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 23.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 24.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 25.row ***************************
+QUERY_PLAN:          Merge ResBlocks: False
+*************************** 26.row ***************************
+QUERY_PLAN:       -> Left ASOF Join (columns=2 width=16 input_order=asc algo=Merge)
+*************************** 27.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 28.row ***************************
+QUERY_PLAN:             Join Param: asof_op='>=' group_join=0
+*************************** 29.row ***************************
+QUERY_PLAN:             Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
+*************************** 30.row ***************************
+QUERY_PLAN:             Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
+*************************** 31.row ***************************
+QUERY_PLAN:             Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+*************************** 32.row ***************************
+QUERY_PLAN:          -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 33.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 34.row ***************************
+QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 *************************** 35.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
+*************************** 36.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 37.row ***************************
+QUERY_PLAN:             -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 38.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 39.row ***************************
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, b.ts bts from sa8 a left asof join sb8 b on a.ts >= timetruncate(b.ts, 1s) where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801000 order by a.ts;
@@ -785,30 +857,38 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> Left ASOF Join (columns=2 width=16 input_order=asc algo=Merge)
+QUERY_PLAN:    -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
-QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
+QUERY_PLAN:       -> Left ASOF Join (columns=2 width=16 input_order=asc algo=Merge)
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(`db_asof_pushdown`.`b`.`ts` >= 1767196801000)
+QUERY_PLAN:             Output: columns=2 width=16
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= timetruncate(`db_asof_pushdown`.`b`.`ts`, 1000, 1, 0, 'Asia/Shanghai', 0, 115))
+QUERY_PLAN:             Join Param: asof_op='>=' group_join=0
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa8 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:             Right Time Key: timetruncate(`db_asof_pushdown`.`b`.`ts`, 1000, 1, 0, 'Asia/Shanghai', 0, 115) Order: asc
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:             Filter: conditions=(`db_asof_pushdown`.`b`.`ts` >= 1767196801000)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=16)
+QUERY_PLAN:             Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= timetruncate(`db_asof_pushdown`.`b`.`ts`, 1000, 1, 0, 'Asia/Shanghai', 0, 115))
 *************************** 14.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          -> Table Scan on sa8 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb8 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=16)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 19.row ***************************
+QUERY_PLAN:             -> Table Scan on sb8 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 20.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 21.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (a.ts >= 1767196801002 or b.ts >= 1767196801002);
@@ -820,7 +900,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (a.ts >= 1767196801002 or b.ts >= 1767196801002)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -834,24 +914,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801002) OR (`db_asof_pushdown`.`b`.`ts` >= 1767196801002))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801002) OR (`db_asof_pushdown`.`b`.`ts` >= 1767196801002))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where (a.ts >= 1767196801000 or b.ts >= 1767196801000) and a.ts <= 1767196801004;
@@ -865,7 +949,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where (a.ts >= 1767196801000 or b.ts >= 1767196801000) and a.ts <= 1767196801004\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -879,24 +963,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801000) OR (`db_asof_pushdown`.`b`.`ts` >= 1767196801000))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801000) OR (`db_asof_pushdown`.`b`.`ts` >= 1767196801000))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts + 1 >= 1767196801002;
@@ -909,7 +997,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts + 1 >= 1767196801002\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -923,24 +1011,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` + 1) >= 1767196801002)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` + 1) >= 1767196801002)
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801001 and b.v >= 12;
@@ -952,7 +1044,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801001 and b.v >= 12\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -966,24 +1058,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`b`.`v` >= 12))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`b`.`v` >= 12))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801001, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and (b.ts >= 1767196801002 or a.ts >= 1767196801002);
@@ -995,7 +1091,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and (b.ts >= 1767196801002 or a.ts >= 1767196801002)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1009,24 +1105,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801002) OR (`db_asof_pushdown`.`a`.`ts` >= 1767196801002))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`b`.`ts` >= `db_asof_pushdown`.`a`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801002) OR (`db_asof_pushdown`.`a`.`ts` >= 1767196801002))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and a.ts + 1 >= 1767196801002;
@@ -1039,7 +1139,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801004 and a.ts + 1 >= 1767196801002\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1053,24 +1153,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` + 1) >= 1767196801002)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`b`.`ts` >= `db_asof_pushdown`.`a`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` + 1) >= 1767196801002)
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801001 and (b.v = 12 or b.v = 14);
@@ -1081,7 +1185,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801001 and (b.v = 12 or b.v = 14)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1095,24 +1199,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND ((`db_asof_pushdown`.`b`.`v` = 12) OR (`db_asof_pushdown`.`b`.`v` = 14)))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND ((`db_asof_pushdown`.`b`.`v` = 12) OR (`db_asof_pushdown`.`b`.`v` = 14)))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801001, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and ((b.ts >= 1767196801003 and b.v >= 13) or b.v >= 14);
@@ -1123,7 +1231,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and ((b.ts >= 1767196801003 and b.v >= 13) or b.v >= 14)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1137,24 +1245,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(((`db_asof_pushdown`.`b`.`ts` >= 1767196801003) AND (`db_asof_pushdown`.`b`.`v` >= 13)) OR (`db_asof_pushdown`.`b`.`v` >= 14))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=(((`db_asof_pushdown`.`b`.`ts` >= 1767196801003) AND (`db_asof_pushdown`.`b`.`v` >= 13)) OR (`db_asof_pushdown`.`b`.`v` >= 14))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801001 and b.ts >= 1767196801003;
@@ -1165,7 +1277,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801001 and b.ts >= 1767196801003\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1179,24 +1291,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`b`.`ts` >= 1767196801003))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`b`.`ts` >= 1767196801003))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801003, 1767196801004]
 
 taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts < b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts <= 1767196801003;
@@ -1208,7 +1324,7 @@ taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts < b.ts w
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts < b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts <= 1767196801003\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -1222,24 +1338,28 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(`db_asof_pushdown`.`b`.`ts` <= 1767196801003)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` < `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=(`db_asof_pushdown`.`b`.`ts` <= 1767196801003)
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` < `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801003]
 
 taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801001 and b.ts <= 1767196801003;
@@ -1251,7 +1371,7 @@ taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts w
 
 taos> explain verbose true select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts >= 1767196801001 and b.ts <= 1767196801003\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=16
 *************************** 3.row ***************************
@@ -1265,24 +1385,28 @@ QUERY_PLAN:          Output: columns=2 width=16
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801003))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` = `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` >= 1767196801001) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801003))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` = `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801001, 1767196801003]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts - 1 >= 1767196801001;
@@ -1294,7 +1418,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and b.ts - 1 >= 1767196801001\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1308,24 +1432,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` - 1) >= 1767196801001)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`b`.`ts` - 1) >= 1767196801001)
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (b.ts >= 1767196801002 or b.v >= 14) and b.ts >= 1767196801001;
@@ -1337,7 +1465,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (b.ts >= 1767196801002 or b.v >= 14) and b.ts >= 1767196801001\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1351,24 +1479,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(((`db_asof_pushdown`.`b`.`ts` >= 1767196801002) OR (`db_asof_pushdown`.`b`.`v` >= 14)) AND (`db_asof_pushdown`.`b`.`ts` >= 1767196801001))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=(((`db_asof_pushdown`.`b`.`ts` >= 1767196801002) OR (`db_asof_pushdown`.`b`.`v` >= 14)) AND (`db_asof_pushdown`.`b`.`ts` >= 1767196801001))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801001, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and 1767196801002 <= b.ts;
@@ -1380,7 +1512,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and 1767196801002 <= b.ts\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1394,24 +1526,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(1767196801002 <= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=(1767196801002 <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801002, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where 1767196801000 <= a.ts and a.ts <= 1767196801004 and 1767196801001 <= b.ts and b.ts <= 1767196801003;
@@ -1423,7 +1559,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where 1767196801000 <= a.ts and a.ts <= 1767196801004 and 1767196801001 <= b.ts and b.ts <= 1767196801003\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1437,24 +1573,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((1767196801001 <= `db_asof_pushdown`.`b`.`ts`) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801003))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((1767196801001 <= `db_asof_pushdown`.`b`.`ts`) AND (`db_asof_pushdown`.`b`.`ts` <= 1767196801003))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801001, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and 1767196801004 >= b.ts and 1767196801002 <= a.ts;
@@ -1466,7 +1606,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and 1767196801004 >= b.ts and 1767196801002 <= a.ts\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1480,24 +1620,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='<=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(1767196801002 <= `db_asof_pushdown`.`a`.`ts`)
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`b`.`ts` >= `db_asof_pushdown`.`a`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=(1767196801002 <= `db_asof_pushdown`.`a`.`ts`)
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` <= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801002, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801002, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (a.ts >= 1767196801003 or b.ts >= 1767196801001) and b.ts >= 1767196801000;
@@ -1510,7 +1654,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (a.ts >= 1767196801003 or b.ts >= 1767196801001) and b.ts >= 1767196801000\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1524,24 +1668,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(((`db_asof_pushdown`.`a`.`ts` >= 1767196801003) OR (`db_asof_pushdown`.`b`.`ts` >= 1767196801001)) AND (`db_asof_pushdown`.`b`.`ts` >= 1767196801000))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=(((`db_asof_pushdown`.`a`.`ts` >= 1767196801003) OR (`db_asof_pushdown`.`b`.`ts` >= 1767196801001)) AND (`db_asof_pushdown`.`b`.`ts` >= 1767196801000))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [1767196801000, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (a.ts >= 1767196801002 or b.v >= 12);
@@ -1553,7 +1701,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (a.ts >= 1767196801002 or b.v >= 12)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1567,24 +1715,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801002) OR (`db_asof_pushdown`.`b`.`v` >= 12))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=((`db_asof_pushdown`.`a`.`ts` >= 1767196801002) OR (`db_asof_pushdown`.`b`.`v` >= 12))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and ((a.ts >= 1767196801003 and b.ts >= 1767196801002) or (a.v >= 3 and b.v >= 13));
@@ -1595,7 +1747,7 @@ taos> select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b 
 
 taos> explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and ((a.ts >= 1767196801003 and b.ts >= 1767196801002) or (a.v >= 3 and b.v >= 13))\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=24 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=24 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=24
 *************************** 3.row ***************************
@@ -1609,24 +1761,28 @@ QUERY_PLAN:          Output: columns=4 width=24
 *************************** 7.row ***************************
 QUERY_PLAN:          Join Param: asof_op='>=' group_join=0 
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(((`db_asof_pushdown`.`a`.`ts` >= 1767196801003) AND (`db_asof_pushdown`.`b`.`ts` >= 1767196801002)) OR ((`db_asof_pushdown`.`a`.`v` >= 3) AND (`db_asof_pushdown`.`b`.`v` >= 13)))
+QUERY_PLAN:          Left Time Key: `db_asof_pushdown`.`a`.`ts` Order: asc
 *************************** 9.row ***************************
-QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
+QUERY_PLAN:          Right Time Key: `db_asof_pushdown`.`b`.`ts` Order: asc
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Filter: conditions=(((`db_asof_pushdown`.`a`.`ts` >= 1767196801003) AND (`db_asof_pushdown`.`b`.`ts` >= 1767196801002)) OR ((`db_asof_pushdown`.`a`.`v` >= 3) AND (`db_asof_pushdown`.`b`.`v` >= 13)))
 *************************** 11.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:          Join Prim Cond: (`db_asof_pushdown`.`a`.`ts` >= `db_asof_pushdown`.`b`.`ts`)
 *************************** 12.row ***************************
-QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
+QUERY_PLAN:       -> Table Scan on sa1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
-*************************** 14.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [1767196801000, 1767196801004]
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: columns=2 width=12
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on sb1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
 taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801002 and b.ts >= 1767196801003;

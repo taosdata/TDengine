@@ -43,7 +43,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> Left Join (columns=3 width=20 input_order=asc algo=Theta(BlockNestedLoop))
+QUERY_PLAN:    -> Left Join (columns=3 width=20 input_order=unknown algo=Theta(BlockNestedLoop))
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=3 width=20
 *************************** 7.row ***************************

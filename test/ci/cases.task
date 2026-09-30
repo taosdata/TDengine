@@ -955,6 +955,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_condition.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_ns_db.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_ts_sort.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_mixed_nested.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_6604237597.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_left_asof_join_diff_64bit.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_hash.py
@@ -1224,6 +1225,7 @@
 ,,y,.,./ci/pytest.sh pytest  cases/18-StreamProcessing/07-SubQuery/test_subquery_vtable_change.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_state_join_empty_result.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_join.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_mixed_nested_join.py
 ## 08-Recalc
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_combined_options.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_count_window_slide1.py

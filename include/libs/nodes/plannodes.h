@@ -604,6 +604,7 @@ typedef struct SSortLogicNode {
   SNodeList* pSortKeys;
   bool       groupSort;
   bool       skipPKSortOpt;
+  bool       joinInputSort;
   bool       calcGroupId;
   bool       excludePkCol;  // exclude PK ts col when calc group id
   // Leading sort keys used for group id; 0 keeps legacy behavior.
@@ -1626,6 +1627,8 @@ typedef struct SNodesRemoteSelectOutputs {
 int32_t nodesCollectRemoteQuerySelectOutputs(const SLogicNode* pQueryRoot,
                                              SNodesRemoteSelectOutputs* pOutputs);
 void nodesDestroyRemoteSelectOutputs(SNodesRemoteSelectOutputs* pOutputs);
+// Borrowed Sort whose keys are emitted in the final remote SQL scope.
+const SSortLogicNode* nodesGetRemoteQueryOutputSort(const SLogicNode* pRoot);
 int32_t nodesRemotePlanToSQL(const SLogicNode* pRemotePlan, int8_t sourceType,
                              const SNodesRemoteSQLCtx* pResolveCtx,
                              char** ppSQL);

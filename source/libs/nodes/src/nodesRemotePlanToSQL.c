@@ -7526,6 +7526,69 @@ static int32_t fqCollectQueryGroup(const SLogicNode* pRoot, SFqQueryGroup* pGrou
   return TSDB_CODE_SUCCESS;
 }
 
+// Match the key to an exposed output before moving ORDER BY across a wrapper.
+static int32_t fqWrapperSortKeyIndex(const SNode* pExpr,
+                                     const SNodeList* pTargets) {
+  if (NULL == pExpr) return -1;
+  int32_t index = 0;
+  int32_t match = -1;
+  int32_t aliasMatch = -1;
+  int32_t aliasMatches = 0;
+  SNode* pTarget = NULL;
+  FOREACH(pTarget, pTargets) {
+    const SNode* pOutput = fqUnwrapSelectExpr(pTarget);
+    if (nodesEqualNode(pExpr, pOutput)) {
+      if (match >= 0) return -1;
+      match = index;
+    } else if (fqProjectExprMatchesChildOutput(pExpr, pOutput, NULL)) {
+      bool sameSource = true;
+      if (QUERY_NODE_COLUMN == nodeType(pExpr) &&
+          QUERY_NODE_COLUMN == nodeType(pOutput)) {
+        const SColumnNode* pKey = (const SColumnNode*)pExpr;
+        const SColumnNode* pCol = (const SColumnNode*)pOutput;
+        sameSource = ('\0' == pKey->tableAlias[0] ||
+                      '\0' == pCol->tableAlias[0] ||
+                      0 == strcmp(pKey->tableAlias, pCol->tableAlias));
+      }
+      if (sameSource) {
+        aliasMatch = index;
+        ++aliasMatches;
+      }
+    }
+    ++index;
+  }
+  return match >= 0 ? match : (aliasMatches == 1 ? aliasMatch : -1);
+}
+
+static bool fqWrapperSortKeysVisible(const SSortLogicNode* pSort) {
+  if (LIST_LENGTH(pSort->pSortKeys) == 0) return false;
+  SNode* pKey = NULL;
+  FOREACH(pKey, pSort->pSortKeys) {
+    if (QUERY_NODE_ORDER_BY_EXPR != nodeType(pKey) ||
+        fqWrapperSortKeyIndex(((SOrderByExprNode*)pKey)->pExpr,
+                             pSort->node.pTargets) < 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const SSortLogicNode* nodesGetRemoteQueryOutputSort(const SLogicNode* pRoot) {
+  if (NULL == pRoot) return NULL;
+  if (fqNodeRequiresWhereWrapper(pRoot)) {
+    if (QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pRoot)) return NULL;
+    const SSortLogicNode* pSort = (const SSortLogicNode*)pRoot;
+    return fqWrapperSortKeysVisible(pSort) ? pSort : NULL;
+  }
+
+  SFqQueryGroup group;
+  if (TSDB_CODE_SUCCESS != fqCollectQueryGroup(pRoot, &group, "output-order")) {
+    return NULL;
+  }
+  // Only ORDER BY in the final SQL scope proves the remote output order.
+  return group.pSort;
+}
+
 static int32_t fqCloneSelectExprWithAlias(const SNode* pExprNode, const SNode* pTargetNode,
                                           int32_t outputIdx, const char* pTag, SNode** ppClone) {
   if (ppClone == NULL) {
@@ -8773,6 +8836,42 @@ static int32_t renderSetOpStatement(const SProjectLogicNode* pUnion, EExtSQLDial
   return s->err ? s->err : TSDB_CODE_SUCCESS;
 }
 
+static int32_t renderWrapperOrderBy(const SSortLogicNode* pSort,
+                                    const SNodeList* pOutputRefs,
+                                    EExtSQLDialect dialect, SDynSQL* s) {
+  if (!fqWrapperSortKeysVisible(pSort)) {
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+  SNodeList* pKeys = NULL;
+  int32_t code = nodesCloneList(pSort->pSortKeys, &pKeys);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  SNode* pKey = NULL;
+  FOREACH(pKey, pKeys) {
+    SOrderByExprNode* pOrder = (SOrderByExprNode*)pKey;
+    int32_t index = fqWrapperSortKeyIndex(pOrder->pExpr, pSort->node.pTargets);
+    if (index < 0) {
+      code = TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      break;
+    }
+    SNode* pRef = NULL;
+    code = nodesCloneNode(nodesListGetNode((SNodeList*)pOutputRefs, index),
+                          &pRef);
+    if (TSDB_CODE_SUCCESS != code) break;
+    nodesDestroyNode(pOrder->pExpr);
+    pOrder->pExpr = pRef;
+    SColumnNode* pColumn = (SColumnNode*)pRef;
+    pColumn->node.aliasName[0] = '\0';
+    pColumn->node.userAlias[0] = '\0';
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    renderOrderBy(s, pKeys, NULL, dialect, NULL, NULL);
+    code = s->err;
+  }
+  nodesDestroyList(pKeys);
+  return code;
+}
+
 static int32_t renderNodeWithOuterWhereWrapper(const SLogicNode* pNode, EExtSQLDialect dialect,
                                                const SNodesRemoteSQLCtx* pCtx, SDynSQL* s) {
   if (NULL == pNode || NULL == pNode->pConditions) {
@@ -8848,7 +8947,11 @@ static int32_t renderNodeWithOuterWhereWrapper(const SLogicNode* pNode, EExtSQLD
     goto _return;
   }
 
-  code = TSDB_CODE_SUCCESS;
+  // Keep the inner sort and LIMIT in place; only restore final output order.
+  if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode)) {
+    code = renderWrapperOrderBy((const SSortLogicNode*)pNode,
+                                pWrapperOutputRefs, dialect, s);
+  }
 
 _return:
   nodesDestroyList(pWrapperOutputRefs);

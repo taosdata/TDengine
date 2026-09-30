@@ -3751,79 +3751,6 @@ static void getJoinChildTableAliases(const SJoinLogicNode* pJoinLogicNode, const
   *ppRightAlias = getLogicNodeTableAlias(pRightLogic);
 }
 
-// Ensure columns referenced in pCond (e.g. addPrimEqCond) have slots in
-// pLeftDesc/pRightDesc so that setNodeSlotId can resolve them later.
-// Columns absent from the desc hash are added as non-output slots.
-static int32_t ensureCondColSlotsInJoinDescs(SPhysiPlanContext* pCxt, SNode* pCond,
-                                              SJoinLogicNode* pJoinLogicNode,
-                                              SDataBlockDescNode* pLeftDesc,
-                                              SDataBlockDescNode* pRightDesc) {
-  if (NULL == pCond) return TSDB_CODE_SUCCESS;
-
-  const char* leftAlias = NULL;
-  const char* rightAlias = NULL;
-  getJoinChildTableAliases(pJoinLogicNode, &leftAlias, &rightAlias);
-
-  // Collect all column nodes referenced in pCond
-  SNodeList* pCols = NULL;
-  int32_t    code  = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCols);
-  if (TSDB_CODE_SUCCESS != code || NULL == pCols) return code;
-
-  SNode* pColNode = NULL;
-  FOREACH(pColNode, pCols) {
-    if (QUERY_NODE_COLUMN != nodeType(pColNode)) continue;
-    SColumnNode* pCol = (SColumnNode*)pColNode;
-
-    // Resolve the input alias first, then the block identity and column name.
-    SDataBlockDescNode* pTargetDesc = NULL;
-    // A freshly translated subquery column can still carry the default block
-    // id (often 0), while its table alias already identifies the input side.
-    // Resolve aliases first so the default id cannot make both operands look
-    // like columns from the left descriptor.
-    if (leftAlias && '\0' != leftAlias[0] && strcmp(pCol->tableAlias, leftAlias) == 0) {
-      pTargetDesc = pLeftDesc;
-    } else if (rightAlias && '\0' != rightAlias[0] && strcmp(pCol->tableAlias, rightAlias) == 0) {
-      pTargetDesc = pRightDesc;
-    } else if (pCol->dataBlockId == pLeftDesc->dataBlockId) {
-      pTargetDesc = pLeftDesc;
-    } else if (pCol->dataBlockId == pRightDesc->dataBlockId) {
-      pTargetDesc = pRightDesc;
-    } else {
-      // Fallback: if colName already in left hash, assign left; else right
-      SHashObj* pLHash = taosArrayGetP(pCxt->pLocationHelper, pLeftDesc->dataBlockId);
-      if (pLHash && taosHashGet(pLHash, pCol->colName, strlen(pCol->colName)))
-        pTargetDesc = pLeftDesc;
-      else
-        pTargetDesc = pRightDesc;
-    }
-
-    // Check if the slot already exists in the target hash
-    char*   keyName = NULL;
-    int32_t keyLen  = 0;
-    int32_t keyCap  = 0;
-    code = getSlotKey((SNode*)pCol, NULL, &keyName, &keyLen, 0, &keyCap);
-    if (TSDB_CODE_SUCCESS != code) break;
-    SHashObj* pDescHash = taosArrayGetP(pCxt->pLocationHelper, pTargetDesc->dataBlockId);
-    bool alreadyPresent = (pDescHash && taosHashGet(pDescHash, keyName, keyLen) != NULL);
-    taosMemoryFree(keyName);
-
-    if (!alreadyPresent) {
-      SNode* pCloned = NULL;
-      code = nodesCloneNode((SNode*)pCol, &pCloned);
-      if (TSDB_CODE_SUCCESS == code) {
-        SNodeList* pTmpList = NULL;
-        code = nodesListMakeStrictAppend(&pTmpList, pCloned);
-        if (TSDB_CODE_SUCCESS == code)
-          code = addDataBlockSlots(pCxt, pTmpList, pTargetDesc);
-        nodesDestroyList(pTmpList);
-      }
-    }
-    if (TSDB_CODE_SUCCESS != code) break;
-  }
-  nodesDestroyList(pCols);
-  return code;
-}
-
 static int32_t setJoinNodeSlotId(SPhysiPlanContext* pCxt, const SJoinLogicNode* pJoin, int64_t leftDataBlockId,
                                  int64_t rightDataBlockId, SNode* pNode, SNode** pOutput) {
   // Conditions are translated with the aliases exposed by the child scan
@@ -3981,110 +3908,116 @@ static bool fqJoinTargetExprExistsBySlotKey(const SNodeList* pTargets, SNode* pE
   return exists;
 }
 
-static int32_t fqAppendJoinConditionTargetsFromNode(SPhysiPlanContext* pCxt, SNode* pCond,
-                                                    int64_t leftDataBlockId, int64_t rightDataBlockId,
-                                                    SNodeList* pTargets, int32_t* pAppended) {
-  if (NULL == pCxt || NULL == pCond || NULL == pTargets) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+static int32_t fqAppendJoinConditionTargetsFromNode(SPhysiPlanContext* pCxt,
+                                                    SNode* pCond,
+                                                    int64_t leftDataBlockId,
+                                                    int64_t rightDataBlockId,
+                                                    SSHashObj** pTables,
+                                                    SNodeList* pTargets,
+                                                    int32_t* pAppended) {
   SNodeList* pCondCols = NULL;
-  int32_t code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
-  if (TSDB_CODE_SUCCESS != code || NULL == pCondCols) {
-    nodesDestroyList(pCondCols);
-    return code;
-  }
-
-  SNodeList* pBoundCondCols = NULL;
-  code = setListSlotId(pCxt, leftDataBlockId, rightDataBlockId, pCondCols, &pBoundCondCols);
+  int32_t code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL,
+                                            &pCondCols);
   if (TSDB_CODE_SUCCESS != code) {
-    planError("FQ-joinCondTargets: bind condition columns failed leftBlockId=%" PRId64
-              " rightBlockId=%" PRId64 " code=0x%x cond=%p",
-              leftDataBlockId, rightDataBlockId, code, pCond);
     nodesDestroyList(pCondCols);
-    nodesDestroyList(pBoundCondCols);
     return code;
   }
 
   int32_t appended = 0;
   SNode* pNode = NULL;
-  FOREACH(pNode, pBoundCondCols) {
-    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
-      continue;
+  FOREACH(pNode, pCondCols) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    size_t aliasLen = strlen(pCol->tableAlias);
+    bool left = NULL != tSimpleHashGet(pTables[0], pCol->tableAlias, aliasLen);
+    bool right = NULL != tSimpleHashGet(pTables[1], pCol->tableAlias, aliasLen);
+    int64_t firstBlockId = leftDataBlockId;
+    int64_t secondBlockId = rightDataBlockId;
+    // A bare-name fallback must stay within the column's owning input.
+    if (left != right) {
+      firstBlockId = left ? leftDataBlockId : rightDataBlockId;
+      secondBlockId = -1;
     }
 
-    if (fqJoinTargetExprExistsBySlotKey(pTargets, pNode)) {
-      continue;
-    }
-
-    SNode* pCloned = NULL;
-    code = nodesCloneNode(pNode, &pCloned);
+    SNode* pBound = NULL;
+    code = setNodeSlotId(pCxt, firstBlockId, secondBlockId, pNode, &pBound);
     if (TSDB_CODE_SUCCESS != code) {
-      planError("FQ-joinCondTargets: clone hidden target failed col=%s tableAlias=%s code=0x%x",
-                ((SColumnNode*)pNode)->colName, ((SColumnNode*)pNode)->tableAlias, code);
+      planError("FQ-joinCondTargets: bind condition columns failed "
+                "leftBlockId=%" PRId64 " rightBlockId=%" PRId64
+                " code=0x%x cond=%p",
+                leftDataBlockId, rightDataBlockId, code, pCond);
       break;
     }
-
-    code = nodesListStrictAppend(pTargets, pCloned);
+    if (fqJoinTargetExprExistsBySlotKey(pTargets, pBound)) {
+      nodesDestroyNode(pBound);
+      continue;
+    }
+    code = nodesListStrictAppend(pTargets, pBound);
     if (TSDB_CODE_SUCCESS != code) {
-      planError("FQ-joinCondTargets: append hidden target failed col=%s tableAlias=%s code=0x%x",
-                ((SColumnNode*)pNode)->colName, ((SColumnNode*)pNode)->tableAlias, code);
+      planError("FQ-joinCondTargets: append hidden target failed col=%s "
+                "tableAlias=%s code=0x%x", pCol->colName, pCol->tableAlias,
+                code);
       break;
     }
-
     ++appended;
-    planDebug("FQ-joinCondTargets: appended hidden condition column col=%s alias=%s tableAlias=%s"
-              " dataBlockId=%" PRId64 " slotId=%d",
-              ((SColumnNode*)pNode)->colName, ((SColumnNode*)pNode)->node.aliasName,
-              ((SColumnNode*)pNode)->tableAlias, ((SColumnNode*)pNode)->dataBlockId,
-              ((SColumnNode*)pNode)->slotId);
+    SColumnNode* pBoundCol = (SColumnNode*)pBound;
+    planDebug("FQ-joinCondTargets: appended hidden condition column col=%s "
+              "alias=%s tableAlias=%s dataBlockId=%" PRId64 " slotId=%d",
+              pBoundCol->colName, pBoundCol->node.aliasName,
+              pBoundCol->tableAlias, pBoundCol->dataBlockId, pBoundCol->slotId);
   }
-
-  if (NULL != pAppended) {
-    *pAppended += appended;
-  }
-
+  *pAppended += appended;
   planDebug("FQ-joinCondTargets: leftBlockId=%" PRId64 " rightBlockId=%" PRId64
             " appended=%d condCols=%d finalTargets=%d cond=%p",
-            leftDataBlockId, rightDataBlockId, appended, pBoundCondCols ? LIST_LENGTH(pBoundCondCols) : 0,
-            LIST_LENGTH(pTargets), pCond);
-
+            leftDataBlockId, rightDataBlockId, appended,
+            LIST_LENGTH(pCondCols), LIST_LENGTH(pTargets), pCond);
   nodesDestroyList(pCondCols);
-  nodesDestroyList(pBoundCondCols);
   return code;
 }
 
-static int32_t fqAppendJoinConditionTargets(SPhysiPlanContext* pCxt, SJoinLogicNode* pJoinLogicNode,
-                                            int64_t leftDataBlockId, int64_t rightDataBlockId,
+static int32_t fqAppendJoinConditionTargets(SPhysiPlanContext* pCxt,
+                                            SJoinLogicNode* pJoinLogicNode,
+                                            int64_t leftDataBlockId,
+                                            int64_t rightDataBlockId,
                                             SNodeList* pTargets) {
   if (NULL == pCxt || NULL == pJoinLogicNode || NULL == pTargets) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SNode* pConditions[] = {pJoinLogicNode->pFullOnCond,
+                         pJoinLogicNode->pColOnCond,
+                         pJoinLogicNode->node.pConditions};
+  if (NULL == pConditions[0] && NULL == pConditions[1] &&
+      NULL == pConditions[2]) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t appended = 0;
-
-  // Join predicates can be executed on the join output block (final filter or
-  // pre-filter on midBlk). Make sure every referenced column has a hidden slot
-  // in the join output descriptor, not only the post-join WHERE conditions.
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pFullOnCond) {
-    code = fqAppendJoinConditionTargetsFromNode(pCxt, pJoinLogicNode->pFullOnCond, leftDataBlockId,
-                                                rightDataBlockId, pTargets, &appended);
-  }
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColOnCond) {
-    code = fqAppendJoinConditionTargetsFromNode(pCxt, pJoinLogicNode->pColOnCond, leftDataBlockId,
-                                                rightDataBlockId, pTargets, &appended);
-  }
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->node.pConditions) {
-    code = fqAppendJoinConditionTargetsFromNode(pCxt, pJoinLogicNode->node.pConditions, leftDataBlockId,
-                                                rightDataBlockId, pTargets, &appended);
+  SSHashObj* pTables[2] = {NULL, NULL};
+  for (int32_t i = 0; i < 2 && TSDB_CODE_SUCCESS == code; ++i) {
+    SNode* pChild = nodesListGetNode(pJoinLogicNode->node.pChildren, i);
+    code = collectTableAliasFromNodes(pChild, &pTables[i]);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectSourceTableAliasFromNodes(pChild, &pTables[i]);
+    }
   }
 
-  planDebug("FQ-joinCondTargets: joinType=%d leftBlockId=%" PRId64 " rightBlockId=%" PRId64
-            " totalAppended=%d finalTargets=%d fullOn=%p colOn=%p where=%p",
-            (int)pJoinLogicNode->joinType, leftDataBlockId, rightDataBlockId, appended,
-            LIST_LENGTH(pTargets), pJoinLogicNode->pFullOnCond, pJoinLogicNode->pColOnCond,
-            pJoinLogicNode->node.pConditions);
+  // ON and WHERE predicates may read hidden columns from the JOIN output.
+  for (int32_t i = 0; i < 3 && TSDB_CODE_SUCCESS == code; ++i) {
+    if (NULL != pConditions[i]) {
+      code = fqAppendJoinConditionTargetsFromNode(pCxt, pConditions[i],
+                                                 leftDataBlockId,
+                                                 rightDataBlockId, pTables,
+                                                 pTargets, &appended);
+    }
+  }
+  planDebug("FQ-joinCondTargets: joinType=%d leftBlockId=%" PRId64
+            " rightBlockId=%" PRId64 " totalAppended=%d finalTargets=%d "
+            "fullOn=%p colOn=%p where=%p", (int)pJoinLogicNode->joinType,
+            leftDataBlockId, rightDataBlockId, appended, LIST_LENGTH(pTargets),
+            pConditions[0], pConditions[1], pConditions[2]);
+  tSimpleHashCleanup(pTables[0]);
+  tSimpleHashCleanup(pTables[1]);
   return code;
 }
 static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SJoinLogicNode* pJoinLogicNode,
@@ -4146,13 +4079,9 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
 
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->addPrimEqCond) {
     SNode* pPrimKeyCond = NULL;
-    // Ensure columns in addPrimEqCond (e.g. b.ts not in SELECT) have slots
-    // in the left/right desc before setNodeSlotId tries to resolve them.
-    code = ensureCondColSlotsInJoinDescs(pCxt, pJoinLogicNode->addPrimEqCond, pJoinLogicNode, pLeftDesc, pRightDesc);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = setJoinNodeSlotId(pCxt, pJoinLogicNode, pLeftDesc->dataBlockId, pRightDesc->dataBlockId,
-                               pJoinLogicNode->addPrimEqCond, &pPrimKeyCond);
-    }
+    code = setJoinNodeSlotId(pCxt, pJoinLogicNode, pLeftDesc->dataBlockId,
+                            pRightDesc->dataBlockId,
+                            pJoinLogicNode->addPrimEqCond, &pPrimKeyCond);
     if (TSDB_CODE_SUCCESS == code) {
       code = setMergeJoinPrimColEqCond(pPrimKeyCond, pJoin->subType, pLeftDesc->dataBlockId, pRightDesc->dataBlockId,
                                        pJoin, NULL);
@@ -4162,6 +4091,10 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
     }
     if (TSDB_CODE_SUCCESS == code && NULL != pJoin->rightPrimExpr) {
       code = addDataBlockSlot(pCxt, &pJoin->rightPrimExpr, pRightDesc);
+    }
+    if (TSDB_CODE_SUCCESS == code && NULL == pJoin->pPrimKeyCond) {
+      pJoin->pPrimKeyCond = pPrimKeyCond;
+      pPrimKeyCond = NULL;
     }
     nodesDestroyNode(pPrimKeyCond);
   }
@@ -4190,14 +4123,6 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   }
   if (TSDB_CODE_SUCCESS == code && pRightPrimExpr && pRightTarget) {
     code = appendPrimColToJoinTargets(pJoin, &pRightTarget, (STargetNode*)pJoin->rightPrimExpr, pRightDesc->dataBlockId);
-  }
-
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pFullOnCond) {
-    code = ensureCondColSlotsInJoinDescs(pCxt, pJoinLogicNode->pFullOnCond, pJoinLogicNode, pLeftDesc, pRightDesc);
-    planDebug("FQ-joinSlots: mergeJoin prepare fullOnCond code=0x%x leftBlockId=%" PRId64 " rightBlockId=%" PRId64
-              " cond=%p",
-              code, pLeftDesc ? pLeftDesc->dataBlockId : -1, pRightDesc ? pRightDesc->dataBlockId : -1,
-              pJoinLogicNode->pFullOnCond);
   }
 
   if (TSDB_CODE_SUCCESS == code && ((NULL != pJoinLogicNode->pColEqCond) || (NULL != pJoinLogicNode->pTagEqCond))) {
@@ -4229,13 +4154,6 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
                              pJoinLogicNode->pColOnCond, &pJoin->pColOnCond);
     }
   */
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColOnCond) {
-    code = ensureCondColSlotsInJoinDescs(pCxt, pJoinLogicNode->pColOnCond, pJoinLogicNode, pLeftDesc, pRightDesc);
-    planDebug("FQ-joinSlots: mergeJoin prepare colOnCond code=0x%x leftBlockId=%" PRId64 " rightBlockId=%" PRId64
-              " cond=%p",
-              code, pLeftDesc ? pLeftDesc->dataBlockId : -1, pRightDesc ? pRightDesc->dataBlockId : -1,
-              pJoinLogicNode->pColOnCond);
-  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = fqAppendJoinConditionTargets(pCxt, pJoinLogicNode, pLeftDesc->dataBlockId, pRightDesc->dataBlockId,

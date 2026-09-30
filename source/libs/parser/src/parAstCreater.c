@@ -488,29 +488,32 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   return t;
 }
 
-SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pNode, SNodeList* pNodeList, SToken* pAlias) {
-  SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
-  SNode*        pFuncNode = pRawExpr->pNode;
+SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pNode,
+                                       SNodeList* pNodeList, SToken* pAlias) {
+  SNodeList* list = NULL;
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   }
   CHECK_PARSER_STATUS(pCxt);
-  if (pFuncNode->type != QUERY_NODE_FUNCTION) {
+  SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
+  SNode* pFuncNode = pRawExpr->pNode;
+  if (NULL == pFuncNode || QUERY_NODE_FUNCTION != nodeType(pFuncNode)) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   }
   CHECK_PARSER_STATUS(pCxt);
-  SNodeList* list = NULL;
-  pCxt->errCode = nodesMakeList(&list);
-  CHECK_MAKE_NODE(list);
-  pCxt->errCode = nodesListAppend(list, pFuncNode);
+  pRawExpr->pNode = NULL;
+  nodesDestroyNode(pNode);
+  pNode = NULL;
+  list = createNodeList(pCxt, pFuncNode);
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListAppendList(list, pNodeList);
   CHECK_PARSER_STATUS(pCxt);
   return list;
 
 _err:
-  nodesDestroyNode(pFuncNode);
+  nodesDestroyNode(pNode);
+  nodesDestroyList(list);
   nodesDestroyList(pNodeList);
   return NULL;
 }
@@ -523,7 +526,7 @@ SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
   pCxt->errCode = nodesListAppend(list, pNode);
   if (TSDB_CODE_SUCCESS != pCxt->errCode) {
     nodesDestroyList(list);
-    return NULL;
+    goto _err;
   }
   return list;
 _err:
@@ -534,6 +537,7 @@ _err:
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListAppend(pList, pNode);
+  CHECK_PARSER_STATUS(pCxt);
   return pList;
 _err:
   nodesDestroyNode(pNode);
@@ -2824,152 +2828,126 @@ _err:
   return NULL;
 }
 
-SNode* createNullIfNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2) {
-  SNode *    pCase = NULL, *pEqual = NULL, *pThen = NULL;
-  SNode *    pWhenThenNode = NULL, *pElse = NULL;
+// Builds CASE WHEN pWhen THEN pThen ELSE pElse END. Takes ownership of all
+// three operands whether it succeeds or fails.
+static SNode* createSingleWhenCase(SAstCreateContext* pCxt, SNode* pWhen,
+                                   SNode* pThen, SNode* pElse) {
+  SNode*     pWhenThenNode = NULL;
   SNodeList* pWhenThenList = NULL;
-  SNode*     pCaseWhen = NULL;
 
   CHECK_PARSER_STATUS(pCxt);
-  pEqual = createOperatorNode(pCxt, OP_TYPE_EQUAL, pExpr1, pExpr2);
-  CHECK_PARSER_STATUS(pCxt);
-  SToken nullToken = {
-      .n = 4,
-      .type = TK_NULL,
-      .z = "null",
-  };
-  pThen = createValueNode(pCxt, TSDB_DATA_TYPE_NULL, &nullToken);
-  CHECK_PARSER_STATUS(pCxt);
-  pWhenThenNode = createWhenThenNode(pCxt, pEqual, pThen);
+  pWhenThenNode = createWhenThenNode(pCxt, pWhen, pThen);
+  pWhen = pThen = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pWhenThenList = createNodeList(pCxt, pWhenThenNode);
+  pWhenThenNode = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  return createCaseWhenNode(pCxt, NULL, pWhenThenList, pElse);
+_err:
+  nodesDestroyNode(pWhen);
+  nodesDestroyNode(pThen);
+  nodesDestroyNode(pElse);
+  nodesDestroyNode(pWhenThenNode);
+  nodesDestroyList(pWhenThenList);
+  return NULL;
+}
+
+SNode* createNullIfNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2) {
+  SNode *pEqual = NULL, *pThen = NULL, *pElse = NULL;
+
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesCloneNode(pExpr1, &pElse);
   CHECK_PARSER_STATUS(pCxt);
-  pCaseWhen = createCaseWhenNode(pCxt, pCase, pWhenThenList, pElse);
+  pEqual = createOperatorNode(pCxt, OP_TYPE_EQUAL, pExpr1, pExpr2);
+  pExpr1 = pExpr2 = NULL;
   CHECK_PARSER_STATUS(pCxt);
-  // debugPrintNode((SNode*)pCaseWhen);
-  return (SNode*)pCaseWhen;
+  SToken nullToken = {.n = 4, .type = TK_NULL, .z = "null"};
+  pThen = createValueNode(pCxt, TSDB_DATA_TYPE_NULL, &nullToken);
+  CHECK_PARSER_STATUS(pCxt);
+  return createSingleWhenCase(pCxt, pEqual, pThen, pElse);
 _err:
-  nodesDestroyNode(pCase);
+  nodesDestroyNode(pExpr1);
+  nodesDestroyNode(pExpr2);
   nodesDestroyNode(pEqual);
   nodesDestroyNode(pThen);
-  nodesDestroyNode(pWhenThenNode);
   nodesDestroyNode(pElse);
-  nodesDestroyList(pWhenThenList);
   return NULL;
 }
 
-SNode* createIfNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2, SNode* pExpr3) {
-  SNode*     pCase = NULL;
-  SNode*     pWhenThenNode = NULL;
-  SNodeList* pWhenThenList = NULL;
-  SNode*     pCaseWhen = NULL;
-
-  CHECK_PARSER_STATUS(pCxt);
-  pWhenThenNode = createWhenThenNode(pCxt, pExpr1, pExpr2);
-  CHECK_PARSER_STATUS(pCxt);
-  pWhenThenList = createNodeList(pCxt, pWhenThenNode);
-  CHECK_PARSER_STATUS(pCxt);
-  pCaseWhen = createCaseWhenNode(pCxt, pCase, pWhenThenList, pExpr3);
-  CHECK_PARSER_STATUS(pCxt);
-  // debugPrintNode((SNode*)pCaseWhen);
-  return (SNode*)pCaseWhen;
-_err:
-  nodesDestroyNode(pCase);
-  nodesDestroyNode(pWhenThenNode);
-  nodesDestroyList(pWhenThenList);
-  return NULL;
+SNode* createIfNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2,
+                    SNode* pExpr3) {
+  return createSingleWhenCase(pCxt, pExpr1, pExpr2, pExpr3);
 }
 
 SNode* createNvlNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2) {
-  SNode *    pThen = NULL, *pEqual = NULL;
-  SNode*     pWhenThenNode = NULL;
-  SNodeList* pWhenThenList = NULL;
-  SNode*     pCaseWhen = NULL;
+  SNode *pThen = NULL, *pEqual = NULL;
 
-  CHECK_PARSER_STATUS(pCxt);
-  pEqual = createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, pExpr1, NULL);
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesCloneNode(pExpr1, &pThen);
   CHECK_PARSER_STATUS(pCxt);
-  pWhenThenNode = createWhenThenNode(pCxt, pEqual, pThen);
+  pEqual = createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, pExpr1, NULL);
+  pExpr1 = NULL;
   CHECK_PARSER_STATUS(pCxt);
-  pWhenThenList = createNodeList(pCxt, pWhenThenNode);
-  CHECK_PARSER_STATUS(pCxt);
-  pCaseWhen = createCaseWhenNode(pCxt, NULL, pWhenThenList, pExpr2);
-  CHECK_PARSER_STATUS(pCxt);
-  // debugPrintNode((SNode*)pCaseWhen);
-  return (SNode*)pCaseWhen;
+  return createSingleWhenCase(pCxt, pEqual, pThen, pExpr2);
 _err:
+  nodesDestroyNode(pExpr1);
+  nodesDestroyNode(pExpr2);
   nodesDestroyNode(pEqual);
   nodesDestroyNode(pThen);
-  nodesDestroyNode(pWhenThenNode);
-  nodesDestroyList(pWhenThenList);
   return NULL;
 }
 
-SNode* createNvl2Node(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2, SNode* pExpr3) {
-  SNode *    pEqual = NULL, *pWhenThenNode = NULL;
-  SNodeList* pWhenThenList = NULL;
-  SNode*     pCaseWhen = NULL;
+SNode* createNvl2Node(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2,
+                      SNode* pExpr3) {
+  SNode* pEqual = NULL;
 
   CHECK_PARSER_STATUS(pCxt);
   pEqual = createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, pExpr1, NULL);
+  pExpr1 = NULL;
   CHECK_PARSER_STATUS(pCxt);
-  pWhenThenNode = createWhenThenNode(pCxt, pEqual, pExpr2);
-  CHECK_PARSER_STATUS(pCxt);
-  pWhenThenList = createNodeList(pCxt, pWhenThenNode);
-  CHECK_PARSER_STATUS(pCxt);
-  pCaseWhen = createCaseWhenNode(pCxt, NULL, pWhenThenList, pExpr3);
-  CHECK_PARSER_STATUS(pCxt);
-  // debugPrintNode((SNode*)pCaseWhen);
-  return (SNode*)pCaseWhen;
+  return createSingleWhenCase(pCxt, pEqual, pExpr2, pExpr3);
 _err:
+  nodesDestroyNode(pExpr1);
+  nodesDestroyNode(pExpr2);
+  nodesDestroyNode(pExpr3);
   nodesDestroyNode(pEqual);
-  nodesDestroyNode(pWhenThenNode);
-  nodesDestroyList(pWhenThenList);
   return NULL;
 }
 
 SNode* createCoalesceNode(SAstCreateContext* pCxt, SNodeList* pParamList) {
-  int32_t    sizeParam = LIST_LENGTH(pParamList);
-  SNode *    pNotNullCond = NULL, *pWhenThenNode = NULL, *pExpr = NULL;
+  SNode *pNotNullCond = NULL, *pWhenThenNode = NULL;
+  SNode* pThen = NULL;
   SNodeList* pWhenThenList = NULL;
-  SNode *    pCaseWhen = NULL, *pThen = NULL;
 
   CHECK_PARSER_STATUS(pCxt);
-
-  for (int i = 0; i < sizeParam; ++i) {
-    pExpr = nodesListGetNode(pParamList, i);
-
-    pCxt->errCode = nodesCloneNode(pExpr, &pThen);
+  SNode* pNode = NULL;
+  FOREACH(pNode, pParamList) {
+    pCxt->errCode = nodesCloneNode(pNode, &pThen);
     CHECK_PARSER_STATUS(pCxt);
-
-    pNotNullCond = createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, pExpr, NULL);
+    // createOperatorNode consumes pNode on every path, so hand it over.
+    cell->pNode = NULL;
+    pNotNullCond = createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, pNode, NULL);
     CHECK_PARSER_STATUS(pCxt);
-
     pWhenThenNode = createWhenThenNode(pCxt, pNotNullCond, pThen);
+    pNotNullCond = pThen = NULL;
     CHECK_PARSER_STATUS(pCxt);
-
-    if (!pWhenThenList) {
+    if (NULL == pWhenThenList) {
       pWhenThenList = createNodeList(pCxt, pWhenThenNode);
     } else {
-      pCxt->errCode = nodesListAppend(pWhenThenList, pWhenThenNode);
+      pWhenThenList = addNodeToList(pCxt, pWhenThenList, pWhenThenNode);
     }
+    pWhenThenNode = NULL;
     CHECK_PARSER_STATUS(pCxt);
   }
 
-  pCaseWhen = createCaseWhenNode(pCxt, NULL, pWhenThenList, NULL);
-  CHECK_PARSER_STATUS(pCxt);
-  // debugPrintNode((SNode*)pCaseWhen);
-  return (SNode*)pCaseWhen;
+  nodesDestroyList(pParamList);
+  return createCaseWhenNode(pCxt, NULL, pWhenThenList, NULL);
 _err:
-  nodesDestroyNode(pExpr);
   nodesDestroyNode(pNotNullCond);
   nodesDestroyNode(pThen);
   nodesDestroyNode(pWhenThenNode);
   nodesDestroyList(pWhenThenList);
+  nodesDestroyList(pParamList);
   return NULL;
 }
 
@@ -3257,6 +3235,20 @@ SNode* addWindowOffsetClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pWinO
 _err:
   nodesDestroyNode(pJoin);
   nodesDestroyNode(pWinOffset);
+  return NULL;
+}
+
+SNode* addWindowTimeClause(SAstCreateContext* pCxt, SNode* pJoin,
+                           SNodeList* pWindowTime) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pWindowTime) {
+    return pJoin;
+  }
+  ((SJoinTableNode*)pJoin)->pWindowTime = pWindowTime;
+  return pJoin;
+_err:
+  nodesDestroyNode(pJoin);
+  nodesDestroyList(pWindowTime);
   return NULL;
 }
 

@@ -139,9 +139,9 @@ taos> SELECT a.k, b.k2, c.marker FROM mt_ta a LEFT JOIN mt_tb b ON a.k = b.k JOI
 
 taos> EXPLAIN SELECT a.k1, b.k2, c.k3 FROM mt_a a, mt_b b, mt_c c WHERE a.k1 = b.k1 AND b.k2 = c.k2 \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=12 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=12 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Inner Join (columns=4 width=16 input_order=asc algo=Hash)
+QUERY_PLAN:    -> Inner Join (columns=4 width=16 input_order=unknown algo=Hash)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Partition on Column k2 (width=12)
 *************************** 4.row ***************************
@@ -165,13 +165,13 @@ QUERY_PLAN:             -> Table Scan on mt_c (columns=3 width=16 order=[asc|1 d
 
 taos> EXPLAIN SELECT a.k, b.k2, c.k2, d.marker FROM mt_ta a, mt_tb b, mt_tc c, mt_td d WHERE a.k = b.k AND c.k2 = d.k2 AND a.ts = b.ts AND b.ts = c.ts AND c.ts = d.ts AND b.grp = c.grp AND c.grp = d.grp \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=4 width=30 input_order=asc)
+QUERY_PLAN: -> Projection (columns=4 width=30 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Inner Join (columns=7 width=42 input_order=asc algo=Hash)
+QUERY_PLAN:    -> Inner Join (columns=7 width=42 input_order=unknown algo=Hash)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Partition on Column k2 (width=48)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> Inner Join (columns=9 width=48 input_order=asc algo=Hash)
+QUERY_PLAN:          -> Inner Join (columns=9 width=48 input_order=unknown algo=Hash)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Partition on Column grp (width=32)
 *************************** 6.row ***************************

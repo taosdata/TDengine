@@ -26,10 +26,376 @@
 #include "mockCatalogService.h"
 #include "planner.h"
 #include "streamMsg.h"
+#include "tglobal.h"
+#include "stub.h"
 
 using namespace std;
 
-class PlanJoinTest : public PlannerTestBase {};
+class PlanJoinTest : public PlannerTestBase {
+ protected:
+  static const SLogicNode* findNode(const SLogicNode* pNode, ENodeType type) {
+    if (nodeType(pNode) == type) return pNode;
+    SNode* pChild = nullptr;
+    FOREACH(pChild, pNode->pChildren) {
+      auto* pFound = findNode((const SLogicNode*)pChild, type);
+      if (pFound != nullptr) return pFound;
+    }
+    return nullptr;
+  }
+
+  static int countNodes(const SLogicNode* pNode, ENodeType type) {
+    int count = nodeType(pNode) == type;
+    SNode* pChild = nullptr;
+    FOREACH(pChild, pNode->pChildren) {
+      count += countNodes((const SLogicNode*)pChild, type);
+    }
+    return count;
+  }
+
+  static int countSorts(const SLogicNode* pNode) {
+    return countNodes(pNode, QUERY_NODE_LOGIC_PLAN_SORT);
+  }
+
+  static bool hasTarget(const SLogicNode* pNode,
+                        const SColumnNode* pRequired) {
+    SNode* pTarget = nullptr;
+    FOREACH(pTarget, pNode->pTargets) {
+      if (nodeType(pTarget) != QUERY_NODE_COLUMN) continue;
+      auto* pCol = (const SColumnNode*)pTarget;
+      if (strcmp(pCol->tableAlias, pRequired->tableAlias) == 0 &&
+          strcmp(pCol->colName, pRequired->colName) == 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static const SJoinOutputCol* findJoinOutput(
+      const SJoinInputProps* pProps, const char* pTableAlias,
+      const char* pColName) {
+    size_t numCols = taosArrayGetSize(pProps->pOutputCols);
+    for (size_t i = 0; i < numCols; ++i) {
+      auto* pOutput = (const SJoinOutputCol*)taosArrayGet(
+          pProps->pOutputCols, i);
+      auto* pCol = (const SColumnNode*)pOutput->pExpr;
+      if (strcmp(pCol->tableAlias, pTableAlias) == 0 &&
+          strcmp(pCol->colName, pColName) == 0) {
+        return pOutput;
+      }
+    }
+    return nullptr;
+  }
+
+  // An ASOF/WINDOW join must end up with a resolved time condition whose
+  // every column survives in exactly one direct child's targets. Without
+  // that, the physical stage has no direct-child slot to bind it to.
+  static void expectTemporalJoinTimeKeyContract(const SLogicNode* pNode) {
+    if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_JOIN) {
+      auto* pJoin = (const SJoinLogicNode*)pNode;
+      if (IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) {
+        SNode* pTimeCond = pJoin->pPrimKeyEqCond != nullptr
+                               ? pJoin->pPrimKeyEqCond
+                               : pJoin->addPrimEqCond;
+        ASSERT_NE(pTimeCond, nullptr)
+            << "ASOF/WINDOW join has no resolved effective time condition";
+
+        auto* pLeft =
+            (const SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+        auto* pRight =
+            (const SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+        SNodeList* pColumns = nullptr;
+        ASSERT_EQ(nodesCollectColumnsFromNode(pTimeCond, nullptr,
+                                              COLLECT_COL_TYPE_ALL, &pColumns),
+                  TSDB_CODE_SUCCESS);
+        SNode* pColumn = nullptr;
+        FOREACH(pColumn, pColumns) {
+          ASSERT_EQ(nodeType(pColumn), QUERY_NODE_COLUMN);
+          auto* pRequired = (const SColumnNode*)pColumn;
+          const int sides = (hasTarget(pLeft, pRequired) ? 1 : 0) +
+                            (hasTarget(pRight, pRequired) ? 1 : 0);
+          EXPECT_EQ(sides, 1)
+              << "effective time column " << pRequired->tableAlias << "."
+              << pRequired->colName
+              << " must survive in exactly one direct child's targets";
+        }
+        nodesDestroyList(pColumns);
+
+        EXPECT_NE(pJoin->node.inputTsOrder, TSDB_ORDER_NONE)
+            << "ASOF/WINDOW join must settle a direction for its inputs";
+      }
+    }
+
+    SNode* pChild = nullptr;
+    FOREACH(pChild, pNode->pChildren) {
+      expectTemporalJoinTimeKeyContract((const SLogicNode*)pChild);
+    }
+  }
+
+  static void expectTemporalInputNullFilter(const SLogicNode* pRoot,
+                                            bool right, const char* alias,
+                                            const char* name) {
+    auto* pJoin = (const SJoinLogicNode*)findNode(
+        pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    ASSERT_TRUE(IS_ASOF_JOIN(pJoin->subType) ||
+                IS_WINDOW_JOIN(pJoin->subType));
+    auto* pCond = (const SOperatorNode*)(pJoin->pPrimKeyEqCond != nullptr
+                                           ? pJoin->pPrimKeyEqCond
+                                           : pJoin->addPrimEqCond);
+    ASSERT_NE(pCond, nullptr);
+    auto* pTime = right ? pCond->pRight : pCond->pLeft;
+    ASSERT_EQ(nodeType(pTime), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(((const SColumnNode*)pTime)->tableAlias, alias);
+    EXPECT_STREQ(((const SColumnNode*)pTime)->colName, name);
+    auto* pInput = (const SLogicNode*)nodesListGetNode(
+        pJoin->node.pChildren, right ? 1 : 0);
+    ASSERT_NE(pInput, nullptr);
+    struct FilterContext {
+      const SNode* time;
+      bool found;
+    } context = {pTime, false};
+    nodesWalkExpr(
+        pInput->pConditions,
+        [](SNode* pNode, void* pContext) {
+          auto* pFilter = (FilterContext*)pContext;
+          if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+            auto* pOp = (const SOperatorNode*)pNode;
+            if (pOp->opType == OP_TYPE_IS_NOT_NULL &&
+                nodesEqualNode(pOp->pLeft, pFilter->time)) {
+              pFilter->found = true;
+            }
+          }
+          return DEAL_RES_CONTINUE;
+        },
+        &context);
+    EXPECT_TRUE(context.found)
+        << "nullable time must be filtered at the temporal JOIN input";
+  }
+
+  static void expectJoinDirectChildContract(const SLogicNode* pNode) {
+    if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_JOIN) {
+      auto* pJoin = (const SJoinLogicNode*)pNode;
+      auto* pLeft = (const SLogicNode*)nodesListGetNode(
+          pJoin->node.pChildren, 0);
+      auto* pRight = (const SLogicNode*)nodesListGetNode(
+          pJoin->node.pChildren, 1);
+      SNodeList* pColumns = nullptr;
+      ASSERT_EQ(nodesCollectColumnsFromNode(
+                    pJoin->pFullOnCond, nullptr, COLLECT_COL_TYPE_ALL,
+                    &pColumns),
+                TSDB_CODE_SUCCESS);
+      SNode* pColumn = nullptr;
+      FOREACH(pColumn, pColumns) {
+        ASSERT_EQ(nodeType(pColumn), QUERY_NODE_COLUMN);
+        auto* pRequired = (const SColumnNode*)pColumn;
+        const int sides = (hasTarget(pLeft, pRequired) ? 1 : 0) +
+                          (hasTarget(pRight, pRequired) ? 1 : 0);
+        EXPECT_EQ(sides, 1)
+            << "ON column " << pRequired->tableAlias << "."
+            << pRequired->colName
+            << " must survive in exactly one direct child's targets";
+      }
+      nodesDestroyList(pColumns);
+    }
+
+    SNode* pChild = nullptr;
+    FOREACH(pChild, pNode->pChildren) {
+      expectJoinDirectChildContract((const SLogicNode*)pChild);
+    }
+  }
+
+  struct PhysiJoinInputIds {
+    int64_t left;
+    int64_t right;
+  };
+
+  static EDealRes checkPhysiJoinColumn(SNode* pNode, void* pContext) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      return DEAL_RES_CONTINUE;
+    }
+    auto* pIds = (const PhysiJoinInputIds*)pContext;
+    auto* pCol = (const SColumnNode*)pNode;
+    const int sides = (pCol->dataBlockId == pIds->left ? 1 : 0) +
+                      (pCol->dataBlockId == pIds->right ? 1 : 0);
+    EXPECT_EQ(sides, 1)
+        << "physical JOIN column " << pCol->tableAlias << "."
+        << pCol->colName << " uses block " << pCol->dataBlockId
+        << ", direct inputs are " << pIds->left << " and " << pIds->right;
+    return DEAL_RES_CONTINUE;
+  }
+
+  static void checkPhysiJoinExpr(SNode* pExpr,
+                                 const PhysiJoinInputIds* pIds) {
+    nodesWalkExpr(pExpr, checkPhysiJoinColumn, (void*)pIds);
+  }
+
+  static void checkPhysiJoinExprs(SNodeList* pExprs,
+                                  const PhysiJoinInputIds* pIds) {
+    nodesWalkExprs(pExprs, checkPhysiJoinColumn, (void*)pIds);
+  }
+
+  static int64_t exprBlockId(SNode* pExpr) {
+    struct Ctx {
+      int64_t id;
+      bool    mixed;
+      bool    seen;
+    } ctx = {0, false, false};
+    nodesWalkExpr(
+        pExpr,
+        [](SNode* pNode, void* pContext) {
+          if (QUERY_NODE_COLUMN != nodeType(pNode)) return DEAL_RES_CONTINUE;
+          auto* pCtx = (Ctx*)pContext;
+          auto* pCol = (const SColumnNode*)pNode;
+          if (!pCtx->seen) {
+            pCtx->seen = true;
+            pCtx->id = pCol->dataBlockId;
+          } else if (pCtx->id != pCol->dataBlockId) {
+            pCtx->mixed = true;
+          }
+          return DEAL_RES_CONTINUE;
+        },
+        &ctx);
+    if (!ctx.seen || ctx.mixed) return -1;
+    return ctx.id;
+  }
+
+  // The two operands of a temporal key condition describe one row of each
+  // input, so they must resolve to different child blocks. A key column that
+  // was routed to the wrong descriptor lands on the same block as the other
+  // operand, and reads a fabricated slot that no child actually produces.
+  static void expectPhysiTemporalKeySides(const SSortMergeJoinPhysiNode* pJoin,
+                                          int64_t leftId, int64_t rightId) {
+    if (nullptr == pJoin->pPrimKeyCond ||
+        QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyCond)) {
+      return;
+    }
+    auto*   pOp = (const SOperatorNode*)pJoin->pPrimKeyCond;
+    int64_t lhs = exprBlockId(pOp->pLeft);
+    int64_t rhs = exprBlockId(pOp->pRight);
+    if (lhs < 0 || rhs < 0) return;  // constant or mixed operand
+
+    EXPECT_NE(lhs, rhs)
+        << "temporal key operands both resolve to block " << lhs
+        << "; direct inputs are " << leftId << " and " << rightId;
+    for (SNode* pKey : {pOp->pLeft, pOp->pRight}) {
+      if (nodeType(pKey) != QUERY_NODE_COLUMN) continue;
+      auto* pCol = (const SColumnNode*)pKey;
+      EXPECT_EQ(pCol->slotId, pCol->dataBlockId == leftId
+                                 ? pJoin->leftPrimSlotId
+                                 : pJoin->rightPrimSlotId);
+    }
+  }
+
+  static bool isPhysiJoin(const SPhysiNode* pNode) {
+    return QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == nodeType(pNode) ||
+           QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == nodeType(pNode) ||
+           QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN == nodeType(pNode);
+  }
+
+  static void expectTemporalInputSlot(const SDataBlockDescNode* pDesc,
+                                      int32_t slotId, SNode* pExpr) {
+    const SSlotDescNode* pFound = nullptr;
+    SNode* pSlot = nullptr;
+    FOREACH(pSlot, pDesc->pSlots) {
+      auto* pDescSlot = (const SSlotDescNode*)pSlot;
+      if (pDescSlot->slotId == slotId) pFound = pDescSlot;
+    }
+    ASSERT_NE(pFound, nullptr);
+    EXPECT_EQ(pFound->dataType.type, TSDB_DATA_TYPE_TIMESTAMP);
+    if (pExpr != nullptr) {
+      ASSERT_EQ(nodeType(pExpr), QUERY_NODE_TARGET);
+      auto* pTarget = (const STargetNode*)pExpr;
+      EXPECT_EQ(pTarget->dataBlockId, pDesc->dataBlockId);
+      EXPECT_EQ(exprBlockId(pTarget->pExpr), pDesc->dataBlockId);
+      const SSlotDescNode* pComputed = nullptr;
+      FOREACH(pSlot, pDesc->pSlots) {
+        auto* pDescSlot = (const SSlotDescNode*)pSlot;
+        if (pDescSlot->slotId == pTarget->slotId) pComputed = pDescSlot;
+      }
+      ASSERT_NE(pComputed, nullptr);
+      EXPECT_EQ(pComputed->dataType.precision,
+                ((const SExprNode*)pTarget->pExpr)->resType.precision);
+    }
+  }
+
+  static void expectPhysiJoinDirectChildContract(const SPhysiNode* pNode) {
+    if (isPhysiJoin(pNode)) {
+      ASSERT_EQ(LIST_LENGTH(pNode->pChildren), 2);
+      auto* pLeft = (const SPhysiNode*)nodesListGetNode(pNode->pChildren, 0);
+      auto* pRight =
+          (const SPhysiNode*)nodesListGetNode(pNode->pChildren, 1);
+      ASSERT_NE(pLeft->pOutputDataBlockDesc, nullptr);
+      ASSERT_NE(pRight->pOutputDataBlockDesc, nullptr);
+      const PhysiJoinInputIds ids = {
+          pLeft->pOutputDataBlockDesc->dataBlockId,
+          pRight->pOutputDataBlockDesc->dataBlockId,
+      };
+      ASSERT_NE(ids.left, ids.right);
+      checkPhysiJoinExpr(pNode->pConditions, &ids);
+
+      if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == nodeType(pNode)) {
+        auto* pJoin = (const SSortMergeJoinPhysiNode*)pNode;
+        checkPhysiJoinExpr(pJoin->leftPrimExpr, &ids);
+        checkPhysiJoinExpr(pJoin->rightPrimExpr, &ids);
+        checkPhysiJoinExprs(pJoin->pEqLeft, &ids);
+        checkPhysiJoinExprs(pJoin->pEqRight, &ids);
+        checkPhysiJoinExpr(pJoin->pPrimKeyCond, &ids);
+        checkPhysiJoinExpr(pJoin->pColEqCond, &ids);
+        checkPhysiJoinExpr(pJoin->pColOnCond, &ids);
+        checkPhysiJoinExpr(pJoin->pFullOnCond, &ids);
+        expectPhysiTemporalKeySides(pJoin, ids.left, ids.right);
+        if (IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) {
+          expectTemporalInputSlot(pLeft->pOutputDataBlockDesc,
+                                  pJoin->leftPrimSlotId,
+                                  pJoin->leftPrimExpr);
+          expectTemporalInputSlot(pRight->pOutputDataBlockDesc,
+                                  pJoin->rightPrimSlotId,
+                                  pJoin->rightPrimExpr);
+        }
+      } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == nodeType(pNode)) {
+        auto* pJoin = (const SHashJoinPhysiNode*)pNode;
+        checkPhysiJoinExprs(pJoin->pOnLeft, &ids);
+        checkPhysiJoinExprs(pJoin->pOnRight, &ids);
+        checkPhysiJoinExpr(pJoin->pLeftOnCond, &ids);
+        checkPhysiJoinExpr(pJoin->pRightOnCond, &ids);
+        checkPhysiJoinExpr(pJoin->pFullOnCond, &ids);
+        checkPhysiJoinExpr(pJoin->pPrimKeyCond, &ids);
+        checkPhysiJoinExpr(pJoin->pColEqCond, &ids);
+        checkPhysiJoinExpr(pJoin->pTagEqCond, &ids);
+      } else {
+        auto* pJoin = (const SThetaJoinPhysiNode*)pNode;
+        checkPhysiJoinExprs(pJoin->pOnLeft, &ids);
+        checkPhysiJoinExprs(pJoin->pOnRight, &ids);
+        checkPhysiJoinExpr(pJoin->pLeftOnCond, &ids);
+        checkPhysiJoinExpr(pJoin->pRightOnCond, &ids);
+        checkPhysiJoinExpr(pJoin->pFullOnCond, &ids);
+        checkPhysiJoinExpr(pJoin->pPrimKeyCond, &ids);
+        checkPhysiJoinExpr(pJoin->pColEqCond, &ids);
+        checkPhysiJoinExpr(pJoin->pTagEqCond, &ids);
+      }
+    }
+
+    SNode* pChild = nullptr;
+    FOREACH(pChild, pNode->pChildren) {
+      expectPhysiJoinDirectChildContract((const SPhysiNode*)pChild);
+    }
+  }
+
+  static void expectPhysiJoinDirectChildContract(const SQueryPlan* pPlan) {
+    SNode* pLevel = nullptr;
+    FOREACH(pLevel, pPlan->pSubplans) {
+      SNode* pSubplan = nullptr;
+      FOREACH(pSubplan, ((SNodeListNode*)pLevel)->pNodeList) {
+        auto* pRoot = ((const SSubplan*)pSubplan)->pNode;
+        expectPhysiJoinDirectChildContract(pRoot);
+      }
+    }
+    SNode* pChildPlan = nullptr;
+    FOREACH(pChildPlan, pPlan->pChildren) {
+      expectPhysiJoinDirectChildContract((const SQueryPlan*)pChildPlan);
+    }
+  }
+};
 
 TEST_F(PlanJoinTest, basic) {
   useDb("root", "test");
@@ -41,6 +407,1436 @@ TEST_F(PlanJoinTest, basic) {
   run("SELECT t1.c1, t2.c1 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts");
 
   run("SELECT t1.c1, t2.c1 FROM st1 t1 JOIN st2 t2 ON t1.ts = t2.ts");
+}
+
+TEST_F(PlanJoinTest, nestedOrdinaryRightDeepSlots) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  run("SELECT a.ts, b.ts, c.ts, a.c1, b.c1, c.c1 FROM st1s1 a "
+      "LEFT JOIN (st1s2 b FULL JOIN st1s3 c ON b.ts = c.ts) "
+      "ON a.ts = b.ts");
+  EXPECT_TRUE(planContains("\"Name\":\"PhysiHashJoin\""));
+
+  run("SELECT /*+ merge_join() */ a.ts, b.ts, c.ts FROM st1s1 a "
+      "LEFT JOIN (st1s2 b FULL JOIN st1s3 c ON b.ts = c.ts) "
+      "ON a.ts = b.ts");
+  EXPECT_TRUE(findPlanNode("Sort"));
+}
+
+TEST_F(PlanJoinTest, hashJoinSubquerySortDoesNotSetOutputOrder) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    auto* pHash = (const SJoinLogicNode*)findNode(
+        pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pHash, nullptr);
+    ASSERT_EQ(pHash->joinAlgo, JOIN_ALGO_HASH);
+    EXPECT_EQ(pHash->node.outputTsOrder, TSDB_ORDER_NONE);
+  });
+  run("SELECT /*+ HASH_JOIN() */ a.ts FROM "
+      "(SELECT ts FROM stream_t2 ORDER BY ts DESC LIMIT 10) a "
+      "JOIN (SELECT ts FROM stream_t2 ORDER BY ts DESC LIMIT 10) b "
+      "ON a.ts = b.ts");
+}
+
+TEST_F(PlanJoinTest, nestedHashInputDoesNotInheritLeafOrder) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  const string input =
+      "(SELECT /*+ HASH_JOIN() */ a.ts, a.c1 FROM "
+      "(SELECT * FROM stream_t2 ORDER BY ts DESC LIMIT 10) a JOIN "
+      "(SELECT * FROM stream_t2 ORDER BY ts DESC LIMIT 10) b "
+      "ON a.c1 = 2 - b.c1) q";
+  const string peer =
+      "(SELECT * FROM stream_t2 ORDER BY ts DESC LIMIT 10) c";
+  for (bool right : {false, true}) {
+    for (bool merge : {false, true}) {
+      setLogicPlanCheck([right, merge](const SLogicNode* pRoot,
+                                      bool optimized) {
+        if (!optimized) return;
+        auto* pJoin = (const SJoinLogicNode*)findNode(
+            pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(pJoin, nullptr);
+        EXPECT_EQ(pJoin->joinAlgo, merge ? JOIN_ALGO_MERGE : JOIN_ALGO_HASH);
+        auto* pInput = (const SLogicNode*)nodesListGetNode(
+            pJoin->node.pChildren, right ? 1 : 0);
+        ASSERT_NE(pInput, nullptr);
+        if (merge) {
+          ASSERT_EQ(nodeType(pInput), QUERY_NODE_LOGIC_PLAN_SORT);
+          EXPECT_EQ(pInput->outputTsOrder, ORDER_DESC);
+        }
+        auto* pHash = (const SJoinLogicNode*)findNode(
+            pInput, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(pHash, nullptr);
+        EXPECT_EQ(pHash->joinAlgo, JOIN_ALGO_HASH);
+      });
+      const string sql = "SELECT " +
+          string(merge ? "/*+ MERGE_JOIN() */ " : "") +
+          "q.c1, c.c1 FROM " + (right ? peer : input) + " LEFT JOIN " +
+          (right ? input : peer) + " ON q.ts = c.ts";
+      SCOPED_TRACE(sql);
+      run(sql);
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, nestedHashInputBlocksStoredOrderFallback) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    auto* pJoin = (const SJoinLogicNode*)findNode(
+        pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    EXPECT_EQ(pJoin->joinAlgo, JOIN_ALGO_HASH);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  for (const string order : {"ASC", "DESC"}) {
+    for (const string condition : {"a.ts = b.ts", "a.c1 = 2 - b.c1"}) {
+      const string input =
+          "(SELECT /*+ HASH_JOIN() */ a.ts, a.c1 FROM "
+          "(SELECT * FROM stream_t2 ORDER BY ts " + order +
+          " LIMIT 10) a JOIN "
+          "(SELECT * FROM stream_t2 ORDER BY ts " + order +
+          " LIMIT 10) b ON " + condition + ") q";
+      for (bool right : {false, true}) {
+        const string sql = "SELECT q.c1, c.c1 FROM " +
+            (right ? "stream_t2 c" : input) + " LEFT JOIN " +
+            (right ? input : "stream_t2 c") + " ON q.ts = c.ts";
+        SCOPED_TRACE(sql);
+        run(sql);
+      }
+    }
+  }
+  const string mixedInput =
+      "q.c1, c.c1 FROM (SELECT /*+ HASH_JOIN() */ a.ts, a.c1 "
+      "FROM ((SELECT * FROM stream_t2 ORDER BY ts ASC LIMIT 10) a "
+      "LEFT ASOF JOIN stream_t2 b ON a.ts >= b.ts) "
+      "JOIN stream_t2 d ON a.c1 = 2 - d.c1) q "
+      "LEFT JOIN stream_t2 c ON q.ts = c.ts";
+  run("SELECT " + mixedInput);
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    auto* pJoin = (const SJoinLogicNode*)findNode(
+        pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    EXPECT_EQ(pJoin->joinAlgo, JOIN_ALGO_MERGE);
+    auto* pInput = nodesListGetNode(pJoin->node.pChildren, 0);
+    ASSERT_NE(pInput, nullptr);
+    EXPECT_EQ(nodeType(pInput), QUERY_NODE_LOGIC_PLAN_SORT);
+  });
+  run("SELECT /*+ MERGE_JOIN() */ " + mixedInput);
+}
+
+TEST_F(PlanJoinTest, temporalJoinWithFromSubquery) {
+  useDb("root", "test");
+
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT ASOF JOIN "
+      "(SELECT ts, c1 FROM stream_t2) r");
+  ASSERT_TRUE(planContains("\"LeftPrimSlotId\":\"1\""));
+  ASSERT_TRUE(planContains("\"RightPrimSlotId\":\"0\""));
+
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "(SELECT c1, c3 event_ts FROM stream_t2 ORDER BY event_ts) r "
+      "WINDOW_OFFSET(-1s, 1s)");
+  ASSERT_TRUE(planContains(
+      "\"OpType\":\"" + std::to_string(OP_TYPE_IS_NOT_NULL) + "\""));
+  ASSERT_TRUE(planContains("\"RightPrimSlotId\":\"1\""));
+
+  run("SELECT l.event_ts, r.event_ts FROM "
+      "(SELECT ts event_ts FROM stream_t2 ORDER BY event_ts DESC) l "
+      "RIGHT ASOF JOIN "
+      "(SELECT ts event_ts FROM stream_t2 ORDER BY event_ts DESC) r");
+  ASSERT_TRUE(planContains(
+      "\"InputOrder\":\"2\",\"OutputOrder\":\"2\","));
+}
+
+TEST_F(PlanJoinTest, temporalJoinPrefersPrimaryTime) {
+  useDb("root", "test");
+  struct Input {
+    string sql;
+    string key;
+    bool primary;
+  };
+  const vector<Input> inputs = {
+      {"SELECT now() anchor, * FROM stream_t2", "ts", true},
+      {"SELECT c3, ts, c1 FROM stream_t2", "ts", true},
+      {"SELECT c3 other_ts, ts time_key, c1 FROM stream_t2 "
+       "ORDER BY other_ts DESC LIMIT 3", "time_key", true},
+      {"SELECT anchor, time_key, c1 FROM (SELECT now() anchor, "
+       "ts time_key, c1 FROM stream_t2) s ORDER BY c1 DESC",
+       "time_key", true},
+      {"SELECT now() anchor, ts first_key, ts second_key, c1 "
+       "FROM stream_t2", "first_key", true},
+      {"SELECT c3 fallback, ts + 1s shifted, c1 FROM stream_t2",
+       "shifted", true},
+      {"SELECT anchor, time_key, c1 FROM "
+       "(SELECT c3 anchor, ts + 1s time_key, c1 FROM stream_t2) s",
+       "time_key", true},
+      {"SELECT anchor, time_key, c1 FROM "
+       "(SELECT c3 anchor, ts + 1s time_key, c1 FROM stream_t2 "
+       "ORDER BY ts LIMIT 2) s", "time_key", true},
+      {"SELECT c3 + 1s fallback, c3 other_time, c1 FROM stream_t2",
+       "fallback", false},
+      {"SELECT c3 fallback, first(ts) time_key, c1 FROM stream_t2",
+       "time_key", true},
+      {"SELECT c3 fallback, last(ts) time_key, c1 FROM stream_t2",
+       "time_key", true},
+      {"SELECT c3 fallback, c1 FROM stream_t2", "fallback", false},
+      {"SELECT now() fallback, c3, c1 FROM stream_t2", "fallback", false},
+  };
+  for (const auto& input : inputs) {
+    setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+      if (optimized) return;
+      auto* join = (const SJoinLogicNode*)findNode(
+          root, QUERY_NODE_LOGIC_PLAN_JOIN);
+      ASSERT_NE(join, nullptr);
+      auto* condition = (SOperatorNode*)join->addPrimEqCond;
+      ASSERT_NE(condition, nullptr);
+      for (SNode* key : {condition->pLeft, condition->pRight}) {
+        ASSERT_EQ(nodeType(key), QUERY_NODE_COLUMN);
+        EXPECT_STREQ(((SColumnNode*)key)->colName, input.key.c_str());
+        EXPECT_EQ(((SColumnNode*)key)->isPrimTs, input.primary);
+      }
+    });
+    for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                             "RIGHT WINDOW"}) {
+      const string suffix = join.find("WINDOW") == string::npos ? "" :
+                            " WINDOW_OFFSET(-1s, 1s)";
+      const string sql = "SELECT l.c1, r.c1 FROM (" + input.sql +
+                         ") l " + join + " JOIN (" + input.sql + ") r" +
+                         suffix;
+      SCOPED_TRACE(sql);
+      run(sql);
+    }
+    for (bool subqueryOnLeft : {true, false}) {
+      setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+        if (!optimized) return;
+        expectTemporalJoinTimeKeyContract(root);
+        auto* join = (const SJoinLogicNode*)findNode(
+            root, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(join, nullptr);
+        auto* condition = (const SOperatorNode*)join->addPrimEqCond;
+        ASSERT_NE(condition, nullptr);
+        SNode* key = subqueryOnLeft ? condition->pLeft : condition->pRight;
+        ASSERT_EQ(nodeType(key), QUERY_NODE_COLUMN);
+        EXPECT_STREQ(((SColumnNode*)key)->tableAlias, "q");
+        EXPECT_STREQ(((SColumnNode*)key)->colName, input.key.c_str());
+      });
+      setPhysiPlanCheck([](const SQueryPlan* plan) {
+        expectPhysiJoinDirectChildContract(plan);
+      });
+      const string subquery = "(" + input.sql + ") q";
+      const string nested =
+          "(stream_t2 a JOIN stream_t2 b ON a.ts = b.ts)";
+      const string left = subqueryOnLeft ? subquery : nested;
+      const string right = subqueryOnLeft ? nested : subquery;
+      for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                               "RIGHT WINDOW"}) {
+        const string suffix = join.find("WINDOW") == string::npos ? "" :
+                              " WINDOW_OFFSET(-1s, 1s)";
+        const string sql = "SELECT q.c1, a.c1 FROM " + left + " " + join +
+                           " JOIN " + right + suffix;
+        SCOPED_TRACE(sql);
+        run(sql);
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalExpressionTimeIgnoresProjectionDepth) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+    if (!optimized) return;
+    expectTemporalJoinTimeKeyContract(root);
+    auto* join = (const SJoinLogicNode*)findNode(
+        root, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(join, nullptr);
+    auto* condition = (const SOperatorNode*)join->addPrimEqCond;
+    ASSERT_NE(condition, nullptr);
+    ASSERT_EQ(nodeType(condition->pLeft), QUERY_NODE_COLUMN);
+    auto* key = (const SColumnNode*)condition->pLeft;
+    EXPECT_STREQ(key->tableAlias, "q");
+    EXPECT_STREQ(key->colName, "time_key");
+  });
+  setPhysiPlanCheck([](const SQueryPlan* plan) {
+    expectPhysiJoinDirectChildContract(plan);
+  });
+  for (const string expr : {"a.ts + 1s", "a.ts - 1s",
+                            "timetruncate(a.ts, 1s)"}) {
+    for (bool joinSource : {false, true}) {
+      string source = "SELECT a.c3 anchor, " + expr +
+                      " time_key, a.c1 FROM stream_t2 a";
+      if (joinSource) {
+        source += " JOIN stream_t2 b ON a.c1 = b.c1";
+      }
+      for (int depth = 0; depth < 3; ++depth) {
+        for (const string peer : {
+                 "stream_t2 c",
+                 "(stream_t2 c JOIN stream_t2 d ON c.c1 = d.c1)"}) {
+          for (const string join : {"LEFT ASOF", "RIGHT ASOF",
+                                    "LEFT WINDOW", "RIGHT WINDOW"}) {
+            string sql = "SELECT q.c1 FROM (" + source + ") q " + join +
+                         " JOIN " + peer;
+            if (join.find("WINDOW") != string::npos) {
+              sql += " WINDOW_OFFSET(-1s, 1s)";
+            }
+            SCOPED_TRACE(sql);
+            run(sql);
+          }
+        }
+        source = "SELECT anchor, time_key, c1 FROM (" + source + ") s";
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinRedundantOutputSort) {
+  useDb("root", "test");
+  for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                            "RIGHT WINDOW"}) {
+    const string probe = join.find("LEFT") == 0 ? "l" : "r";
+    const string build = probe == "l" ? "r" : "l";
+    const string suffix = join.find("WINDOW") == string::npos ? "" :
+                          " WINDOW_OFFSET(-1s, 1s)";
+    const string sql = "SELECT l.ts, r.ts FROM stream_t2 l " + join +
+                       " JOIN stream_t2 r";
+    SCOPED_TRACE(join);
+    run(sql + suffix + " ORDER BY " + probe + ".ts");
+    EXPECT_EQ(countPlanNode("Sort"), 0);
+    run(sql + suffix + " ORDER BY " + probe + ".ts DESC");
+    EXPECT_EQ(countPlanNode("Sort"), 1);
+    run(sql + suffix + " ORDER BY " + build + ".ts");
+    EXPECT_EQ(countPlanNode("Sort"), 1);
+    run(sql + " ON l.c1 = r.c1" + suffix + " ORDER BY " + probe + ".ts");
+    EXPECT_EQ(countPlanNode("Sort"), 1);
+    run("SELECT l.ts, r.ts FROM "
+        "(SELECT ts FROM stream_t2 ORDER BY ts DESC LIMIT 3) l " + join +
+        " JOIN (SELECT ts FROM stream_t2 ORDER BY ts DESC LIMIT 3) r" +
+        suffix + " ORDER BY " + probe + ".ts DESC");
+    EXPECT_EQ(countPlanNode("Sort"), 0);
+  }
+  setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+    auto* sort = (const SSortLogicNode*)findNode(
+        root, QUERY_NODE_LOGIC_PLAN_SORT);
+    ASSERT_NE(sort, nullptr);
+    EXPECT_FALSE(sort->joinInputSort);
+    auto* key = (SOrderByExprNode*)nodesListGetNode(sort->pSortKeys, 0);
+    ASSERT_EQ(nodeType(key->pExpr), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(((SColumnNode*)key->pExpr)->tableAlias, "l");
+    EXPECT_STREQ(((SColumnNode*)key->pExpr)->colName, "ts");
+    auto* join = findNode(root, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(join, nullptr);
+    EXPECT_EQ(join->outputTsOrder, TSDB_ORDER_NONE);
+  });
+  run("SELECT l.ts FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.c3, r.c3) WINDOW_OFFSET(-1s, 1s) ORDER BY l.ts");
+}
+
+TEST_F(PlanJoinTest, postSplitSortIgnoresPrimaryRuleHistory) {
+  for (bool skipped : {false, true}) {
+    SCOPED_TRACE(skipped);
+    SMergeLogicNode* merge = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE, (SNode**)&merge),
+              TSDB_CODE_SUCCESS);
+    SColumnNode column = {};
+    setNodeType(&column, QUERY_NODE_COLUMN);
+    column.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    column.isPrimTs = true;
+    merge->node.outputTsOrder = ORDER_ASC;
+    merge->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+    SLogicNode* sort = nullptr;
+    ASSERT_EQ(planCreateJoinInputSort((SLogicNode*)merge, (SNode*)&column,
+                                      ORDER_ASC, &sort), TSDB_CODE_SUCCESS);
+    ((SSortLogicNode*)sort)->skipPKSortOpt = skipped;
+    SLogicSubplan subplan = {};
+    subplan.pNode = sort;
+    ASSERT_EQ(postSplitOptimize(nullptr, &subplan), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(nodeType(subplan.pNode), QUERY_NODE_LOGIC_PLAN_MERGE);
+    nodesDestroyNode((SNode*)subplan.pNode);
+  }
+}
+
+TEST_F(PlanJoinTest, correctiveSortSurvivesCloneAndPostSplit) {
+  SMergeLogicNode* merge = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE, (SNode**)&merge),
+            TSDB_CODE_SUCCESS);
+  SColumnNode column = {};
+  setNodeType(&column, QUERY_NODE_COLUMN);
+  column.isPrimTs = true;
+  merge->node.outputTsOrder = ORDER_ASC;
+  merge->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  SLogicNode* sort = nullptr;
+  ASSERT_EQ(planCreateJoinInputSort((SLogicNode*)merge, (SNode*)&column,
+                                    ORDER_ASC, &sort), TSDB_CODE_SUCCESS);
+  ((SSortLogicNode*)sort)->joinInputSort = true;
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> original((SNode*)sort,
+                                                          nodesDestroyNode);
+  SNode* copy = nullptr;
+  ASSERT_EQ(nodesCloneNode((SNode*)sort, &copy), TSDB_CODE_SUCCESS);
+  auto* child = (SLogicNode*)nodesListGetNode(
+      ((SLogicNode*)copy)->pChildren, 0);
+  child->pParent = (SLogicNode*)copy;
+  SLogicSubplan subplan = {};
+  subplan.pNode = (SLogicNode*)copy;
+  ASSERT_EQ(postSplitOptimize(nullptr, &subplan), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(nodeType(subplan.pNode), QUERY_NODE_LOGIC_PLAN_SORT);
+  nodesDestroyNode((SNode*)subplan.pNode);
+
+  char* json = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(nodesNodeToString((SNode*)sort, false, &json, &length),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesStringToNode(json, &copy), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(((SSortLogicNode*)copy)->joinInputSort);
+  nodesDestroyNode(copy);
+  taosMemoryFree(json);
+}
+
+static int32_t skipTemporalSortElimination(SLogicSubplan*, bool* optimized) {
+  *optimized = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+TEST_F(PlanJoinTest, temporalJoinWithoutRedundantSortRule) {
+  Stub stub;
+  stub.set(planEliminateTemporalInputSort, skipTemporalSortElimination);
+  useDb("root", "test");
+  for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                            "RIGHT WINDOW"}) {
+    SCOPED_TRACE(join);
+    run("SELECT l.c1, r.c1 FROM (SELECT ts, c1 FROM stream_t2 "
+        "ORDER BY c1 DESC) l " + join + " JOIN stream_t2 r" +
+        (join.find("WINDOW") == string::npos ? "" :
+         " WINDOW_OFFSET(-1s, 1s)"));
+    EXPECT_EQ(countPlanNode("Sort"), 2);
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinFederatedPrecision) {
+  const bool previous = tsFederatedQueryEnable;
+  struct RestoreFlag {
+    bool value;
+    ~RestoreFlag() { tsFederatedQueryEnable = value; }
+  } restore{previous};
+  tsFederatedQueryEnable = true;
+  g_mockCatalogService->createExtSource("join_remote", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 1, "user", "db", "");
+  vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime"},
+      {"c1", TSDB_DATA_TYPE_INT, false, true, false, "int"}};
+  g_mockCatalogService->createExtTable("join_remote", "", "", "metrics",
+                                       columns, TSDB_TIME_PRECISION_MICRO);
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+    if (optimized) return;
+    auto* join = findNode(root, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(join, nullptr);
+    auto* condition = (SOperatorNode*)((SJoinLogicNode*)join)->addPrimEqCond;
+    ASSERT_NE(condition, nullptr);
+    ASSERT_EQ(nodeType(condition->pLeft), QUERY_NODE_FUNCTION);
+    EXPECT_STREQ(((SFunctionNode*)condition->pLeft)->functionName,
+                 "__timestamp_scale");
+    auto* left = (SLogicNode*)nodesListGetNode(join->pChildren, 0);
+    ASSERT_EQ(nodeType(left), QUERY_NODE_LOGIC_PLAN_SCAN);
+    EXPECT_EQ(left->pConditions, nullptr);
+    auto* right = (SLogicNode*)nodesListGetNode(join->pChildren, 1);
+    ASSERT_EQ(nodeType(right), QUERY_NODE_LOGIC_PLAN_SORT);
+    auto* scan = (SScanLogicNode*)nodesListGetNode(right->pChildren, 0);
+    ASSERT_EQ(nodeType(scan), QUERY_NODE_LOGIC_PLAN_SCAN);
+    EXPECT_EQ(scan->scanType, SCAN_TYPE_EXTERNAL);
+  });
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "join_remote.metrics r WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT ASOF JOIN "
+      "join_remote.metrics r");
+}
+
+TEST_F(PlanJoinTest, temporalJoinFederatedFilteredOrder) {
+  struct RestoreFlag {
+    bool value;
+    ~RestoreFlag() { tsFederatedQueryEnable = value; }
+  } restore{tsFederatedQueryEnable};
+  tsFederatedQueryEnable = true;
+  g_mockCatalogService->createExtSource("ordered_remote", EXT_SOURCE_INFLUXDB,
+                                       "127.0.0.1", 1, "user", "db", "");
+  vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "Timestamp"},
+      {"c1", TSDB_DATA_TYPE_BIGINT, false, true, false, "Int64"}};
+  g_mockCatalogService->createExtTable("ordered_remote", "", "", "metrics",
+                                      columns, TSDB_TIME_PRECISION_NANO);
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+    if (!optimized) return;
+    auto* join = findNode(root, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(join, nullptr);
+    int filteredInputs = 0;
+    SNode* child = nullptr;
+    FOREACH(child, join->pChildren) {
+      ASSERT_EQ(QUERY_NODE_LOGIC_PLAN_SCAN, nodeType(child));
+      auto* scan = (const SScanLogicNode*)child;
+      ASSERT_EQ(SCAN_TYPE_EXTERNAL, scan->scanType);
+      auto* remote = (const SLogicNode*)scan->pRemoteLogicPlan;
+      ASSERT_NE(nullptr, nodesGetRemoteQueryOutputSort(remote));
+      EXPECT_EQ(DATA_ORDER_LEVEL_GLOBAL, scan->node.resultDataOrder);
+      if (remote->pConditions == nullptr) continue;
+      ++filteredInputs;
+      char* sql = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS,
+                nodesRemotePlanToSQL(remote, EXT_SOURCE_INFLUXDB, nullptr,
+                                     &sql));
+      string text(sql);
+      taosMemoryFree(sql);
+      SCOPED_TRACE(text);
+      auto where = text.rfind(") _sq WHERE ");
+      ASSERT_NE(string::npos, where);
+      EXPECT_GT(text.rfind(" ORDER BY "), where);
+    }
+    EXPECT_EQ(1, filteredInputs);
+  });
+  for (string side : {"LEFT", "RIGHT"}) {
+    string kept = side == "LEFT" ? "l" : "r";
+    for (string kind : {"ASOF", "WINDOW"}) {
+      run("SELECT l.c1, r.c1 FROM ordered_remote.metrics l " + side + " " +
+          kind + " JOIN ordered_remote.metrics r" +
+          (kind == "WINDOW" ? " WINDOW_OFFSET(-2m, 2m)" : "") +
+          " WHERE " + kept + ".c1 > 20 ORDER BY " + kept + ".ts");
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinFederatedSubqueryTimeSlot) {
+  struct RestoreFlag {
+    bool value;
+    ~RestoreFlag() { tsFederatedQueryEnable = value; }
+  } restore{tsFederatedQueryEnable};
+  tsFederatedQueryEnable = true;
+  g_mockCatalogService->createExtSource("slot_remote", EXT_SOURCE_MYSQL,
+                                       "127.0.0.1", 1, "user", "db", "");
+  vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime"},
+      {"c1", TSDB_DATA_TYPE_INT, false, true, false, "int"}};
+  g_mockCatalogService->createExtTable("slot_remote", "", "", "metrics",
+                                      columns, TSDB_TIME_PRECISION_MICRO);
+  useDb("root", "test");
+
+  auto inspect = [](const SQueryPlan* plan) {
+    int joins = 0;
+    function<void(const SPhysiNode*)> visit = [&](const SPhysiNode* node) {
+      if (nodeType(node) == QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN) {
+        ++joins;
+        auto* join = (const SSortMergeJoinPhysiNode*)node;
+        ASSERT_EQ(2, LIST_LENGTH(node->pChildren));
+        bool left = join->joinType == JOIN_TYPE_LEFT;
+        for (int side = 0; side < 2; ++side) {
+          auto* input = (const SPhysiNode*)nodesListGetNode(
+              node->pChildren, side);
+          int64_t slotId = side == 0 ? join->leftPrimSlotId :
+                                      join->rightPrimSlotId;
+          ASSERT_GE(slotId, 0);
+          ASSERT_LT(slotId, LIST_LENGTH(input->pOutputDataBlockDesc->pSlots));
+          auto* slot = (const SSlotDescNode*)nodesListGetNode(
+              input->pOutputDataBlockDesc->pSlots, slotId);
+          // The projected time key must not bind to a new reserve slot.
+          // FedScan may mirror b.ts into an existing reserve scan slot.
+          if (side == (left ? 0 : 1)) EXPECT_TRUE(slot->output);
+          EXPECT_EQ(TSDB_DATA_TYPE_TIMESTAMP, slot->dataType.type);
+          EXPECT_EQ(TSDB_TIME_PRECISION_MICRO, slot->dataType.precision);
+        }
+
+        // The matching key and payload have independent slot bindings. Verify
+        // that b.c1 still comes from the non-preserved input.
+        auto* other = (const SPhysiNode*)nodesListGetNode(
+            node->pChildren, left ? 1 : 0);
+        int otherValues = 0;
+        SNode* targetNode = nullptr;
+        FOREACH(targetNode, join->pTargets) {
+          ASSERT_EQ(QUERY_NODE_TARGET, nodeType(targetNode));
+          auto* expr = ((const STargetNode*)targetNode)->pExpr;
+          if (nodeType(expr) != QUERY_NODE_COLUMN) continue;
+          auto* column = (const SColumnNode*)expr;
+          if (string(column->tableAlias) != "b" ||
+              string(column->colName) != "c1") continue;
+          ++otherValues;
+          EXPECT_EQ(other->pOutputDataBlockDesc->dataBlockId,
+                    column->dataBlockId);
+          ASSERT_GE(column->slotId, 0);
+          ASSERT_LT(column->slotId,
+                    LIST_LENGTH(other->pOutputDataBlockDesc->pSlots));
+        }
+        EXPECT_EQ(1, otherValues);
+        if (join->subType == JOIN_STYPE_WIN) {
+          auto* offset = (const SWindowOffsetNode*)join->pWindowOffset;
+          ASSERT_NE(nullptr, offset);
+          EXPECT_EQ(-120000000, ((SValueNode*)offset->pStartOffset)->datum.i);
+          EXPECT_EQ(120000000, ((SValueNode*)offset->pEndOffset)->datum.i);
+        }
+      }
+      SNode* child = nullptr;
+      FOREACH(child, node->pChildren) {
+        visit((const SPhysiNode*)child);
+      }
+    };
+    SNode* level = nullptr;
+    FOREACH(level, plan->pSubplans) {
+      SNode* subplan = nullptr;
+      FOREACH(subplan, ((SNodeListNode*)level)->pNodeList) {
+        visit(((SSubplan*)subplan)->pNode);
+      }
+    }
+    EXPECT_EQ(1, joins);
+  };
+
+  for (string order : {"ASC", "DESC"}) {
+    string scan = "SELECT ts AS event_time, c1 FROM slot_remote.metrics "
+                  "ORDER BY ts " + order + " LIMIT 3 OFFSET 1";
+    for (string input : {"(" + scan + ") a",
+                         "(SELECT event_time, c1 FROM (" + scan + ") s) a"}) {
+      for (string side : {"LEFT", "RIGHT"}) {
+        for (string kind : {"ASOF", "ASOF ON", "WINDOW"}) {
+          string join = kind == "WINDOW" ? "WINDOW" : "ASOF";
+          for (string sort : {" ORDER BY a.event_time, b.ts",
+                              " ORDER BY a.c1", ""}) {
+            for (string predicate : {"SELECT", "WHERE", "ON"}) {
+              string clause = kind == "ASOF ON" ?
+                              " ON a.event_time >= b.ts" : "";
+              if (predicate == "ON") {
+                clause += clause.empty() ? " ON a.c1 = b.c1" :
+                                           " AND a.c1 = b.c1";
+              }
+              if (kind == "WINDOW") clause += " WINDOW_OFFSET(-2m, 2m)";
+              string sql = (predicate == "SELECT" ?
+                            "SELECT a.c1, b.c1 FROM " :
+                            "SELECT a.c1 AS c1 FROM ") +
+                  (side == "LEFT" ? input : "slot_remote.metrics b") + " " +
+                  side + " " + join + " JOIN " +
+                  (side == "LEFT" ? "slot_remote.metrics b" : input) +
+                  clause + (predicate == "WHERE" ? " WHERE a.c1 < b.c1" :
+                                                  " WHERE a.c1 > 20") + sort;
+              SCOPED_TRACE(sql);
+              runFullPlan(sql, inspect);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinHiddenConditionInputSlot) {
+  auto make = [](ENodeType type) {
+    SNode* node = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(type, &node));
+    return node;
+  };
+  auto column = [&](const char* alias, const char* name, int8_t type) {
+    auto* col = (SColumnNode*)make(QUERY_NODE_COLUMN);
+    tstrncpy(col->tableAlias, alias, sizeof(col->tableAlias));
+    tstrncpy(col->colName, name, sizeof(col->colName));
+    tstrncpy(col->node.aliasName, name, sizeof(col->node.aliasName));
+    col->node.resType.type = type;
+    col->node.resType.bytes = tDataTypes[type].bytes;
+    return (SNode*)col;
+  };
+  for (int test = 0; test < 12; ++test) {
+    int condition = test % 3;
+    bool missingRight = (test / 3) % 2 != 0;
+    bool multipleAliases = test >= 6;
+    SCOPED_TRACE(test);
+    auto* subplan = (SLogicSubplan*)make(QUERY_NODE_LOGIC_SUBPLAN);
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> logicOwner(
+        (SNode*)subplan, nodesDestroyNode);
+    subplan->subplanType = SUBPLAN_TYPE_MERGE;
+    auto* join = (SJoinLogicNode*)make(QUERY_NODE_LOGIC_PLAN_JOIN);
+    subplan->pNode = (SLogicNode*)join;
+    join->joinType = JOIN_TYPE_LEFT;
+    join->subType = JOIN_STYPE_ASOF;
+    join->joinAlgo = JOIN_ALGO_MERGE;
+    // Keep input ownership but model remote payloads with bare output names.
+    for (const char* alias : {"a", "b"}) {
+      auto* input = (SExchangeLogicNode*)make(QUERY_NODE_LOGIC_PLAN_EXCHANGE);
+      ASSERT_EQ(0, nodesListMakeAppend(&join->node.pChildren, (SNode*)input));
+      if (multipleAliases && string(alias) == "b") {
+        ASSERT_EQ(0, nodesListMakeAppend(&input->node.pTargets,
+                                        column("inner", "other",
+                                               TSDB_DATA_TYPE_INT)));
+      }
+      ASSERT_EQ(0, nodesListMakeAppend(&input->node.pTargets,
+                                      column(alias, "ts",
+                                             TSDB_DATA_TYPE_TIMESTAMP)));
+      if (!missingRight || string(alias) != "b") {
+        ASSERT_EQ(0, nodesListMakeAppend(&input->node.pTargets,
+                                        column("", "c1", TSDB_DATA_TYPE_INT)));
+      }
+    }
+    auto* time = (SOperatorNode*)make(QUERY_NODE_OPERATOR);
+    time->opType = OP_TYPE_GREATER_EQUAL;
+    time->pLeft = column("a", "ts", TSDB_DATA_TYPE_TIMESTAMP);
+    time->pRight = column("b", "ts", TSDB_DATA_TYPE_TIMESTAMP);
+    join->addPrimEqCond = (SNode*)time;
+    ASSERT_EQ(0, nodesListMakeAppend(&join->node.pTargets,
+                                    column("a", "c1", TSDB_DATA_TYPE_INT)));
+    auto* predicate = (SOperatorNode*)make(QUERY_NODE_OPERATOR);
+    predicate->opType = OP_TYPE_EQUAL;
+    predicate->pLeft = column("a", "c1", TSDB_DATA_TYPE_INT);
+    predicate->pRight = column("b", "c1", TSDB_DATA_TYPE_INT);
+    SNode** conditions[] = {&join->pFullOnCond, &join->pColOnCond,
+                            &join->node.pConditions};
+    *conditions[condition] = (SNode*)predicate;
+
+    SQueryLogicPlan logic = {};
+    ASSERT_EQ(0, nodesListMakeAppend(&logic.pTopSubplans, (SNode*)subplan));
+    unique_ptr<SNodeList, decltype(&nodesClearList)> listOwner(
+        logic.pTopSubplans, nodesClearList);
+    SSelectStmt ast = {};
+    ast.node.type = QUERY_NODE_SELECT_STMT;
+    SPlanContext context = {};
+    context.pAstRoot = (SNode*)&ast;
+    SQueryPlan* plan = nullptr;
+    unique_ptr<SArray, decltype(&taosArrayDestroy)> execNodes(
+        taosArrayInit(1, sizeof(SQueryNodeAddr)), taosArrayDestroy);
+    int32_t code = createPhysiPlan(&context, &logic, &plan, execNodes.get());
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> planOwner(
+        (SNode*)plan, nodesDestroyNode);
+    if (missingRight) {
+      EXPECT_EQ(TSDB_CODE_PLAN_SLOT_NOT_FOUND, code);
+      continue;
+    }
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    auto* level = (SNodeListNode*)nodesListGetNode(plan->pSubplans, 0);
+    auto* physical = (SSubplan*)nodesListGetNode(level->pNodeList, 0);
+    auto* result = (SSortMergeJoinPhysiNode*)physical->pNode;
+    auto* right = (SPhysiNode*)nodesListGetNode(result->node.pChildren, 1);
+    ASSERT_EQ(2, LIST_LENGTH(result->pTargets));
+    auto* target = (STargetNode*)nodesListGetNode(result->pTargets, 1);
+    auto* hidden = (SColumnNode*)target->pExpr;
+    EXPECT_STREQ("b", hidden->tableAlias);
+    EXPECT_EQ(right->pOutputDataBlockDesc->dataBlockId, hidden->dataBlockId);
+    EXPECT_EQ(multipleAliases ? 2 : 1, hidden->slotId);
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinWithVirtualTable) {
+  useDb("root", "test");
+
+  run("SELECT v.c1, r.c1 FROM v_stream_t2 v LEFT ASOF JOIN "
+      "stream_t2 r");
+  ASSERT_TRUE(planContains("\"LeftPrimSlotId\":\"1\""));
+  ASSERT_TRUE(planContains(
+      "\"TableAlias\":\"v\",\"ColName\":\"ts\""));
+}
+
+TEST_F(PlanJoinTest, windowJoinWithExplicitTimeColumns) {
+  useDb("root", "test");
+
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "(SELECT ts source_ts, c3 event_ts, c1 FROM stream_t2 "
+      "ORDER BY event_ts) r WINDOW_TIME(l.ts, r.event_ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+  ASSERT_TRUE(planContains("\"RightPrimSlotId\":\"0\""));
+  ASSERT_TRUE(planContains("\"UserAlias\":\"event_ts\""));
+}
+
+TEST_F(PlanJoinTest, temporalJoinInputOrderAlignment) {
+  useDb("root", "test");
+  run("SELECT l.c1, r.c1 FROM "
+      "(SELECT ts, c1 FROM stream_t2 ORDER BY c1 LIMIT 3) l "
+      "LEFT WINDOW JOIN "
+      "(SELECT ts, c1 FROM stream_t2 ORDER BY ts DESC LIMIT 2) r "
+      "WINDOW_OFFSET(-1s, 1s)");
+  ASSERT_TRUE(planContains("\"InputOrder\":\"2\""));
+  ASSERT_TRUE(findPlanNode("Sort"));
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    ASSERT_EQ(countSorts(pRoot), 2);
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    SNode* pChild = nullptr;
+    FOREACH(pChild, pJoin->pChildren) {
+      ASSERT_EQ(nodeType(pChild), QUERY_NODE_LOGIC_PLAN_SORT);
+      auto* pSort = (SSortLogicNode*)pChild;
+      auto* pKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
+      ASSERT_EQ(nodeType(pKey->pExpr), QUERY_NODE_COLUMN);
+      ASSERT_STREQ(((SColumnNode*)pKey->pExpr)->colName, "c3");
+      ASSERT_EQ(pSort->node.outputTsOrder, TSDB_ORDER_NONE);
+      ASSERT_EQ(pSort->node.resultDataOrder, DATA_ORDER_LEVEL_NONE);
+    }
+  });
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(l.c3, r.c3) WINDOW_OFFSET(-1s, 1s)");
+  ASSERT_TRUE(planContains("\"LeftPrimSlotId\":\"1\""));
+  ASSERT_TRUE(planContains("\"RightPrimSlotId\":\"1\""));
+}
+
+TEST_F(PlanJoinTest, temporalJoinOrderMatrix) {
+  useDb("root", "test");
+  const std::string orders[] = {"c1", "ts", "ts DESC"};
+  const std::string joins[] = {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                               "RIGHT WINDOW"};
+  for (const auto& join : joins) {
+    for (int left = 0; left < 3; ++left) {
+      for (int right = 0; right < 3; ++right) {
+        const EOrder order = left != 1 && right != 1 &&
+                                     (left == 2 || right == 2) ?
+                                 ORDER_DESC : ORDER_ASC;
+        const std::string sql =
+            "SELECT l.c1, r.c1 FROM (SELECT ts, c1 FROM stream_t2 "
+            "ORDER BY " + orders[left] + ") l " + join +
+            " JOIN (SELECT ts, c1 FROM stream_t2 ORDER BY " +
+            orders[right] + ") r" +
+            (join.find("WINDOW") != std::string::npos ?
+                 " WINDOW_OFFSET(-1s, 1s)" : "");
+        SCOPED_TRACE(sql);
+        setLogicPlanCheck([&](const SLogicNode* pRoot, bool optimized) {
+          auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+          ASSERT_NE(pJoin, nullptr);
+          ASSERT_EQ(pJoin->inputTsOrder, order);
+          ASSERT_EQ(pJoin->outputTsOrder, order);
+          SNode* pNode = nullptr;
+          FOREACH(pNode, pJoin->pChildren) {
+            auto* pInput = (SLogicNode*)pNode;
+            EXPECT_EQ(pInput->outputTsOrder, order);
+            EXPECT_EQ(pInput->resultDataOrder, DATA_ORDER_LEVEL_GLOBAL);
+          }
+          int extra = (left == 0 || left != order) +
+                      (right == 0 || right != order);
+          ASSERT_EQ(countSorts(pJoin),
+                    optimized ? extra : 2 + extra);
+        });
+        run(sql);
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinKeepsEffectiveOrderSeparate) {
+  useDb("root", "test");
+  const string orders[] = {"", " ORDER BY event_ts ASC",
+                          " ORDER BY event_ts DESC"};
+  for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                           "RIGHT WINDOW"}) {
+    for (int left = 0; left < 3; ++left) {
+      for (int right = 0; right < 3; ++right) {
+        const EOrder order = left != 1 && right != 1 &&
+                             (left == 2 || right == 2) ?
+                             ORDER_DESC : ORDER_ASC;
+        setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+          auto* temporal = findNode(root, QUERY_NODE_LOGIC_PLAN_JOIN);
+          ASSERT_NE(temporal, nullptr);
+          EXPECT_EQ(temporal->inputTsOrder, order);
+          EXPECT_EQ(temporal->outputTsOrder, TSDB_ORDER_NONE);
+          const int corrections = (left == 0 || left != order) +
+                                  (right == 0 || right != order);
+          EXPECT_EQ(countSorts(temporal),
+                    (left != 0) + (right != 0) + corrections);
+          SNode* node = nullptr;
+          FOREACH(node, temporal->pChildren) {
+            auto* input = (const SLogicNode*)node;
+            while (nodeType(input) == QUERY_NODE_LOGIC_PLAN_PROJECT) {
+              EXPECT_EQ(input->outputTsOrder, TSDB_ORDER_NONE);
+              EXPECT_EQ(input->resultDataOrder, DATA_ORDER_LEVEL_NONE);
+              ASSERT_EQ(LIST_LENGTH(input->pChildren), 1);
+              input = (SLogicNode*)nodesListGetNode(input->pChildren, 0);
+            }
+            ASSERT_EQ(nodeType(input), QUERY_NODE_LOGIC_PLAN_SORT);
+            EXPECT_EQ(input->outputTsOrder, TSDB_ORDER_NONE);
+            EXPECT_EQ(input->resultDataOrder, DATA_ORDER_LEVEL_NONE);
+            auto* key = (SOrderByExprNode*)nodesListGetNode(
+                ((SSortLogicNode*)input)->pSortKeys, 0);
+            EXPECT_EQ(key->order, order);
+          }
+        });
+        const string input =
+            "(SELECT event_ts, c1 FROM (SELECT c3 event_ts, ts, c1 "
+            "FROM stream_t2) s";
+        const string sql = "SELECT l.c1, r.c1 FROM " + input +
+            orders[left] + " LIMIT 5) l " + join + " JOIN " + input +
+            orders[right] + " LIMIT 5) r" +
+            (join.find("WINDOW") == string::npos ? "" :
+             " WINDOW_OFFSET(-1s, 1s)");
+        SCOPED_TRACE(sql);
+        run(sql);
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinTimeKeyAndLimits) {
+  useDb("root", "test");
+  for (const auto& order : {"c1 DESC", "ts DESC"}) {
+    setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+      auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+      ASSERT_NE(pJoin, nullptr);
+      ASSERT_EQ(pJoin->inputTsOrder, ORDER_ASC);
+      auto* pLeft = (SLogicNode*)nodesListGetNode(pJoin->pChildren, 0);
+      ASSERT_EQ(nodeType(pLeft), QUERY_NODE_LOGIC_PLAN_SORT);
+      ASSERT_EQ(pLeft->pLimit, nullptr);
+      auto* pProject = (SLogicNode*)nodesListGetNode(pLeft->pChildren, 0);
+      ASSERT_EQ(nodeType(pProject), QUERY_NODE_LOGIC_PLAN_PROJECT);
+      while (pProject->pLimit == nullptr &&
+             LIST_LENGTH(pProject->pChildren) == 1) {
+        pProject = (SLogicNode*)nodesListGetNode(pProject->pChildren, 0);
+      }
+      ASSERT_NE(pProject->pLimit, nullptr);
+      ASSERT_EQ(((SLimitNode*)pProject->pLimit)->limit->datum.i, 3);
+      ASSERT_EQ(((SLimitNode*)pProject->pLimit)->offset->datum.i, 2);
+    });
+    run("SELECT l.c1, r.c1 FROM (SELECT ts, c1 FROM stream_t2 ORDER BY " +
+        std::string(order) + " LIMIT 3 OFFSET 2) l LEFT WINDOW JOIN "
+        "(SELECT ts, c1 FROM stream_t2 ORDER BY ts) r "
+        "WINDOW_OFFSET(-1s, 1s) JLIMIT 1 ORDER BY l.ts DESC");
+  }
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    auto* pRight = (SLogicNode*)nodesListGetNode(pJoin->pChildren, 1);
+    ASSERT_EQ(nodeType(pRight), QUERY_NODE_LOGIC_PLAN_SORT);
+    auto* pKey = (SOrderByExprNode*)nodesListGetNode(
+        ((SSortLogicNode*)pRight)->pSortKeys, 0);
+    ASSERT_STREQ(((SColumnNode*)pKey->pExpr)->colName, "source_ts");
+  });
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "(SELECT ts source_ts, c3 event_ts, c1 FROM stream_t2 "
+      "ORDER BY event_ts DESC) r WINDOW_OFFSET(-1s, 1s)");
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    auto* pLeft = (SSortLogicNode*)nodesListGetNode(pJoin->pChildren, 0);
+    ASSERT_EQ(nodeType(pLeft), QUERY_NODE_LOGIC_PLAN_SORT);
+    auto* pKey = (SOrderByExprNode*)nodesListGetNode(pLeft->pSortKeys, 0);
+    ASSERT_STREQ(((SColumnNode*)pKey->pExpr)->colName, "c3");
+  });
+  run("SELECT v.c1, r.c1 FROM v_stream_t2 v LEFT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(v.c3, r.c3) WINDOW_OFFSET(-1s, 1s)");
+  ASSERT_TRUE(planContains("\"TableAlias\":\"v\",\"ColName\":\"c3\""));
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    ASSERT_EQ(pJoin->pLimit, nullptr);
+    ASSERT_NE(findNode(pRoot, QUERY_NODE_LOGIC_PLAN_SORT), nullptr);
+  });
+  run("SELECT l.ts, r.c1 FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.c3, r.c3) WINDOW_OFFSET(-1s, 1s) "
+      "ORDER BY l.ts LIMIT 1");
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    ASSERT_EQ(pJoin->inputTsOrder, ORDER_DESC);
+    ASSERT_EQ(countSorts(pJoin), 2);
+  });
+  run("SELECT l.c1, r.c1 FROM "
+      "(SELECT ts, c3 event_ts, c1 FROM stream_t2 "
+      "ORDER BY event_ts DESC) l LEFT WINDOW JOIN "
+      "(SELECT ts, c3 event_ts, c1 FROM stream_t2 "
+      "ORDER BY event_ts DESC) r WINDOW_TIME(l.event_ts, r.event_ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(PlanJoinTest, temporalJoinFlexibleScan) {
+  useDb("root", "test");
+  for (const auto& table : {"stream_t2", "st1"}) {
+    for (bool leftScan : {false, true}) {
+      const std::string scan = std::string(table);
+      const std::string subquery =
+          "(SELECT ts, c1 FROM stream_t2 ORDER BY ts DESC LIMIT 2)";
+      setLogicPlanCheck([&](const SLogicNode* pRoot, bool optimized) {
+        if (!optimized) return;
+        auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(pJoin, nullptr);
+        ASSERT_EQ(pJoin->inputTsOrder, ORDER_DESC);
+        ASSERT_EQ(countSorts(pJoin), 0);
+        auto* pScan = (SScanLogicNode*)nodesListGetNode(pJoin->pChildren,
+                                                        leftScan ? 0 : 1);
+        ASSERT_EQ(nodeType(pScan), QUERY_NODE_LOGIC_PLAN_SCAN);
+        ASSERT_EQ(pScan->scanSeq[0], 0);
+        ASSERT_EQ(pScan->scanSeq[1], 1);
+        ASSERT_EQ(pScan->node.resultDataOrder, DATA_ORDER_LEVEL_GLOBAL);
+      });
+      run("SELECT l.c1, r.c1 FROM " + (leftScan ? scan : subquery) +
+          " l LEFT ASOF JOIN " + (leftScan ? subquery : scan) + " r");
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinGlobalOrder) {
+  useDb("root", "test");
+  EDataOrderLevel level = DATA_ORDER_LEVEL_GLOBAL;
+  setLogicPlanCheck([&](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    ASSERT_EQ(pJoin->inputTsOrder, ORDER_ASC);
+    auto* pLeft = (SLogicNode*)nodesListGetNode(pJoin->pChildren, 0);
+    ASSERT_EQ(nodeType(pLeft), QUERY_NODE_LOGIC_PLAN_SORT);
+    EXPECT_EQ(pLeft->resultDataOrder, level);
+    EXPECT_EQ(pLeft->outputTsOrder, level == DATA_ORDER_LEVEL_GLOBAL ?
+                                  ORDER_ASC : TSDB_ORDER_NONE);
+    auto* pSort = (SSortLogicNode*)pLeft;
+    EXPECT_FALSE(pSort->groupSort);
+    auto* pKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
+    EXPECT_EQ(pKey->order, ORDER_ASC);
+  });
+  run("SELECT l.c1, r.c1 FROM (SELECT ts, c1 FROM st1) l "
+      "LEFT ASOF JOIN stream_t2 r");
+  // Set/group nodes remain outside the physical timestamp lineage proof.
+  level = DATA_ORDER_LEVEL_NONE;
+  run("SELECT l.c1, r.c1 FROM "
+      "(SELECT ts, c1 FROM stream_t2 UNION ALL "
+      "SELECT ts, c1 FROM stream_t2) l LEFT ASOF JOIN stream_t2 r");
+  run("SELECT l.c1, r.c1 FROM "
+      "(SELECT ts, c1 FROM st1 PARTITION BY tbname) l "
+      "LEFT ASOF JOIN stream_t2 r");
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    ASSERT_EQ(pJoin->inputTsOrder, ORDER_ASC);
+    auto* pLeft = (SLogicNode*)nodesListGetNode(pJoin->pChildren, 0);
+    ASSERT_EQ(nodeType(pLeft), QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN);
+    ASSERT_EQ(pLeft->resultDataOrder, DATA_ORDER_LEVEL_GLOBAL);
+  });
+  run("SELECT v.c1, r.c1 FROM v_stream_t2 v LEFT ASOF JOIN "
+      "(SELECT ts, c1 FROM stream_t2 ORDER BY ts DESC LIMIT 2) r");
+}
+
+TEST_F(PlanJoinTest, temporalJoinAggregateInputOrder) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pAgg = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_AGG);
+    ASSERT_NE(pAgg, nullptr);
+    ASSERT_EQ(pAgg->inputTsOrder, ORDER_ASC);
+  });
+  run("SELECT first(l.c1), last(r.c1) FROM stream_t2 l "
+      "LEFT ASOF JOIN stream_t2 r");
+}
+
+TEST_F(PlanJoinTest, asofExplicitTimePrecedesInputOrdering) {
+  useDb("root", "test");
+  for (const string side : {"LEFT", "RIGHT"}) {
+    for (const string op : {">", ">=", "=", "<", "<="}) {
+      for (bool reversed : {false, true}) {
+        SCOPED_TRACE(side + op + to_string(reversed));
+        setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+          auto* join = (const SJoinLogicNode*)findNode(
+              root, QUERY_NODE_LOGIC_PLAN_JOIN);
+          ASSERT_NE(join, nullptr);
+          auto* condition = (SOperatorNode*)join->pPrimKeyEqCond;
+          ASSERT_NE(condition, nullptr);
+          EXPECT_EQ(join->addPrimEqCond, nullptr);
+          EXPECT_STREQ(((SColumnNode*)condition->pLeft)->tableAlias, "l");
+          EXPECT_STREQ(((SColumnNode*)condition->pRight)->tableAlias, "r");
+          SNode* child = nullptr;
+          FOREACH(child, join->node.pChildren) {
+            auto* sort = (const SSortLogicNode*)child;
+            ASSERT_EQ(nodeType(sort), QUERY_NODE_LOGIC_PLAN_SORT);
+            ASSERT_TRUE(sort->joinInputSort);
+            auto* key = (SOrderByExprNode*)nodesListGetNode(
+                sort->pSortKeys, 0);
+            ASSERT_EQ(nodeType(key->pExpr), QUERY_NODE_COLUMN);
+            EXPECT_STREQ(((SColumnNode*)key->pExpr)->colName, "time_key");
+            EXPECT_EQ(key->order, ORDER_ASC);
+          }
+        });
+        const string input = "(SELECT c3, ts time_key, c1 FROM "
+                             "stream_t2 ORDER BY c1 DESC LIMIT 3)";
+        const string on = reversed ? "r.time_key " + op + " l.time_key" :
+                                     "l.time_key " + op + " r.time_key";
+        run("SELECT l.c1, r.c1 FROM " + input + " l " + side +
+            " ASOF JOIN " + input + " r ON " + on);
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinTagGroupsWithCorrectiveSort) {
+  useDb("root", "test");
+  for (const string side : {"LEFT", "RIGHT"}) {
+    for (const string keys : {"l.tag3, r.tag3", "l.ts, r.tag3",
+                              "l.tag3, r.ts"}) {
+      setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+        if (!optimized) return;
+        auto* join = findNode(root, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(join, nullptr);
+        SNode* child = nullptr;
+        FOREACH(child, join->pChildren) {
+          EXPECT_EQ(nodeType(child), QUERY_NODE_LOGIC_PLAN_PARTITION);
+        }
+      });
+      run("SELECT /*+ NO_BATCH_SCAN() */ l.c1, r.c1 FROM st1 l " +
+          side + " WINDOW JOIN st1 r ON l.tag1 = r.tag1 "
+          "WINDOW_TIME(" + keys + ") WINDOW_OFFSET(-1s, 1s)");
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, asofExplicitTimeInputDirections) {
+  useDb("root", "test");
+  const string orders[] = {"time_key", "time_key DESC",
+                           "c3 DESC LIMIT 3"};
+  for (int left = 0; left < 3; ++left) {
+    for (int right = 0; right < 3; ++right) {
+      EOrder expected = left == 0 || right == 0 ||
+                        (left == 2 && right == 2) ? ORDER_ASC : ORDER_DESC;
+      setLogicPlanCheck([expected](const SLogicNode* root, bool optimized) {
+        auto* join = (const SJoinLogicNode*)findNode(
+            root, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(join, nullptr);
+        EXPECT_EQ(join->node.inputTsOrder, expected);
+        EXPECT_NE(join->pPrimKeyEqCond, nullptr);
+        EXPECT_EQ(join->addPrimEqCond, nullptr);
+      });
+      for (const string side : {"LEFT", "RIGHT"}) {
+        for (bool truncate : {false, true}) {
+          string lhs = "l.time_key";
+          string rhs = "r.time_key";
+          if (truncate) {
+            lhs = "timetruncate(" + lhs + ", 1s)";
+            rhs = "timetruncate(" + rhs + ", 1s)";
+          }
+          run("SELECT l.c1, r.c1 FROM (SELECT c3, ts time_key, c1 "
+              "FROM stream_t2 ORDER BY " + orders[left] + ") l " +
+              side + " ASOF JOIN (SELECT c3, ts time_key, c1 "
+              "FROM stream_t2 ORDER BY " + orders[right] + ") r ON " +
+              lhs + " >= " + rhs);
+        }
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinNonprimaryAggregateOrder) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    auto* pAgg = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_AGG);
+    ASSERT_NE(pJoin, nullptr);
+    ASSERT_NE(pAgg, nullptr);
+    ASSERT_EQ(pJoin->inputTsOrder, ORDER_ASC);
+    ASSERT_EQ(pAgg->inputTsOrder, TSDB_ORDER_NONE);
+  });
+  run("SELECT last_row(r.c1) FROM stream_t2 l LEFT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(l.c3, r.c3) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT last_row(r.c1) FROM stream_t2 l LEFT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(l.ts, r.c3) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT last_row(l.c1) FROM stream_t2 l RIGHT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(l.c3, r.ts) WINDOW_OFFSET(-1s, 1s)");
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    auto* pAgg = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_AGG);
+    ASSERT_NE(pJoin, nullptr);
+    ASSERT_NE(pAgg, nullptr);
+    ASSERT_EQ(pJoin->inputTsOrder, ORDER_DESC);
+    ASSERT_EQ(pAgg->inputTsOrder, TSDB_ORDER_NONE);
+  });
+  run("SELECT last_row(r.c1) FROM "
+      "(SELECT ts, c3, c1 FROM stream_t2 ORDER BY c3 DESC) l "
+      "LEFT WINDOW JOIN "
+      "(SELECT ts, c3, c1 FROM stream_t2 ORDER BY c3 DESC) r "
+      "WINDOW_TIME(l.c3, r.c3) WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(PlanJoinTest, temporalJoinDerivedTimeAggregateOrder) {
+  useDb("root", "test");
+  for (EOrder order : {ORDER_ASC, ORDER_DESC}) {
+    SCOPED_TRACE(order);
+    setLogicPlanCheck([order](const SLogicNode* pRoot, bool optimized) {
+      SCOPED_TRACE(optimized);
+      auto* pJoin = (const SJoinLogicNode*)findNode(
+          pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+      auto* pAgg = (const SAggLogicNode*)findNode(
+          pRoot, QUERY_NODE_LOGIC_PLAN_AGG);
+      ASSERT_NE(pJoin, nullptr);
+      ASSERT_NE(pAgg, nullptr);
+      EXPECT_EQ(pJoin->node.inputTsOrder, order);
+      EXPECT_EQ(pJoin->node.outputTsOrder, TSDB_ORDER_NONE);
+      EXPECT_EQ(pAgg->node.inputTsOrder, TSDB_ORDER_NONE);
+      SNode* pNode = nullptr;
+      FOREACH(pNode, pJoin->node.pChildren) {
+        auto* pInput = (SLogicNode*)pNode;
+        EXPECT_EQ(pInput->outputTsOrder, TSDB_ORDER_NONE);
+        EXPECT_EQ(pInput->resultDataOrder, DATA_ORDER_LEVEL_NONE);
+      }
+      auto* pFunc = (SFunctionNode*)nodesListGetNode(pAgg->pAggFuncs, 0);
+      auto* pTs = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 1);
+      ASSERT_NE(pTs, nullptr);
+      EXPECT_STREQ(pTs->colName, "ts");
+      EXPECT_TRUE(pTs->isPrimTs);
+    });
+    const string direction = order == ORDER_ASC ? " ASC" : " DESC";
+    const string inputs[] = {
+        "SELECT ts, timetruncate(ts, 1h) event_ts, c1 FROM stream_t2",
+        "SELECT ts, event_ts, c1 FROM (SELECT ts, "
+        "timetruncate(ts, 1h) event_ts, c1 FROM stream_t2) s"};
+    for (const auto& input : inputs) {
+      const string child = "(" + input + " ORDER BY event_ts" +
+                           direction + ", c1)";
+      run("SELECT last_row(r.c1) FROM " + child + " l LEFT WINDOW JOIN " +
+          child + " r WINDOW_TIME(l.event_ts, r.event_ts) "
+          "WINDOW_OFFSET(0s, 0s)");
+      if (order == ORDER_ASC) {
+        const string unsorted = "(" + input + " ORDER BY c1)";
+        run("SELECT last_row(r.c1) FROM " + unsorted +
+            " l LEFT WINDOW JOIN " + unsorted +
+            " r WINDOW_TIME(l.event_ts, r.event_ts) "
+            "WINDOW_OFFSET(0s, 0s)");
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinPrimaryTimeAliasAggregateOrder) {
+  useDb("root", "test");
+  for (EOrder order : {ORDER_ASC, ORDER_DESC}) {
+    setLogicPlanCheck([order](const SLogicNode* pRoot, bool optimized) {
+      SCOPED_TRACE(optimized);
+      auto* pAgg = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_AGG);
+      ASSERT_NE(pAgg, nullptr);
+      EXPECT_EQ(pAgg->inputTsOrder, order);
+    });
+    const string direction = order == ORDER_ASC ? " ASC" : " DESC";
+    const string child =
+        "(SELECT ts, event_ts, c1 FROM (SELECT ts, ts event_ts, c1 "
+        "FROM stream_t2) s ORDER BY event_ts" + direction + ")";
+    run("SELECT last_row(r.c1) FROM " + child + " l LEFT WINDOW JOIN " +
+        child + " r WINDOW_TIME(l.event_ts, r.event_ts) "
+        "WINDOW_OFFSET(0s, 0s)");
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinRedundantInputSort) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    EXPECT_EQ(countSorts(pJoin), optimized ? 1 : 2);
+    auto* pSort = (const SSortLogicNode*)findNode(
+        pJoin, QUERY_NODE_LOGIC_PLAN_SORT);
+    ASSERT_NE(pSort, nullptr);
+    EXPECT_TRUE(pSort->joinInputSort);
+    EXPECT_EQ(pSort->node.outputTsOrder, ORDER_ASC);
+    EXPECT_EQ(pSort->node.resultDataOrder, DATA_ORDER_LEVEL_GLOBAL);
+  });
+  for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                            "RIGHT WINDOW"}) {
+    const string suffix = join.find("WINDOW") == string::npos ? "" :
+                             " WINDOW_OFFSET(-1s, 1s) JLIMIT 1";
+    run("SELECT l.c1, r.c1 FROM (SELECT ts, c1 FROM stream_t2 "
+        "ORDER BY c1 DESC) l " + join + " JOIN stream_t2 r" + suffix);
+    run("SELECT l.c1, r.c1 FROM stream_t2 l " + join +
+        " JOIN (SELECT ts time_alias, c1 FROM st1s1 "
+        "WHERE c1 > 0 ORDER BY c1 DESC) r" + suffix);
+  }
+  run("SELECT l.c1, r.c1 FROM "
+      "(SELECT time_alias, c1 FROM (SELECT ts time_alias, c1 "
+      "FROM stream_t2 ORDER BY c1 DESC) s) l "
+      "LEFT ASOF JOIN stream_t2 r");
+  run("SELECT l.c2, r.c1 FROM "
+      "(SELECT ts, c2 FROM stream_t2 WHERE c1 > 0 ORDER BY c1 DESC) l "
+      "LEFT ASOF JOIN stream_t2 r");
+}
+
+TEST_F(PlanJoinTest, temporalJoinNonprimaryRedundantSort) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    EXPECT_EQ(countSorts(pJoin), optimized ? 1 : 2);
+    EXPECT_EQ(pJoin->inputTsOrder, ORDER_ASC);
+    EXPECT_EQ(pJoin->outputTsOrder, TSDB_ORDER_NONE);
+    auto* pSort = (const SSortLogicNode*)findNode(
+        pJoin, QUERY_NODE_LOGIC_PLAN_SORT);
+    ASSERT_NE(pSort, nullptr);
+    auto* pOrder = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
+    ASSERT_EQ(nodeType(pOrder->pExpr), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(((SColumnNode*)pOrder->pExpr)->colName, "event_ts");
+    auto* pAgg = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_AGG);
+    if (pAgg != nullptr) EXPECT_EQ(pAgg->inputTsOrder, TSDB_ORDER_NONE);
+  });
+  for (const string order : {"c1 DESC", "ts DESC, c1", "ts"}) {
+    SCOPED_TRACE(order);
+    run("SELECT last_row(l.c1) FROM "
+        "(SELECT ts, c3 event_ts, c1 FROM stream_t2 ORDER BY " + order +
+        ") l LEFT WINDOW JOIN stream_t2 r WINDOW_TIME(l.event_ts, r.ts) "
+        "WINDOW_OFFSET(-1s, 1s) JLIMIT 1");
+    run("SELECT l.c1, r.c1 FROM stream_t2 l RIGHT WINDOW JOIN "
+        "(SELECT ts, c3 event_ts, c1 FROM stream_t2 ORDER BY " + order +
+        ") r WINDOW_TIME(l.ts, r.event_ts) WINDOW_OFFSET(-1s, 1s)");
+    run("SELECT l.c1, r.c1 FROM "
+        "(SELECT c3 event_ts, c1 FROM stream_t2 ORDER BY " + order +
+        ") l LEFT ASOF JOIN stream_t2 r");
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinKeepsObservableInputSort) {
+  useDb("root", "test");
+  struct SortKey {
+    string expression;
+    int order;
+    int nullOrder;
+  };
+  vector<SortKey> originalKeys;
+  setLogicPlanCheck([&](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    auto* left = (const SLogicNode*)nodesListGetNode(pJoin->pChildren, 0);
+    ASSERT_EQ(nodeType(left), QUERY_NODE_LOGIC_PLAN_SORT);
+    ASSERT_TRUE(((const SSortLogicNode*)left)->joinInputSort);
+    auto* child = (const SLogicNode*)nodesListGetNode(left->pChildren, 0);
+    auto* inner = (const SSortLogicNode*)findNode(
+        child, QUERY_NODE_LOGIC_PLAN_SORT);
+    ASSERT_NE(inner, nullptr);
+    EXPECT_FALSE(inner->joinInputSort);
+    if (!optimized) originalKeys.clear();
+    if (optimized) {
+      ASSERT_EQ(LIST_LENGTH(inner->pSortKeys), originalKeys.size());
+    }
+    for (int i = 0; i < LIST_LENGTH(inner->pSortKeys); ++i) {
+      auto* key = (SOrderByExprNode*)nodesListGetNode(inner->pSortKeys, i);
+      char sql[512] = {};
+      int32_t length = 0;
+      ASSERT_EQ(nodesNodeToSQL(key->pExpr, sql, sizeof(sql), &length),
+                TSDB_CODE_SUCCESS);
+      if (!optimized) {
+        originalKeys.push_back({sql, key->order, key->nullOrder});
+      } else {
+        EXPECT_EQ(string(sql), originalKeys[i].expression);
+        EXPECT_EQ(key->order, originalKeys[i].order);
+        EXPECT_EQ(key->nullOrder, originalKeys[i].nullOrder);
+      }
+    }
+  });
+  const string inputs[] = {
+      "SELECT ts, c1 FROM stream_t2 ORDER BY c1 DESC LIMIT 3 OFFSET 1",
+      "SELECT ts, c1 FROM (SELECT ts, c1 FROM stream_t2 "
+      "ORDER BY c1 DESC) s LIMIT 3",
+      "SELECT ts, c1 + 1 c1 FROM stream_t2 ORDER BY c1 DESC",
+      "SELECT c3 time_alias, c1 FROM stream_t2 "
+      "ORDER BY ts DESC, c1 LIMIT 3 OFFSET 1",
+      "SELECT timetruncate(ts, 1h) time_alias, c1 "
+      "FROM stream_t2 ORDER BY c1 DESC",
+      "SELECT ts, c1 FROM st1 ORDER BY c1 DESC",
+      "SELECT ts, c1 FROM v_stream_t2 ORDER BY c1 DESC",
+      "SELECT ts, c1 FROM stream_t2 UNION ALL "
+      "SELECT ts, c1 FROM stream_t2 ORDER BY c1 DESC",
+      "SELECT ts, c1 FROM st1 PARTITION BY tbname "
+      "ORDER BY c1 DESC SLIMIT 1",
+      "SELECT ts, csum(c1) c1 FROM "
+      "(SELECT ts, c1 FROM stream_t2 ORDER BY c1 DESC) s"};
+  for (const auto& input : inputs) {
+    SCOPED_TRACE(input);
+    run("SELECT l.c1, r.c1 FROM (" + input +
+        ") l LEFT ASOF JOIN stream_t2 r");
+  }
+  setLogicPlanCheck({});
+}
+
+TEST_F(PlanJoinTest, temporalJoinExplicitProjectionBinding) {
+  useDb("root", "test");
+  for (const string input : {
+      "SELECT ts, timetruncate(c3, 1s) event_ts, c1 FROM stream_t2",
+      "SELECT ts, c3 event_ts, c1 FROM stream_t2 UNION ALL "
+      "SELECT ts, c3 event_ts, c1 FROM stream_t2"}) {
+    SCOPED_TRACE(input);
+    run("SELECT l.c1, r.c1 FROM (" + input + ") l "
+        "LEFT WINDOW JOIN stream_t2 r WINDOW_TIME(l.event_ts, r.ts) "
+        "WINDOW_OFFSET(-1s, 1s)");
+    EXPECT_TRUE(planContains("\"ColName\":\"event_ts\""));
+  }
+}
+
+TEST_F(PlanJoinTest, temporalJoinTimestampTag) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    SNode* pChild = nullptr;
+    FOREACH(pChild, pJoin->pChildren) {
+      auto* pScan = (const SScanLogicNode*)findNode(
+          (const SLogicNode*)pChild, QUERY_NODE_LOGIC_PLAN_SCAN);
+      ASSERT_NE(pScan, nullptr);
+      int tagCount = 0;
+      SNode* pPseudoCol = nullptr;
+      FOREACH(pPseudoCol, pScan->pScanPseudoCols) {
+        if (nodeType(pPseudoCol) == QUERY_NODE_COLUMN &&
+            strcmp(((SColumnNode*)pPseudoCol)->colName, "tag3") == 0) {
+          ++tagCount;
+        }
+      }
+      ASSERT_EQ(tagCount, 1);
+    }
+  });
+  run("SELECT l.c1, r.c1 FROM st1 l LEFT WINDOW JOIN st1 r "
+      "WINDOW_TIME(l.tag3, r.tag3) WINDOW_OFFSET(-1s, 1s)");
+  ASSERT_TRUE(planContains("\"TableAlias\":\"l\",\"ColName\":\"tag3\""));
+  ASSERT_TRUE(planContains("\"TableAlias\":\"r\",\"ColName\":\"tag3\""));
+  run("SELECT l.c1, r.c1, l.tag3, r.tag3 FROM st1 l "
+      "LEFT WINDOW JOIN st1 r WINDOW_TIME(l.tag3, r.tag3) "
+      "WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(PlanJoinTest, virtualReferencedTagOutsideProjection) {
+  useDb("root", "test");
+  g_mockCatalogService->createTableBuilder(
+      "test", "v_tag_join", TSDB_VIRTUAL_CHILD_TABLE, 2, 1)
+      .setPrecision(TSDB_TIME_PRECISION_MILLI)
+      .setVgid(1)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .addTag("tag_ts", TSDB_DATA_TYPE_TIMESTAMP).done();
+  SColRef column = {};
+  column.id = 2;
+  column.hasRef = true;
+  strcpy(column.refDbName, "test");
+  strcpy(column.refTableName, "st1s1");
+  strcpy(column.refColName, "c1");
+  SColRef tag = column;
+  tag.id = 3;
+  strcpy(tag.refColName, "tag3");
+  g_mockCatalogService->setTableRefs("test", "v_tag_join", {column}, {tag});
+  for (const string side : {"LEFT", "RIGHT"}) {
+    run("SELECT v.c1, r.c1 FROM v_tag_join v " + side +
+        " WINDOW JOIN stream_t2 r WINDOW_TIME(v.tag_ts, r.ts) "
+        "WINDOW_OFFSET(-1s, 1s)");
+    EXPECT_TRUE(findPlanNode("TagRefSource"));
+    setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+      auto* join = (const SJoinLogicNode*)findNode(
+          root, QUERY_NODE_LOGIC_PLAN_JOIN);
+      ASSERT_NE(join, nullptr);
+      auto* condition = (SOperatorNode*)join->addPrimEqCond;
+      ASSERT_NE(condition, nullptr);
+      auto* time = (SColumnNode*)condition->pLeft;
+      ASSERT_EQ(nodeType(time), QUERY_NODE_COLUMN);
+      EXPECT_TRUE(time->hasRef);
+      EXPECT_STREQ(time->refTableName, "st1s1");
+      EXPECT_STREQ(time->refColName, "ts");
+    });
+    run("SELECT v.c1, r.c1 FROM v_tag_join v " + side +
+        " ASOF JOIN st1 r ON v.tag_ts = r.tag3");
+    EXPECT_TRUE(findPlanNode("TagRefSource"));
+    setLogicPlanCheck({});
+  }
+  for (const string suffix : {"ORDER BY v.tag_ts",
+                              "PARTITION BY v.tag_ts"}) {
+    run("SELECT v.c1 FROM v_tag_join v " + suffix);
+    EXPECT_TRUE(findPlanNode("TagRefSource"));
+  }
+  run("SELECT count(v.c1) FROM v_tag_join v GROUP BY v.tag_ts");
+  EXPECT_TRUE(findPlanNode("TagRefSource"));
+  run("SELECT count(v.c1) FROM v_tag_join v GROUP BY v.tag_ts "
+      "HAVING v.tag_ts IS NOT NULL");
+  EXPECT_TRUE(findPlanNode("TagRefSource"));
 }
 
 TEST_F(PlanJoinTest, complex) {
@@ -1134,4 +2930,994 @@ TEST_F(PlanJoinTest, StreamLocalWindowJoinLogicScalarSources) {
     EXPECT_TRUE(plan.window->inputHasOrder);
     EXPECT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, plan.window->extWinInputMode);
   }
+}
+
+TEST_F(PlanJoinTest, nestedThetaInputOrder) {
+  useDb("root", "test");
+  const string input =
+      "(SELECT /*+ join_algo(theta) */ a.ts, a.c1 FROM st1s1 a "
+      "LEFT JOIN st1s2 b ON a.ts = b.ts) q";
+  for (const string algorithm : {"merge", "hash"}) {
+    for (bool right : {false, true}) {
+      SCOPED_TRACE(algorithm + (right ? " right" : " left"));
+      setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+        if (!optimized) return;
+        auto* join = (const SJoinLogicNode*)findNode(
+            root, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(join, nullptr);
+        auto* child = (const SLogicNode*)nodesListGetNode(
+            join->node.pChildren, right ? 1 : 0);
+        auto* theta = (const SJoinLogicNode*)findNode(
+            child, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(theta, nullptr);
+        EXPECT_EQ(theta->joinAlgo, JOIN_ALGO_THETA);
+        EXPECT_EQ(theta->node.outputTsOrder, TSDB_ORDER_NONE);
+        if (algorithm == "merge") {
+          EXPECT_EQ(join->joinAlgo, JOIN_ALGO_MERGE);
+          ASSERT_EQ(nodeType(child), QUERY_NODE_LOGIC_PLAN_SORT);
+          EXPECT_EQ(child->outputTsOrder, join->node.inputTsOrder);
+        } else {
+          EXPECT_EQ(join->joinAlgo, JOIN_ALGO_HASH);
+          EXPECT_EQ(countSorts(root), 0);
+        }
+      });
+      const string from = right ? "st1s3 c LEFT JOIN " + input :
+                                  input + " LEFT JOIN st1s3 c";
+      run("SELECT /*+ join_algo(" + algorithm + ") */ q.c1, c.c1 FROM " +
+          from + " ON q.ts = c.ts");
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, thetaOutputKeepsExplicitSort) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+    if (!optimized) return;
+    EXPECT_EQ(countSorts(root), 1);
+    auto* join = (const SJoinLogicNode*)findNode(
+        root, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(join, nullptr);
+    EXPECT_EQ(join->joinAlgo, JOIN_ALGO_THETA);
+    EXPECT_EQ(join->node.outputTsOrder, TSDB_ORDER_NONE);
+  });
+  run("SELECT /*+ join_algo(theta) */ a.ts, a.c1 FROM st1s1 a "
+      "LEFT JOIN st1s2 b ON a.ts = b.ts ORDER BY a.ts");
+}
+
+TEST_F(PlanJoinTest, nestedThetaDoesNotInheritDescendantSort) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+    if (!optimized) return;
+    auto* join = (const SJoinLogicNode*)findNode(
+        root, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(join, nullptr);
+    auto* left = (const SLogicNode*)nodesListGetNode(join->node.pChildren, 0);
+    ASSERT_EQ(nodeType(left), QUERY_NODE_LOGIC_PLAN_SORT);
+    auto* theta = (const SJoinLogicNode*)findNode(
+        left, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(theta, nullptr);
+    EXPECT_EQ(theta->joinAlgo, JOIN_ALGO_THETA);
+    EXPECT_EQ(theta->node.outputTsOrder, TSDB_ORDER_NONE);
+  });
+  run("SELECT /*+ join_algo(merge) */ q.c1, c.c1 FROM "
+      "(SELECT /*+ join_algo(theta) */ a.ts, a.c1 FROM "
+      "(SELECT * FROM st1s1 ORDER BY ts LIMIT 10) a "
+      "LEFT JOIN st1s2 b ON a.ts = b.ts) q LEFT JOIN "
+      "(SELECT * FROM st1s3 ORDER BY ts LIMIT 10) c ON q.ts = c.ts");
+}
+
+TEST_F(PlanJoinTest, nestedJoinDirectChildContract) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+
+  // Each case pairs a nested-join query with its expected JOIN count.
+  const vector<pair<string, int32_t>> cases = {
+      {"SELECT a.c2, c.c2 FROM "
+       "(st1s1 a JOIN st1s2 b ON a.ts = b.ts) "
+       "JOIN st1s3 c ON b.c1 = c.c1",
+       2},
+      {"SELECT a.c2, d.c2 FROM "
+       "((st1s1 a JOIN st1s1 b ON a.ts = b.ts) "
+       "JOIN st1s1 c ON b.c1 = c.c1) "
+       "JOIN st1s1 d ON c.c1 = d.c1",
+       3},
+      {"SELECT a.c2, d.c2 FROM st1s1 a JOIN "
+       "(st1s1 b JOIN (st1s1 c JOIN st1s1 d ON c.ts = d.ts) "
+       "ON b.c1 = c.c1) ON a.c1 = b.c1",
+       3},
+      {"SELECT a.c2, e.c2 FROM "
+       "((st1s1 a JOIN st1s1 b ON a.ts = b.ts) JOIN "
+       "(st1s1 c JOIN st1s1 d ON c.ts = d.ts) ON b.c1 = c.c1) "
+       "JOIN st1s1 e ON d.c1 = e.c1",
+       4},
+      {"SELECT a.c2, h.c2 FROM "
+       "((st1s1 a JOIN st1s1 b ON a.ts = b.ts) JOIN "
+       "(st1s1 c JOIN st1s1 d ON c.ts = d.ts) ON b.c1 = c.c1) "
+       "JOIN ((st1s1 e JOIN st1s1 f ON e.ts = f.ts) JOIN "
+       "(st1s1 g JOIN st1s1 h ON g.ts = h.ts) ON f.c1 = g.c1) "
+       "ON d.c1 = e.c1",
+       7}};
+  for (const auto& item : cases) {
+    SCOPED_TRACE(item.first);
+    const int32_t expectedJoins = item.second;
+    setLogicPlanCheck([expectedJoins](const SLogicNode* pRoot,
+                                      bool optimized) {
+      if (optimized) return;
+      expectJoinDirectChildContract(pRoot);
+      EXPECT_EQ(countNodes(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN), expectedJoins);
+    });
+    run(item.first);
+    // A distributed physical plan may clone one logical JOIN per subplan,
+    // so only a lower bound holds here.
+    EXPECT_GE(countPlanNode("MergeJoin") + countPlanNode("HashJoin") +
+                  countPlanNode("ThetaJoin"),
+              expectedJoins);
+  }
+}
+
+TEST_F(PlanJoinTest, nestedJoinKeepsSubqueryBoundary) {
+  useDb("root", "test");
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) {
+      expectJoinDirectChildContract(pRoot);
+    }
+  });
+  run("SELECT q.c2, d.c2 FROM "
+      "((SELECT a.c1, a.c2 FROM st1s1 a JOIN st1s2 b "
+      "ON a.ts = b.ts) q JOIN st1s3 c ON q.c1 = c.c1) "
+      "JOIN st1s1 d ON q.c1 = d.c1");
+}
+
+TEST_F(PlanJoinTest, nestedJoinFeedsAsofTemporalJoin) {
+  useDb("root", "test");
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    expectJoinDirectChildContract(pRoot);
+    expectTemporalJoinTimeKeyContract(pRoot);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+
+  // The explicit ON key a.ts belongs to the nested JOIN on the left, so it
+  // must be bound against that JOIN's output rather than a scan below it.
+  run("SELECT a.c2, c.c2 FROM "
+      "(st1s1 a JOIN st1s2 b ON a.ts = b.ts) "
+      "LEFT ASOF JOIN st1s3 c ON a.ts >= c.ts");
+}
+
+// The nested input sits on the right and the key is its second relation, so
+// neither "first target alias" shortcut in the physical binder identifies it.
+// Both operand orders are covered because the planner may swap them.
+TEST_F(PlanJoinTest, nestedJoinOnRightBindsNonFirstAliasKey) {
+  useDb("root", "test");
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    expectJoinDirectChildContract(pRoot);
+    expectTemporalJoinTimeKeyContract(pRoot);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+
+  for (const string& sql : {
+           "SELECT c.c2, a.c2 FROM st1s3 c RIGHT ASOF JOIN "
+           "(st1s1 a JOIN st1s2 b ON a.ts = b.ts) ON c.ts <= b.ts",
+           "SELECT c.c2, a.c2 FROM st1s3 c RIGHT ASOF JOIN "
+           "(st1s1 a JOIN st1s2 b ON a.ts = b.ts) ON b.ts >= c.ts",
+           "SELECT c.c2, a.c2 FROM st1s3 c LEFT ASOF JOIN "
+           "(st1s1 a JOIN st1s2 b ON a.ts = b.ts) ON c.ts <= b.ts",
+       }) {
+    SCOPED_TRACE(sql);
+    run(sql);
+  }
+}
+
+TEST_F(PlanJoinTest, nestedJoinFeedsWindowTemporalJoin) {
+  useDb("root", "test");
+
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    expectJoinDirectChildContract(pRoot);
+    expectTemporalJoinTimeKeyContract(pRoot);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+
+  run("SELECT a.c2, c.c2 FROM st1s1 a LEFT WINDOW JOIN "
+      "(st1s2 b JOIN st1s3 c ON b.ts = c.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(PlanJoinTest, nestedTemporalRetainedCandidates) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  for (const string type : {"JOIN", "LEFT JOIN", "RIGHT JOIN",
+                            "LEFT SEMI JOIN", "RIGHT SEMI JOIN",
+                            "LEFT ANTI JOIN", "RIGHT ANTI JOIN"}) {
+    SCOPED_TRACE(type);
+    const string alias = type.find("RIGHT") == 0 ? "c" : "b";
+    setLogicPlanCheck([alias](const SLogicNode* pRoot, bool optimized) {
+      if (!optimized) return;
+      expectTemporalJoinTimeKeyContract(pRoot);
+      auto* pJoin = (const SJoinLogicNode*)findNode(
+          pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+      ASSERT_NE(pJoin, nullptr);
+      ASSERT_NE(pJoin->addPrimEqCond, nullptr);
+      auto* pCond = (const SOperatorNode*)pJoin->addPrimEqCond;
+      ASSERT_EQ(nodeType(pCond->pRight), QUERY_NODE_COLUMN);
+      auto* pTime = (const SColumnNode*)pCond->pRight;
+      EXPECT_STREQ(pTime->tableAlias, alias.c_str());
+      EXPECT_STREQ(pTime->colName, "ts");
+    });
+    run("SELECT a.c2 FROM stream_t2 a LEFT WINDOW JOIN "
+        "(stream_t2 b " + type + " stream_t2 c ON b.ts = c.ts) "
+        "WINDOW_OFFSET(-1s, 1s)");
+  }
+}
+
+TEST_F(PlanJoinTest, nestedTemporalUsesFirstPublicOrdinaryTime) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    expectTemporalJoinTimeKeyContract(pRoot);
+    auto* pJoin = (const SJoinLogicNode*)findNode(
+        pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    auto* pCond = (const SOperatorNode*)pJoin->addPrimEqCond;
+    ASSERT_NE(pCond, nullptr);
+    ASSERT_EQ(nodeType(pCond->pLeft), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(((const SColumnNode*)pCond->pLeft)->colName, "first_time");
+    auto* pInput = (const SLogicNode*)nodesListGetNode(
+        pJoin->node.pChildren, 0);
+    ASSERT_EQ(nodeType(pInput), QUERY_NODE_LOGIC_PLAN_SORT);
+    auto* pSort = (const SSortLogicNode*)pInput;
+    ASSERT_TRUE(pSort->joinInputSort);
+    auto* pOrder = (const SOrderByExprNode*)nodesListGetNode(
+        pSort->pSortKeys, 0);
+    ASSERT_EQ(nodeType(pOrder->pExpr), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(((const SColumnNode*)pOrder->pExpr)->colName,
+                 "first_time");
+    EXPECT_EQ(pOrder->order, pJoin->node.inputTsOrder);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  run("SELECT q.k, c.c1 FROM "
+      "(SELECT a.c3 first_time, b.c3 second_time, a.c1 k "
+      "FROM stream_t2 a JOIN stream_t2 b ON a.ts = b.ts "
+      "ORDER BY second_time DESC) q LEFT WINDOW JOIN stream_t2 c "
+      "WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(PlanJoinTest, nestedTemporalFullOuterCoalesce) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    expectJoinDirectChildContract(pRoot);
+    if (optimized) {
+      expectTemporalJoinTimeKeyContract(pRoot);
+      expectTemporalInputNullFilter(pRoot, false, "q", "event_ts");
+    }
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                            "RIGHT WINDOW"}) {
+    SCOPED_TRACE(join);
+    run("SELECT q.k, c.c2 FROM "
+        "(SELECT COALESCE(a.ts, b.ts) event_ts, a.c2 k "
+        "FROM st1s1 a FULL JOIN st1s2 b ON a.ts = b.ts) q " +
+        join + " JOIN st1s3 c" +
+        (join.find("WINDOW") == string::npos
+             ? " ON q.event_ts >= c.ts" : " WINDOW_OFFSET(-1s, 1s)"));
+  }
+  run("SELECT q.k, c.c2 FROM "
+      "(SELECT COALESCE(a.ts, b.ts) event_ts, a.c2 k "
+      "FROM st1s1 a FULL JOIN st1s2 b ON a.ts = b.ts "
+      "ORDER BY event_ts DESC) q LEFT WINDOW JOIN st1s3 c "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT q.k, c.c1 FROM "
+      "(SELECT COALESCE(a.ts, b.ts) event_ts, a.c1 k FROM "
+      "(SELECT c3, ts, c1 FROM stream_t2) a FULL JOIN stream_t2 b "
+      "ON a.ts = b.ts) q LEFT WINDOW JOIN stream_t2 c "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT q.k, c.c2 FROM "
+      "(SELECT CASE WHEN a.ts IS NOT NULL THEN a.ts "
+      "WHEN b.ts IS NOT NULL THEN b.ts END event_ts, a.c2 k "
+      "FROM st1s1 a FULL JOIN st1s2 b ON a.ts = b.ts) q "
+      "LEFT ASOF JOIN st1s3 c ON q.event_ts >= c.ts");
+}
+
+TEST_F(PlanJoinTest, streamJoinPreservesOutputCompatibility) {
+  useDb("root", "test");
+
+  runStreamCalc(
+      "SELECT COALESCE(a.ts, b.ts) event_ts, a.c2 "
+      "FROM st1s1 a FULL JOIN st1s2 b ON a.ts = b.ts "
+      "ORDER BY event_ts");
+  runStreamCalc(
+      "SELECT a.ts, a.c2, b.c2, c.c2 FROM "
+      "(st1s1 a JOIN st1s2 b ON a.ts = b.ts) "
+      "LEFT JOIN st1s3 c ON b.ts = c.ts ORDER BY a.ts");
+  for (const string sql : {
+           "SELECT b.ts, a.c2 FROM st1s1 a LEFT JOIN st1s2 b "
+           "ON a.ts = b.ts ORDER BY b.ts",
+           "SELECT a.ts, a.c2 FROM st1s1 a FULL JOIN st1s2 b "
+           "ON a.ts = b.ts ORDER BY a.ts",
+           "SELECT COALESCE(a.ts, a.ts) event_ts, a.c2 "
+           "FROM st1s1 a FULL JOIN st1s2 b ON a.ts = b.ts "
+           "ORDER BY event_ts",
+           "SELECT /*+ HASH_JOIN() */ a.ts, a.c2 FROM st1s1 a "
+           "LEFT JOIN st1s2 b ON a.ts = b.ts",
+           "SELECT CAST(a.c2 AS TIMESTAMP) event_ts, a.c2 "
+           "FROM st1s1 a JOIN st1s2 b ON a.ts = b.ts "
+           "ORDER BY event_ts",
+       }) {
+    SCOPED_TRACE(sql);
+    runStreamCalc(sql);
+  }
+}
+
+TEST_F(PlanJoinTest, streamTemporalJoinKeepsInputContract) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    expectTemporalJoinTimeKeyContract(pRoot);
+    EXPECT_GT(countSorts(pRoot), 0);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  runStreamCalc(
+      "SELECT q.event_ts, c.c1 FROM "
+      "(SELECT a.c3 event_ts, a.c1 FROM stream_t2 a "
+      "JOIN stream_t2 b ON a.c1 = b.c1) q "
+      "LEFT WINDOW JOIN stream_t2 c WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(PlanJoinTest, nestedTemporalPreservesSubqueryPrimaryTime) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    expectTemporalJoinTimeKeyContract(pRoot);
+    auto* pJoin = (const SJoinLogicNode*)findNode(
+        pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    auto* pCond = (const SOperatorNode*)pJoin->addPrimEqCond;
+    ASSERT_NE(pCond, nullptr);
+    auto* pTime = (const SColumnNode*)pCond->pLeft;
+    ASSERT_EQ(nodeType(pTime), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(pTime->colName, "ts");
+    auto* pInput = (const SLogicNode*)nodesListGetNode(
+        pJoin->node.pChildren, 0);
+    bool filtered = false;
+    while (pInput != nullptr) {
+      filtered |= pInput->pConditions != nullptr;
+      pInput = (const SLogicNode*)nodesListGetNode(pInput->pChildren, 0);
+    }
+    EXPECT_FALSE(filtered);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  run("SELECT q.c1, a.c1 FROM "
+      "(SELECT c3 event_ts, ts, c1 FROM stream_t2 ORDER BY ts) q "
+      "LEFT WINDOW JOIN (stream_t2 a JOIN stream_t2 b ON a.ts = b.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(PlanJoinTest, nestedTemporalFiltersAggregatedOneSidedFullTime) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    expectJoinDirectChildContract(pRoot);
+    if (optimized) {
+      expectTemporalJoinTimeKeyContract(pRoot);
+      expectTemporalInputNullFilter(pRoot, false, "q", "event_ts");
+    }
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  for (const string expr : {"max(a.ts)", "max(b.ts)"}) {
+    for (const string join : {"LEFT ASOF", "RIGHT WINDOW"}) {
+      string sql = "SELECT q.event_ts, c.c2 FROM (SELECT " + expr +
+          " event_ts FROM st1s1 a FULL JOIN st1s2 b ON a.ts = b.ts) q " +
+          join + " JOIN st1s3 c" +
+          (join == "LEFT ASOF" ? " ON q.event_ts >= c.ts" :
+                                 " WINDOW_OFFSET(-1s, 1s)");
+      SCOPED_TRACE(sql);
+      run(sql);
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, nestedTemporalPrefersUnorderedPrimaryTime) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  const vector<string> inputs = {
+      "((SELECT c3, ts, c1 FROM stream_t2) q "
+      "JOIN stream_t2 b ON q.c1 = b.c1)",
+      "(SELECT a.c3, a.ts, a.c1 FROM stream_t2 a "
+      "JOIN stream_t2 b ON a.c1 = b.c1) q",
+      "(SELECT now() anchor, a.ts, a.c1 FROM stream_t2 a "
+      "JOIN stream_t2 b ON a.c1 = b.c1) q",
+      "(SELECT a.c3, a.ts, a.c1 FROM stream_t2 a "
+      "JOIN stream_t2 b ON a.c1 = b.c1 ORDER BY a.c1 DESC LIMIT 2) q",
+      "(SELECT a.c3, a.ts, a.c1 FROM "
+      "(stream_t2 a JOIN stream_t2 b ON a.c1 = b.c1) "
+      "LEFT JOIN stream_t2 d ON a.c1 = d.c1) q",
+      "(SELECT a.c3, a.ts + 1s ts, a.c1 FROM "
+      "(stream_t2 a JOIN stream_t2 b ON a.c1 = b.c1) "
+      "LEFT JOIN stream_t2 d ON a.c1 = d.c1) q",
+      "(SELECT a.c3, timetruncate(a.ts, 1s) ts, a.c1 FROM "
+      "stream_t2 d RIGHT JOIN "
+      "(stream_t2 a JOIN stream_t2 b ON a.c1 = b.c1) "
+      "ON a.c1 = d.c1) q",
+  };
+  for (bool right : {false, true}) {
+    setLogicPlanCheck([right](const SLogicNode* pRoot, bool optimized) {
+      if (!optimized) return;
+      expectTemporalJoinTimeKeyContract(pRoot);
+      auto* pJoin = (const SJoinLogicNode*)findNode(
+          pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+      ASSERT_NE(pJoin, nullptr);
+      auto* pCond = (const SOperatorNode*)pJoin->addPrimEqCond;
+      ASSERT_NE(pCond, nullptr);
+      auto* pTime = right ? pCond->pRight : pCond->pLeft;
+      ASSERT_EQ(nodeType(pTime), QUERY_NODE_COLUMN);
+      EXPECT_STREQ(((const SColumnNode*)pTime)->colName, "ts");
+      EXPECT_STREQ(((const SColumnNode*)pTime)->tableAlias, "q");
+      auto* pInput = (const SLogicNode*)nodesListGetNode(
+          pJoin->node.pChildren, right ? 1 : 0);
+      ASSERT_EQ(nodeType(pInput), QUERY_NODE_LOGIC_PLAN_SORT);
+      auto* pSort = (const SSortLogicNode*)pInput;
+      ASSERT_TRUE(pSort->joinInputSort);
+      auto* pOrder = (const SOrderByExprNode*)nodesListGetNode(
+          pSort->pSortKeys, 0);
+      ASSERT_EQ(nodeType(pOrder->pExpr), QUERY_NODE_COLUMN);
+      EXPECT_STREQ(((const SColumnNode*)pOrder->pExpr)->colName, "ts");
+      EXPECT_STREQ(((const SColumnNode*)pOrder->pExpr)->tableAlias, "q");
+      EXPECT_EQ(pOrder->order, pJoin->node.inputTsOrder);
+      auto* pHash = (const SJoinLogicNode*)findNode(
+          pInput, QUERY_NODE_LOGIC_PLAN_JOIN);
+      ASSERT_NE(pHash, nullptr);
+      EXPECT_EQ(pHash->joinAlgo, JOIN_ALGO_HASH);
+    });
+    for (const string& input : inputs) {
+      for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                                "RIGHT WINDOW"}) {
+        string sql = "SELECT q.c1 FROM " +
+                     (right ? "stream_t2 c" : input) + " " + join +
+                     " JOIN " + (right ? input : "stream_t2 c");
+        if (join.find("WINDOW") != string::npos) {
+          sql += " WINDOW_OFFSET(-1s, 1s)";
+        }
+        SCOPED_TRACE(sql);
+        run(sql);
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, nestedTemporalPreservesSetOpPositions) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  for (const string operation : {"UNION ALL", "UNION"}) {
+    run("SELECT q.c1 FROM (SELECT ts x, c1 FROM st1s1 " + operation +
+        " SELECT ts y, c1 FROM st1s2) q LEFT WINDOW JOIN "
+        "(st1s2 b JOIN st1s3 c ON b.ts = c.ts) WINDOW_OFFSET(-1s, 1s)");
+  }
+}
+
+TEST_F(PlanJoinTest, nestedTemporalFiltersOneSidedFullTime) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  for (bool right : {false, true}) {
+    setLogicPlanCheck([right](const SLogicNode* pRoot, bool optimized) {
+      expectJoinDirectChildContract(pRoot);
+      if (optimized) {
+        expectTemporalJoinTimeKeyContract(pRoot);
+        expectTemporalInputNullFilter(pRoot, right, "q", "event_ts");
+      }
+    });
+    for (const string expr : {"a.ts", "b.ts", "COALESCE(a.ts, a.ts)"}) {
+      const string input = "(SELECT " + expr +
+          " event_ts, a.c2 k FROM st1s1 a FULL JOIN st1s2 b "
+          "ON a.ts = b.ts) q";
+      for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                                "RIGHT WINDOW"}) {
+        const bool window = join.find("WINDOW") != string::npos;
+        string sql = "SELECT q.k, c.c2 FROM " +
+            (right ? "st1s3 c" : input) + " " + join + " JOIN " +
+            (right ? input : "st1s3 c");
+        sql += window ? (right ? " WINDOW_TIME(c.ts, q.event_ts)" :
+                                 " WINDOW_TIME(q.event_ts, c.ts)") :
+                        " ON q.event_ts >= c.ts";
+        if (window) sql += " WINDOW_OFFSET(-1s, 1s)";
+        SCOPED_TRACE(sql);
+        run(sql);
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, nestedTemporalFiltersDirectFullTime) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  const string input = "(st1s1 a FULL JOIN st1s2 b ON a.ts = b.ts)";
+  for (bool right : {false, true}) {
+    for (const string key : {"", "b"}) {
+      const string alias = key.empty() ? "a" : key;
+      setLogicPlanCheck([right, alias](const SLogicNode* pRoot,
+                                       bool optimized) {
+        expectJoinDirectChildContract(pRoot);
+        if (optimized) {
+          expectTemporalJoinTimeKeyContract(pRoot);
+          expectTemporalInputNullFilter(pRoot, right, alias.c_str(), "ts");
+        }
+      });
+      for (const string join : {"LEFT ASOF", "RIGHT ASOF", "LEFT WINDOW",
+                                "RIGHT WINDOW"}) {
+        const bool window = join.find("WINDOW") != string::npos;
+        string sql = "SELECT a.c2, b.c2, c.c2 FROM " +
+            (right ? "st1s3 c" : input) + " " + join + " JOIN " +
+            (right ? input : "st1s3 c");
+        if (!key.empty()) {
+          const string time = key + ".ts";
+          sql += window ? (right ? " WINDOW_TIME(c.ts, " + time + ")" :
+                                   " WINDOW_TIME(" + time + ", c.ts)") :
+                          " ON " + time + " >= c.ts";
+        }
+        if (window) sql += " WINDOW_OFFSET(-1s, 1s)";
+        SCOPED_TRACE(sql);
+        run(sql);
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, nestedTemporalWithoutSortElimination) {
+  Stub stub;
+  stub.set(planEliminateTemporalInputSort, skipTemporalSortElimination);
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (optimized) expectTemporalJoinTimeKeyContract(pRoot);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  run("SELECT a.c2 FROM stream_t2 a LEFT WINDOW JOIN "
+      "(stream_t2 b JOIN stream_t2 c ON b.ts = c.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT a.c2 FROM stream_t2 a LEFT WINDOW JOIN "
+      "(stream_t2 b JOIN stream_t2 c ON b.ts = c.ts) "
+      "WINDOW_TIME(a.c3, c.c3) WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(PlanJoinTest, nestedTemporalRetainsDuplicatePublicAliases) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  run("SELECT q.x FROM (((SELECT ts x, ts y FROM st1s1) q "
+      "JOIN st1s2 b ON q.x = b.ts) JOIN st1s3 c ON b.ts = c.ts) "
+      "LEFT ASOF JOIN st1s3 d ON q.y >= d.ts");
+}
+
+TEST_F(PlanJoinTest, nestedTemporalFullBelowOrdinaryRoot) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  run("SELECT a.c2 FROM ((st1s1 a FULL JOIN st1s2 b ON a.ts = b.ts) "
+      "JOIN st1s3 c ON a.ts = c.ts) LEFT ASOF JOIN st1s3 d");
+}
+
+TEST_F(PlanJoinTest, nestedTemporalRequiresPublicTime) {
+  useDb("root", "test");
+  try {
+    run("SELECT q.k FROM (SELECT a.c1 k FROM stream_t2 a "
+        "JOIN stream_t2 b ON a.ts = b.ts) q "
+        "LEFT WINDOW JOIN stream_t2 c WINDOW_OFFSET(-1s, 1s)");
+    FAIL() << "hidden time column became a public candidate";
+  } catch (const std::exception& error) {
+    EXPECT_NE(string(error.what()).find(
+                  to_string(TSDB_CODE_PAR_INVALID_TIMELINE_QUERY)),
+              string::npos) << error.what();
+  }
+}
+
+TEST_F(PlanJoinTest, nestedTemporalPrunesUnusedCandidates) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    vector<const SLogicNode*> pending = {pJoin};
+    while (!pending.empty()) {
+      auto* pNode = pending.back();
+      pending.pop_back();
+      SNode* pTarget = nullptr;
+      FOREACH(pTarget, pNode->pTargets) {
+        if (nodeType(pTarget) != QUERY_NODE_COLUMN) continue;
+        EXPECT_STRNE(((const SColumnNode*)pTarget)->colName, "c3");
+      }
+      SNode* pChild = nullptr;
+      FOREACH(pChild, pNode->pChildren) {
+        pending.push_back((const SLogicNode*)pChild);
+      }
+    }
+  });
+  run("SELECT a.c1 FROM (stream_t2 a JOIN stream_t2 b ON a.ts = b.ts) "
+      "LEFT WINDOW JOIN stream_t2 c WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(PlanJoinTest, nestedTemporalValidatesSelectedPrecision) {
+  useDb("root", "test");
+  g_mockCatalogService
+      ->createTableBuilder("testus", "nested_nano", TSDB_NORMAL_TABLE, 2)
+      .setPrecision(TSDB_TIME_PRECISION_NANO)
+      .setVgid(1)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .done();
+  const vector<pair<string, int32_t>> invalid = {
+      {"SELECT a.c1 FROM st1s1 a LEFT WINDOW JOIN "
+       "(testus.nested_nano b JOIN testus.nested_nano c ON b.ts = c.ts) "
+       "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_NOT_SUPPORT_JOIN},
+      {"SELECT a.c1 FROM st1s1 a LEFT WINDOW JOIN "
+       "(st1s2 b JOIN st1s3 c ON b.ts = c.ts) WINDOW_OFFSET(-1u, 1u)",
+       TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT},
+      {"SELECT a.c1 FROM (st1s1 a JOIN st1s2 b ON a.ts = b.ts) "
+       "RIGHT WINDOW JOIN st1s3 c WINDOW_OFFSET(-1b, 1b)",
+       TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT}};
+  for (const auto& item : invalid) {
+    SCOPED_TRACE(item.first);
+    try {
+      run(item.first);
+      FAIL() << "invalid selected precision was accepted";
+    } catch (const std::exception& error) {
+      EXPECT_NE(string(error.what()).find(to_string(item.second)),
+                string::npos) << error.what();
+    }
+  }
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  run("SELECT a.c1 FROM st1s1 a LEFT ASOF JOIN "
+      "(testus.nested_nano b JOIN testus.nested_nano c ON b.ts = c.ts)");
+}
+
+TEST_F(PlanJoinTest, joinInputPropertyMatrix) {
+  useDb("root", "test");
+
+  struct JoinPropertyCase {
+    string sql;
+    bool publishLeft;
+    bool publishRight;
+    bool nullableLeft;
+    bool nullableRight;
+  };
+  const vector<JoinPropertyCase> cases = {
+      {"SELECT l.c1, r.c1 FROM st1s1 l JOIN st1s1 r "
+       "ON l.ts = r.ts",
+       true, true, false, false},
+      {"SELECT l.c1, r.c1 FROM st1s1 l LEFT JOIN st1s1 r "
+       "ON l.ts = r.ts",
+       true, true, false, true},
+      {"SELECT l.c1, r.c1 FROM st1s1 l RIGHT JOIN st1s1 r "
+       "ON l.ts = r.ts",
+       true, true, true, false},
+      {"SELECT l.c1, r.c1 FROM st1s1 l FULL JOIN st1s1 r "
+       "ON l.ts = r.ts",
+       true, true, true, true},
+      {"SELECT l.c1, r.c1 FROM st1s1 l LEFT SEMI JOIN st1s1 r "
+       "ON l.ts = r.ts",
+       true, true, false, false},
+      {"SELECT l.c1, r.c1 FROM st1s1 l RIGHT SEMI JOIN st1s1 r "
+       "ON l.ts = r.ts",
+       true, true, false, false},
+      {"SELECT l.c1, r.c1 FROM st1s1 l LEFT ANTI JOIN st1s1 r "
+       "ON l.ts = r.ts",
+       true, true, false, true},
+      {"SELECT l.c1, r.c1 FROM st1s1 l RIGHT ANTI JOIN st1s1 r "
+       "ON l.ts = r.ts",
+       true, true, true, false},
+  };
+  for (const auto& item : cases) {
+    SCOPED_TRACE(item.sql);
+    setJoinPropsCheck([item](const SPlanContext* pCxt,
+                             const SLogicNode* pRoot, bool optimized) {
+      if (optimized) {
+        return;
+      }
+      auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+      ASSERT_NE(pJoin, nullptr);
+      auto* pProps = planGetJoinInputProps(pCxt, pJoin);
+      ASSERT_NE(pProps, nullptr);
+      ASSERT_NE(pProps->pOrderProps, nullptr);
+
+      bool seenRight = false;
+      size_t numCols = taosArrayGetSize(pProps->pOutputCols);
+      for (size_t i = 0; i < numCols; ++i) {
+        auto* pOutput = (const SJoinOutputCol*)taosArrayGet(
+            pProps->pOutputCols, i);
+        EXPECT_EQ(pOutput->outputIndex, i);
+        if (JOIN_INPUT_SIDE_RIGHT == pOutput->sourceSide) {
+          seenRight = true;
+          EXPECT_TRUE(item.publishRight);
+          EXPECT_EQ(pOutput->nullable,
+                    !pOutput->primaryTimestamp || item.nullableRight);
+        } else {
+          EXPECT_EQ(pOutput->sourceSide, JOIN_INPUT_SIDE_LEFT);
+          EXPECT_FALSE(seenRight);
+          EXPECT_TRUE(item.publishLeft);
+          EXPECT_EQ(pOutput->nullable,
+                    !pOutput->primaryTimestamp || item.nullableLeft);
+        }
+      }
+
+      auto* pLeft = findJoinOutput(pProps, "l", "c1");
+      auto* pRight = findJoinOutput(pProps, "r", "c1");
+      EXPECT_EQ(nullptr != pLeft, item.publishLeft);
+      EXPECT_EQ(nullptr != pRight, item.publishRight);
+      if (nullptr != pLeft && nullptr != pRight) {
+        EXPECT_NE(pLeft->id.relationId, pRight->id.relationId);
+      }
+    });
+    run(item.sql);
+  }
+}
+
+TEST_F(PlanJoinTest, semiMatchingTimeNeedsOwnSort) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+    if (!optimized) return;
+    auto* join = (const SJoinLogicNode*)findNode(
+        root, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(join, nullptr);
+    EXPECT_EQ(join->joinAlgo, JOIN_ALGO_MERGE);
+    auto* input = (const SLogicNode*)nodesListGetNode(
+        join->node.pChildren, 0);
+    ASSERT_EQ(nodeType(input), QUERY_NODE_LOGIC_PLAN_SORT);
+    auto* sort = (const SSortLogicNode*)input;
+    auto* key = (const SOrderByExprNode*)nodesListGetNode(sort->pSortKeys, 0);
+    ASSERT_EQ(nodeType(key->pExpr), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(((const SColumnNode*)key->pExpr)->colName, "match_time");
+    EXPECT_EQ(countSorts(input), 2);
+  });
+  for (const string side : {"LEFT", "RIGHT"}) {
+    const string source = side == "LEFT" ?
+        "st1s1 a LEFT SEMI JOIN st1s1 b" :
+        "st1s1 b RIGHT SEMI JOIN st1s1 a";
+    run("SELECT /*+ MERGE_JOIN() */ q.c1, c.c1 FROM "
+        "(SELECT /*+ HASH_JOIN() */ a.ts driver_time, b.ts match_time, "
+        "a.c1 FROM " + source + " ON a.c1 = b.c1 "
+        "ORDER BY a.ts LIMIT 3) q JOIN st1s1 c ON q.match_time = c.ts");
+  }
+}
+
+TEST_F(PlanJoinTest, semiBucketTimeNeedsRawSort) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+    if (!optimized) return;
+    auto* join = (const SJoinLogicNode*)findNode(
+        root, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(join, nullptr);
+    auto* input = (const SLogicNode*)nodesListGetNode(
+        join->node.pChildren, 0);
+    ASSERT_EQ(nodeType(input), QUERY_NODE_LOGIC_PLAN_SORT);
+    auto* sort = (const SSortLogicNode*)input;
+    auto* key = (const SOrderByExprNode*)nodesListGetNode(sort->pSortKeys, 0);
+    ASSERT_EQ(nodeType(key->pExpr), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(((const SColumnNode*)key->pExpr)->tableAlias, "b");
+    EXPECT_STREQ(((const SColumnNode*)key->pExpr)->colName, "ts");
+  });
+  for (const string side : {"LEFT", "RIGHT"}) {
+    const string source = side == "LEFT" ?
+        "st1s1 a LEFT SEMI JOIN st1s1 b" :
+        "st1s1 b RIGHT SEMI JOIN st1s1 a";
+    run("SELECT /*+ MERGE_JOIN() */ a.c1, c.c1 FROM (" + source +
+        " ON timetruncate(a.ts,1m) = timetruncate(b.ts,1m) "
+        "AND a.c1 = b.c1) JOIN st1s1 c ON b.ts = c.ts");
+  }
+}
+
+TEST_F(PlanJoinTest, semiAntiProjectionChoosesTimeCandidate) {
+  useDb("root", "test");
+  for (const string kind : {"SEMI", "ANTI"}) {
+    setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+      if (!optimized) return;
+      auto* join = (const SJoinLogicNode*)findNode(
+          root, QUERY_NODE_LOGIC_PLAN_JOIN);
+      ASSERT_NE(join, nullptr);
+      auto* condition = (SOperatorNode*)(join->pPrimKeyEqCond != nullptr ?
+          join->pPrimKeyEqCond : join->addPrimEqCond);
+      ASSERT_NE(condition, nullptr);
+      ASSERT_EQ(nodeType(condition->pLeft), QUERY_NODE_COLUMN);
+      EXPECT_STREQ(((SColumnNode*)condition->pLeft)->colName,
+                   kind == "SEMI" ? "match_time" : "driver_time");
+    });
+    for (bool right : {false, true}) {
+      const string source = right ?
+          "st1s1 b RIGHT " + kind + " JOIN st1s1 a" :
+          "st1s1 a LEFT " + kind + " JOIN st1s1 b";
+      for (const string temporal : {"ASOF", "WINDOW"}) {
+        run("SELECT q.c1, c.c1 FROM (SELECT b.ts match_time, "
+            "a.ts driver_time, a.c1 FROM " + source +
+            " ON a.c1 = b.c1) q LEFT " + temporal + " JOIN st1s1 c" +
+            (temporal == "ASOF" ? "" : " WINDOW_OFFSET(0s, 0s)"));
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, semiAntiTimeIdentity) {
+  useDb("root", "test");
+  for (const string kind : {"SEMI", "ANTI"}) {
+    for (bool right : {false, true}) {
+      setJoinPropsCheck([&](const SPlanContext* pCxt,
+                           const SLogicNode* pRoot, bool optimized) {
+        auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(pJoin, nullptr);
+        auto* pProps = planGetJoinInputProps(pCxt, pJoin);
+        ASSERT_NE(pProps, nullptr);
+        auto* pLeft = findJoinOutput(pProps, "a", "ts");
+        auto* pRight = findJoinOutput(pProps, "b", "ts");
+        ASSERT_NE(pLeft, nullptr);
+        ASSERT_NE(pRight, nullptr);
+        EXPECT_EQ(pLeft->primaryTimestamp, kind == "SEMI" || !right);
+        EXPECT_EQ(pRight->primaryTimestamp, kind == "SEMI" || right);
+        EXPECT_EQ(pLeft->nullable, kind == "ANTI" && right);
+        EXPECT_EQ(pRight->nullable, kind == "ANTI" && !right);
+      });
+      run("SELECT a.ts, b.ts FROM st1s1 a " +
+          string(right ? "RIGHT " : "LEFT ") + kind +
+          " JOIN st1s1 b ON a.c1 = b.c1");
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, semiAntiNestedPeerTimeIdentity) {
+  useDb("root", "test");
+  for (const string kind : {"SEMI", "ANTI"}) {
+    setJoinPropsCheck([&](const SPlanContext* pCxt,
+                         const SLogicNode* pRoot, bool optimized) {
+      auto* props = planGetJoinInputProps(pCxt, pRoot);
+      ASSERT_NE(props, nullptr);
+      const SJoinOutputCol* nullable = nullptr;
+      const SJoinOutputCol* valid = nullptr;
+      for (size_t i = 0; i < taosArrayGetSize(props->pOutputCols); ++i) {
+        auto* col = (const SJoinOutputCol*)taosArrayGet(props->pOutputCols, i);
+        auto* expr = (const SColumnNode*)col->pExpr;
+        if (string(expr->node.userAlias) == "null_time") nullable = col;
+        if (string(expr->node.userAlias) == "valid_time") valid = col;
+      }
+      ASSERT_NE(nullable, nullptr);
+      ASSERT_NE(valid, nullptr);
+      EXPECT_FALSE(nullable->primaryTimestamp);
+      EXPECT_TRUE(nullable->nullable);
+      EXPECT_EQ(valid->primaryTimestamp, kind == "SEMI");
+      EXPECT_EQ(valid->nullable, kind == "ANTI");
+    });
+    const string input = "(st1s1 a RIGHT JOIN st1s1 b ON a.ts = b.ts)";
+    for (bool right : {false, true}) {
+      const string source = right ?
+          input + " RIGHT " + kind + " JOIN st1s1 c" :
+          "st1s1 c LEFT " + kind + " JOIN " + input;
+      run("SELECT q.null_time, q.valid_time FROM "
+          "(SELECT a.ts null_time, b.ts valid_time FROM " + source +
+          " ON b.ts = c.ts) q");
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, semiAntiKeepsMatchingSidePostFilter) {
+  useDb("root", "test");
+  for (const string kind : {"SEMI", "ANTI"}) {
+    for (bool right : {false, true}) {
+      setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+        if (!optimized) return;
+        auto* join = findNode(root, QUERY_NODE_LOGIC_PLAN_JOIN);
+        ASSERT_NE(join, nullptr);
+        EXPECT_NE(join->pConditions, nullptr);
+        auto* peer = (const SLogicNode*)nodesListGetNode(
+            join->pChildren, right ? 0 : 1);
+        ASSERT_EQ(nodeType(peer), QUERY_NODE_LOGIC_PLAN_SCAN);
+        EXPECT_EQ(peer->pConditions, nullptr);
+      });
+      const string source = right ?
+          "st1s1 b RIGHT " + kind + " JOIN st1s1 a" :
+          "st1s1 a LEFT " + kind + " JOIN st1s1 b";
+      for (const string algo : {"HASH", "MERGE"}) {
+        run("SELECT /*+ " + algo + "_JOIN() */ a.c1, b.c2 FROM " +
+            source + " ON a.ts = b.ts WHERE b.c2 " +
+            (kind == "SEMI" ? "> 5" : "IS NULL"));
+      }
+    }
+  }
+}
+
+TEST_F(PlanJoinTest, joinInputPropsRebuiltAfterOptimization) {
+  useDb("root", "test");
+
+  setJoinPropsCheck([](const SPlanContext* pCxt,
+                       const SLogicNode* pRoot, bool optimized) {
+    ASSERT_NE(findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN), nullptr);
+    EXPECT_NE(pCxt->pJoinPropsStore, nullptr);
+    auto* pJoin = findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    auto* pProps = planGetJoinInputProps(pCxt, pJoin);
+    ASSERT_NE(pProps, nullptr);
+    EXPECT_EQ(pProps->pNode, pJoin);
+  });
+  run("SELECT l.c1, r.c1 FROM st1 l JOIN st1 r "
+      "ON l.tag1 = r.tag1");
+}
+
+TEST_F(PlanJoinTest, nestedSemiAntiConsumesHiddenSide) {
+  useDb("root", "test");
+
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) {
+      expectJoinDirectChildContract(pRoot);
+    }
+  });
+  for (const string& sql : {
+           "SELECT a.c2 FROM st1s1 a LEFT SEMI JOIN "
+           "(st1s2 b JOIN st1s3 c ON b.ts = c.ts) "
+           "ON a.c1 = c.c1",
+           "SELECT a.c2 FROM st1s1 a LEFT ANTI JOIN "
+           "(st1s2 b JOIN st1s3 c ON b.ts = c.ts) "
+           "ON a.c1 = c.c1",
+           "SELECT c.c2 FROM "
+           "(st1s1 a JOIN st1s2 b ON a.ts = b.ts) "
+           "RIGHT SEMI JOIN st1s3 c ON a.c1 = c.c1",
+           "SELECT c.c2 FROM "
+           "(st1s1 a JOIN st1s2 b ON a.ts = b.ts) "
+           "RIGHT ANTI JOIN st1s3 c ON a.c1 = c.c1",
+       }) {
+    SCOPED_TRACE(sql);
+    run(sql);
+  }
+}
+
+// A temporal join whose input hides its JOIN below a FROM subquery or a
+// UNION branch, with no outer reference to the inner time column.
+TEST_F(PlanJoinTest, nestedTemporalOverSubqueryJoin) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) expectJoinDirectChildContract(pRoot);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  run("SELECT a.c1 FROM stream_t2 a LEFT ASOF JOIN "
+      "(SELECT b.ts, b.c1 FROM stream_t2 b JOIN stream_t2 c "
+      "ON b.ts = c.ts) q");
+  run("SELECT a.c1 FROM stream_t2 a LEFT ASOF JOIN "
+      "(SELECT b.ts, b.c1 FROM stream_t2 b JOIN stream_t2 c "
+      "ON b.ts = c.ts UNION ALL SELECT ts, c1 FROM stream_t2) q");
+  run("SELECT a.c1 FROM (SELECT b.ts, b.c1 FROM stream_t2 b "
+      "JOIN stream_t2 c ON b.ts = c.ts) q LEFT ASOF JOIN stream_t2 a");
+  run("SELECT a.c1 FROM stream_t2 a LEFT WINDOW JOIN "
+      "(SELECT b.ts, b.c1 FROM stream_t2 b JOIN stream_t2 c "
+      "ON b.ts = c.ts) q WINDOW_TIME(a.c3, q.ts) WINDOW_OFFSET(-1s, 1s)");
 }

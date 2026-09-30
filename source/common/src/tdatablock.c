@@ -846,6 +846,42 @@ size_t blockDataGetNumOfCols(const SSDataBlock* pBlock) { return taosArrayGetSiz
 
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock) { return pBlock->info.rows; }
 
+// blockDataFromBufWithCapacity() restores NULL markers without updating
+// hasNull. Raise the flag where needed, preserving any existing mark.
+void blockDataUpdateHasNull(SSDataBlock* pDataBlock) {
+  if (pDataBlock == NULL) {
+    return;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (size_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pDataBlock->pDataBlock, i);
+    if (pCol == NULL || pCol->hasNull) {
+      continue;
+    }
+
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      // VAR-length types encode NULL as varmeta.offset[r] == -1
+      if (pCol->varmeta.offset == NULL) {
+        continue;
+      }
+      for (int32_t r = 0; r < pDataBlock->info.rows; ++r) {
+        if (pCol->varmeta.offset[r] == -1) {
+          pCol->hasNull = true;
+          break;
+        }
+      }
+    } else if (pCol->nullbitmap != NULL) {
+      for (int32_t r = 0; r < pDataBlock->info.rows; ++r) {
+        if (colDataIsNull_f(pCol, r)) {
+          pCol->hasNull = true;
+          break;
+        }
+      }
+    }
+  }
+}
+
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) {
   if (pDataBlock == NULL || pDataBlock->info.rows <= 0 || pDataBlock->info.dataLoad == 0) {
     return 0;

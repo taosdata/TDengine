@@ -30,7 +30,7 @@ QUERY_PLAN:             -> Table Merge Scan on hj_r_stb (columns=2 width=12 orde
 
 taos> EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=30 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=30 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Inner Join (columns=3 width=30 input_order=asc algo=Hash)
 *************************** 3.row ***************************
@@ -138,7 +138,7 @@ QUERY_PLAN:          -> Table Scan on r_norm (columns=2 width=12 order=[asc|1 de
 
 taos> EXPLAIN SELECT /*+ HASH_JOIN */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts \G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=3 width=30 input_order=asc)
+QUERY_PLAN: -> Projection (columns=3 width=30 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Inner Join (columns=3 width=30 input_order=asc algo=Hash)
 *************************** 3.row ***************************

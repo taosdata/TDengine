@@ -51,6 +51,8 @@ typedef struct SPlanStreamContext {
   SNodeList*  triggerScanList;
 } SPlanStreamContext;
 
+typedef struct SJoinPropsStore SJoinPropsStore;
+
 typedef struct SPlanContext {
   uint64_t    queryId;
   int32_t     acctId;
@@ -91,6 +93,7 @@ typedef struct SPlanContext {
   SExtSourceCapability* pExtCapability;
   SExtCapSessionOverlay* pExtSessionOverlay;
   int32_t*              pExtPushdownAttempt;
+  SJoinPropsStore*      pJoinPropsStore;
   void*              pSubqueryState;  // shared planner-only subquery registry for one qCreateQueryPlan run
   int32_t            subqueryIndex;   // -1 for root query, otherwise original global subQIdx
   void*              timezone;

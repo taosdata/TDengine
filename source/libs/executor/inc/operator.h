@@ -213,8 +213,12 @@ int32_t        optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperato
 int32_t        optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
 int32_t        setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInput,
                                  SOperatorParamType type);
+// Same fetch/validate/accounting sequence as getNextBlockFromDownstream, but
+// returns the code so a caller can tell a failure from an exhausted downstream.
+int32_t        getNextBlockFromDownstreamChecked(SOperatorInfo* pOperator,
+                                                 int32_t idx, bool clearParam,
+                                                 SSDataBlock** ppBlock);
 SSDataBlock*   getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx);
-SSDataBlock*   getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx);
 SSDataBlock*   getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOperator, int32_t idx);
 int64_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);
 

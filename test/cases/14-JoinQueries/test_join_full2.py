@@ -2170,6 +2170,11 @@ class TestJoin:
                     "is_ci": True,
                     "exception": False,
                     "sql": ["select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 order by t1.ts, t2.ts;",
+                            (
+                                "select t1.ts, t2.ts from db1_st1 t1 "
+                                "left asof join (select * from db1_st2) t2 "
+                                "order by t1.ts, t2.ts;"
+                            ),
                             "select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 on t1.ts >= t2.ts order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 on t1.ts >= t2.ts jlimit 1 order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 jlimit 1 order by t1.ts, t2.ts;",
@@ -2453,7 +2458,6 @@ class TestJoin:
                             "select * from db1_st1_ct1 t1 left asof join db1_st2_ct1 t2 on t1.ts != t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 on t1.t_int > t2.t_int jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 left asof join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 left asof join (select * from db1_st2) t2;",
                         ]
                 }
             ],
@@ -2464,6 +2468,11 @@ class TestJoin:
                     "is_ci": True,
                     "exception": False,
                     "sql": ["select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 order by t1.ts, t2.ts;",
+                            (
+                                "select t1.ts, t2.ts from db1_st1 t1 "
+                                "right asof join (select * from db1_st2) t2 "
+                                "order by t1.ts, t2.ts;"
+                            ),
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 on t2.ts >= t1.ts order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 on t2.ts >= t1.ts jlimit 1 order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 jlimit 1 order by t1.ts, t2.ts;",
@@ -2745,7 +2754,6 @@ class TestJoin:
                             "select * from db1_st1_ct1 t1 right asof join db1_st2_ct1 t2 on t1.ts != t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 on t1.t_int > t2.t_int jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 right asof join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 right asof join (select * from db1_st2) t2;"
                         ]
                 }
             ],
@@ -2756,6 +2764,12 @@ class TestJoin:
                     "is_ci": True,
                     "exception": False,
                     "sql": ["select t1.ts, t2.ts from db1_st1 t1 left window join db1_st2 t2 window_offset(-100a, 100a) order by t1.ts, t2.ts;",
+                            (
+                                "select t1.ts, t2.ts from db1_st1 t1 "
+                                "left window join (select * from db1_st2) t2 "
+                                "window_offset(-100a, 100a) "
+                                "order by t1.ts, t2.ts;"
+                            ),
                             "select t1.ts, t2.ts from db1_st1 t1 left window join db1_st2 t2 window_offset(-100a, 100a) jlimit 1024 order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1.db1_st1 t1 left window join db2.db2_st2 t2 window_offset(-100a, 100a) jlimit 10 order by t1.ts;",
                         ],
@@ -3041,7 +3055,6 @@ class TestJoin:
                             "select * from db1_st1_ct1 t1 left window join db1_st2_ct1 t2 on t1.v_int = t2.v_int or t1.v_bigint = t2.v_bigint window_offset(-1a, 1a);",
                             "select t1.ts, t2.ts from db1_st1 t1 left window join db1_st2 t2 on abs(t1.t_int) > t2.t_int window_offset(-1a, 1a) jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 left window join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int window_offset(-1a, 1a);",
-                            "select * from db1_st1 t1 left window join (select * from db1_st2) t2 window_offset(-1a, 1a);",
                             "select first(t1.ts), count(t2.*) from db1_st1 t1 left window join db1_st2 t2 window_offset(-1a, 1a) group by t1.tbname;",
                             "select _wstart, count(t2.*) from db1_st1 t1 left window join db1_st2 t2 window_offset(-1a, 1a) partition by t1.tbname;",
                             "select first(t1.ts), count(t2.*) from db1_st1 t1 left window join db1_st2 t2 on t1.v_int = t2.v_int window_offset(-1a, 1a) slimit 1;",
@@ -3058,6 +3071,12 @@ class TestJoin:
                     "is_ci": True,
                     "exception": False,
                     "sql": ["select t1.ts, t2.ts from db1_st1 t1 right window join db1_st2 t2 window_offset(-100a, 100a) order by t1.ts, t2.ts;",
+                            (
+                                "select t1.ts, t2.ts from db1_st1 t1 "
+                                "right window join (select * from db1_st2) t2 "
+                                "window_offset(-100a, 100a) "
+                                "order by t1.ts, t2.ts;"
+                            ),
                             "select t1.ts, t2.ts from db1_st1 t1 right window join db1_st2 t2 window_offset(-100a, 100a) jlimit 1024 order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 right window join db1_st2 t2 window_offset(-100a, 100a) jlimit 14 order by t1.ts, t2.ts limit 14;"
                         ],
@@ -3343,7 +3362,6 @@ class TestJoin:
                             "select * from db1_st1_ct1 t1 right window join db1_st2_ct1 t2 on t1.v_int = t2.v_int or t1.v_bigint = t2.v_bigint window_offset(-1a, 1a);",
                             "select t1.ts, t2.ts from db1_st1 t1 right window join db1_st2 t2 on abs(t1.t_int) > t2.t_int window_offset(-1a, 1a) jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 right window join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int window_offset(-1a, 1a);",
-                            "select * from db1_st1 t1 right window join (select * from db1_st2) t2 window_offset(-1a, 1a);",
                             "select first(t1.ts), count(t2.*) from db1_st1 t1 right window join db1_st2 t2 window_offset(-1a, 1a) group by t1.tbname;",
                             "select _wstart, count(t2.*) from db1_st1 t1 right window join db1_st2 t2 window_offset(-1a, 1a) partition by t1.tbname;",
                             "select first(t1.ts), count(t2.*) from db1_st1 t1 right window join db1_st2 t2 on t1.v_int = t2.v_int window_offset(-1a, 1a) slimit 1;",

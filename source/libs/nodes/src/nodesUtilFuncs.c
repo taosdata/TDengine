@@ -1918,6 +1918,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
+      nodesDestroyList(pJoin->pWindowTime);
       nodesDestroyNode(pJoin->pWindowOffset);
       nodesDestroyNode(pJoin->pJLimit);
       nodesDestroyNode(pJoin->addPrimCond);
