@@ -6063,7 +6063,8 @@ _return:
 
 static EDealRes extWindowNeedFillImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_FUNCTION == nodeType(pNode) &&
-      (fmIsAggFunc(((SFunctionNode*)pNode)->funcId) || isInterpFunc(((SFunctionNode*)pNode)->funcId)) &&
+      (fmIsAggFunc(((SFunctionNode*)pNode)->funcId) || isInterpFunc(((SFunctionNode*)pNode)->funcId) ||
+       fmIsIndefiniteRowsFunc(((SFunctionNode*)pNode)->funcId)) &&
       FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType &&
       FUNCTION_TYPE_GROUP_CONST_VALUE != ((SFunctionNode*)pNode)->funcType) {
     *(bool*)pContext = true;
@@ -6091,8 +6092,8 @@ static bool extWindowIsDirectFillProjection(SNode* pNode) {
   }
 
   SFunctionNode* pFunc = (SFunctionNode*)pExpr;
-  return (fmIsAggFunc(pFunc->funcId) || isInterpFunc(pFunc->funcId)) && FUNCTION_TYPE_GROUP_KEY != pFunc->funcType &&
-         FUNCTION_TYPE_GROUP_CONST_VALUE != pFunc->funcType;
+  return (fmIsAggFunc(pFunc->funcId) || isInterpFunc(pFunc->funcId) || fmIsIndefiniteRowsFunc(pFunc->funcId)) &&
+         FUNCTION_TYPE_GROUP_KEY != pFunc->funcType && FUNCTION_TYPE_GROUP_CONST_VALUE != pFunc->funcType;
 }
 
 static bool extWindowNeedProjOutputsForFill(SSelectStmt* pSelect, const SWindowLogicNode* pWindow) {
@@ -6171,13 +6172,49 @@ static int32_t extWindowBuildFinalFillExprs(SNodeList* pProjectionList, SNodeLis
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extWindowAddOutputPartitionKeys(SSelectStmt* pSelect, SWindowLogicNode* pWindow) {
+  if (pSelect->pPartitionByList == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pPartKeys = NULL;
+  SNodeList* pOutputKeys = NULL;
+  int32_t code = nodesCloneList(pSelect->pPartitionByList, &pPartKeys);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = rewriteExprsForSelect(pPartKeys, pSelect, SQL_CLAUSE_EXT_WINDOW, &pOutputKeys);
+  }
+  nodesDestroyList(pPartKeys);
+  if (code == TSDB_CODE_SUCCESS) {
+    SNode* pKey = NULL;
+    FOREACH(pKey, pOutputKeys) {
+      if (nodeType(pKey) != QUERY_NODE_COLUMN) {
+        planError("external window partition key must be column node, nodeType:%d", nodeType(pKey));
+        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+        break;
+      }
+      SFunctionNode* pGroupKey = createGroupKeyAggFunc((SColumnNode*)pKey);
+      if (pGroupKey == NULL) {
+        code = terrno;
+        break;
+      }
+      tstrncpy(pGroupKey->node.aliasName, ((SExprNode*)pKey)->aliasName, TSDB_COL_NAME_LEN);
+      tstrncpy(pGroupKey->node.userAlias, ((SExprNode*)pKey)->userAlias, TSDB_COL_NAME_LEN);
+      code = nodesListMakeStrictAppend(&pWindow->pFuncs, (SNode*)pGroupKey);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+    }
+  }
+  nodesDestroyList(pOutputKeys);
+  return code;
+}
+
 static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                                      SLogicNode** pLogicNode) {
   pWindow->node.inputTsOrder = ORDER_ASC;
   pWindow->node.outputTsOrder = ORDER_ASC;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  SNodeList* pOutputPartitionKeys = NULL;
   // no agg func
   if (pSelect->pWindow && nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW) {
     // just copy targets from child node, since the window node will process the functions
@@ -6193,8 +6230,18 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
         nodesDestroyList(pWindow->pFuncs);
         pWindow->pFuncs = NULL;
         PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_EXT_WINDOW, NULL, fmIsStreamVectorFunc, &pWindow->pFuncs));
+        bool needProjOutputsForFill = extWindowNeedProjOutputsForFill(pSelect, pWindow);
         PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
-        PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+        if (needProjOutputsForFill) {
+          PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
+          PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
+          nodesDestroyList(pWindow->extFill.pFillExprs);
+          pWindow->extFill.pFillExprs = NULL;
+          PLAN_ERR_RET(extWindowBuildFinalFillExprs(pWindow->pProjs, &pWindow->extFill.pFillExprs));
+        }
+        PLAN_ERR_RET(extWindowAddOutputPartitionKeys(pSelect, pWindow));
+        PLAN_ERR_RET(createColumnByRewriteExprs(
+            needProjOutputsForFill ? pWindow->pProjs : pWindow->pFuncs, &pWindow->node.pTargets));
         pWindow->indefRowsFunc = true;
         pSelect->hasIndefiniteRowsFunc = false;
       } else {
@@ -6295,31 +6342,7 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
         }
       }
 
-      if (NULL != pSelect->pPartitionByList) {
-        SNodeList* pPartKeys = NULL;
-        PLAN_ERR_RET(nodesCloneList(pSelect->pPartitionByList, &pPartKeys));
-        code = rewriteExprsForSelect(pPartKeys, pSelect, SQL_CLAUSE_EXT_WINDOW, &pOutputPartitionKeys);
-        nodesDestroyList(pPartKeys);
-        PLAN_ERR_RET(code);
-
-        if (NULL != pOutputPartitionKeys) {
-          SNode* pPartKey = NULL;
-          FOREACH(pPartKey, pOutputPartitionKeys) {
-            if (QUERY_NODE_COLUMN != nodeType(pPartKey)) {
-              planError("external window partition key must be column node, nodeType:%d", nodeType(pPartKey));
-              PLAN_ERR_RET(TSDB_CODE_PLAN_INTERNAL_ERROR);
-            }
-
-            SFunctionNode* pGroupKey = createGroupKeyAggFunc((SColumnNode*)pPartKey);
-            if (NULL == pGroupKey) {
-              PLAN_ERR_RET(terrno);
-            }
-            tstrncpy(pGroupKey->node.aliasName, ((SExprNode*)pPartKey)->aliasName, TSDB_COL_NAME_LEN);
-            tstrncpy(pGroupKey->node.userAlias, ((SExprNode*)pPartKey)->userAlias, TSDB_COL_NAME_LEN);
-            PLAN_ERR_RET(nodesListMakeStrictAppend(&pWindow->pFuncs, (SNode*)pGroupKey));
-          }
-        }
-      }
+      PLAN_ERR_RET(extWindowAddOutputPartitionKeys(pSelect, pWindow));
 
       if (needProjOutputsForFill) {
         PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
@@ -6357,8 +6380,6 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     pWindow->node.pConditions = NULL;
     code = nodesCloneNode(pSelect->pHaving, &pWindow->node.pConditions);
   }
-
-  nodesDestroyList(pOutputPartitionKeys);
 
   *pLogicNode = (SLogicNode*)pWindow;
 
@@ -7776,21 +7797,10 @@ bool hasExternalWindowDerivedFromSubquery(SSelectStmt* pSelect) {
   return false;
 }
 
-static int32_t checkExprListForExternalWin(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
-  if (pSelect->hasIndefiniteRowsFunc) {
-    return generatePlanErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                              "Indefinite rows functions are not allowed in EXTERNAL_WINDOW query");
-  }
-  if (pSelect->hasMultiRowsFunc) {
-    return generatePlanErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                              "Multi-rows functions are not allowed in EXTERNAL_WINDOW query");
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t checkExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
   if (hasExternalWindowDerivedFromSubquery(pSelect)) {
-    return checkExprListForExternalWin(pCxt, pSelect);
+    // Function compatibility is validated by the same parser rules as other windows.
+    return TSDB_CODE_SUCCESS;
   }
 
   if (!pCxt->streamExtWindowTreeChecked) {
