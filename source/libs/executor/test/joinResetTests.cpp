@@ -102,7 +102,7 @@ void setRows(SOperatorInfo* op, const Rows& rows, size_t blockRows = 2) {
       ASSERT_EQ(blockDataAppendColInfo(block, &col), TSDB_CODE_SUCCESS);
     }
     ASSERT_EQ(blockDataEnsureCapacity(block, blockRows), TSDB_CODE_SUCCESS);
-    size_t end = std::min(rows.size(), start + blockRows);
+    size_t end = (std::min)(rows.size(), start + blockRows);
     for (size_t i = start; i < end; ++i) {
       const Row& row = rows[i];
       for (int slot = 0; slot < 2; ++slot) {

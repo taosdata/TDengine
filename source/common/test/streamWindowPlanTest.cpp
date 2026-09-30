@@ -7013,6 +7013,14 @@ TEST(StreamRunnerFetchBatchTest, DecodeReplacesOwnedStateAndClearsOnFailure) {
 }
 
 TEST(StreamRunnerFetchBatchTest, AllocationFailureReleasesPartiallyDecodedState) {
+#ifdef WINDOWS
+  // The failure is injected by patching the machine code of taosMemMalloc
+  // (cppstub), and the Windows release build compiles with /GL and links with
+  // LTCG, which folds this small allocator wrapper into its callers so the
+  // patched entry point is never reached. macOS needs an explicit post-build
+  // step for the same reason, Windows has none.
+  GTEST_SKIP() << "cppstub patching of taosMemMalloc is unreliable in the Windows release build";
+#endif
   for (bool withData : {false, true}) {
     RunnerFetchBatchGuard source;
     fillRunnerFetchBatch(&source.batch, withData, {101, 202});

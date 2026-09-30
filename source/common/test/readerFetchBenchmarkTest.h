@@ -43,12 +43,15 @@ inline const char* layoutName(ReaderFetchLayout layout) {
 inline std::vector<ReaderFetchGroup> makeScalePlan(int32_t totalParams, int32_t nodeCount, ReaderFetchLayout layout) {
   int32_t groupCount = 1;
   int32_t skewedCount = totalParams;
+  /* (std::min)/(std::max), not std::min/std::max: <windows.h> defines min/max as
+   * function-like macros unless NOMINMAX is set, and the expansion of a
+   * std::max call is not something the compiler can parse. */
   if (layout == ReaderFetchLayout::Even) {
-    groupCount = std::min(totalParams, std::max(1, nodeCount * 2));
+    groupCount = (std::min)(totalParams, (std::max)(1, nodeCount * 2));
   } else if (layout == ReaderFetchLayout::Skewed) {
-    skewedCount = std::max(1, totalParams * 9 / 10);
+    skewedCount = (std::max)(1, totalParams * 9 / 10);
     const int32_t remaining = totalParams - skewedCount;
-    groupCount = remaining == 0 ? 1 : 1 + std::min(remaining, std::max(1, nodeCount * 2 - 1));
+    groupCount = remaining == 0 ? 1 : 1 + (std::min)(remaining, (std::max)(1, nodeCount * 2 - 1));
   }
 
   std::vector<int32_t> paramsPerGroup(groupCount, totalParams / groupCount);

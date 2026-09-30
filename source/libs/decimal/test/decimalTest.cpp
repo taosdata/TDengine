@@ -614,7 +614,7 @@ TEST(decimal, divide) {
   Decimal128 remainder = {0};
   int8_t     precision1 = 38, scale1 = 5, precision2 = 10, scale2 = 2;
   int8_t     out_scale = 25;
-  int8_t     out_precision = std::min(precision1 - scale1 + scale2 + out_scale, 38);
+  int8_t     out_precision = (std::min)(precision1 - scale1 + scale2 + out_scale, 38);
   int8_t     delta_scale = out_scale + scale2 - scale1;
   printDecimal(&d, TSDB_DATA_TYPE_DECIMAL, precision1, scale1);
   __int128 a = 1;
