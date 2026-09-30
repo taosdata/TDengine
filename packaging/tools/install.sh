@@ -707,30 +707,52 @@ function install_lib() {
   #rm -rf ${v15_java_app_dir}              || :
   cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 755 ${driver_dir}/*
 
+  # A package may contain more than one matching driver artifact during an
+  # upgrade (for example, an existing unversioned alias and a versioned ELF).
+  # Passing an unexpanded glob list to ln makes it interpret the destination
+  # as a directory and abort. Link only the first real versioned library.
+  link_driver_library() {
+    local pattern="$1"
+    local link_name="$2"
+    local link_dir="${3:-${lib_link_dir}}"
+    local source
+    for source in "${driver_dir}"/${pattern}; do
+      [ -f "$source" ] || continue
+      ln -sf "$source" "${link_dir}/${link_name}"
+      return 0
+    done
+    return 0
+  }
+
+  mkdir -p "${lib_link_dir}"
+  if [ -n "${lib64_link_dir}" ]; then
+    mkdir -p "${lib64_link_dir}"
+  fi
+
   # Link libraries based on OS type
   if [ "$osType" != "Darwin" ]; then
     install_fq_runtime_links "${driver_dir}"
     # Linux specific linking
-    ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.so.3
+    link_driver_library 'libtaos.so.*' 'libtaos.so.3'
     ln -sf ${lib_link_dir}/libtaos.so.3 ${lib_link_dir}/libtaos.so
-    ln -sf ${driver_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.3
+    link_driver_library 'libtaosnative.so.*' 'libtaosnative.so.3'
     ln -sf ${lib_link_dir}/libtaosnative.so.3 ${lib_link_dir}/libtaosnative.so
 
-    ln -sf ${driver_dir}/libtaosws.so.* ${lib_link_dir}/libtaosws.so.3
+    link_driver_library 'libtaosws.so.*' 'libtaosws.so.3'
     ln -sf ${lib_link_dir}/libtaosws.so.3 ${lib_link_dir}/libtaosws.so
-    ln -sf ${driver_dir}/libtaospyudf.so.* ${lib_link_dir}/libtaospyudf.so.3
+    link_driver_library 'libtaospyudf.so.*' 'libtaospyudf.so.3'
     ln -sf ${lib_link_dir}/libtaospyudf.so.3 ${lib_link_dir}/libtaospyudf.so
 
     # Link lib64 if it exists
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-      ln -sf ${driver_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.3 || :
+      link_driver_library 'libtaos.so.*' 'libtaos.so.3' "${lib64_link_dir}"
       ln -sf ${lib64_link_dir}/libtaos.so.3 ${lib64_link_dir}/libtaos.so || :
-      ln -sf ${driver_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.3 || :
+      link_driver_library 'libtaosnative.so.*' 'libtaosnative.so.3' "${lib64_link_dir}"
       ln -sf ${lib64_link_dir}/libtaosnative.so.3 ${lib64_link_dir}/libtaosnative.so || :
 
-      ln -sf ${driver_dir}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so.3 || :
+      link_driver_library 'libtaosws.so.*' 'libtaosws.so.3' "${lib64_link_dir}"
       ln -sf ${lib64_link_dir}/libtaosws.so.3 ${lib64_link_dir}/libtaosws.so || :
-      ln -sf ${driver_dir}/libtaospyudf.so.* ${lib64_link_dir}/libtaospyudf.so.3 || :
+      link_driver_library 'libtaospyudf.so.*' 'libtaospyudf.so.3' "${lib64_link_dir}"
       ln -sf ${lib64_link_dir}/libtaospyudf.so.3 ${lib64_link_dir}/libtaospyudf.so || :
     fi
 
