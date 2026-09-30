@@ -23,6 +23,8 @@ TDengine 2.x 各版本安装包请访问 [这里](https://www.taosdata.com/all-d
 
 TDengine `v3.3.7.0` 及以上版本请访问 [下载中心](https://www.taosdata.com/download-center)
 
+从 `v3.4.3.0` 起，TDengine 企业版 Linux 安装包使用 `.tar.xz` 格式；其他平台和旧版本的安装包格式保持不变。
+
 TDengine 3.x 各版本安装包下载链接如下：
 
 import Release from "/src/components/Release";

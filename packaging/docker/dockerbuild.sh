@@ -159,24 +159,11 @@ else
     echo "Unknown cpuType: ${cpuType}"
     exit 1
 fi
-# check the tdengine cloud base image existed or not
 if [ "$cloudBuild" == "y" ]; then
   if [ -n "$tdgptPkgFile" ];then
-    CloudBase=$(docker images | grep tdengine/tdengine-cloud-tdgpt-base ||:)
-    if [[ "$CloudBase" == "" ]]; then
-      echo "Rebuild tdengine cloud tdgpt base image..."
-      docker build --rm -f "${communityDir}/packaging/docker/DockerfileCloudTDgpt.base" -t tdengine/tdengine-cloud-tdgpt-base "." --build-arg cpuType=${cpuTypeAlias}
-    else
-      echo "Already found tdengine cloud tdgpt base image"
-    fi
+    docker build --rm -f "${communityDir}/packaging/docker/DockerfileCloudTDgpt.base" -t tdengine/tdengine-cloud-tdgpt-base "." --build-arg cpuType=${cpuTypeAlias}
   else
-    CloudBase=$(docker images | grep tdengine/tdengine-cloud-base ||:)
-    if [[ "$CloudBase" == "" ]]; then
-      echo "Rebuild tdengine cloud base image..."
-      docker build --rm -f "${communityDir}/packaging/docker/DockerfileCloud.base" -t tdengine/tdengine-cloud-base "." --build-arg cpuType=${cpuTypeAlias}
-    else
-      echo "Already found tdengine cloud base image"
-    fi
+    docker build --rm -f "${communityDir}/packaging/docker/DockerfileCloud.base" -t tdengine/tdengine-cloud-base "." --build-arg cpuType=${cpuTypeAlias}
   fi
 fi
 

@@ -24,6 +24,8 @@ set -e
 verMode=edge
 pkgMode=full
 entMode=full
+packageRole=full
+packageRoleExplicit=0
 
 iplist=""
 serverFqdn=""
@@ -42,7 +44,6 @@ productName="TDengine TSDB"
 emailName="taosdata.com"
 uninstallScript="rm${PREFIX}"
 historyFile="${PREFIX}_history"
-tarName="package.tar.gz"
 adapterName="${PREFIX}adapter"
 benchmarkName="${PREFIX}Benchmark"
 dumpName="${PREFIX}dump"
@@ -195,7 +196,7 @@ Options:
 EOF
 }
 
-while getopts "hv:e:d:sq:" arg; do
+while getopts "hv:e:d:sq:m:" arg; do
   case $arg in
   e)
     interactiveFqdn=$(echo $OPTARG)
@@ -214,6 +215,14 @@ while getopts "hv:e:d:sq:" arg; do
     silent_mode=1
     interactiveFqdn="no"
     ;;
+  m)
+    packageRole=$(echo "$OPTARG" | tr '[:upper:]' '[:lower:]')
+    packageRoleExplicit=1
+    if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+      echo "Invalid package role: $OPTARG (expected full, core or extension)"
+      exit 1
+    fi
+    ;;
   h)
     show_help
     exit 0
@@ -225,6 +234,20 @@ while getopts "hv:e:d:sq:" arg; do
     ;;
   esac
 done
+
+# Package archives carry their role so core and extension can use the same
+# entry point. An explicit -m argument always takes precedence.
+if [ "$packageRoleExplicit" -eq 0 ]; then
+  if [ -f "${script_dir}/.package-role" ]; then
+    packageRole=$(tr '[:upper:]' '[:lower:]' < "${script_dir}/.package-role")
+  elif [ -f "${script_dir}/.extension-files" ]; then
+    packageRole=extension
+  fi
+fi
+if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+  echo "Invalid package role marker: $packageRole"
+  exit 1
+fi
 
 # ----------------------- Environment setup -----------------------
 function setup_env() {
@@ -448,6 +471,68 @@ function setup_env() {
   fi
 }
 
+function install_extension_package() {
+  local manifest="${script_dir}/.extension-files"
+  if [ ! -f "$manifest" ]; then
+    echo "Extension package manifest not found: $manifest"
+    exit 1
+  fi
+  if [ ! -d "$installDir" ] || [ ! -x "${installDir}/bin/taosd" ] ||
+     [ ! -f "${installDir}/uninstall.sh" ]; then
+    echo "A core or full TDengine installation is required before installing the extension package: ${installDir}" >&2
+    exit 1
+  fi
+  if [ -f "${installDir}/.package-role" ]; then
+    local installed_role
+    installed_role=$(tr '[:upper:]' '[:lower:]' < "${installDir}/.package-role")
+    if [ "$installed_role" != "core" ] && [ "$installed_role" != "full" ]; then
+      echo "Extension package requires a core or full installation, found: ${installed_role}" >&2
+      exit 1
+    fi
+  fi
+  while IFS= read -r path || [ -n "$path" ]; do
+    [ -z "$path" ] && continue
+    [[ "$path" == \#* ]] && continue
+    if [ ! -f "${script_dir}/${path}" ]; then
+      echo "Extension package file is missing: ${path}"
+      exit 1
+    fi
+    mkdir -p "${installDir}/$(dirname "$path")"
+    cp -a "${script_dir}/${path}" "${installDir}/${path}"
+  done < "$manifest"
+  if [ "$osType" != "Darwin" ]; then
+    install_fq_runtime_links "${installDir}/driver"
+  fi
+  cp "$manifest" "${installDir}/.extension-files"
+  if [ -f "${script_dir}/.package-role" ]; then
+    cp "${script_dir}/.package-role" "${installDir}/.package-role.extension"
+  fi
+  echo "TDengine extension package has been installed successfully."
+}
+
+function install_fq_runtime_links() {
+  local runtime_dir="${1:-${installDir}/driver}"
+  local link_name target_name
+  [ -d "$runtime_dir" ] || return 0
+  while read -r link_name target_name; do
+    if [ -f "${runtime_dir}/${target_name}" ] &&
+       { [ ! -e "${runtime_dir}/${link_name}" ] || [ -L "${runtime_dir}/${link_name}" ]; }; then
+      ln -sfn "$target_name" "${runtime_dir}/${link_name}"
+    fi
+  done <<'LINKS'
+libarrow.so libarrow.so.1900
+libarrow_flight.so libarrow_flight.so.1900
+libarrow_flight_sql.so libarrow_flight_sql.so.1900
+libparquet.so libparquet.so.1900
+libmariadb.so libmariadb.so.3
+libpq.so.5 libpq.so.5.16
+libpq.so libpq.so.5
+libssl.so libssl.so.3
+libcrypto.so libcrypto.so.3
+libz.so libz.so.1
+LINKS
+}
+
 function get_config_file() {
     case "$1" in
       "${serverName}") echo "${configFile}" ;;
@@ -485,6 +570,11 @@ function install_main_path() {
   rm -rf "${install_main_dir}/examples" || :
   rm -rf "${install_main_dir}/include" || :
   rm -rf "${install_main_dir}/share" || :
+  # Remove package-role metadata left by a previous extension install. The
+  # full/core installer owns the tree and must not inherit extension mode.
+  rm -f "${install_main_dir}/.extension-files" \
+        "${install_main_dir}/.package-role" \
+        "${install_main_dir}/.package-role.extension" || :
 
 
   #  mkdir -p ${install_main_dir}/connector
@@ -554,6 +644,9 @@ function install_bin() {
   chmod 0555 ${install_main_dir}/bin/*
   rm -f ${install_main_dir}/uninstall.sh || :
   [ -x ${install_main_dir}/bin/${remove_name} ] && mv -f ${install_main_dir}/bin/${remove_name} ${install_main_dir}/uninstall.sh || :
+  if [ "${packageRole}" = "full" ] || [ "${packageRole}" = "core" ]; then
+    printf '%s\n' "${packageRole}" > "${install_main_dir}/.package-role"
+  fi
 
   #Make link
   for tool in "${tools[@]}"; do
@@ -616,6 +709,7 @@ function install_lib() {
 
   # Link libraries based on OS type
   if [ "$osType" != "Darwin" ]; then
+    install_fq_runtime_links "${driver_dir}"
     # Linux specific linking
     ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.so.3
     ln -sf ${lib_link_dir}/libtaos.so.3 ${lib_link_dir}/libtaos.so
@@ -1489,6 +1583,10 @@ function finished_install_info(){
 }
 
 function updateProduct() {
+  if [ "$packageRole" == "extension" ]; then
+    install_extension_package
+    return 0
+  fi
   # Check if version compatible
   if ! is_version_compatible; then
     echo -e "${RED}Version incompatible${NC}"
@@ -1496,10 +1594,6 @@ function updateProduct() {
   fi
 
   # Start to update
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
 
   if echo $osinfo | grep -qwi "centos"; then
     rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
@@ -1507,7 +1601,6 @@ function updateProduct() {
     dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
   fi
 
-  tar -zxf ${tarName}
 
   # Stop the service if running
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
@@ -1559,16 +1652,15 @@ function updateProduct() {
   fi
 
   cd $script_dir
-  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^/") || :
 }
 
 function installProduct() {
   # Start to install
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
+
+  if [ "$packageRole" == "extension" ]; then
+    install_extension_package
+    return 0
   fi
-  tar -zxf ${tarName}
 
   install_main_path
 
@@ -1619,7 +1711,6 @@ function installProduct() {
 
   cd $script_dir
   touch ~/.${historyFile}
-  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^/") || :
 }
 
 check_java_env() {
@@ -1648,6 +1739,15 @@ check_java_env() {
 ## ==============================Main program starts from here============================
 # Call setup_env to initialize all directories and user mode settings
 setup_env
+
+# Extension packages share this installer, but do not run the regular
+# service installation path.  setup_env must run first so installDir is set.
+if [ "$packageRole" == "extension" ]; then
+  install_extension_package
+  install_fq_runtime_links
+  exit 0
+fi
+
 # Determine installation type: server or client
 if [ "$verType" == "client" ] && [ -e "${bin_dir}/${serverName}" ]; then
   echo -e "\033[44;32;1mThere is already an installed ${productName} server, so client installation is not needed!${NC}"

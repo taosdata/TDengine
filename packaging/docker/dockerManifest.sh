@@ -67,8 +67,8 @@ echo "version=${version}"
 
 if [ "$verType" == "stable" ]; then
   verType=stable
-  dockerinput=TDengine-server-${version}-Linux-$cpuType.tar.gz
-  dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
+dockerinput=TDengine-server-${version}-Linux-$cpuType.tar.xz
+dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.xz
   dockerim=tdengine/tdengine
   dockeramd64=tdengine/tdengine-amd64
   dockeraarch64=tdengine/tdengine-aarch64
@@ -76,8 +76,8 @@ if [ "$verType" == "stable" ]; then
 elif [ "$verType" == "beta" ];then
   verType=beta
   tagVal=ver-${version}-beta
-  dockerinput=TDengine-server-${version}-${verType}-Linux-$cpuType.tar.gz
-  dockerinput_x64=TDengine-server-${version}-${verType}-Linux-amd64.tar.gz
+dockerinput=TDengine-server-${version}-${verType}-Linux-$cpuType.tar.xz
+dockerinput_x64=TDengine-server-${version}-${verType}-Linux-amd64.tar.xz
   dockerim=tdengine/tdengine-beta
   dockeramd64=tdengine/tdengine-amd64-beta
   dockeraarch64=tdengine/tdengine-aarch64-beta
@@ -115,5 +115,4 @@ if  [ ${dockerLatest} == 'y' ]  ;then
     docker pull tdengine/tdengine:latest
 
 fi
-
 

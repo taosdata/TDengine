@@ -2181,15 +2181,15 @@ class TDCom:
 
         # get package from server
         filePath = f"{rootPath}/v{version}/enterprise"
-        fileName = f"TDengine-enterprise-server-{version}-Linux-x64.tar.gz"
+        fileName = f"tdengine-tsdb-enterprise-{version}-linux-x64.tar.xz"
         remote.get(server, f"{filePath}/{fileName}", "/tmp/", password)
         # push package to host
         filePath = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
         filePath = f"taostest-install-{filePath}"
-        pkgDir = f"TDengine-enterprise-server-{version}"
+        pkgDir = fileName[:-len(".tar.xz")]
         remote.put(host, f"/tmp/{fileName}", f"/tmp/{filePath}")
         # extract package && install
-        cmds = [f"cd /tmp/{filePath}", f"tar xzf {fileName}", f"cd {pkgDir}", f"./install.sh -e no"]
+        cmds = [f"cd /tmp/{filePath}", f"tar -xf {fileName}", f"cd {pkgDir}", f"./install.sh -e no"]
         result = remote.cmd(host, cmds)
         # remove local file
         result = remote.cmd(host, [f"rm -rf /tmp/{filePath}"])
@@ -2202,7 +2202,7 @@ class TDCom:
         remote.put(host, package, f"/tmp/{filePath}")
         # extract package && install
         fileName = os.path.basename(package)
-        cmds = [f"cd /tmp/{filePath}", f"tar xzf {fileName}", f"rm -f {fileName}", f"ls | tail -n1"]
+        cmds = [f"cd /tmp/{filePath}", f"tar -xf {fileName}", f"rm -f {fileName}", f"ls | tail -n1"]
         pkgDir = remote.cmd(host, cmds)
         if not pkgDir is None:
             pkgDir = pkgDir.strip()
