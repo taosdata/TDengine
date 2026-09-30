@@ -225,12 +225,20 @@ class TestCase:
         tdLog.info(
             f"total inserted: {totalInserted}, "
             f"total consumed: {consumedRows}, "
-            f"expected: {consumedRows}"
+            f"expected: {_TOTAL_ROWS}"
         )
 
-        if totalInserted != consumedRows:
+        if totalInserted != _TOTAL_ROWS:
             tdLog.exit(
-                f"inserted rows {totalInserted} != expected {consumedRows}"
+                f"inserted rows {totalInserted} != expected {_TOTAL_ROWS}"
+            )
+
+        # Replica migration may redeliver a row while the consumer is moving
+        # between replicas. Ensure all written rows were consumed without
+        # treating that transient redelivery as data loss.
+        if consumedRows < _TOTAL_ROWS:
+            tdLog.exit(
+                f"consumed rows {consumedRows} < expected {_TOTAL_ROWS}"
             )
 
         tdLog.info("validation passed: consumed rows match inserted rows (100,000)")

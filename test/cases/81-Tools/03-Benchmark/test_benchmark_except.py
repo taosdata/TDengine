@@ -55,6 +55,15 @@ class TestBenchmarkExcept:
         tdLog.exit("Timeout waiting for taosBenchmark process to start.")
         return []
 
+    def stop_leftover_benchmark(self, pids):
+        """Prevent a stuck benchmark from extending the CI case timeout."""
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                tdLog.info(f"Killed leftover taosBenchmark process: {pid}")
+            except ProcessLookupError:
+                pass
+
     #
     # ------------------- test_insert_cancel ----------------
     #
@@ -89,6 +98,7 @@ class TestBenchmarkExcept:
             else:
                 self.checkListString(self._rlist, "Receive SIGINT or other signal, quit benchmark")
         else:
+            self.stop_leftover_benchmark(pids)
             tdLog.exit("The benchmark process has not stopped!")
 
     def dbInsertThread(self, cmd):
@@ -148,6 +158,7 @@ class TestBenchmarkExcept:
             tdLog.info(self._rlist)
             self.checkListString(self._rlist, "failed to execute insert statement. reason: Vnode stopped")
         else:
+            self.stop_leftover_benchmark(pids)
             tdLog.exit("The benchmark process has not stopped!")
 
     # run
