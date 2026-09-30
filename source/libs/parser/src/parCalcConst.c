@@ -31,6 +31,9 @@ typedef struct SCalcConstContext {
   SNodeReplaceContext replaceCxt;
   SMsgBuf             msgBuf;
   int32_t             code;
+  // Preserve timestamp projections while folding nested temporal JOIN inputs;
+  // the planner selects the effective keys and prunes unused candidates.
+  bool                keepTemporalCandidates;
 } SCalcConstContext;
 
 static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery);
@@ -153,6 +156,19 @@ _end:
   return DEAL_RES_IGNORE_CHILD;
 }
 
+static bool calcConstInputContainsJoin(SNode* pTable) {
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) return true;
+  if (QUERY_NODE_TEMP_TABLE != nodeType(pTable)) return false;
+  SNode* pSubquery = ((STempTableNode*)pTable)->pSubquery;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    return ((SSelectStmt*)pSubquery)->joinContains;
+  }
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
+    return ((SSetOperator*)pSubquery)->joinContains;
+  }
+  return false;
+}
+
 static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pTable)) {
@@ -163,10 +179,17 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
       SNode* pCond = NULL;
+      bool keepCandidates = pCxt->keepTemporalCandidates;
+      if ((IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) &&
+          (calcConstInputContainsJoin(pJoin->pLeft) ||
+           calcConstInputContainsJoin(pJoin->pRight))) {
+        pCxt->keepTemporalCandidates = true;
+      }
       code = rewriteConditionForFromTable(pCxt, pJoin->pLeft);
       if (TSDB_CODE_SUCCESS == code) {
         code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
       }
+      pCxt->keepTemporalCandidates = keepCandidates;
       if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
         code = rewriteCondition(pCxt, &pJoin->pOnCond);
       }
@@ -369,7 +392,13 @@ static int32_t createConstantValue(SValueNode** ppNode) {
 static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   SNode* pProj = NULL;
   WHERE_EACH(pProj, pSelect->pProjectionList) {
-    if (subquery && !pSelect->isDistinct && !pSelect->tagScan && isUselessCol((SExprNode*)pProj) && (pSelect->pFromTable && nodeType(pSelect->pFromTable) != QUERY_NODE_VIRTUAL_TABLE)) {
+    // JOIN time candidates are chosen after constant folding, in public order.
+    bool keepTime = pCxt->keepTemporalCandidates &&
+                    TSDB_DATA_TYPE_TIMESTAMP ==
+                        ((SExprNode*)pProj)->resType.type;
+    if (subquery && !keepTime && !pSelect->isDistinct && !pSelect->tagScan &&
+        isUselessCol((SExprNode*)pProj) && pSelect->pFromTable &&
+        QUERY_NODE_VIRTUAL_TABLE != nodeType(pSelect->pFromTable)) {
       ERASE_NODE(pSelect->pProjectionList);
       continue;
     }
@@ -664,7 +693,11 @@ static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* 
   int32_t index = 0;
   SNode*  pProj = NULL;
   WHERE_EACH(pProj, pSetOp->pProjectionList) {
-    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) &&
+    bool keepTime = pCxt->keepTemporalCandidates &&
+                    TSDB_DATA_TYPE_TIMESTAMP ==
+                        ((SExprNode*)pProj)->resType.type;
+    if (subquery && !keepTime &&
+        notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) &&
         isSetUselessCol(pSetOp, index, (SExprNode*)pProj)) {
       ERASE_NODE(pSetOp->pProjectionList);
       eraseSetOpChildProjection(pSetOp, index);

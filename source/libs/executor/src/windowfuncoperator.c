@@ -1192,6 +1192,14 @@ static int32_t winFuncSameOrderKeys(SWindowInputStore *pStore, const SNodeList *
   return TSDB_CODE_SUCCESS;
 }
 
+#if defined(BUILD_TEST)
+int32_t winFuncTestSameOrderKeys(SWindowInputStore *pStore,
+                                 const SNodeList *pOrderKeys, int32_t lhs,
+                                 int32_t rhs, bool *pSame) {
+  return winFuncSameOrderKeys(pStore, pOrderKeys, lhs, rhs, pSame);
+}
+#endif
+
 static int32_t winFuncFindPeerRange(SWindowInputStore *pStore, const SNodeList *pOrderKeys, int32_t partitionStart,
                                     int32_t partitionEnd, int32_t row, int32_t *pPeerStart, int32_t *pPeerEnd) {
   int32_t peerStart = row;

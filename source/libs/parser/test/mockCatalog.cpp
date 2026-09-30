@@ -537,6 +537,14 @@ void generateMetaData() {
   generatePerformanceSchema(g_mockCatalogService.get());
   generateFunctions(g_mockCatalogService.get());
   generateDnodes(g_mockCatalogService.get());
+  g_mockCatalogService
+      ->createTableBuilder("test", "v_stream_t2",
+                           TSDB_VIRTUAL_NORMAL_TABLE, 3)
+      .setPrecision(TSDB_TIME_PRECISION_MILLI)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .addColumn("c3", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
 }
 
 void destroyMetaDataEnv() { g_mockCatalogService.reset(); }

@@ -408,6 +408,49 @@ func TestWindowJoin_WindowOffsetAndJLimit(t *testing.T) {
 	}
 }
 
+func TestWindowJoin_WindowTime(t *testing.T) {
+	j := extractJoinFromSQL(t,
+		"select a.v from t1 a left window join t2 b "+
+			"window_time(a.ts, b.ts) window_offset(-1s, 1s);")
+	if len(j.WindowTime) != 2 {
+		t.Fatalf("expected two window time columns, got %d", len(j.WindowTime))
+	}
+	left, leftOK := j.WindowTime[0].(*RawExpr)
+	right, rightOK := j.WindowTime[1].(*RawExpr)
+	if !leftOK || !rightOK || left.Name != "ts" || right.Name != "ts" {
+		t.Fatalf("unexpected window time columns: %#v", j.WindowTime)
+	}
+	formatted := "select a.v from " + SQLNodeToString(j)
+	if _, err := Parse(formatted); err != nil {
+		t.Fatalf("window time round trip failed: %v", err)
+	}
+
+	without := extractJoinFromSQL(t,
+		"select a.v from t1 a left window join t2 b "+
+			"window_offset(-1s, 1s);")
+	if without.WindowTime != nil {
+		t.Fatalf("expected nil window time, got %#v", without.WindowTime)
+	}
+}
+
+func TestWindowJoin_RightWindowTimeWithOnAndJLimit(t *testing.T) {
+	j := extractJoinFromSQL(t,
+		"select a.v from t1 a right window join t2 b on a.v = b.v "+
+			"window_time(a.ts, b.ts) window_offset(-1s, 1s) jlimit 3;")
+	if j.JoinType != JoinTypeRightWindow || len(j.WindowTime) != 2 {
+		t.Fatalf("unexpected right window join: %+v", j)
+	}
+	if j.Condition == nil || j.WindowOffset == nil || j.JLimit == nil {
+		t.Fatalf("missing join clauses: %+v", j)
+	}
+	if string(j.JLimit.Limit.Bytes) != "3" {
+		t.Fatalf("unexpected jlimit: %+v", j.JLimit)
+	}
+	if _, err := Parse("select a.v from " + SQLNodeToString(j)); err != nil {
+		t.Fatalf("right window join round trip failed: %v", err)
+	}
+}
+
 func TestLimitPlaceholderBranches(t *testing.T) {
 	s1 := parseSelect(t, "select v from t1 limit ?;")
 	if s1.Limit == nil || string(s1.Limit.Limit.Bytes) != "?" {

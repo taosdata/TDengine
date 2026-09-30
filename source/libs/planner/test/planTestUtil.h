@@ -53,6 +53,13 @@ class PlannerTestBase : public testing::Test {
   int32_t countSplitPlanText(const std::string& text) const;
   int32_t countPostSplitPlanText(const std::string& text) const;
   int32_t countPhysiPlanText(const std::string& text) const;
+  void    setLogicPlanCheck(
+      const std::function<void(const SLogicNode*, bool)>& check);
+  void setJoinPropsCheck(
+      const std::function<void(const SPlanContext*, const SLogicNode*, bool)>&
+          check);
+  void setPhysiPlanCheck(
+      const std::function<void(const SQueryPlan*)>& check);
   bool    planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const;
   bool    exchangeSubplansContain(const std::string& nodeName) const;
   bool    aggOutputsMatchFuncs() const;

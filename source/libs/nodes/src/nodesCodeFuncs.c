@@ -1757,6 +1757,7 @@ static int32_t jsonToLogicFillNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkSortLogicPlanSortKeys = "SortKeys";
+static const char* jkSortLogicPlanJoinInputSort = "JoinInputSort";
 
 static int32_t logicSortNodeToJson(const void* pObj, SJson* pJson) {
   const SSortLogicNode* pNode = (const SSortLogicNode*)pObj;
@@ -1764,6 +1765,10 @@ static int32_t logicSortNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkSortLogicPlanSortKeys, pNode->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSortLogicPlanJoinInputSort,
+                                pNode->joinInputSort);
   }
 
   return code;
@@ -1775,6 +1780,10 @@ static int32_t jsonToLogicSortNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSortLogicPlanSortKeys, &pNode->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSortLogicPlanJoinInputSort,
+                             &pNode->joinInputSort);
   }
 
   return code;

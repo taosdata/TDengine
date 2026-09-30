@@ -283,6 +283,27 @@ class MockCatalogServiceImpl {
     (void)meta_[db][stbname]->vgs.emplace_back(vgroup);
   }
 
+  void setTableRefs(const string& db, const string& table,
+                   const std::vector<SColRef>& columns,
+                   const std::vector<SColRef>& tags) {
+    auto meta = getTableMeta(db, table);
+    size_t prefix = TABLE_META_BASE_SIZE(meta->schema) +
+                    TABLE_META_SCHEMA_EXT_SIZE(meta->schema);
+    size_t bytes = prefix + (columns.size() + tags.size()) * sizeof(SColRef);
+    auto* copy = (STableMeta*)taosMemoryCalloc(1, bytes);
+    if (copy == nullptr) throw std::bad_alloc();
+    memcpy(copy, meta->schema, prefix);
+    copy->numOfColRefs = columns.size();
+    copy->numOfTagRefs = tags.size();
+    copy->colRef = (SColRef*)((char*)copy + prefix);
+    copy->tagRef = copy->colRef + columns.size();
+    std::copy(columns.begin(), columns.end(), copy->colRef);
+    std::copy(tags.begin(), tags.end(), copy->tagRef);
+    tableMetaResetPointers(copy);
+    taosMemoryFree(meta->schema);
+    meta->schema = copy;
+  }
+
   void showTables() const {
 // number of forward fills
 #define NOF(n) ((n) / 2)
@@ -460,13 +481,10 @@ class MockCatalogServiceImpl {
     if (nullptr == src) {
       return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
-    int32_t len = sizeof(STableMeta) + sizeof(SSchema) * (src->tableInfo.numOfTags + src->tableInfo.numOfColumns);
-    dst->reset((STableMeta*)taosMemoryCalloc(1, len));
-    if (!dst) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    memcpy(dst->get(), src, len);
-    return TSDB_CODE_SUCCESS;
+    STableMeta* copy = nullptr;
+    int32_t code = cloneTableMeta(src, &copy);
+    dst->reset(copy);
+    return code;
   }
 
   int32_t copyTableVgroup(const string& db, const string& tbname, SVgroupInfo* vg) const {
@@ -1070,6 +1088,12 @@ void MockCatalogService::createDatabase(const string& db, bool rollup, int8_t ca
 int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta,
                                                 bool onlyCache) const {
   return impl_->catalogGetTableMeta(pTableName, pTableMeta, onlyCache);
+}
+
+void MockCatalogService::setTableRefs(const string& db, const string& table,
+                                    const std::vector<SColRef>& columns,
+                                    const std::vector<SColRef>& tags) {
+  impl_->setTableRefs(db, table, columns, tags);
 }
 
 int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo,

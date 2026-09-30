@@ -1138,33 +1138,32 @@ void detachOperatorRoutingParam(SOperatorInfo* pOperator) {
   }
 }
 
-SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
+int32_t getNextBlockFromDownstreamChecked(SOperatorInfo* pOperator,
+                                          int32_t idx, bool clearParam,
+                                          SSDataBlock** ppBlock) {
+  QRY_PARAM_CHECK(ppBlock);
+  *ppBlock = NULL;
+
   recordOpExecBeforeDownstream(pOperator);
-  SSDataBlock* p = NULL;
-  int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
+  int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, clearParam,
+                                                ppBlock);
   if (code == TSDB_CODE_SUCCESS) {
-    code = blockDataCheck(p);
+    code = blockDataCheck(*ppBlock);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s, %s failed at line %d, code:%s", GET_TASKID(pOperator->pTaskInfo),
              __func__, __LINE__, tstrerror(code));
     }
   }
-  recordOpExecAfterDownstream(pOperator, p && code == TSDB_CODE_SUCCESS ? p->info.rows : 0);
-  return (code == TSDB_CODE_SUCCESS) ? p : NULL;
+  recordOpExecAfterDownstream(pOperator,
+                              *ppBlock && code == TSDB_CODE_SUCCESS ?
+                                  (*ppBlock)->info.rows : 0);
+  return code;
 }
 
-SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
-  recordOpExecBeforeDownstream(pOperator);
+SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
-  int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = blockDataCheck(p);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s, %s failed at line %d, code:%s", GET_TASKID(pOperator->pTaskInfo),
-             __func__, __LINE__, tstrerror(code));
-    }
-  }
-  recordOpExecAfterDownstream(pOperator, p && code == TSDB_CODE_SUCCESS ? p->info.rows : 0);
+  int32_t      code = getNextBlockFromDownstreamChecked(pOperator, idx, true,
+                                                        &p);
   return (code == TSDB_CODE_SUCCESS) ? p : NULL;
 }
 

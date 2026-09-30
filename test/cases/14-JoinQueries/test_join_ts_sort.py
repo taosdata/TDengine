@@ -148,6 +148,13 @@ class TestJoinTsSort:
         right = keys(right_flag)
         return sum(count * right.get(key, 0) for key, count in left.items())
 
+    def _check_col(self, sql, col, expected):
+        """Run sql, assert column `col` equals `expected` and the row count."""
+        tdSql.query(sql)
+        tdSql.checkRows(len(expected))
+        for row, value in enumerate(expected):
+            tdSql.checkData(row, col, value)
+
     def _prepare_cross_precision_data(self):
         """Create two databases with different timestamp precision for cross-precision join."""
         tdSql.execute(f"drop database if exists {DB_CROSS_MS};")
@@ -550,7 +557,7 @@ class TestJoinTsSort:
         )
 
     # ══════════════════════════════════════════════════════════════════════════
-    # E. Subquery join with fallback timeline — all rejected for non-WINDOW
+    # E. Subquery JOIN timelines
     # ══════════════════════════════════════════════════════════════════════════
 
     def test_E1_subquery_no_ts_join_on_tcol_supported(self):
@@ -645,12 +652,12 @@ class TestJoinTsSort:
         )
         tdSql.checkRows(4)
 
-    def test_E5_subquery_window_join_on_tcol_rejected(self):
-        """Subquery WINDOW JOIN ON t_col — rejected (WINDOW only between tables)
+    def test_E5_subquery_window_join_on_ordered_tcol(self):
+        """Subquery WINDOW JOIN ignores NULL preserved-side effective time
 
-        Verify that WINDOW JOIN rejects subquery inputs with an ordinary timestamp condition.
+        Verify that NULL effective times are excluded from ordered subqueries.
 
-        Since: v3.4.1.0
+        Since: v3.4.3.0
 
         Labels: common,ci
 
@@ -658,14 +665,51 @@ class TestJoinTsSort:
 
         History:
             - 2025-06-29 Created for join time-column coverage
+            - 2026-09-04 Tony Zhang Updated temporal JOIN subquery coverage
         """
         self._prepare_tcol_data()
-        tdSql.error(
-            "select a.t_col, a.val, b.val "
-            "from (select t_col, val from ct1) a "
-            "left window join (select t_col, val from ct2) b "
-            "on a.t_col = b.t_col window_offset(-1h, 1h);"
+        tdSql.execute(
+            "insert into ct1 values "
+            "('2024-01-01 05:00:00', NULL, 5);"
         )
+        tdSql.query(
+            "select a.t_col, a.val, b.val "
+            "from (select t_col, val from ct1 order by t_col) a "
+            "left window join "
+            "(select t_col, val from ct2 order by t_col) b "
+            "window_offset(0h, 0h);"
+        )
+        tdSql.checkRows(4)
+        for row in range(tdSql.queryRows):
+            assert tdSql.getData(row, 0) is not None
+
+    def test_E6_subquery_order_alias_conflict(self):
+        """Temporal JOIN sorts the selected time despite an alias conflict
+
+        Verify that an alias conflict does not change the selected join time.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-04 Tony Zhang Added temporal JOIN ordering coverage
+            - 2026-09-22 Expect the primary column despite an alias conflict
+        """
+        self._prepare_tcol_data()
+        for peer in ("ct2 b", "(ct2 b join ct2 p on b.ts = p.ts)"):
+            tdSql.query(
+                "select a.val, b.val from "
+                "(select t_col as ts, ts as primary_ts, val "
+                f"from ct1 order by ct1.ts) a left asof join {peer} "
+                "order by a.val;"
+            )
+            tdSql.checkRows(4)
+            for row, expected in enumerate((10, 20, 30, 30)):
+                tdSql.checkData(row, 0, row + 1)
+                tdSql.checkData(row, 1, expected)
 
     # ══════════════════════════════════════════════════════════════════════════
     # F. Supertable join with t_col
@@ -1433,17 +1477,12 @@ class TestJoinTsSort:
         ans_file = etool.curFile(__file__, "ans/test_join_ts_sort_results.ans")
         tdCom.compare_testcase_result(sql_file, ans_file, "test_join_ts_sort_results")
 
-    # Groups 7 (ASOF) and 8 (WINDOW) with subquery inputs are out of scope for this
-    # optimization. checkJoinTable() (parTranslater.c) requires both ASOF/WINDOW sides
-    # to be QUERY_NODE_REAL_TABLE; lifting that restriction is a separate future task.
-    # The FS §4.3 subquery example has been corrected to reflect this scope boundary.
+    def test_7_1_asof_subquery_input(self):
+        """TC-7.1 ASOF JOIN accepts ordered subquery inputs
 
-    def test_7_1_asof_subquery_input_rejected(self):
-        """TC-7.1 ASOF JOIN with subquery input remains out of scope
+        Check LEFT and RIGHT ASOF JOIN results with ordered subqueries.
 
-        Verify that ASOF JOIN rejects subqueries ordered by value or timestamp as inputs.
-
-        Since: v3.4.2.0
+        Since: v3.4.3.0
 
         Labels: common,ci
 
@@ -1451,22 +1490,41 @@ class TestJoinTsSort:
 
         History:
             - 2026-07-09 Converted from merged_all.in reject case
+            - 2026-09-04 Tony Zhang Updated temporal JOIN subquery coverage
         """
         self._prepare_sort_data()
-        tdSql.error(
-            "select count(*) from "
-            "(select ts, val from t1 order by val) a "
+        self._check_col(
+            "select a.ts, a.val, b.val from "
+            "(select ts, val from t1 order by ts) a "
             "left asof join "
             "(select ts, val from t2 order by ts) b "
-            "on a.ts >= b.ts;"
+            "order by a.ts;",
+            2,
+            (None, 10, 20, 30, 40),
+        )
+        self._check_col(
+            "select l.ts, l.val, r.val from t1 l left asof join "
+            "(select ts, val from t2 order by ts desc) r "
+            "order by l.ts;",
+            2,
+            (None, 10, 20, 30, 40),
+        )
+        self._check_col(
+            "select a.val, b.val from "
+            "(select ts, val from t1 order by ts) a "
+            "right asof join "
+            "(select ts, val from t2 order by ts) b "
+            "order by b.ts;",
+            0,
+            (1, 2, 3, 4, 5),
         )
 
-    def test_8_1_window_subquery_input_rejected(self):
-        """TC-8.1 WINDOW JOIN with subquery input remains out of scope
+    def test_8_1_window_subquery_input(self):
+        """TC-8.1 WINDOW JOIN accepts ordered subquery inputs
 
-        Verify that WINDOW JOIN rejects ordered subquery inputs even with a primary-timestamp condition.
+        Check LEFT and RIGHT WINDOW JOIN results with ordered subqueries.
 
-        Since: v3.4.2.0
+        Since: v3.4.3.0
 
         Labels: common,ci
 
@@ -1474,19 +1532,786 @@ class TestJoinTsSort:
 
         History:
             - 2026-07-09 Converted from merged_all.in reject case
+            - 2026-09-04 Tony Zhang Updated temporal JOIN subquery coverage
         """
         self._prepare_sort_data()
-        tdSql.error(
-            "select count(*) from "
-            "(select ts, val from t1 order by val) a "
+        self._check_col(
+            "select a.ts, a.val, b.val from "
+            "(select ts, val from t1 order by ts) a "
             "left window join "
             "(select ts, val from t2 order by ts) b "
-            "on a.ts = b.ts window_offset(-1h, 1h);"
+            "window_offset(-2h, 4h) order by a.ts;",
+            2,
+            (10, 20, 30, 40, None),
+        )
+        self._check_col(
+            "select a.val, b.val from "
+            "(select ts, val from t1 order by ts) a "
+            "right window join "
+            "(select ts, val from t2 order by ts) b "
+            "window_offset(0h, 0h) order by b.ts;",
+            0,
+            (None,) * 5,
+        )
+
+    def test_8_2_virtual_table_temporal_join_input(self):
+        """ASOF/WINDOW JOIN accepts virtual-table inputs.
+
+        Check virtual tables on either side with table and subquery inputs.
+
+        Catalog:
+            - Query
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Tony Zhang Added virtual-table JOIN coverage
+        """
+        self._prepare_sort_data()
+        tdSql.execute(
+            "create vtable v_t1("
+            "ts timestamp, val int from t1.val);"
+        )
+        tdSql.execute(
+            "create vtable v_t2("
+            "ts timestamp, val int from t2.val);"
+        )
+
+        self._check_col(
+            "select v.ts, v.val, r.val from v_t1 v "
+            "left asof join t2 r order by v.ts;",
+            2,
+            (None, 10, 20, 30, 40),
+        )
+        self._check_col(
+            "select l.val, v.val from t1 l "
+            "right asof join v_t2 v order by v.ts;",
+            0,
+            (1, 2, 3, 4, 5),
+        )
+        self._check_col(
+            "select v.ts, v.val, r.val from v_t1 v left window join "
+            "(select ts, val from t2 order by ts) r "
+            "window_offset(-2h, 4h) order by v.ts;",
+            2,
+            (10, 20, 30, 40, None),
+        )
+        self._check_col(
+            "select l.val, v.val from "
+            "(select ts, val from t1 order by ts) l "
+            "right window join v_t2 v "
+            "window_offset(0h, 0h) order by v.ts;",
+            0,
+            (None,) * 5,
+        )
+
+    def test_8_3_window_time_columns(self):
+        """WINDOW_TIME selects ordered timestamp columns for WINDOW JOIN.
+
+        Check explicit timestamp columns from tables and virtual tables.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Tony Zhang Added WINDOW_TIME column coverage
+        """
+        self._prepare_sort_data()
+        self._check_col(
+            "select l.ts, l.val, r.val from t1 l left window join t2 r "
+            "window_time(l.ts, r.ts) window_offset(-2h, 4h) "
+            "order by l.ts;",
+            2,
+            (10, 20, 30, 40, None),
+        )
+
+        tdSql.execute(
+            "create vtable v_t1("
+            "ts timestamp, val int from t1.val);"
+        )
+        self._check_col(
+            "select v.ts, v.val, r.val from v_t1 v "
+            "left window join t2 r window_time(v.ts, r.ts) "
+            "window_offset(-2h, 4h) order by v.ts;",
+            2,
+            (10, 20, 30, 40, None),
+        )
+
+        self._prepare_tcol_data()
+        self._check_col(
+            "select l.val, r.val from "
+            "(select ts source_ts, t_col event_ts, val from ct1 "
+            "order by event_ts) l left window join "
+            "(select ts source_ts, t_col event_ts, val from ct2 "
+            "order by event_ts) r window_time(l.event_ts, r.event_ts) "
+            "window_offset(0h, 0h) order by l.event_ts, l.val;",
+            1,
+            (10, 10, 20, 40),
+        )
+
+        tdSql.error(
+            "select * from ct1 l left window join ct2 r "
+            "window_time(r.ts, r.ts) window_offset(-1h, 1h);"
+        )
+        tdSql.error(
+            "select * from ct1 l left window join ct2 r "
+            "window_time(l.missing, r.ts) window_offset(-1h, 1h);"
+        )
+        tdSql.error(
+            "select * from ct1 l left window join ct2 r "
+            "window_time(l.val, r.ts) window_offset(-1h, 1h);"
+        )
+        tdSql.error(
+            "select * from ct1 l left window join ct2 r "
+            "window_time(1, r.ts) window_offset(-1h, 1h);"
+        )
+        tdSql.error(
+            "select * from ct1 l left window join ct2 r "
+            "window_time(now(), r.ts) window_offset(-1h, 1h);"
+        )
+        tdSql.error(
+            "select * from ct1 l left asof join ct2 r "
+            "window_time(l.ts, r.ts);"
         )
 
     # ══════════════════════════════════════════════════════════════════════════
-    # Group 9: Regression (FS §4.2 unchanged scenarios)
+    # Temporal JOIN automatic input ordering
     # ══════════════════════════════════════════════════════════════════════════
+
+    def do_temporal_direction_matrix(self):
+        self._prepare_sort_data()
+        orders = ("ts", "ts desc", "val desc")
+        for side in ("left", "right"):
+            for kind in ("asof", "window"):
+                suffix = "window_offset(-2h, 4h)" if kind == "window" else ""
+                join = f"{side} {kind} join"
+                tail = f"{suffix} order by l.ts, r.ts"
+                tdSql.query(
+                    f"select l.val, r.val from t1 l {join} t2 r {tail}"
+                )
+                expected = list(tdSql.queryResult)
+                for left in orders:
+                    for right in orders:
+                        tdSql.query(
+                            "select l.val, r.val from "
+                            f"(select ts, val from t1 order by {left}) l "
+                            f"{join} "
+                            f"(select ts, val from t2 order by {right}) r "
+                            f"{tail}"
+                        )
+                        tdSql.checkRows(len(expected))
+                        for row, values in enumerate(expected):
+                            for col, value in enumerate(values):
+                                tdSql.checkData(row, col, value)
+        print("temporal direction matrix ................ [ passed ]")
+
+    def do_temporal_limit_boundaries(self):
+        self._prepare_sort_data()
+        for order in ("val desc", "ts desc"):
+            self._check_col(
+                "select l.val, r.val from "
+                f"(select ts, val from t1 order by {order} "
+                "limit 2 offset 1) l left window join "
+                "(select ts, val from t2 order by ts) r "
+                "window_offset(-2h, 4h) jlimit 1 order by l.ts desc;",
+                1, (40, 30),
+            )
+        self._check_col(
+            "select l.val, r.val from t1 l left window join "
+            "(select ts, val from t2 order by ts desc limit 2) r "
+            "window_offset(-2h, 4h) order by l.ts;",
+            1, (None, None, None, 40, None),
+        )
+        self._check_col(
+            "select l.val, r.val from t1 l left asof join "
+            "(select ts, val from t2 where val < 0 order by val) r "
+            "order by l.ts;", 1, (None,) * 5,
+        )
+        print("temporal limit boundaries ................ [ passed ]")
+
+    def do_temporal_nonprimary_time(self):
+        self._prepare_tcol_data()
+        tdSql.execute(
+            "insert into ct1 values ('2024-01-01 05:00:00', null, 5)"
+        )
+        tdSql.execute(
+            "insert into ct2 values ('2024-01-01 05:00:00', null, 50)"
+        )
+        tdSql.execute(
+            "create vtable v_ct1(ts timestamp, "
+            "t_col timestamp from ct1.t_col, val int from ct1.val)"
+        )
+        for left in ("ct1", "v_ct1"):
+            self._check_col(
+                f"select l.val, r.val from {left} l left window join ct2 r "
+                "window_time(l.t_col, r.t_col) window_offset(0h, 0h) "
+                "order by l.val;", 1, (10, 20, 40, 10),
+            )
+        self._check_col(
+            "select l.val, r.val from ct1 l right window join ct2 r "
+            "window_time(l.t_col, r.t_col) window_offset(0h, 0h) "
+            "order by r.val, l.val;", 0, (1, 4, 2, None, 3),
+        )
+        self._check_col(
+            "select l.val, r.val from "
+            "(select ts, t_col, val from ct1 order by t_col desc) l "
+            "left window join ct2 r window_time(l.t_col, r.t_col) "
+            "window_offset(0h, 0h) order by l.val;",
+            1, (10, 20, 40, 10),
+        )
+        print("temporal nonprimary time ................. [ passed ]")
+
+    def do_temporal_null_time(self):
+        self._prepare_tcol_data()
+        tdSql.execute(
+            "create table temporal_null_l "
+            "(ts timestamp, effective_ts timestamp, val int)"
+        )
+        tdSql.execute(
+            "create table temporal_null_r "
+            "(ts timestamp, effective_ts timestamp, val int)"
+        )
+        tdSql.execute(
+            "insert into temporal_null_l values "
+            "('2024-01-01 00:00:00', '2024-01-01 10:00:00', 1) "
+            "('2024-01-01 01:00:00', NULL, 2) "
+            "('2024-01-01 02:00:00', '2024-01-01 12:00:00', 3)"
+        )
+        tdSql.execute(
+            "insert into temporal_null_r values "
+            "('2024-01-01 00:00:00', '2024-01-01 10:00:00', 10) "
+            "('2024-01-01 01:00:00', NULL, 20) "
+            "('2024-01-01 02:00:00', '2024-01-01 12:00:00', 30)"
+        )
+
+        left = "(select effective_ts, val from temporal_null_l)"
+        right = "(select effective_ts, val from temporal_null_r)"
+        expected = [(1, 10), (3, 30)]
+        for side in ("left", "right"):
+            driver = "l" if side == "left" else "r"
+            for kind in ("asof", "window"):
+                if kind == "asof":
+                    op = ">=" if side == "left" else "<="
+                    explicit = f"on l.effective_ts {op} r.effective_ts"
+                    suffix = ""
+                else:
+                    explicit = (
+                        "window_time(l.effective_ts, r.effective_ts)"
+                    )
+                    suffix = "window_offset(0s, 0s)"
+                for time_clause in ("", explicit):
+                    sql = (
+                        f"select l.val, r.val from {left} l "
+                        f"{side} {kind} join {right} r "
+                        f"{time_clause} {suffix} order by {driver}.val"
+                    )
+                    if kind == "asof" and time_clause:
+                        # Ordinary timestamps cannot be explicit ASOF keys.
+                        tdSql.error(
+                            sql,
+                            expectErrInfo="join condition is not supported",
+                        )
+                        continue
+                    tdSql.query(sql)
+                    assert list(tdSql.queryResult) == expected, sql
+        print("temporal NULL time ....................... [ passed ]")
+
+    def do_temporal_global_order(self):
+        self._prepare_tcol_data()
+        for child, start in (("ct1", 0), ("ct2", 1)):
+            for batch in range(5):
+                values = " ".join(
+                    f"({1704153600000 + (i * 2 + start) * 1000}, "
+                    f"{1704153600000 + (9999 - i * 2 - start) * 1000}, "
+                    f"{i * 2 + start})"
+                    for i in range(batch * 1000, (batch + 1) * 1000)
+                )
+                tdSql.execute(f"insert into {child} values {values}")
+        tdSql.query(
+            "select l.val, r.val from "
+            "(select ts, val from stb where ts >= 1704153600000 "
+            "order by val desc) l left window join "
+            "(select ts, val from stb where ts >= 1704153600000) r "
+            "window_offset(0s, 0s) order by l.ts"
+        )
+        tdSql.checkRows(10000)
+        for row in range(10000):
+            tdSql.checkData(row, 0, row)
+            tdSql.checkData(row, 1, row)
+        print("temporal global order .................... [ passed ]")
+
+    def _check_temporal_sort_count(self, sql, expected):
+        tdSql.query("explain " + sql)
+        count = sum(
+            "Sort input_order=" in str(tdSql.getData(row, 0))
+            for row in range(tdSql.queryRows)
+        )
+        assert count == expected, (sql, count, expected)
+
+    def do_temporal_redundant_sort(self):
+        self._prepare_sort_data()
+        expected = [(value, value) for value in range(1, 6)]
+        for join in ("left asof", "right asof",
+                     "left window", "right window"):
+            suffix = " window_offset(0s, 0s) jlimit 1" \
+                if "window" in join else ""
+            for side in (0, 1):
+                for limit, sorts in (("", 1), (" limit 100", 2)):
+                    child = (
+                        "(select ts time_alias, val from t1 "
+                        f"where val > 0 order by val desc{limit})"
+                    )
+                    left, right = (child, "t1") if side == 0 \
+                        else ("t1", child)
+                    sql = (
+                        f"select l.val, r.val from {left} l "
+                        f"{join} join {right} r{suffix}"
+                    )
+                    tdSql.query(sql)
+                    actual = sorted(
+                        (tdSql.getData(row, 0), tdSql.getData(row, 1))
+                        for row in range(tdSql.queryRows)
+                    )
+                    assert actual == expected, (sql, actual)
+                    self._check_temporal_sort_count(sql, sorts)
+
+        sql = (
+            "select l.val, r.val from "
+            "(select ts, val from t1 order by val desc "
+            "limit 2 offset 1) l left window join t1 r "
+            "window_offset(0s, 0s) jlimit 1"
+        )
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+        for row, value in enumerate((3, 4)):
+            tdSql.checkData(row, 0, value)
+            tdSql.checkData(row, 1, value)
+        self._check_temporal_sort_count(sql, 2)
+        print("temporal redundant input sort ............ [ passed ]")
+
+    def do_temporal_duplicate_sort_boundary(self):
+        self._prepare_tcol_data()
+        tdSql.execute(
+            "create table pk_rows "
+            "(ts timestamp, id int primary key, val int)"
+        )
+        tdSql.execute(
+            "insert into pk_rows values "
+            "('2024-01-01 00:00:00', 1, 1) "
+            "('2024-01-01 00:00:00', 2, 4)"
+        )
+        for source, key, sorts in (("ct1", "t_col", 3),
+                                   ("pk_rows", "ts", 2)):
+            candidates = {10: {1, 4}, 20: {None}, 30: {None}, 40: {None}}
+            if source == "ct1":
+                candidates.update({20: {2}, 40: {3}})
+            expected = sorted(
+                (left, right)
+                for left, values in candidates.items() for right in values
+            )
+            for order in ("val desc", "ts desc, val"):
+                for limit in ("", " limit 100"):
+                    sql = (
+                        "select l.val, r.val from ct2 l left window join "
+                        f"(select {key}, val from {source} "
+                        f"order by {order}{limit}) r "
+                        f"window_time(l.{key}, r.{key}) "
+                        "window_offset(0s, 0s)"
+                    )
+                    tdSql.query(sql)
+                    tdSql.checkRows(len(expected))
+                    actual = sorted(
+                        (tdSql.getData(row, 0), tdSql.getData(row, 1))
+                        for row in range(tdSql.queryRows)
+                    )
+                    assert actual == expected, (sql, actual, expected)
+                    expected_sorts = sorts if limit else sorts - 1
+                    if key == "ts" and order == "ts desc, val":
+                        # The primary-time order also serves the join.
+                        expected_sorts = 1
+                    self._check_temporal_sort_count(sql, expected_sorts)
+                    tdSql.query(sql + " jlimit 1")
+                    tdSql.checkRows(len(candidates))
+                    left_values = []
+                    for row in range(tdSql.queryRows):
+                        left = tdSql.getData(row, 0)
+                        right = tdSql.getData(row, 1)
+                        left_values.append(left)
+                        assert right in candidates[left], (sql, left, right)
+                    assert sorted(left_values) == sorted(candidates), sql
+        print("temporal duplicate sort boundary ......... [ passed ]")
+
+    def test_8_4_temporal_input_alignment(self):
+        """Correct temporal JOIN input order without changing input rows
+
+        1. Check all directions for LEFT/RIGHT ASOF and WINDOW JOIN.
+        2. Preserve LIMIT, OFFSET, JLIMIT and outer ordering.
+        3. Check NULL default ASOF and explicit/implicit WINDOW time keys.
+        4. Cover non-primary time, virtual tables and duplicate timestamps.
+        5. Check global ordering across child tables and data blocks.
+
+        Catalog:
+            - Query
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Tony Zhang Added temporal input ordering tests
+        """
+        self.do_temporal_direction_matrix()
+        self.do_temporal_limit_boundaries()
+        self.do_temporal_nonprimary_time()
+        self.do_temporal_null_time()
+        self.do_temporal_global_order()
+
+    def test_8_5_temporal_redundant_sort(self):
+        """Remove only unobservable temporal input sorting
+
+        1. Compare results and Sort counts with a nonbinding LIMIT control.
+        2. Cover both sides of LEFT/RIGHT ASOF and WINDOW JOIN.
+        3. Preserve LIMIT/OFFSET and duplicate-time JLIMIT behavior,
+           including composite-primary-key inputs.
+
+        Catalog:
+            - Query
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Tony Zhang Added temporal redundant-sort tests
+            - 2026-09-08 Tony Zhang Added nonunique time and original sort tests
+        """
+        self.do_temporal_redundant_sort()
+        self.do_temporal_duplicate_sort_boundary()
+
+    def test_8_6_asof_explicit_time(self):
+        """Resolve explicit ASOF time before sorting or filtering inputs.
+
+        Check explicit time keys across input directions, sorts, and filters.
+
+        Catalog:
+            - Query
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-08 Tony Zhang Covered explicit time selection
+        """
+        self._prepare_tcol_data()
+        base = 1704067200000
+        left_rows = [(1, 1), (3, 2), (5, 3), (7, 4)]
+        right_rows = [(0, 10), (3, 20), (4, 30), (6, 40)]
+        for table, rows in (("asof_l", left_rows), ("asof_r", right_rows)):
+            tdSql.execute(
+                f"create table {table} "
+                "(ts timestamp, other_ts timestamp, val int)"
+            )
+            for (time, val), other in zip(rows, (9, None, 1, 3)):
+                other_sql = "NULL" if other is None else str(base + other)
+                tdSql.execute(
+                    f"insert into {table} values "
+                    f"({base + time}, {other_sql}, {val})"
+                )
+
+        comparisons = {
+            ">": lambda left, right: left > right,
+            ">=": lambda left, right: left >= right,
+            "=": lambda left, right: left == right,
+            "<": lambda left, right: left < right,
+            "<=": lambda left, right: left <= right,
+        }
+        reverse = {">": "<", ">=": "<=", "=": "=", "<": ">",
+                   "<=": ">="}
+        variants = (
+            ("", left_rows, "", right_rows),
+            ("order by other_ts desc", left_rows,
+             "order by ts desc", right_rows),
+            ("order by val desc limit 2 offset 1", left_rows[1:3],
+             "order by other_ts", right_rows),
+            ("order by ts desc", left_rows,
+             "order by ts desc limit 2 offset 1", right_rows[1:3]),
+            ("where val < 0", [], "", right_rows),
+            ("", left_rows, "where val < 0", []),
+        )
+        for side in ("left", "right"):
+            for op, compare in comparisons.items():
+                for lorder, lrows, rorder, rrows in variants:
+                    expected = []
+                    probes = lrows if side == "left" else rrows
+                    for time, val in probes:
+                        if side == "left":
+                            candidates = [row for row in rrows
+                                          if compare(time, row[0])]
+                        else:
+                            candidates = [row for row in lrows
+                                          if compare(row[0], time)]
+                        match = min(candidates, key=lambda row: abs(
+                            row[0] - time))[1] if candidates else None
+                        expected.append((val, match) if side == "left"
+                                        else (match, val))
+                    for swapped in (False, True):
+                        condition = f"l.time_key {op} r.time_key"
+                        if swapped:
+                            condition = (
+                                f"r.time_key {reverse[op]} l.time_key"
+                            )
+                        sql = (
+                            "select l.val, r.val from "
+                            "(select other_ts, ts time_key, val "
+                            f"from asof_l {lorder}) l {side} asof join "
+                            "(select other_ts, ts time_key, val "
+                            f"from asof_r {rorder}) r on {condition} "
+                            f"order by {'l' if side == 'left' else 'r'}.val"
+                        )
+                        tdSql.query(sql)
+                        assert list(tdSql.queryResult) == expected, sql
+
+        for condition in (
+            "l.time_key >= r.time_key",
+            "timetruncate(l.time_key, 1a) >= "
+            "timetruncate(r.time_key, 1a)",
+        ):
+            sql = (
+                "select l.val, r.val from "
+                "(select other_ts, time_key, val from "
+                "(select other_ts, ts time_key, val from asof_l "
+                "order by other_ts desc) s) l left asof join "
+                "(select other_ts, ts time_key, val from asof_r) r "
+                f"on {condition} order by l.val"
+            )
+            tdSql.query(sql)
+            assert list(tdSql.queryResult) == [(1, 10), (2, 20),
+                                               (3, 30), (4, 40)], sql
+
+        for condition in (
+            "l.ts >= r.ts and l.val >= r.val",
+            "l.ts >= r.ts and l.ts <= r.ts",
+            "l.ts = r.ts and "
+            "timetruncate(l.ts, 1s) = timetruncate(r.ts, 1s)",
+        ):
+            tdSql.error(
+                "select l.val, r.val from asof_l l left asof join "
+                f"asof_r r on {condition}"
+            )
+        tdSql.query(
+            "select l.val, r.val from asof_l l left asof join "
+            "asof_r r on l.ts >= r.ts and l.val = r.val order by l.val"
+        )
+        assert list(tdSql.queryResult) == [(val, None) for _, val in left_rows]
+
+    def test_8_7_temporal_tag_inputs(self):
+        """Preserve tag sources and grouped non-primary temporal inputs.
+
+        Check tag sources and non-primary time columns on both join sides.
+
+        Catalog:
+            - Query
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-08 Tony Zhang Covered corrective sorts and tag sources
+        """
+        self._prepare_tcol_data()
+        for side in ("left", "right"):
+            tdSql.query(
+                "select /*+ NO_BATCH_SCAN() */ l.val, r.val "
+                f"from stb l {side} window join stb r on l.g = r.g "
+                "window_time(l.t_col, r.t_col) window_offset(0h, 0h) "
+                "order by l.val, r.val"
+            )
+            assert list(tdSql.queryResult) == [
+                (1, 1), (1, 4), (2, 2), (3, 3), (4, 1), (4, 4),
+                (10, 10), (20, 20), (30, 30), (40, 40),
+            ]
+        tdSql.execute(
+            "create stable tag_source(ts timestamp, val int) "
+            "tags(event_ts timestamp, g int)"
+        )
+        for name, ts, value in (("tag_l", 1704067200000, 1),
+                                ("tag_r", 1704067201000, 2)):
+            tdSql.execute(
+                f"create table {name} using tag_source tags({ts}, 1)"
+            )
+            tdSql.execute(f"insert into {name} values({ts}, {value})")
+        for side in ("left", "right"):
+            for keys in ("l.event_ts, r.event_ts", "l.ts, r.event_ts",
+                         "l.event_ts, r.ts"):
+                sql = (
+                    "select /*+ NO_BATCH_SCAN() */ l.val, r.val "
+                    f"from tag_source l {side} window join tag_source r "
+                    "on l.g = r.g "
+                    f"window_time({keys}) window_offset(0s, 0s) "
+                    "order by l.val"
+                )
+                tdSql.query(sql)
+                assert list(tdSql.queryResult) == [(1, 1), (2, 2)], sql
+
+        tdSql.execute(
+            "create stable virtual_tags(ts timestamp, val int) "
+            "tags(event_ts timestamp) virtual 1"
+        )
+        tdSql.execute(
+            "create vtable v_tag_l(val from tag_l.val) "
+            "using virtual_tags tags(event_ts from tag_r.event_ts)"
+        )
+        for source in ("v_tag_l", "virtual_tags"):
+            for side in ("left", "right"):
+                sql = (
+                    f"select v.val, r.val from {source} v "
+                    f"{side} window join tag_r r "
+                    "window_time(v.event_ts, r.ts) window_offset(0s, 0s)"
+                )
+                tdSql.query(sql)
+                assert list(tdSql.queryResult) == [(1, 2)], sql
+            for side in ("left", "right"):
+                for explicit in (False, True):
+                    condition = "v.event_ts = r.event_ts"
+                    if explicit:
+                        condition = "v.ts >= r.ts and " + condition
+                    sql = (
+                        f"select v.val, r.val from {source} v "
+                        f"{side} asof join tag_r r on {condition}"
+                    )
+                    expected = [(1, None)] if side == "left" else \
+                        ([(None, 2)] if explicit else [(1, 2)])
+                    for _ in range(10):
+                        tdSql.query(sql)
+                        assert list(tdSql.queryResult) == expected, sql
+            for clause in ("order by event_ts", "partition by event_ts",
+                           "where event_ts is not null"):
+                tdSql.query(f"select val from {source} {clause}")
+                assert list(tdSql.queryResult) == [(1,)], clause
+            tdSql.query(
+                f"select count(*) from {source} group by event_ts "
+                "having event_ts is not null"
+            )
+            assert list(tdSql.queryResult) == [(1,)]
+
+    def test_8_8_temporal_primary_time_priority(self):
+        """Prefer projected primary time over earlier timestamp columns
+
+        Check constants, star expansion, aliases and nested projections.
+        Preserve selection when either peer contains a JOIN.
+        Keep explicit WINDOW_TIME selection ahead of the default time key.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-21 Tony Zhang Added primary time selection tests
+            - 2026-09-22 Cover mixed nested temporal JOIN inputs
+        """
+        self._prepare_tcol_data()
+        inputs = (
+            "select now() anchor, * from {table}",
+            "select t_col, ts time_key, val from {table} "
+            "order by t_col desc",
+            "select anchor, time_key, val from "
+            "(select now() anchor, ts time_key, val from {table}) s "
+            "order by val desc",
+            "select cast('2024-01-01 10:00:00' as timestamp) anchor, "
+            "ts, val from {table}",
+        )
+        expected = {
+            ("left", "asof"): (10, 20, 30, 30),
+            ("right", "asof"): (1, 2, 3, 4),
+            ("left", "window"): (10, 20, 30, None),
+            ("right", "window"): (1, 2, 3, None),
+        }
+        for source in inputs:
+            left = source.format(table="ct1")
+            right = source.format(table="ct2")
+            for side, driver, col in (("left", "l", 1), ("right", "r", 0)):
+                for kind, suffix in (
+                    ("asof", ""), ("window", "window_offset(0s, 0s)")
+                ):
+                    for left_input, right_input in (
+                        (f"({left}) l", f"({right}) r"),
+                        (f"({left}) l",
+                         "(ct2 r join ct2 p on r.ts = p.ts)"),
+                        ("(ct1 l join ct1 p on l.ts = p.ts)",
+                         f"({right}) r"),
+                    ):
+                        self._check_col(
+                            f"select l.val, r.val from {left_input} "
+                            f"{side} {kind} join {right_input} {suffix} "
+                            f"order by {driver}.val",
+                            col, expected[(side, kind)],
+                        )
+        for side, col, order, values in (
+            ("left", 1, "l.val, r.val", (10, 20, 40, 10)),
+            ("right", 0, "r.val, l.val", (1, 4, 2, None, 3)),
+        ):
+            self._check_col(
+                "select l.val, r.val from (select now() anchor, * "
+                f"from ct1) l {side} window join "
+                "(select now() anchor, * from ct2) r "
+                "window_time(l.t_col, r.t_col) window_offset(0s, 0s) "
+                f"order by {order}", col, values,
+            )
+
+    def test_8_9_temporal_constant_time_fallback(self):
+        """Allow the first timestamp to be constant without a primary column
+
+        Check NOW and literal timestamps before ordinary timestamp columns.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-21 Tony Zhang Added constant time fallback tests
+        """
+        self._prepare_tcol_data()
+        for time_expr in ("now()", "cast('2024-01-01' as timestamp)"):
+            # Filter the non-driving side to one row; every driving row then
+            # matches it, so the peer column repeats that row's value.
+            for side, driver, col, lfilt, rfilt, val in (
+                ("left", "l", 1, "", " where val = 20", 20),
+                ("right", "r", 0, " where val = 2", "", 2),
+            ):
+                left = f"select {time_expr} anchor, t_col, val from ct1{lfilt}"
+                right = f"select {time_expr} anchor, t_col, val from ct2{rfilt}"
+                for kind, suffix in (
+                    ("asof", ""), ("window", "window_offset(0s, 0s)")
+                ):
+                    self._check_col(
+                        f"select l.val, r.val from ({left}) l "
+                        f"{side} {kind} join ({right}) r {suffix} "
+                        f"order by {driver}.val",
+                        col, (val,) * 4,
+                    )
+
+    # Group 9: Regression (FS section 4.2 unchanged scenarios)
 
     def test_9_1_no_order_by_supertable(self):
         """TC-9.1 No ORDER BY, multi-vgroup supertable — result unchanged by optimization

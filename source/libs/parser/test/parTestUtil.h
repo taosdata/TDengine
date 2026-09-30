@@ -85,6 +85,9 @@ class ParserDdlTest : public ParserTestBase {
 
 extern bool g_dump;
 
+// Idempotent; required before any code path that reaches tGetToken(), which
+// otherwise reports every keyword as TK_NK_ILLEGAL.
+extern void    initKeywordsTableOnce();
 extern void    setAsyncFlag(const char* pArg);
 extern bool    getAsyncFlag();
 extern void    setLogLevel(const char* pArg);

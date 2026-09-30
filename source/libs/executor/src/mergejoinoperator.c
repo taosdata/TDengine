@@ -1248,6 +1248,20 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
   return TSDB_CODE_SUCCESS;
 }
 
+// Propagate downstream errors so they cannot be mistaken for exhaustion.
+static SSDataBlock* mJoinFetchDownstream(SMJoinOperatorInfo* pJoin,
+                                         int32_t side) {
+  SOperatorInfo* pOperator = pJoin->pOperator;
+  SSDataBlock*   pBlock = NULL;
+  int32_t code = getNextBlockFromDownstreamChecked(pOperator, side, false,
+                                                   &pBlock);
+  if (TSDB_CODE_SUCCESS != code) {
+    pJoin->errCode = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  }
+  return pBlock;
+}
+
 SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
   SSDataBlock* pTmp = NULL;
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -1265,7 +1279,7 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
       return NULL;
     }
 
-    pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
+    pTmp = mJoinFetchDownstream(pJoin, dsIdx);
     if (NULL == pTmp) {
       pTable->dsFetchDone = true;
       return NULL;
@@ -1306,7 +1320,7 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
       return NULL;
     }
 
-    SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
+    SSDataBlock* pTmp = mJoinFetchDownstream(pJoin, dsIdx);
     if (NULL == pTmp) {
       pTable->dsFetchDone = true;
       return NULL;
@@ -1331,7 +1345,7 @@ static FORCE_INLINE SSDataBlock* mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, SM
     return NULL;
   }
 
-  SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, pTable->downStreamIdx);
+  SSDataBlock* pTmp = mJoinFetchDownstream(pJoin, pTable->downStreamIdx);
   if (NULL == pTmp) {
     pTable->dsFetchDone = true;
   } else {

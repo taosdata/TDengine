@@ -571,6 +571,55 @@ static int32_t qExplainAppendFilterRow(SExplainCtx *ctx, int32_t level,
   return qExplainResAppendRow(ctx, tbuf, tlen, level + 1);
 }
 
+static int32_t qExplainAppendTimeKeyRow(SExplainCtx* ctx, int32_t level,
+                                       const SSortMergeJoinPhysiNode* pJoin,
+                                       bool left) {
+  SNode* pExpr = left ? pJoin->leftPrimExpr : pJoin->rightPrimExpr;
+  int32_t slotId = left ? pJoin->leftPrimSlotId : pJoin->rightPrimSlotId;
+  SPhysiNode* pChild = (SPhysiNode*)nodesListGetNode(
+      pJoin->node.pChildren, left ? 0 : 1);
+  if (NULL == pExpr && NULL != pJoin->pPrimKeyCond && NULL != pChild &&
+      NULL != pChild->pOutputDataBlockDesc &&
+      QUERY_NODE_OPERATOR == nodeType(pJoin->pPrimKeyCond)) {
+    SOperatorNode* pCond = (SOperatorNode*)pJoin->pPrimKeyCond;
+    SNode* pKeys[2] = {pCond->pLeft, pCond->pRight};
+    for (int32_t i = 0; i < 2; ++i) {
+      if (QUERY_NODE_COLUMN != nodeType(pKeys[i])) continue;
+      SColumnNode* pCol = (SColumnNode*)pKeys[i];
+      if (pCol->dataBlockId == pChild->pOutputDataBlockDesc->dataBlockId &&
+          pCol->slotId == slotId) {
+        pExpr = pKeys[i];
+      }
+    }
+  }
+  char key[TSDB_EXPLAIN_RESULT_ROW_SIZE] = {0};
+  int32_t length = 0;
+  if (NULL != pExpr) {
+    if (QUERY_NODE_TARGET == nodeType(pExpr)) {
+      pExpr = ((STargetNode*)pExpr)->pExpr;
+    }
+    QRY_ERR_RET(nodesNodeToSQL(pExpr, key, sizeof(key), &length));
+  }
+  if (length <= 0) return TSDB_CODE_SUCCESS;
+  if (length >= sizeof(key)) return TSDB_CODE_OUT_OF_RANGE;
+
+  // Plain keys use existing producer slots, without an executor expression.
+  int32_t tlen = 0;
+  char* tbuf = ctx->tbuf;
+  bool isVerboseLine = true;
+  EXPLAIN_ROW_NEW(level + 1, "%s Time Key: ", left ? "Left" : "Right");
+  int32_t capacity = TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE;
+  int32_t written = snprintf(tbuf + VARSTR_HEADER_SIZE + tlen,
+                              capacity - tlen, "%s Order: %s", key,
+                              EXPLAIN_ORDER_STRING(pJoin->node.inputTsOrder));
+  if (written < 0 || written >= capacity - tlen) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  tlen += written;
+  EXPLAIN_ROW_END();
+  return qExplainResAppendRow(ctx, tbuf, tlen, level + 1);
+}
+
 static uint8_t qExplainGetIntervalPrecision(SIntervalPhysiNode *pIntNode) {
   return ((SColumnNode *)pIntNode->window.pTspk)->node.resType.precision;
 }
@@ -1418,6 +1467,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_END();
 
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+          QRY_ERR_RET(qExplainAppendTimeKeyRow(ctx, level, pJoinNode, true));
+          QRY_ERR_RET(qExplainAppendTimeKeyRow(ctx, level, pJoinNode, false));
         }
 
         QRY_ERR_RET(qExplainAppendFilterRow(ctx, level, pJoinNode->node.pConditions,

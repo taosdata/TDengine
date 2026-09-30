@@ -171,17 +171,7 @@ static int32_t hJoinGetNextDownstreamBlock(SOperatorInfo* pOperator, int32_t idx
     return pOperator->pTaskInfo->code;
   }
 
-  recordOpExecBeforeDownstream(pOperator);
-  int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, true, ppBlock);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = blockDataCheck(*ppBlock);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s, %s failed at line %d, code:%s", GET_TASKID(pOperator->pTaskInfo), __func__, __LINE__,
-             tstrerror(code));
-    }
-  }
-  recordOpExecAfterDownstream(pOperator, *ppBlock != NULL && code == TSDB_CODE_SUCCESS ? (*ppBlock)->info.rows : 0);
-  return code;
+  return getNextBlockFromDownstreamChecked(pOperator, idx, true, ppBlock);
 }
 
 int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {

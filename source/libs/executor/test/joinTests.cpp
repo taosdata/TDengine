@@ -2530,27 +2530,17 @@ SSDataBlock* getDummyInputBlock(struct SOperatorInfo* pOperator, int32_t idx) {
 }
 
 
+int32_t getDummyInputBlockImpl(SOperatorInfo* pOperator, int32_t idx,
+                               bool resetParams, SSDataBlock** ppBlock) {
+  *ppBlock = getDummyInputBlock(pOperator, idx);
+  return TSDB_CODE_SUCCESS;
+}
+
 void joinTestReplaceRetrieveFp() {
   static Stub stub;
-  stub.set(getNextBlockFromDownstreamRemain, getDummyInputBlock);
-  {
-#ifdef WINDOWS
-    AddrAny                       any;
-    std::map<std::string, void *> result;
-    any.get_func_addr("getNextBlockFromDownstreamRemain", result);
-    for (const auto &f : result) {
-      stub.set(f.second, getDummyInputBlock);
-    }
-#endif
-#ifdef LINUX
-    AddrAny                       any("libexecutor.so");
-    std::map<std::string, void *> result;
-    any.get_global_func_addr_dynsym("^getNextBlockFromDownstreamRemain$", result);
-    for (const auto &f : result) {
-      stub.set(f.second, getDummyInputBlock);
-    }
-#endif
-  }
+  // Merge join fetches through getNextBlockFromDownstreamChecked(), so the
+  // one Impl stub covers every downstream read.
+  stub.set(getNextBlockFromDownstreamImpl, getDummyInputBlockImpl);
 }
 
 void printColList(char* title, bool left, int32_t* colList, bool filter, char* opStr) {

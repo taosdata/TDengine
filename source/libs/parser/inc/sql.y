@@ -78,7 +78,8 @@ int32_t taosParseShortWeekday(const char* str);
 %right NOT.
 %left NK_ARROW.
 
-%right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW CROSS JOIN ON WINDOW_OFFSET JLIMIT ANY SOME EXISTS.
+%right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW CROSS JOIN ON
+  WINDOW_TIME WINDOW_OFFSET JLIMIT ANY SOME EXISTS.
 
 /************************************************ create/alter account *****************************************/
 cmd ::= CREATE ACCOUNT NK_ID PASS NK_STRING account_options.                      { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
@@ -2957,16 +2958,36 @@ asof_joined(A) ::=
 /************************************************ window join *********************************************************/
 win_joined(A) ::=
   table_reference(B) LEFT WINDOW JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause(G) jlimit_clause_opt(H).                                   { JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_WIN, A, B, E, F, G, H); }
+  window_time_clause_opt(I) window_offset_clause(G)
+  jlimit_clause_opt(H).
+{
+  JOINED_TABLE_MK(JOIN_TYPE_LEFT, JOIN_STYPE_WIN, A, B, E, F, G, H);
+  A = addWindowTimeClause(pCxt, A, I);
+}
 
 win_joined(A) ::=
   table_reference(B) RIGHT WINDOW JOIN table_reference(E) join_on_clause_opt(F)
-  window_offset_clause(G) jlimit_clause_opt(H).                                   { JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_WIN, A, B, E, F, G, H); }
+  window_time_clause_opt(I) window_offset_clause(G)
+  jlimit_clause_opt(H).
+{
+  JOINED_TABLE_MK(JOIN_TYPE_RIGHT, JOIN_STYPE_WIN, A, B, E, F, G, H);
+  A = addWindowTimeClause(pCxt, A, I);
+}
 
 join_on_clause_opt(A) ::= . [ON]                                                  { A = NULL; }
 join_on_clause_opt(A) ::= join_on_clause(B).                                      { A = B; }
 
 join_on_clause(A) ::= ON search_condition(B).                                     { A = B; }
+
+%type window_time_clause_opt { SNodeList* }
+%destructor window_time_clause_opt { nodesDestroyList($$); }
+window_time_clause_opt(A) ::= . [WINDOW_TIME] { A = NULL; }
+window_time_clause_opt(A) ::= WINDOW_TIME NK_LP column_reference(B)
+  NK_COMMA column_reference(C) NK_RP.
+{
+  A = createNodeList(pCxt, releaseRawExprNode(pCxt, B));
+  A = addNodeToList(pCxt, A, releaseRawExprNode(pCxt, C));
+}
 
 window_offset_clause(A) ::= WINDOW_OFFSET NK_LP window_offset_literal(B)
   NK_COMMA window_offset_literal(C) NK_RP.                                        { A = createWindowOffsetNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }

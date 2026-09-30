@@ -586,6 +586,7 @@ static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDs
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   COPY_SCALAR_FIELD(joinType);
   COPY_SCALAR_FIELD(subType);
+  CLONE_NODE_LIST_FIELD(pWindowTime);
   CLONE_NODE_FIELD(pWindowOffset);
   CLONE_NODE_FIELD(pJLimit);
   CLONE_NODE_FIELD(addPrimCond);
@@ -1371,6 +1372,7 @@ static int32_t logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pSortKeys);
   COPY_SCALAR_FIELD(groupSort);
+  COPY_SCALAR_FIELD(joinInputSort);
   COPY_SCALAR_FIELD(calcGroupId);
   COPY_SCALAR_FIELD(excludePkCol);
   COPY_SCALAR_FIELD(numOfGroupKeys);

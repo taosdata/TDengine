@@ -62,6 +62,15 @@ int32_t    g_logLevel = 131;
 int32_t    g_queryPolicy = QUERY_POLICY_VNODE;
 bool       g_useNodeAllocator = false;
 
+class PlanJoinPropsGuard {
+ public:
+  explicit PlanJoinPropsGuard(SPlanContext* pCxt) : pCxt_(pCxt) {}
+  ~PlanJoinPropsGuard() { planDestroyJoinPropsStore(pCxt_); }
+
+ private:
+  SPlanContext* pCxt_;
+};
+
 void setDumpModule(const char* pModule) {
   if (NULL == pModule) {
     g_dumpModule = DUMP_MODULE_ALL;
@@ -215,6 +224,22 @@ class PlannerTestBaseImpl {
   }
 
   bool findPlanNode(const string& nodeName) const { return countPlanNode(nodeName) > 0; }
+
+  void setLogicPlanCheck(
+      const std::function<void(const SLogicNode*, bool)>& check) {
+    logicPlanCheck_ = check;
+  }
+
+  void setJoinPropsCheck(
+      const std::function<void(const SPlanContext*, const SLogicNode*, bool)>&
+          check) {
+    joinPropsCheck_ = check;
+  }
+
+  void setPhysiPlanCheck(
+      const std::function<void(const SQueryPlan*)>& check) {
+    physiPlanCheck_ = check;
+  }
 
   bool planContains(const string& text) const {
     if (res_.physiPlan_.find(text) != string::npos) {
@@ -407,6 +432,7 @@ class PlannerTestBaseImpl {
         cxt.streamCxt.triggerWinType = QUERY_NODE_INTERVAL_WINDOW;
         cxt.streamCxt.calcScanPlanArray = calcScanPlans.get();
       }
+      PlanJoinPropsGuard joinPropsGuard(&cxt);
 
       SLogicSubplan* pLogicSubplan = nullptr;
       doCreateLogicPlan(&cxt, &pLogicSubplan);
@@ -483,6 +509,7 @@ class PlannerTestBaseImpl {
 
       SPlanContext cxt = {0};
       setPlanContext(stmtEnv_.pQuery_, &cxt);
+      PlanJoinPropsGuard joinPropsGuard(&cxt);
 
       SLogicSubplan* pLogicSubplan = nullptr;
       doCreateLogicPlan(&cxt, &pLogicSubplan);
@@ -651,7 +678,20 @@ class PlannerTestBaseImpl {
       cxt.pStmtCb = &stmtCb;
     }
 
-    DO_WITH_THROW(qParseSql, &cxt, pQuery);
+    if (tsFederatedQueryEnable && !prepare) {
+      cxt.async = true;
+      unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> request(
+          new SCatalogReq(), MockCatalogService::destoryCatalogReq);
+      unique_ptr<SMetaData, void (*)(SMetaData*)> metadata(
+          new SMetaData(), MockCatalogService::destoryMetaData);
+      DO_WITH_THROW(qParseSqlSyntax, &cxt, pQuery, request.get());
+      DO_WITH_THROW(g_mockCatalogService->catalogGetAllMeta, request.get(),
+                    metadata.get());
+      DO_WITH_THROW(qAnalyseSqlSemantic, &cxt, request.get(), metadata.get(),
+                    *pQuery);
+    } else {
+      DO_WITH_THROW(qParseSql, &cxt, pQuery);
+    }
     if (prepare) {
       res_.prepareAst_ = toString((*pQuery)->pPrepareRoot);
     } else {
@@ -684,11 +724,19 @@ class PlannerTestBaseImpl {
     DO_WITH_THROW(createLogicPlan, pCxt, pLogicSubplan);
     res_.rawLogicPlan_ = toString((SNode*)(*pLogicSubplan));
     collectRawLogicPlanAggFlags((*pLogicSubplan)->pNode);
+    if (joinPropsCheck_) {
+      joinPropsCheck_(pCxt, (*pLogicSubplan)->pNode, false);
+    }
+    if (logicPlanCheck_) logicPlanCheck_((*pLogicSubplan)->pNode, false);
   }
 
   void doOptimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
     DO_WITH_THROW(optimizeLogicPlan, pCxt, pLogicSubplan);
     res_.optimizedLogicPlan_ = toString((SNode*)pLogicSubplan);
+    if (joinPropsCheck_) {
+      joinPropsCheck_(pCxt, pLogicSubplan->pNode, true);
+    }
+    if (logicPlanCheck_) logicPlanCheck_(pLogicSubplan->pNode, true);
   }
 
   void doSplitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
@@ -711,6 +759,9 @@ class PlannerTestBaseImpl {
     unique_ptr<SArray, void (*)(SArray*)> execNodeList((SArray*)taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr)),
                                                        (void (*)(SArray*))taosArrayDestroy);
     DO_WITH_THROW(createPhysiPlan, pCxt, pLogicPlan, pPlan, execNodeList.get());
+    if (physiPlanCheck_) {
+      physiPlanCheck_(*pPlan);
+    }
     res_.physiPlan_ = toString((SNode*)(*pPlan));
     SNode* pNode;
     FOREACH(pNode, (*pPlan)->pSubplans) {
@@ -721,6 +772,7 @@ class PlannerTestBaseImpl {
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
     pCxt->queryId = 1;
+    pCxt->subqueryIndex = -1;
     pCxt->pUser = caseEnv_.user_.c_str();
     if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
       SCreateTopicStmt* pStmt = (SCreateTopicStmt*)pQuery->pRoot;
@@ -949,6 +1001,10 @@ class PlannerTestBaseImpl {
   }
 
   caseEnv caseEnv_;
+  std::function<void(const SLogicNode*, bool)> logicPlanCheck_;
+  std::function<void(const SPlanContext*, const SLogicNode*, bool)>
+      joinPropsCheck_;
+  std::function<void(const SQueryPlan*)> physiPlanCheck_;
   stmtEnv stmtEnv_;
   stmtRes res_;
   int32_t sqlNo_;
@@ -982,6 +1038,22 @@ void PlannerTestBase::runCreateStream(const std::string&                        
 }
 
 bool PlannerTestBase::findPlanNode(const std::string& nodeName) const { return impl_->findPlanNode(nodeName); }
+
+void PlannerTestBase::setLogicPlanCheck(
+    const std::function<void(const SLogicNode*, bool)>& check) {
+  impl_->setLogicPlanCheck(check);
+}
+
+void PlannerTestBase::setJoinPropsCheck(
+    const std::function<void(const SPlanContext*, const SLogicNode*, bool)>&
+        check) {
+  impl_->setJoinPropsCheck(check);
+}
+
+void PlannerTestBase::setPhysiPlanCheck(
+    const std::function<void(const SQueryPlan*)>& check) {
+  impl_->setPhysiPlanCheck(check);
+}
 
 int32_t PlannerTestBase::countPlanNode(const std::string& nodeName) const { return impl_->countPlanNode(nodeName); }
 
