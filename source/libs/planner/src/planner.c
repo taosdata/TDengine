@@ -692,6 +692,7 @@ static void initSubQueryPlanContext(SPlanContext* pDst, SPlanContext* pSrc, SNod
                                     SPlanSubqueryState* pState, int32_t subQIdx) {
   memcpy(pDst, pSrc, sizeof(*pSrc));
 
+  pDst->pJoinPropsStore = NULL;
   pDst->groupId++;
   pDst->streamCxt.hasExtWindow = false;
   pDst->hasScan = false;
@@ -749,6 +750,7 @@ static void planDestroyQueryUnit(SPlanQueryUnit* pUnit, bool destroyPhysiPlan) {
   if (NULL == pUnit) {
     return;
   }
+  planDestroyJoinPropsStore(pUnit->pCtx);
   nodesDestroyNode((SNode*)pUnit->pLogicSubplan);
   pUnit->pLogicSubplan = NULL;
   nodesDestroyNode((SNode*)pUnit->pLogicPlan);
@@ -809,6 +811,7 @@ static int32_t planCreateSubqueryState(SPlanContext* pRootCxt, SPlanSubqueryStat
   pState->rootUnit.origSubQIdx = -1;
   pState->rootUnit.finalSubQIdx = -1;
 
+  pRootCxt->pJoinPropsStore = NULL;
   pRootCxt->pSubqueryState = pState;
   pRootCxt->subqueryIndex = -1;
 

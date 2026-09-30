@@ -34,6 +34,8 @@
 #include "cmdnodes.h"
 #include "dataSink.h"
 #include "dataSinkMgt.h"
+#include "operator.h"
+#include "querytask.h"
 #include "snode.h"
 #include "stream.h"
 #include "streamInt.h"
@@ -370,6 +372,17 @@ int32_t mockStreamClearStatesForOperators(qTaskInfo_t) {
     gCalls.resetRunningExecNodes.push_back(tdListGetHead(gCalls.pExecMgr->pRunningExecs));
   }
   return TSDB_CODE_SUCCESS;
+}
+
+struct RunnerResetState {
+  int32_t calls = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+};
+
+int32_t resetRunnerOperator(SOperatorInfo *pOperator) {
+  auto *pState = static_cast<RunnerResetState *>(pOperator->info);
+  ++pState->calls;
+  return pState->code;
 }
 
 int32_t mockStreamExecuteTask(qTaskInfo_t, SSDataBlock **ppBlock, bool *pFinished) {
@@ -1488,6 +1501,25 @@ class StreamRunnerTest : public ::testing::Test {
     request_.createTable = 0;
   }
 
+  void UseRealOperatorResetTree() {
+    stub_.reset(streamClearStatesForOperators);
+    auto wire = [](SOperatorInfo *pOperator, RunnerResetState *pState) {
+      pOperator->info = pState;
+      pOperator->status = OP_EXEC_DONE;
+      setOperatorResetStateFn(pOperator, resetRunnerOperator);
+    };
+    wire(&resetRoot_, &rootReset_);
+    wire(&resetLeft_, &leftReset_);
+    wire(&resetRight_, &rightReset_);
+    resetRoot_.pDownstream = resetDownstream_;
+    resetRoot_.numOfDownstream = 2;
+    resetDownstream_[0] = &resetLeft_;
+    resetDownstream_[1] = &resetRight_;
+    resetExecutor_.pRoot = &resetRoot_;
+    resetExecutor_.code = TSDB_CODE_INVALID_PARA;
+    Exec()->pExecutor = &resetExecutor_;
+  }
+
   SSDataBlock *NewBlock(int64_t rows) {
     SSDataBlock *pBlock = nullptr;
     EXPECT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
@@ -1602,6 +1634,14 @@ class StreamRunnerTest : public ::testing::Test {
   char                       executorSentinel_ = 0;
   char                       sinkSentinel_ = 0;
   char                       notifyUrl_[32] = "ws://unused/zero-window";
+  RunnerResetState           rootReset_ = {};
+  RunnerResetState           leftReset_ = {};
+  RunnerResetState           rightReset_ = {};
+  SOperatorInfo              resetRoot_ = {};
+  SOperatorInfo              resetLeft_ = {};
+  SOperatorInfo              resetRight_ = {};
+  SOperatorInfo             *resetDownstream_[2] = {};
+  SExecTaskInfo              resetExecutor_ = {};
   SStreamRunnerTask          task_ = {};
   SSTriggerCalcRequest       request_ = {};
   SSnode                    *snode_ = nullptr;
@@ -2721,6 +2761,49 @@ TEST_F(StreamRunnerTest, BrandNewZeroWindowRequestOnReusedExecCreatesTableWithou
   EXPECT_EQ(stats.calcRequestCount, 1);
   EXPECT_EQ(stats.logicalWindowCount, 0);
   EXPECT_EQ(stats.resultLatency.samples, 0);
+}
+
+TEST_F(StreamRunnerTest, ReusedExecUsesRealRecursiveResetBeforeEachRun) {
+  UseRealOperatorResetTree();
+  SetWindows(1);
+  task_.topTask = false;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 2000),
+            TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(rootReset_.calls, 2);
+  EXPECT_EQ(leftReset_.calls, 2);
+  EXPECT_EQ(rightReset_.calls, 2);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  EXPECT_EQ(resetExecutor_.code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(resetRoot_.status, OP_NOT_OPENED);
+  EXPECT_EQ(resetLeft_.status, OP_NOT_OPENED);
+  EXPECT_EQ(resetRight_.status, OP_NOT_OPENED);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, ReusedExecPropagatesChildResetFailure) {
+  UseRealOperatorResetTree();
+  SetWindows(1);
+  task_.topTask = false;
+  leftReset_.code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+  EXPECT_EQ(rootReset_.calls, 1);
+  EXPECT_EQ(leftReset_.calls, 1);
+  EXPECT_EQ(rightReset_.calls, 0);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  EXPECT_EQ(resetExecutor_.code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(resetRoot_.status, OP_NOT_OPENED);
+  EXPECT_EQ(resetLeft_.status, OP_NOT_OPENED);
+  EXPECT_EQ(resetRight_.status, OP_EXEC_DONE);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
 }
 
 TEST_F(StreamRunnerTest, ExplicitRequestStartDrivesBatchWindowLatency) {

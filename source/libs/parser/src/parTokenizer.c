@@ -423,6 +423,7 @@ static SKeyword keywordTable[] = {
     {"WINDOW_OPEN",          TK_WINDOW_OPEN},
     {"WINDOW_CLOSE",         TK_WINDOW_CLOSE},
     {"WINDOW_OFFSET",        TK_WINDOW_OFFSET},
+    {"WINDOW_TIME",          TK_WINDOW_TIME},
     {"WIN_OPTIMIZE_BATCH",   TK_WIN_OPTIMIZE_BATCH},
     {"WIN_OPTIMIZE_SINGLE",  TK_WIN_OPTIMIZE_SINGLE},
     {"WITH",                 TK_WITH},

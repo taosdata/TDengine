@@ -277,22 +277,43 @@ static int32_t thetaJoinNext(SOperatorInfo* pOperator, SSDataBlock** ppResult) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void thetaDestroy(void* param) {
-  SThetaJoinInfo* pInfo = param;
-  if (NULL == pInfo) return;
+static void thetaClearInputs(SThetaJoinInfo* pInfo) {
   for (int32_t side = 0; side < 2; ++side) {
     if (pInfo->pBlocks[side]) {
       for (int32_t i = 0; i < taosArrayGetSize(pInfo->pBlocks[side]); ++i) {
         blockDataDestroy(*(SSDataBlock**)taosArrayGet(pInfo->pBlocks[side], i));
       }
       taosArrayDestroy(pInfo->pBlocks[side]);
+      pInfo->pBlocks[side] = NULL;
     }
+    taosMemoryFreeClear(pInfo->matched[side]);
+    pInfo->totalRows[side] = 0;
+    pInfo->lastRow[side] = 0;
   }
+}
+
+static int32_t resetThetaJoinOperState(SOperatorInfo* pOperator) {
+  SThetaJoinInfo* pInfo = pOperator->info;
+  thetaClearInputs(pInfo);
+  blockDataCleanup(pInfo->pCandidates);
+  pInfo->leftBlock = 0;
+  pInfo->rightBlock = 0;
+  pInfo->leftRow = 0;
+  pInfo->rightRow = 0;
+  pInfo->emitSide = 0;
+  pInfo->emitRow = 0;
+  pInfo->loaded = false;
+  pInfo->done = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void thetaDestroy(void* param) {
+  SThetaJoinInfo* pInfo = param;
+  if (NULL == pInfo) return;
+  thetaClearInputs(pInfo);
   filterFreeInfo(pInfo->pOnFilter);
   filterFreeInfo(pInfo->pFinFilter);
   blockDataDestroy(pInfo->pCandidates);
-  taosMemoryFree(pInfo->matched[0]);
-  taosMemoryFree(pInfo->matched[1]);
   nodesDestroyList(pInfo->pTargets);
   taosMemoryFree(pInfo);
 }
@@ -311,6 +332,7 @@ int32_t createThetaJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
   }
   pInfo->joinType = pJoinNode->joinType;
   pInfo->subType = pJoinNode->subType;
+  // Theta reuses these fields for direct-child DataBlock IDs, not column slots.
   pInfo->inputBlockId[0] = pJoinNode->leftPrimSlotId;
   pInfo->inputBlockId[1] = pJoinNode->rightPrimSlotId;
   // Projection expressions are evaluated above the JOIN; its targets must
@@ -347,6 +369,7 @@ int32_t createThetaJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
   if (code) goto _error;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, thetaJoinNext, NULL, thetaDestroy, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetThetaJoinOperState);
   *pOptrInfo = pOperator;
   return TSDB_CODE_SUCCESS;
 

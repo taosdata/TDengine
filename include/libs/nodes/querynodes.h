@@ -637,6 +637,7 @@ typedef struct SJoinTableNode {
   STableNode   table;  // QUERY_NODE_JOIN_TABLE
   EJoinType    joinType;
   EJoinSubType subType;
+  SNodeList*   pWindowTime;
   SNode*       pWindowOffset;
   SNode*       pJLimit;
   SNode*       addPrimCond;

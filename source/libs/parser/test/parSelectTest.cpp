@@ -1497,6 +1497,420 @@ TEST_F(ParserSelectTest, joinSemanticCheck) {
   run("SELECT count(*) FROM t1 a join t1 b on a.ts=b.ts where a.ts=b.ts");
 }
 
+TEST_F(ParserSelectTest, nestedJoinDirectInputs) {
+  useDb("root", "test");
+
+  const std::string nested =
+      "(stream_t2 a JOIN stream_t2 b ON a.ts = b.ts) ";
+  for (const std::string type : {"", "LEFT ", "FULL ", "LEFT SEMI ",
+                                 "LEFT ANTI "}) {
+    run("SELECT a.c1 FROM " + nested + type +
+        "JOIN stream_t2 c ON b.ts = c.ts");
+  }
+  for (const std::string type : {"RIGHT ", "RIGHT SEMI ", "RIGHT ANTI "}) {
+    run("SELECT a.c1 FROM stream_t2 c " + type + "JOIN " + nested +
+        "ON c.ts = a.ts");
+  }
+  run("SELECT a.c1 FROM " + nested +
+      "LEFT ASOF JOIN stream_t2 c ON a.ts >= c.ts");
+  run("SELECT c.c1 FROM stream_t2 c RIGHT ASOF JOIN " + nested +
+      "ON c.ts <= a.ts");
+  run("SELECT a.c1 FROM " + nested +
+      "LEFT WINDOW JOIN stream_t2 c WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT c.c1 FROM stream_t2 c RIGHT WINDOW JOIN " + nested +
+      "WINDOW_OFFSET(-1s, 1s)");
+}
+
+// The planner checks precision and offset units after choosing the JOIN
+// input's effective time column, which can differ from subtree precision.
+TEST_F(ParserSelectTest, windowJoinOverJoinInputDefersTimeChecks) {
+  useDb("root", "test");
+
+  g_mockCatalogService
+      ->createTableBuilder("testus", "t_nano_win", TSDB_NORMAL_TABLE, 2)
+      .setPrecision(TSDB_TIME_PRECISION_NANO)
+      .setVgid(1)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .done();
+
+  // Nanosecond JOIN input against a millisecond input.
+  run("SELECT a.c1 FROM st1s1 a LEFT WINDOW JOIN "
+      "(testus.t_nano_win b JOIN testus.t_nano_win c ON b.ts = c.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+
+  // Both sides milliseconds, but the offset is finer than that.
+  run("SELECT a.c1 FROM st1s1 a LEFT WINDOW JOIN "
+      "(st1s2 b JOIN st1s3 c ON b.ts = c.ts) WINDOW_OFFSET(-1u, 1u)");
+
+  // Same, with the JOIN input on the left and a nanosecond offset.
+  run("SELECT a.c1 FROM (st1s1 a JOIN st1s2 b ON a.ts = b.ts) "
+      "RIGHT WINDOW JOIN st1s3 c WINDOW_OFFSET(-1b, 1b)");
+
+  // A legal second-level offset over the same JOIN input still passes.
+  run("SELECT a.c1 FROM st1s1 a LEFT WINDOW JOIN "
+      "(st1s2 b JOIN st1s3 c ON b.ts = c.ts) WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(ParserSelectTest, nestedJoinTreeShapes) {
+  useDb("root", "test");
+
+  run("SELECT a.c1 FROM "
+      "(((stream_t2 a JOIN stream_t2 b ON a.ts = b.ts) "
+      "LEFT JOIN stream_t2 c ON b.ts = c.ts) "
+      "RIGHT JOIN stream_t2 d ON c.ts = d.ts) "
+      "FULL JOIN stream_t2 e ON d.ts = e.ts");
+  run("SELECT a.c1 FROM "
+      "(((stream_t2 a JOIN stream_t2 b ON a.ts = b.ts) "
+      "JOIN (stream_t2 c JOIN stream_t2 d ON c.ts = d.ts) "
+      "ON b.ts = c.ts) JOIN "
+      "(stream_t2 e JOIN stream_t2 f ON e.ts = f.ts) "
+      "ON d.ts = e.ts) JOIN "
+      "(stream_t2 g JOIN stream_t2 h ON g.ts = h.ts) "
+      "ON f.ts = g.ts");
+  run("SELECT q.event_ts FROM "
+      "(SELECT a.ts event_ts FROM stream_t2 a "
+      "JOIN stream_t2 b ON a.ts = b.ts) q "
+      "LEFT ASOF JOIN stream_t2 c ON q.event_ts >= c.ts");
+  run("SELECT v.c1 FROM "
+      "(v_stream_t2 v JOIN stream_t2 b ON v.ts = b.ts) "
+      "LEFT ASOF JOIN stream_t2 c ON v.ts >= c.ts");
+}
+
+TEST_F(ParserSelectTest, nestedJoinKeepsInputScope) {
+  useDb("root", "test");
+
+  run("SELECT q.event_ts FROM "
+      "(SELECT a.ts event_ts FROM stream_t2 a "
+      "JOIN stream_t2 b ON a.ts = b.ts) q "
+      "JOIN stream_t2 c ON b.ts = c.ts",
+      TSDB_CODE_PAR_TABLE_NOT_EXIST);
+}
+
+TEST_F(ParserSelectTest, semiAntiPublishesBothInputs) {
+  useDb("root", "test");
+  for (const string kind : {"SEMI", "ANTI"}) {
+    for (const string side : {"LEFT", "RIGHT"}) {
+      const string input = "stream_t2 a " + side + " " + kind +
+          " JOIN stream_t2 b ON a.ts = b.ts";
+      SCOPED_TRACE(input);
+      run("SELECT a.c1, b.c1 FROM " + input);
+      run("SELECT * FROM " + input);
+      run("SELECT a.*, b.* FROM " + input);
+      run("SELECT a.c1, b.c1 FROM " + input +
+          " WHERE a.c1 IS NULL OR b.c1 IS NULL ORDER BY a.c1, b.c1");
+      run("SELECT a.c1, b.c1 FROM (" + input +
+          ") JOIN stream_t2 c ON a.ts = c.ts");
+      run("SELECT a.c1, b.c1 FROM (" + input +
+          ") JOIN stream_t2 c ON b.ts = c.ts");
+      for (const string time : {"a.c3", "b.c3"}) {
+        run("SELECT a.c1, b.c1 FROM (" + input +
+            ") LEFT WINDOW JOIN stream_t2 c WINDOW_TIME(" + time +
+            ", c.ts) WINDOW_OFFSET(-1s, 1s)");
+      }
+      run("SELECT c1 FROM " + input, TSDB_CODE_PAR_AMBIGUOUS_COLUMN);
+      run("SELECT b.c1 FROM (SELECT a.c1 FROM " + input + ") q",
+          TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    }
+  }
+}
+
+TEST_F(ParserSelectTest, nestedTemporalProjectedTimeConditions) {
+  useDb("root", "test");
+
+  const std::string input =
+      "SELECT q.event_ts FROM (SELECT COALESCE(a.ts, b.ts) event_ts, "
+      "a.c1 FROM stream_t2 a FULL JOIN stream_t2 b ON a.ts = b.ts) q "
+      "LEFT ASOF JOIN stream_t2 c ON ";
+  run(input + "q.event_ts >= c.ts");
+  run(input + "c.ts <= q.event_ts AND q.c1 = c.c1");
+  run(input + "q.event_ts >= c.c3",
+      TSDB_CODE_QRY_INVALID_JOIN_CONDITION);
+  run(input + "q.c1 >= c.c1",
+      TSDB_CODE_QRY_INVALID_JOIN_CONDITION);
+  run(input + "q.event_ts >= c.ts OR q.c1 = c.c1",
+      TSDB_CODE_QRY_INVALID_JOIN_CONDITION);
+  run(input + "q.event_ts >= c.ts AND q.c1 = 1",
+      TSDB_CODE_QRY_INVALID_JOIN_CONDITION);
+  run("SELECT q.event_ts FROM (SELECT c3 event_ts FROM stream_t2) q "
+      "LEFT ASOF JOIN stream_t2 c ON q.event_ts >= c.ts",
+      TSDB_CODE_QRY_INVALID_JOIN_CONDITION);
+  run("SELECT a.c1 FROM (stream_t2 a JOIN stream_t2 b ON a.ts = b.ts) "
+      "LEFT ASOF JOIN stream_t2 c ON b.c3 >= c.ts");
+}
+
+TEST_F(ParserSelectTest, nestedWindowExplicitTimeScope) {
+  useDb("root", "test");
+
+  const std::string input =
+      "SELECT a.c1 FROM (stream_t2 a JOIN stream_t2 b ON a.ts = b.ts) "
+      "LEFT WINDOW JOIN stream_t2 c WINDOW_TIME(";
+  const std::string offset = ") WINDOW_OFFSET(-1s, 1s)";
+  run(input + "b.c3, c.ts" + offset);
+  run(input + "c.ts, c.ts" + offset, TSDB_CODE_PAR_INVALID_COLUMN);
+  run(input + "b.ts, b.ts" + offset, TSDB_CODE_PAR_INVALID_COLUMN);
+  run(input + "b.missing, c.ts" + offset, TSDB_CODE_PAR_INVALID_COLUMN);
+  run(input + "b.c1, c.ts" + offset,
+      TSDB_CODE_PAR_INVALID_TIMELINE_QUERY);
+  run(input + "ts, c.ts" + offset, TSDB_CODE_PAR_AMBIGUOUS_COLUMN);
+  run("SELECT q.event_ts FROM "
+      "((SELECT c3 event_ts FROM stream_t2) q "
+      "JOIN stream_t2 b ON q.event_ts = b.ts) "
+      "LEFT WINDOW JOIN stream_t2 c WINDOW_TIME(event_ts, c.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT q.event_ts FROM (SELECT COALESCE(a.ts, b.ts) event_ts "
+      "FROM stream_t2 a FULL JOIN stream_t2 b ON a.ts = b.ts) q "
+      "LEFT WINDOW JOIN stream_t2 c WINDOW_TIME(a.ts, c.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_INVALID_COLUMN);
+}
+
+class ParserNestedTemporalTest : public ParserDdlTest {};
+
+TEST_F(ParserNestedTemporalTest, deferredDefaultTime) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    const auto* pJoin = (const SJoinTableNode*)pSelect->pFromTable;
+    ASSERT_EQ(pJoin->addPrimCond, nullptr);
+  });
+  run("SELECT q.event_ts FROM (SELECT a.ts first_ts, "
+      "COALESCE(a.ts, b.ts) event_ts FROM stream_t2 a "
+      "FULL JOIN stream_t2 b ON a.ts = b.ts) q "
+      "LEFT WINDOW JOIN stream_t2 c WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(ParserNestedTemporalTest, explicitTimeBinding) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    const auto* pJoin = (const SJoinTableNode*)pSelect->pFromTable;
+    ASSERT_NE(pJoin->addPrimCond, nullptr);
+    const auto* pCond = (const SOperatorNode*)pJoin->addPrimCond;
+    const auto* pLeft = (const SColumnNode*)pCond->pLeft;
+    const auto* pRight = (const SColumnNode*)pCond->pRight;
+    EXPECT_STREQ(pLeft->tableAlias, "b");
+    EXPECT_STREQ(pLeft->colName, "c3");
+    EXPECT_STREQ(pRight->tableAlias, "c");
+    EXPECT_STREQ(pRight->colName, "ts");
+    EXPECT_EQ(pLeft->node.resType.type, TSDB_DATA_TYPE_TIMESTAMP);
+    EXPECT_EQ(pLeft->colId, 4);
+  });
+  run("SELECT a.c1 FROM (stream_t2 a JOIN stream_t2 b ON a.ts = b.ts) "
+      "LEFT WINDOW JOIN stream_t2 c WINDOW_TIME(b.c3, c.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(ParserNestedTemporalTest, semiJoinPreservesNestedTimeSemantics) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    const auto* pNullable = (const SColumnNode*)nodesListGetNode(
+        pSelect->pProjectionList, 0);
+    const auto* pPreserved = (const SColumnNode*)nodesListGetNode(
+        pSelect->pProjectionList, 1);
+    ASSERT_EQ(nodeType(pNullable), QUERY_NODE_COLUMN);
+    ASSERT_EQ(nodeType(pPreserved), QUERY_NODE_COLUMN);
+    EXPECT_FALSE(pNullable->isPrimTs);
+    EXPECT_TRUE(pPreserved->isPrimTs);
+  });
+  const string input =
+      "(stream_t2 a RIGHT JOIN stream_t2 b ON a.ts = b.ts)";
+  for (const string kind : {"SEMI", "ANTI"}) {
+    for (bool right : {false, true}) {
+      const string sql = "SELECT a.ts, b.ts FROM " +
+          (right ? "stream_t2 c RIGHT " + kind + " JOIN " + input :
+                   input + " LEFT " + kind + " JOIN stream_t2 c") +
+          " ON b.ts = c.ts";
+      SCOPED_TRACE(sql);
+      run(sql);
+    }
+  }
+}
+
+TEST_F(ParserNestedTemporalTest, semiAntiTimeIdentity) {
+  useDb("root", "test");
+  for (const string kind : {"SEMI", "ANTI"}) {
+    for (bool right : {false, true}) {
+      setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+        if (PARSER_STAGE_TRANSLATE != stage) return;
+        const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+        const auto* pLeft = (const SColumnNode*)nodesListGetNode(
+            pSelect->pProjectionList, 0);
+        const auto* pRight = (const SColumnNode*)nodesListGetNode(
+            pSelect->pProjectionList, 1);
+        EXPECT_EQ(pLeft->isPrimTs, kind == "SEMI" || !right);
+        EXPECT_EQ(pRight->isPrimTs, kind == "SEMI" || right);
+      });
+      run("SELECT a.ts, b.ts FROM stream_t2 a " +
+          string(right ? "RIGHT " : "LEFT ") + kind +
+          " JOIN stream_t2 b ON a.c1 = b.c1");
+    }
+  }
+}
+
+TEST_F(ParserNestedTemporalTest, semiAntiNestedPeerTimeIdentity) {
+  useDb("root", "test");
+  for (const string kind : {"SEMI", "ANTI"}) {
+    setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+      if (PARSER_STAGE_TRANSLATE != stage) return;
+      const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+      const auto* pNullable = (const SColumnNode*)nodesListGetNode(
+          pSelect->pProjectionList, 0);
+      const auto* pTime = (const SColumnNode*)nodesListGetNode(
+          pSelect->pProjectionList, 1);
+      EXPECT_FALSE(pNullable->isPrimTs);
+      EXPECT_EQ(pTime->isPrimTs, kind == "SEMI");
+    });
+    const string input =
+        "(stream_t2 a RIGHT JOIN stream_t2 b ON a.ts = b.ts)";
+    for (bool right : {false, true}) {
+      const string source = right ?
+          input + " RIGHT " + kind + " JOIN stream_t2 c" :
+          "stream_t2 c LEFT " + kind + " JOIN " + input;
+      run("SELECT q.null_time, q.valid_time FROM "
+          "(SELECT a.ts null_time, b.ts valid_time FROM " + source +
+          " ON b.ts = c.ts) q");
+    }
+  }
+}
+
+TEST_F(ParserNestedTemporalTest, keepsTemporalCandidatesThroughCalcConst) {
+  useDb("root", "test");
+  bool temporal = true;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    const auto* pJoin = (const SJoinTableNode*)pSelect->pFromTable;
+    const auto* pTemp = (const STempTableNode*)pJoin->pLeft;
+    const auto* pSubquery = (const SSelectStmt*)pTemp->pSubquery;
+    ASSERT_EQ(LIST_LENGTH(pSubquery->pProjectionList), temporal ? 3 : 1);
+    const auto* pFirst = (const SExprNode*)nodesListGetNode(
+        pSubquery->pProjectionList, 0);
+    EXPECT_STREQ(pFirst->aliasName, temporal ? "first_time" : "k");
+    if (temporal) {
+      const auto* pSecond = (const SExprNode*)nodesListGetNode(
+          pSubquery->pProjectionList, 1);
+      EXPECT_STREQ(pSecond->aliasName, "second_time");
+    }
+  });
+  const std::string input =
+      "SELECT q.k, c.c1 FROM (SELECT a.c3 first_time, "
+      "b.c3 second_time, a.c1 k FROM stream_t2 a "
+      "JOIN stream_t2 b ON a.ts = b.ts ORDER BY second_time DESC) q ";
+  run(input + "LEFT WINDOW JOIN stream_t2 c WINDOW_OFFSET(-1s, 1s)");
+  temporal = false;
+  run(input + "JOIN stream_t2 c ON q.k = c.c1");
+}
+
+TEST_F(ParserSelectTest, temporalJoinWithFromSubquery) {
+  useDb("root", "test");
+
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT ASOF JOIN "
+      "(SELECT ts, c1 FROM stream_t2) r");
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "(SELECT c1, c3 event_ts FROM stream_t2 ORDER BY event_ts) r "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT l.event_ts, r.event_ts FROM "
+      "(SELECT ts event_ts FROM stream_t2 ORDER BY event_ts DESC) l "
+      "RIGHT ASOF JOIN "
+      "(SELECT ts event_ts FROM stream_t2 ORDER BY event_ts DESC) r");
+}
+
+TEST_F(ParserSelectTest, temporalJoinWithVirtualTable) {
+  useDb("root", "test");
+
+  run("SELECT v.c1, r.c1 FROM v_stream_t2 v LEFT ASOF JOIN "
+      "stream_t2 r");
+}
+
+TEST_F(ParserSelectTest, temporalJoinInputOrderAlignment) {
+  useDb("root", "test");
+  for (const auto& left : {"ORDER BY c1", "ORDER BY ts",
+                           "ORDER BY ts DESC"}) {
+    for (const auto& right : {"ORDER BY c1", "ORDER BY ts",
+                              "ORDER BY ts DESC"}) {
+      std::string inputs =
+          "(SELECT ts, c1 FROM stream_t2 " + std::string(left) +
+          ") l LEFT WINDOW JOIN (SELECT ts, c1 FROM stream_t2 " + right +
+          ") r WINDOW_OFFSET(-1s, 1s)";
+      run("SELECT l.c1, r.c1 FROM " + inputs);
+    }
+  }
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(l.c3, r.c3) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT v.c1, r.c1 FROM v_stream_t2 v LEFT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(v.c3, r.c3) WINDOW_OFFSET(-1s, 1s)");
+}
+
+TEST_F(ParserSelectTest, asofAdditionalConditions) {
+  useDb("root", "test");
+  for (const std::string side : {"LEFT", "RIGHT"}) {
+    const std::string input =
+        "SELECT l.c1, r.c1 FROM "
+        "(SELECT c3, ts, c1 FROM stream_t2) l " + side +
+        " ASOF JOIN stream_t2 r ON ";
+    run(input + "l.ts >= r.ts AND l.c1 = r.c1");
+    run(input + "l.c1 = r.c1 AND r.ts <= l.ts");
+    run(input + "l.ts >= r.ts AND l.c1 >= r.c1",
+        TSDB_CODE_QRY_INVALID_JOIN_CONDITION);
+    run(input + "l.c1 >= r.c1 AND l.ts >= r.ts",
+        TSDB_CODE_QRY_INVALID_JOIN_CONDITION);
+  }
+}
+
+TEST_F(ParserSelectTest, windowJoinWithExplicitTimeColumns) {
+  useDb("root", "test");
+
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(l.ts, r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT l.c1, r.c1 FROM stream_t2 l RIGHT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(l.ts, r.ts) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "stream_t2 r ON l.c1 = r.c1 WINDOW_TIME(l.ts, r.ts) "
+      "WINDOW_OFFSET(-1s, 1s) JLIMIT 3");
+  run("SELECT v.c1, r.c1 FROM v_stream_t2 v LEFT WINDOW JOIN "
+      "stream_t2 r WINDOW_TIME(v.ts, r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "(SELECT ts source_ts, c3 event_ts, c1 FROM stream_t2 "
+      "ORDER BY event_ts) r WINDOW_TIME(l.ts, r.event_ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT WINDOW JOIN "
+      "(SELECT ts source_ts, c3 event_ts, c1 FROM stream_t2 "
+      "ORDER BY event_ts) r WINDOW_OFFSET(-1s, 1s)");
+
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(r.ts, r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.ts, l.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.missing, r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.c1, r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_INVALID_TIMELINE_QUERY);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.c3, r.ts) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(1, r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(NOW(), r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.ts + 1s, r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("SELECT * FROM stream_t2 l LEFT ASOF JOIN stream_t2 r "
+      "WINDOW_TIME(l.ts, r.ts)", TSDB_CODE_PAR_SYNTAX_ERROR,
+      PARSER_STAGE_PARSE);
+}
+
 /*
  * Regression test for GHSA-v8cj-fw82-9jjf: createSimpleSubQStmt used pCxt->errCode instead
  * of the local `code` variable when checking initTranslateContext / setCurrLevelNsFromParent,

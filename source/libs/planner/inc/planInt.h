@@ -36,6 +36,44 @@ typedef struct SPhysiPlanContext {
   bool          hasFederatedScan;  // set when SCAN_TYPE_EXTERNAL subplan is built
 } SPhysiPlanContext;
 
+typedef enum EJoinInputSide {
+  JOIN_INPUT_SIDE_NONE = 0,
+  JOIN_INPUT_SIDE_LEFT,
+  JOIN_INPUT_SIDE_RIGHT,
+} EJoinInputSide;
+
+typedef struct SJoinColId {
+  uint64_t relationId;
+  uint64_t columnId;
+} SJoinColId;
+
+typedef struct SJoinOrderProp {
+  SJoinColId id;
+  EOrder     order;
+  bool       global;
+} SJoinOrderProp;
+
+typedef struct SJoinOutputCol {
+  SJoinColId     id;
+  SNode*         pExpr;
+  SDataType      type;
+  int32_t        outputIndex;
+  EJoinInputSide sourceSide;
+  bool           nullable;
+  bool           primaryTimestamp;
+} SJoinOutputCol;
+
+typedef struct SJoinInputProps {
+  const SLogicNode* pNode;
+  SArray*           pOutputCols;
+  SArray*           pTimeCandidates;
+  SArray*           pOrderProps;
+  SSHashObj*        pColIds;
+  SSHashObj*        pNames;
+  SSHashObj*        pInputNames;
+  SSHashObj*        pMaterialized;
+} SJoinInputProps;
+
 #define planFatal(...)  qFatal ("plan " __VA_ARGS__)
 #define planError(...)  qError ("plan " __VA_ARGS__)
 #define planWarn(...)   qWarn  ("plan " __VA_ARGS__)
@@ -85,8 +123,20 @@ bool           planIsExternalWindowSubquery(const SPlanContext* pCxt, int32_t su
 int32_t        planMarkSubqueryPushedDown(SPlanContext* pCxt, int32_t subQIdx);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
-void    planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker, void* pContext);
+void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker,
+                             void* pContext);
+int32_t planCreateJoinPropsStore(SPlanContext* pCxt);
+void    planDestroyJoinPropsStore(SPlanContext* pCxt);
+int32_t planRebuildJoinInputProps(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planFinalizeTemporalJoins(SPlanContext* pCxt, SLogicNode* pRoot);
+// Valid until the next property rebuild or query-context cleanup.
+const SJoinInputProps* planGetJoinInputProps(
+    const SPlanContext* pCxt, const SLogicNode* pNode);
+int32_t planPrepareAsofJoinTimeCondition(SJoinLogicNode* pJoin);
+int32_t planRetainJoinTimeKeyTarget(SLogicNode* pChild, SNode* pKey);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
+int32_t planEliminateTemporalInputSort(SLogicSubplan* pSubplan,
+                                       bool* pOptimized);
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
@@ -114,6 +164,14 @@ void        planPromoteScanToTableMerge(SScanLogicNode* pScan, EDataOrderLevel r
                                         EDataOrderLevel resultLevel);
 int32_t     planReplaceMergeWithSort(SScanLogicNode* pScan, bool* pReplaced);
 bool        scanIsSmallDataScanSortHinted(const SScanLogicNode* pScan);
+// The operator holding a temporal join's effective-time keys, or NULL.
+SNode* planGetTemporalJoinTimeCond(const SJoinLogicNode* pJoin);
+// Clones pExpr; the caller owns the returned condition on success.
+int32_t planCreateIsNotNullCond(const SNode* pExpr, SNode** ppCond);
+int32_t planCreateJoinInputSort(SLogicNode* pChild, SNode* pKey, EOrder order,
+                                SLogicNode** ppSort);
+void planSetParentOrder(SLogicNode* pNode, EOrder order,
+                        SLogicNode* pNodeForcePropagate);
 // Defined in planSpliter.c; shared so planReplaceMergeWithSort builds the same
 // scan sort keys as the table-merge-scan split path instead of duplicating them.
 int32_t     stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan, SNode** ppNode);

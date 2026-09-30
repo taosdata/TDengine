@@ -69,6 +69,9 @@ class MockCatalogService {
   ITableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType,
                                     int32_t numOfColumns, int32_t numOfTags = 0);
   void createSubTable(const std::string& db, const std::string& stbname, const std::string& tbname, int16_t vgid);
+  void setTableRefs(const std::string& db, const std::string& table,
+                   const std::vector<SColRef>& columns,
+                   const std::vector<SColRef>& tags);
   void showTables() const;
   void createFunction(const std::string& func, int8_t funcType, int8_t outputType, int32_t outputLen, int32_t bufSize);
   void createSmaIndex(const SMCreateSmaReq* pReq);

@@ -60,6 +60,9 @@ int32_t winInputStoreGetBlock(SWindowInputStore *pStore, int32_t pageIndex, SSDa
 int32_t winInputPoolTestGetRegisteredPageCount(const SWindowInputPool *pPool);
 int32_t winInputStoreTestGetPageId(const SWindowInputStore *pStore, int32_t pageIndex, int32_t *pPageId);
 void    winInputStoreTestFailNextDirectoryCommit(SWindowInputStore *pStore);
+int32_t winFuncTestSameOrderKeys(SWindowInputStore *pStore,
+                                 const SNodeList *pOrderKeys, int32_t lhs,
+                                 int32_t rhs, bool *pSame);
 #endif
 
 #ifdef __cplusplus

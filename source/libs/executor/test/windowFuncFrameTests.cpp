@@ -19,6 +19,8 @@
 
 #include <cmath>
 #include <limits>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "os.h"
@@ -29,6 +31,10 @@
 extern "C" int32_t winInputPoolTestGetRegisteredPageCount(const SWindowInputPool *pPool);
 extern "C" int32_t winInputStoreTestGetPageId(const SWindowInputStore *pStore, int32_t pageIndex, int32_t *pPageId);
 extern "C" void    winInputStoreTestFailNextDirectoryCommit(SWindowInputStore *pStore);
+extern "C" int32_t winFuncTestSameOrderKeys(SWindowInputStore *pStore,
+                                            const SNodeList *pOrderKeys,
+                                            int32_t lhs, int32_t rhs,
+                                            bool *pSame);
 
 namespace {
 
@@ -479,4 +485,210 @@ TEST(windowFuncFrameTest, failedDirectoryCommitPageIsReusedAndSiblingRemainsRead
   winInputPoolDestroy(pPool);
   blockDataDestroy(pSiblingInput);
   blockDataDestroy(pFailedInput);
+}
+
+TEST(windowFuncFrameTest, inputStoreRestoresNullsWhenReusingPageBlocks) {
+  tstrncpy(tsTempDir, testing::TempDir().c_str(), PATH_MAX);
+  tsTempSpace.size.avail = 1024 * 1024;
+  SSDataBlock* pInput = createIntBlock(64, 1000);
+  ASSERT_NE(pInput, nullptr);
+  auto* pCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(pInput->pDataBlock, 0));
+  for (int32_t row = 0; row < 64; row += 3) colDataSetNULL(pCol, row);
+
+  SWindowInputPool* pPool = nullptr;
+  ASSERT_EQ(winInputPoolCreate(128, 128, "nullPageReuse", &pPool),
+            TSDB_CODE_SUCCESS);
+  SWindowInputStore* pStore = nullptr;
+  ASSERT_EQ(winInputStoreCreate(pInput, pPool, &pStore),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreAppendBlock(pStore, pInput), TSDB_CODE_SUCCESS);
+  EXPECT_GT(winInputPoolGetStatis(pPool).flushPages, 0);
+  int pages = winInputStoreGetPageCount(pStore);
+  ASSERT_GT(pages, 1);
+  for (bool reverse : {false, true}) {
+    int start = reverse ? 64 : 0;
+    for (int i = 0; i < pages; ++i) {
+      int page = reverse ? pages - 1 - i : i;
+      SSDataBlock* pBlock = nullptr;
+      ASSERT_EQ(winInputStoreGetBlock(pStore, page, &pBlock),
+                TSDB_CODE_SUCCESS);
+      ASSERT_NE(pBlock, nullptr);
+      if (reverse) start -= pBlock->info.rows;
+      auto* pRead = static_cast<SColumnInfoData*>(
+          taosArrayGet(pBlock->pDataBlock, 0));
+      for (int local = 0; local < pBlock->info.rows; ++local) {
+        int row = start + local;
+        ASSERT_EQ(colDataIsNull_s(pRead, local), row % 3 == 0);
+        if (row % 3 != 0) {
+          const char* value = colDataGetData(pRead, local);
+          EXPECT_EQ(*reinterpret_cast<const int32_t*>(value), 1000 + row);
+        }
+      }
+      if (!reverse) start += pBlock->info.rows;
+    }
+    EXPECT_EQ(start, reverse ? 0 : 64);
+  }
+  EXPECT_GT(winInputPoolGetStatis(pPool).loadPages, 0);
+  winInputStoreDestroy(pStore);
+  winInputPoolDestroy(pPool);
+  blockDataDestroy(pInput);
+}
+
+TEST(windowFuncFrameTest, peerComparisonKeepsBothPageCachesIndependent) {
+  tstrncpy(tsTempDir, testing::TempDir().c_str(), PATH_MAX);
+  tsTempSpace.size.avail = 1024 * 1024;
+  SColumnNode column = {};
+  column.node.type = QUERY_NODE_COLUMN;
+  column.slotId = 0;
+  SOrderByExprNode order = {};
+  order.type = QUERY_NODE_ORDER_BY_EXPR;
+  order.pExpr = reinterpret_cast<SNode*>(&column);
+  order.order = ORDER_ASC;
+  SNodeList* keys = nullptr;
+  ASSERT_EQ(nodesListMakeAppend(&keys, reinterpret_cast<SNode*>(&order)),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNodeList, decltype(&nodesClearList)> keyList(
+      keys, nodesClearList);
+
+  for (int type : {TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_VARCHAR}) {
+    SCOPED_TRACE(type);
+    SSDataBlock* rawInput = nullptr;
+    ASSERT_EQ(createDataBlock(&rawInput), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> input(
+        rawInput, blockDataDestroy);
+    int bytes = type == TSDB_DATA_TYPE_INT ? sizeof(int32_t) :
+                                           VARSTR_HEADER_SIZE + 16;
+    auto info = createColumnInfoData(type, bytes, 0);
+    ASSERT_EQ(blockDataAppendColInfo(input.get(), &info), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataEnsureCapacity(input.get(), 64), TSDB_CODE_SUCCESS);
+    auto* data = static_cast<SColumnInfoData*>(
+        taosArrayGet(input->pDataBlock, 0));
+    for (int row = 0; row < 64; ++row) {
+      int32_t value = row % 7;
+      char buffer[VARSTR_HEADER_SIZE + 16] = {};
+      std::string text = std::to_string(value);
+      varDataSetLen(buffer, text.size());
+      memcpy(varDataVal(buffer), text.data(), text.size());
+      const char* encoded = type == TSDB_DATA_TYPE_INT ?
+          reinterpret_cast<const char*>(&value) : buffer;
+      ASSERT_EQ(colDataSetVal(data, row, encoded, row % 4 == 0),
+                TSDB_CODE_SUCCESS);
+    }
+    input->info.rows = 64;
+
+    SWindowInputPool* rawPool = nullptr;
+    ASSERT_EQ(winInputPoolCreate(128, 128, "peerPageReuse", &rawPool),
+              TSDB_CODE_SUCCESS);
+    std::unique_ptr<SWindowInputPool, decltype(&winInputPoolDestroy)> pool(
+        rawPool, winInputPoolDestroy);
+    SWindowInputStore* rawStore = nullptr;
+    ASSERT_EQ(winInputStoreCreate(input.get(), pool.get(), &rawStore),
+              TSDB_CODE_SUCCESS);
+    std::unique_ptr<SWindowInputStore, decltype(&winInputStoreDestroy)> store(
+        rawStore, winInputStoreDestroy);
+    ASSERT_EQ(winInputStoreAppendBlock(store.get(), input.get()),
+              TSDB_CODE_SUCCESS);
+    ASSERT_GT(winInputStoreGetPageCount(store.get()), 1);
+    EXPECT_GT(winInputPoolGetStatis(pool.get()).flushPages, 0);
+
+    // Pin one row while the other cache crosses pages in both directions.
+    for (bool reverse : {false, true}) {
+      for (int anchor : {0, 1, 32, 63}) {
+        for (int i = 0; i < 64; ++i) {
+          int row = reverse ? 63 - i : i;
+          bool expected = anchor % 4 == 0 && row % 4 == 0;
+          if (anchor % 4 != 0 && row % 4 != 0) {
+            expected = anchor % 7 == row % 7;
+          }
+          for (bool swap : {false, true}) {
+            bool same = false;
+            ASSERT_EQ(winFuncTestSameOrderKeys(store.get(), keys,
+                                               swap ? row : anchor,
+                                               swap ? anchor : row, &same),
+                      TSDB_CODE_SUCCESS);
+            ASSERT_EQ(same, expected) << anchor << ":" << row << ":" << swap;
+          }
+        }
+      }
+    }
+    EXPECT_GT(winInputPoolGetStatis(pool.get()).loadPages, 0);
+  }
+}
+
+TEST(windowFuncFrameTest, inputStoreRestoresVarNullsWhenReusingPageBlocks) {
+  tstrncpy(tsTempDir, testing::TempDir().c_str(), PATH_MAX);
+  tsTempSpace.size.avail = 1024 * 1024;
+  SSDataBlock* pInput = nullptr;
+  ASSERT_EQ(createDataBlock(&pInput), TSDB_CODE_SUCCESS);
+  std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> input(
+      pInput, blockDataDestroy);
+  auto col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR,
+                                 VARSTR_HEADER_SIZE + 16, 0);
+  ASSERT_EQ(blockDataAppendColInfo(pInput, &col), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pInput, 64), TSDB_CODE_SUCCESS);
+  auto* pCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(pInput->pDataBlock, 0));
+  ASSERT_NE(pCol, nullptr);
+  for (int32_t row = 0; row < 64; ++row) {
+    std::string value = row % 3 == 1 ? "" : "row-" + std::to_string(row);
+    char buffer[VARSTR_HEADER_SIZE + 16] = {};
+    varDataSetLen(buffer, value.size());
+    memcpy(varDataVal(buffer), value.data(), value.size());
+    ASSERT_EQ(colDataSetVal(pCol, row, buffer, row % 3 == 0),
+              TSDB_CODE_SUCCESS);
+  }
+  pInput->info.rows = 64;
+
+  SWindowInputPool* pPool = nullptr;
+  ASSERT_EQ(winInputPoolCreate(128, 128, "varNullPageReuse", &pPool),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SWindowInputPool, decltype(&winInputPoolDestroy)> pool(
+      pPool, winInputPoolDestroy);
+  SWindowInputStore* pStore = nullptr;
+  ASSERT_EQ(winInputStoreCreate(pInput, pPool, &pStore),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SWindowInputStore, decltype(&winInputStoreDestroy)> store(
+      pStore, winInputStoreDestroy);
+  ASSERT_EQ(winInputStoreAppendBlock(pStore, pInput), TSDB_CODE_SUCCESS);
+  ASSERT_GT(winInputStoreGetPageCount(pStore), 1);
+  EXPECT_GT(winInputPoolGetStatis(pPool).flushPages, 0);
+
+  // Cross-page cache reuse must restore hasNull after block cleanup.
+  int pages = winInputStoreGetPageCount(pStore);
+  for (bool reverse : {false, true}) {
+    int start = reverse ? 64 : 0;
+    for (int i = 0; i < pages; ++i) {
+      int page = reverse ? pages - 1 - i : i;
+      SSDataBlock* pBlock = nullptr;
+      ASSERT_EQ(winInputStoreGetBlock(pStore, page, &pBlock),
+                TSDB_CODE_SUCCESS);
+      ASSERT_NE(pBlock, nullptr);
+      if (reverse) start -= pBlock->info.rows;
+      auto* pRead = static_cast<SColumnInfoData*>(
+          taosArrayGet(pBlock->pDataBlock, 0));
+      ASSERT_NE(pRead, nullptr);
+      ASSERT_NE(pRead->varmeta.offset, nullptr);
+      for (int local = 0; local < pBlock->info.rows; ++local) {
+        int row = start + local;
+        SCOPED_TRACE(std::to_string(reverse) + ":" + std::to_string(row));
+        bool isNull = row % 3 == 0;
+        ASSERT_EQ(pRead->varmeta.offset[local] == -1, isNull);
+        ASSERT_EQ(colDataIsNull_s(pRead, local), isNull);
+        if (isNull) {
+          EXPECT_TRUE(pRead->hasNull);
+        } else {
+          std::string expected = row % 3 == 1 ? "" :
+              "row-" + std::to_string(row);
+          const char* value = colDataGetData(pRead, local);
+          ASSERT_NE(value, nullptr);
+          EXPECT_EQ(std::string(varDataVal(value), varDataLen(value)),
+                    expected);
+        }
+      }
+      if (!reverse) start += pBlock->info.rows;
+    }
+    EXPECT_EQ(start, reverse ? 0 : 64);
+  }
+  EXPECT_GT(winInputPoolGetStatis(pPool).loadPages, 0);
 }
