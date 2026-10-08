@@ -72,6 +72,8 @@ typedef struct SStreamNotifyPendingItem {
   SSTriggerCalcParam param;
   int64_t            groupId;
   char*              tableName;
+  int32_t            nextUrl;  // successful URL prefix; retained across worker reschedules
+  int32_t            sendFailures;
 } SStreamNotifyPendingItem;
 
 // Per-stream notify queue (lazy-created on first async notify).
