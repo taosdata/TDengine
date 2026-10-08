@@ -22217,7 +22217,13 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
 
   if (rawData != NULL) {
     if (dataAfterCreate != NULL) {
-      TAOS_MEMCPY(dataAfterCreate - INT_BYTES - flagsLen, dataStart, INT_BYTES + flagsLen);
+      // GCC -O2 loses the relation between flagsLen and the buffer after tStartDecode rebases
+      // pCoder->data, and reports a false -Wstringop-overflow on this in-frame header rewrite.
+      // Call memcpy directly so the diagnostic location is this line, not the TAOS_MEMCPY macro.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+      memcpy(dataAfterCreate - INT_BYTES - flagsLen, dataStart, INT_BYTES + flagsLen);
+#pragma GCC diagnostic pop
       *(int32_t *)(dataAfterCreate - INT_BYTES - flagsLen) = pCoder->pos - posAfterCreate + flagsLen;
       *(void **)rawData = dataAfterCreate - INT_BYTES - flagsLen;
     } else {
