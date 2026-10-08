@@ -6040,7 +6040,11 @@ static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  // bitmap
+  if (pColData->nVal < 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  // bitmap (BIT1_SIZE/BIT2_SIZE cannot overflow for nVal >= 0)
   switch (pColData->flag) {
     case (HAS_NULL | HAS_NONE):
     case (HAS_VALUE | HAS_NONE):
@@ -6059,16 +6063,28 @@ static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
   // value
   if (pColData->flag & HAS_VALUE) {
     if (IS_VAR_DATA_TYPE(pColData->type)) {
-      code = tDecodeBinaryWithSize(pDecoder, pColData->nVal << 2, (uint8_t **)&pColData->aOffset);
+      int64_t offsetSize = (int64_t)pColData->nVal << 2;
+      if (offsetSize > INT32_MAX) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      code = tDecodeBinaryWithSize(pDecoder, (uint32_t)offsetSize, (uint8_t **)&pColData->aOffset);
       if (code) return code;
 
       code = tDecodeI32v(pDecoder, &pColData->nData);
       if (code) return code;
 
+      if (pColData->nData < 0) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+
       code = tDecodeBinaryWithSize(pDecoder, pColData->nData, &pColData->pData);
       if (code) return code;
     } else {
-      pColData->nData = TYPE_BYTES[pColData->type] * pColData->nVal;
+      int64_t nData = (int64_t)TYPE_BYTES[pColData->type] * pColData->nVal;
+      if (nData > INT32_MAX) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      pColData->nData = (int32_t)nData;
       code = tDecodeBinaryWithSize(pDecoder, pColData->nData, &pColData->pData);
       if (code) return code;
     }
@@ -6123,6 +6139,10 @@ int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, 
       int32_t len = 0;
       int32_t code = tDecodeI32(pDecoder, &len);
       if (code) return code;
+      if (len < (int32_t)INT_BYTES ||
+          (uint32_t)(len - INT_BYTES) > pDecoder->size - pDecoder->pos) {
+        return TSDB_CODE_INVALID_MSG;
+      }
       pDecoder->pos += (len - INT_BYTES);
       return TSDB_CODE_SUCCESS;
     } else {
