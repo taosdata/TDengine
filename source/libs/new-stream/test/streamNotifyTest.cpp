@@ -35,6 +35,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdarg>
@@ -675,6 +676,188 @@ class StreamNotifyBlockedWorkerTest : public StreamNotifyTest {
   int32_t               originalParamPoolSizeKb_ = 0;
   bool                  poolInited_ = false;
 };
+
+struct NotifyRetryState {
+  std::mutex              mutex;
+  std::condition_variable changed;
+  std::atomic<int64_t>    nowMs{100000};
+  SCURL                   connections[2] = {};
+  std::vector<int64_t>    delivered[2];
+  int32_t                 failures[2] = {};
+  int32_t                 failingUrl = 1;
+  int32_t                 failuresRemaining = 2;
+  bool                    failSecondEvent = false;
+  bool                    firstFailure = false;
+  bool                    released = false;
+  bool                    retryOverflow = false;
+  bool                    stopping = false;
+};
+
+NotifyRetryState* gNotifyRetryState = nullptr;
+
+int32_t NotifyRetryTimeOfDay(struct timeval* time) {
+  int64_t now = gNotifyRetryState->nowMs.load();
+  time->tv_sec = now / 1000;
+  time->tv_usec = (now % 1000) * 1000;
+  return 0;
+}
+
+void NotifyRetrySleep(int32_t milliseconds) { gNotifyRetryState->nowMs.fetch_add(milliseconds); }
+
+int64_t NotifyRetryAfterMs(const char*) { return 0; }
+
+int32_t NotifyRetryGetConnection(const char* url, SCURL** connection) {
+  *connection = &gNotifyRetryState->connections[strstr(url, "second") != nullptr ? 1 : 0];
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t NotifyRetryEnsureAlive(SCURL*) { return TSDB_CODE_SUCCESS; }
+
+void NotifyRetryRemoveConnection(const char*) {}
+
+int32_t NotifyRetrySendMessage(SCURL* connection, const void* buffer, size_t length, size_t) {
+  NotifyRetryState&                   state = *gNotifyRetryState;
+  const int32_t                       target = connection == &state.connections[0] ? 0 : 1;
+  std::unique_ptr<cJSON, JsonDeleter> root(cJSON_ParseWithLength(static_cast<const char*>(buffer), length));
+  cJSON*                              streams = cJSON_GetObjectItemCaseSensitive(root.get(), "streams");
+  cJSON*                              stream = cJSON_GetArrayItem(streams, 0);
+  cJSON*                              events = cJSON_GetObjectItemCaseSensitive(stream, "events");
+  std::vector<int64_t>                starts;
+  for (int32_t i = 0; i < cJSON_GetArraySize(events); ++i) {
+    cJSON* start = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(events, i), "windowStart");
+    if (!cJSON_IsNumber(start)) return TSDB_CODE_FAILED;
+    starts.push_back(static_cast<int64_t>(start->valuedouble));
+  }
+
+  std::unique_lock<std::mutex> lock(state.mutex);
+  bool                         fail = false;
+  for (int64_t start : starts) {
+    if (target == state.failingUrl && state.failuresRemaining != 0 &&
+        (start == 1000 || (state.failSecondEvent && start == 3000))) {
+      ++state.failures[start == 1000 ? 0 : 1];
+      fail = true;
+    }
+  }
+  if (fail) {
+    state.firstFailure = true;
+    state.retryOverflow = state.failures[0] > 32 || state.failures[1] > 32;
+    state.changed.notify_all();
+    state.changed.wait(lock, [&state] { return state.stopping || (state.released && !state.retryOverflow); });
+    if (state.failuresRemaining > 0) --state.failuresRemaining;
+    // Two transport attempts exhaust the worker budget, forcing a queue reschedule.
+    state.nowMs.fetch_add(6000);
+    return TSDB_CODE_FAILED;
+  }
+  state.delivered[target].insert(state.delivered[target].end(), starts.begin(), starts.end());
+  state.changed.notify_all();
+  return TSDB_CODE_SUCCESS;
+}
+
+class StreamNotifyRetryTest : public StreamNotifyTest {
+ protected:
+  void SetUp() override {
+    StreamNotifyTest::SetUp();
+    originalBatchIntervalMs_ = tsStreamNotifyBatchIntervalMs;
+    tsStreamNotifyBatchIntervalMs = 0;
+    gNotifyRetryState = &state_;
+    for (SCURL& connection : state_.connections) {
+      connection.pConn = reinterpret_cast<CURL*>(&connection);
+    }
+    stub_.set(taosGetTimeOfDay, NotifyRetryTimeOfDay);
+    stub_.set(taosMsleep, NotifyRetrySleep);
+    stub_.set(tcurlUrlRetryAfterMs, NotifyRetryAfterMs);
+    stub_.set(tcurlGetConnection, NotifyRetryGetConnection);
+    stub_.set(tcurlEnsureAlive, NotifyRetryEnsureAlive);
+    stub_.set(tcurlRemoveConnection, NotifyRetryRemoveConnection);
+    stub_.set(tcurlSendMessage, NotifyRetrySendMessage);
+    ASSERT_EQ(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, 1), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override {
+    {
+      std::lock_guard<std::mutex> lock(state_.mutex);
+      state_.stopping = true;
+    }
+    state_.changed.notify_all();
+    streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
+    tsStreamNotifyBatchIntervalMs = originalBatchIntervalMs_;
+    StreamNotifyTest::TearDown();
+  }
+
+  int32_t Enqueue(int64_t start, int64_t groupId = 42) {
+    std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(2, sizeof(char*)));
+    if (urls == nullptr) return terrno;
+    const char* addresses[] = {"ws://unused/first", "ws://unused/second"};
+    for (const char* address : addresses) {
+      if (taosArrayPush(urls.get(), &address) == nullptr) return terrno;
+    }
+    SStreamTask task = {};
+    task.type = STREAM_TRIGGER_TASK;
+    task.streamId = 0x7128649969;
+    SSTriggerCalcParam param = {};
+    param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+    param.wstart = start;
+    param.wend = start + 1000;
+    return streamSendNotifyContent(&task, "1.notify_retry_test", "result_table", STREAM_TRIGGER_SESSION, groupId,
+                                   TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1);
+  }
+
+  bool WaitForFailure() {
+    std::unique_lock<std::mutex> lock(state_.mutex);
+    return state_.changed.wait_for(lock, std::chrono::seconds(5), [this] { return state_.firstFailure; });
+  }
+
+  bool FinishAndCheck(const std::vector<int64_t>& first, const std::vector<int64_t>& second) {
+    std::unique_lock<std::mutex> lock(state_.mutex);
+    state_.released = true;
+    state_.changed.notify_all();
+    bool finished = state_.changed.wait_for(lock, std::chrono::seconds(5), [this, &second] {
+      const auto& delivered = state_.delivered[1];
+      return state_.retryOverflow || std::find(delivered.begin(), delivered.end(), second.back()) != delivered.end();
+    });
+    EXPECT_FALSE(state_.retryOverflow);
+    EXPECT_EQ(state_.delivered[0], first);
+    EXPECT_EQ(state_.delivered[1], second);
+    return finished && !state_.retryOverflow;
+  }
+
+  NotifyRetryState state_;
+
+ private:
+  int32_t originalBatchIntervalMs_ = 0;
+  Stub    stub_;
+};
+
+// Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7128649969
+TEST_F(StreamNotifyRetryTest, PartialDeliverySurvivesRequeueAndNewEvents) {
+  ASSERT_EQ(Enqueue(1000), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForFailure());
+  ASSERT_EQ(Enqueue(3000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Enqueue(5000, 84), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(FinishAndCheck({1000, 3000, 5000}, {1000, 3000, 5000}));
+}
+
+TEST_F(StreamNotifyRetryTest, RetryLimitSurvivesWorkerRequeue) {
+  state_.failuresRemaining = -1;
+  ASSERT_EQ(Enqueue(1000), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForFailure());
+  ASSERT_EQ(Enqueue(3000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(FinishAndCheck({1000, 3000}, {3000}));
+}
+
+TEST_F(StreamNotifyRetryTest, NewEventsKeepTheirOwnRetryBudget) {
+  state_.failingUrl = 0;
+  state_.failuresRemaining = -1;
+  state_.failSecondEvent = true;
+  ASSERT_EQ(Enqueue(1000), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForFailure());
+  ASSERT_EQ(Enqueue(3000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Enqueue(5000, 84), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(FinishAndCheck({5000}, {5000}));
+  std::lock_guard<std::mutex> lock(state_.mutex);
+  EXPECT_EQ(state_.failures[0], 32);
+  EXPECT_EQ(state_.failures[1], 32);
+}
 
 TEST(TcurlSendTest, SendFailureKeepsConnectionForMessageLevelRecovery) {
   Stub stub;

@@ -2814,6 +2814,8 @@ static int32_t streamNotifyListReplaceHeadParam(SStreamNotifyWorkerPool* pWorker
   memset(&pHead->param, 0, sizeof(pHead->param));
 
   pHead->groupId = pNewItem->groupId;
+  pHead->nextUrl = pNewItem->nextUrl;
+  pHead->sendFailures = pNewItem->sendFailures;
   taosMemoryFreeClear(pHead->tableName);
   if (pNewItem->tableName != NULL) {
     pHead->tableName = taosStrdup(pNewItem->tableName);
@@ -3389,13 +3391,22 @@ static void streamWorkerDeferConsume(SStreamNotifyWorkerPool* pPool, SStreamNoti
   }
 }
 
-// Send built JSON to every URL registered for the stream queue.
-static bool streamWorkerSendToQueueUrls(SStreamNotifyQueue* pQueue, const char* msg, size_t msgLen) {
+// Caller holds the queue lock. Consuming keeps the items alive while sending without the lock.
+static bool streamWorkerSendToQueueUrls(SStreamNotifyQueue* pQueue, const char* msg, size_t msgLen,
+                                        SStreamNotifyPendingItem** ppItems, int32_t nItems) {
+  taosThreadMutexUnlock(&pQueue->lock);
   streamWorkerPrepareQueueUrls(pQueue);
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pQueue->pUrls); i++) {
+  (void)taosThreadMutexLock(&pQueue->lock);
+  for (int32_t i = ppItems[0]->nextUrl; i < (int32_t)taosArrayGetSize(pQueue->pUrls); i++) {
     char* url = *(char**)taosArrayGet(pQueue->pUrls, i);
-    if (url && !streamWorkerSendOnUrl(url, msg, msgLen)) {
+    taosThreadMutexUnlock(&pQueue->lock);
+    bool sent = url == NULL || streamWorkerSendOnUrl(url, msg, msgLen);
+    (void)taosThreadMutexLock(&pQueue->lock);
+    if (!sent) {
       return false;
+    }
+    for (int32_t j = 0; j < nItems; j++) {
+      ppItems[j]->nextUrl = i + 1;
     }
   }
   return true;
@@ -3409,7 +3420,7 @@ static void streamNotifyQueueAdjustPendingBytes(SStreamNotifyQueue* pQueue, size
   }
 }
 
-// Merge and send one same-groupId run from ppItems[0..nItems); params stay in queue until caller pops.
+// Merge items with the same group and delivery progress; params stay in queue until caller pops.
 // Returns nMerged (>0) on successful send, 0 on merge/build failure (caller may drop head),
 // -nMerged on send failure (caller must keep queue and retry).
 static int32_t streamWorkerFlushGroupBatch(SStreamNotifyQueue* pQueue, SStreamNotifyPendingItem** ppItems,
@@ -3423,7 +3434,8 @@ static int32_t streamWorkerFlushGroupBatch(SStreamNotifyQueue* pQueue, SStreamNo
   int32_t                   nMerged = 0;
 
   for (int32_t i = 0; i < nItems && nMerged < (int32_t)(sizeof(pMergedItems) / sizeof(pMergedItems[0])); i++) {
-    if (ppItems[i]->groupId != groupId) {
+    if (ppItems[i]->groupId != groupId || ppItems[i]->nextUrl != ppItems[0]->nextUrl ||
+        ppItems[i]->sendFailures != ppItems[0]->sendFailures) {
       break;
     }
     pMergedItems[nMerged++] = ppItems[i];
@@ -3442,9 +3454,7 @@ static int32_t streamWorkerFlushGroupBatch(SStreamNotifyQueue* pQueue, SStreamNo
     return 0;
   }
 
-  taosThreadMutexUnlock(&pQueue->lock);
-  bool sendOk = streamWorkerSendToQueueUrls(pQueue, msg, msgLen);
-  (void)taosThreadMutexLock(&pQueue->lock);
+  bool sendOk = streamWorkerSendToQueueUrls(pQueue, msg, msgLen, pMergedItems, nMerged);
   taosMemoryFree(msg);
   if (!sendOk) {
     return -nMerged;
@@ -3473,47 +3483,7 @@ static SStreamNotifyQueue* streamWorkerPopGlobalQueue(SStreamNotifyWorkerPool* p
   return pQueue;
 }
 
-// Drop the current coalesced batch from queue head after DROP-mode send retries are exhausted.
-static void streamWorkerDropHeadBatch(SStreamNotifyWorkerPool* pWorkerPool, SStreamNotifyQueue* pQueue) {
-  size_t    batchMaxBytes = streamNotifyBatchMaxBytes();
-  SObjPool* pPool = pQueue->paramList.pPool;
-  int32_t   nDrop = 0;
-
-  taosThreadMutexLock(&pWorkerPool->poolLock);
-  int64_t idx = pQueue->paramList.headIdx;
-  size_t  batchBytes = 0;
-  while (idx != TOBJPOOL_INVALID_IDX) {
-    SObjPoolNode*             pNode = TOBJPOOL_GET_NODE(pPool, idx);
-    SStreamNotifyPendingItem* pItem = (SStreamNotifyPendingItem*)TOBJPOOL_NODE_GET_OBJ(pNode);
-    size_t                    itemBytes = streamNotifyEstimateParamBytes(&pItem->param);
-    if (batchBytes > 0 && batchBytes + itemBytes >= batchMaxBytes) {
-      break;
-    }
-    batchBytes += itemBytes;
-    nDrop++;
-    idx = pNode->nextIdx;
-    if (batchBytes >= batchMaxBytes) {
-      break;
-    }
-  }
-  taosThreadMutexUnlock(&pWorkerPool->poolLock);
-
-  for (int32_t i = 0; i < nDrop; i++) {
-    SStreamNotifyPendingItem* pHead = taosObjListGetHead(&pQueue->paramList);
-    if (pHead == NULL) {
-      break;
-    }
-    size_t itemBytes = streamNotifyEstimateParamBytes(&pHead->param);
-    streamNotifyPoolPopHeadEx(pWorkerPool, &pQueue->paramList, streamNotifyPendingItemDestroy);
-    streamNotifyQueueAdjustPendingBytes(pQueue, itemBytes);
-  }
-  if (nDrop > 0) {
-    stWarn("[notify_worker] streamId:%" PRIx64 " drop %d notify item(s) after send retry limit", pQueue->streamId,
-           nDrop);
-  }
-}
-
-// Returns 0 on success, -1 when send failed (queue unchanged, retry later).
+// Returns 0 after consuming the batch, -1 when failed items remain queued for retry.
 static int32_t streamWorkerDrainOneBatch(SStreamNotifyWorkerPool* pWorkerPool, SStreamNotifyQueue* pQueue) {
   size_t    batchMaxBytes = streamNotifyBatchMaxBytes();
   SObjPool* pPool = pQueue->paramList.pPool;
@@ -3549,8 +3519,17 @@ static int32_t streamWorkerDrainOneBatch(SStreamNotifyWorkerPool* pWorkerPool, S
     int32_t                    nItems = (int32_t)taosArrayGetSize(pBatch);
     int32_t                    nSent = streamWorkerFlushGroupBatch(pQueue, ppItems, nItems);
     if (nSent < 0) {
-      taosArrayDestroy(pBatch);
-      return -1;
+      int32_t nFailed = -nSent;
+      for (int32_t i = 0; i < nFailed; i++) {
+        ppItems[i]->sendFailures++;
+      }
+      if ((pQueue->addOptions & NOTIFY_ON_FAILURE_PAUSE) || ppItems[0]->sendFailures < STREAM_NOTIFY_DROP_MAX_RETRIES) {
+        taosArrayDestroy(pBatch);
+        return -1;
+      }
+      stWarn("[notify_worker] streamId:%" PRIx64 " drop %d notify item(s) after send retry limit", pQueue->streamId,
+             nFailed);
+      nSent = nFailed;
     }
     if (nSent == 0) {
       SStreamNotifyPendingItem* pHead = taosObjListGetHead(&pQueue->paramList);
@@ -3588,7 +3567,6 @@ static int32_t streamWorkerDrainOneBatch(SStreamNotifyWorkerPool* pWorkerPool, S
 
 static void streamWorkerConsumeQueue(SStreamNotifyWorkerPool* pPool, SStreamNotifyQueue* pQueue) {
   int64_t streamId = 0;
-  int32_t sendFailures = 0;
   bool    dropMode = false;
   int64_t consumeDeadlineMs = 0;
 
@@ -3622,14 +3600,8 @@ static void streamWorkerConsumeQueue(SStreamNotifyWorkerPool* pPool, SStreamNoti
         goto _release;
       }
       if (streamWorkerDrainOneBatch(pPool, pQueue) < 0) {
-        sendFailures++;
         if (pPool->shuttingDown) {
           goto _release;
-        }
-        if (dropMode && sendFailures >= STREAM_NOTIFY_DROP_MAX_RETRIES) {
-          streamWorkerDropHeadBatch(pPool, pQueue);
-          sendFailures = 0;
-          continue;
         }
         if (dropMode && taosGetTimestampMs() >= consumeDeadlineMs) {
           stWarn("[notify_worker] streamId:%" PRIx64 " DROP worker budget exhausted after send failure, requeue",
@@ -3658,7 +3630,6 @@ static void streamWorkerConsumeQueue(SStreamNotifyWorkerPool* pPool, SStreamNoti
         }
         break;
       }
-      sendFailures = 0;
     }
 
     if (pPool->shuttingDown || pQueue->pendingDestroy) {
