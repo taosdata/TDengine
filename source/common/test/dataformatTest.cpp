@@ -1029,3 +1029,153 @@ TEST_F(BoundedBlockDecoderTest, SelectsFixedColumnNullsWithoutPrefixBitmapBits) 
   fixed = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 1));
   EXPECT_TRUE(colDataIsNull_s(fixed, 0));
 }
+
+// ==================== TD-SEC-2026-031: integer overflow in ColData/INSERT deserialization ====================
+// Hand-crafted wire payloads; each malicious case must be rejected with TSDB_CODE_INVALID_MSG
+// and must never hand back pointers beyond the decoder buffer.
+
+// LEB128 varint writer, byte-compatible with tDecodeU32v
+static int32_t secPutU32v(uint8_t *p, uint32_t v) {
+  int32_t n = 0;
+  while (v >= 0x80) {
+    p[n++] = (uint8_t)(v | 0x80);
+    v >>= 7;
+  }
+  p[n++] = (uint8_t)v;
+  return n;
+}
+
+// zigzag + varint writer, byte-compatible with tDecodeI32v
+static int32_t secPutI32v(uint8_t *p, int32_t v) {
+  return secPutU32v(p, ZIGZAGE(int32_t, v));
+}
+
+static int32_t secDecodeColData(const uint8_t *buf, uint32_t len, uint8_t version, bool jump, SColData *pColData) {
+  SDecoder dec = {0};
+  tDecoderInit(&dec, (uint8_t *)buf, len);
+  int32_t code = tDecodeColData(version, &dec, pColData, jump);
+  tDecoderClear(&dec);
+  return code;
+}
+
+// header shared by the crafted ColData payloads: cid/type/nVal/flag
+static int32_t secPutColDataHeader(uint8_t *p, int8_t type, int32_t nVal, uint8_t flag) {
+  int32_t n = 0;
+  n += secPutI32v(p + n, 1);  // cid
+  p[n++] = (uint8_t)type;
+  n += secPutI32v(p + n, nVal);
+  p[n++] = flag;
+  return n;
+}
+
+TEST(testCase, secColDataRejectsNegativeNVal) {
+  uint8_t buf[64] = {0};
+  int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_INT, -1, HAS_NULL | HAS_NONE);
+
+  SColData colData = {0};
+  EXPECT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(testCase, secColDataRejectsOffsetSizeOverflow) {
+  uint8_t buf[64] = {0};
+  // nVal = 2^30: nVal << 2 overflows int32 and truncates to 0, so the bounds
+  // check passes while the consumer later reads aOffset[0..nVal)
+  int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_BINARY, 0x40000000, HAS_VALUE);
+  n += secPutI32v(buf + n, 0);  // nData
+
+  SColData colData = {0};
+  EXPECT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(testCase, secColDataRejectsNegativeNData) {
+  uint8_t buf[64] = {0};
+  int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_BINARY, 1, HAS_VALUE);
+  memset(buf + n, 0, 4);  // aOffset[0]: 4 raw bytes, not varint
+  n += 4;
+  n += secPutI32v(buf + n, -1);  // nData = -1: (uint32_t)-1 wraps the bounds check
+
+  SColData colData = {0};
+  EXPECT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(testCase, secColDataRejectsFixedDataSizeOverflow) {
+  uint8_t buf[64] = {0};
+  // nVal = INT32_MAX with an 8-byte fixed type: TYPE_BYTES * nVal overflows
+  // int32 and wraps to -8, which bypasses the bounds check as 0xFFFFFFF8
+  int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_BIGINT, 0x7FFFFFFF, HAS_VALUE);
+
+  SColData colData = {0};
+  EXPECT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(testCase, secColDataV2JumpRejectsBadLength) {
+  {
+    // negative length: pDecoder->pos += (len - INT_BYTES) underflows
+    uint8_t buf[16] = {0};
+    int32_t len = -8;
+    memcpy(buf, &len, sizeof(len));
+
+    SColData colData = {0};
+    EXPECT_EQ(secDecodeColData(buf, 4, 2, true, &colData), TSDB_CODE_INVALID_MSG);
+  }
+  {
+    // huge length: pos jumps past the end of the buffer
+    uint8_t buf[16] = {0};
+    int32_t len = 0x7FFFFFF0;
+    memcpy(buf, &len, sizeof(len));
+
+    SColData colData = {0};
+    EXPECT_EQ(secDecodeColData(buf, 4, 2, true, &colData), TSDB_CODE_INVALID_MSG);
+  }
+}
+
+TEST(testCase, secColDataStillAcceptsValidPayload) {
+  {  // fixed-length values, no bitmap
+    uint8_t buf[64] = {0};
+    int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_INT, 2, HAS_VALUE);
+    memset(buf + n, 0x11, 8);
+    n += 8;
+
+    SColData colData = {0};
+    ASSERT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(colData.nVal, 2);
+    EXPECT_EQ(colData.nData, 8);
+    EXPECT_EQ(((int32_t *)colData.pData)[1], 0x11111111);
+  }
+  {  // var-length values with offset array
+    uint8_t buf[64] = {0};
+    int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_BINARY, 1, HAS_VALUE);
+    memset(buf + n, 0, 4);  // aOffset[0]: 4 raw bytes, not varint
+    n += 4;
+    n += secPutI32v(buf + n, 3);  // nData
+    memcpy(buf + n, "abc", 3);
+    n += 3;
+
+    SColData colData = {0};
+    ASSERT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(colData.nVal, 1);
+    EXPECT_EQ(colData.aOffset[0], 0);
+    EXPECT_EQ(memcmp(colData.pData, "abc", 3), 0);
+  }
+  {  // 2-bit bitmap path
+    uint8_t buf[64] = {0};
+    int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_INT, 3, HAS_VALUE | HAS_NULL | HAS_NONE);
+    buf[n++] = 0b00111111;  // BIT2_SIZE(3) == 1
+    memset(buf + n, 0x22, 12);
+    n += 12;
+
+    SColData colData = {0};
+    ASSERT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(colData.nVal, 3);
+    EXPECT_EQ(colData.nData, 12);
+  }
+  {  // v2 jump with a well-formed length
+    uint8_t buf[8] = {0};
+    int32_t len = 8;
+    memcpy(buf, &len, sizeof(len));
+
+    SColData colData = {0};
+    ASSERT_EQ(secDecodeColData(buf, sizeof(buf), 2, true, &colData),
+              TSDB_CODE_SUCCESS);
+  }
+}

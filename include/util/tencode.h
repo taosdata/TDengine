@@ -252,7 +252,8 @@ static FORCE_INLINE int32_t tEncodeCStr(SEncoder* pCoder, const char* val) {
 
 /* ------------------------ FOR DECODER ------------------------ */
 static int32_t tDecodeFixed(SDecoder* pCoder, void* val, uint32_t size) {
-  if (pCoder->pos + size > pCoder->size) {
+  // overflow-free bounds check: pos + size may wrap in uint32 arithmetic
+  if (pCoder->pos > pCoder->size || size > pCoder->size - pCoder->pos) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   } else if (val) {
     TAOS_MEMCPY(val, pCoder->data + pCoder->pos, size);
@@ -423,7 +424,8 @@ static int32_t tDecodeBool(SDecoder* pCoder, bool* val) {
 }
 
 static FORCE_INLINE int32_t tDecodeBinaryWithSize(SDecoder* pCoder, uint32_t size, uint8_t** val) {
-  if (pCoder->pos + size > pCoder->size) {
+  // overflow-free bounds check: pos + size may wrap in uint32 arithmetic
+  if (pCoder->pos > pCoder->size || size > pCoder->size - pCoder->pos) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
@@ -455,7 +457,8 @@ static FORCE_INLINE int32_t tDecodeBinaryTo(SDecoder* pCoder, uint8_t* val, uint
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
-  if (pCoder->pos + len > pCoder->size) {
+  // overflow-free bounds check: pos + len may wrap in uint32 arithmetic
+  if (pCoder->pos > pCoder->size || len > pCoder->size - pCoder->pos) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
@@ -538,7 +541,8 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uin
   if (length) {
     if (len) *len = length;
 
-    if (pCoder->pos + length > pCoder->size) {
+    // overflow-free bounds check: pos + length may wrap in uint64 arithmetic
+    if (pCoder->pos > pCoder->size || length > pCoder->size - pCoder->pos) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
 
@@ -562,7 +566,8 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, void** val, u
   if (length) {
     if (len) *len = length;
 
-    if (pCoder->pos + length > pCoder->size) {
+    // overflow-free bounds check: pos + length may wrap in uint32 arithmetic
+    if (pCoder->pos > pCoder->size || length > pCoder->size - pCoder->pos) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
     *val = taosMemoryMalloc(length);
