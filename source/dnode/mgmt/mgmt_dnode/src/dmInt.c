@@ -23,14 +23,6 @@
 static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   int32_t code = 0;
 
-#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
-  // Verify encryption keys at startup
-  if ((code = dmVerifyAndInitEncryptionKeys()) != 0) {
-    dError("failed to verify encryption keys, since %s", tstrerror(code));
-    return code;
-  }
-#endif
-
   if ((code = dmStartStatusThread(pMgmt)) != 0) {
     return code;
   }
@@ -91,6 +83,16 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   if (pMgmt == NULL) {
     return terrno;
   }
+
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  // Verify encryption keys before any other node (e.g. vnode) is opened, so an
+  // incorrect key is reported here instead of surfacing as a vnode open failure.
+  if ((code = dmVerifyAndInitEncryptionKeys()) != 0) {
+    dError("failed to verify encryption keys, since %s", tstrerror(code));
+    taosMemoryFree(pMgmt);
+    return code;
+  }
+#endif
 
   pMgmt->pData = pInput->pData;
   pMgmt->msgCb = pInput->msgCb;
