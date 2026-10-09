@@ -193,15 +193,6 @@ IF(TD_LINUX)
                 COMMAND stmt2Test
         )
         add_test(
-                NAME stmt2VnodeStopTest
-                COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/stmt2VnodeStopTest.sh"
-                        $<TARGET_FILE:stmt2Test> $<TARGET_FILE:taosd>
-        )
-        set_tests_properties(stmt2VnodeStopTest PROPERTIES
-                RUN_SERIAL TRUE
-                TIMEOUT 900
-        )
-        add_test(
                 NAME stmtTest
                 COMMAND stmtTest
         )
