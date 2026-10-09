@@ -57,6 +57,10 @@ def do_predict():
         input_data = input_data[-_max_input_length:]
 
         prediction_length = data.get("next_len", 10)
+        if (isinstance(prediction_length, bool) or not isinstance(prediction_length, int) or
+            prediction_length < 1 or prediction_length > 10000):
+            return jsonify({"status": "error", "error": "next_len must be an integer in [1, 10000]"}), 400
+
         interval = data.get("conf_interval", 0.95)  # confidence interval
 
         past_dynamic_real = data.get("past_dynamic_real", [])
@@ -343,7 +347,7 @@ def main():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
+        default="127.0.0.1",
         help="Host address the server listens on (default: 0.0.0.0).",
     )
     parser.add_argument(

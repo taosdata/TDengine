@@ -51,6 +51,19 @@ def handle_build_batch_env(request):
         AppLogger.error(msg)
         return {"msg": msg, "rows": -1}
 
+    MAX_WINDOWS = 1000
+    if not isinstance(windows, list) or len(windows) > MAX_WINDOWS:
+        msg = f"'window' must be a list with at most {MAX_WINDOWS} entries, "
+        msg += f"got {len(windows) if isinstance(windows, list) else type(windows).__name__}"
+
+        AppLogger.error(msg)
+        return {"msg": msg, "rows": -1}
+
+    if not (10 <= len(data) <= 40000):
+        msg = f"data length must be in [10, 40000], got {len(data)}"
+        AppLogger.error(msg)
+        return {"msg": msg, "rows": -1}
+
     conf = update_config(payload_obj.get("config", None))
 
     try:

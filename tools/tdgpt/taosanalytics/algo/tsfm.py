@@ -13,8 +13,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-"""auto encoder algorithms to detect anomaly for time series data"""
-
 import json
 
 import requests
@@ -54,13 +52,14 @@ class TsfmBaseService(AbstractForecastService):
 
         try:
             response = requests.post(
-                self.service_host, data=json.dumps(data), headers=self.headers
+                self.service_host, data=json.dumps(data), headers=self.headers,
+                timeout=Configure.get_instance().get_tsfm_exec_timeout(),
             )
-        except Exception:
+        except requests.exceptions.RequestException:
             AppLogger.error(
                 "failed to connect the service: %s", self.service_host, exc_info=True
             )
-            raise
+            raise ValueError("failed to connect to the upstream forecast service")
 
         if response.status_code == 404:
             AppLogger.error(f"failed to connect the service: {self.service_host}")
@@ -69,7 +68,7 @@ class TsfmBaseService(AbstractForecastService):
             AppLogger.error(
                 f"failed to request the service: {self.service_host}, reason: {response.text}"
             )
-            raise ValueError(f"failed to request the service, {response.text}")
+            raise ValueError("upstream service returned an error")
 
         resp_json = response.json()
         AppLogger.debug(f"recv rsp, {resp_json}")
@@ -105,16 +104,8 @@ class TsfmBaseService(AbstractForecastService):
     def set_params(self, params):
         super().set_params(params)
 
-        if "host" in params:
-            self.service_host = params["host"]
-
-            if self.service_host.startswith("https://"):
-                self.service_host = self.service_host.replace("https://", "http://")
-            elif "http://" not in self.service_host:
-                self.service_host = "http://" + self.service_host
-
         AppLogger.info(
-            "%s specify gpt host service: %s",
+            "%s gpt host service: %s",
             self.__class__.__name__,
             self.service_host,
         )

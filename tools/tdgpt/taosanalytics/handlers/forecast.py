@@ -47,9 +47,9 @@ def handle_forecast(request):
 
     try:
         add_forecast_params(params, req_json)
-    except ValueError as e:
+    except (ValueError, TypeError) as e:
         AppLogger.error("invalid fc params: %s", e)
-        return {"msg": f"{e}", "rows": -1}
+        return {"msg": str(e), "rows": -1}
 
     # holt-winters by default
     try:
