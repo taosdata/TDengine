@@ -432,6 +432,32 @@ _exit:
   return code;
 }
 
+int32_t metaCacheGetForDiagnostics(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, bool* pTruncated) {
+  enum { MAX_DIAGNOSTIC_CACHE_ENTRIES = 64 };
+  if (pTruncated == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pTruncated = false;
+  if (pMeta == NULL || pMeta->pCache == NULL || pInfo == NULL || uid == INT64_MIN) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SMetaCache* pCache = pMeta->pCache;
+  if (pCache->sEntryCache.nBucket <= 0 || pCache->sEntryCache.aBucket == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t iBucket = TABS(uid) % pCache->sEntryCache.nBucket;
+  SMetaCacheEntry* pEntry = pCache->sEntryCache.aBucket[iBucket];
+  for (int32_t visited = 0; pEntry != NULL && visited < MAX_DIAGNOSTIC_CACHE_ENTRIES; ++visited) {
+    if (pEntry->info.uid == uid) {
+      *pInfo = pEntry->info;
+      return TSDB_CODE_SUCCESS;
+    }
+    pEntry = pEntry->next;
+  }
+  *pTruncated = pEntry != NULL;
+  return TSDB_CODE_NOT_FOUND;
+}
+
 int32_t metaCacheGet(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo) {
   int32_t code = 0;
 

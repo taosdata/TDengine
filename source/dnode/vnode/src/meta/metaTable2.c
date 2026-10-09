@@ -1662,11 +1662,20 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
       int32_t   skmCode = tdbTbDelete(pMeta->pSkmDb, &skmKey, sizeof(skmKey), pMeta->txn);
       metaULock(pMeta);
       if (skmCode == 0) {
-        metaInfo("vgId:%d, rollback alter: deleted orphan pSkmDb entry uid %" PRId64 " sver %d", TD_VID(pMeta->pVnode),
-                 uid, newSver);
+        metaInfo("vgId:%d, schema delete applied, reason:rollback-alter"
+                 ", schemaUid:%" PRId64 ", sver:%d, prevSver:%d"
+                 ", metaVer:%" PRId64 ", prevMetaVer:%" PRId64
+                 ", txnId:%" PRId64 ", txnStatus:%d",
+                 TD_VID(pMeta->pVnode), uid, newSver, prevSver,
+                 newVersion, prevVersion, mr.me.txnId, mr.me.txnStatus);
       } else {
-        metaWarn("vgId:%d, rollback alter: failed to delete pSkmDb entry uid %" PRId64 " sver %d, code:0x%x",
-                 TD_VID(pMeta->pVnode), uid, newSver, skmCode);
+        metaWarn("vgId:%d, schema delete failed, reason:rollback-alter"
+                 ", schemaUid:%" PRId64 ", sver:%d, prevSver:%d"
+                 ", metaVer:%" PRId64 ", prevMetaVer:%" PRId64
+                 ", txnId:%" PRId64 ", txnStatus:%d, code:0x%x(%s)",
+                 TD_VID(pMeta->pVnode), uid, newSver, prevSver,
+                 newVersion, prevVersion, mr.me.txnId, mr.me.txnStatus,
+                 skmCode, tstrerror(skmCode));
       }
     } else if (newSver >= 0) {
       metaDebug("vgId:%d, rollback alter: keeping pSkmDb entry uid %" PRId64 " sver %d (row schema unchanged by the "
