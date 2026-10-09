@@ -121,6 +121,11 @@ def is_stationary(input_list):
     return pvalue < 0.05
 
 
+_RESERVED_PARAM_KEYS = frozenset(
+    {"rows", "start_ts", "time_step", "period", "conf", "return_conf", "precision", "tz"}
+)
+
+
 def parse_options(option_str) -> dict:
     """
     the option format is like the following string: "algo=ksigma,k=2,invalid_option=invalid_str"
@@ -137,10 +142,16 @@ def parse_options(option_str) -> dict:
             continue
 
         kv_pair = line.strip().split("=")
-        if kv_pair[0].strip() == "" or kv_pair[1].strip() == "":
+        key = kv_pair[0].strip()
+        val = kv_pair[1].strip()
+        if key == "" or val == "":
             continue
 
-        options[kv_pair[0].strip()] = kv_pair[1].strip()
+        # Reject reserved structured-payload keys to prevent option injection
+        if key in _RESERVED_PARAM_KEYS:
+            continue
+
+        options[key] = val
 
     return options
 

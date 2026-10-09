@@ -238,13 +238,19 @@ def complete_timeseries(timestamps, values, precision, freq, freq_val, freq_unit
         }
     ).set_index("timestamp")
 
-    # 生成完整时间范围
+    # guard against explosive date_range: reject spans > 10M periods
     norm_freq = "1" + freq_unit
-    full_range = pd.date_range(
-        start=df.index.min().floor(norm_freq),
-        end=df.index.max().ceil(norm_freq),
-        freq=freq,
-    )
+    _start = df.index.min().floor(norm_freq)
+    _end = df.index.max().ceil(norm_freq)
+    _span = (_end - _start) / pd.tseries.frequencies.to_offset(freq)
+    if _span > 10_000_000:
+        raise ValueError(
+            f"reconstructed time range spans {int(_span)} periods at freq={freq}; "
+            "reduce the timestamp range or increase the frequency"
+        )
+
+    # 生成完整时间范围
+    full_range = pd.date_range(start=_start, end=_end, freq=freq)
 
     # rebuild value list and fill with min value
     complete_df = df.reindex(full_range)
@@ -429,7 +435,7 @@ def main():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
+        default="127.0.0.1",
         help="Host address the server listens on (default: 0.0.0.0).",
     )
     parser.add_argument(
