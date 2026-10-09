@@ -1619,6 +1619,8 @@ void freeSourceDataInfo(void* p) {
   clearSourceResponse(pInfo);
   clearReaderSourceState(pInfo);
   clearRunnerSourceState(pInfo);
+  taosArrayDestroy(pInfo->sysScanReqs);
+  pInfo->sysScanReqs = NULL;
 
   pInfo->decompBufSize = 0;
 }
