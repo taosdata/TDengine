@@ -6031,6 +6031,21 @@ static int32_t tEncodeColDataVersion0(SEncoder *pEncoder, SColData *pColData) {
   return code;
 }
 
+/* Validates one SColData field size and hands it back narrowed to uint32. Every such size is a
+ * wire-supplied count multiplied by a constant, and each is later used both as a byte count and as a
+ * row-loop bound, so compute the product in 64 bits and require it to fit the bytes left in the buffer:
+ * a negative count (which turns the product unsigned) or a product that wrapped in 32 bits must not be
+ * able to present itself as a small, in-range size -- e.g. an 8-byte type with nVal = 0x20000000 wraps
+ * to 0 and would otherwise be handed straight to the caller's row loop. */
+static int32_t tColDataCheckFieldSize(const SDecoder *pDecoder, uint64_t size, uint32_t *pSize) {
+  if (pDecoder->pos > pDecoder->size || size > (uint64_t)(pDecoder->size - pDecoder->pos)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  *pSize = (uint32_t)size;
+  return 0;
+}
+
 static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
   int32_t code = 0;
 
@@ -6065,12 +6080,14 @@ static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
 
   // value
   if (pColData->flag & HAS_VALUE) {
+    uint32_t size = 0;
+
     if (IS_VAR_DATA_TYPE(pColData->type)) {
-      int64_t offsetSize = (int64_t)pColData->nVal << 2;
-      if (offsetSize > INT32_MAX) {
-        return TSDB_CODE_INVALID_MSG;
-      }
-      code = tDecodeBinaryWithSize(pDecoder, (uint32_t)offsetSize, (uint8_t **)&pColData->aOffset);
+      // one 4-byte offset per value; nVal <= INT32_MAX so the 64-bit shift cannot overflow
+      code = tColDataCheckFieldSize(pDecoder, (uint64_t)pColData->nVal << 2, &size);
+      if (code) return code;
+
+      code = tDecodeBinaryWithSize(pDecoder, size, (uint8_t **)&pColData->aOffset);
       if (code) return code;
 
       code = tDecodeI32v(pDecoder, &pColData->nData);
@@ -6080,15 +6097,17 @@ static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
         return TSDB_CODE_INVALID_MSG;
       }
 
-      code = tDecodeBinaryWithSize(pDecoder, pColData->nData, &pColData->pData);
+      code = tColDataCheckFieldSize(pDecoder, (uint64_t)pColData->nData, &size);
+      if (code) return code;
+
+      code = tDecodeBinaryWithSize(pDecoder, size, &pColData->pData);
       if (code) return code;
     } else {
-      int64_t nData = (int64_t)TYPE_BYTES[pColData->type] * pColData->nVal;
-      if (nData > INT32_MAX) {
-        return TSDB_CODE_INVALID_MSG;
-      }
-      pColData->nData = (int32_t)nData;
-      code = tDecodeBinaryWithSize(pDecoder, pColData->nData, &pColData->pData);
+      code = tColDataCheckFieldSize(pDecoder, (uint64_t)TYPE_BYTES[pColData->type] * (uint64_t)pColData->nVal, &size);
+      if (code) return code;
+
+      pColData->nData = (int32_t)size;
+      code = tDecodeBinaryWithSize(pDecoder, size, &pColData->pData);
       if (code) return code;
     }
   }

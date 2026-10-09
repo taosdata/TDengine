@@ -4406,7 +4406,16 @@ int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array) {
   for (int i = 0; i < sz; i++) {
     SConfigItem item = {0};
     TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &item.name));
-    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t *)&item.dtype));
+    int32_t dtype = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &dtype));
+    // dtype selects both the value encoding below and the union member the value is read from afterwards, so a
+    // value outside the enum must be rejected instead of being stored and then acted upon
+    if (dtype < CFG_DTYPE_NONE || dtype > CFG_DTYPE_TIMEZONE) {
+      uError("invalid dtype:%d while deserializing SConfigItem", dtype);
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    item.dtype = (ECfgDataType)dtype;
     switch (item.dtype) {
       {
         case CFG_DTYPE_NONE:

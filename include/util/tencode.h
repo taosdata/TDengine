@@ -133,12 +133,21 @@ static int32_t tDecodeCStrToN(SDecoder* pCoder, char* val, uint32_t valSize);
  * tDecodeCStrTo() bounds the copy by sizeof(val) and is therefore only valid when val is a char
  * array. Decoding into a buffer whose capacity is not that of an array (an allocated buffer, or an
  * array element reached through a pointer) must use tDecodeCStrToN() with the explicit capacity. */
+#if defined(__GNUC__) && !defined(__cplusplus)
+/* Where the compiler can tell an array from a pointer, a char* destination is a compile error
+ * instead of being silently bounded by sizeof(char*). */
+#define tDecodeCStrTo(pCoder, val) \
+  tDecodeCStrToN((pCoder), (val), \
+                 (uint32_t)sizeof(char[sizeof(val) * (1 - 2 * __builtin_types_compatible_p(__typeof__(val), char*))]))
+#else
 #define tDecodeCStrTo(pCoder, val) tDecodeCStrToN((pCoder), (val), (uint32_t)sizeof(val))
+#endif
 
 /* ------------------------ IMPL ------------------------ */
 static FORCE_INLINE int32_t tEncodeFixed(SEncoder* pCoder, const void* val, uint32_t size) {
   if (pCoder->data) {
-    if (pCoder->pos + size > pCoder->size) {
+    // don't use `pCoder->pos + size > pCoder->size` because it wraps
+    if (pCoder->pos > pCoder->size || size > pCoder->size - pCoder->pos) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
     TAOS_MEMCPY(pCoder->data + pCoder->pos, val, size);
@@ -225,7 +234,7 @@ static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, 
   TAOS_CHECK_RETURN(tEncodeU32v(pCoder, len));
   if (len) {
     if (pCoder->data) {
-      if (pCoder->pos + len > pCoder->size) {
+      if (pCoder->pos > pCoder->size || len > pCoder->size - pCoder->pos) {
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
       TAOS_MEMCPY(pCoder->data + pCoder->pos, val, len);
