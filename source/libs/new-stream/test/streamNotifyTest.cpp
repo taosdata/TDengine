@@ -393,6 +393,15 @@ class LoopbackWebSocketServer {
       return;
     }
 
+#ifdef SO_NOSIGPIPE
+    int noSigPipe = 1;
+    if (setsockopt(clientFd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, sizeof(noSigPipe)) != 0) {
+      error_ = std::string("failed to disable SIGPIPE: ") + strerror(errno);
+      close(clientFd);
+      return;
+    }
+#endif
+
     timeval timeout = {kSocketTimeoutSec, 0};
     setsockopt(clientFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     setsockopt(clientFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
