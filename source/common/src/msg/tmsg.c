@@ -22440,6 +22440,10 @@ _exit:
   return code;
 }
 
+// GCC 11 -O3 also diagnoses the header rewrite after inlining
+// tDecodeSSubmitTbData here; its statement-level pragma is insufficient.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList) {
   int32_t code = 0;
 
@@ -22476,6 +22480,8 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray *rawList) {
 _exit:
   return code;
 }
+
+#pragma GCC diagnostic pop
 
 void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   if (NULL == pTbData) {
