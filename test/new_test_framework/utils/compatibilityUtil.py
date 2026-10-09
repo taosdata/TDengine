@@ -407,17 +407,24 @@ class CompatibilityBase:
         except TmqError as e:
             tdLog.exit(f"subscribe error: {e}")
         
+        # A None from poll() only means no new message within 1s, not that the
+        # topic has no data; under heavy load the first batch may take longer
+        # than 1s. We only consume the first batch to establish the
+        # first_consumer_rows baseline, so give it a 30s grace window to avoid
+        # a slow start recording too few rows and skewing later checks.
+        first_msg_deadline = time.time() + 30
         while True:
             message = consumer.poll(timeout=1.0)
             if message:
                 for block in message:
                     first_consumer_rows += block.nrows()
-            else:
-                tdLog.notice("message is null and break")
+                consumer.commit(message)
+                tdLog.info(f"topic:{select_topic} ,first consumer rows is {first_consumer_rows} in old version")
                 break
-            consumer.commit(message)
-            tdLog.debug(f"topic:{select_topic} ,first consumer rows is {first_consumer_rows} in old version")
-            break
+            tdLog.info("first message is null, keep waiting for first batch")
+            if time.time() > first_msg_deadline:
+                tdLog.info("no first message within 30s, break")
+                break
 
         consumer.close()
         
@@ -741,15 +748,30 @@ class CompatibilityBase:
         )
         consumer.subscribe([select_topic])
         consumer_rows = 0
+        # A None from poll() only means no new message within 1s, not that the
+        # subscription is drained. After a cold upgrade the first subscription
+        # must register the consumer and scan snapshots, so under heavy load
+        # the first batch may exceed 1s; breaking on a single empty poll would
+        # mistake the slow start for "0 rows". Instead: allow 30s for the
+        # first batch, then treat 10 consecutive empty polls (~10s of silence)
+        # as consumed.
+        silent_polls = 0
+        first_msg_deadline = time.time() + 30
         while True:
             message = consumer.poll(timeout=1.0)
             tdLog.info(f" null {message}")
             if message:
+                silent_polls = 0
                 for block in message:
                     consumer_rows += block.nrows()
                 tdLog.info(f"consumer rows is {consumer_rows}")
-            else:
+                continue
+            silent_polls += 1
+            if consumer_rows > 0 and silent_polls >= 10:
                 tdLog.info("consumer has completed and break")
+                break
+            if consumer_rows == 0 and time.time() > first_msg_deadline:
+                tdLog.info("consumer has completed and break (no first message within 30s)")
                 break
         consumer.close()
         tdsql.query(f"{topic_select_sql}")
