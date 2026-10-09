@@ -1,8 +1,6 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
- * SPDX-License-Identifier: AGPL-3.0-or-later
- *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1158,10 +1156,6 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL:
-      if (pTlv->len != pNode->node.resType.bytes) {
-        code = TSDB_CODE_FAILED;
-        break;
-      }
       pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes);
       if (!pNode->datum.p) {
         code = terrno;
@@ -2458,7 +2452,12 @@ static int32_t msgToQueryNodeAddr(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { DOWNSTREAM_SOURCE_CODE_INLINE_ATTRS = 1, DOWNSTREAM_SOURCE_CODE_PRODUCER_QUERY_ID };
+enum {
+  DOWNSTREAM_SOURCE_CODE_INLINE_ATTRS = 1,
+  DOWNSTREAM_SOURCE_CODE_PRODUCER_QUERY_ID,
+  DOWNSTREAM_SOURCE_CODE_LOCAL_EXEC,
+  DOWNSTREAM_SOURCE_CODE_FOLLOWER_READ,
+};
 
 static int32_t downstreamSourceNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SDownstreamSourceNode* pNode = (const SDownstreamSourceNode*)pObj;
@@ -2488,6 +2487,12 @@ static int32_t downstreamSourceNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   int32_t code = tlvEncodeObj(pEncoder, DOWNSTREAM_SOURCE_CODE_INLINE_ATTRS, downstreamSourceNodeInlineToMsg, pObj);
   if (TSDB_CODE_SUCCESS == code && 0 != pNode->producerQueryId) {
     code = tlvEncodeU64(pEncoder, DOWNSTREAM_SOURCE_CODE_PRODUCER_QUERY_ID, pNode->producerQueryId);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->localExec) {
+    code = tlvEncodeBool(pEncoder, DOWNSTREAM_SOURCE_CODE_LOCAL_EXEC, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->allowFollowerRead) {
+    code = tlvEncodeBool(pEncoder, DOWNSTREAM_SOURCE_CODE_FOLLOWER_READ, true);
   }
   return code;
 }
@@ -2527,6 +2532,12 @@ static int32_t msgToDownstreamSourceNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case DOWNSTREAM_SOURCE_CODE_PRODUCER_QUERY_ID:
         code = tlvDecodeU64(pTlv, &pNode->producerQueryId);
+        break;
+      case DOWNSTREAM_SOURCE_CODE_LOCAL_EXEC:
+        code = tlvDecodeBool(pTlv, &pNode->localExec);
+        break;
+      case DOWNSTREAM_SOURCE_CODE_FOLLOWER_READ:
+        code = tlvDecodeBool(pTlv, &pNode->allowFollowerRead);
         break;
       default:
         break;
@@ -3649,7 +3660,8 @@ enum {
   PHY_LAST_ROW_SCAN_CODE_IGNULL,
   PHY_LAST_ROW_SCAN_CODE_TARGETS,
   PHY_LAST_ROW_SCAN_CODE_FUNCTYPES,
-  PHY_LAST_ROW_SCAN_CODE_TBCOUNT_TYPE
+  PHY_LAST_ROW_SCAN_CODE_TBCOUNT_TYPE,
+  PHY_LAST_ROW_SCAN_CODE_BATCH_MULTI_TABLE_READ
 };
 
 static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3673,6 +3685,9 @@ static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI8(pEncoder, PHY_LAST_ROW_SCAN_CODE_TBCOUNT_TYPE, pNode->tbCountType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_LAST_ROW_SCAN_CODE_BATCH_MULTI_TABLE_READ, pNode->batchMultiTableRead);
   }
 
   return code;
@@ -3706,6 +3721,9 @@ static int32_t msgToPhysiLastRowScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_LAST_ROW_SCAN_CODE_TBCOUNT_TYPE:
         code = tlvDecodeI8(pTlv, &pNode->tbCountType);
         break;
+      case PHY_LAST_ROW_SCAN_CODE_BATCH_MULTI_TABLE_READ:
+        code = tlvDecodeBool(pTlv, &pNode->batchMultiTableRead);
+        break;
 
       default:
         break;
@@ -3731,6 +3749,7 @@ enum {
   // Append-only: new TLV codes go at the end so mixed-version clusters never
   // reinterpret an existing code (INTERP_MODE must stay at its released value).
   PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE,
+  PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3853,6 +3872,9 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE, pNode->twoPassRescanSource);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->lastOnlyScan) {
+    code = tlvEncodeBool(pEncoder, PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN, true);
+  }
 
   return code;
 }
@@ -3945,6 +3967,7 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
 static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
   STableScanPhysiNode* pNode = (STableScanPhysiNode*)pObj;
   pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
+  pNode->lastOnlyScan = false;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -3998,6 +4021,9 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_TABLE_SCAN_CODE_INTERP_MODE:
         code = tlvDecodeI8(pTlv, &pNode->interpMode);
+        break;
+      case PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN:
+        code = tlvDecodeBool(pTlv, &pNode->lastOnlyScan);
         break;
       default:
         break;
@@ -4590,6 +4616,7 @@ enum {
   PHY_EXCHANGE_CODE_DYN_TBNAME,
   PHY_EXCHANGE_CODE_SINGLE_SOURCE,
   PHY_EXCHANGE_CODE_FAST_INTERVAL,
+  PHY_EXCHANGE_CODE_LOCAL_BLOCK_EXCHANGE,
 };
 
 static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4622,6 +4649,9 @@ static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_FAST_INTERVAL, pNode->fastInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_LOCAL_BLOCK_EXCHANGE, pNode->localBlockExchange);
   }
 
   return code;
@@ -4663,6 +4693,9 @@ static int32_t msgToPhysiExchangeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXCHANGE_CODE_FAST_INTERVAL:
         code = tlvDecodeBool(pTlv, &pNode->fastInterval);
+        break;
+      case PHY_EXCHANGE_CODE_LOCAL_BLOCK_EXCHANGE:
+        code = tlvDecodeBool(pTlv, &pNode->localBlockExchange);
         break;
       default:
         break;
@@ -6281,13 +6314,17 @@ static int32_t msgToPhysicDataSinkNode(STlvDecoder* pDecoder, void* pObj) {
 }
 
 enum { PHY_DISPATCH_CODE_SINK = 1,
-       PHY_DISPATCH_DYNAMIC_SCHEMA};
+       PHY_DISPATCH_DYNAMIC_SCHEMA,
+       PHY_DISPATCH_LOCAL_BLOCK_EXCHANGE};
 
 static int32_t physiDispatchNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SDataDispatcherNode* pNode = (const SDataDispatcherNode*)pObj;
   int32_t                    code = tlvEncodeObj(pEncoder, PHY_DISPATCH_CODE_SINK, physicDataSinkNodeToMsg, &pNode->sink);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_DISPATCH_DYNAMIC_SCHEMA, pNode->dynamicSchema);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_DISPATCH_LOCAL_BLOCK_EXCHANGE, pNode->localBlockExchange);
   }
   return code;
 }
@@ -6304,6 +6341,9 @@ static int32_t msgToPhysiDispatchNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DISPATCH_DYNAMIC_SCHEMA:
         code = tlvDecodeBool(pTlv, &pNode->dynamicSchema);
+        break;
+      case PHY_DISPATCH_LOCAL_BLOCK_EXCHANGE:
+        code = tlvDecodeBool(pTlv, &pNode->localBlockExchange);
         break;
       default:
         break;
@@ -6932,7 +6972,9 @@ enum {
   SUBPLAN_CODE_DELAY_FREE_TASK,
   SUBPLAN_CODE_REQUIRES_ANCESTOR_CONTEXT,
   SUBPLAN_CODE_EXEC_NODE_TABLE_NUM,
-  SUBPLAN_CODE_SUBQ
+  SUBPLAN_CODE_SUBQ,
+  SUBPLAN_CODE_LOCAL_BLOCK_EXCHANGE,
+  SUBPLAN_CODE_EXEC_ON_CHILD_NODE,
 };
 
 static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -7014,6 +7056,12 @@ static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pNode->pSubQ) {
     code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_SUBQ, nodeListToMsg, pNode->pSubQ);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_LOCAL_BLOCK_EXCHANGE, pNode->localBlockExchange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_EXEC_ON_CHILD_NODE, pNode->execOnChildNode);
   }
 
   return code;
@@ -7104,6 +7152,12 @@ static int32_t msgToSubplan(STlvDecoder* pDecoder, void* pObj) {
         break;
       case SUBPLAN_CODE_SUBQ:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pSubQ);
+        break;
+      case SUBPLAN_CODE_LOCAL_BLOCK_EXCHANGE:
+        code = tlvDecodeBool(pTlv, &pNode->localBlockExchange);
+        break;
+      case SUBPLAN_CODE_EXEC_ON_CHILD_NODE:
+        code = tlvDecodeBool(pTlv, &pNode->execOnChildNode);
         break;
       default:
         break;

@@ -333,6 +333,7 @@ typedef enum EHintOption {
   HINT_EX_INTERVAL,
   HINT_MERGE_JOIN,
   HINT_JOIN_ALGO,
+  HINT_SPLIT_SCAN,
 } EHintOption;
 
 // A Hint parameter keeps the original token type and text for later consumers.

@@ -264,12 +264,45 @@ static bool needsMaxSmaForDynamicPrune(SOperatorInfo* pOperator) {
   return false;
 }
 
+// One-row SMA blocks retain their physical source row count only in
+// SDataBlockInfo::smaSourceRows, which is intentionally not serialized. Keep
+// this representation on the local direct-block path of a batch query, where
+// the downstream aggregate consumes the block in-process. Stream tasks and
+// remote exchanges must retain the ordinary per-row representation.
+static bool canMaterializeSmaAsOneRow(const SOperatorInfo* pOperator, const STableScanBase* pTableScanInfo) {
+  return pOperator != NULL && pOperator->pTaskInfo != NULL && pTableScanInfo != NULL &&
+         pTableScanInfo->dataBlockLoadFlag == FUNC_DATA_REQUIRED_SMA_LOAD &&
+         pOperator->pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH && pOperator->pTaskInfo->localFetch.directBlock;
+}
+
+static bool canRecycleRawDirectBlock(const SOperatorInfo* pOperator, const SSDataBlock* pBlock) {
+  return pOperator != NULL && pOperator->pTaskInfo != NULL && pBlock != NULL &&
+         pOperator->pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH && pOperator->pTaskInfo->localFetch.directBlock &&
+         pBlock->info.smaSourceRows == 0;
+}
+
+#if defined(BUILD_TEST)
+bool scanTestCanMaterializeSmaAsOneRow(const SOperatorInfo* pOperator, const STableScanBase* pTableScanInfo) {
+  return canMaterializeSmaAsOneRow(pOperator, pTableScanInfo);
+}
+
+bool scanTestCanRecycleRawDirectBlock(const SOperatorInfo* pOperator, const SSDataBlock* pBlock) {
+  return canRecycleRawDirectBlock(pOperator, pBlock);
+}
+#endif
+
 static bool canUseSmaForIntervalMax(SOperatorInfo* pOperator) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     return false;
   }
 
   STableScanInfo* pTableScanInfo = pOperator->info;
+  if (pTableScanInfo->virtualStableScan) {
+    return false;
+  }
+  if (!canMaterializeSmaAsOneRow(pOperator, &pTableScanInfo->base)) {
+    return false;
+  }
   SExprSupp*      pExprSup = pTableScanInfo->base.pdInfo.pExprSup;
   if (pTableScanInfo->base.pdInfo.interval.interval <= 0 || NULL == pExprSup || NULL == pExprSup->pCtx) {
     return false;
@@ -467,7 +500,7 @@ static int32_t doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* p
   SExprSupp* pSup = &pTableScanInfo->pseudoSup;
   if (pSup->numOfExprs > 0) {
     code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
-                                  pTaskInfo, &pTableScanInfo->metaCache);
+                                  pTaskInfo, pTableScanInfo->pTableListInfo, &pTableScanInfo->metaCache);
                                   // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       code = 0;
@@ -527,11 +560,17 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   bool           smaLoadAttempted = false;
   bool           overlap = false;
   bool           maxInterval = false;
+  bool           virtualStableScan =
+      pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+      ((STableScanInfo*)pOperator->info)->virtualStableScan;
 
   SFileBlockLoadRecorder* pCost = &pTableScanInfo->readRecorder;
 
   pCost->totalBlocks += 1;
   *status = pTableScanInfo->dataBlockLoadFlag;
+  if (virtualStableScan && *status == FUNC_DATA_REQUIRED_SMA_LOAD) {
+    *status = FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
 
   if (pOperator->exprSupp.pFilterInfo != NULL) {
     (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -549,7 +588,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   }
 
   SDataBlockInfo* pBlockInfo = &pBlock->info;
-  taosMemoryFreeClear(pBlock->pBlockAgg);
+  pBlock->pBlockAgg = NULL;
   pBlockInfo->pBlockAgg = NULL;
 
   if (*status == FUNC_DATA_REQUIRED_FILTEROUT) {
@@ -584,6 +623,16 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     if (success) {
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64, GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+
+      if (pBlockInfo->rows > INT32_MAX) {
+        pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+        qError("%s SMA source rows:%" PRId64 " exceeds int32 range", GET_TASKID(pTaskInfo), pBlockInfo->rows);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+
+      pBlockInfo->smaSourceRows = (int32_t)pBlockInfo->rows;
+      pBlockInfo->rows = 1;
+
       if (!skipSetTagColumnData(pOperator)) {
         code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
       }
@@ -604,7 +653,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   }
 
   // try to filter data block according to sma info
-  if (pOperator->exprSupp.pFilterInfo != NULL && (!loadSMA)) {
+  if (!virtualStableScan && pOperator->exprSupp.pFilterInfo != NULL && (!loadSMA)) {
     ETsdReaderBlockSmaMode blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
     if (filterBlockSmaOnlyUsesNumOfNull(pOperator->exprSupp.pFilterInfo)) {
       blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY;
@@ -633,7 +682,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
                GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
         pCost->filterOutBlocks += 1;
         (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
-        taosMemoryFreeClear(pBlock->pBlockAgg);
+        pBlock->pBlockAgg = NULL;
         pBlockInfo->pBlockAgg = NULL;
 
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
@@ -648,10 +697,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   // pruning. TableMergeScan still uses the shared filter-SMA path above.
   bool aggDynamicPrune =
       pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-  if (aggDynamicPrune && !overlap && !maxInterval && !smaLoadAttempted &&
+  if (aggDynamicPrune && !virtualStableScan && !overlap && !maxInterval && !smaLoadAttempted &&
       (needsLastNullSmaForDynamicPrune(pOperator, pBlock) || needsMaxSmaForDynamicPrune(pOperator))) {
     bool success = false;
-    taosMemoryFreeClear(pBlock->pBlockAgg);
+    pBlock->pBlockAgg = NULL;
     pBlockInfo->pBlockAgg = NULL;
     code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY, &success);
     if (code) {
@@ -661,10 +710,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  if (aggDynamicPrune && !maxInterval) {
+  if (aggDynamicPrune && !virtualStableScan && !maxInterval) {
     code = doDynamicPruneDataBlock(pOperator, pBlock, status);
   }
-  taosMemoryFreeClear(pBlock->pBlockAgg);
+  pBlock->pBlockAgg = NULL;
   pBlockInfo->pBlockAgg = NULL;
   if (code) {
     pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
@@ -808,8 +857,28 @@ static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t 
   }
 }
 
+static bool requiresTableMetaForPseudoColumns(const SExprInfo* pExpr, int32_t numOfExpr, const char* pTbname) {
+  for (int32_t i = 0; i < numOfExpr; ++i) {
+    int32_t functionId = pExpr[i].pExpr->_function.functionId;
+    if (!fmIsScanPseudoColumnFunc(functionId)) {
+      return true;
+    }
+
+    int32_t functionType = pExpr[i].pExpr->_function.functionType;
+    if (functionType == FUNCTION_TYPE_TBNAME && pTbname == NULL) {
+      return true;
+    }
+    if (functionType != FUNCTION_TYPE_TBNAME && functionType != FUNCTION_TYPE_VGID &&
+        functionType != FUNCTION_TYPE_VGVER) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
-                               int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache) {
+                               int32_t rows, SExecTaskInfo* pTask, const STableListInfo* pTableListInfo,
+                               STableMetaCacheInfo* pCache) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   bool             freeReader = false;
@@ -819,6 +888,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   const char*      idStr = pTask->id.str;
   int32_t          insertRet = TAOS_LRU_STATUS_OK;
   STableCachedVal* pVal = NULL;
+  const char*       pTbname = tableListGetTbname(pTableListInfo, pBlock->info.id.uid);
+  bool              useTableListTbname = false;
 
   // currently only the tbname pseudo column
   if (numOfExpr <= 0) {
@@ -834,8 +905,11 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   // todo refactor: extract method
   // the handling of the null data should be packed in the extracted method
 
-  // 1. check if it is existed in meta cache
-  if (pCache == NULL || pCache->pTableMetaEntryCache == NULL) {
+  if (pTbname != NULL && !requiresTableMetaForPseudoColumns(pExpr, numOfExpr, pTbname)) {
+    val.pName = pTbname;
+    useTableListTbname = true;
+  } else if (pCache == NULL || pCache->pTableMetaEntryCache == NULL) {
+    // Check the per-scan meta cache before reading table metadata from vnode.
     pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn, pHandle->txnId);
     code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -914,7 +988,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     if (fmIsScanPseudoColumnFunc(functionId)) {
       int32_t fType = pExpr1->pExpr->_function.functionType;
       if (fType == FUNCTION_TYPE_TBNAME) {
-        code = setTbNameColData(pBlock, pColInfoData, functionId, val.pName);
+        const char* pName = useTableListTbname ? pTbname : val.pName;
+        code = setTbNameColData(pBlock, pColInfoData, functionId, pName);
         QUERY_CHECK_CODE(code, lino, _end);
       } else if (fType == FUNCTION_TYPE_VGID) {
         code = setVgIdColData(pBlock, pColInfoData, functionId, pTask->id.vgId);
@@ -989,15 +1064,21 @@ int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
   int32_t                     code = TSDB_CODE_SUCCESS;
   int32_t                     lino = 0;
   struct SScalarFuncExecFuncs fpSet = {0};
+  SColumnInfoData             infoData = {0};
+
+  if (pBlock == NULL || pColInfoData == NULL || name == NULL || pBlock->info.rows <= 0) {
+    qError("%s invalid parameter, block:%p column:%p name:%p rows:%" PRId64, __func__, pBlock, pColInfoData, name,
+           pBlock == NULL ? 0 : pBlock->info.rows);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   code = fmGetScalarFuncExecFuncs(functionId, &fpSet);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  size_t len = TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE;
-  char   buf[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  char buf[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_TO_VARSTR(buf, name)
 
-  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, len, 1);
-
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, sizeof(buf), 1);
   code = colInfoDataEnsureCapacity(&infoData, 1, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -1006,17 +1087,16 @@ int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
 
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
-
-  if (fpSet.process != NULL) {
-    code = fpSet.process(&srcParam, 1, &param);
-    QUERY_CHECK_CODE(code, lino, _end);
-  } else {
+  if (fpSet.process == NULL) {
     qError("failed to get the corresponding callback function, functionId:%d", functionId);
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto _end;
   }
 
-  colDataDestroy(&infoData);
+  code = fpSet.process(&srcParam, 1, &param);
 
 _end:
+  colDataDestroy(&infoData);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1098,7 +1178,7 @@ static int32_t initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo
   pInfo->tableStartIndex = TARRAY_ELEM_IDX(pInfo->base.pTableListInfo->pTableList, *pKeyInfo);
   pInfo->tableEndIndex = (pInfo->tableStartIndex + (*size) - 1);
   pInfo->pResBlock->info.blankFill = false;
-  taosMemoryFreeClear(pInfo->pResBlock->pBlockAgg);
+  pInfo->pResBlock->pBlockAgg = NULL;
 
   if (!pInfo->needCountEmptyTable) {
     pInfo->countState = TABLE_COUNT_STATE_END;
@@ -1331,6 +1411,37 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
   bool            hasNext = false;
 
   QRY_PARAM_CHECK(ppRes);
+
+  // In local block-exchange mode the previously returned scan block is owned
+  // by the downstream FIFO. Allocate a new operator-owned output block before
+  // asking the reader for the next block; otherwise tsdb would refill the
+  // same object while the interval operator is still consuming it.
+  if (pTaskInfo->localFetch.directBlock && pOperator->status != OP_EXEC_DONE && pBlock != NULL &&
+      pBlock->info.rows > 0) {
+    SSDataBlock* pNextBlock = NULL;
+    bool          reused = false;
+    // SMA and other non-recyclable blocks retain the original allocation
+    // path. Only raw direct-block outputs may touch the recycle stack.
+    if (pBlock->recycleEnabled) {
+      code = createOneDataBlockFromRecycle(pBlock, &pNextBlock, &reused);
+    } else {
+      code = createOneDataBlock(pBlock, false, &pNextBlock);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = blockDataEnsureCapacity(pNextBlock, pOperator->resultInfo.capacity);
+    if (code != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(pNextBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    if (pTableScanInfo->base.dataReader != NULL) {
+      pAPI->tsdReader.tsdReaderSetDatablock(pTableScanInfo->base.dataReader, pNextBlock);
+    }
+    // Mark only raw direct-block outputs for the lock-free recycle path. SMA
+    // results keep their original ownership and cleanup behavior.
+    pNextBlock->recycleEnabled = pBlock->recycleEnabled;
+    pTableScanInfo->pResBlock = pBlock = pNextBlock;
+  }
+
   pBlock->info.dataLoad = false;
 
   while (true) {
@@ -1417,7 +1528,9 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
         }
       }
     }
-
+    if (pTaskInfo->localFetch.directBlock) {
+      pBlock->recycleEnabled = canRecycleRawDirectBlock(pOperator, pBlock);
+    }
     (*ppRes) = pBlock;
     return code;
   }

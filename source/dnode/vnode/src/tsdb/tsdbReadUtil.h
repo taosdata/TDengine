@@ -89,6 +89,8 @@ typedef struct STsdbReaderInfo {
   SVersionRange verRange;
   int16_t       order;
   bool          cacheSttStatis;
+  bool          lastOnlyScan;
+  int32_t       blockRowLimit;
 } STsdbReaderInfo;
 
 typedef struct SBlockInfoBuf {
@@ -152,12 +154,26 @@ typedef struct STableBlockScanInfo {
 typedef struct SResultBlockInfo {
   SSDataBlock* pResBlock;
   bool         freeBlock;
+  // True only when reader open proved that the result block is newly initialized.
+  bool         skipInitialCleanup;
   int64_t      capacity;
 } SResultBlockInfo;
 
 typedef struct SReadCostSummary {
   int64_t               numOfBlocks;
   double                blockLoadTime;
+  int64_t               fileLoadCalls;
+  double                fileLoadElapsed;
+  int64_t               nextCalls;
+  double                nextElapsed;
+  int64_t               retrieveCalls;
+  double                retrieveElapsed;
+  int64_t               copyCalls;
+  double                copyElapsed;
+  int64_t               cleanupCalls;
+  double                cleanupElapsed;
+  int64_t               recycledCleanupCalls;
+  double                recycledCleanupElapsed;
   int64_t               memBlocks;
   double                buildmemBlock;
   int64_t               headFileLoad;

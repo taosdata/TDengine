@@ -89,6 +89,29 @@ typedef struct SLimit {
 
 typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
 
+typedef struct SIntervalTimingInfo {
+  int64_t openCalls;
+  int64_t openElapsedUs;
+  int64_t downstreamCalls;
+  int64_t downstreamElapsedUs;
+  int64_t setInputCalls;
+  int64_t setInputElapsedUs;
+  int64_t hashCalls;
+  int64_t hashElapsedUs;
+  int64_t hashOutputCalls;
+  int64_t hashOutputElapsedUs;
+  int64_t hashApplyCalls;
+  int64_t hashApplyElapsedUs;
+  int64_t hashSeekCalls;
+  int64_t hashSeekElapsedUs;
+  int64_t initResultCalls;
+  int64_t initResultElapsedUs;
+  int64_t buildCalls;
+  int64_t buildElapsedUs;
+  int64_t filterCalls;
+  int64_t filterElapsedUs;
+} SIntervalTimingInfo;
+
 enum {
   STREAM_RECOVER_STEP__NONE = 0,
   STREAM_RECOVER_STEP__PREPARE1,
@@ -250,6 +273,7 @@ typedef struct SExchangeInfo {
   // passed by downstream operator
   SArray*      pResultBlockList;
   SArray*      pRecycledBlocks;  // build a pool for small data block to avoid to repeatly create and then destroy.
+  SArray*      pLocalBlockLeases;           // SArray<SExchangeLocalBlockLease>, local source blocks pending reuse
   SArray*      pMultiGroupResultList;        // SArray<SExchangeMultiGroupResult>, Runner or Reader fetch
   SArray*      pPublishedLineage;            // owned; runtime pStreamBlkWinIdx borrows it
   SStreamRuntimeFuncInfo* pPublishedStream;  // borrowed runtime that received pPublishedLineage
@@ -716,6 +740,7 @@ typedef struct SIntervalAggOperatorInfo {
   uint64_t      handledGroupNum;
   BoundedQueue* pBQ;
   void*         pExInterval;
+  SIntervalTimingInfo timing;
 } SIntervalAggOperatorInfo;
 
 typedef struct SMergeAlignedIntervalAggOperatorInfo {
@@ -940,7 +965,8 @@ int32_t filterExecuteWithTaskCorrelation(SFilterInfo* pFilterInfo, SSDataBlock* 
                                          int16_t numOfCols, int32_t* pResultStatus,
                                          SExecTaskInfo* pTaskInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
-                               int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
+                               int32_t rows, SExecTaskInfo* pTask, const STableListInfo* pTableListInfo,
+                               STableMetaCacheInfo* pCache);
 
 int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 

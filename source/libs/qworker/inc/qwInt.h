@@ -212,6 +212,7 @@ typedef struct SQWTaskCtx {
   bool    queryInQueue;
   bool    explainRsped;
   bool    sinkWithMemPool;
+  bool    localBlockSink;
   int32_t rspCode;
   int64_t affectedRows;  // for insert ...select stmt
 
@@ -356,12 +357,17 @@ extern SQueryMgmt gQueryMgmt;
 
 #define QW_SINK_ENABLE_MEMPOOL(_ctx)                                              \
   do {                                                                            \
-    if ((_ctx)->sinkWithMemPool) {                                                \
+    if ((_ctx)->sinkWithMemPool && !(_ctx)->localBlockSink) {                     \
       taosEnableMemPoolUsage((_ctx)->memPoolSession);        \
     }                                                                             \
   } while (0)
 
-#define QW_SINK_DISABLE_MEMPOOL() taosDisableMemPoolUsage()
+#define QW_SINK_DISABLE_MEMPOOL(_ctx)                                             \
+  do {                                                                            \
+    if ((_ctx)->sinkWithMemPool && !(_ctx)->localBlockSink) {                     \
+      taosDisableMemPoolUsage();                                                  \
+    }                                                                             \
+  } while (0)
 
 #define QW_STAT_INC(_item, _n) (void)atomic_add_fetch_64(&(_item), _n)
 #define QW_STAT_DEC(_item, _n) (void)atomic_sub_fetch_64(&(_item), _n)

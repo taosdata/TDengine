@@ -22,7 +22,7 @@
 #                     (e.g. /green_version/3.3.6.0/{taosd,libtaos.so}); packages built
 #                     with the thin dispatcher also get libtaosnative.so
 # [branch]          : target branch name, default: main
-#                     supported: main, 3.3.6
+#                     supported: main, 3.4.2, 3.3.6
 
 set -e
 
@@ -49,6 +49,26 @@ BASELINE_VERSIONS_HOT=(
     3.4.0.14
 )
 
+# Baseline versions for branch: 3.4.2
+BASELINE_VERSIONS_342=(
+    3.0.7.2
+    3.1.1.7
+    3.2.0.0
+    3.2.1.0
+    3.3.5.0
+    3.3.6.0
+    3.3.8.22
+    3.4.0.0
+    3.4.0.14
+    3.4.2.0
+    3.4.2.13
+)
+
+BASELINE_VERSIONS_HOT_342=(
+    3.4.2.0
+    3.4.2.13
+)
+
 
 # Baseline versions for branch: 3.3.6
 BASELINE_VERSIONS_336=(
@@ -68,7 +88,7 @@ BASELINE_VERSIONS_HOT_336=(
 # ── argument check ────────────────────────────────────────────────────────────
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
     echo "Usage: $0 <target_pkg_path> <green_base_dir> [branch]"
-    echo "  branch: main (default) | 3.3.6"
+    echo "  branch: main (default) | 3.4.2 | 3.3.6"
     exit 1
 fi
 
@@ -81,12 +101,16 @@ case "$BRANCH" in
         BASELINE_VERSIONS=("${BASELINE_VERSIONS_MAIN[@]}")
         BASELINE_VERSIONS_HOT_SEL=("${BASELINE_VERSIONS_HOT[@]}")
         ;;
+    3.4.2)
+        BASELINE_VERSIONS=("${BASELINE_VERSIONS_342[@]}")
+        BASELINE_VERSIONS_HOT_SEL=("${BASELINE_VERSIONS_HOT_342[@]}")
+        ;;
     3.3.6)
         BASELINE_VERSIONS=("${BASELINE_VERSIONS_336[@]}")
         BASELINE_VERSIONS_HOT_SEL=("${BASELINE_VERSIONS_HOT_336[@]}")
         ;;
     *)
-        echo "Error: unknown branch '${BRANCH}'. Supported: main, 3.3.6"
+        echo "Error: unknown branch '${BRANCH}'. Supported: main, 3.4.2, 3.3.6"
         exit 1
         ;;
 esac

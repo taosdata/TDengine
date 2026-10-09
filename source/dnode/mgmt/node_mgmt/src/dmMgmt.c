@@ -23,6 +23,7 @@
 #include "qworker.h"
 #include "tcompression.h"
 #include "tconv.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tconv.h"
@@ -131,6 +132,7 @@ void dmCleanupDnode(SDnode *pDnode) {
   dmCleanupSyncClient(pDnode);
   dmCleanupServer(pDnode);
 
+  blockDataRecycleCleanup();
   dmClearVars(pDnode);
   rpcCleanup();
   streamCleanup();

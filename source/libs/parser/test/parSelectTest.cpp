@@ -1179,6 +1179,8 @@ TEST_F(ParserSelectTest, intervalHints) {
       "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' INTERVAL(10s)");
   run("SELECT /*+ EX_INTERVAL() */ _WSTART, _WEND, _WDURATION, COUNT(*), SUM(c1), AVG(c1) FROM st1 "
       "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' INTERVAL(10s)");
+  run("SELECT /*+ SPLIT_SCAN() */ _WSTART, COUNT(*) FROM st1 "
+      "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' PARTITION BY TBNAME INTERVAL(10s)");
 }
 
 TEST_F(ParserSelectTest, hintParameterListDoesNotHaveFixedCapacity) {

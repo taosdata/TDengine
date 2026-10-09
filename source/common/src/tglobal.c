@@ -397,6 +397,7 @@ bool    tsQueryTbNotExistAsEmpty = false;
 int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = true;
+bool    tsEnableFollowerRead = false;
 bool    tsEnableScience = false;  // on taos-cli show float and doulbe with scientific notation if true
 bool    tsRpcCrcEnable = true;    // CRC32C verification on RPC messages (CFG_DYN_BOTH_LAZY: alterable, effective after restart)
 bool    tsSqlSecurityEnabled = false;
@@ -1060,6 +1061,8 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 
   // federated query  -  scope BOTH (client Parser reads tsFederatedQueryEnable)
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "federatedQueryEnable", tsFederatedQueryEnable,
+                               CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableFollowerRead", tsEnableFollowerRead,
                                CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 
   // federated query  -  connector pool and timeout parameters (scope BOTH: client also runs ext connector)
@@ -1963,6 +1966,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
     }
   }
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableFollowerRead");
+  tsEnableFollowerRead = pItem->bval;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -3666,6 +3671,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"stableTagFilterCache", &tsStableTagFilterCache},
                                          // federated query  -  server-side dynamic updates
                                          {"federatedQueryEnable", &tsFederatedQueryEnable},
+                                         {"enableFollowerRead", &tsEnableFollowerRead},
                                          {"federatedQueryConnectTimeoutMs", &tsFederatedQueryConnectTimeoutMs},
                                          {"federatedQueryQueryTimeoutMs", &tsFederatedQueryQueryTimeoutMs},
                                          {"federatedQueryMaxPoolSizePerSource", &tsFederatedQueryMaxPoolSizePerSource},
@@ -3970,6 +3976,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"showFullCreateTableColumn", &tsShowFullCreateTableColumn},
                                          // federated query  -  BOTH scope items (client side dynamic update)
                                          {"federatedQueryEnable", &tsFederatedQueryEnable},
+                                         {"enableFollowerRead", &tsEnableFollowerRead},
                                          {"federatedQueryConnectTimeoutMs", &tsFederatedQueryConnectTimeoutMs},
                                          {"federatedQueryQueryTimeoutMs", &tsFederatedQueryQueryTimeoutMs},
                                          {"federatedQueryMaxPoolSizePerSource", &tsFederatedQueryMaxPoolSizePerSource},

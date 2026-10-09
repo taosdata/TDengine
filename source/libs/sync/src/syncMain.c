@@ -592,6 +592,23 @@ bool syncIsReadyForRead(int64_t rid) {
   return ready;
 }
 
+bool syncIsReadyForReplicaRead(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("sync replica read readiness check failed");
+    return false;
+  }
+
+  bool ready = pSyncNode->restoreFinish;
+  if (!ready) {
+    terrno = TSDB_CODE_SYN_RESTORING;
+  }
+
+  syncNodeRelease(pSyncNode);
+  return ready;
+}
+
 #ifdef BUILD_NO_CALL
 bool syncSnapshotRecving(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);

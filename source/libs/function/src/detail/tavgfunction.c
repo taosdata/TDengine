@@ -506,7 +506,7 @@ static int32_t avgFunctionImpl(SqlFunctionCtx* pCtx) {
   if (IS_DECIMAL_TYPE(type)) AVG_RES_SET_INPUT_SCALE(pAvgRes, pInput->pData[0]->info.scale);
 
   if (pInput->colDataSMAIsSet) {  // try to use SMA if available
-    int32_t code = calculateAvgBySMAInfo(pAvgRes, numOfRows, type, pAgg, &numOfElem);
+    int32_t code = calculateAvgBySMAInfo(pAvgRes, pInput->smaSourceRows, type, pAgg, &numOfElem);
     if (code != 0) return code;
   } else if (!pCol->hasNull) {  // try to employ the simd instructions to speed up the loop
     numOfElem = pInput->numOfRows;

@@ -187,6 +187,17 @@ class TestIntervalHints:
         self._assert_hint_results(dense_query, repeat=3)
         print("dense interval window results ....... [ passed ]")
 
+    def do_verify_tbname_partition_results(self):
+        query = (
+            "select _wstart, _wend, _wduration, count(*), sum(f), avg(f), sum(d), avg(d) "
+            "from interval_hints.st where ts >= '2024-01-01 00:00:00' "
+            "and ts < '2024-01-01 00:00:20' partition by tbname interval(10s)"
+        )
+        self._assert_plan_mode(query, "FAST_INTERVAL()", True, False)
+        self._assert_plan_mode(query, "EX_INTERVAL()", False, False)
+        self._assert_hint_results(query, ordered=False, repeat=2)
+        print("tbname partition interval results ... [ passed ]")
+
     def do_verify_fallback_results(self):
         query = (
             "select _wstart, _wend, _wduration, count(*), sum(f), avg(f), sum(d), avg(d) "
@@ -199,7 +210,7 @@ class TestIntervalHints:
             (query.replace("interval(10s)", "interval(10s, 1s)"), True, False, False),
             (query.replace("interval(10s)", "interval(1d)"), True, False, False),
             (query.replace("avg(f)", "avg(f + 1)", 1), True, True, False),
-            (query.replace("interval(10s)", "partition by tbname interval(10s)"), False, False, False),
+            (query.replace("interval(10s)", "partition by t interval(10s)"), False, False, False),
         ]
         for fallback_query, ordered, fast_interval, ex_interval in fallback_queries:
             self._assert_plan_mode(fallback_query, "FAST_INTERVAL()", fast_interval, False)
@@ -290,5 +301,6 @@ class TestIntervalHints:
         self.do_verify_null_and_empty_results()
         self.do_verify_sparse_windows()
         self.do_verify_dense_windows()
+        self.do_verify_tbname_partition_results()
         self.do_verify_fallback_results()
         self.do_verify_error_and_cleanup()

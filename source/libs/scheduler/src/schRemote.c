@@ -1263,6 +1263,7 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
     pSource->execId = pJob->fetchTask->execId;
     pSource->fetchMsgType = SCH_FETCH_TYPE(pJob->fetchTask);
     pSource->localExec = pJob->attr.localExec;
+    pSource->allowFollowerRead = schTaskAllowFollowerRead(pJob, pJob->fetchTask);
     if (NULL == taosArrayPush(*ppRes, &pSource)) {
       nodesDestroyNode((SNode *)pSource);
       pSource = NULL;
@@ -1386,6 +1387,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.pCorrelationTimeInit = pJob->pCorrelationTimeInit;
       qMsg.correlationTimeInitLen = pJob->correlationTimeInitLen;
       qMsg.pCorrelationNodeList = NULL != pJob->pCorrelationTemplates ? pJob->nodeList : NULL;
+      qMsg.allowFollowerRead = schTaskAllowFollowerRead(pJob, pTask);
 
       if (strcmp(tsLocalFqdn, GET_ACTIVE_EP(&addr->epSet)->fqdn) == 0) {
         qMsg.compress = 0;
@@ -1441,6 +1443,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.taskId = pTask->taskId;
       req.execId = pTask->execId;
       req.reset = true;
+      req.allowFollowerRead = schTaskAllowFollowerRead(pJob, pTask);
 
       msgSize = tSerializeSResFetchReq(NULL, 0, &req, false, false);
       if (msgSize < 0) {
