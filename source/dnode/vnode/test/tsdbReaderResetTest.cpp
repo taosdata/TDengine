@@ -19,8 +19,15 @@
 
 #include "stub.h"
 
+#include <cstdarg>
+#include <cstdio>
+#include <string>
+#include <vector>
+
 extern "C" {
+#include "meta.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "tmsgcb.h"
 #include "tsdb.h"
 #include "tsdbReadUtil.h"
@@ -368,6 +375,224 @@ TEST_F(TsdbReaderResetTest, RebindSucceedsAfterPriorTableListFailure) {
   EXPECT_EQ(1, tSimpleHashGetSize(reader->status.pTableMap));
   ASSERT_NE(nullptr, reader->status.uidList.tableUidList);
   EXPECT_EQ(replacement.uid, reader->status.uidList.tableUidList[0]);
+}
+
+
+// Only snapshot ownership/file enumeration is stubbed by the base fixture.
+// Metadata, row construction, memtable insertion and scanning remain real.
+std::vector<std::string>* gSchemaFailureLogs = nullptr;
+
+void captureSchemaFailureLog(const char*, int32_t, int32_t, const char* format, ...) {
+  char text[4096];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(text, sizeof(text), format, args);
+  va_end(args);
+  if (gSchemaFailureLogs != nullptr) gSchemaFailureLogs->emplace_back(text);
+}
+
+class TsdbMissingSchemaTest : public TsdbReaderResetTest {
+ protected:
+  void SetUp() override {
+    TsdbReaderResetTest::SetUp();
+    oldMetaDebug_ = metaDebugFlag;
+    oldTsdbDebug_ = tsdbDebugFlag;
+    metaDebugFlag = DEBUG_ERROR;
+    tsdbDebugFlag = DEBUG_ERROR;
+    stub_.reset(metaGetTbTSchemaMaybeNull);
+    taosGetTmpfilePath("/tmp", "tsdb-missing-schema", path_);
+    ASSERT_EQ(0, taosMkDir(path_));
+    vnode_.path = path_;
+    vnode_.config.vgId = 1;
+    vnode_.config.szPage = 4096;
+    vnode_.config.szCache = 256;
+    vnode_.config.szBuf = 3 * 1024 * 1024;
+    vnode_.config.tsdbCfg.slLevel = 5;
+    vnode_.state.applied = 100;
+    ASSERT_EQ(0, metaOpen(&vnode_, &vnode_.pMeta, 0));
+    ASSERT_EQ(0, vnodeOpenBufPool(&vnode_));
+    poolOpen_ = true;
+    vnode_.inUse = vnode_.freeList;
+    vnode_.freeList = vnode_.inUse->freeNext;
+    vnode_.inUse->freeNext = nullptr;
+    vnode_.inUse->nRef = 1;
+    ASSERT_EQ(0, tsdbMemTableCreate(&tsdb_, &tsdb_.mem));
+    snap_.pMem = tsdb_.mem;
+
+    columns_[0].colId = 1;
+    columns_[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+    columns_[0].bytes = 8;
+    tstrncpy(columns_[0].name, "ts", sizeof(columns_[0].name));
+    columns_[1].colId = 2;
+    columns_[1].type = TSDB_DATA_TYPE_INT;
+    columns_[1].bytes = 4;
+    tstrncpy(columns_[1].name, "v", sizeof(columns_[1].name));
+    SVCreateTbReq req = {};
+    req.name = const_cast<char*>("schema_failure");
+    req.uid = table_.uid;
+    req.type = TSDB_NORMAL_TABLE;
+    req.ntb.schemaRow.nCols = 2;
+    req.ntb.schemaRow.version = 2;
+    req.ntb.schemaRow.pSchema = columns_;
+    ASSERT_EQ(0, metaBegin(vnode_.pMeta, META_BEGIN_HEAP_OS));
+    ASSERT_EQ(0, metaCreateTable2(vnode_.pMeta, 1, &req, nullptr));
+    ASSERT_EQ(0, metaCommit(vnode_.pMeta, vnode_.pMeta->txn));
+    ASSERT_NO_FATAL_FAILURE(writeOldSchema());
+
+    schema_ = tBuildTSchema(columns_, 2, 1);
+    ASSERT_NE(nullptr, schema_);
+    values_ = taosArrayInit(2, sizeof(SColVal));
+    rows_ = taosArrayInit(1, sizeof(SRow*));
+    ASSERT_NE(nullptr, values_);
+    ASSERT_NE(nullptr, rows_);
+    SColVal value = {};
+    value.cid = 1;
+    value.flag = CV_FLAG_VALUE;
+    value.value.type = TSDB_DATA_TYPE_TIMESTAMP;
+    value.value.val = 1000;
+    ASSERT_NE(nullptr, taosArrayPush(values_, &value));
+    value.cid = 2;
+    value.value.type = TSDB_DATA_TYPE_INT;
+    value.value.val = 42;
+    ASSERT_NE(nullptr, taosArrayPush(values_, &value));
+    SRowBuildScanInfo scan = {};
+    ASSERT_EQ(0, tRowBuild(values_, schema_, &row_, &scan));
+    ASSERT_NE(nullptr, taosArrayPush(rows_, &row_));
+    SSubmitTbData submit = {};
+    submit.uid = table_.uid;
+    submit.sver = 1;
+    submit.aRowP = rows_;
+    int32_t affected = 0;
+    ASSERT_EQ(0, tsdbInsertTableData(&tsdb_, 10, &submit, &affected));
+    ASSERT_EQ(1, affected);
+
+    gSchemaFailureLogs = &logs_;
+    stub_.set(taosPrintLog, captureSchemaFailureLog);
+  }
+
+  void TearDown() override {
+    tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+    EXPECT_EQ(snapshotStubState_.takeCalls, snapshotStubState_.releaseCalls);
+    snapshotStubState_.releaseCalls = 0;
+    TsdbReaderResetTest::TearDown();
+    stub_.reset(taosPrintLog);
+    gSchemaFailureLogs = nullptr;
+    if (tsdb_.mem != nullptr) tsdbMemTableDestroy(tsdb_.mem, false);
+    if (poolOpen_) vnodeCloseBufPool(&vnode_);
+    metaClose(&vnode_.pMeta);
+    taosArrayDestroy(rows_);
+    taosArrayDestroy(values_);
+    taosMemoryFree(row_);
+    taosMemoryFree(schema_);
+    if (path_[0] != '\0') taosRemoveDir(path_);
+    metaDebugFlag = oldMetaDebug_;
+    tsdbDebugFlag = oldTsdbDebug_;
+  }
+
+  void writeOldSchema() {
+    SSchemaWrapper schema = {};
+    schema.nCols = 2;
+    schema.version = 1;
+    schema.pSchema = columns_;
+    int32_t size = 0, code = 0;
+    tEncodeSize(tEncodeSSchemaWrapper, &schema, size, code);
+    ASSERT_EQ(0, code);
+    std::vector<uint8_t> encoded(size);
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, encoded.data(), size);
+    code = tEncodeSSchemaWrapper(&encoder, &schema);
+    tEncoderClear(&encoder);
+    ASSERT_EQ(0, code);
+    SSkmDbKey key = {static_cast<tb_uid_t>(table_.uid), 1};
+    ASSERT_EQ(0, metaBegin(vnode_.pMeta, META_BEGIN_HEAP_OS));
+    ASSERT_EQ(0, tdbTbUpsert(vnode_.pMeta->pSkmDb, &key, sizeof(key), encoded.data(), size, vnode_.pMeta->txn));
+    ASSERT_EQ(0, metaCommit(vnode_.pMeta, vnode_.pMeta->txn));
+  }
+
+  int32_t scanRow() {
+    if (reader_ != nullptr) tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+    auto cond = makeCond(1000, 1000);
+    int32_t code = tsdbReaderOpen2(&vnode_, &cond, &table_, 1, nullptr, &reader_,
+                                  "QID:0x1234, missing-schema-test", nullptr);
+    if (code != 0) return code;
+    bool hasNext = false;
+    code = tsdbNextDataBlock2(reader_, &hasNext);
+    if (code != 0) return code;
+    EXPECT_TRUE(hasNext);
+    SSDataBlock* block = nullptr;
+    code = tsdbRetrieveDataBlock2(reader_, &block);
+    if (code == 0) {
+      EXPECT_NE(nullptr, block);
+      if (block != nullptr) {
+        EXPECT_EQ(1, block->info.rows);
+        auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+        EXPECT_EQ(1000, *reinterpret_cast<int64_t*>(colDataGetData(column, 0)));
+      }
+    }
+    return code;
+  }
+
+  bool hasLog(const char* part) const {
+    for (const auto& line : logs_) if (line.find(part) != std::string::npos) return true;
+    return false;
+  }
+
+  char path_[PATH_MAX] = {};
+  bool poolOpen_ = false;
+  int32_t oldMetaDebug_ = 0, oldTsdbDebug_ = 0;
+  SSchema columns_[2] = {};
+  STSchema* schema_ = nullptr;
+  SRow* row_ = nullptr;
+  SArray* values_ = nullptr;
+  SArray* rows_ = nullptr;
+  std::vector<std::string> logs_;
+};
+
+TEST_F(TsdbMissingSchemaTest, MemtableRowWithMissingHistoricalSchemaFailsWithDiagnostics) {
+  // Control: a real version-1 memtable row is readable with latest schema 2.
+  ASSERT_EQ(0, scanRow());
+  tsdbReaderClose2(reader_);
+  reader_ = nullptr;  // Drop the reader's historical-schema cache before injection.
+
+  // Test-only corruption of an isolated metadata directory, not a production hook.
+  SSkmDbKey key = {static_cast<tb_uid_t>(table_.uid), 1};
+  ASSERT_EQ(0, metaBegin(vnode_.pMeta, META_BEGIN_HEAP_OS));
+  metaWLock(vnode_.pMeta);
+  int32_t code = tdbTbDelete(vnode_.pMeta->pSkmDb, &key, sizeof(key), vnode_.pMeta->txn);
+  metaULock(vnode_.pMeta);
+  ASSERT_EQ(0, code);
+  ASSERT_EQ(0, metaCommit(vnode_.pMeta, vnode_.pMeta->txn));
+
+  logs_.clear();
+  ASSERT_EQ(TSDB_CODE_NOT_FOUND, scanRow());
+  EXPECT_TRUE(hasLog("schema lookup failed, stage:schema-db-get"));
+  EXPECT_TRUE(hasLog("rowSver:1, readerSver:2"));
+  EXPECT_FALSE(hasLog("schema failure snapshot, source:cache"));
+
+  logs_.clear();
+  metaDebugFlag |= DEBUG_DEBUG;
+  ASSERT_EQ(TSDB_CODE_NOT_FOUND, scanRow());
+  EXPECT_EQ(TSDB_CODE_NOT_FOUND, terrno);
+  // A prior test/iteration may have consumed the process-wide 5-second budget.
+  // Retry once before asserting: an EXPECT failure cannot be undone by a retry.
+  if (!hasLog("schema failure snapshot, source:cache")) {
+    taosMsleep(5100);
+    logs_.clear();
+    ASSERT_EQ(TSDB_CODE_NOT_FOUND, scanRow());
+    EXPECT_EQ(TSDB_CODE_NOT_FOUND, terrno);
+  }
+  EXPECT_TRUE(hasLog("schema failure snapshot, source:cache"));
+  EXPECT_TRUE(hasLog("ownerCacheSver:2"));
+  EXPECT_TRUE(hasLog("append TSRow failed"));
+  EXPECT_TRUE(hasLog("QID:0x1234"));
+  EXPECT_EQ(1, tsdb_.mem->nRow);
+  EXPECT_EQ(TSDB_CODE_NOT_FOUND, tdbTbGet(vnode_.pMeta->pSkmDb, &key, sizeof(key), nullptr, nullptr));
+
+  // Diagnostics must not repair/delete the row or poison subsequent readers.
+  ASSERT_NO_FATAL_FAILURE(writeOldSchema());
+  ASSERT_EQ(0, scanRow());
 }
 
 }  // namespace
