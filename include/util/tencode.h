@@ -65,8 +65,8 @@ typedef struct {
     tEncoderClear(&coder);           \
   } while (0);
 
-static void* tEncoderMalloc(SEncoder* pCoder, int32_t size);
-static void* tDecoderMalloc(SDecoder* pCoder, int32_t size);
+static void* tEncoderMalloc(SEncoder* pCoder, int64_t size);
+static void* tDecoderMalloc(SDecoder* pCoder, int64_t size);
 
 /* ------------------------ ENCODE ------------------------ */
 void           tEncoderInit(SEncoder* pCoder, uint8_t* data, uint32_t size);
@@ -598,9 +598,17 @@ static FORCE_INLINE int32_t tDecodeCStrAlloc(SDecoder* pCoder, char** val) {
 
 static FORCE_INLINE bool tDecodeIsEnd(SDecoder* pCoder) { return (pCoder->size == pCoder->pos); }
 
-static FORCE_INLINE void* tEncoderMalloc(SEncoder* pCoder, int32_t size) {
+static FORCE_INLINE void* tEncoderMalloc(SEncoder* pCoder, int64_t size) {
+  // Reject lengths that would truncate (int32 width) or wrap the allocation. Sizes are computed
+  // from wire-encoded counts; a truncated allocation that is later written with the original
+  // (larger) count is a heap overflow (GHSA-hr67-c6c8-mwpx / TD-SEC-2026-032). size == 0 is a
+  // legitimate zero-element wrapper and must stay accepted.
+  if (size < 0 || size > INT32_MAX) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return NULL;
+  }
   void*      p = NULL;
-  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + size);
+  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + (size_t)size);
   if (pMem) {
     pMem->next = pCoder->mList;
     pCoder->mList = pMem;
@@ -609,9 +617,18 @@ static FORCE_INLINE void* tEncoderMalloc(SEncoder* pCoder, int32_t size) {
   return p;
 }
 
-static FORCE_INLINE void* tDecoderMalloc(SDecoder* pCoder, int32_t size) {
+static FORCE_INLINE void* tDecoderMalloc(SDecoder* pCoder, int64_t size) {
+  // Reject lengths that would truncate (int32 width) or wrap the allocation. Sizes are computed
+  // from wire-encoded counts (see the *Wrapper / batch decode helpers); a truncated allocation
+  // that is later written with the original (larger) count is a heap overflow
+  // (GHSA-hr67-c6c8-mwpx / TD-SEC-2026-032). size == 0 is a legitimate zero-element wrapper and
+  // must stay accepted.
+  if (size < 0 || size > INT32_MAX) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return NULL;
+  }
   void*      p = NULL;
-  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + size);
+  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + (size_t)size);
   if (pMem) {
     pMem->next = pCoder->mList;
     pCoder->mList = pMem;
