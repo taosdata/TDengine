@@ -79,6 +79,26 @@ static uint8_t maxPrecision(DecimalInternalType type) {
   }
 }
 
+// precision/scale come from SQL text or a query plan. Table lookups below
+// (SCALE_MULTIPLIER_*, bitsForNumDigits) are sized to the type maximum.
+static int32_t decimalCheckPrecScale(uint8_t prec, uint8_t scale, uint8_t maxPrec) {
+  if (prec < TSDB_DECIMAL_MIN_PRECISION || prec > maxPrec || scale > prec) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t decimalCheckDataType(const SDataType* pType) {
+  if (pType == NULL) return TSDB_CODE_SUCCESS;
+  if (IS_DECIMAL_TYPE(pType->type)) {
+    uint8_t maxPrec = (pType->type == TSDB_DATA_TYPE_DECIMAL64) ? TSDB_DECIMAL64_MAX_PRECISION
+                                                                : TSDB_DECIMAL128_MAX_PRECISION;
+    return decimalCheckPrecScale(pType->precision, pType->scale, maxPrec);
+  }
+  if (pType->scale > TSDB_DECIMAL_MAX_SCALE) return TSDB_CODE_DECIMAL_OVERFLOW;
+  return TSDB_CODE_SUCCESS;
+}
+
 static const uint8_t typeConvertDecimalPrec[] = {
     0, 1, 3, 5, 10, 19, TSDB_DECIMAL128_MAX_PRECISION, TSDB_DECIMAL_MAX_PRECISION, 0, 19, 10, 3, 5, 10, 20, 0,
     0, 0, 0, 0, 0,  0};
@@ -147,23 +167,27 @@ int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOp
   return 0;
 }
 
+// exp may be saturated to +/-INT32_MAX, so these sums are done in int64.
+static int32_t decimalClampInt32(int64_t v) { return (int32_t)TMIN(TMAX(v, (int64_t)INT32_MIN), (int64_t)INT32_MAX); }
+
 int32_t calcCurPrec(int32_t prec, int32_t places, int32_t exp, int32_t weight, int32_t firstValidScale) {
-  if (exp == 0) return prec + places;
+  int64_t base = (int64_t)prec + places;
+  if (exp == 0) return decimalClampInt32(base);
   if (exp < 0) {
-    if (weight + exp >= 0) return prec + places;
-    return prec + places - exp - weight;
+    if ((int64_t)weight + exp >= 0) return decimalClampInt32(base);
+    return decimalClampInt32(base - exp - weight);
   }
-  if (weight > 0) return prec + places;
-  return prec + places - TMIN(firstValidScale - 1, exp);
+  if (weight > 0) return decimalClampInt32(base);
+  return decimalClampInt32(base - TMIN(firstValidScale - 1, exp));
 }
 
 int32_t calcActualWeight(int32_t prec, int32_t scale, int32_t exp, int32_t weight, int32_t firstValidScale) {
   if (exp == 0) return prec - scale;
   if (exp < 0) {
-    if (weight + exp >= 0) return weight + exp;
+    if ((int64_t)weight + exp >= 0) return weight + exp;
     return 0;
   }
-  if (weight > 0) return weight + exp;
+  if (weight > 0) return decimalClampInt32((int64_t)weight + exp);
   if (firstValidScale == 0) return 0;
   return TMAX(0, exp - firstValidScale);
 }
@@ -249,7 +273,7 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
         Decimal64 delta = {0};
         if (curPrec > maxPrecision(result->type)) {
           if (!afterPoint) return TSDB_CODE_DECIMAL_OVERFLOW;
-          int32_t curScale = result->scale - result->exponent + places;
+          int64_t curScale = (int64_t)result->scale - result->exponent + places;
           if (rounded || curScale > expectScale + 1 /*scale already overflowed, no need do rounding*/ ||
               curPrec - 1 != maxPrecision(result->type) /* not the maxPrecision + 1 digit, no need do rounding*/ ||
               str[pos] < '5')
@@ -285,7 +309,18 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
     }
   }
   result->weight = calcActualWeight(result->precision, result->scale, result->exponent, weight, firstValidScale);
-  if (result->precision + result->scale > 0) result->scale -= result->exponent;
+  // Fold the exponent outside int8_t scale: "1e200" would wrap and later index
+  // SCALE_MULTIPLIER_* out of range. A negative scale is valid ("1e2" -> -2), but
+  // a non-zero mantissa times 10^-newScale needs more than -newScale integer
+  // digits, so newScale below -(precision - scale) always overflows.
+  {
+    int64_t newScale = result->scale;
+    if (result->precision + result->scale > 0) newScale = (int64_t)result->scale - result->exponent;
+    if (newScale > maxPrecision(result->type) || newScale < -(int64_t)(expectPrecision - expectScale)) {
+      return TSDB_CODE_DECIMAL_OVERFLOW;
+    }
+    result->scale = (int8_t)newScale;
+  }
   if (result->sign < 0) {
     pOps->negate(result->pDec);
   }
@@ -464,7 +499,7 @@ bool decimal64Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t ri
   return DECIMAL64_GET_VALUE((Decimal64*)pLeft) == DECIMAL64_GET_VALUE(((Decimal64*)pRight));
 }
 int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
-  if (!pBuf) return TSDB_CODE_INVALID_PARA;
+  if (!pBuf || scale > TSDB_DECIMAL64_MAX_PRECISION) return TSDB_CODE_INVALID_PARA;
   Decimal whole = {0}, frac = {0};
   int32_t pos = 0;
   char    buf[64] = {0};
@@ -534,6 +569,7 @@ static const Decimal128 SCALE_MULTIPLIER_128[TSDB_DECIMAL128_MAX_PRECISION + 1] 
 };
 
 static double getDoubleScaleMultiplier(uint8_t scale) {
+  if (scale > TSDB_DECIMAL_MAX_PRECISION) return 0;
   static double SCALE_MULTIPLIER_DOUBLE[TSDB_DECIMAL_MAX_PRECISION + 1] = {0};
   static bool   initialized = false;
   if (!initialized) {
@@ -719,7 +755,8 @@ static void extractDecimal128Digits(const Decimal128* pDec, uint64_t* digits, in
 }
 
 int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
-  if (!pBuf) return TSDB_CODE_INVALID_PARA;
+  // buf2 holds sign, "0.", up to 40 padding zeros and 39 digits only when scale <= 38.
+  if (!pBuf || scale > TSDB_DECIMAL128_MAX_PRECISION) return TSDB_CODE_INVALID_PARA;
   const Decimal128* pDec = (const Decimal128*)pInt;
   bool              negative = DECIMAL128_SIGN(pDec) == -1;
   uint64_t          segments[3] = {0};
@@ -873,6 +910,16 @@ static void makeInt256FromDecimal128(Int256* pTarget, const Decimal128* pDec) {
 
 static Int256 int256ScaleBy(const Int256* pX, int32_t scale) {
   Int256 result = *pX;
+  // SCALE_MULTIPLIER_128 has TSDB_DECIMAL_MAX_PRECISION + 1 entries. A scale
+  // delta can be larger than that (e.g. 38+38) or attacker-controlled.
+  if (scale > TSDB_DECIMAL_MAX_PRECISION) {
+    result = int256ScaleBy(&result, TSDB_DECIMAL_MAX_PRECISION);
+    return int256ScaleBy(&result, scale - TSDB_DECIMAL_MAX_PRECISION);
+  }
+  if (scale < -TSDB_DECIMAL_MAX_PRECISION) {
+    result = int256ScaleBy(&result, -TSDB_DECIMAL_MAX_PRECISION);
+    return int256ScaleBy(&result, scale + TSDB_DECIMAL_MAX_PRECISION);
+  }
   if (scale > 0) {
     Int256 multiplier = {0};
     makeInt256FromDecimal128(&multiplier, &SCALE_MULTIPLIER_128[scale]);
@@ -975,12 +1022,13 @@ static int32_t decimalDivide(Decimal* pX, const SDataType* pXT, const Decimal* p
     return TSDB_CODE_DIVISION_BY_ZERO;
   }
 
-  int8_t deltaScale = pOT->scale + pYT->scale - pXT->scale;
+  int32_t deltaScale = (int32_t)pOT->scale + (int32_t)pYT->scale - (int32_t)pXT->scale;
 
   Decimal xTmp = *pX;
   decimal128Abs(&xTmp);
   int32_t bitsOccupied = 128 - decimal128CountLeadingBinaryZeros(&xTmp);
-  if (bitsOccupied + bitsForNumDigits[deltaScale] <= 127) {
+  if (deltaScale >= 0 && deltaScale <= TSDB_DECIMAL_MAX_PRECISION &&
+      bitsOccupied + bitsForNumDigits[deltaScale] <= 127) {
     xTmp = *pX;
     decimal128ScaleUp(&xTmp, deltaScale);
     Decimal remainder = {0};
@@ -1062,6 +1110,13 @@ static int32_t decimalMod(Decimal* pX, const SDataType* pXT, const Decimal* pY, 
 int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pRightT, const SDataType* pOutT,
                   const void* pLeftData, const void* pRightData, void* pOutputData) {
   int32_t code = 0;
+
+  code = decimalCheckDataType(pLeftT);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = decimalCheckDataType(pRightT);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = decimalCheckDataType(pOutT);
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   Decimal   left = {0}, right = {0};
   SDataType lt = {.type = TSDB_DATA_TYPE_DECIMAL,
@@ -1581,6 +1636,11 @@ static int32_t decimal128FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t
 int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* pOutType) {
   int32_t code = 0;
 
+  code = decimalCheckDataType(pInputType);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = decimalCheckDataType(pOutType);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
   switch (pOutType->type) {
     case TSDB_DATA_TYPE_DECIMAL64: {
       CONVERT_TO_DECIMAL(pData, pInputType, pOut, pOutType, decimal64);
@@ -1596,6 +1656,7 @@ int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* p
 }
 
 void decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown, bool round) {
+  if (scaleDown > TSDB_DECIMAL64_MAX_PRECISION) return;
   if (scaleDown > 0) {
     Decimal64 divisor = SCALE_MULTIPLIER_64[scaleDown], remainder = {0};
     decimal64divide(pDec, &divisor, DECIMAL_WORD_NUM(Decimal64), &remainder);
@@ -1612,6 +1673,7 @@ void decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown, bool round) {
 }
 
 void decimal64ScaleUp(Decimal64* pDec, uint8_t scaleUp) {
+  if (scaleUp > TSDB_DECIMAL64_MAX_PRECISION) return;
   if (scaleUp > 0) {
     Decimal64 multiplier = SCALE_MULTIPLIER_64[scaleUp];
     decimal64Multiply(pDec, &multiplier, DECIMAL_WORD_NUM(Decimal64));
@@ -1720,7 +1782,8 @@ static void decimal64RoundWithPositiveScale(Decimal64* pDec, uint8_t prec, int8_
 }
 
 int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale, Decimal64* pRes) {
-  int32_t    code = 0;
+  int32_t    code = decimalCheckPrecScale(expectPrecision, expectScale, TSDB_DECIMAL64_MAX_PRECISION);
+  if (code != TSDB_CODE_SUCCESS) return code;
   DecimalVar var = {.type = DECIMAL_64, .pDec = pRes->words, .precision = expectPrecision, .scale = expectScale};
   DECIMAL64_SET_VALUE(pRes, 0);
   code = decimalVarFromStr(str, len, &var);
@@ -1738,6 +1801,7 @@ int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, 
 }
 
 static void decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown, bool round) {
+  if (scaleDown > TSDB_DECIMAL128_MAX_PRECISION) return;
   if (scaleDown > 0) {
     Decimal128 divisor = SCALE_MULTIPLIER_128[scaleDown], remainder = {0};
     decimal128Divide(pDec, &divisor, 2, &remainder);
@@ -1754,6 +1818,7 @@ static void decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown, bool round)
 }
 
 static void decimal128ScaleUp(Decimal128* pDec, uint8_t scaleUp) {
+  if (scaleUp > TSDB_DECIMAL128_MAX_PRECISION) return;
   if (scaleUp > 0) {
     Decimal128 multiplier = SCALE_MULTIPLIER_128[scaleUp];
     decimal128Multiply(pDec, &multiplier, DECIMAL_WORD_NUM(Decimal128));
@@ -1769,7 +1834,8 @@ static void decimal128ScaleTo(Decimal128* pDec, uint8_t oldScale, uint8_t newSca
 
 int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
                           Decimal128* pRes) {
-  int32_t    code = 0;
+  int32_t    code = decimalCheckPrecScale(expectPrecision, expectScale, TSDB_DECIMAL128_MAX_PRECISION);
+  if (code != TSDB_CODE_SUCCESS) return code;
   DecimalVar var = {.type = DECIMAL_128, .pDec = pRes->words, .precision = expectPrecision, .scale = expectScale};
   DECIMAL128_SET_HIGH_WORD(pRes, 0);
   DECIMAL128_SET_LOW_WORD(pRes, 0);
