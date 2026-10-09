@@ -144,6 +144,7 @@ if(TD_LINUX)
         "tmsgTest.cpp"
         "../src/msg/tmsg.c"
         "../src/msg/streamMsg.c"
+        "../src/msg/xnode.c"
     )
     target_include_directories(tmsgTest PUBLIC "${TD_SOURCE_DIR}/include/common/")
     target_link_libraries(tmsgTest PUBLIC os util)

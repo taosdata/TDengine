@@ -380,6 +380,7 @@ typedef enum {
 // into visited, the resolver starts from it directly) -- see their per-site counting
 // notes; pinned by test_vtable_tag_ref_depth_boundary.py.
 #define TSDB_MAX_VTABLE_REF_DEPTH      32
+#define TSDB_MAX_OPERATOR_PARAM_DEPTH  64
 #define TSDB_MAX_TAGS_LEN              16384
 #define TSDB_MAX_TAGS                  128
 #define TSDB_MAX_VST_PARENTS           10
