@@ -3,7 +3,21 @@ title: "PI Data Ingestion Prerequisites"
 sidebar_label: "Prerequisites"
 ---
 
-This page lists all prerequisites that need to be verified before ingesting data from a PI system into TDengine, including network connectivity, ports and protocols, authentication and permissions, and software dependencies. We recommend that PI administrators and network administrators complete this checklist together before creating PI data ingestion tasks.
+This page lists all prerequisites that need to be verified before ingesting data from a PI system into TDengine, including software dependencies, network connectivity, ports and protocols, and authentication and permissions. We recommend that PI administrators and network administrators complete this checklist together before creating PI data ingestion tasks.
+
+## Software Dependencies
+
+All access from the PI connector (`taosx-pi.exe`) to PI Data Archive and PI AF Server goes through PI AF SDK (`OSIsoft.AFSDK.dll`). You only need to install PI AF Client (PIPC, which includes the AF SDK) on the Windows host running the connector (that is, the host running taosX or taosX-Agent); nothing needs to be installed on the PI server side.
+
+| Dependency | Minimum Version | Description |
+| ---------- | --------------- | ----------- |
+| Operating System | Windows Server 2016+ / Windows 10+ | PI AF SDK only supports Windows |
+| PI AF SDK (PI AF Client) | 2018+ | Obtain the installer from OSIsoft / AVEVA |
+| .NET Framework | 4.8+ | Runtime dependency for PI AF SDK |
+
+:::warning
+PI AF SDK **only supports Windows**. If taosX is deployed in a Linux environment, you must connect to the PI system through taosX-Agent (deployed on a Windows host) as a proxy.
+:::
 
 ## PI System Connection Requirements
 
@@ -13,7 +27,7 @@ This page lists all prerequisites that need to be verified before ingesting data
 | ---- | ----------- |
 | Server Address | Hostname or IP address of the PI Data Archive Server |
 | Default Port | **5450** (PI Data Archive standard port) |
-| Protocol | PI SDK / PI AF SDK proprietary protocol |
+| Protocol | PI AF SDK proprietary protocol |
 
 ### PI AF Server
 
@@ -106,32 +120,24 @@ In PI System Explorer (PSE), add the Windows account to the AF database access c
 | Domain account | When the PI system uses domain authentication, use a domain account to support Kerberos |
 | Password policy | Recommend setting password to never expire, or coordinate with password rotation policies |
 
-## Software Dependencies
-
-The PI connector depends on PI AF SDK (PI AF Client), which must be installed on the host running taosX or taosX-Agent.
-
-| Dependency | Minimum Version | Description |
-| ---------- | --------------- | ----------- |
-| Operating System | Windows Server 2016+ / Windows 10+ | PI AF SDK only supports Windows |
-| PI AF SDK (PI AF Client) | 2018+ | Obtain the installer from OSIsoft / AVEVA |
-| .NET Framework | 4.8+ | Runtime dependency for PI AF SDK |
-
-:::warning
-PI AF SDK **only supports Windows**. If taosX is deployed in a Linux environment, you must connect to the PI system through taosX-Agent (deployed on a Windows host) as a proxy.
-:::
-
 ## Validation Checklist
 
 Before creating a PI data ingestion task, please confirm each of the following items:
 
+### Software Environment
+
+- [ ] taosX/taosX-Agent host operating system is Windows
+- [ ] PI AF SDK (PI AF Client) is installed
+- [ ] .NET Framework 4.8+ is installed
+
 ### Network and Connectivity
 
-- [ ] PI Data Archive Server **hostname** confirmed (hostname recommended over IP; using IP may affect Kerberos authentication): `_______________`
-- [ ] PI AF Server hostname confirmed (if using AF mode): `_______________`
-- [ ] AF database name confirmed (if using AF mode): `_______________`
+- [ ] PI Data Archive Server **hostname** confirmed (hostname recommended over IP; using IP may affect Kerberos authentication)
+- [ ] PI AF Server hostname confirmed (if using AF mode)
+- [ ] AF database name confirmed (if using AF mode)
 - [ ] PI Data Archive is accessible from taosX/taosX-Agent host (port 5450)
 - [ ] PI AF Server is accessible from taosX/taosX-Agent host (port 5457, if using AF mode)
-- [ ] On the taosX-Agent host, manually verified PI connectivity using PI System Management Tools (SMT) or PI System Explorer (PSE) — isolate environment issues before testing taosX
+- [ ] On the taosX-Agent host, **manually verified** PI connectivity using PI System Management Tools (SMT) or PI System Explorer (PSE) — isolate environment issues before testing taosX
 - [ ] If using taosX-Agent proxy mode, taosX-Agent service is running, taosX ↔ taosX-Agent network is connected, and taosX-Agent status shows online in taosExplorer
 
 ### Authentication and Permissions
@@ -141,12 +147,6 @@ Before creating a PI data ingestion task, please confirm each of the following i
 - [ ] AF mode: that identity has Read / Read Data permissions in AF Server Security
 - [ ] Connection configuration Username/Password/Domain are **left blank** (use Windows integrated authentication)
 
-### Software Environment
-
-- [ ] taosX/taosX-Agent host operating system is Windows
-- [ ] PI AF SDK (PI AF Client) is installed
-- [ ] .NET Framework 4.8+ is installed
-
 ### TDengine Side
 
 - [ ] TDengine cluster is deployed and running normally
@@ -155,5 +155,5 @@ Before creating a PI data ingestion task, please confirm each of the following i
 
 ### Task Configuration
 
-- [ ] PI Data Archive Server name uses hostname format
+- [ ] In the connection configuration, the PI Data Archive Server name uses the hostname format
 - [ ] Clicked **Connectivity Check** button and connection test passed
