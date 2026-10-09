@@ -1630,6 +1630,49 @@ TEST(td_msg_test, decode_sv_create_tb_batch_req_cleans_partial_requests) {
   tDecoderClear(&decoder);
 }
 
+// GHSA-hr67-c6c8-mwpx / TD-SEC-2026-032: tDecoderMalloc must reject sizes that would truncate
+// (int32 width) or wrap instead of handing back a small allocation that the caller then writes
+// with the original (larger) count -- that is a heap overflow. A negative count (zigzag-decoded
+// from the wire) must be rejected too.
+TEST(td_msg_test, decoder_malloc_rejects_truncated_and_negative_sizes) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)"", 0);
+
+  // (int64_t)count * sizeof(T) overflowing the int32 width must be rejected.
+  ASSERT_EQ(tDecoderMalloc(&decoder, (int64_t)INT32_MAX + 1), nullptr);
+  // A negative size must be rejected.
+  ASSERT_EQ(tDecoderMalloc(&decoder, -1), nullptr);
+  // size == 0 stays accepted (zero-element wrapper) and must not crash.
+  ASSERT_NE(tDecoderMalloc(&decoder, 0), nullptr);
+
+  tDecoderClear(&decoder);
+}
+
+// GHSA-hr67-c6c8-mwpx / TD-SEC-2026-032: a batch create-table request carrying a huge nReqs must
+// fail cleanly (no truncated allocation, no heap overflow). The count is decoded as a zigzag
+// variant i32; nReqs * sizeof(SVCreateTbReq) used to overflow int32 and hand back a tiny
+// allocation that the per-request loop then overflowed.
+TEST(td_msg_test, decode_sv_create_tb_batch_req_rejects_overflowing_n_reqs) {
+  // Encode a batch header whose nReqs (zigzag i32) decodes to a huge positive count.
+  std::vector<uint8_t> buf(64, 0);
+  SEncoder             encoder = {0};
+  tEncoderInit(&encoder, buf.data(), (int32_t)buf.size());
+  ASSERT_EQ(tStartEncode(&encoder), 0);
+  // 2^30 encoded as zigzag i32 (fits the variant form; decodes to 0x40000000 = 2^30).
+  int32_t hugeNReqs = (int32_t)(1u << 30);
+  ASSERT_EQ(tEncodeI32v(&encoder, hugeNReqs), 0);
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SVCreateTbBatchReq req = {0};
+  SDecoder           decoder = {0};
+  tDecoderInit(&decoder, buf.data(), size);
+  // Must fail, not allocate a truncated buffer and overflow.
+  ASSERT_NE(tDecodeSVCreateTbBatchReq(&decoder, &req), 0);
+  tDecoderClear(&decoder);
+}
+
 static int32_t encodeCreateTbReqWithMissingSecondColCmpr(void* buf, int32_t bufLen) {
   SSchema schema[2] = {};
   schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;

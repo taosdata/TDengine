@@ -19103,7 +19103,7 @@ int tEncodeSVCreateTbBatchRsp(SEncoder *pCoder, const SVCreateTbBatchRsp *pRsp) 
 int tDecodeSVCreateTbBatchRsp(SDecoder *pCoder, SVCreateTbBatchRsp *pRsp) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
   TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pRsp->nRsps));
-  pRsp->pRsps = (SVCreateTbRsp *)tDecoderMalloc(pCoder, sizeof(*pRsp->pRsps) * pRsp->nRsps);
+  pRsp->pRsps = (SVCreateTbRsp *)tDecoderMalloc(pCoder, (int64_t)pRsp->nRsps * sizeof(*pRsp->pRsps));
   if (pRsp->pRsps == NULL) {
     TAOS_CHECK_RETURN(terrno);
   }
@@ -19355,8 +19355,8 @@ int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
   TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->interval[1]));
   TAOS_CHECK_EXIT(tDecodeI16v(pCoder, &pRSmaParam->nFuncs));
   if (pRSmaParam->nFuncs > 0) {
-    pRSmaParam->funcColIds = (col_id_t *)tDecoderMalloc(pCoder, pRSmaParam->nFuncs * sizeof(col_id_t));
-    pRSmaParam->funcIds = (func_id_t *)tDecoderMalloc(pCoder, pRSmaParam->nFuncs * sizeof(func_id_t));
+    pRSmaParam->funcColIds = (col_id_t *)tDecoderMalloc(pCoder, (int64_t)pRSmaParam->nFuncs * sizeof(col_id_t));
+    pRSmaParam->funcIds = (func_id_t *)tDecoderMalloc(pCoder, (int64_t)pRSmaParam->nFuncs * sizeof(func_id_t));
     if (pRSmaParam->funcColIds == NULL || pRSmaParam->funcIds == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
@@ -19634,7 +19634,7 @@ static int32_t tDecodeSColCmprWrapperImpl(SDecoder *pDecoder, SColCmprWrapper *p
   TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pWrapper->nCols));
   TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pWrapper->version));
 
-  pWrapper->pColCmpr = decoderMalloc ? (SColCmpr *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColCmpr))
+  pWrapper->pColCmpr = decoderMalloc ? (SColCmpr *)tDecoderMalloc(pDecoder, (int64_t)pWrapper->nCols * sizeof(SColCmpr))
                                      : (SColCmpr *)taosMemoryCalloc(pWrapper->nCols, sizeof(SColCmpr));
   if (pWrapper->pColCmpr == NULL) {
     TAOS_CHECK_EXIT(terrno);
@@ -19689,7 +19689,7 @@ _exit:
 
 static int32_t tDecodeSExtSchemas(SDecoder *pCoder, SExtSchema **ppExtSchema, int32_t nCol) {
   int32_t code = 0, lino;
-  *ppExtSchema = tDecoderMalloc(pCoder, sizeof(SExtSchema) * nCol);
+  *ppExtSchema = tDecoderMalloc(pCoder, (int64_t)nCol * sizeof(SExtSchema));
   if (!*ppExtSchema) TAOS_CHECK_EXIT(terrno);
   for (int32_t i = 0; i < nCol; ++i) {
     TAOS_CHECK_EXIT(tDecodeSExtSchema(pCoder, (*ppExtSchema) + i));
@@ -20277,7 +20277,7 @@ int tDecodeSVCreateTbBatchReq(SDecoder *pCoder, SVCreateTbBatchReq *pReq) {
   TAOS_CHECK_EXIT(tStartDecode(pCoder));
 
   TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pReq->nReqs));
-  pReq->pReqs = (SVCreateTbReq *)tDecoderMalloc(pCoder, sizeof(SVCreateTbReq) * pReq->nReqs);
+  pReq->pReqs = (SVCreateTbReq *)tDecoderMalloc(pCoder, (int64_t)pReq->nReqs * sizeof(SVCreateTbReq));
   if (pReq->pReqs == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -20416,7 +20416,7 @@ int32_t tEncodeSVDropTbBatchReq(SEncoder *pCoder, const SVDropTbBatchReq *pReq) 
 int32_t tDecodeSVDropTbBatchReq(SDecoder *pCoder, SVDropTbBatchReq *pReq) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
   TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pReq->nReqs));
-  pReq->pReqs = (SVDropTbReq *)tDecoderMalloc(pCoder, sizeof(SVDropTbReq) * pReq->nReqs);
+  pReq->pReqs = (SVDropTbReq *)tDecoderMalloc(pCoder, (int64_t)pReq->nReqs * sizeof(SVDropTbReq));
   if (pReq->pReqs == NULL) {
     TAOS_CHECK_RETURN(terrno);
   }
@@ -20443,7 +20443,7 @@ int32_t tEncodeSVDropTbBatchRsp(SEncoder *pCoder, const SVDropTbBatchRsp *pRsp) 
 int32_t tDecodeSVDropTbBatchRsp(SDecoder *pCoder, SVDropTbBatchRsp *pRsp) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
   TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pRsp->nRsps));
-  pRsp->pRsps = (SVDropTbRsp *)tDecoderMalloc(pCoder, sizeof(SVDropTbRsp) * pRsp->nRsps);
+  pRsp->pRsps = (SVDropTbRsp *)tDecoderMalloc(pCoder, (int64_t)pRsp->nRsps * sizeof(SVDropTbRsp));
   if (pRsp->pRsps == NULL) {
     TAOS_CHECK_RETURN(terrno);
   }
