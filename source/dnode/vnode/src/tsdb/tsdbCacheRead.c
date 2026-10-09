@@ -615,7 +615,10 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
     taosArrayDestroyEx(pLastCols, tsdbCacheFreeSLastColItem);
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
-    // retrieve data for each table
+    // The regular path returns as soon as one table has produced a row. A
+    // batch request keeps the read snapshot and reader mutex while it appends
+    // every table result, rather than reacquiring both once per table.
+    bool    batchAll = HASTYPE(pr->type, CACHESCAN_RETRIEVE_BATCH_ALL);
     int32_t i = pr->tableIndex;
     for (; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
@@ -629,22 +632,36 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       if (TARRAY_SIZE(pRow) <= 0) {
         taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
+        if (batchAll) {
+          pr->tableIndex = i + 1;
+        }
         continue;
       }
 
+      int32_t rowsBeforeSave = pResBlock->info.rows;
       code = saveMultiRows(pRow, pResBlock, dstSlotIds, pr);
       TSDB_CHECK_CODE(code, lino, _end);
 
       taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
       ++pr->tableIndex;
-      if (pResBlock->info.rows > 0) {
-        void* px = taosArrayPush(pTableUidList, &uid);
-        TSDB_CHECK_NULL(px, code, lino, _end, terrno);
+      if (pResBlock->info.rows > rowsBeforeSave) {
+        if (batchAll) {
+          // The batch executor splits this block by a UID per result row.
+          for (int32_t j = rowsBeforeSave; j < pResBlock->info.rows; ++j) {
+            void* px = taosArrayPush(pTableUidList, &uid);
+            TSDB_CHECK_NULL(px, code, lino, _end, terrno);
+          }
+        } else {
+          void* px = taosArrayPush(pTableUidList, &uid);
+          TSDB_CHECK_NULL(px, code, lino, _end, terrno);
+        }
+      }
+      if (pResBlock->info.rows > rowsBeforeSave && !batchAll) {
         break;
       }
     }
 
-    if (pGotAll && i == pr->numOfTables) {
+    if (pGotAll && ((batchAll && pr->tableIndex == pr->numOfTables) || i == pr->numOfTables)) {
       *pGotAll = true;
     }
   } else {

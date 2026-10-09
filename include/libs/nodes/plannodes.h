@@ -141,6 +141,7 @@ typedef struct SScanLogicNode {
   double             ratio;
   SNodeList*         pDynamicScanFuncs;
   int32_t            dataRequired;
+  bool               lastOnlyScan;
   int64_t            interval;
   int64_t            offset;
   int64_t            sliding;
@@ -459,6 +460,7 @@ typedef struct SExchangeLogicNode {
   bool       seqRecvData;
   bool       dynTbname;
   bool       fastInterval;
+  bool       localBlockExchange;
 } SExchangeLogicNode;
 
 typedef struct SMergeLogicNode {
@@ -655,6 +657,8 @@ typedef enum ESubplanType {
   SUBPLAN_TYPE_HSYSSCAN,   // high priority systable scan
 } ESubplanType;
 
+#define SUBPLAN_SPLIT_FLAG_LOCAL_BLOCK_EXCHANGE (1 << 3)
+
 typedef struct SSubplanId {
   uint64_t queryId;
   int32_t  groupId;
@@ -675,6 +679,7 @@ typedef struct SLogicSubplan {
   bool          processOneBlock;
   bool          dynTbname;
   bool          pushedDown;  // true when this whole subquery subplan has been absorbed by an ancestor FQ remote plan
+  bool          execOnChildNode;
 } SLogicSubplan;
 
 typedef struct SQueryLogicPlan {
@@ -794,6 +799,9 @@ typedef struct SLastRowScanPhysiNode {
   SNodeList*     pGroupTags;
   bool           groupSort;
   bool           ignoreNull;
+  // The cache reader may collect multiple table results before this operator emits them.
+  // Results are emitted as their original per-table group blocks.
+  bool           batchMultiTableRead;
   SNodeList*     pTargets;
   SArray*        pFuncTypes;
   // Valid only for TABLE_COUNT_SCAN (BY_TYPE): ins_tables row type filter, 0 = no filter.
@@ -845,6 +853,7 @@ typedef struct STableScanPhysiNode {
   SNode*         pPrimaryCond;   // for remote node, splited from filter conditions
   double         ratio;
   int32_t        dataRequired;
+  bool           lastOnlyScan;
   SNodeList*     pDynamicScanFuncs;
   SNodeList*     pGroupTags;
   bool           groupSort;
@@ -1159,6 +1168,7 @@ typedef struct SExchangePhysiNode {
   bool       seqRecvData;
   bool       dynTbname;
   bool       fastInterval;
+  bool       localBlockExchange;
 } SExchangePhysiNode;
 
 typedef struct SMergePhysiNode {
@@ -1364,6 +1374,7 @@ typedef struct SDataSinkNode {
 typedef struct SDataDispatcherNode {
   SDataSinkNode sink;
   bool          dynamicSchema;
+  bool          localBlockExchange;
 } SDataDispatcherNode;
 
 typedef struct SDataInserterNode {
@@ -1431,6 +1442,8 @@ typedef struct SSubplan {
   bool           requiresAncestorContext;
   bool           inheritedMultiGroupJoin;
   bool           dynTbname;
+  bool           localBlockExchange;
+  bool           execOnChildNode;
   int16_t        userAppId;  // encoded from client user_app, propagated for server-side use
 } SSubplan;
 

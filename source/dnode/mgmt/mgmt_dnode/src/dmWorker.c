@@ -18,6 +18,7 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "stream.h"
+#include "tdatablock.h"
 #include "tgrant.h"
 #include "thttp.h"
 #include "streamMsg.h"
@@ -182,6 +183,8 @@ static void *dmKeySyncThreadFp(void *param) {
 static void *dmStatusInfoThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
+  int64_t     lastRecycleTrimTime = lastTime;
+  blockDataRecycleSetCurrentTime(lastTime);
   setThreadName("dnode-status-info");
   taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
@@ -194,6 +197,14 @@ static void *dmStatusInfoThreadFp(void *param) {
 
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;
+    if (curTime < lastRecycleTrimTime) lastRecycleTrimTime = curTime;
+    blockDataRecycleSetCurrentTime(curTime);
+
+    if (curTime - lastRecycleTrimTime >= BLOCK_RECYCLE_TIMEOUT_MS) {
+      blockDataRecycleTrimExpired(curTime);
+      lastRecycleTrimTime = curTime;
+    }
+
     float interval = curTime - lastTime;
     if (interval >= tsStatusIntervalMs) {
       dmUpdateStatusInfo(pMgmt);

@@ -66,6 +66,7 @@ typedef struct SPlanContext {
   bool        isView;
   bool        isAudit;
   bool        hasScan;
+  bool        splitScan;
   bool        forceNoMergeDataBlock;
   int32_t     sysScanFlag;
   char*       pMsg;

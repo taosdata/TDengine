@@ -37,10 +37,16 @@ typedef struct SFilePage {
 typedef struct SDiskbasedBufStatis {
   int64_t flushBytes;
   int64_t loadBytes;
+  int64_t flushUs;
+  int64_t loadUs;
   int32_t loadPages;
   int32_t getPages;
   int32_t releasePages;
   int32_t flushPages;
+  int32_t evictPages;
+  int64_t inMemPages;
+  int64_t diskPages;
+  int64_t lruMoves;
 } SDiskbasedBufStatis;
 
 /**

@@ -834,6 +834,43 @@ TEST_F(BoundedBlockDecoderTest, AcceptsProductionReassignedVariableOffsets) {
   EXPECT_EQ(memcmp(varDataVal(value), "six", 3), 0);
 }
 
+TEST_F(BoundedBlockDecoderTest, EstimatesReassignedVariableDataForEncoding) {
+  char value[VARSTR_HEADER_SIZE + 6] = {0};
+  varDataSetLen(value, 6);
+  memcpy(varDataVal(value), "longer", 6);
+  ASSERT_EQ(colDataSetVal(column(2), 2, value, false), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(colDataReassignVal(column(2), 0, 2, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(column(2), 1, 2, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(column(2), 2, 2, nullptr), TSDB_CODE_SUCCESS);
+
+  std::vector<char> reassigned(blockGetEncodeSize(source));
+  int32_t           length = blockEncode(source, reassigned.data(), reassigned.size(), kColumns);
+  ASSERT_EQ(length, reassigned.size());
+}
+
+TEST_F(BoundedBlockDecoderTest, EncodesReassignedUnfilledVariableColumn) {
+  std::vector<char> unfilled;
+  encodeUnfilledVariableColumn(&unfilled);
+
+  ASSERT_EQ(colDataReassignVal(column(2), 1, 0, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(column(2)->reassigned);
+  ASSERT_EQ(column(2)->pData, nullptr);
+
+  ASSERT_EQ(blockDataToBuf(unfilled.data(), source), TSDB_CODE_SUCCESS);
+
+  unfilled.resize(blockGetEncodeSize(source));
+  int32_t length = blockEncode(source, unfilled.data(), unfilled.size(), kColumns);
+  ASSERT_GT(length, 0);
+  unfilled.resize(length);
+
+  ASSERT_EQ(blockDecodeBounded(decoded, unfilled.data(), unfilled.size(), nullptr), TSDB_CODE_SUCCESS);
+  auto* variable = static_cast<SColumnInfoData*>(taosArrayGet(decoded->pDataBlock, 2));
+  for (int32_t row = 0; row < kRows; ++row) {
+    EXPECT_TRUE(colDataIsNull_s(variable, row));
+  }
+}
+
 TEST_F(BoundedBlockDecoderTest, DecodesUnfilledVariableColumnAsNull) {
   std::vector<char> unfilled;
   encodeUnfilledVariableColumn(&unfilled);

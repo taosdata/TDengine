@@ -146,6 +146,7 @@ typedef struct STableListInfo {
   int32_t*         groupOffset;       // keep the offset value for each group in the tableList
   SArray*          pTableList;
   SHashObj*        map;           // speedup acquire the tableQueryInfo by table uid
+  SHashObj*        pTbnameMap;    // key: uid, value: an owned name resolved from a tbname condition
   SHashObj*        remainGroups;  // remaining group has not yet processed the empty group
   STableListIdInfo idInfo;        // this maybe the super table or ordinary table
 } STableListInfo;
@@ -189,11 +190,17 @@ int32_t         tableListGetSize(const STableListInfo* pTableList, int32_t* pRes
 uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
+// Stores an owned table name for a UID until pTableList is cleared or destroyed.
+// Repeating the same UID/name pair is idempotent.
+int32_t         tableListPutTbname(STableListInfo* pTableList, uint64_t uid, const char* pTbname);
+// Returns a table name resolved while building pTableList, or NULL when the UID was not name-filtered.
+const char*     tableListGetTbname(const STableListInfo* pTableList, uint64_t uid);
 void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
   SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId);
 int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, int64_t version, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo, int64_t txnId);
+                          SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo, int64_t txnId,
+                          STableListInfo* pTableListInfo);
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);

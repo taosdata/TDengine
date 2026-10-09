@@ -232,6 +232,7 @@ typedef struct SDataBlockInfo {
   bool        blankFill;
   SValue      pks[2];
   SColumnDataAgg* pBlockAgg;  // borrowed block SMA for dynamic aggregate pruning; do not serialize or copy
+  int32_t     smaSourceRows;  // source physical row count represented by a one-row SMA block; do not serialize
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -244,8 +245,14 @@ typedef struct SDataBlockInfo {
 
 typedef struct SSDataBlock {
   SColumnDataAgg* pBlockAgg;
+  SColumnDataAgg* pBlockAggBuf;      // reusable storage for block SMA results
+  uint32_t        pBlockAggBufSize;  // number of entries in pBlockAggBuf
   SArray*         pDataBlock;  // SArray<SColumnInfoData>
   SDataBlockInfo  info;
+  uint64_t        recycleKey;
+  int64_t         recycleTime;
+  struct SSDataBlock* recycleNext;
+  bool            recycleEnabled;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
@@ -282,6 +289,10 @@ typedef struct SQueryTableDataCond {
   bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
   bool         cacheSttStatis;
   bool         mainFirst;  // scan external windows in MAIN/NEXT/PREV order
+  // A planner-proven LAST-only scan may discard clean-block rows before copying them.
+  bool         lastOnlyScan;
+  // Positive only for a planner-proven ordered single-primary-key scan with LIMIT and no OFFSET.
+  int32_t      blockRowLimit;
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);

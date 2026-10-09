@@ -348,6 +348,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
     SInputColumnInfoData* pInput = &pCtx[i].input;
     pInput->uid = pBlock->info.id.uid;
     pInput->colDataSMAIsSet = false;
+    pInput->smaSourceRows = 0;
     pInput->pPTS = NULL;
     pInput->pPrimaryKey = NULL;
 
@@ -490,6 +491,7 @@ int32_t setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock*
   SInputColumnInfoData* pInput = &pCtx->input;
   pInput->numOfRows = numOfRows;
   pInput->totalRows = numOfRows;
+  pInput->smaSourceRows = pBlock->info.smaSourceRows;
 
   if (pBlock->pBlockAgg != NULL) {
     pInput->colDataSMAIsSet = true;
@@ -508,7 +510,8 @@ int32_t setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock*
         // the data in the corresponding SColumnInfoData will not be used.
         pInput->pData[j] = taosArrayGet(pBlock->pDataBlock, slotId);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
-        code = doCreateConstantValColumnSMAInfo(pInput, pFuncParam, pFuncParam->param.nType, j, pBlock->info.rows);
+        code = doCreateConstantValColumnSMAInfo(pInput, pFuncParam, pFuncParam->param.nType, j,
+                                                pInput->smaSourceRows);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -1220,10 +1223,10 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, int64_t* default
     last = *defaultPgsz;
   }
 
-  // The default buffer for each operator in query is 10MB.
+  // The default buffer for each operator in query is 24MB.
   // at least four pages need to be in buffer
   // TODO: make this variable to be configurable.
-  *defaultBufsz = 4096 * 2560;
+  *defaultBufsz = 4096 * 6144;
   if ((*defaultBufsz) <= (*defaultPgsz)) {
     (*defaultBufsz) = (*defaultPgsz) * 4;
     if (*defaultBufsz < ((int64_t)(*defaultPgsz)) * 4) {

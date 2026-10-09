@@ -37,6 +37,7 @@ typedef struct SBlockOrderInfo {
 
 #define BLOCK_VERSION_1 1
 #define BLOCK_VERSION_2 2
+#define BLOCK_RECYCLE_TIMEOUT_MS 60000
 
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
@@ -303,9 +304,19 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
 
 int32_t createDataBlock(SSDataBlock** pResBlock);
 void    blockDataDestroy(SSDataBlock* pBlock);
+// Recycle a completed block for later reuse. The block must no longer be referenced by any operator.
+void    blockDataRecycle(SSDataBlock* pBlock);
+// Updates the coarse clock used when a completed block enters the recycle list.
+void    blockDataRecycleSetCurrentTime(int64_t currentTime);
+// Releases recycle-list blocks that have been idle for at least BLOCK_RECYCLE_TIMEOUT_MS.
+void    blockDataRecycleTrimExpired(int64_t currentTime);
+// Releases every recycle-list block after query execution has stopped during process shutdown.
+void    blockDataRecycleCleanup(void);
 void    blockDataFreeRes(SSDataBlock* pBlock);
 void    blockDataFreeCols(SSDataBlock* pBlock);
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
+// Acquire an empty block with the template schema, reusing retained column capacity when available.
+int32_t createOneDataBlockFromRecycle(const SSDataBlock* pDataBlock, SSDataBlock** pResBlock, bool* pReused);
 int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDataBlock* pTemplateBlock, SArray* pColMap,
                                        SSDataBlock** pResBlock);

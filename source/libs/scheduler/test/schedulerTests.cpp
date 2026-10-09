@@ -74,6 +74,7 @@ extern "C" void schInitTaskRetryInfo(SSchJob *pJob, SSchTask *pTask, SSchLevel *
 extern "C" int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_t execId);
 extern "C" int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schNotifyTaskOnExecNode(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
 extern "C" int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask);
@@ -1789,6 +1790,195 @@ TEST(otherTest, branch) {
 
 
   schMgmt.jobRef = -1;
+}
+
+TEST(otherTest, followerReadEligibility) {
+  bool     savedEnableFollowerRead = tsEnableFollowerRead;
+  SSchJob  job = {0};
+  SSchTask task = {0};
+  SSubplan plan = {};
+
+  task.plan = &plan;
+  plan.subplanType = SUBPLAN_TYPE_SCAN;
+  plan.msgType = TDMT_SCH_QUERY;
+  job.attr.type = JOB_TYPE_QUERY;
+
+  tsEnableFollowerRead = false;
+  EXPECT_FALSE(schTaskAllowFollowerRead(&job, &task));
+
+  tsEnableFollowerRead = true;
+  EXPECT_TRUE(schTaskAllowFollowerRead(&job, &task));
+
+  task.plan = nullptr;
+  EXPECT_FALSE(schTaskAllowFollowerRead(&job, &task));
+  task.plan = &plan;
+
+  job.attr.type = (EJobType)(JOB_TYPE_QUERY | JOB_TYPE_INSERT);
+  EXPECT_FALSE(schTaskAllowFollowerRead(&job, &task));
+
+  job.attr.type = JOB_TYPE_HQUERY;
+  EXPECT_FALSE(schTaskAllowFollowerRead(&job, &task));
+
+  job.attr.type = JOB_TYPE_QUERY;
+  plan.subplanType = SUBPLAN_TYPE_MERGE;
+  EXPECT_TRUE(schTaskAllowFollowerRead(&job, &task));
+
+  plan.msgType = TDMT_SCH_MERGE_QUERY;
+  EXPECT_TRUE(schTaskAllowFollowerRead(&job, &task));
+
+  plan.subplanType = SUBPLAN_TYPE_SCAN;
+  EXPECT_TRUE(schTaskAllowFollowerRead(&job, &task));
+
+  tsEnableFollowerRead = savedEnableFollowerRead;
+}
+
+TEST(otherTest, followerReadSelectsReplicaEndpoint) {
+  bool     savedEnableFollowerRead = tsEnableFollowerRead;
+  SSchJob  job = {0};
+  SSchTask task = {0};
+  SSubplan plan = {};
+
+  task.plan = &plan;
+  plan.subplanType = SUBPLAN_TYPE_SCAN;
+  plan.msgType = TDMT_SCH_QUERY;
+  plan.execNode.epSet.numOfEps = 3;
+  plan.execNode.epSet.inUse = 1;
+  job.attr.type = JOB_TYPE_QUERY;
+
+  tsEnableFollowerRead = false;
+  ASSERT_EQ(schSetTaskCandidateAddrs(&job, &task), TSDB_CODE_SUCCESS);
+  SQueryNodeAddr *pAddr = (SQueryNodeAddr *)taosArrayGet(task.candidateAddrs, 0);
+  ASSERT_NE(pAddr, nullptr);
+  EXPECT_EQ(pAddr->epSet.inUse, 1);
+  taosArrayDestroy(task.candidateAddrs);
+  task.candidateAddrs = nullptr;
+
+  tsEnableFollowerRead = true;
+  ASSERT_EQ(schSetTaskCandidateAddrs(&job, &task), TSDB_CODE_SUCCESS);
+  pAddr = (SQueryNodeAddr *)taosArrayGet(task.candidateAddrs, 0);
+  ASSERT_NE(pAddr, nullptr);
+  EXPECT_GE(pAddr->epSet.inUse, 0);
+  EXPECT_LT(pAddr->epSet.inUse, pAddr->epSet.numOfEps);
+
+  taosArrayDestroy(task.candidateAddrs);
+  tsEnableFollowerRead = savedEnableFollowerRead;
+}
+
+TEST(otherTest, followerReadSelectsReplicaEndpointFromNodeList) {
+  bool           savedEnableFollowerRead = tsEnableFollowerRead;
+  SSchJob        job = {0};
+  SSchTask       task = {0};
+  SSubplan       plan = {};
+  SQueryNodeLoad load = {0};
+
+  task.plan = &plan;
+  plan.subplanType = SUBPLAN_TYPE_MERGE;
+  plan.msgType = TDMT_SCH_MERGE_QUERY;
+  job.attr.type = JOB_TYPE_QUERY;
+  job.nodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
+  ASSERT_NE(job.nodeList, nullptr);
+
+  load.addr.epSet.numOfEps = 3;
+  load.addr.epSet.inUse = 2;
+  ASSERT_NE(taosArrayPush(job.nodeList, &load), nullptr);
+
+  tsEnableFollowerRead = false;
+  ASSERT_EQ(schSetTaskCandidateAddrs(&job, &task), TSDB_CODE_SUCCESS);
+  SQueryNodeAddr *pAddr = (SQueryNodeAddr *)taosArrayGet(task.candidateAddrs, 0);
+  ASSERT_NE(pAddr, nullptr);
+  EXPECT_EQ(pAddr->epSet.inUse, 2);
+  taosArrayDestroy(task.candidateAddrs);
+  task.candidateAddrs = nullptr;
+
+  taosSeedRand(12345);
+  int32_t expectedInUse = taosRand() % load.addr.epSet.numOfEps;
+  taosSeedRand(12345);
+  tsEnableFollowerRead = true;
+  ASSERT_EQ(schSetTaskCandidateAddrs(&job, &task), TSDB_CODE_SUCCESS);
+  pAddr = (SQueryNodeAddr *)taosArrayGet(task.candidateAddrs, 0);
+  ASSERT_NE(pAddr, nullptr);
+  EXPECT_EQ(pAddr->epSet.inUse, expectedInUse);
+
+  SQueryNodeLoad *pLoad = (SQueryNodeLoad *)taosArrayGet(job.nodeList, 0);
+  ASSERT_NE(pLoad, nullptr);
+  EXPECT_EQ(pLoad->addr.epSet.inUse, 2);
+
+  taosArrayDestroy(task.candidateAddrs);
+  taosArrayDestroy(job.nodeList);
+  tsEnableFollowerRead = savedEnableFollowerRead;
+}
+
+TEST(otherTest, followerReadMessageRoundTrip) {
+  SSubQueryMsg request = {0};
+  request.sId = 1;
+  request.queryId = 2;
+  request.taskId = 3;
+  request.subEndPoints = taosArrayInit(0, POINTER_BYTES);
+  ASSERT_NE(request.subEndPoints, nullptr);
+
+  int32_t msgSize = tSerializeSSubQueryMsg(nullptr, 0, &request);
+  ASSERT_GT(msgSize, 0);
+
+  void *pMsg = taosMemoryCalloc(1, msgSize);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(tSerializeSSubQueryMsg(pMsg, msgSize, &request), msgSize);
+
+  SSubQueryMsg response = {0};
+  ASSERT_EQ(tDeserializeSSubQueryMsg(pMsg, msgSize, &response), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(response.allowFollowerRead);
+
+  tFreeSSubQueryMsg(&response);
+  taosMemoryFree(pMsg);
+
+  request.allowFollowerRead = true;
+  msgSize = tSerializeSSubQueryMsg(nullptr, 0, &request);
+  ASSERT_GT(msgSize, 0);
+  pMsg = taosMemoryCalloc(1, msgSize);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(tSerializeSSubQueryMsg(pMsg, msgSize, &request), msgSize);
+
+  response = {};
+  ASSERT_EQ(tDeserializeSSubQueryMsg(pMsg, msgSize, &response), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(response.allowFollowerRead);
+
+  tFreeSSubQueryMsg(&response);
+  taosArrayDestroy(request.subEndPoints);
+  taosMemoryFree(pMsg);
+}
+
+TEST(otherTest, followerReadFetchMessageRoundTrip) {
+  SResFetchReq request = {0};
+  request.sId = 1;
+  request.queryId = 2;
+  request.taskId = 3;
+  request.reset = true;
+
+  int32_t msgSize = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(msgSize, 0);
+
+  void *pMsg = taosMemoryCalloc(1, msgSize);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(pMsg, msgSize, &request, false, false), msgSize);
+
+  SResFetchReq legacyResponse = {0};
+  ASSERT_EQ(tDeserializeSResFetchReq(pMsg, msgSize, &legacyResponse), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(legacyResponse.allowFollowerRead);
+  tDestroySResFetchReq(&legacyResponse);
+  taosMemoryFree(pMsg);
+
+  request.allowFollowerRead = true;
+  msgSize = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(msgSize, 0);
+  pMsg = taosMemoryCalloc(1, msgSize);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(pMsg, msgSize, &request, false, false), msgSize);
+
+  SResFetchReq response = {0};
+  ASSERT_EQ(tDeserializeSResFetchReq(pMsg, msgSize, &response), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(response.allowFollowerRead);
+
+  tDestroySResFetchReq(&response);
+  taosMemoryFree(pMsg);
 }
 
 

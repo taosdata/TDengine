@@ -312,7 +312,7 @@ void qwFreeSinkHandle(SQWTaskCtx *ctx) {
   if (osinkHandle && osinkHandle == atomic_val_compare_exchange_ptr(&ctx->sinkHandle, osinkHandle, NULL)) {
     QW_SINK_ENABLE_MEMPOOL(ctx);
     dsDestroyDataSinker(osinkHandle);
-    QW_SINK_DISABLE_MEMPOOL();
+    QW_SINK_DISABLE_MEMPOOL(ctx);
 
     (void)atomic_add_fetch_64(&gQueryMgmt.stat.taskSinkDestroyNum, 1);
     
