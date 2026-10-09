@@ -98,6 +98,7 @@ class Configure:
             "port": 6035,
             "resource_base_url": "https://downloads.taosdata.com",
             "tsfm_resource_exec_timeout": 120,
+            "tsfm_query_exec_timeout": 120,
             "tsfm_model_start_timeout": 300,
         }
 
@@ -113,8 +114,10 @@ class Configure:
             "conf_path": "/etc/taos/taosanode.config.py",
             "log_level": logging.DEBUG,
             "draw_result": False,
+            "host": "0.0.0.0",
             "port": 6035,
             "tsfm_resource_exec_timeout": 120,
+            "tsfm_query_exec_timeout": 120,
             "tsfm_model_start_timeout": 300,
         }
 
@@ -163,6 +166,9 @@ class Configure:
     def get_draw_result_option(self):
         """get the option for draw results or not"""
         return self._conf["draw_result"]
+
+    def get_tsfm_exec_timeout(self) -> int:
+        return int(self._conf.get("tsfm_query_exec_timeout", 120))
 
     def get_server_bind(self) -> tuple:
         """return (host, port) for the HTTP server"""

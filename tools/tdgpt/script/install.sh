@@ -431,8 +431,8 @@ function install_log() {
 
 function install_model_dirs() {
   ${csudo}mkdir -p "${modelDir}" "${modelVenvsDir}"
-  ${csudo}chmod 777 "${modelDir}" "${modelVenvsDir}"
-  if [ ${custom_dir_set} -eq 0 ];then 
+  ${csudo}chmod 0755 "${modelDir}" "${modelVenvsDir}"
+  if [ ${custom_dir_set} -eq 0 ];then
     ${csudo}ln -sf ${modelDir} "${install_main_dir}/model"
   fi
 }
@@ -442,6 +442,7 @@ function install_model() {
     echo -e "Import TDgpt model resource package: ${model_package}"
     extract_offline_package_to_dir "$model_package" "$modelDir" "TDgpt model resource package"
     echo -e "TDgpt model resource package imported to ${modelDir}"
+    ${csudo}chmod -R o-w "${modelDir}"
     return 0
   fi
 
@@ -456,6 +457,7 @@ function install_model() {
       [ -f "$model_tar" ] && tar -zxf "$model_tar" -C "${modelDir}" || :
     done
   fi
+  ${csudo}chmod -R o-w "${modelDir}"
 }
 
 function install_img() {

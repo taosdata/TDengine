@@ -1076,6 +1076,9 @@ def ds_predict():
         input_data = data["input"]
         num_len = data["next_len"]
 
+        if isinstance(num_len, bool) or not isinstance(num_len, int) or num_len < 1 or num_len > 10000:
+            return jsonify({"status": "error", "error": "next_len must be an integer in [1, 10000]"}), 400
+
         if len(set(input_data)) == 1:
             # for identical array list, std is 0, return directly
             pred_y = [input_data[0] for _ in range(num_len)]
@@ -1123,7 +1126,7 @@ def main():
 
     init_model(model_folder)
 
-    app.run(host="0.0.0.0", port=port, threaded=True, debug=False)
+    app.run(host="127.0.0.1", port=port, threaded=True, debug=False)
 
 
 if __name__ == "__main__":
