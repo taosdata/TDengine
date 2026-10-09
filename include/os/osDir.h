@@ -118,6 +118,7 @@ void    taosGetCwd(char *buf, int32_t len);
 TdDirPtr      taosOpenDir(const char *dirname);
 TdDirEntryPtr taosReadDir(TdDirPtr pDir);
 bool          taosDirEntryIsDir(TdDirEntryPtr pDirEntry);
+bool          taosDirEntryIsRegular(TdDirEntryPtr pDirEntry);
 char         *taosGetDirEntryName(TdDirEntryPtr pDirEntry);
 int32_t       taosCloseDir(TdDirPtr *ppDir);
 
@@ -131,6 +132,7 @@ typedef struct TdDirWEntry *TdDirWEntryPtr;
 TdDirWPtr      taosOpenDirW(const char *dirname);
 TdDirWEntryPtr taosReadDirW(TdDirWPtr pDir);
 bool           taosDirEntryIsDirW(TdDirWEntryPtr pDirEntry);
+bool           taosDirEntryIsRegularW(TdDirWEntryPtr pDirEntry);
 char          *taosGetDirEntryNameW(TdDirWEntryPtr pDirEntry);
 int32_t        taosCloseDirW(TdDirWPtr *ppDir);
 int32_t        taosMkDirW(const char *dirname);
@@ -149,6 +151,7 @@ int32_t taosGetDirSize(const char *path, int64_t *size);
 #define taosOpenDir         taosOpenDirW
 #define taosReadDir         taosReadDirW
 #define taosDirEntryIsDir   taosDirEntryIsDirW
+#define taosDirEntryIsRegular taosDirEntryIsRegularW
 #define taosGetDirEntryName taosGetDirEntryNameW
 #define taosCloseDir        taosCloseDirW
 #define taosMkDir           taosMkDirW

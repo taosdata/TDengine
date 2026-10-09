@@ -297,7 +297,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
-  memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, tsCharset, TD_CHARSET_LEN);
 
   dTrace("send status req to mnode, begin to get vnode loads, statusSeq:%d", pMgmt->statusSeq);
 

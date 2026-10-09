@@ -46,7 +46,7 @@ TEST(utilTest, DISABLED_decompress_ts_test) {
 
 #ifdef __AVX512VL__
   memset(decompOutput, 0, 10 * 8);
-  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), 10,
+  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), len, 10,
                               reinterpret_cast<char* const>(decompOutput), false);
 
   for (int32_t i = 0; i < 10; ++i) {
@@ -77,7 +77,7 @@ TEST(utilTest, DISABLED_decompress_ts_test) {
 
 #ifdef __AVX512VL__
   memset(decompOutput, 0, 10 * 8);
-  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), 7,
+  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), len1, 7,
                               reinterpret_cast<char* const>(decompOutput), false);
 
   for (int32_t i = 0; i < 7; ++i) {
@@ -92,7 +92,7 @@ TEST(utilTest, DISABLED_decompress_ts_test) {
 
 #ifdef __AVX512VL__
   memset(decompOutput, 0, 10 * 8);
-  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), 1,
+  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), len2, 1,
                               reinterpret_cast<char* const>(decompOutput), false);
 
   for (int32_t i = 0; i < 1; ++i) {
@@ -131,7 +131,7 @@ TEST(utilTest, DISABLED_decompress_perf_test) {
   st = taosGetTimestampUs();
 #ifdef __AVX512VL__
   for (int32_t k = 0; k < 10000; ++k) {
-    tsDecompressTimestampAvx512(px, num, pOutput, false);
+    tsDecompressTimestampAvx512(px, len, num, pOutput, false);
   }
 #endif
 
