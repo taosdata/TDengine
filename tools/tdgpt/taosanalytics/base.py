@@ -182,6 +182,9 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         if self.rows <= 0:
             raise ValueError("forecast rows is not specified yet")
 
+        if self.rows > 1024:
+            raise ValueError(f"forecast rows must be in [1, 1024], got {self.rows}")
+
         self.period = int(params["period"]) if "period" in params else 0
         if self.period < 0:
             raise ValueError("periods should be greater than 0")

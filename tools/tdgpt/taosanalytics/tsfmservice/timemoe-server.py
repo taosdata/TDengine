@@ -70,6 +70,14 @@ def do_predict():
         input_data = data["input"]
         prediction_length = data["next_len"]
 
+        if (
+            isinstance(prediction_length, bool) or
+            not isinstance(prediction_length, int) or
+            prediction_length < 1 or
+            prediction_length > 10000
+        ):
+            return jsonify({"status": "error", "error": "next_len must be an integer in [1, 10000]"}), 400
+
         if len(set(input_data)) == 1:
             # for identical array list, std is 0, return directly
             pred_y = [input_data[0] for _ in range(prediction_length)]
@@ -151,7 +159,7 @@ def main():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
+        default="127.0.0.1",
         help="Host address the server listens on (default: 0.0.0.0).",
     )
     parser.add_argument(

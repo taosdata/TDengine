@@ -115,6 +115,9 @@ draw_result = False
 # tsfm execution time out
 tsfm_resource_exec_timeout = 120
 
+# timeout for outbound requests.post calls to tsfm inference services
+tsfm_query_exec_timeout = 120
+
 # Deadline (in seconds) for starting a tsfm model and waiting until it reports
 # readiness. It is forwarded to `taosanodectl model start --timeout` and must be
 # greater than the model readiness deadline (`timeouts['model_startup']`, default

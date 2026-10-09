@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import os.path
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -21,6 +20,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 
+from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
 
 
@@ -250,7 +250,8 @@ def gen_batch_envelop(ts_list, val_list, win_list, config):
                 )
             continue
 
-        save_dir = f"./batch_{idx}"
+        conf = Configure.get_instance()
+        save_dir = f"{conf.get_img_dir()}/batch_{idx}"
 
         # Hampel filter
         if config["hampel"]["active"]:
@@ -260,7 +261,7 @@ def gen_batch_envelop(ts_list, val_list, win_list, config):
                 config["hampel"]["sigma"],
             )
 
-            if config["plot"]:
+            if conf.get_draw_result_option():
                 info = f'window_size: {config["hampel"]["window_size"]}, sigma:{config["hampel"]["sigma"]}'
                 plot_hempel_filter(v, v_hampel, outlier_indices, info, save_dir)
         else:
@@ -279,7 +280,7 @@ def gen_batch_envelop(ts_list, val_list, win_list, config):
                 config["derivative"].get("max_rate", np.inf),
             )
 
-            if config["plot"]:
+            if conf.get_draw_result_option():
                 plot_compare(v_hampel, v_der, "2_derivative", save_dir)
         else:
             t_der = t
@@ -293,7 +294,7 @@ def gen_batch_envelop(ts_list, val_list, win_list, config):
             config["normalize"]["method"],
         )
 
-        if config["plot"]:
+        if conf.get_draw_result_option():
             plot_compare(v_der, v_norm, "3_normalize", save_dir)
 
         # SG smoothing
@@ -313,7 +314,7 @@ def gen_batch_envelop(ts_list, val_list, win_list, config):
                 polyorder=sg_cfg["polyorder"],
             )
 
-            if config["plot"]:
+            if conf.get_draw_result_option():
                 info = (
                     f'window_size: {sg_cfg["window"]}, poly_order:{sg_cfg["polyorder"]}'
                 )
@@ -337,7 +338,7 @@ def gen_batch_envelop(ts_list, val_list, win_list, config):
     # main process
     center, lower, upper = build_golden(processed_batches, config)
 
-    if config["plot"]:
+    if conf.get_draw_result_option():
         plt.figure(figsize=(12, 7))
 
         for b in processed_batches:
@@ -353,10 +354,10 @@ def gen_batch_envelop(ts_list, val_list, win_list, config):
         )
 
         plt.legend()
-        plt.title(f'Golden Batch with Envelope ({config["golden"]["method"]})')
 
-        Path(os.getcwd()).mkdir(exist_ok=True)
-        plt.savefig("./golden_batch.png")
+        plt.title(f'Golden Batch with Envelope ({config["golden"]["method"]})')
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+        plt.savefig(f"{save_dir}/golden_batch.png")
         plt.close()
 
     AppLogger.debug(
@@ -367,7 +368,7 @@ def gen_batch_envelop(ts_list, val_list, win_list, config):
 
 def get_default_config():
     default_config = {
-        "plot": True,
+        "plot": False,
         "hampel": {
             "window_size": 7,
             "sigma": 3,
@@ -403,13 +404,58 @@ def update_config(param) -> dict:
 
     if param is not None:
         for key, value in param.items():
-            if (
-                key in config
-                and isinstance(config[key], dict)
-                and isinstance(value, dict)
-            ):
-                config[key].update(value)
-            elif key in config:
+            if key == "plot":
+                AppLogger.warning("Ignoring request-supplied 'plot' key: plot is controlled by server configuration only")
+                continue
+            if key not in config:
+                AppLogger.warning(f"Ignoring unknown config key: {key}")
+                continue
+
+            # Validate and update config with type/range checks
+            if isinstance(config[key], dict) and isinstance(value, dict):
+                # Nested config (e.g., hampel, savgol, golden, normalize)
+                for nested_key, nested_value in value.items():
+                    if nested_key not in config[key]:
+                        AppLogger.warning(f"Ignoring unknown nested config key: {key}.{nested_key}")
+                        continue
+
+                    # Validate based on known parameter constraints
+                    if nested_key == "window_size":
+                        if not isinstance(nested_value, int) or nested_value < 1 or nested_value > 100:
+                            AppLogger.error(f"Invalid window_size: {nested_value}, must be int in range [1, 100]")
+                            continue
+                    elif nested_key == "sigma":
+                        if not isinstance(nested_value, (int, float)) or nested_value < 1 or nested_value > 3:
+                            AppLogger.error(f"Invalid sigma: {nested_value}, must be in range [1, 3]")
+                            continue
+                    elif nested_key == "polyorder":
+                        if not isinstance(nested_value, int) or nested_value < 0 or nested_value > 5:
+                            AppLogger.error(f"Invalid polyorder: {nested_value}, must be int in range [0, 5]")
+                            continue
+                    elif nested_key == "window":
+                        if not isinstance(nested_value, int) or nested_value < 3 or nested_value > 100000:
+                            AppLogger.error(f"Invalid window: {nested_value}, must be int in range [3, 100000]")
+                            continue
+                    elif nested_key == "target_len":
+                        if not isinstance(nested_value, int) or nested_value < 100 or nested_value > 100000:
+                            AppLogger.error(f"Invalid target_len: {nested_value}, must be int in range [100, 100000]")
+                            continue
+                    elif nested_key == "method":
+                        if not isinstance(nested_value, str) or nested_value not in {"linear", "cubic"}:
+                            AppLogger.error(f"Invalid method: {nested_value}, must be 'linear' or 'cubic'")
+                            continue
+                    elif nested_key in {"lower_percentile", "upper_percentile"}:
+                        if not isinstance(nested_value, (int, float)) or nested_value < 0 or nested_value > 100:
+                            AppLogger.error(f"Invalid percentile {nested_key}: {nested_value}, must be in range [0, 100]")
+                            continue
+
+                    config[key][nested_key] = nested_value
+            else:
+                # Top-level scalar config - validate type matches default
+                if not isinstance(value, type(config[key])):
+                    AppLogger.error(f"Type mismatch for config key {key}: expected {type(config[key]).__name__}, "
+                                    f"got {type(value).__name__}")
+                    continue
                 config[key] = value
 
     AppLogger.debug(f"conf for batch process: {config}")
