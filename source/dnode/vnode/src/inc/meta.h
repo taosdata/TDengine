@@ -85,6 +85,9 @@ int32_t metaBuildMergedTagView(const SMetaEntry* pEntry, const SSchemaWrapper* p
 int32_t metaCacheOpen(SMeta* pMeta);
 void    metaCacheClose(SMeta* pMeta);
 int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo);
+// Caller holds the meta read lock. Read at most 64 cache entries, without I/O
+// or allocation. A miss with truncated=true is inconclusive, not an absence.
+int32_t metaCacheGetForDiagnostics(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, bool* pTruncated);
 int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
 
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo);

@@ -562,7 +562,12 @@ static int32_t metaSchemaTableUpsert(SMeta *pMeta, const SMetaHandleParam *pPara
     code = TSDB_CODE_INVALID_PARA;
   }
   if (TSDB_CODE_SUCCESS != code) {
-    metaErr(vgId, code);
+    metaError("vgId:%d, schema write failed, op:%s, schemaUid:%" PRId64
+              ", sver:%d, metaVer:%" PRId64 ", txnId:%" PRId64
+              ", txnStatus:%d, code:0x%x(%s)",
+              vgId, op == META_TABLE_OP_INSERT ? "insert" : "upsert",
+              key.uid, key.sver, pEntry->version, pEntry->txnId,
+              pEntry->txnStatus, code, tstrerror(code));
   }
   taosMemoryFree(value);
   return code;

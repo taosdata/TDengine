@@ -2663,6 +2663,7 @@ static FORCE_INLINE STSchema* doGetSchemaForTSRow(int32_t sversion, STsdbReader*
   int32_t   lino = 0;
   STSchema* ps = NULL;
   void**    p = NULL;
+  const char* stage = "latest-schema";
 
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -2683,15 +2684,31 @@ static FORCE_INLINE STSchema* doGetSchemaForTSRow(int32_t sversion, STsdbReader*
     goto _end;
   }
 
+  stage = "requested-schema";
   code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->info.suid, uid, sversion, &ps);
   TSDB_CHECK_CODE(code, lino, _end);
 
+  stage = "schema-cache-insert";
   code = tSimpleHashPut(pReader->pSchemaMap, &sversion, sizeof(sversion), &ps, POINTER_BYTES);
   TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    // Replace the existing error rather than logging on the per-row fast path.
+    // readerSver is the reader's cached latest schema, not a fresh meta lookup.
+    if (pReader != NULL && pReader->pTsdb != NULL && pReader->pTsdb->pVnode != NULL) {
+      tsdbError("vgId:%d, schema resolution failed, stage:%s, suid:%" PRIu64
+                ", uid:%" PRIu64 ", rowSver:%d, readerSver:%d, schemaCacheSize:%d"
+                ", queryVer:[%" PRId64 ",%" PRId64 "], code:0x%x(%s), %s",
+                TD_VID(pReader->pTsdb->pVnode), stage, pReader->info.suid, uid,
+                sversion, pReader->info.pSchema ? pReader->info.pSchema->version : -1,
+                pReader->pSchemaMap ? tSimpleHashGetSize(pReader->pSchemaMap) : 0,
+                pReader->info.verRange.minVer, pReader->info.verRange.maxVer,
+                code, tstrerror(code), pReader->idStr ? pReader->idStr : "QID:0x0");
+    } else {
+      tsdbError("schema resolution failed, reader context is unavailable, uid:%" PRIu64
+                ", rowSver:%d, code:0x%x(%s)", uid, sversion, code, tstrerror(code));
+    }
     terrno = code;
     return NULL;
   }
@@ -5766,7 +5783,21 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pT
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    if (code != TSDB_CODE_INVALID_PARA && pReader != NULL && pTSRow != NULL &&
+        pScanInfo != NULL && pReader->pTsdb != NULL && pReader->pTsdb->pVnode != NULL) {
+      // Only inspect the fixed header already used by this path; do not dump
+      // row payload or trust its length when diagnosing possible corruption.
+      tsdbError("vgId:%d, append TSRow failed, suid:%" PRIu64
+                ", uid:%" PRIu64 ", rowSver:%u, rowTs:%" PRId64
+                ", rowLen:%u, rowFlags:%u, rowPKs:%u, code:0x%x(%s), %s",
+                TD_VID(pReader->pTsdb->pVnode), pReader->info.suid,
+                pScanInfo->uid, (unsigned)pTSRow->sver, pTSRow->ts,
+                pTSRow->len, (unsigned)pTSRow->flag, (unsigned)pTSRow->numOfPKs,
+                code, tstrerror(code), pReader->idStr ? pReader->idStr : "QID:0x0");
+    } else {
+      tsdbError("append TSRow failed with invalid arguments, code:0x%x(%s)",
+                code, tstrerror(code));
+    }
   }
   return code;
 }

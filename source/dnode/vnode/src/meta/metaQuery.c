@@ -16,6 +16,8 @@
  */
 
 #include "meta.h"
+#include "osAtomic.h"
+#include "osTime.h"
 #include "tencode.h"
 #include "thash.h"
 #include "types.h"
@@ -1723,9 +1725,77 @@ int32_t metaGetTbTSchemaMaybeNull(SMeta *pMeta, tb_uid_t uid, int32_t sver, int 
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t metaCacheGet(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo);
+
+static void metaCollectSchemaFailureSnapshot(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver) {
+  if (pMeta == NULL || pMeta->pVnode == NULL) {
+    metaDebug("schema failure snapshot skipped, metadata is unavailable");
+    return;
+  }
+
+  tb_uid_t  schemaUid = suid ? suid : uid;
+  SMetaInfo table = {.version = -1, .skmVer = -1};
+  SMetaInfo owner = {.version = -1, .skmVer = -1};
+  bool      tableTruncated = false, ownerTruncated = false;
+
+  // Sample only the in-memory cache. Even a TDB read can flush dirty pages or
+  // wait for memory, so diagnostics must not perform additional TDB operations.
+  int32_t lockCode = taosThreadRwlockTryRdlock(&pMeta->lock);
+  if (lockCode != 0) {
+    metaDebug("vgId:%d, schema failure snapshot skipped, uid:%" PRId64
+              ", suid:%" PRId64 ", sver:%d, lockCode:%d",
+              TD_VID(pMeta->pVnode), uid, suid, sver, lockCode);
+    return;
+  }
+  int32_t tableCode = metaCacheGetForDiagnostics(pMeta, uid, &table, &tableTruncated);
+  int32_t ownerCode = tableCode;
+  if (schemaUid == uid) {
+    owner = table;
+    ownerTruncated = tableTruncated;
+  } else {
+    ownerCode = metaCacheGetForDiagnostics(pMeta, schemaUid, &owner, &ownerTruncated);
+  }
+  metaULock(pMeta);
+
+  // Cache misses/truncated walks do not establish that table/schema.db is missing.
+  metaDebug("vgId:%d, schema failure snapshot, source:cache, uid:%" PRId64
+            ", suid:%" PRId64 ", schemaUid:%" PRId64 ", sver:%d"
+            ", tableCacheCode:0x%x, tableCacheTruncated:%d, cachedSuid:%" PRId64
+            ", tableCacheMetaVer:%" PRId64 ", tableCacheSver:%d"
+            ", ownerCacheCode:0x%x, ownerCacheTruncated:%d"
+            ", ownerCacheMetaVer:%" PRId64 ", ownerCacheSver:%d",
+            TD_VID(pMeta->pVnode), uid, suid, schemaUid, sver,
+            tableCode, tableTruncated, table.suid, table.version, table.skmVer,
+            ownerCode, ownerTruncated, owner.version, owner.skmVer);
+}
+
+static void metaLogSchemaFailureSnapshot(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver) {
+  enum { SCHEMA_DIAG_INTERVAL_MS = 5000 };
+  // Process-wide budget shared by all vnodes. busy also prevents overlapping
+  // samples when sampling/logging exceeds the interval; it protects nextMs.
+  static int32_t busy = 0;
+  static int64_t nextMs = 0;
+  if (!(metaDebugFlag & DEBUG_DEBUG) || atomic_val_compare_exchange_32(&busy, 0, 1) != 0) {
+    return;
+  }
+
+  int32_t savedErrno = terrno;
+  int64_t now = taosGetMonoTimestampMs();
+  if (now >= nextMs) {
+    // Failed/contended attempts consume the budget too, avoiding a retry storm.
+    nextMs = now + SCHEMA_DIAG_INTERVAL_MS;
+    metaCollectSchemaFailureSnapshot(pMeta, suid, uid, sver);
+  }
+  terrno = savedErrno;
+  (void)atomic_exchange_32(&busy, 0);
+}
+
 int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema **ppTSchema) {
   int32_t code = 0;
   int32_t lino;
+  const int32_t requestedSver = sver;
+  const char   *stage = "latest-schema";
+  int32_t       storageCode = 0;
 
   void     *pData = NULL;
   int       nData = 0;
@@ -1741,11 +1811,14 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       skmDbKey.uid = suid ? suid : uid;
       skmDbKey.sver = INT32_MAX;
 
+      stage = "schema-cursor-open";
       code = tdbTbcOpen(pMeta->pSkmDb, &pSkmDbC, NULL);
       TSDB_CHECK_CODE(code, lino, _exit);
       metaRLock(pMeta);
 
-      if (tdbTbcMoveTo(pSkmDbC, &skmDbKey, sizeof(skmDbKey), &c) < 0) {
+      stage = "schema-cursor-seek";
+      storageCode = tdbTbcMoveTo(pSkmDbC, &skmDbKey, sizeof(skmDbKey), &c);
+      if (storageCode < 0) {
         metaULock(pMeta);
         tdbTbcClose(pSkmDbC);
         code = TSDB_CODE_NOT_FOUND;
@@ -1768,6 +1841,8 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       int32_t     nKey = 0;
       int32_t     ret = tdbTbcGet(pSkmDbC, &pKey, &nKey, NULL, NULL);
 
+      stage = "schema-cursor-entry";
+      storageCode = ret;
       if (ret != 0 || ((SSkmDbKey *)pKey)->uid != skmDbKey.uid) {
         metaULock(pMeta);
         tdbTbcClose(pSkmDbC);
@@ -1782,6 +1857,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
+  stage = "schema-version";
   if (!(sver > 0)) {
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
@@ -1789,8 +1865,10 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
 
   skmDbKey.uid = suid ? suid : uid;
   skmDbKey.sver = sver;
+  stage = "schema-db-get";
   metaRLock(pMeta);
-  if (tdbTbGet(pMeta->pSkmDb, &skmDbKey, sizeof(SSkmDbKey), &pData, &nData) < 0) {
+  storageCode = tdbTbGet(pMeta->pSkmDb, &skmDbKey, sizeof(SSkmDbKey), &pData, &nData);
+  if (storageCode < 0) {
     metaULock(pMeta);
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
@@ -1802,6 +1880,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   SSchemaWrapper  schema;
   SSchemaWrapper *pSchemaWrapper = &schema;
 
+  stage = "schema-decode";
   tDecoderInit(&dc, pData, nData);
   code = tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
   tDecoderClear(&dc);
@@ -1812,6 +1891,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   }
 
   // convert
+  stage = "schema-build";
   STSchema *pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
   if (pTSchema == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1821,6 +1901,24 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   taosMemoryFree(pSchemaWrapper->pSchema);
 
 _exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    int32_t savedErrno = terrno;
+    // Preserve the underlying TDB result: callers still receive the original
+    // API error, which maps failed schema reads to NOT_FOUND.
+    metaError("vgId:%d, schema lookup failed, stage:%s, suid:%" PRId64
+              ", uid:%" PRId64 ", schemaUid:%" PRId64
+              ", requestedSver:%d, resolvedSver:%d, schemaBytes:%d"
+              ", storageCode:0x%x(%s), code:0x%x(%s)",
+              TD_VID(pMeta->pVnode), stage, suid, uid, suid ? suid : uid,
+              requestedSver, sver, nData, storageCode, tstrerror(storageCode),
+              code, tstrerror(code));
+    // Skip extra diagnostics when NOT_FOUND masked an I/O/allocation error.
+    if (code == TSDB_CODE_NOT_FOUND &&
+        (storageCode == TSDB_CODE_SUCCESS || storageCode == TSDB_CODE_NOT_FOUND)) {
+      metaLogSchemaFailureSnapshot(pMeta, suid, uid, sver);
+    }
+    terrno = savedErrno;
+  }
   return code;
 }
 
@@ -2797,8 +2895,6 @@ int32_t metaFlagCache(SVnode *pVnode) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-int32_t metaCacheGet(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo);
 
 int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pReader) {
   int32_t code = 0;
