@@ -57,6 +57,12 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if ((size_t)usedbRsp->vgNum != taosArrayGetSize(usedbRsp->pVgroupInfos)) {
+    qError("db:%s, vgNum:%d does not match the decoded vgroup info num:%zu", usedbRsp->db, usedbRsp->vgNum,
+           taosArrayGetSize(usedbRsp->pVgroupInfos));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   pOut->dbVgroup->vgHash =
       taosHashInit(usedbRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == pOut->dbVgroup->vgHash) {
@@ -65,6 +71,9 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
 
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
     SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp->pVgroupInfos, i);
+    if (NULL == pVgInfo) {
+      return TSDB_CODE_INVALID_MSG;
+    }
     pOut->dbVgroup->numOfTable += pVgInfo->numOfTable;
     qDebug("db:%s, vgId:%d, epNum:%d, current ep:%s:%u", usedbRsp->db, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
            pVgInfo->epSet.eps[pVgInfo->epSet.inUse].fqdn, pVgInfo->epSet.eps[pVgInfo->epSet.inUse].port);
