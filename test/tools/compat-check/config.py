@@ -81,6 +81,7 @@ MAX_CONSECUTIVE_RETRIES = 30   # 连续失败超过此次数 → 计为 1 次真
 RETRY_MAX_DURATION_S    = 150  # 单次 SQL 重试超过此秒数 → 也计为 1 次真正失败
 SUBSCRIBE_NO_DATA_TIMEOUT_S = 180  # 订阅：超过此秒数未收到任何数据判定不通过
 SUBSCRIBE_DRAIN_WAIT_S      = 60   # Phase 5 结束前等待订阅追上写入的最大时间（秒）
+SUBSCRIBE_READY_TIMEOUT_S   = 120  # Max seconds to wait for the subscriber handshake before Phase 5 starts
 
 # ==================== Upgrade ====================
 NODE_INSTALL_SLEEP_S  = 20    # STOP 后模拟安装新软件包的等待时间（秒）
