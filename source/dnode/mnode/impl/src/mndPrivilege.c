@@ -69,8 +69,13 @@ _OVER:
 
 int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, const char *token, EPrivType privType,
                                 EPrivObjType objType, int64_t ownerId, const char *objFName, const char *tbName) {
-  return 0;
+  if (!pUser->enable) {
+    TAOS_RETURN(TSDB_CODE_MND_USER_DISABLED);
+  }
+  if (pUser->superUser) TAOS_RETURN(0);
+  TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
 }
+
 uint64_t mndBuildSysPrivBatchMask(SMnode *pMnode, SUserObj *pUser, const char *token,
                                   const EPrivType *privTypes, int32_t numPrivTypes) {
   if (numPrivTypes <= 0) {
@@ -86,7 +91,37 @@ int32_t mndCheckObjPrivilegeRecF(SMnode *pMnode, SUserObj *pUser, EPrivType priv
                                  int64_t ownerId, const char *objFName, const char *tbName) {
   return 0;
 }
-int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, SAlterUserReq *pAlter) { return 0; }
+int32_t mndCheckAlterUserPrivilege(SMnode *pMnode, const char *opUser, const char *opToken, SUserObj *pUser,
+                                   SAlterUserReq *pAlter) {
+  int32_t   code = 0, lino = 0;
+  SUserObj *pOperUser = NULL;
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), &lino, _OVER);
+
+  if (!pOperUser->enable) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
+  }
+  if (pOperUser->superUser) {
+    goto _OVER;
+  }
+  if (pAlter->hasPassword) {
+    if (strncmp(pUser->user, pOperUser->user, TSDB_USER_LEN) == 0) {
+      if (pAlter->numIpRanges > 0 || pAlter->numDropIpRanges > 0) {
+        // user can not alter its own ip white list
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+      }
+      goto _OVER;
+    }
+  }
+
+  TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+_OVER:
+  mndReleaseUser(pMnode, pOperUser);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("mndCheckAlterUserPrivilege failed at line:%d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
 int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, EPrivType privType) { return 0; }
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char* token, EShowType showType, const char *dbname) { return 0; }
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SDbObj *pDb) { return 0; }
