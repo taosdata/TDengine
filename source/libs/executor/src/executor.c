@@ -311,8 +311,11 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
   if (streamInserterParam) {
     SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500,
                            .maxDataBlockNumPerQuery = 50,
+                           .maxDataBlockNumPerLocalBlockQuery = DS_LOCAL_BLOCK_EXCHANGE_MAX_BLOCKS_PER_QUERY,
+                           .maxDataRowsPerQuery = DS_LOCAL_BLOCK_EXCHANGE_MAX_ROWS_PER_QUERY,
                            .maxDataBytesPerQuery = 256 * 1024 * 1024,
                            .compress = compressResult};
+    void*           pSinkManager = NULL;
     code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
@@ -928,6 +931,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   if (handle) {
     SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500,
                            .maxDataBlockNumPerQuery = 50,
+                           .maxDataBlockNumPerLocalBlockQuery = DS_LOCAL_BLOCK_EXCHANGE_MAX_BLOCKS_PER_QUERY,
+                           .maxDataRowsPerQuery = DS_LOCAL_BLOCK_EXCHANGE_MAX_ROWS_PER_QUERY,
                            .maxDataBytesPerQuery = 256 * 1024 * 1024,
                            .compress = compressResult};
     void*           pSinkManager = NULL;
@@ -954,6 +959,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
         taosMemoryFree(pSinkManager);
         goto _error;
       }
+    } else if (nodeType(pSubplan->pDataSink) == QUERY_NODE_PHYSICAL_PLAN_DISPATCH) {
+      ((SDataDispatcherNode*)pSubplan->pDataSink)->localBlockExchange = false;
     }
 
     // pSinkParam has been freed during create sinker.
@@ -1042,9 +1049,11 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
   qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
 
-  int32_t      current = 0;
+  int64_t      current = 0;
   SSDataBlock* pRes = NULL;
   int64_t      st = taosGetTimestampUs();
+  bool         directBlock = pLocal != NULL && pLocal->directBlock;
+  bool         streamLocalBlock = directBlock && pLocal->putBlockFp != NULL;
 
   if (pTaskInfo->pOpParam && !pTaskInfo->paramSet) {
     pTaskInfo->paramSet = true;
@@ -1083,7 +1092,12 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
       SSDataBlock* cached = taosArrayGetP(pTaskInfo->pResultBlockList, blockIndex);
       replace = replace || isEog || qIsMultiGroupEogBlock(cached);
     }
-    if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
+    if (directBlock) {
+      // Local block exchange transfers the operator result block directly to
+      // the sink. A scan operator rotates to a fresh output block before its
+      // next getNext call, so queued blocks are never overwritten.
+      p = pRes;
+    } else if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
       SSDataBlock* p1 = NULL;
       code = isEog ? createDataBlock(&p1) : createOneDataBlock(pRes, true, &p1);
       if (code == TSDB_CODE_SUCCESS && isEog) p1->info = pRes->info;
@@ -1107,12 +1121,17 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
       *tmp = p1;
       p = p1;
     } else {
-      void* tmp = taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+      SSDataBlock** ppCachedBlock = taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
+      QUERY_CHECK_NULL(ppCachedBlock, code, lino, _end, terrno);
 
-      p = *(SSDataBlock**)tmp;
-      code = copyDataBlock(p, pRes);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (*ppCachedBlock == NULL) {
+        code = createOneDataBlock(pRes, true, ppCachedBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        code = copyDataBlock(*ppCachedBlock, pRes);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      p = *ppCachedBlock;
     }
 
     blockIndex += 1;
@@ -1120,12 +1139,26 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     current += p->info.rows;
     currentBytes += (int64_t)blockDataGetSize(p);
     QUERY_CHECK_CONDITION((p->info.rows > 0 || isEog), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-    void* tmp = taosArrayPush(pResList, &p);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+
+    if (streamLocalBlock) {
+      bool continueExec = true;
+      code = pLocal->putBlockFp(pLocal->putBlockParam, p, &continueExec);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      if (!continueExec) {
+        pLocal->continueExec = false;
+        break;
+      }
+    } else {
+      void* tmp = taosArrayPush(pResList, &p);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    }
 
     // Bound control-only responses independently of DATA row thresholds.
-    if (current >= rowsThreshold || currentBytes >= bytesThreshold || processOneBlock ||
-        (pTaskInfo->readerGroupOutput && blockIndex >= 4096)) {
+    if (processOneBlock ||
+        (!streamLocalBlock &&
+         (current >= rowsThreshold || currentBytes >= bytesThreshold ||
+          (pTaskInfo->readerGroupOutput && blockIndex >= 4096)))) {
       break;
     }
 
@@ -1135,7 +1168,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pTaskInfo->pSubplan->dynamicRowThreshold) {
+  if (pTaskInfo->pSubplan->dynamicRowThreshold && !streamLocalBlock) {
     pTaskInfo->pSubplan->rowsThreshold -= current;
   }
 
@@ -1151,7 +1184,7 @@ _end:
   (void)cleanUpUdfs();
 
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
-  qDebug("%s task suspended, %d rows in %d blocks returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
+  qDebug("%s task suspended, %" PRId64 " rows in %d blocks returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
          GET_TASKID(pTaskInfo), current, (int32_t)taosArrayGetSize(pResList), total, 0, el / 1000.0);
 
   if (code && pTaskInfo->readerGroupOutput) {
@@ -1179,6 +1212,53 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo) {
   }
 
   taosArrayClear(pTaskInfo->pResultBlockList);
+}
+
+int32_t qDetachExecTaskResultBlock(qTaskInfo_t tinfo, SSDataBlock* pBlock, int32_t* pBlockIndex) {
+  if (NULL == tinfo || NULL == pBlock || NULL == pBlockIndex) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SExecTaskInfo* pTaskInfo = tinfo;
+  *pBlockIndex = -1;
+  int32_t        numOfBlocks = taosArrayGetSize(pTaskInfo->pResultBlockList);
+  for (int32_t i = 0; i < numOfBlocks; ++i) {
+    SSDataBlock** ppBlock = taosArrayGet(pTaskInfo->pResultBlockList, i);
+    if (NULL != ppBlock && *ppBlock == pBlock) {
+      *ppBlock = NULL;
+      *pBlockIndex = i;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+}
+
+int32_t qRestoreExecTaskResultBlock(qTaskInfo_t tinfo, int32_t blockIndex, SSDataBlock* pBlock) {
+  if (NULL == tinfo || NULL == pBlock || blockIndex < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SExecTaskInfo* pTaskInfo = tinfo;
+  if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SSDataBlock** ppBlock = taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
+  if (NULL == ppBlock) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (NULL != *ppBlock) {
+    // A later local fetch has already allocated a replacement for this cache
+    // slot. The detached block has been fully consumed, so it must not replace
+    // the newer reusable block when its lease is recycled.
+    blockDataDestroy(pBlock);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppBlock = pBlock;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
@@ -2165,7 +2245,8 @@ end:
 }
 
 static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
-  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, -1, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, NULL, 0);
+  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, -1, pTagCond, pVnode, SFLT_NOT_INDEX,
+                                    pStorageAPI, NULL, 0, pListInfo);
   if (code != 0) {
     return code;
   }
@@ -2641,7 +2722,7 @@ int32_t qFilterTableList(void* pVnode, SArray* uidList, int64_t version, SNode* 
 
   SNode* pTagCond = node == NULL ? NULL : ((SSubplan*)node)->pTagCond;
   code = doFilterByTagCond(suid, uidList, version, pTagCond, pVnode, SFLT_NOT_INDEX, &pExecTaskInfo->storageAPI,
-                           NULL, pExecTaskInfo->txnId);
+                           NULL, pExecTaskInfo->txnId, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }

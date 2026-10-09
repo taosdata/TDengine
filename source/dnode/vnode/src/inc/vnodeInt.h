@@ -245,6 +245,8 @@ int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray 
                                        SArray *pNames);
 int64_t metaGetTbNum(SMeta* pMeta);
 void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags, int64_t txnId);
+int32_t metaGetTableUidsByNames(void* pVnode, const SArray* pTbNames, SArray* pUids, int64_t txnId);
+int32_t metaGetTableInfosByNames(void* pVnode, const SArray* pTbNames, SArray* pInfos, int64_t txnId);
 
 int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, 
                  int32_t numOfExpr, SStorageAPI* api, uint64_t uid, 

@@ -219,6 +219,14 @@ int tdbTbGet(TTB *pTb, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreeGet(pTb->pBt, pKey, kLen, ppVal, vLen);
 }
 
+int32_t tdbTbGetBatch(TTB *pTb, STdbTbBatchGetArg *pArgs, int32_t numOfArgs) {
+  if (NULL == pTb) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return tdbBtreeGetBatch(pTb->pBt, pArgs, numOfArgs);
+}
+
 int tdbTbPGet(TTB *pTb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
   return tdbBtreePGet(pTb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
 }

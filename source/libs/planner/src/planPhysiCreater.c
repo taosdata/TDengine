@@ -1740,6 +1740,10 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
 
+static bool canBatchLastRowScanRead(const SScanLogicNode* pScan) {
+  return NULL != pScan && SCAN_TYPE_LAST_ROW == pScan->scanType;
+}
+
 static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                           SPhysiNode** pPhyNode) {
   SLastRowScanPhysiNode* pScan =
@@ -1762,6 +1766,7 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
 
   pScan->groupSort = pScanLogicNode->groupSort;
   pScan->ignoreNull = pScanLogicNode->igLastNull;
+  pScan->batchMultiTableRead = canBatchLastRowScanRead(pScanLogicNode);
 
   if (pScanLogicNode->pVgroupList) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
@@ -1846,6 +1851,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   }
   (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
+  pTableScan->lastOnlyScan = pScanLogicNode->lastOnlyScan;
   pTableScan->pDynamicScanFuncs = NULL;
   int32_t code = nodesCloneList(pScanLogicNode->pDynamicScanFuncs, &pTableScan->pDynamicScanFuncs);
   if (TSDB_CODE_SUCCESS != code) {
@@ -6649,6 +6655,7 @@ static int32_t doCreateExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogic
   pExchange->seqRecvData = pExchangeLogicNode->seqRecvData;
   pExchange->dynTbname = pExchangeLogicNode->dynTbname;
   pExchange->fastInterval = pExchangeLogicNode->fastInterval;
+  pExchange->localBlockExchange = pExchangeLogicNode->localBlockExchange;
 
   int32_t code = setConditionsSlotId(pCxt, (const SLogicNode*)pExchangeLogicNode, (SPhysiNode*)pExchange);
   if (TSDB_CODE_SUCCESS == code) {
@@ -7729,7 +7736,8 @@ static int32_t createDataInserter(SPhysiPlanContext* pCxt, SVgDataBlocks* pBlock
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createDataDispatcher(SPhysiPlanContext* pCxt, const SPhysiNode* pRoot, bool dynamicSchema, SDataSinkNode** pSink) {
+static int32_t createDataDispatcher(SPhysiPlanContext* pCxt, const SPhysiNode* pRoot, bool dynamicSchema,
+                                    bool localBlockExchange, SDataSinkNode** pSink) {
   SDataDispatcherNode* pDispatcher = NULL;
   int32_t              code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&pDispatcher);
   if (NULL == pDispatcher) {
@@ -7743,6 +7751,7 @@ static int32_t createDataDispatcher(SPhysiPlanContext* pCxt, const SPhysiNode* p
     return code;
   }
   pDispatcher->dynamicSchema = dynamicSchema;
+  pDispatcher->localBlockExchange = localBlockExchange;
 
   *pSink = (SDataSinkNode*)pDispatcher;
   return TSDB_CODE_SUCCESS;
@@ -7764,6 +7773,8 @@ static int32_t makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubplan
   pSubplan->userAppId = pCxt->pPlanCxt->userAppId;
   pSubplan->processOneBlock = pLogicSubplan->processOneBlock;
   pSubplan->dynTbname = pLogicSubplan->dynTbname;
+  pSubplan->localBlockExchange = (pLogicSubplan->splitFlag & SUBPLAN_SPLIT_FLAG_LOCAL_BLOCK_EXCHANGE) != 0;
+  pSubplan->execOnChildNode = pLogicSubplan->execOnChildNode;
   if (NULL != pCxt->pPlanCxt->pUser) {
     snprintf(pSubplan->user, sizeof(pSubplan->user), "%s", pCxt->pPlanCxt->pUser);
   }
@@ -7939,8 +7950,12 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
         ((SIntervalPhysiNode*)pSubplan->pNode)->exInterval) {
       pSubplan->delayFreeTask = true;
     }
+    if (TSDB_CODE_SUCCESS == code && pSubplan->localBlockExchange) {
+      pSubplan->delayFreeTask = true;
+    }
     if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->topicQuery) {
-      code = createDataDispatcher(pCxt, pSubplan->pNode, pSubplan->processOneBlock, &pSubplan->pDataSink);
+      code = createDataDispatcher(pCxt, pSubplan->pNode, pSubplan->processOneBlock,
+                                  pSubplan->localBlockExchange, &pSubplan->pDataSink);
     }
   }
 

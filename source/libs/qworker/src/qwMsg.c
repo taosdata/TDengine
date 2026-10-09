@@ -23,6 +23,7 @@
 #include "qwInt.h"
 #include "qworker.h"
 #include "tcommon.h"
+#include "tdatablock.h"
 #include "tmsg.h"
 #include "tname.h"
 #include "tgrant.h"
@@ -64,7 +65,24 @@ void qwFreeFetchRsp(SQWTaskCtx *ctx, void *msg) {
   if (NULL == msg) {
     return;
   }
-  
+
+  if (ctx != NULL && ctx->localBlockSink) {
+    SLocalFetchBlock* pLocal = msg;
+    if (pLocal->magic == LOCAL_FETCH_BLOCK_MAGIC) {
+      if (pLocal->blockIsBorrowed) {
+        blockDataRecycle(pLocal->pBlock);
+      } else {
+        blockDataDestroy(pLocal->pBlock);
+      }
+    }
+    if (ctx->localExec) {
+      taosMemoryFree(msg);
+    } else {
+      rpcFreeCont(msg);
+    }
+    return;
+  }
+
   if (NULL == ctx || !ctx->localExec) {
     rpcFreeCont(msg);
   }
@@ -222,6 +240,12 @@ int32_t qwChkSaveNonScalarSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, in
 }
 
 int32_t qwChkSaveSubQFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd) {
+  if (QW_IS_SUBQ(ctx) && ctx->localBlockSink) {
+    // Local-block responses are SLocalFetchBlock wrappers, not serialized
+    // SRetrieveTableRsp payloads. They cannot be retained in subquery rspList.
+    QW_TASK_ELOG("local-block sink cannot be used for subquery response caching, task:%p", ctx->taskHandle);
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
   return QW_IS_SCALAR_SUBQ(ctx) ? qwChkSaveScalarSubQRsp(QW_FPARAMS(), ctx, rsp, dataLen, code, queryEnd) : qwChkSaveNonScalarSubQRsp(QW_FPARAMS(), ctx, rsp, dataLen, code, queryEnd);
 }
 
@@ -360,8 +384,9 @@ int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *pStatus, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendFetchRsp(SQWTaskCtx *ctx, int32_t rspType, SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength,
+int32_t qwBuildAndSendFetchRsp(SQWTaskCtx *ctx, int32_t rspType, SRpcHandleInfo *pConn, void *pRsp, int32_t dataLength,
                                int32_t code) {
+  bool localBlockFetch = ctx != NULL && ctx->localBlockSink;
   // Snapshot under extErrLock (dedicated latch, never nested in ctx->lock)
   char extErrBuf[512] = {0};
   if (ctx != NULL && code != TSDB_CODE_SUCCESS) {
@@ -374,6 +399,13 @@ int32_t qwBuildAndSendFetchRsp(SQWTaskCtx *ctx, int32_t rspType, SRpcHandleInfo 
   const char* extErrMsg = (extErrBuf[0] != '\0') ? extErrBuf : NULL;
   int32_t     extErrLen = extErrMsg ? (int32_t)strlen(extErrMsg) + 1 : 0;
 
+  if (localBlockFetch && code != TSDB_CODE_SUCCESS && pRsp != NULL) {
+    // Error responses use an empty SRetrieveTableRsp. Do not pass a local
+    // block wrapper through that layout or leave its block ownership behind.
+    qwFreeFetchRsp(ctx, pRsp);
+    pRsp = NULL;
+    dataLength = 0;
+  }
   if (NULL == pRsp) {
     // Error fetch responses carry optional NUL-terminated detail text after the fixed header.
     pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp) + extErrLen);
@@ -382,7 +414,7 @@ int32_t qwBuildAndSendFetchRsp(SQWTaskCtx *ctx, int32_t rspType, SRpcHandleInfo 
     }
     TAOS_MEMSET(pRsp, 0, sizeof(SRetrieveTableRsp));
     if (extErrLen > 0) {
-      memcpy(pRsp->data, extErrMsg, extErrLen);
+      memcpy(((SRetrieveTableRsp *)pRsp)->data, extErrMsg, extErrLen);
     }
     dataLength = extErrLen;
   }
@@ -390,12 +422,15 @@ int32_t qwBuildAndSendFetchRsp(SQWTaskCtx *ctx, int32_t rspType, SRpcHandleInfo 
   SRpcMsg rpcRsp = {
       .msgType = rspType,
       .pCont = pRsp,
-      .contLen = sizeof(*pRsp) + dataLength,
+      .contLen = localBlockFetch && code == TSDB_CODE_SUCCESS ? sizeof(SLocalFetchBlock)
+                                                               : sizeof(SRetrieveTableRsp) + dataLength,
       .code = code,
       .info = *pConn,
   };
 
-  rpcRsp.info.compressed = pRsp->compressed;
+  if (!localBlockFetch || code != TSDB_CODE_SUCCESS) {
+    rpcRsp.info.compressed = ((SRetrieveTableRsp*)pRsp)->compressed;
+  }
   tmsgSendRsp(&rpcRsp);
 
   if (NULL != ctx) {

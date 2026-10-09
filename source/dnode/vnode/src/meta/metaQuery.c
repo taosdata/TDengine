@@ -420,6 +420,269 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid, int64_t txn
   return 0;
 }
 
+int32_t metaGetTableUidsByNames(void *pVnode, const SArray *pTbNames, SArray *pUids, int64_t txnId) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            numOfNames = 0;
+  STdbTbBatchGetArg *pArgs = NULL;
+  SMeta             *pMeta = ((SVnode *)pVnode)->pMeta;
+
+  TAOS_UNUSED(txnId);
+  if (NULL == pTbNames || NULL == pUids) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  numOfNames = taosArrayGetSize(pTbNames);
+  if (numOfNames == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pArgs = taosMemoryCalloc(numOfNames, sizeof(*pArgs));
+  if (NULL == pArgs) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < numOfNames; ++i) {
+    char *name = taosArrayGetP(pTbNames, i);
+    if (NULL == name) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    pArgs[i].pKey = name;
+    pArgs[i].kLen = (int32_t)strlen(name) + 1;
+  }
+
+  metaRLock(pMeta);
+  code = tdbTbGetBatch(pMeta->pNameIdx, pArgs, numOfNames);
+  metaULock(pMeta);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < numOfNames; ++i) {
+    uint64_t uid = 0;
+    if (pArgs[i].code == TSDB_CODE_SUCCESS) {
+      if (pArgs[i].vLen != sizeof(uid)) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        goto _exit;
+      }
+      uid = *(uint64_t *)pArgs[i].pVal;
+    }
+
+    if (NULL == taosArrayPush(pUids, &uid)) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+_exit:
+  for (int32_t i = 0; i < numOfNames; ++i) {
+    tdbFree(pArgs[i].pVal);
+  }
+  taosMemoryFree(pArgs);
+  return code;
+}
+
+static void metaSetTableBatchInfo(SMetaTableBatchInfo *pInfo, const SMetaEntry *pEntry) {
+  pInfo->type = pEntry->type;
+  if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    pInfo->suid = pEntry->ctbEntry.suid;
+  } else if (pEntry->type == TSDB_SUPER_TABLE) {
+    pInfo->suid = pEntry->uid;
+  } else {
+    pInfo->suid = 0;
+  }
+}
+
+static int32_t metaDecodeTableBatchInfo(SMeta *pMeta, const STdbTbBatchGetArg *pArg, SMetaTableBatchInfo *pInfo,
+                                        int64_t txnId, bool checkTxn, bool *pNeedOldVersion) {
+  SDecoder   decoder = {0};
+  SMetaEntry entry = {0};
+  int32_t    code = TSDB_CODE_SUCCESS;
+
+  if (pArg->code != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
+  tDecoderInit(&decoder, pArg->pVal, pArg->vLen);
+  code = metaDecodeEntry(&decoder, &entry);
+  if (code == TSDB_CODE_SUCCESS) {
+    metaSetTableBatchInfo(pInfo, &entry);
+    if (checkTxn && entry.txnId != 0) {
+      int8_t finalStatus = metaGetTxnMetaStatus(pMeta, entry.txnId);
+      if (finalStatus == TXN_META_COMMITTED) {
+        if (entry.txnStatus == META_TXN_PRE_DROP) {
+          code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        }
+      } else if (entry.txnStatus == META_TXN_PRE_CREATE) {
+        if (finalStatus == TXN_META_ROLLEDBACK || txnId == 0 || txnId != entry.txnId) {
+          code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        }
+      } else if (entry.txnStatus == META_TXN_PRE_ALTER && entry.txnOrigVer > 0 &&
+                 (txnId == 0 || txnId != entry.txnId)) {
+        *pNeedOldVersion = true;
+      }
+    }
+  }
+
+  tFreeSSeriesWrapper(&entry.series);
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t metaGetTableInfosByNames(void *pVnode, const SArray *pTbNames, SArray *pInfos, int64_t txnId) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            numOfNames = 0;
+  STdbTbBatchGetArg *pNameArgs = NULL;
+  STdbTbBatchGetArg *pUidArgs = NULL;
+  STdbTbBatchGetArg *pTableArgs = NULL;
+  STdbTbBatchGetArg *pOldTableArgs = NULL;
+  STbDbKey          *pTableKeys = NULL;
+  STbDbKey          *pOldTableKeys = NULL;
+  bool               hasOldVersion = false;
+  SMeta             *pMeta = ((SVnode *)pVnode)->pMeta;
+
+  if (NULL == pTbNames || NULL == pInfos) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  numOfNames = taosArrayGetSize(pTbNames);
+  if (numOfNames == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pNameArgs = taosMemoryCalloc(numOfNames, sizeof(*pNameArgs));
+  pUidArgs = taosMemoryCalloc(numOfNames, sizeof(*pUidArgs));
+  pTableArgs = taosMemoryCalloc(numOfNames, sizeof(*pTableArgs));
+  pOldTableArgs = taosMemoryCalloc(numOfNames, sizeof(*pOldTableArgs));
+  pTableKeys = taosMemoryCalloc(numOfNames, sizeof(*pTableKeys));
+  pOldTableKeys = taosMemoryCalloc(numOfNames, sizeof(*pOldTableKeys));
+  if (NULL == pNameArgs || NULL == pUidArgs || NULL == pTableArgs || NULL == pOldTableArgs || NULL == pTableKeys ||
+      NULL == pOldTableKeys) {
+    code = terrno;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < numOfNames; ++i) {
+    SMetaTableBatchInfo info = {.type = TSDB_TABLE_MAX, .code = TSDB_CODE_PAR_TABLE_NOT_EXIST};
+    char               *name = taosArrayGetP(pTbNames, i);
+    if (NULL == name) {
+      info.code = TSDB_CODE_INVALID_PARA;
+    } else {
+      pNameArgs[i].pKey = name;
+      pNameArgs[i].kLen = (int32_t)strlen(name) + 1;
+    }
+    if (NULL == taosArrayPush(pInfos, &info)) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  metaRLock(pMeta);
+  code = tdbTbGetBatch(pMeta->pNameIdx, pNameArgs, numOfNames);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _unlock;
+  }
+
+  for (int32_t i = 0; i < numOfNames; ++i) {
+    SMetaTableBatchInfo *pInfo = taosArrayGet(pInfos, i);
+    if (NULL == pInfo || pNameArgs[i].code != TSDB_CODE_SUCCESS || pNameArgs[i].vLen != sizeof(pInfo->uid)) {
+      continue;
+    }
+    memcpy(&pInfo->uid, pNameArgs[i].pVal, sizeof(pInfo->uid));
+    pUidArgs[i].pKey = &pInfo->uid;
+    pUidArgs[i].kLen = sizeof(pInfo->uid);
+  }
+
+  code = tdbTbGetBatch(pMeta->pUidIdx, pUidArgs, numOfNames);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _unlock;
+  }
+
+  for (int32_t i = 0; i < numOfNames; ++i) {
+    SMetaTableBatchInfo *pInfo = taosArrayGet(pInfos, i);
+    SUidIdxVal           uidInfo = {0};
+    if (NULL == pInfo || pNameArgs[i].code != TSDB_CODE_SUCCESS || pUidArgs[i].code != TSDB_CODE_SUCCESS ||
+        pUidArgs[i].vLen != sizeof(uidInfo)) {
+      continue;
+    }
+    memcpy(&uidInfo, pUidArgs[i].pVal, sizeof(uidInfo));
+    pTableKeys[i] = (STbDbKey){.version = uidInfo.version, .uid = pInfo->uid};
+    pTableArgs[i].pKey = &pTableKeys[i];
+    pTableArgs[i].kLen = sizeof(pTableKeys[i]);
+  }
+
+  code = tdbTbGetBatch(pMeta->pTbDb, pTableArgs, numOfNames);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _unlock;
+  }
+
+  for (int32_t i = 0; i < numOfNames; ++i) {
+    SMetaTableBatchInfo *pInfo = taosArrayGet(pInfos, i);
+    bool                 needOldVersion = false;
+    if (NULL == pInfo || pNameArgs[i].code != TSDB_CODE_SUCCESS || pUidArgs[i].code != TSDB_CODE_SUCCESS) {
+      continue;
+    }
+    pInfo->code = metaDecodeTableBatchInfo(pMeta, &pTableArgs[i], pInfo, txnId, true, &needOldVersion);
+    if (pInfo->code == TSDB_CODE_SUCCESS && needOldVersion) {
+      SDecoder   decoder = {0};
+      SMetaEntry entry = {0};
+      tDecoderInit(&decoder, pTableArgs[i].pVal, pTableArgs[i].vLen);
+      code = metaDecodeEntry(&decoder, &entry);
+      if (code == TSDB_CODE_SUCCESS) {
+        pOldTableKeys[i] = (STbDbKey){.version = entry.txnOrigVer, .uid = pInfo->uid};
+        pOldTableArgs[i].pKey = &pOldTableKeys[i];
+        pOldTableArgs[i].kLen = sizeof(pOldTableKeys[i]);
+        hasOldVersion = true;
+      } else {
+        pInfo->code = code;
+      }
+      tFreeSSeriesWrapper(&entry.series);
+      tDecoderClear(&decoder);
+    }
+  }
+
+  if (hasOldVersion) {
+    code = tdbTbGetBatch(pMeta->pTbDb, pOldTableArgs, numOfNames);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _unlock;
+    }
+
+    for (int32_t i = 0; i < numOfNames; ++i) {
+      SMetaTableBatchInfo *pInfo = taosArrayGet(pInfos, i);
+      bool                 unused = false;
+      if (NULL == pInfo || NULL == pOldTableArgs[i].pKey) {
+        continue;
+      }
+      pInfo->code = metaDecodeTableBatchInfo(pMeta, &pOldTableArgs[i], pInfo, txnId, false, &unused);
+    }
+  }
+
+_unlock:
+  metaULock(pMeta);
+_exit:
+  for (int32_t i = 0; i < numOfNames; ++i) {
+    if (NULL != pNameArgs) {
+      tdbFree(pNameArgs[i].pVal);
+    }
+    if (NULL != pUidArgs) {
+      tdbFree(pUidArgs[i].pVal);
+    }
+    if (NULL != pTableArgs) {
+      tdbFree(pTableArgs[i].pVal);
+    }
+    if (NULL != pOldTableArgs) {
+      tdbFree(pOldTableArgs[i].pVal);
+    }
+  }
+  taosMemoryFree(pNameArgs);
+  taosMemoryFree(pUidArgs);
+  taosMemoryFree(pTableArgs);
+  taosMemoryFree(pOldTableArgs);
+  taosMemoryFree(pTableKeys);
+  taosMemoryFree(pOldTableKeys);
+  return code;
+}
+
 int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, uint64_t *suid, int64_t txnId) {
   int         code = 0;
   SMetaReader mr = {0};

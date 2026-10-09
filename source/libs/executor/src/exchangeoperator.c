@@ -32,6 +32,7 @@ typedef struct SFetchRspHandleWrapper {
   int64_t  exchangeId;
   int32_t  sourceIndex;
   int64_t  seqId;
+  bool     localBlockFetch;
 } SFetchRspHandleWrapper;
 
 // vtable two-pass: cap the empty-rsp retry rounds so a wedged phase-2 rescan (remote
@@ -39,11 +40,23 @@ typedef struct SFetchRspHandleWrapper {
 // retrying forever. At the 50ms backoff cap this bounds the wait to ~30s.
 #define EX_TWO_PASS_MAX_RETRY_ROUNDS 600
 
+typedef struct SExchangeLocalBlockLease {
+  SSDataBlock* pBlock;
+  // Only a copied result-cache block is restored through taskHandle.
+  qTaskInfo_t  taskHandle;
+  int32_t      resultBlockIndex;
+  bool         blockIsBorrowed;
+} SExchangeLocalBlockLease;
+
 typedef struct SSourceDataInfo {
   int32_t             index;
   int64_t             seqId;
   SRWLatch            lock;
   SRetrieveTableRsp*  pRsp;
+  SSDataBlock*        pBlock;
+  qTaskInfo_t         localTaskHandle;
+  int32_t             localResultBlockIndex;
+  bool                localBlockIsBorrowed;
   int32_t             rspLen;
   uint64_t            totalRows;
   int64_t             startTime;
@@ -186,7 +199,8 @@ static void copySourceExtErrMsg(SExecTaskInfo* pTaskInfo, const SSourceDataInfo*
   }
 }
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex);
-
+static int32_t restoreRecycledLocalBlocks(SExchangeInfo* pExchangeInfo);
+static int32_t sendLocalBlockFetchDataRequest(SOperatorInfo* pOperator, int32_t sourceIndex);
 static int32_t getCompletedSources(const SArray* pArray, int32_t* pRes);
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator);
 int32_t        storeExchangeNotifyInfo(SOperatorInfo* pOperator);
@@ -206,6 +220,59 @@ static int32_t consumeReaderGroups(SOperatorInfo* pOperator);
 static int32_t acceptReaderFetchResponse(SOperatorInfo* pOperator, SSourceDataInfo* pDataInfo);
 static int32_t loadReaderGroupData(SOperatorInfo* pOperator);
 static int32_t adoptReaderBlockDescriptor(SSDataBlock* pBlock, const SSDataBlock* pTemplate);
+
+static int32_t releaseLocalExchangeBlock(SSDataBlock* pBlock, bool blockIsBorrowed, qTaskInfo_t taskHandle,
+                                         int32_t resultBlockIndex);
+
+static void discardLocalBlockFetchResponse(SDataBuf* pMsg, bool restoreDetachedBlock) {
+  if (pMsg == NULL || pMsg->pData == NULL) {
+    return;
+  }
+
+  if (pMsg->len >= (int32_t)sizeof(SLocalFetchBlock)) {
+    SLocalFetchBlock* pLocal = (SLocalFetchBlock*)pMsg->pData;
+    if (pLocal->magic == LOCAL_FETCH_BLOCK_MAGIC) {
+      (void)releaseLocalExchangeBlock(pLocal->pBlock, pLocal->blockIsBorrowed,
+                                      restoreDetachedBlock ? pLocal->taskHandle : NULL,
+                                      restoreDetachedBlock ? pLocal->resultBlockIndex : -1);
+      pLocal->pBlock = NULL;
+    }
+  }
+
+  taosMemoryFreeClear(pMsg->pData);
+}
+
+static int32_t loadLocalBlockFetchResponse(SSourceDataInfo* pDataInfo, SDataBuf* pMsg) {
+  if (pDataInfo == NULL || pMsg == NULL || pMsg->pData == NULL || pMsg->len < (int32_t)sizeof(SLocalFetchBlock)) {
+    return TSDB_CODE_QRY_INVALID_MSG;
+  }
+
+  SLocalFetchBlock* pLocal = (SLocalFetchBlock*)pMsg->pData;
+  if (pLocal->magic != LOCAL_FETCH_BLOCK_MAGIC) {
+    return TSDB_CODE_QRY_INVALID_MSG;
+  }
+
+  SRetrieveTableRsp* pRsp = taosMemoryCalloc(1, sizeof(SRetrieveTableRsp));
+  if (pRsp == NULL) {
+    (void)releaseLocalExchangeBlock(pLocal->pBlock, pLocal->blockIsBorrowed, pLocal->taskHandle,
+                                    pLocal->resultBlockIndex);
+    pLocal->pBlock = NULL;
+    return terrno;
+  }
+
+  pDataInfo->pBlock = pLocal->pBlock;
+  pDataInfo->localTaskHandle = pLocal->taskHandle;
+  pDataInfo->localResultBlockIndex = pLocal->resultBlockIndex;
+  pDataInfo->localBlockIsBorrowed = pLocal->blockIsBorrowed;
+  pDataInfo->pRsp = pRsp;
+  pRsp->numOfRows = pDataInfo->pBlock ? pDataInfo->pBlock->info.rows : 0;
+  pRsp->numOfCols = pDataInfo->pBlock ? taosArrayGetSize(pDataInfo->pBlock->pDataBlock) : 0;
+  pRsp->numOfBlocks = pDataInfo->pBlock ? 1 : 0;
+  pRsp->completed = pLocal->queryEnd;
+  pDataInfo->rspLen = sizeof(SRetrieveTableRsp);
+  taosMemoryFreeClear(pMsg->pData);
+  return TSDB_CODE_SUCCESS;
+}
 
 static bool isVstbScan(SSourceDataInfo* pDataInfo) {return pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN; }
 static bool isVstbWinScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_VSTB_WIN_SCAN; }
@@ -230,7 +297,7 @@ static bool isStrictMultiGroupRunnerSource(const SOperatorInfo* pOperator, int32
 
   const SExchangeInfo*         pExchangeInfo = pOperator->info;
   const SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
-  return pSource != NULL && pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER;
+  return pSource != NULL && DOWNSTREAM_SOURCE_FETCH_TYPE(pSource->fetchMsgType) == TDMT_STREAM_FETCH_FROM_RUNNER;
 }
 
 static int32_t normalizeFetchResponseHeader(SRetrieveTableRsp* pRsp, int32_t rspLen) {
@@ -271,10 +338,159 @@ static int32_t getLocalFetchResponseLen(const void* pData, uint32_t* pRspLen) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t releaseLocalExchangeBlock(SSDataBlock* pBlock, bool blockIsBorrowed, qTaskInfo_t taskHandle,
+                                         int32_t resultBlockIndex) {
+  if (pBlock == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (blockIsBorrowed) {
+    blockDataRecycle(pBlock);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (taskHandle != NULL && resultBlockIndex >= 0) {
+    int32_t code = qRestoreExecTaskResultBlock(taskHandle, resultBlockIndex, pBlock);
+    if (code == TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    qError("failed to restore local exchange block:%p slot:%d code:%x - %s", pBlock, resultBlockIndex, code,
+           tstrerror(code));
+  }
+
+  blockDataDestroy(pBlock);
+  return TSDB_CODE_SUCCESS;
+}
+
 static void clearSourceResponse(SSourceDataInfo* pDataInfo) {
   if (pDataInfo == NULL) return;
   taosMemoryFreeClear(pDataInfo->pRsp);
+  (void)releaseLocalExchangeBlock(pDataInfo->pBlock, pDataInfo->localBlockIsBorrowed,
+                                  pDataInfo->localTaskHandle, pDataInfo->localResultBlockIndex);
+  pDataInfo->pBlock = NULL;
+  pDataInfo->localTaskHandle = NULL;
+  pDataInfo->localResultBlockIndex = -1;
+  pDataInfo->localBlockIsBorrowed = false;
   pDataInfo->rspLen = 0;
+}
+
+static int32_t findRecycledBlock(const SArray* pRecycledBlocks, const SSDataBlock* pBlock) {
+  int32_t numOfBlocks = taosArrayGetSize(pRecycledBlocks);
+  for (int32_t i = 0; i < numOfBlocks; ++i) {
+    if (taosArrayGetP(pRecycledBlocks, i) == pBlock) return i;
+  }
+
+  return -1;
+}
+
+static bool isLocalBlockExchangeSource(const SDownstreamSourceNode* pSource) {
+  return NULL != pSource && pSource->localExec && (pSource->fetchMsgType & DOWNSTREAM_SOURCE_LOCAL_BLOCK_FLAG);
+}
+
+static bool isBorrowedLocalBlock(const SExchangeInfo* pExchangeInfo, const SSDataBlock* pBlock) {
+  if (pExchangeInfo->pLocalBlockLeases == NULL || pBlock == NULL) {
+    return false;
+  }
+
+  int32_t numOfLeases = taosArrayGetSize(pExchangeInfo->pLocalBlockLeases);
+  for (int32_t i = 0; i < numOfLeases; ++i) {
+    SExchangeLocalBlockLease* pLease = taosArrayGet(pExchangeInfo->pLocalBlockLeases, i);
+    if (pLease != NULL && pLease->blockIsBorrowed && pLease->pBlock == pBlock) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static const SExchangeLocalBlockLease* findLocalBlockLease(const SExchangeInfo* pExchangeInfo,
+                                                            const SSDataBlock* pBlock) {
+  if (pExchangeInfo == NULL || pExchangeInfo->pLocalBlockLeases == NULL || pBlock == NULL) {
+    return NULL;
+  }
+
+  int32_t numOfLeases = taosArrayGetSize(pExchangeInfo->pLocalBlockLeases);
+  for (int32_t i = 0; i < numOfLeases; ++i) {
+    const SExchangeLocalBlockLease* pLease = taosArrayGet(pExchangeInfo->pLocalBlockLeases, i);
+    if (pLease != NULL && pLease->pBlock == pBlock) {
+      return pLease;
+    }
+  }
+
+  return NULL;
+}
+
+static void clearExchangeBlockList(SExchangeInfo* pExchangeInfo, SArray* pBlocks) {
+  if (pBlocks == NULL) {
+    return;
+  }
+
+  int32_t numOfBlocks = taosArrayGetSize(pBlocks);
+  for (int32_t i = 0; i < numOfBlocks; ++i) {
+    SSDataBlock* pBlock = taosArrayGetP(pBlocks, i);
+    const SExchangeLocalBlockLease* pLease = findLocalBlockLease(pExchangeInfo, pBlock);
+    if (pLease != NULL) {
+      (void)releaseLocalExchangeBlock(pBlock, pLease->blockIsBorrowed, pLease->taskHandle,
+                                      pLease->resultBlockIndex);
+    } else {
+      blockDataDestroy(pBlock);
+    }
+  }
+  taosArrayClear(pBlocks);
+}
+
+static SSDataBlock* popExchangeOwnedRecycledBlock(SExchangeInfo* pExchangeInfo) {
+  int32_t numOfBlocks = taosArrayGetSize(pExchangeInfo->pRecycledBlocks);
+  for (int32_t i = numOfBlocks - 1; i >= 0; --i) {
+    SSDataBlock* pBlock = taosArrayGetP(pExchangeInfo->pRecycledBlocks, i);
+    if (isBorrowedLocalBlock(pExchangeInfo, pBlock)) {
+      continue;
+    }
+
+    taosArrayRemove(pExchangeInfo->pRecycledBlocks, i);
+    return pBlock;
+  }
+
+  return NULL;
+}
+
+static int32_t restoreRecycledLocalBlocks(SExchangeInfo* pExchangeInfo) {
+  if (NULL == pExchangeInfo->pLocalBlockLeases) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t i = 0;
+  while (i < taosArrayGetSize(pExchangeInfo->pLocalBlockLeases)) {
+    SExchangeLocalBlockLease* pLease = taosArrayGet(pExchangeInfo->pLocalBlockLeases, i);
+    if (NULL == pLease) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+
+    int32_t recycledIndex = findRecycledBlock(pExchangeInfo->pRecycledBlocks, pLease->pBlock);
+    if (recycledIndex < 0) {
+      ++i;
+      continue;
+    }
+
+    if (pLease->resultBlockIndex < 0) {
+      if (pLease->blockIsBorrowed) {
+        blockDataRecycle(pLease->pBlock);
+      } else {
+        blockDataDestroy(pLease->pBlock);
+      }
+    } else if (!pLease->blockIsBorrowed) {
+      int32_t code = qRestoreExecTaskResultBlock(pLease->taskHandle, pLease->resultBlockIndex, pLease->pBlock);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("failed to restore local exchange block:%p slot:%d code:%x - %s", pLease->pBlock,
+               pLease->resultBlockIndex, code, tstrerror(code));
+        return code;
+      }
+    }
+
+    taosArrayRemove(pExchangeInfo->pRecycledBlocks, recycledIndex);
+    taosArrayRemove(pExchangeInfo->pLocalBlockLeases, i);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void destroyExchangeMultiGroupResult(void* pParam) {
@@ -331,14 +547,17 @@ static void clearExchangeResultState(SOperatorInfo* pOperator, SExchangeInfo* pE
   pExchangeInfo->readerNextGroupIdx = 0;
   clearPublishedLineage(pOperator, pExchangeInfo);
   taosArrayClearEx(pExchangeInfo->pMultiGroupResultList, destroyExchangeMultiGroupResult);
-  taosArrayClearEx(pExchangeInfo->pResultBlockList, freeBlock);
-  taosArrayClearEx(pExchangeInfo->pRecycledBlocks, freeBlock);
+  clearExchangeBlockList(pExchangeInfo, pExchangeInfo->pResultBlockList);
+  clearExchangeBlockList(pExchangeInfo, pExchangeInfo->pRecycledBlocks);
+  if (NULL != pExchangeInfo->pLocalBlockLeases) {
+    taosArrayClear(pExchangeInfo->pLocalBlockLeases);
+  }
 }
 
 static int32_t acquireExchangeResultBlock(SExchangeInfo* pExchangeInfo, SSDataBlock** ppBlock) {
   *ppBlock = NULL;
-  if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
-    *ppBlock = *(SSDataBlock**)taosArrayPop(pExchangeInfo->pRecycledBlocks);
+  *ppBlock = popExchangeOwnedRecycledBlock(pExchangeInfo);
+  if (*ppBlock != NULL) {
     blockDataCleanup(*ppBlock);
     return TSDB_CODE_SUCCESS;
   }
@@ -606,7 +825,12 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
 
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
 
-    code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
+    {
+      SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
+      code = isLocalBlockExchangeSource(pSource)
+                 ? sendLocalBlockFetchDataRequest(pOperator, pExchangeInfo->current)
+                 : doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
+    }
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       goto _exit;
@@ -850,7 +1074,9 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
           // Free the consumed empty rsp before resending: loadRemoteDataCallback overwrites
           // pDataInfo->pRsp without freeing the old one, so every retry round would leak it.
           taosMemoryFreeClear(pDataInfo->pRsp);
-          code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
+          code = isLocalBlockExchangeSource(pSource)
+                     ? sendLocalBlockFetchDataRequest(pOperator, i)
+                     : doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
           if (code != TSDB_CODE_SUCCESS) {
             clearSourceResponse(pDataInfo);
             TAOS_CHECK_EXIT(code);
@@ -893,7 +1119,9 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       if ((pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) && !isVstbScan(pDataInfo) && !isVstbTagScan(pDataInfo)) {
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
-        code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
+        code = isLocalBlockExchangeSource(pSource)
+                   ? sendLocalBlockFetchDataRequest(pOperator, i)
+                   : doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
           clearSourceResponse(pDataInfo);
           TAOS_CHECK_EXIT(code);
@@ -1414,8 +1642,11 @@ void doDestroyExchangeOperatorInfo(void* param) {
   taosArrayDestroy(pExInfo->pSources);
   taosArrayDestroyEx(pExInfo->pSourceDataInfo, freeSourceDataInfo);
 
-  taosArrayDestroyEx(pExInfo->pResultBlockList, freeBlock);
-  taosArrayDestroyEx(pExInfo->pRecycledBlocks, freeBlock);
+  clearExchangeBlockList(pExInfo, pExInfo->pResultBlockList);
+  clearExchangeBlockList(pExInfo, pExInfo->pRecycledBlocks);
+  taosArrayDestroy(pExInfo->pResultBlockList);
+  taosArrayDestroy(pExInfo->pRecycledBlocks);
+  taosArrayDestroy(pExInfo->pLocalBlockLeases);
   taosArrayDestroyEx(pExInfo->pMultiGroupResultList, destroyExchangeMultiGroupResult);
   clearPublishedLineage(NULL, pExInfo);
 
@@ -1438,14 +1669,22 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SExchangeInfo* pExchangeInfo = taosAcquireRef(fetchObjRefPool, pWrapper->exchangeId);
   if (pExchangeInfo == NULL) {
     qWarn("failed to acquire exchange operator, since it may have been released, %p", pExchangeInfo);
-    taosMemoryFree(pMsg->pData);
+    if (pWrapper->localBlockFetch) {
+      discardLocalBlockFetchResponse(pMsg, false);
+    } else {
+      taosMemoryFreeClear(pMsg->pData);
+    }
     return TSDB_CODE_SUCCESS;
   }
 
   int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
   if (pWrapper->seqId != currSeqId) {
     qDebug("rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", pWrapper->seqId, pExchangeInfo, currSeqId);
-    taosMemoryFree(pMsg->pData);
+    if (pWrapper->localBlockFetch) {
+      discardLocalBlockFetchResponse(pMsg, true);
+    } else {
+      taosMemoryFreeClear(pMsg->pData);
+    }
     code = taosReleaseRef(fetchObjRefPool, pWrapper->exchangeId);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1462,7 +1701,11 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (index < 0 || (size_t)index >= fetchHandleNum || (size_t)index >= sourceInfoNum) {
     qWarn("%s ignore stale fetch rsp, idx:%d fetchHandles:%zu sourceInfos:%zu",
           pExchangeInfo->pTaskId, index, fetchHandleNum, sourceInfoNum);
-    taosMemoryFree(pMsg->pData);
+    if (pWrapper->localBlockFetch) {
+      discardLocalBlockFetchResponse(pMsg, true);
+    } else {
+      taosMemoryFreeClear(pMsg->pData);
+    }
     code = taosReleaseRef(fetchObjRefPool, pWrapper->exchangeId);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1481,7 +1724,11 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   SSourceDataInfo* pSourceDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, index);
   if (!pSourceDataInfo) {
-    taosMemoryFree(pMsg->pData);
+    if (pWrapper->localBlockFetch) {
+      discardLocalBlockFetchResponse(pMsg, true);
+    } else {
+      taosMemoryFreeClear(pMsg->pData);
+    }
     code = taosReleaseRef(fetchObjRefPool, pWrapper->exchangeId);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1492,34 +1739,45 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (0 == code && NULL == pMsg->pData) {
     qError("invalid rsp msg, msgType:%d, len:%d", pMsg->msgType, pMsg->len);
     code = TSDB_CODE_QRY_INVALID_MSG;
-  } else if (code == TSDB_CODE_SUCCESS) {
+  } else if (code == TSDB_CODE_SUCCESS && !pWrapper->localBlockFetch) {
     code = normalizeFetchResponseHeader(pMsg->pData, pMsg->len);
   }
 
   taosWLockLatch(&pSourceDataInfo->lock);
   // An error also completes this request and must carry its execution identity.
   pSourceDataInfo->seqId = pWrapper->seqId;
+  if (code == TSDB_CODE_SUCCESS && pWrapper->localBlockFetch) {
+    code = loadLocalBlockFetchResponse(pSourceDataInfo, pMsg);
+  }
   if (code == TSDB_CODE_SUCCESS) {
     pSourceDataInfo->fetchCostUs += taosGetTimestampUs() - pSourceDataInfo->startTime;
     pSourceDataInfo->fetchTimes++;
 
-    pSourceDataInfo->pRsp = pMsg->pData;
-    pSourceDataInfo->rspLen = pMsg->len;
+    if (!pWrapper->localBlockFetch) {
+      pSourceDataInfo->pRsp = pMsg->pData;
+      pSourceDataInfo->rspLen = pMsg->len;
+    }
     pSourceDataInfo->code = TSDB_CODE_SUCCESS;
 
     SRetrieveTableRsp* pRsp = pSourceDataInfo->pRsp;
     qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index,
            pRsp->numOfBlocks, pRsp->numOfRows, pExchangeInfo);
   } else {
-    // qworker appends optional NUL-terminated detail text to failed fetch responses
-    if (pMsg->pData != NULL && pMsg->len > (int32_t)sizeof(SRetrieveTableRsp)) {
-      const char* pExtErrMsg = ((SRetrieveTableRsp*)pMsg->pData)->data;
-      size_t      extErrLen = pMsg->len - sizeof(SRetrieveTableRsp);
-      if (memchr(pExtErrMsg, '\0', extErrLen) != NULL) {
-        tstrncpy(pSourceDataInfo->extErrMsg, pExtErrMsg, sizeof(pSourceDataInfo->extErrMsg));
+    if (pWrapper->localBlockFetch) {
+      // loadLocalBlockFetchResponse consumes the wrapper only on success. On
+      // failure, discard it together with the transferred block when valid.
+      discardLocalBlockFetchResponse(pMsg, true);
+    } else {
+      // qworker appends optional NUL-terminated detail text to failed fetch responses
+      if (pMsg->pData != NULL && pMsg->len > (int32_t)sizeof(SRetrieveTableRsp)) {
+        const char* pExtErrMsg = ((SRetrieveTableRsp*)pMsg->pData)->data;
+        size_t      extErrLen = pMsg->len - sizeof(SRetrieveTableRsp);
+        if (memchr(pExtErrMsg, '\0', extErrLen) != NULL) {
+          tstrncpy(pSourceDataInfo->extErrMsg, pExtErrMsg, sizeof(pSourceDataInfo->extErrMsg));
+        }
       }
+      taosMemoryFreeClear(pMsg->pData);
     }
-    taosMemoryFree(pMsg->pData);
     pSourceDataInfo->rspLen = 0;
     int32_t cvted = rpcCvtErrCode(code);
     // single write: the upgrade takes the rpc-converted code and returns the final one
@@ -2126,6 +2384,28 @@ void exchangeTestSetStreamFetchResetMode(SResFetchReq* pReq, bool* pFetchSent, c
 }
 #endif
 
+static int32_t sendLocalBlockFetchDataRequest(SOperatorInfo* pOperator, int32_t sourceIndex) {
+  SExchangeInfo* pExchangeInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
+  if (!isLocalBlockExchangeSource(pSource)) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t code = restoreRecycledLocalBlocks(pExchangeInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  recordOpExecBeforeDownstream(pOperator);
+  code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, sourceIndex);
+  SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
+  size_t inputRows = pDataInfo != NULL && pDataInfo->pBlock != NULL ? pDataInfo->pBlock->info.rows : 0;
+  recordOpExecAfterDownstream(pOperator, inputRows);
+
+  return code;
+}
+
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -2141,7 +2421,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   SStreamRuntimeFuncInfo* pStream = GET_STM_RTINFO(pTaskInfo);
   if (pStream != NULL && pStream->isMultiGroupCalc && pStream->pGroupReadInfos != NULL &&
-      pSource->fetchMsgType == TDMT_STREAM_FETCH && pDataInfo->readerFetchId == 0) {
+      DOWNSTREAM_SOURCE_FETCH_TYPE(pSource->fetchMsgType) == TDMT_STREAM_FETCH && pDataInfo->readerFetchId == 0) {
     code = projectNodeGroupReadView(pStream, pSource->addr.nodeId);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pStream->curGrpRead == NULL) {
@@ -2159,11 +2439,12 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   pWrapper->exchangeId = pExchangeInfo->self;
   pWrapper->sourceIndex = sourceIndex;
   pWrapper->seqId = pExchangeInfo->seqId;
+  pWrapper->localBlockFetch = isLocalBlockExchangeSource(pSource);
   uint64_t queryId = pTaskInfo->pStreamRuntimeInfo == NULL && pSource->producerQueryId != 0
                          ? pSource->producerQueryId
                          : pTaskInfo->id.queryId;
 
-  if (pSource->localExec) {
+  if (pSource->localExec && !pWrapper->localBlockFetch) {
     // vtable two-pass phase-2 runs over the RPC fetch path only: the rescan directive
     // (DYN_TYPE_TWO_PASS_RESCAN) rides the fetch request msg, and the local-fetch entry
     // has no such channel -- it would re-read the drained sink and report the source
@@ -2177,6 +2458,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       QUERY_CHECK_CODE(code, lino, _end);
     }
     SDataBuf pBuf = {0};
+    pDataInfo->startTime = taosGetTimestampUs();
     code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, queryId,
                                        pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
                                        pTaskInfo->localFetch.explainRes);
@@ -2192,7 +2474,6 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       copySourceExtErrMsg(pTaskInfo, pDataInfo);
     }
     QUERY_CHECK_CODE(code, lino, _end);
-    pDataInfo->startTime = taosGetTimestampUs();
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
     taosMemoryFreeClear(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2210,14 +2491,16 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.taskId = pSource->taskId;
     req.queryId = queryId;
     req.execId = pSource->execId;
+    req.allowFollowerRead = pSource->allowFollowerRead;
     if (pTaskInfo->pStreamRuntimeInfo) {
       req.dynTbname = pExchangeInfo->dynTbname;
       req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
       req.pStRtFuncInfo = pStream;
 
-      if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
+      int32_t fetchMsgType = DOWNSTREAM_SOURCE_FETCH_TYPE(pSource->fetchMsgType);
+      if (fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
         qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
-      } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
+      } else if (fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
         SSTriggerCalcParam* pParam = NULL;
         code = getCurrentWinCalcParam(req.pStRtFuncInfo, &pParam);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -2230,8 +2513,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]",
                GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
                req.pStRtFuncInfo->curWindow.ekey);
-      } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_EXT) {
-        /* P4-E3: EXT fetch  -  runner requests data from an ETR (external-table
+      } else if (fetchMsgType == TDMT_STREAM_FETCH_EXT) {
+        /* P4-E3: EXT fetch - runner requests data from an ETR (external-table
          * reader) task.  Only set a merged time range when the runner has an
          * external window operator (%%trows); otherwise leave curWindow as
          * {0,0} so the ext reader does a full table scan  -  the calc SQL has
@@ -2501,7 +2784,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
     pMsgSendInfo->msgInfo.pData = msg;
     pMsgSendInfo->msgInfo.len = msgSize;
-    pMsgSendInfo->msgType = pSource->fetchMsgType;
+    pMsgSendInfo->msgType = DOWNSTREAM_SOURCE_FETCH_TYPE(pSource->fetchMsgType);
     pMsgSendInfo->fp = loadRemoteDataCallback;
     pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
@@ -2646,7 +2929,10 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
 
   // Asynchronously send all fetch requests to all sources.
   for (int32_t i = 0; i < totalSources; ++i) {
-    int32_t code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
+    SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, i);
+    int32_t code = isLocalBlockExchangeSource(pSource)
+                       ? sendLocalBlockFetchDataRequest(pOperator, i)
+                       : doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
     if (code != TSDB_CODE_SUCCESS) {
       pTaskInfo->code = code;
       return code;
@@ -2926,6 +3212,41 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
   SSDataBlock*       pb = NULL;
 
+  if (pDataInfo->pBlock != NULL) {
+    pb = pDataInfo->pBlock;
+    bool blockIsBorrowed = pDataInfo->localBlockIsBorrowed;
+    qTaskInfo_t localTaskHandle = pDataInfo->localTaskHandle;
+    int32_t resultBlockIndex = pDataInfo->localResultBlockIndex;
+    pDataInfo->pBlock = NULL;
+    pDataInfo->localTaskHandle = NULL;
+    pDataInfo->localResultBlockIndex = -1;
+    if (taosArrayPush(pExchangeInfo->pResultBlockList, &pb) == NULL) {
+      (void)releaseLocalExchangeBlock(pb, blockIsBorrowed, localTaskHandle, resultBlockIndex);
+      return terrno;
+    }
+    if (blockIsBorrowed || NULL != localTaskHandle) {
+      if (NULL == pExchangeInfo->pLocalBlockLeases) {
+        pExchangeInfo->pLocalBlockLeases = taosArrayInit(4, sizeof(SExchangeLocalBlockLease));
+        if (NULL == pExchangeInfo->pLocalBlockLeases) {
+          taosArrayRemove(pExchangeInfo->pResultBlockList, taosArrayGetSize(pExchangeInfo->pResultBlockList) - 1);
+          (void)releaseLocalExchangeBlock(pb, blockIsBorrowed, localTaskHandle, resultBlockIndex);
+          return terrno;
+        }
+      }
+      SExchangeLocalBlockLease lease = {.pBlock = pb,
+                                        .taskHandle = localTaskHandle,
+                                        .resultBlockIndex = resultBlockIndex,
+                                        .blockIsBorrowed = blockIsBorrowed};
+      if (NULL == taosArrayPush(pExchangeInfo->pLocalBlockLeases, &lease)) {
+        taosArrayRemove(pExchangeInfo->pResultBlockList, taosArrayGetSize(pExchangeInfo->pResultBlockList) - 1);
+        (void)releaseLocalExchangeBlock(pb, blockIsBorrowed, localTaskHandle, resultBlockIndex);
+        return terrno;
+      }
+    }
+    pDataInfo->localBlockIsBorrowed = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pRetrieveRsp == NULL || pDataInfo->rspLen < (int32_t)sizeof(SRetrieveTableRsp)) {
     return TSDB_CODE_INVALID_MSG;
   }
@@ -2967,8 +3288,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     if (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN || pDataInfo->type == EX_SRC_TYPE_VSTB_TAG_SCAN) {
       pb = taosMemoryCalloc(1, sizeof(SSDataBlock));
       QUERY_CHECK_NULL(pb, code, lino, _end, terrno);
-    } else if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
-      pb = *(SSDataBlock**)taosArrayPop(pExchangeInfo->pRecycledBlocks);
+    } else if ((pb = popExchangeOwnedRecycledBlock(pExchangeInfo)) != NULL) {
       blockDataCleanup(pb);
     } else {
       code = createOneDataBlock(pExchangeInfo->pDummyBlock, false, &pb);
@@ -3386,8 +3706,10 @@ static void* exchangeTestCreateMultiSourceOwnerImpl(bool staticQualified, bool r
   pOwner->exchange.pSourceDataInfo = taosArrayInit(sourceCount, sizeof(SSourceDataInfo));
   pOwner->exchange.pResultBlockList = taosArrayInit(1, POINTER_BYTES);
   pOwner->exchange.pRecycledBlocks = taosArrayInit(1, POINTER_BYTES);
+  pOwner->exchange.pLocalBlockLeases = taosArrayInit(1, sizeof(SExchangeLocalBlockLease));
   if (pOwner->exchange.pSources == NULL || pOwner->exchange.pSourceDataInfo == NULL ||
       pOwner->exchange.pResultBlockList == NULL || pOwner->exchange.pRecycledBlocks == NULL ||
+      pOwner->exchange.pLocalBlockLeases == NULL ||
       createDataBlock(&pOwner->exchange.pDummyBlock) != 0) {
     exchangeTestDestroyMultiGroupOwner(pOwner);
     return NULL;
@@ -3773,6 +4095,7 @@ void exchangeTestDestroyMultiGroupOwner(void* pParam) {
   taosArrayDestroy(pOwner->exchange.pMultiGroupResultList);
   taosArrayDestroy(pOwner->exchange.pResultBlockList);
   taosArrayDestroy(pOwner->exchange.pRecycledBlocks);
+  taosArrayDestroy(pOwner->exchange.pLocalBlockLeases);
   taosArrayDestroy(pOwner->exchange.pSources);
   taosArrayDestroyEx(pOwner->exchange.pSourceDataInfo, freeSourceDataInfo);
   blockDataDestroy(pOwner->exchange.pDummyBlock);
@@ -3896,7 +4219,9 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     }
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
 
-    code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
+    code = isLocalBlockExchangeSource(pSource)
+               ? sendLocalBlockFetchDataRequest(pOperator, pExchangeInfo->current)
+               : doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;

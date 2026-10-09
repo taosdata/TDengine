@@ -34,6 +34,10 @@ extern "C" {
 
 #define DS_FLAG_USE_MEMPOOL (1 << 0)
 #define DS_FLAG_PROCESS_ONE_BLOCK (1 << 1)
+#define DS_FLAG_LOCAL_BLOCK_EXCHANGE (1 << 2)
+
+#define DS_LOCAL_BLOCK_EXCHANGE_MAX_BLOCKS_PER_QUERY 2U
+#define DS_LOCAL_BLOCK_EXCHANGE_MAX_ROWS_PER_QUERY   4194304ULL
 
 
 struct SSDataBlock;
@@ -82,6 +86,8 @@ typedef struct SDataSinkMgtCfg {
   int8_t   compress;
   uint32_t maxDataBlockNum;  // todo: this should be numOfRows?
   uint32_t maxDataBlockNumPerQuery;
+  uint32_t maxDataBlockNumPerLocalBlockQuery;
+  uint64_t maxDataRowsPerQuery;
   // Byte budget for the ENCODED result data a single query may buffer in its sink.  Counting
   // queued blocks is not enough to bound the byte count when values are multi-megabyte, so the
   // sink also reports DS_BUF_FULL once it holds this many encoded bytes.  <= 0 disables the
@@ -134,6 +140,7 @@ typedef struct SInputData {
   const struct SSDataBlock* pData;
   SStreamDataInserterInfo*  pStreamDataInserterInfo;
   void*                     pTask;
+  bool                      blockIsBorrowed;
 } SInputData;
 
 typedef struct SOutputData {
@@ -146,7 +153,24 @@ typedef struct SOutputData {
   int32_t bufStatus;
   int64_t useconds;
   int8_t  precision;
+  struct SSDataBlock* pBlock;
+  void*   pTask;
+  bool    blockIsBorrowed;
 } SOutputData;
+
+#define LOCAL_FETCH_BLOCK_MAGIC ((uint32_t)0x5344424c)
+// This wrapper transfers a block through the in-process local fetch callback. A borrowed
+// block remains owned by the child task and must be returned before that task runs again.
+typedef struct SLocalFetchBlock {
+  uint32_t magic;
+  struct SSDataBlock* pBlock;
+  bool queryEnd;
+  int64_t useconds;
+  int8_t precision;
+  void*   taskHandle;
+  int32_t resultBlockIndex;
+  bool    blockIsBorrowed;
+} SLocalFetchBlock;
 
 /**
  * Create a subplan's datasinker handle for all later operations.

@@ -3269,7 +3269,11 @@ typedef struct SDownstreamSourceNode {
   int32_t        fetchMsgType;
   bool           localExec;
   uint64_t       producerQueryId;  // Zero means the legacy same-query producer.
+  bool           allowFollowerRead;
 } SDownstreamSourceNode;
+
+#define DOWNSTREAM_SOURCE_LOCAL_BLOCK_FLAG (1U << 30)
+#define DOWNSTREAM_SOURCE_FETCH_TYPE(type) ((type) & ~DOWNSTREAM_SOURCE_LOCAL_BLOCK_FLAG)
 
 
 
@@ -5511,6 +5515,8 @@ typedef struct SSubQueryMsg {
   uint32_t correlationTimeInitLen;
   char*    pCorrelationTimeInit;     // Owned on decode; borrowed on send.
   SArray*  pCorrelationNodeList;     // SQueryNodeLoad candidates inherited by nested jobs.
+  // Set only by the scheduler for a pure VNode scan eligible for replica execution.
+  bool     allowFollowerRead;
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
@@ -5809,8 +5815,13 @@ typedef struct {
   bool                           runnerEogBatch;
   uint64_t                       readerFetchId;
   SStreamContextFrames*          pContextFrames;  // optional owned validated frame copy
+  // Set only by the scheduler for a pure VNode scan eligible for replica execution.
+  bool                           allowFollowerRead;
   // used for new-stream
 } SResFetchReq;
+
+#define SRES_FETCH_FOLLOWER_READ_FRAME_VERSION 1
+#define SRES_FETCH_FOLLOWER_READ_FRAME_MAGIC   UINT32_C(0x46525244)
 
 int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);

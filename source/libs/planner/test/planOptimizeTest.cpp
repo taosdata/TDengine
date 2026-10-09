@@ -127,14 +127,21 @@ TEST_F(PlanOptimizeTest, LastRowScan) {
   run("SELECT LAST_ROW(c1), c2, tag1, tbname FROM st1");
 
   run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
+  ASSERT_TRUE(planContains("\"BatchMultiTableRead\":true"));
+
+  run("SELECT tbname, LAST(c1) FROM st1 GROUP BY tbname");
+  ASSERT_FALSE(planContains("\"BatchMultiTableRead\""));
 
   run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
+  ASSERT_TRUE(planContains("\"BatchMultiTableRead\":true"));
 
   run("SELECT LAST_ROW(tag1) FROM st1");
 
   run("SELECT LAST(c1) FROM st1");
+  ASSERT_FALSE(planContains("\"BatchMultiTableRead\""));
 
   run("SELECT LAST(c1), c2 FROM st1");
+  ASSERT_FALSE(planContains("\"BatchMultiTableRead\""));
 }
 
 TEST_F(PlanOptimizeTest, tagScan) {

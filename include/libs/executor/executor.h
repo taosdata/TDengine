@@ -37,14 +37,20 @@ typedef void* DataSinkHandle;
 
 struct SRpcMsg;
 struct SSubplan;
+struct SSDataBlock;
 
 typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
+typedef int32_t (*localResultBlockFp)(void* param, struct SSDataBlock* pBlock, bool* pContinue);
 
 typedef struct {
-  void*        handle;
-  bool         localExec;
-  localFetchFp fp;
-  SArray*      explainRes;
+  void*              handle;
+  bool               localExec;
+  localFetchFp       fp;
+  SArray*            explainRes;
+  bool               directBlock;
+  localResultBlockFp putBlockFp;
+  void*              putBlockParam;
+  bool               continueExec;
 } SLocalFetch;
 
 typedef struct {
@@ -277,6 +283,19 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 int32_t qEnableReaderGroupOutput(qTaskInfo_t task, bool requested, bool* pEnabled);
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
+
+/**
+ * Transfer one result block from the task-owned reusable result cache.
+ * The caller owns the returned block until it is restored or handed to a sink.
+ */
+int32_t qDetachExecTaskResultBlock(qTaskInfo_t tinfo, SSDataBlock* pBlock, int32_t* pBlockIndex);
+
+/**
+ * Restore a block previously detached from the specified reusable cache slot.
+ * If a later local fetch has already replaced the slot, this function destroys
+ * the stale block and keeps the replacement.
+ */
+int32_t qRestoreExecTaskResultBlock(qTaskInfo_t tinfo, int32_t blockIndex, SSDataBlock* pBlock);
 
 int32_t qExecutorInit(void);
 void    qResetTaskCode(qTaskInfo_t tinfo);

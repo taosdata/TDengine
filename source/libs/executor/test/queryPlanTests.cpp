@@ -2159,6 +2159,7 @@ SNode* qptCreateLastRowScanPhysiNode(int32_t nodeType) {
   
   pLRScanNode->groupSort = QPT_RAND_BOOL_V;
   pLRScanNode->ignoreNull = QPT_RAND_BOOL_V;
+  pLRScanNode->batchMultiTableRead = QPT_RAND_BOOL_V;
 
   if (QPT_CORRECT_HIGH_PROB()) {
     int16_t blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();    
@@ -3453,6 +3454,43 @@ SNode* qptDecodeWithoutTrailingTlvFields(SNode* pNode, int32_t trailingFieldCoun
   return pResult;
 }
 
+SNode* qptDecodeWithoutTlvField(SNode* pNode, int16_t fieldType) {
+  char*  pMsg = NULL;
+  int32_t len = 0;
+  SNode* pResult = NULL;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(pNode, &pMsg, &len));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+
+  constexpr int32_t kTlvHeaderSize = sizeof(int16_t) + sizeof(int32_t);
+  int32_t outerLen = 0;
+  memcpy(&outerLen, pMsg + sizeof(int16_t), sizeof(outerLen));
+  outerLen = ntohl(outerLen);
+  int32_t readOffset = kTlvHeaderSize;
+  int32_t writeOffset = kTlvHeaderSize;
+  while (readOffset < kTlvHeaderSize + outerLen) {
+    int16_t type = 0;
+    int32_t fieldLen = 0;
+    memcpy(&type, pMsg + readOffset, sizeof(type));
+    memcpy(&fieldLen, pMsg + readOffset + sizeof(type), sizeof(fieldLen));
+    fieldLen = ntohl(fieldLen);
+    int32_t encodedFieldLen = kTlvHeaderSize + fieldLen;
+    if (ntohs(type) != fieldType) {
+      if (writeOffset != readOffset) {
+        memmove(pMsg + writeOffset, pMsg + readOffset, encodedFieldLen);
+      }
+      writeOffset += encodedFieldLen;
+    }
+    readOffset += encodedFieldLen;
+  }
+  int32_t retainedLen = htonl(writeOffset - kTlvHeaderSize);
+  memcpy(pMsg + sizeof(int16_t), &retainedLen, sizeof(retainedLen));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(pMsg, writeOffset, &pResult));
+  taosMemoryFree(pMsg);
+  return pResult;
+}
+
 void qptAssertDurationCondition(const SNode* pCondition) {
   ASSERT_NE(nullptr, pCondition);
   ASSERT_EQ(QUERY_NODE_OPERATOR, nodeType(pCondition));
@@ -3621,7 +3659,8 @@ TEST(PlanNodeExtensionTest, SubplanInheritedMultiGroupJoinSurvivesCloneJsonAndTl
   ASSERT_TRUE(((SSubplan*)pTlvNode)->inheritedMultiGroupJoin);
   nodesDestroyNode(pTlvNode);
 
-  SNode* pOldTlvNode = qptDecodeWithoutTrailingTlvFields((SNode*)pSubplan, 1);
+  constexpr int16_t kSubplanCodeInheritedMultiGroupJoin = 6;
+  SNode* pOldTlvNode = qptDecodeWithoutTlvField((SNode*)pSubplan, kSubplanCodeInheritedMultiGroupJoin);
   ASSERT_FALSE(((SSubplan*)pOldTlvNode)->inheritedMultiGroupJoin);
 
   nodesDestroyNode((SNode*)pSubplan);

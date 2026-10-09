@@ -16,9 +16,11 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #pragma GCC diagnostic push
@@ -1011,6 +1013,250 @@ TEST(testCase, Datablock_test) {
   blockDataSort(b.get(), pOrderInfo);
 
   taosArrayDestroy(pOrderInfo);
+}
+
+TEST(testCase, DatablockSmaCleanup_test) {
+  SSDataBlock* b = NULL;
+  ASSERT_EQ(createDataBlock(&b), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData fixedCol = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  SColumnInfoData varCol = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
+  ASSERT_EQ(blockDataAppendColInfo(b, &fixedCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(b, &varCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(b, 16), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData* pFixedCol = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 0);
+  SColumnInfoData* pVarCol = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
+  ASSERT_NE(pFixedCol, nullptr);
+  ASSERT_NE(pVarCol, nullptr);
+
+  pFixedCol->nullbitmap[0] = 0xff;
+  pFixedCol->nullbitmap[1] = 0x5a;
+  pFixedCol->hasNull = true;
+  pVarCol->varmeta.offset[0] = 123;
+  pVarCol->varmeta.offset[1] = 456;
+  pVarCol->varmeta.length = 32;
+  pVarCol->hasNull = true;
+  pVarCol->reassigned = true;
+  SColumnDataAgg* pBlockAggBuf = (SColumnDataAgg*)taosMemoryCalloc(2, sizeof(SColumnDataAgg));
+  b->pBlockAggBuf = pBlockAggBuf;
+  ASSERT_NE(b->pBlockAggBuf, nullptr);
+  b->pBlockAggBufSize = 2;
+  b->pBlockAgg = b->pBlockAggBuf;
+  b->info.rows = 1;
+  b->info.smaSourceRows = 10;
+
+  blockDataEmpty(b);
+
+  EXPECT_EQ(b->info.capacity, 16);
+  EXPECT_EQ(b->info.rows, 0);
+  EXPECT_EQ(b->info.smaSourceRows, 0);
+  EXPECT_EQ(b->pBlockAgg, nullptr);
+  EXPECT_EQ(b->pBlockAggBuf, pBlockAggBuf);
+  EXPECT_FALSE(pFixedCol->hasNull);
+  EXPECT_EQ((uint8_t)pFixedCol->nullbitmap[0], 0xff);
+  EXPECT_EQ((uint8_t)pFixedCol->nullbitmap[1], 0x5a);
+  EXPECT_FALSE(pVarCol->hasNull);
+  EXPECT_FALSE(pVarCol->reassigned);
+  EXPECT_EQ(pVarCol->varmeta.length, 0);
+  EXPECT_EQ(pVarCol->varmeta.offset[0], 123);
+  EXPECT_EQ(pVarCol->varmeta.offset[1], 456);
+  EXPECT_EQ(pVarCol->varmeta.length, 0);
+  EXPECT_FALSE(pVarCol->hasNull);
+
+  blockDataDestroy(b);
+}
+
+static SSDataBlock* createRecycleTestBlock(uint32_t capacity) {
+  SSDataBlock* pBlock = nullptr;
+  if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) {
+    return nullptr;
+  }
+
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  if (blockDataAppendColInfo(pBlock, &column) != TSDB_CODE_SUCCESS ||
+      blockDataEnsureCapacity(pBlock, capacity) != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return nullptr;
+  }
+
+  pBlock->info.rows = capacity;
+  return pBlock;
+}
+
+TEST(testCase, DatablockRecycleExpiration_test) {
+  constexpr uint32_t kRecycleCapacity = 100001;
+
+  blockDataRecycleCleanup();
+  blockDataRecycleSetCurrentTime(1000);
+
+  SSDataBlock* pRecycled = createRecycleTestBlock(kRecycleCapacity);
+  ASSERT_NE(pRecycled, nullptr);
+  pRecycled->recycleEnabled = true;
+  blockDataRecycle(pRecycled);
+
+  SSDataBlock* pTemplate = createRecycleTestBlock(kRecycleCapacity);
+  ASSERT_NE(pTemplate, nullptr);
+  SSDataBlock* pResult = nullptr;
+  bool         reused = false;
+
+  blockDataRecycleTrimExpired(1000 + BLOCK_RECYCLE_TIMEOUT_MS - 1);
+  ASSERT_EQ(createOneDataBlockFromRecycle(pTemplate, &pResult, &reused), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(reused);
+  blockDataRecycle(pResult);
+
+  blockDataRecycleTrimExpired(1000 + BLOCK_RECYCLE_TIMEOUT_MS);
+  pResult = nullptr;
+  reused = true;
+  ASSERT_EQ(createOneDataBlockFromRecycle(pTemplate, &pResult, &reused), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(reused);
+  blockDataDestroy(pResult);
+
+  blockDataDestroy(pTemplate);
+  blockDataRecycleCleanup();
+}
+
+struct SBlockRecycleRaceContext {
+  const SSDataBlock*    pTemplate = nullptr;
+  std::atomic<int32_t>  errorCode{TSDB_CODE_SUCCESS};
+  std::atomic<int32_t>  ready{0};
+  std::atomic<bool>     start{false};
+};
+
+static void setBlockRecycleRaceError(SBlockRecycleRaceContext* pContext) {
+  int32_t expected = TSDB_CODE_SUCCESS;
+  pContext->errorCode.compare_exchange_strong(expected, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+}
+
+static void waitForBlockRecycleRaceStart(SBlockRecycleRaceContext* pContext) {
+  pContext->ready.fetch_add(1);
+  while (!pContext->start.load()) {
+    std::this_thread::yield();
+  }
+}
+
+static void recycleBlocksConcurrently(SBlockRecycleRaceContext* pContext) {
+  constexpr uint32_t kRecycleCapacity = 100001;
+  waitForBlockRecycleRaceStart(pContext);
+
+  for (int32_t i = 0; i < 128; ++i) {
+    if (pContext->errorCode.load() != TSDB_CODE_SUCCESS) {
+      return;
+    }
+
+    SSDataBlock* pBlock = createRecycleTestBlock(kRecycleCapacity);
+    if (pBlock == nullptr) {
+      setBlockRecycleRaceError(pContext);
+      return;
+    }
+
+    pBlock->recycleEnabled = true;
+    blockDataRecycle(pBlock);
+  }
+}
+
+static void takeRecycledBlocksConcurrently(SBlockRecycleRaceContext* pContext) {
+  waitForBlockRecycleRaceStart(pContext);
+
+  for (int32_t i = 0; i < 128; ++i) {
+    if (pContext->errorCode.load() != TSDB_CODE_SUCCESS) {
+      return;
+    }
+
+    SSDataBlock* pBlock = nullptr;
+    bool         reused = false;
+    if (createOneDataBlockFromRecycle(pContext->pTemplate, &pBlock, &reused) != TSDB_CODE_SUCCESS || pBlock == nullptr) {
+      setBlockRecycleRaceError(pContext);
+      return;
+    }
+
+    blockDataRecycle(pBlock);
+  }
+}
+
+static void trimRecycledBlocksConcurrently(SBlockRecycleRaceContext* pContext) {
+  waitForBlockRecycleRaceStart(pContext);
+
+  for (int32_t i = 0; i < 128; ++i) {
+    if (pContext->errorCode.load() != TSDB_CODE_SUCCESS) {
+      return;
+    }
+
+    blockDataRecycleTrimExpired(1000 + BLOCK_RECYCLE_TIMEOUT_MS + i);
+  }
+}
+
+TEST(testCase, DatablockRecycleConcurrentTrim_test) {
+  constexpr uint32_t kRecycleCapacity = 100001;
+
+  blockDataRecycleCleanup();
+  blockDataRecycleSetCurrentTime(1000);
+
+  SSDataBlock* pTemplate = createRecycleTestBlock(kRecycleCapacity);
+  ASSERT_NE(pTemplate, nullptr);
+
+  SBlockRecycleRaceContext context;
+  context.pTemplate = pTemplate;
+  std::thread              recycleThread(recycleBlocksConcurrently, &context);
+  std::thread              takeThread(takeRecycledBlocksConcurrently, &context);
+  std::thread              trimThread(trimRecycledBlocksConcurrently, &context);
+  while (context.ready.load() != 3) {
+    std::this_thread::yield();
+  }
+  context.start.store(true);
+
+  recycleThread.join();
+  takeThread.join();
+  trimThread.join();
+
+  EXPECT_EQ(context.errorCode.load(), TSDB_CODE_SUCCESS);
+  blockDataRecycleCleanup();
+  blockDataDestroy(pTemplate);
+}
+
+TEST(testCase, DatablockReassignedVarColumn_test) {
+  SSDataBlock* src = NULL;
+  SSDataBlock* dst = NULL;
+  ASSERT_EQ(createDataBlock(&src), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createDataBlock(&dst), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData srcCol = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 1);
+  SColumnInfoData dstCol = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 1);
+  ASSERT_EQ(blockDataAppendColInfo(src, &srcCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(dst, &dstCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(src, 4), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(dst, 4), TSDB_CODE_SUCCESS);
+
+  char value[32] = {0};
+  STR_TO_VARSTR(value, "table_name")
+  SColumnInfoData* pSrcCol = (SColumnInfoData*)taosArrayGet(src->pDataBlock, 0);
+  SColumnInfoData* pDstCol = (SColumnInfoData*)taosArrayGet(dst->pDataBlock, 0);
+  ASSERT_NE(pSrcCol, nullptr);
+  ASSERT_NE(pDstCol, nullptr);
+  ASSERT_EQ(colDataCopyNItems(pSrcCol, 0, value, 4, false), TSDB_CODE_SUCCESS);
+  src->info.rows = 4;
+  ASSERT_TRUE(pSrcCol->reassigned);
+  ASSERT_EQ(pSrcCol->varmeta.length, varDataTLen(value));
+  for (int32_t i = 0; i < 4; ++i) {
+    ASSERT_EQ(strcmp(varDataVal(colDataGetData(pSrcCol, i)), "table_name"), 0);
+  }
+
+  ASSERT_EQ(colDataAssignNRows(pDstCol, 0, pSrcCol, 0, 4), TSDB_CODE_SUCCESS);
+  dst->info.rows = 4;
+  for (int32_t i = 0; i < 4; ++i) {
+    ASSERT_EQ(strcmp(varDataVal(colDataGetData(pDstCol, i)), "table_name"), 0);
+  }
+
+  ASSERT_EQ(colDataAssign(pDstCol, pSrcCol, 4, &src->info), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(pDstCol->reassigned);
+  for (int32_t i = 0; i < 4; ++i) {
+    ASSERT_EQ(strcmp(varDataVal(colDataGetData(pDstCol, i)), "table_name"), 0);
+  }
+
+  colInfoDataCleanup(pDstCol, dst->info.capacity);
+  ASSERT_FALSE(pDstCol->reassigned);
+  blockDataDestroy(src);
+  blockDataDestroy(dst);
 }
 
 #if 0

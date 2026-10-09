@@ -26,6 +26,11 @@
 
 static int32_t schUpdateCurrentEpset(SSchTask *pTask, SSchJob* pJob);
 
+bool schTaskAllowFollowerRead(const SSchJob *pJob, const SSchTask *pTask) {
+  return tsEnableFollowerRead && NULL != pJob && NULL != pTask && NULL != pTask->plan &&
+         pJob->attr.type == JOB_TYPE_QUERY;
+}
+
 void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   schDeregisterTaskHb(pJob, pTask);
 
@@ -125,6 +130,35 @@ int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
   } else {
     SCH_TASK_ELOG("failed to print epset due to convert to string failed, code:%s, ignore and continue",
                   tstrerror(code));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t schBindParentToChildNode(SSchJob* pJob, SSchTask* pParent, const SQueryNodeAddr* pChildAddr) {
+  SSchTask* pTask = pParent;
+
+  if (NULL == pParent || NULL == pChildAddr) {
+    return TSDB_CODE_SCH_INTERNAL_ERROR;
+  }
+
+  if (pParent->plan->execNode.epSet.numOfEps > 0 &&
+      (pParent->plan->execNode.nodeId != pChildAddr->nodeId ||
+       !isEpsetEqual(&pParent->plan->execNode.epSet, &pChildAddr->epSet))) {
+    SCH_TASK_ELOG("parent task has conflicting child execution nodes, parent:0x%" PRIx64 ", child node:%d",
+                  pParent->taskId, pChildAddr->nodeId);
+    return TSDB_CODE_SCH_INTERNAL_ERROR;
+  }
+
+  pParent->plan->execNode = *pChildAddr;
+  if (NULL != pParent->candidateAddrs) {
+    taosArrayClear(pParent->candidateAddrs);
+    if (NULL == taosArrayPush(pParent->candidateAddrs, pChildAddr)) {
+      SCH_TASK_ELOG("set parent task child execution node failed, parent:0x%" PRIx64 ", node:%d, code:%x - %s",
+                    pParent->taskId, pChildAddr->nodeId, terrno, tstrerror(terrno));
+      return terrno;
+    }
+    pParent->candidateIdx = 0;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -342,6 +376,13 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     }
 
     SCH_LOCK(SCH_WRITE, &pParent->planLock);
+    if (pParent->plan->execOnChildNode) {
+      code = schBindParentToChildNode(pJob, pParent, &pTask->succeedAddr);
+      if (TSDB_CODE_SUCCESS != code) {
+        SCH_TASK_ELOG("bind parent task to child execution node failed, child:0x%" PRIx64 ", parent:0x%" PRIx64,
+                      pTask->taskId, pParent->taskId);
+      }
+    }
     SDownstreamSourceNode source = {
         .type = QUERY_NODE_DOWNSTREAM_SOURCE,
         .clientId = pTask->clientId,
@@ -352,9 +393,12 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         .fetchMsgType = SCH_FETCH_TYPE(pTask),
         .localExec = SCH_IS_LOCAL_EXEC_TASK(pJob, pTask),
         .producerQueryId = pJob->queryId,
+        .allowFollowerRead = schTaskAllowFollowerRead(pJob, pTask),
     };
 
-    code = qSetSubplanExecutionNode(pParent->plan, pTask->plan->id.groupId, &source);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = qSetSubplanExecutionNode(pParent->plan, pTask->plan->id.groupId, &source);
+    }
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("qSetSubplanExecutionNode failed, groupId: %d", pTask->plan->id.groupId);
     }
@@ -796,9 +840,22 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
         SCH_ERR_RET(terrno);
       }
 
-      SCH_TASK_TLOG("set %dth candidate addr, id %d, inUse:%d/%d, fqdn:%s, port:%d", i, naddr->nodeId,
-                    naddr->epSet.inUse, naddr->epSet.numOfEps, SCH_GET_CUR_EP(naddr)->fqdn,
-                    SCH_GET_CUR_EP(naddr)->port);
+      SQueryNodeAddr *pAddr = taosArrayGet(pTask->candidateAddrs, addNum);
+      if (NULL == pAddr) {
+        SCH_TASK_ELOG("failed to get copied execNode for follower read selection, candidateAddrs:%p, addNum:%d",
+                      pTask->candidateAddrs, addNum);
+        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      }
+
+      if (schTaskAllowFollowerRead(pJob, pTask) && pAddr->epSet.numOfEps > 1) {
+        pAddr->epSet.inUse = taosRand() % pAddr->epSet.numOfEps;
+        SCH_TASK_DLOG("randomly selected replica endpoint:%d/%d for follower read", pAddr->epSet.inUse,
+                      pAddr->epSet.numOfEps);
+      }
+
+      SCH_TASK_TLOG("set %dth candidate addr, id %d, inUse:%d/%d, fqdn:%s, port:%d", i, pAddr->nodeId,
+                    pAddr->epSet.inUse, pAddr->epSet.numOfEps, SCH_GET_CUR_EP(pAddr)->fqdn,
+                    SCH_GET_CUR_EP(pAddr)->port);
 
       ++addNum;
     }
@@ -830,6 +887,17 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
     }
 
     SCH_TASK_TLOG("use execNode in plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
+
+    SQueryNodeAddr *pAddr = taosArrayGet(pTask->candidateAddrs, 0);
+    if (NULL == pAddr) {
+      SCH_TASK_ELOG("failed to get copied execNode for follower read selection, candidateAddrs:%p", pTask->candidateAddrs);
+      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    }
+    if (schTaskAllowFollowerRead(pJob, pTask) && pAddr->epSet.numOfEps > 1) {
+      pAddr->epSet.inUse = taosRand() % pAddr->epSet.numOfEps;
+      SCH_TASK_DLOG("randomly selected replica endpoint:%d/%d for follower read", pAddr->epSet.inUse,
+                    pAddr->epSet.numOfEps);
+    }
 
     return TSDB_CODE_SUCCESS;
   }

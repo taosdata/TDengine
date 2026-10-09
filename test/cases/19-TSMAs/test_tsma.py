@@ -218,6 +218,14 @@ class TSMATester:
                     deduplicated_tsmas.append(tsma)
             query_ctx.used_tsmas = deduplicated_tsmas
 
+        if query_ctx.has_tsma():
+            for row in explain_res:
+                plan = str(row).lower()
+                if 'data_load=sma' in plan:
+                    tdLog.exit('tsma query must not use block SMA: %s, plan: %s' % (sql, str(row)))
+                if 'interval on column' in plan and 'mode=fast' in plan:
+                    tdLog.exit('tsma query must not use fast interval: %s, plan: %s' % (sql, str(row)))
+
         return query_ctx
 
     def check_explain(self, sql: str, expect: TSMAQueryContext) -> TSMAQueryContext:
@@ -1061,6 +1069,9 @@ class TestTsma:
     def tsma_query_with_tsma_interval_possibly_partition(self,db_name: str = 'test'):
         ctxs: List[TSMAQueryContext] = []
         sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(5m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
+        sql = f'select /*+ fast_interval() */ avg(c1), avg(c2) from {db_name}.meters interval(5m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
 

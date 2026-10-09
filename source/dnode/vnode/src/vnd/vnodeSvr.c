@@ -1267,6 +1267,36 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return qWorkerPreprocessQueryMsg(pVnode->pQuery, pMsg, (TDMT_SCH_QUERY == pMsg->msgType), &qType);
 }
 
+static bool vnodeAllowFollowerRead(SVnode *pVnode, SRpcMsg *pMsg) {
+  if (!tsEnableFollowerRead || !syncIsReadyForReplicaRead(pVnode->sync)) {
+    return false;
+  }
+
+  SSubQueryMsg queryMsg = {0};
+  if (tDeserializeSSubQueryMsg(pMsg->pCont, pMsg->contLen, &queryMsg) < 0) {
+    return false;
+  }
+
+  bool allow = queryMsg.allowFollowerRead;
+  tFreeSSubQueryMsg(&queryMsg);
+  return allow;
+}
+
+static bool vnodeAllowFollowerFetch(SVnode *pVnode, SRpcMsg *pMsg) {
+  if (!tsEnableFollowerRead || !syncIsReadyForReplicaRead(pVnode->sync)) {
+    return false;
+  }
+
+  SResFetchReq fetchReq = {0};
+  if (tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &fetchReq) < 0) {
+    return false;
+  }
+
+  bool allow = fetchReq.allowFollowerRead;
+  tDestroySResFetchReq(&fetchReq);
+  return allow;
+}
+
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   const STraceId *trace = &pMsg->info.traceId;
   vDebug("vgId:%d, msg:%s, %p in vnode query queue is processing, %" PRIx64 ":%" PRIx64, 
@@ -1282,7 +1312,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 
   switch (pMsg->msgType) {
     case TDMT_SCH_QUERY:
-      if (!syncIsReadyForRead(pVnode->sync)) {
+      if (!syncIsReadyForRead(pVnode->sync) && !vnodeAllowFollowerRead(pVnode, pMsg)) {
         pMsg->code = (terrno) ? terrno : TSDB_CODE_SYN_NOT_LEADER;
         redirected = true;
       }
@@ -1317,8 +1347,9 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
        pMsg->msgType == TDMT_VND_VSUBTABLES_META || pMsg->msgType == TDMT_VND_VSTB_REF_DBS ||
        pMsg->msgType == TDMT_VND_CHECK_HAS_CTB ||
        pMsg->msgType == TDMT_VND_CHECK_STB_ALTER_NAME ||
-       pMsg->msgType == TDMT_VND_VTB_TAG_COND) &&
-      !syncIsReadyForRead(pVnode->sync)) {
+      pMsg->msgType == TDMT_VND_VTB_TAG_COND) &&
+      !syncIsReadyForRead(pVnode->sync) &&
+      !(pMsg->msgType == TDMT_SCH_FETCH && vnodeAllowFollowerFetch(pVnode, pMsg))) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }

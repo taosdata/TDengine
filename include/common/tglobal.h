@@ -308,6 +308,7 @@ extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
+extern bool    tsEnableFollowerRead;
 extern bool    tsEnableScience;
 extern bool    tsRpcCrcEnable;
 extern bool    tsSqlSecurityEnabled;

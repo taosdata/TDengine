@@ -31,7 +31,10 @@ extern SDataSinkStat gDataSinkStat;
 typedef struct SDataDispatchBuf {
   int32_t useSize;
   int32_t allocSize;
+  int64_t rows;
   char*   pData;
+  void*   pTask;
+  bool    blockIsBorrowed;
 } SDataDispatchBuf;
 
 typedef struct SDataCacheEntry {
@@ -55,10 +58,12 @@ typedef struct SDataDispatchHandle {
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
+  int64_t             queuedRows;
   uint64_t            flags;
   void*               pCompressBuf;
   int32_t             bufSize;
   bool                dynamicSchema;
+  bool                localBlockExchange;
   TdThreadMutex       mutex;
 } SDataDispatchHandle;
 
@@ -335,11 +340,40 @@ static int32_t allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInp
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t updateStatus(SDataDispatchHandle* pDispatcher) {
-  (void)taosThreadMutexLock(&pDispatcher->mutex);
+static int32_t getDispatcherStatusLocked(SDataDispatchHandle* pDispatcher) {
   int32_t blockNums = taosQueueItemSize(pDispatcher->pDataBlocks);
   uint64_t cachedSize = atomic_load_64(&pDispatcher->cachedSize);
-  int32_t status = dsCalcBufStatus(&pDispatcher->pManager->cfg, blockNums, cachedSize);
+  if (pDispatcher->localBlockExchange && pDispatcher->nextOutput.pData != NULL) {
+    ++blockNums;
+  }
+  if (0 == blockNums) {
+    return DS_BUF_EMPTY;
+  }
+
+  uint32_t maxDataBlockNum = pDispatcher->pManager->cfg.maxDataBlockNumPerQuery;
+  if (pDispatcher->localBlockExchange) {
+    uint32_t localBlockMax = pDispatcher->pManager->cfg.maxDataBlockNumPerLocalBlockQuery;
+    if (localBlockMax > 0) {
+      maxDataBlockNum = localBlockMax;
+    }
+  }
+
+  bool full = blockNums >= maxDataBlockNum;
+  if (pDispatcher->pManager->cfg.maxDataBytesPerQuery > 0 &&
+      (int64_t)cachedSize >= pDispatcher->pManager->cfg.maxDataBytesPerQuery) {
+    full = true;
+  }
+  if (pDispatcher->localBlockExchange && pDispatcher->pManager->cfg.maxDataRowsPerQuery > 0 &&
+      atomic_load_64(&pDispatcher->queuedRows) >= pDispatcher->pManager->cfg.maxDataRowsPerQuery) {
+    full = true;
+  }
+
+  return full ? DS_BUF_FULL : DS_BUF_LOW;
+}
+
+static int32_t updateStatus(SDataDispatchHandle* pDispatcher) {
+  (void)taosThreadMutexLock(&pDispatcher->mutex);
+  int32_t status = getDispatcherStatusLocked(pDispatcher);
   pDispatcher->status = status;
   (void)taosThreadMutexUnlock(&pDispatcher->mutex);
   return status;
@@ -356,6 +390,32 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   int32_t              code = 0;
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   SDataDispatchBuf*    pBuf = NULL;
+
+  if (pDispatcher->localBlockExchange) {
+    if (pInput == NULL || pInput->pData == NULL || pInput->pData->info.rows <= 0) {
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+    code = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM, 0, (void**)&pBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    // Local exchange transfers the result block pointer without serializing it.
+    pBuf->pData = (char*)pInput->pData;
+    pBuf->pTask = pInput->pTask;
+    pBuf->blockIsBorrowed = pInput->blockIsBorrowed;
+    pBuf->rows = pInput->pData->info.rows;
+    pBuf->allocSize = -1;
+    (void)atomic_add_fetch_64(&pDispatcher->queuedRows, pBuf->rows);
+    code = taosWriteQitem(pDispatcher->pDataBlocks, pBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      (void)atomic_sub_fetch_64(&pDispatcher->queuedRows, pBuf->rows);
+      taosFreeQitem(pBuf);
+      return code;
+    }
+    int32_t status = updateStatus(pDispatcher);
+    *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY) && !(pDispatcher->flags & DS_FLAG_PROCESS_ONE_BLOCK);
+    return TSDB_CODE_SUCCESS;
+  }
 
   code = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM, 0, (void**)&pBuf);
   if (code) {
@@ -433,6 +493,14 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRow
     return;
   }
 
+  if (pDispatcher->localBlockExchange) {
+    *pLen = 1;
+    if (pRowLen != NULL) *pRowLen = 1;
+    if (pQueryEnd != NULL) *pQueryEnd = pDispatcher->queryEnd;
+    (void)taosThreadMutexUnlock(&pDispatcher->mutex);
+    return;
+  }
+
   *pLen = pEntry->dataLen;
   if (pRowLen != NULL) {
     *pRowLen = pEntry->rawLen;
@@ -466,6 +534,23 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pDispatcher->localBlockExchange) {
+    (void)atomic_sub_fetch_64(&pDispatcher->queuedRows, pDispatcher->nextOutput.rows);
+    int32_t status = getDispatcherStatusLocked(pDispatcher);
+    pOutput->pBlock = (SSDataBlock*)pData;
+    pOutput->pTask = pDispatcher->nextOutput.pTask;
+    pOutput->blockIsBorrowed = pDispatcher->nextOutput.blockIsBorrowed;
+    pDispatcher->nextOutput.pTask = NULL;
+    pDispatcher->nextOutput.blockIsBorrowed = false;
+    pOutput->useconds = pDispatcher->useconds;
+    pOutput->precision = pDispatcher->pSchema->precision;
+    pDispatcher->status = status;
+    pOutput->queryEnd = pDispatcher->queryEnd && status == DS_BUF_EMPTY;
+    (void)taosThreadMutexUnlock(&pDispatcher->mutex);
+    pOutput->bufStatus = status;
+    return TSDB_CODE_SUCCESS;
+  }
+
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pData;
   TAOS_MEMCPY(pOutput->pData, pEntry->data, pEntry->dataLen);
   pOutput->numOfRows = pEntry->numOfRows;
@@ -490,11 +575,24 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDispatcher->cachedSize);
   (void)taosThreadMutexLock(&pDispatcher->mutex);
   char* pData = atomic_exchange_ptr(&pDispatcher->nextOutput.pData, NULL);
+  void* pTask = pDispatcher->nextOutput.pTask;
+  bool  blockIsBorrowed = pDispatcher->nextOutput.blockIsBorrowed;
+  pDispatcher->nextOutput.pTask = NULL;
+  pDispatcher->nextOutput.blockIsBorrowed = false;
   if (pData != NULL) {
     qWarn("destroy sink dispatcher:%p releasing pending nextOutput:%p, tid:%" PRId64, pDispatcher, pData,
           taosGetSelfPthreadId());
-    taosMemoryFree(pData);
+    if (pDispatcher->localBlockExchange) {
+      if (blockIsBorrowed) {
+        blockDataRecycle((SSDataBlock*)pData);
+      } else {
+        blockDataDestroy((SSDataBlock*)pData);
+      }
+    } else {
+      taosMemoryFree(pData);
+    }
   }
+  taosMemoryFree(pTask);
   (void)taosThreadMutexUnlock(&pDispatcher->mutex);
   nodesDestroyNode((SNode*)pDispatcher->pSinkNode);
 
@@ -502,7 +600,16 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
     SDataDispatchBuf* pBuf = NULL;
     taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
     if (pBuf != NULL) {
-      taosMemoryFreeClear(pBuf->pData);
+      if (pDispatcher->localBlockExchange) {
+        if (pBuf->blockIsBorrowed) {
+          blockDataRecycle((SSDataBlock*)pBuf->pData);
+        } else {
+          blockDataDestroy((SSDataBlock*)pBuf->pData);
+        }
+      } else {
+        taosMemoryFreeClear(pBuf->pData);
+      }
+      taosMemoryFree(pBuf->pTask);
       taosFreeQitem(pBuf);
     }
   }
@@ -603,6 +710,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataS
   dispatcher->pManager = pManager;
   pManager = NULL;
   dispatcher->dynamicSchema = pDispatherNode->dynamicSchema;
+  dispatcher->localBlockExchange = pDispatherNode->localBlockExchange;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
   dispatcher->pSinkNode = pDataSink;
   *ppDataSink = NULL;
@@ -621,6 +729,13 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataS
   }
 
   dispatcher->flags = DS_FLAG_USE_MEMPOOL;
+  if (dispatcher->localBlockExchange) {
+    dispatcher->flags |= DS_FLAG_LOCAL_BLOCK_EXCHANGE;
+  }
+  // Local block exchange keeps every produced block in the FIFO until the
+  // consumer takes it. The producer must be allowed to fill the queue up to
+  // the normal dispatcher backpressure limit instead of being forced into a
+  // one-block execution cycle.
   if (processOneBlock) {
     dispatcher->flags |= DS_FLAG_PROCESS_ONE_BLOCK;
   }

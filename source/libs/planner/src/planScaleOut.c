@@ -60,6 +60,7 @@ static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubp
   pDst->id.queryId = pSrc->id.queryId;
   pDst->id.groupId = pSrc->id.groupId;
   pDst->id.subplanId = pCxt->subplanId++;
+  pDst->splitFlag = pSrc->splitFlag;
   pDst->processOneBlock = pSrc->processOneBlock;
   pDst->dynTbname = pSrc->dynTbname;
   // Log pRemoteLogicPlan on external scans after cloning.

@@ -1079,7 +1079,7 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  int32_t outputLen = pInputData->varmeta.length;
+  int32_t outputLen = colDataGetLength(pInputData, pInput->numOfRows);
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
     SCL_ERR_RET(terrno);
