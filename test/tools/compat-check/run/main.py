@@ -281,6 +281,28 @@ def _workloads_ok(metrics, rp):
     return True  # never abort mid-run
 
 
+def _wait_subscribe_ready(metrics, rp, timeout):
+    """Wait for the TMQ handshake before starting the verification window.
+
+    The writer is gated on ``subscribe_ready``, so a late subscription (slow
+    cluster stabilization, loaded runner) would otherwise burn the whole fixed
+    verification window with zero rows and fail the subscribe checks
+    spuriously.  If the handshake does not complete in time, verification
+    proceeds unchanged: the subscriber keeps retrying and the checks decide
+    the outcome.
+    """
+    deadline = time.time() + timeout
+    while not metrics.get("subscribe_ready", False) and time.time() < deadline:
+        time.sleep(1)
+    if metrics.get("subscribe_ready", False):
+        rp.info("Subscriber handshake ready; verification window starts now.")
+    else:
+        rp.info(
+            f"Subscriber handshake not ready within {timeout}s; "
+            "starting verification anyway"
+        )
+
+
 def _version_ge(ver_str: str, min_ver: str) -> bool:
     """Return True if ver_str >= min_ver using dotted 4-part version comparison.
 
@@ -662,6 +684,8 @@ def _run_verify_phase(fqdn, cfg_dir, metrics, worker_procs, writer_stop_evt,
 
     rp.info(f"Waiting {stabilize_wait}s for cluster connections to stabilize ...")
     time.sleep(stabilize_wait)
+
+    _wait_subscribe_ready(metrics, rp, config.SUBSCRIBE_READY_TIMEOUT_S)
 
     metrics["write_window_max"]     = 0.0
     metrics["query_window_max"]     = 0.0
@@ -1081,6 +1105,8 @@ def _run_cold_phase2(state_file: str):
 
     # -- Phase 5: Post-upgrade verification ------------------------------------
     rp.step_start(f"Phase 5  Post-upgrade verification ({config.VERIFY_DURATION_S}s)")
+
+    _wait_subscribe_ready(metrics, rp, config.SUBSCRIBE_READY_TIMEOUT_S)
 
     metrics["write_window_max"]     = 0.0
     metrics["query_window_max"]     = 0.0
