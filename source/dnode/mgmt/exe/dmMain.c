@@ -1584,6 +1584,15 @@ int mainWindows(int argc, char **argv) {
     return ret;
   }
 
+  // Every file the engine creates asks for its own mode (see taosOpenFileNotStream), so this mask is only a
+  // backstop for the file creation that is not ours: the fopen-based stream files and the libraries taosd links
+  // against, such as the RocksDB cache. It is tightened, never loosened, so an operator who already runs with a
+  // stricter mask keeps it. Doing this in the daemon rather than in the shared log code is deliberate: the log
+  // code also runs inside client processes, and a library must not change the umask of the process that
+  // loaded it.
+  int32_t oldMask = taosUmaskFile(0022);
+  TAOS_UNUSED(taosUmaskFile(oldMask | 0022));
+
   if ((code = dmInitLog()) != 0) {
     printf("failed to start since init log error\n");
     taosCleanupArgs();

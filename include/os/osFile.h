@@ -77,6 +77,8 @@ typedef struct TdFile *TdFilePtr;
 #define TD_FILE_STREAM        0x0100  // Only support taosFprintfFile, taosGetLineFile, taosEOFFile
 #define TD_FILE_WRITE_THROUGH 0x0200
 #define TD_FILE_CLOEXEC       0x0400
+#define TD_FILE_NOFOLLOW      0x0800  // Do not follow a symbolic link at the path (Linux/macOS only)
+#define TD_FILE_SHARE_READ    0x1000  // Let other users read the created file instead of owner-only (Linux/macOS only)
 
 // Create with TD_FILE_CREATE | TD_FILE_EXCL and TD_FILE_READ and/or TD_FILE_WRITE,
 // or open an existing file with flags == TD_FILE_READ; all other flags are rejected.

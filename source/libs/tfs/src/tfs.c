@@ -598,7 +598,7 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
   int32_t   dirLen = 0;
   char      tmp[PATH_MAX] = {0};
 
-  code = wordexp(idir, &wep, 0);
+  code = wordexp(idir, &wep, WRDE_NOCMD);
   if (code != 0) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(code));
   }

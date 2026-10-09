@@ -788,8 +788,21 @@ int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
   access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
   access |= (tdFileOptions & TD_FILE_CLOEXEC) ? O_CLOEXEC : 0;
+  access |= (tdFileOptions & TD_FILE_NOFOLLOW) ? O_NOFOLLOW : 0;
 
-  int fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
+  // The create mode is stated here instead of being left to the process
+  // umask, because this is the one place the engine creates files of its
+  // own: data, WAL, meta, user, configuration and key files. None of
+  // those may be reachable by other local users, so owner-only is the
+  // default and the umask may only take bits away from it, never add any.
+  // A caller whose file holds no secret - the log files are the only
+  // ones - opts in to TD_FILE_SHARE_READ.
+  int mode = (S_IRUSR | S_IWUSR);
+  if (tdFileOptions & TD_FILE_SHARE_READ) {
+    mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  }
+
+  int fd = open(path, access, mode);
   if (-1 == fd) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
@@ -1791,9 +1804,25 @@ int32_t taosCompressFile(TdFilePtr pSrcFile, char *destFileName) {
 #ifdef WINDOWS
   int32_t pmode = _S_IREAD | _S_IWRITE;
 #else
-  int32_t pmode = S_IRWXU | S_IRWXG | S_IRWXO;
+  // The destination normally sits next to the source in a directory that other users may be able to write to,
+  // so an entry planted at this name must not make us truncate whatever it points to. O_EXCL refuses to reuse
+  // an existing entry and O_NOFOLLOW refuses to follow a symbolic link; the mode keeps the archive out of
+  // reach of other users. pmode is only applied when the entry is created, since neither flag lets an
+  // existing file through.
+  access |= O_EXCL | O_NOFOLLOW;
+  int32_t pmode = S_IRUSR | S_IWUSR;
 #endif
   fd = open(destFileName, access, pmode);
+#ifndef WINDOWS
+  if (-1 == fd && ERRNO == EEXIST) {
+    // A destination already exists: it is either an archive left behind by an earlier failed run, a file of
+    // the attacker's own, or a symbolic link planted at this name. Removing it unlinks the entry itself
+    // without touching what a link points to, and the retry below is still O_EXCL|O_NOFOLLOW, so an entry
+    // planted again in the meantime only makes the retry fail.
+    (void)remove(destFileName);
+    fd = open(destFileName, access, pmode);
+  }
+#endif
   if (-1 == fd) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     ret = terrno;

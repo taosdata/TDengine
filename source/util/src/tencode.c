@@ -126,6 +126,10 @@ int32_t tStartDecode(SDecoder* pCoder) {
 
   TAOS_CHECK_RETURN(tDecodeI32(pCoder, &len));
 
+  if (len < 0 || pCoder->pos > pCoder->size || (uint32_t)len > pCoder->size - pCoder->pos) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+  }
+
   pNode = tDecoderMalloc(pCoder, sizeof(*pNode));
   if (pNode == NULL) {
     TAOS_RETURN(terrno);
@@ -147,6 +151,10 @@ int32_t tStartDecode(SDecoder* pCoder) {
 
 void tEndDecode(SDecoder* pCoder) {
   SDecoderNode* pNode;
+
+  if (pCoder->dStack == NULL) {
+    return;
+  }
 
   pNode = pCoder->dStack;
   pCoder->dStack = pNode->pNext;

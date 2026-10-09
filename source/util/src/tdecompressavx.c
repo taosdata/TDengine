@@ -188,6 +188,13 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t ninput, co
           }
         }
       } break;
+
+      // No case above means the type is not handled here. Without this default the loop would spin
+      // forever: _pos would never advance, so the caller's element count would never be reached.
+      default: {
+        uError("unsupported integer decompress type:%d", type);
+        return TSDB_CODE_INVALID_MSG;
+      }
     }
 
     ip += LONG_BYTES;
@@ -535,8 +542,8 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
 #endif
 }
 
-int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
-                                    bool UNUSED_PARAM(bigEndian)) {
+int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t ninput, const int32_t nelements,
+                                    char *const output, bool UNUSED_PARAM(bigEndian)) {
 #ifdef __AVX512VL__
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
@@ -551,10 +558,17 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
   int32_t i = 0;
   if (numOfBatch > 1) {
     // first loop
+    if (ipos >= ninput) return TSDB_CODE_INVALID_MSG;
     uint8_t flags = input[ipos++];
 
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
+
+    // Both counts must fit an 8-byte accumulator and both payloads must be inside the input, which the
+    // two masked loads below read across. No log here: the scalar decoder validates the same records and
+    // reports the diagnostic when this path bails out.
+    if (nbytes1 > LONG_BYTES || nbytes2 > LONG_BYTES || nbytes1 + nbytes2 > ninput - ipos)
+      return TSDB_CODE_INVALID_MSG;
 
     __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void *)(input + ipos));
     __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void *)(input + ipos + nbytes1));
@@ -588,10 +602,15 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
 
   // the remain
   for (; i < numOfBatch; ++i) {
+    if (ipos >= ninput) return TSDB_CODE_INVALID_MSG;
     uint8_t flags = input[ipos++];
 
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
+
+    // both counts must fit an 8-byte accumulator and both payloads must be inside the input
+    if (nbytes1 > LONG_BYTES || nbytes2 > LONG_BYTES || nbytes1 + nbytes2 > ninput - ipos)
+      return TSDB_CODE_INVALID_MSG;
 
     __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void *)(input + ipos));
     __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void *)(input + ipos + nbytes1));
@@ -625,18 +644,22 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
 
   if (remainder > 0) {
     uint64_t dd = 0;
-    uint8_t  flags = input[ipos++];
+    if (ipos >= ninput) return TSDB_CODE_INVALID_MSG;
+    uint8_t flags = input[ipos++];
 
-    int32_t nbytes = flags & INT8MASK(4);
+    int32_t nbytes1 = flags & INT8MASK(4);  // the trailing value uses this one
+    int32_t nbytes2 = (flags >> 4) & INT8MASK(4);
+    // the odd trailing value carries no second one, but validating the whole record keeps one rule
+    if (nbytes1 > LONG_BYTES || nbytes2 > LONG_BYTES || nbytes1 + nbytes2 > ninput - ipos)
+      return TSDB_CODE_INVALID_MSG;
+
     int64_t deltaOfDelta = 0;
-    if (nbytes == 0) {
-      deltaOfDelta = 0;
-    } else {
-      memcpy(&dd, input + ipos, nbytes);
+    if (nbytes1 != 0) {
+      memcpy(&dd, input + ipos, nbytes1);
       deltaOfDelta = ZIGZAG_DECODE(int64_t, dd);
     }
 
-    ipos += nbytes;
+    ipos += nbytes1;
     if (opos == 0) {
       ostream[opos++] = deltaOfDelta;
     } else {

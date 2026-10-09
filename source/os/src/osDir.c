@@ -432,7 +432,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
 
 #ifndef TD_ASTRA
   wordexp_t full_path = {0};
-  int32_t   code = wordexp(dirname, &full_path, 0);
+  int32_t   code = wordexp(dirname, &full_path, WRDE_NOCMD);
   switch (code) {
     case 0:
       break;
@@ -636,6 +636,35 @@ bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
 #endif
 }
 
+bool taosDirEntryIsRegular(TdDirEntryPtr pDirEntry) {
+  if (pDirEntry == NULL) {
+    return false;
+  }
+#ifdef WINDOWS
+  return (pDirEntry->findFileData.dwFileAttributes &
+          (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY)) == 0;
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
+  // the entry type is not reported, so the caller has to inspect the opened file instead
+  return true;
+#else
+  // False when the file system reports that the entry is not a regular file - a directory, symbolic link,
+  // FIFO, device or socket. A file system that does not report the entry type leaves d_type at DT_UNKNOWN
+  // for every entry, in which case this returns true for all of them and the caller has to rely on opening
+  // without following links to reject anything that is not a plain file.
+  switch (((dirent *)pDirEntry)->d_type) {
+    case DT_DIR:
+    case DT_LNK:
+    case DT_FIFO:
+    case DT_CHR:
+    case DT_BLK:
+    case DT_SOCK:
+      return false;
+    default:
+      return true;
+  }
+#endif
+}
+
 char *taosGetDirEntryName(TdDirEntryPtr pDirEntry) {
   if (pDirEntry == NULL) {
     return NULL;
@@ -816,6 +845,14 @@ bool taosDirEntryIsDirW(TdDirWEntryPtr pDirEntry) {
     return false;
   }
   return (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+bool taosDirEntryIsRegularW(TdDirWEntryPtr pDirEntry) {
+  if (pDirEntry == NULL) {
+    return false;
+  }
+  return (pDirEntry->findFileData.dwFileAttributes &
+          (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY)) == 0;
 }
 
 char *taosGetDirEntryNameW(TdDirWEntryPtr pDirEntry) {

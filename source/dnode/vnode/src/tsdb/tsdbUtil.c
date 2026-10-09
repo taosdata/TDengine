@@ -470,6 +470,11 @@ int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver, uint3
     pBlockCol->alg = defaultCmprAlg;
   }
 
+  if ((code = tsCheckCompressAlg(pBlockCol->alg)) != TSDB_CODE_SUCCESS) {
+    tsdbError("invalid compression alg:0x%x in block col, cid:%d", pBlockCol->alg, pBlockCol->cid);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
   return 0;
 }
 
@@ -1565,6 +1570,15 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
   } else {
     // more data fmt ver
   }
+
+  // only those two layouts carry a cmprAlg on disk.
+  if (pHdr->fmtVer <= 2) {
+    if ((code = tsCheckCompressAlg(pHdr->cmprAlg)) != TSDB_CODE_SUCCESS) {
+      tsdbError("invalid compression alg:0x%x in disk data hdr", pHdr->cmprAlg);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+  }
+
   if (pHdr->fmtVer >= 1) {
     if ((code = tBufferGetI8(br, &pHdr->numOfPKs))) return code;
     for (int i = 0; i < pHdr->numOfPKs; i++) {

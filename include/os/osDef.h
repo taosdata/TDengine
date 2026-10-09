@@ -102,6 +102,13 @@ typedef struct {
   int   we_offs;
   char  wordPos[1025];
 } wordexp_t;
+
+// Windows has no WRDE_NOCMD, and the wordexp shim above ignores its flags argument entirely, so
+// there is nothing here for the value to suppress. It is defined as 0 so that the shared callers
+// which do pass it (taosExpandDir, tfsFormatDir) compile unchanged -- it is not an unused
+// placeholder.
+#define WRDE_NOCMD 0
+
 int  wordexp(char *words, wordexp_t *pwordexp, int flags);
 void wordfree(wordexp_t *pwordexp);
 

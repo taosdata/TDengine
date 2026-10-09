@@ -119,7 +119,20 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
       (void)taosThreadMutexUnlock(&pCfg->lock);
       continue;
     }
-    switch (pItemNew->dtype) {
+
+    // The received item was decoded from the network and its value is held in the same union as the local
+    // one, so its dtype must not be used to decide how to write the local item: a numeric dtype over a local
+    // string item would overwrite (and later free) its heap pointer, and a string dtype over a local numeric
+    // item would free the numeric value as if it were a pointer. Merge only items whose dtype matches the
+    // local definition, and dispatch on the local dtype.
+    if (pItemNew->dtype != pItemOld->dtype) {
+      uError("cfg:%s, type:%s, dtype mismatch with local type:%s, skip to update", pItemNew->name,
+             cfgDtypeStr(pItemNew->dtype), cfgDtypeStr(pItemOld->dtype));
+      (void)taosThreadMutexUnlock(&pCfg->lock);
+      continue;
+    }
+
+    switch (pItemOld->dtype) {
       case CFG_DTYPE_BOOL:
         pItemOld->bval = pItemNew->bval;
         break;
@@ -378,6 +391,13 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
            cfgStypeStr(stype), value);
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
+
+  if (strlen(value) >= TD_CHARSET_LEN) {
+    uError("cfg:%s, type:%s src:%s, charset value is too long (%zu bytes, max %d)", pItem->name,
+           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), strlen(value), TD_CHARSET_LEN - 1);
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
+
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (!taosValidateEncodec(value)) {
     uError("invalid charset:%s", value);
@@ -387,7 +407,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
   if ((tsCharsetCxt = taosConvInit(value)) == NULL) {
     TAOS_RETURN(terrno);
   }
-  (void)memcpy(tsCharset, value, strlen(value) + 1);
+  tstrncpy(tsCharset, value, TD_CHARSET_LEN);
   TAOS_CHECK_RETURN(doSetConf(pItem, value, stype));
 #endif
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -799,6 +819,14 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
           goto _exit;
         }
         taosMemoryFree(tmp);
+      }
+    } break;
+    case CFG_DTYPE_CHARSET: {
+      if (pVal == NULL || strlen(pVal) >= TD_CHARSET_LEN) {
+        uError("cfg:%s, type:%s value is too long, max %d", pItem->name, cfgDtypeStr(pItem->dtype),
+               TD_CHARSET_LEN - 1);
+        code = TSDB_CODE_OUT_OF_RANGE;
+        goto _exit;
       }
     } break;
     case CFG_DTYPE_BOOL: {
