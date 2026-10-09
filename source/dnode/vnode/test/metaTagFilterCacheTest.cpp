@@ -571,3 +571,37 @@ TEST_F(MetaTagFilterCacheTest, FailedNewKeyInsertInvalidatesCompleteMapping) {
 }
 
 }  // namespace
+
+extern "C" int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME);
+
+// GHSA-hr67-c6c8-mwpx / TD-SEC-2026-032: meteDecodeColRefEntry allocates
+// nCols * sizeof(SColRef) via tDecoderMalloc, which now rejects sizes that
+// would truncate (int32 width) or wrap before allocating. A virtual table's
+// column-reference wrapper carrying a huge nCols (zigzag i32) must fail
+// decoding instead of getting a truncated allocation that the per-column
+// loop then writes past.
+TEST(MetaColRefDecodeOverflow, RejectsOversizedNCols) {
+  std::array<uint8_t, 32> buf = {};
+  SEncoder                encoder = {};
+  tEncoderInit(&encoder, buf.data(), (uint32_t)buf.size());
+  ASSERT_EQ(tStartEncode(&encoder), 0);
+  // 2^28 decodes to a huge SColRef count; sizeof(SColRef) * nCols overflows
+  // INT32_MAX and must be rejected by tDecoderMalloc rather than truncated.
+  ASSERT_EQ(tEncodeI32v(&encoder, (int32_t)(1 << 28)), 0);
+  ASSERT_EQ(tEncodeI32v(&encoder, 0), 0);  // version
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SMetaEntry entry = {};
+  SDecoder   decoder = {};
+  tDecoderInit(&decoder, buf.data(), size);
+  // The encoder used tStartEncode/tEndEncode, so the buffer carries a 4-byte length
+  // prefix. Consume it with the matching tStartDecode before reading the fields,
+  // mirroring the production metaDecodeEntryImpl path.
+  ASSERT_EQ(tStartDecode(&decoder), 0);
+  int32_t code = meteDecodeColRefEntry(&decoder, &entry);
+  EXPECT_NE(code, 0);
+  EXPECT_EQ(entry.colRef.pColRef, nullptr);
+  tDecoderClear(&decoder);
+}

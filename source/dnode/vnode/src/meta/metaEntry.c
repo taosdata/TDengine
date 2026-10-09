@@ -72,11 +72,11 @@ static int32_t metaDecodeVChildOwnSchema(SDecoder *pCoder, SMetaEntry *pME) {
     return TSDB_CODE_INVALID_MSG;
   }
   if (pOwn->nOwnCols > 0) {
-    pOwn->pOwnColSchemas = (SSchema *)tDecoderMalloc(pCoder, pOwn->nOwnCols * sizeof(SSchema));
+    pOwn->pOwnColSchemas = (SSchema *)tDecoderMalloc(pCoder, (int64_t)pOwn->nOwnCols * sizeof(SSchema));
     if (pOwn->pOwnColSchemas == NULL) {
       return terrno;
     }
-    pOwn->pOwnColRefs = (SColRef *)tDecoderMalloc(pCoder, pOwn->nOwnCols * sizeof(SColRef));
+    pOwn->pOwnColRefs = (SColRef *)tDecoderMalloc(pCoder, (int64_t)pOwn->nOwnCols * sizeof(SColRef));
     if (pOwn->pOwnColRefs == NULL) {
       return terrno;
     }
@@ -91,7 +91,7 @@ static int32_t metaDecodeVChildOwnSchema(SDecoder *pCoder, SMetaEntry *pME) {
     return TSDB_CODE_INVALID_MSG;
   }
   if (pOwn->nOwnTags > 0) {
-    pOwn->pOwnTagSchemas = (SSchema *)tDecoderMalloc(pCoder, pOwn->nOwnTags * sizeof(SSchema));
+    pOwn->pOwnTagSchemas = (SSchema *)tDecoderMalloc(pCoder, (int64_t)pOwn->nOwnTags * sizeof(SSchema));
     if (pOwn->pOwnTagSchemas == NULL) {
       return terrno;
     }
@@ -105,7 +105,7 @@ static int32_t metaDecodeVChildOwnSchema(SDecoder *pCoder, SMetaEntry *pME) {
   // tDecodeIsEnd handles older entries that have no bytes here; schemasHasTypeMod handles newer
   // entries whose own columns happen to carry no typeMod (writer omits the sub-section).
   if (!tDecodeIsEnd(pCoder) && schemasHasTypeMod(pOwn->pOwnColSchemas, pOwn->nOwnCols)) {
-    pOwn->pOwnColExtSchemas = (SExtSchema *)tDecoderMalloc(pCoder, pOwn->nOwnCols * sizeof(SExtSchema));
+    pOwn->pOwnColExtSchemas = (SExtSchema *)tDecoderMalloc(pCoder, (int64_t)pOwn->nOwnCols * sizeof(SExtSchema));
     if (pOwn->pOwnColExtSchemas == NULL) {
       return terrno;
     }
@@ -215,7 +215,7 @@ static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
 
   hasExtSchema = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
   if (hasExtSchema && pSchWrapper->nCols > 0) {
-    pME->pExtSchemas = (SExtSchema*)tDecoderMalloc(pDecoder, sizeof(SExtSchema) * pSchWrapper->nCols);
+    pME->pExtSchemas = (SExtSchema*)tDecoderMalloc(pDecoder, (int64_t)pSchWrapper->nCols * sizeof(SExtSchema));
     if (pME->pExtSchemas == NULL) {
       return terrno;
     }
@@ -350,7 +350,7 @@ static int32_t metaDecodeSColRefExt(SDecoder *pDecoder, SColRef *p, const char *
                p->tagCondLen, tmpLen);
         return TSDB_CODE_INVALID_MSG;
       }
-      p->tagCondJson = (char *)tDecoderMalloc(pDecoder, p->tagCondLen + 1);
+      p->tagCondJson = (char *)tDecoderMalloc(pDecoder, (int64_t)p->tagCondLen + 1);
       if (p->tagCondJson == NULL) {
         TAOS_CHECK_RETURN(terrno);
       }
@@ -370,7 +370,7 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
     return 0;
   }
   uDebug("decode cols:%d", pWrapper->nCols);
-  pWrapper->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColRef));
+  pWrapper->pColRef = (SColRef *)tDecoderMalloc(pDecoder, (int64_t)pWrapper->nCols * sizeof(SColRef));
   if (pWrapper->pColRef == NULL) {
     return terrno;
   }
@@ -386,7 +386,7 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nTagRefs));
     if (pWrapper->nTagRefs > 0) {
-      pWrapper->pTagRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nTagRefs * sizeof(SColRef));
+      pWrapper->pTagRef = (SColRef *)tDecoderMalloc(pDecoder, (int64_t)pWrapper->nTagRefs * sizeof(SColRef));
       if (pWrapper->pTagRef == NULL) {
         return terrno;
       }
@@ -437,7 +437,7 @@ static int32_t metaDecodeColRefFilterCondTail(SDecoder *pDecoder, SColRefWrapper
     uint8_t *pBuf = NULL;
     TAOS_CHECK_RETURN(tDecodeSColRefFilterCondRaw(pDecoder, pColRef, &pBuf));
     if (pColRef->filterCondLen > 0) {
-      pColRef->filterCondJson = tDecoderMalloc(pDecoder, (size_t)pColRef->filterCondLen + 1);
+      pColRef->filterCondJson = tDecoderMalloc(pDecoder, (int64_t)pColRef->filterCondLen + 1);
       if (NULL == pColRef->filterCondJson) {
         return terrno;
       }
@@ -451,7 +451,7 @@ static int32_t metaDecodeColRefFilterCondTail(SDecoder *pDecoder, SColRefWrapper
 static FORCE_INLINE int32_t metatInitDefaultSColRefWrapper(SDecoder *pDecoder, SColRefWrapper *pRef,
                                                             SSchemaWrapper *pSchema) {
   pRef->nCols = pSchema->nCols;
-  if ((pRef->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pRef->nCols * sizeof(SColRef))) == NULL) {
+  if ((pRef->pColRef = (SColRef *)tDecoderMalloc(pDecoder, (int64_t)pRef->nCols * sizeof(SColRef))) == NULL) {
     return terrno;
   }
 
@@ -601,7 +601,7 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
 
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->version));
   uDebug("dencode cols:%d", pWrapper->nCols);
-  pWrapper->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColCmpr));
+  pWrapper->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, (int64_t)pWrapper->nCols * sizeof(SColCmpr));
   if (pWrapper->pColCmpr == NULL) {
     return terrno;
   }
@@ -620,7 +620,7 @@ static FORCE_INLINE int32_t metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, 
   if (pDecoder == NULL) {
     pCmpr->pColCmpr = taosMemoryCalloc(1, pCmpr->nCols * sizeof(SColCmpr));
   } else {
-    pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pCmpr->nCols * sizeof(SColCmpr));
+    pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, (int64_t)pCmpr->nCols * sizeof(SColCmpr));
   }
 
   if (pCmpr->pColCmpr == NULL) {
