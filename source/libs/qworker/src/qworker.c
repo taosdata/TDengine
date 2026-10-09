@@ -88,7 +88,7 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     if (!ctx->needFetch) {
       QW_SINK_ENABLE_MEMPOOL(ctx);
       dsGetDataLength(ctx->sinkHandle, &ctx->affectedRows, NULL, NULL);
-      QW_SINK_DISABLE_MEMPOOL();
+      QW_SINK_DISABLE_MEMPOOL(ctx);
     }
   }
 
@@ -117,6 +117,58 @@ int32_t qwSendQueryRsp(QW_FPARAMS_DEF, int32_t msgType, SQWTaskCtx *ctx, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SLocalBlockLease {
+  qTaskInfo_t taskHandle;
+  int32_t     resultBlockIndex;
+  bool        blockIsBorrowed;
+} SLocalBlockLease;
+
+// Transfers one direct executor block to a local dispatcher. The dispatcher owns the
+// block after a successful call and uses its own block and row watermarks for backpressure.
+static int32_t qwPutLocalResultBlock(void* param, SSDataBlock* pRes, bool* pContinue) {
+  SQWTaskCtx*      ctx = param;
+  SLocalBlockLease* pLease = NULL;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int64_t          rows = 0;
+
+  if (NULL == ctx || NULL == pRes || NULL == pContinue || NULL == ctx->sinkHandle) {
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  rows = pRes->info.rows;
+
+  pLease = taosMemoryCalloc(1, sizeof(SLocalBlockLease));
+  if (NULL == pLease) {
+    blockDataRecycle(pRes);
+    QW_ERR_RET(terrno);
+  }
+
+  pLease->taskHandle = ctx->taskHandle;
+  pLease->resultBlockIndex = -1;
+  pLease->blockIsBorrowed = true;
+
+  SInputData inputData = {.pData = pRes,
+                           .pStreamDataInserterInfo = NULL,
+                           .pTask = pLease,
+                           .blockIsBorrowed = true};
+  if (!ctx->localBlockSink) {
+    QW_SINK_ENABLE_MEMPOOL(ctx);
+  }
+  code = dsPutDataBlock(ctx->sinkHandle, &inputData, pContinue);
+  if (!ctx->localBlockSink) {
+    QW_SINK_DISABLE_MEMPOOL(ctx);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pLease);
+    blockDataDestroy(pRes);
+    qError("put local result block into sink failed, task:%p, rows:%" PRId64 ", code:%x - %s", ctx->taskHandle,
+           rows, code, tstrerror(code));
+    QW_ERR_RET(code);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool processOneBlock) {
   int32_t        code = 0;
   bool           qcontinue = true;
@@ -125,7 +177,15 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
   int32_t        execNum = 0;
   qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
-  SLocalFetch    localFetch = {(void *)mgmt, ctx->localExec, qWorkerProcessLocalFetch, ctx->explainRes};
+  SLocalFetch    localFetch = {.handle = mgmt,
+                                .localExec = ctx->localExec,
+                                .fp = qWorkerProcessLocalFetch,
+                                .explainRes = ctx->explainRes};
+  bool           localBlockExchange = ctx->localBlockSink;
+  localFetch.directBlock = localBlockExchange;
+  localFetch.putBlockFp = localBlockExchange ? qwPutLocalResultBlock : NULL;
+  localFetch.putBlockParam = localBlockExchange ? ctx : NULL;
+  localFetch.continueExec = true;
 
   if (ctx->queryExecDone) {
     if (queryStop) {
@@ -150,9 +210,17 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
       qwDbgSimulateSleep();
 
       setTaskScalarExtraInfo(taskHandle);
-      taosEnableMemPoolUsage(ctx->memPoolSession);
+      if (!localBlockExchange) {
+        taosEnableMemPoolUsage(ctx->memPoolSession);
+      }
       code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch, processOneBlock);
-      taosDisableMemPoolUsage();
+      if (!localBlockExchange) {
+        taosDisableMemPoolUsage();
+      }
+
+      if (localBlockExchange && !localFetch.continueExec) {
+        qcontinue = false;
+      }
 
       if (code) {
         if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
@@ -173,20 +241,78 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
         QW_ERR_JRET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       }
 
-      SInputData inputData = {.pData = pRes, .pStreamDataInserterInfo = NULL};
-      QW_SINK_ENABLE_MEMPOOL(ctx);
-      code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
-      QW_SINK_DISABLE_MEMPOOL();
+      if (localBlockExchange) {
+        int64_t rows = pRes->info.rows;
+        int32_t resultBlockIndex = -1;
+        SLocalBlockLease* pLease = NULL;
+        if (!localFetch.directBlock) {
+          QW_ERR_JRET(qDetachExecTaskResultBlock(taskHandle, pRes, &resultBlockIndex));
+        }
+        pLease = taosMemoryCalloc(1, sizeof(SLocalBlockLease));
+        if (NULL == pLease) {
+          int32_t allocCode = terrno;
+          if (!localFetch.directBlock) {
+            int32_t restoreCode = qRestoreExecTaskResultBlock(taskHandle, resultBlockIndex, pRes);
+            if (restoreCode != TSDB_CODE_SUCCESS) {
+              QW_TASK_ELOG("failed to restore local exchange result block after lease allocation failure, slot:%d, "
+                           "code:%x - %s", resultBlockIndex, restoreCode, tstrerror(restoreCode));
+              blockDataDestroy(pRes);
+              QW_ERR_JRET(restoreCode);
+            }
+          } else {
+            blockDataRecycle(pRes);
+          }
+          QW_ERR_JRET(allocCode);
+        }
+        pLease->taskHandle = taskHandle;
+        pLease->resultBlockIndex = resultBlockIndex;
+        pLease->blockIsBorrowed = localFetch.directBlock;
 
-      if (code) {
-        QW_TASK_ELOG("dsPutDataBlock failed, code:%x - %s", code, tstrerror(code));
-        QW_ERR_JRET(code);
+        SInputData inputData = {.pData = pRes,
+                                 .pStreamDataInserterInfo = NULL,
+                                 .pTask = pLease,
+                                 .blockIsBorrowed = localFetch.directBlock};
+        if (!localBlockExchange) {
+          QW_SINK_ENABLE_MEMPOOL(ctx);
+        }
+        code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
+        if (!localBlockExchange) {
+          QW_SINK_DISABLE_MEMPOOL(ctx);
+        }
+
+        if (code) {
+          taosMemoryFree(pLease);
+          if (!localFetch.directBlock) {
+            int32_t restoreCode = qRestoreExecTaskResultBlock(taskHandle, resultBlockIndex, pRes);
+            if (restoreCode != TSDB_CODE_SUCCESS) {
+              QW_TASK_ELOG("failed to restore local exchange result block, slot:%d, code:%x - %s", resultBlockIndex,
+                           restoreCode, tstrerror(restoreCode));
+              blockDataDestroy(pRes);
+            }
+          } else {
+            blockDataRecycle(pRes);
+          }
+          QW_TASK_ELOG("dsPutDataBlock failed, code:%x - %s", code, tstrerror(code));
+          QW_ERR_JRET(code);
+        }
+
+        QW_TASK_DLOG("data put into sink, rows:%" PRId64 ", continueExecTask:%d", rows, qcontinue);
+      } else {
+        SInputData inputData = {.pData = pRes, .pStreamDataInserterInfo = NULL};
+        QW_SINK_ENABLE_MEMPOOL(ctx);
+        code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
+        QW_SINK_DISABLE_MEMPOOL(ctx);
+
+        if (code) {
+          QW_TASK_ELOG("dsPutDataBlock failed, code:%x - %s", code, tstrerror(code));
+          QW_ERR_JRET(code);
+        }
+
+        QW_TASK_DLOG("data put into sink, rows:%" PRId64 ", continueExecTask:%d", pRes->info.rows, qcontinue);
       }
-
-      QW_TASK_DLOG("data put into sink, rows:%" PRId64 ", continueExecTask:%d", pRes->info.rows, qcontinue);
     }
 
-    if (numOfResBlock == 0 || (hasMore == false)) {
+    if ((!localBlockExchange && numOfResBlock == 0) || (hasMore == false)) {
       if (!ctx->dynamicTask) {
         if (numOfResBlock == 0) {
           QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
@@ -210,7 +336,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
 
       QW_SINK_ENABLE_MEMPOOL(ctx);
       dsEndPut(sinkHandle, useconds);
-      QW_SINK_DISABLE_MEMPOOL();
+      QW_SINK_DISABLE_MEMPOOL(ctx);
 
       if (queryStop) {
         *queryStop = true;
@@ -319,6 +445,99 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
   return code;
 }
 
+static bool qwSinkReturnsLocalBlock(SQWTaskCtx* ctx) {
+  return ctx != NULL && ctx->localBlockSink;
+}
+
+static int32_t qwGetLocalBlockResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, int32_t *pRawDataLen,
+                                          void **rspMsg, SOutputData *pOutput) {
+  int64_t            len = 0;
+  bool               queryEnd = false;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SOutputData        output = {0};
+  SLocalFetchBlock*  pLocal = NULL;
+
+  *dataLen = 0;
+  *pRawDataLen = 0;
+
+  QW_SINK_ENABLE_MEMPOOL(ctx);
+  dsGetDataLength(ctx->sinkHandle, &len, NULL, &queryEnd);
+  QW_SINK_DISABLE_MEMPOOL(ctx);
+  if (len < 0) {
+    QW_TASK_ELOG("invalid local block length from data sink, length:%" PRId64, len);
+    QW_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+  if (len == 0 && !queryEnd) {
+    pOutput->bufStatus = DS_BUF_EMPTY;
+    goto _return;
+  }
+
+  QW_SINK_ENABLE_MEMPOOL(ctx);
+  code = dsGetDataBlock(ctx->sinkHandle, &output);
+  QW_SINK_DISABLE_MEMPOOL(ctx);
+  if (code != TSDB_CODE_SUCCESS) {
+    QW_TASK_ELOG("get local block from data sink failed, code:%x - %s", code, tstrerror(code));
+    QW_ERR_JRET(code);
+  }
+
+  pLocal = ctx->localExec ? taosMemoryCalloc(1, sizeof(SLocalFetchBlock))
+                            : rpcMallocCont(sizeof(SLocalFetchBlock));
+  if (pLocal == NULL) {
+    bool blockIsBorrowed = output.blockIsBorrowed;
+    if (output.pTask != NULL) {
+      blockIsBorrowed = ((SLocalBlockLease *)output.pTask)->blockIsBorrowed;
+    }
+    if (blockIsBorrowed) {
+      blockDataRecycle(output.pBlock);
+    } else {
+      blockDataDestroy(output.pBlock);
+    }
+    taosMemoryFree(output.pTask);
+    QW_ERR_JRET(terrno);
+  }
+  TAOS_MEMSET(pLocal, 0, sizeof(SLocalFetchBlock));
+  pLocal->magic = LOCAL_FETCH_BLOCK_MAGIC;
+  pLocal->pBlock = output.pBlock;
+  pLocal->queryEnd = output.queryEnd;
+  pLocal->useconds = output.useconds;
+  pLocal->precision = output.precision;
+  pLocal->blockIsBorrowed = output.blockIsBorrowed;
+  if (output.pTask != NULL) {
+    SLocalBlockLease* pLease = output.pTask;
+    pLocal->taskHandle = pLease->taskHandle;
+    pLocal->resultBlockIndex = pLease->resultBlockIndex;
+    pLocal->blockIsBorrowed = pLease->blockIsBorrowed;
+    taosMemoryFree(pLease);
+    output.pTask = NULL;
+  }
+
+  *pOutput = output;
+  pOutput->numOfRows = pLocal->pBlock ? pLocal->pBlock->info.rows : 0;
+  pOutput->numOfCols = pLocal->pBlock ? taosArrayGetSize(pLocal->pBlock->pDataBlock) : 0;
+  pOutput->numOfBlocks = pLocal->pBlock ? 1 : 0;
+  *rspMsg = pLocal;
+  pLocal = NULL;
+
+  if (pOutput->queryEnd && pOutput->bufStatus == DS_BUF_EMPTY && !ctx->dynamicTask) {
+    QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
+  }
+
+_return:
+  if (pLocal != NULL) {
+    if (pLocal->blockIsBorrowed) {
+      blockDataRecycle(pLocal->pBlock);
+    } else {
+      blockDataDestroy(pLocal->pBlock);
+    }
+    if (ctx->localExec) {
+      taosMemoryFree(pLocal);
+    } else {
+      rpcFreeCont(pLocal);
+    }
+  }
+  return code;
+}
+
 int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, int32_t *pRawDataLen, void **rspMsg,
                               SOutputData *pOutput) {
   int64_t            len = 0;
@@ -333,13 +552,17 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     return TSDB_CODE_SUCCESS;
   }
 
+  if (qwSinkReturnsLocalBlock(ctx)) {
+    return qwGetLocalBlockResFromSink(QW_FPARAMS(), ctx, dataLen, pRawDataLen, rspMsg, pOutput);
+  }
+
   *dataLen = 0;
   *pRawDataLen = 0;
 
   while (true) {
     QW_SINK_ENABLE_MEMPOOL(ctx);
     dsGetDataLength(ctx->sinkHandle, &len, &rawLen, &queryEnd);
-    QW_SINK_DISABLE_MEMPOOL();
+    QW_SINK_DISABLE_MEMPOOL(ctx);
 
     if (len < 0) {
       QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64, len);
@@ -350,7 +573,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
       if (queryEnd) {
         QW_SINK_ENABLE_MEMPOOL(ctx);
         code = dsGetDataBlock(ctx->sinkHandle, &output);
-        QW_SINK_DISABLE_MEMPOOL();
+        QW_SINK_DISABLE_MEMPOOL(ctx);
 
         if (code) {
           QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
@@ -396,7 +619,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
 
     QW_SINK_ENABLE_MEMPOOL(ctx);
     code = dsGetDataBlock(ctx->sinkHandle, &output);
-    QW_SINK_DISABLE_MEMPOOL();
+    QW_SINK_DISABLE_MEMPOOL(ctx);
 
     if (code) {
       QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
@@ -454,7 +677,7 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
 
   QW_SINK_ENABLE_MEMPOOL(ctx);
   dsGetDataLength(ctx->sinkHandle, &len, &rawLen, &queryEnd);
-  QW_SINK_DISABLE_MEMPOOL();
+  QW_SINK_DISABLE_MEMPOOL(ctx);
 
   if (len <= 0 || len != sizeof(SDeleterRes)) {
     QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64, len);
@@ -468,7 +691,7 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
 
   QW_SINK_ENABLE_MEMPOOL(ctx);
   code = dsGetDataBlock(ctx->sinkHandle, &output);
-  QW_SINK_DISABLE_MEMPOOL();
+  QW_SINK_DISABLE_MEMPOOL(ctx);
 
   if (code) {
     QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
@@ -536,7 +759,9 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
   if (NULL != rsp) {
     bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
 
-    qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
+    if (!qwSinkReturnsLocalBlock(ctx)) {
+      qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
+    }
     if (qComplete) {
       atomic_store_8((int8_t *)&ctx->queryEnd, true);
       if (!qwKeepTaskAlive(ctx)) {
@@ -608,7 +833,7 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
 
   QW_SINK_ENABLE_MEMPOOL(ctx);
   dsReset(ctx->sinkHandle);
-  QW_SINK_DISABLE_MEMPOOL();
+  QW_SINK_DISABLE_MEMPOOL(ctx);
 
   qUpdateOperatorParam(ctx->taskHandle, (void*)qwMsg->msg);
 
@@ -728,7 +953,7 @@ int32_t qwStartTwoPassRescanExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg,
   //    so its executor cannot start before the phase-2 param is in place.
   QW_SINK_ENABLE_MEMPOOL(ctx);
   dsReset(ctx->sinkHandle);
-  QW_SINK_DISABLE_MEMPOOL();
+  QW_SINK_DISABLE_MEMPOOL(ctx);
 
   ctx->queryExecDone = false;
   qUpdateOperatorParam(ctx->taskHandle, (void*)qwMsg->msg);
@@ -1473,6 +1698,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   // stale flag a same-key re-dispatch could theoretically observe).
   atomic_store_8(&ctx->phase2RescanPending, false);
   ctx->sinkWithMemPool = flags & DS_FLAG_USE_MEMPOOL;
+  ctx->localBlockSink = flags & DS_FLAG_LOCAL_BLOCK_EXCHANGE;
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
@@ -1552,7 +1778,9 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       if (rsp) {
         qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
 
-        qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
+        if (!qwSinkReturnsLocalBlock(ctx)) {
+          qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
+        }
         if (qComplete) {
           atomic_store_8((int8_t *)&ctx->queryEnd, true);
           atomic_store_8((int8_t *)&ctx->queryContinue, 0);
@@ -1682,7 +1910,9 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   } else {
     bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
 
-    qwBuildFetchRsp(rsp, &sOutput, dataLen, rawDataLen, qComplete);
+    if (!qwSinkReturnsLocalBlock(ctx)) {
+      qwBuildFetchRsp(rsp, &sOutput, dataLen, rawDataLen, qComplete);
+    }
     if (qComplete) {
       atomic_store_8((int8_t *)&ctx->queryEnd, true);
       if (!qwKeepTaskAlive(ctx)) {
@@ -2304,6 +2534,11 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   }
 
   ctx->level = plan->level;
+  ctx->delayFreeTask = plan->delayFreeTask;
+  uint64_t flags = 0;
+  (void)dsGetSinkFlags(sinkHandle, &flags);
+  ctx->sinkWithMemPool = flags & DS_FLAG_USE_MEMPOOL;
+  ctx->localBlockSink = flags & DS_FLAG_LOCAL_BLOCK_EXCHANGE;
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
@@ -2325,6 +2560,46 @@ _return:
   QW_RET(code);
 }
 
+// A merge task may execute on a different qworker than its local vnode source.
+// Locate the source context in this process before reusing the normal local fetch path.
+static int32_t qwFindLocalFetchWorker(QW_FPARAMS_DEF, SQWorker **pWorker, bool *pRefHeld) {
+  char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, cId, tId, eId);
+
+  if (NULL == pWorker || NULL == pRefHeld) {
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  *pWorker = mgmt;
+  *pRefHeld = false;
+  if (NULL != taosHashGet(mgmt->ctxHash, id, sizeof(id))) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t refSetId = atomic_load_32(&gQwMgmt.qwRef);
+  if (refSetId < 0) {
+    return QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
+  }
+
+  int64_t   refId = 0;
+  SQWorker *candidate = taosIterateRef(refSetId, refId);
+  while (NULL != candidate) {
+    refId = candidate->refId;
+    if (candidate != mgmt && NULL != taosHashGet(candidate->ctxHash, id, sizeof(id))) {
+      *pWorker = candidate;
+      *pRefHeld = true;
+      QW_TASK_DLOG("local block fetch routed to qworker:%p, nodeType:%d, nodeId:%d", candidate,
+                   candidate->nodeType, candidate->nodeId);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    candidate = taosIterateRef(refSetId, refId);
+  }
+
+  QW_TASK_ELOG("%s", "local block fetch source was not found in this taosd process");
+  return QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
+}
+
 int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t cId, uint64_t tId, int64_t rId,
                                  int32_t eId, void **pRsp, SArray *explainRes) {
   SQWorker   *mgmt = (SQWorker *)pMgmt;
@@ -2334,14 +2609,22 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   SQWTaskCtx *ctx = NULL;
   void       *rsp = NULL;
   bool        queryStop = false;
+  bool        workerRefHeld = false;
 
   SQWPhaseInput input = {0};
 
+  QW_ERR_JRET(qwFindLocalFetchWorker(QW_FPARAMS(), &mgmt, &workerRefHeld));
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_FETCH, &input, NULL));
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
+
   ctx->fetchMsgType = TDMT_SCH_MERGE_FETCH;
   ctx->explainRes = explainRes;
+
+  if (ctx->localBlockSink) {
+    QW_TASK_ELOG("local block sink must use normal remote fetch, task:%p", ctx->taskHandle);
+    QW_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
 
   SOutputData sOutput = {0};
 
@@ -2373,6 +2656,10 @@ _return:
 
   input.code = code;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_FETCH, &input, NULL);
+
+  if (workerRefHeld) {
+    (void)qwRelease(mgmt->refId);
+  }
 
   QW_RET(code);
 }

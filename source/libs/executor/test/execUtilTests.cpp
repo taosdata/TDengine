@@ -112,6 +112,8 @@ extern "C" int32_t dataInserterTestInitTableInfo(SStreamInserterParam* pParam, S
 extern "C" int32_t dataInserterTestUpdateTableInfo(SStreamDataInserterInfo* pInfo, SSubmitRsp2* pRsp, int8_t tbType);
 extern "C" int32_t dataInserterTestRemoveTableInfo(int64_t streamId, int64_t groupId, int8_t tbType);
 extern "C" int64_t dataInserterTestSharedSchemaCount(void);
+extern "C" bool scanTestCanMaterializeSmaAsOneRow(const SOperatorInfo* pOperator, const STableScanBase* pTableScanInfo);
+extern "C" bool scanTestCanRecycleRawDirectBlock(const SOperatorInfo* pOperator, const SSDataBlock* pBlock);
 #endif
 extern "C" char      tsStableTagFilterCache;
 extern "C" int32_t getTableList(void *pVnode, SScanPhysiNode *pScanNode, SNode *pTagCond, SNode *pTagIndexCond,
@@ -230,6 +232,108 @@ namespace {
 int32_t         gStreamGroupTableListExistsCalls = 0;
 SScanPhysiNode *gStreamGroupTableListScan = nullptr;
 Stub           *gExternalWindowActiveStub = nullptr;
+
+TEST(ExecTaskResultBlockTest, DiscardsStaleBlockWhenSlotHasReplacement) {
+  SExecTaskInfo task = {};
+  task.pResultBlockList = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(nullptr, task.pResultBlockList);
+
+  SSDataBlock* stale = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&stale));
+  ASSERT_NE(nullptr, taosArrayPush(task.pResultBlockList, &stale));
+
+  int32_t blockIndex = -1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, qDetachExecTaskResultBlock(&task, stale, &blockIndex));
+  ASSERT_EQ(0, blockIndex);
+  ASSERT_EQ(nullptr, taosArrayGetP(task.pResultBlockList, blockIndex));
+
+  SSDataBlock* replacement = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&replacement));
+  *static_cast<SSDataBlock**>(taosArrayGet(task.pResultBlockList, blockIndex)) = replacement;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, qRestoreExecTaskResultBlock(&task, blockIndex, stale));
+  ASSERT_EQ(replacement, taosArrayGetP(task.pResultBlockList, blockIndex));
+
+  qCleanExecTaskBlockBuf(&task);
+  taosArrayDestroy(task.pResultBlockList);
+}
+
+TEST(TableListTbnameTest, StoresAnOwnedNameByUidAndClearsItWithTheList) {
+  STableListInfo *tableList = tableListCreate();
+  ASSERT_NE(nullptr, tableList);
+
+  char tbname[] = "child_a";
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tableListPutTbname(tableList, 7001, tbname));
+  tbname[6] = 'x';
+
+  const char *cachedName = tableListGetTbname(tableList, 7001);
+  ASSERT_NE(nullptr, cachedName);
+  EXPECT_STREQ("child_a", cachedName);
+  EXPECT_EQ(nullptr, tableListGetTbname(tableList, 7002));
+
+  tableListClear(tableList);
+  EXPECT_EQ(nullptr, tableListGetTbname(tableList, 7001));
+  tableListDestroy(tableList);
+}
+
+TEST(TableListTbnameTest, RepeatedSameUidNameIsIdempotent) {
+  STableListInfo *tableList = tableListCreate();
+  ASSERT_NE(nullptr, tableList);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tableListPutTbname(tableList, 7001, "child_a"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tableListPutTbname(tableList, 7001, "child_a"));
+  EXPECT_STREQ("child_a", tableListGetTbname(tableList, 7001));
+  EXPECT_EQ(TSDB_CODE_DUP_KEY, tableListPutTbname(tableList, 7001, "child_b"));
+
+  tableListDestroy(tableList);
+}
+
+TEST(SmaOneRowMaterializationTest, IsRestrictedToLocalBatchSmaScans) {
+  SExecTaskInfo  task = {};
+  SOperatorInfo  operatorInfo = {};
+  STableScanBase scan = {};
+
+  operatorInfo.pTaskInfo = &task;
+  task.execModel = OPTR_EXEC_MODEL_BATCH;
+  task.localFetch.directBlock = true;
+  scan.dataBlockLoadFlag = FUNC_DATA_REQUIRED_SMA_LOAD;
+
+  EXPECT_TRUE(scanTestCanMaterializeSmaAsOneRow(&operatorInfo, &scan));
+
+  task.execModel = OPTR_EXEC_MODEL_STREAM;
+  EXPECT_FALSE(scanTestCanMaterializeSmaAsOneRow(&operatorInfo, &scan));
+
+  task.execModel = OPTR_EXEC_MODEL_BATCH;
+  task.localFetch.directBlock = false;
+  EXPECT_FALSE(scanTestCanMaterializeSmaAsOneRow(&operatorInfo, &scan));
+
+  task.localFetch.directBlock = true;
+  scan.dataBlockLoadFlag = FUNC_DATA_REQUIRED_DATA_LOAD;
+  EXPECT_FALSE(scanTestCanMaterializeSmaAsOneRow(&operatorInfo, &scan));
+}
+
+TEST(RawDirectBlockRecycleTest, IsRestrictedToLocalBatchRawScans) {
+  SExecTaskInfo task = {};
+  SOperatorInfo operatorInfo = {};
+  SSDataBlock   block = {};
+
+  operatorInfo.pTaskInfo = &task;
+  task.execModel = OPTR_EXEC_MODEL_BATCH;
+  task.localFetch.directBlock = true;
+
+  EXPECT_TRUE(scanTestCanRecycleRawDirectBlock(&operatorInfo, &block));
+
+  task.execModel = OPTR_EXEC_MODEL_STREAM;
+  EXPECT_FALSE(scanTestCanRecycleRawDirectBlock(&operatorInfo, &block));
+
+  task.execModel = OPTR_EXEC_MODEL_BATCH;
+  task.localFetch.directBlock = false;
+  EXPECT_FALSE(scanTestCanRecycleRawDirectBlock(&operatorInfo, &block));
+
+  task.localFetch.directBlock = true;
+  block.info.smaSourceRows = 1;
+  EXPECT_FALSE(scanTestCanRecycleRawDirectBlock(&operatorInfo, &block));
+}
 
 struct ExternalWindowStoreCreateSpyState {
   int32_t calls = 0;

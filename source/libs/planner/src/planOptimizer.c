@@ -377,6 +377,93 @@ static SNodeList* scanPathOptGetAllFuncs(SLogicNode* pNode) {
   return NULL;
 }
 
+static bool scanPathOptIsLastOnlyFunc(const SFunctionNode* pFunc) {
+  if (NULL == pFunc || (FUNCTION_TYPE_LAST != pFunc->funcType && FUNCTION_TYPE_LAST_PARTIAL != pFunc->funcType) ||
+      1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  return NULL != pParam && QUERY_NODE_COLUMN == nodeType(pParam);
+}
+
+static bool scanPathOptIsNonDataGroupKey(const SFunctionNode* pFunc) {
+  if (NULL == pFunc || FUNCTION_TYPE_GROUP_KEY != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
+    return false;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)pParam;
+  return COLUMN_TYPE_TAG == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType;
+}
+
+static bool scanPathOptLastOnlyScanHasColumn(const SNodeList* pFuncs, const SColumnNode* pScanCol) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SColumnNode*   pFuncCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+    if (pFuncCol->colId == pScanCol->colId && pFuncCol->tableId == pScanCol->tableId &&
+        pFuncCol->colType == pScanCol->colType) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The reader may skip a clean block's older rows only after every physical value column is proven to be a LAST input.
+static bool scanPathOptCanUseLastOnlyScan(const SScanLogicNode* pScan) {
+  if (NULL == pScan || 0 != pScan->scanSeq[0] || 1 != pScan->scanSeq[1] || NULL != pScan->node.pConditions ||
+      NULL != pScan->pExtScanRange || 0 != pScan->interval) {
+    return false;
+  }
+
+  SNodeList* pFuncs = scanPathOptGetAllFuncs(pScan->node.pParent);
+  if (NULL == pFuncs || 0 == LIST_LENGTH(pFuncs)) {
+    return false;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pFuncs) {
+    if (QUERY_NODE_FUNCTION != nodeType(pNode) ||
+        (!scanPathOptIsLastOnlyFunc((SFunctionNode*)pNode) && !scanPathOptIsNonDataGroupKey((SFunctionNode*)pNode))) {
+      return false;
+    }
+  }
+
+  int32_t nonPrimaryColNum = 0;
+  FOREACH(pNode, pScan->pScanCols) {
+    if (QUERY_NODE_TARGET != nodeType(pNode)) {
+      return false;
+    }
+
+    SNode* pExpr = ((STargetNode*)pNode)->pExpr;
+    if (NULL == pExpr || QUERY_NODE_COLUMN != nodeType(pExpr)) {
+      return false;
+    }
+
+    SColumnNode* pCol = (SColumnNode*)pExpr;
+    if (COLUMN_TYPE_TAG == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType) {
+      continue;
+    }
+    if (COLUMN_TYPE_COLUMN != pCol->colType) {
+      return false;
+    }
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId || pCol->isPk) {
+      continue;
+    }
+    if (!scanPathOptLastOnlyScanHasColumn(pFuncs, pCol)) {
+      return false;
+    }
+    nonPrimaryColNum += 1;
+  }
+
+  return nonPrimaryColNum > 0;
+}
+
 static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*typeCheckFn)(int32_t)) {
   if (!typeCheckFn(pFunc->funcId)) return false;
   SNode* pPara;
@@ -590,6 +677,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   scanPathOptSetScanWin(&info);
   scanPathOptSetScanOrder(info.scanOrder, info.pScan);
   scanPathOptSetGroupOrderScan(info.pScan);
+  info.pScan->lastOnlyScan = scanPathOptCanUseLastOnlyScan(info.pScan);
 
   if (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs) {
     info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
@@ -12543,6 +12631,11 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
   const STSMAOptUsefulTsma* pTsma = NULL;
   SNodeList*                pAggFuncs = NULL;
   bool                      hasSubPlan = false;
+
+  // TSMA result scans must retain row data. Block SMA materializes a source
+  // block as one row, which is incompatible with TSMA's rewritten partial
+  // aggregation plan. Set this before cloning so every TSMA subplan inherits it.
+  pTsmaOptCtx->pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
 
   for (int32_t i = 0; i < pTsmaOptCtx->pUsedTsmas->size; ++i) {
     STSMAOptUsefulTsma* pTsma = taosArrayGet(pTsmaOptCtx->pUsedTsmas, i);

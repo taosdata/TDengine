@@ -280,8 +280,8 @@ static int32_t pageDecrypt(SDiskbasedBuf* pBuf, const char* pEncrypted,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doFlushBufPageImpl(SDiskbasedBuf* pBuf, int64_t offset,
-                                  const char* pData, int32_t size) {
+static int32_t doFlushBufPageImpl(SDiskbasedBuf* pBuf, int64_t offset, const char* pData, int32_t size) {
+  int64_t startUs = taosGetTimestampUs();
   int64_t ret = taosLSeekFile(pBuf->pFile, offset, SEEK_SET);
   if (ret < 0) {
     return terrno;
@@ -308,6 +308,7 @@ static int32_t doFlushBufPageImpl(SDiskbasedBuf* pBuf, int64_t offset,
     return ret < 0 ? terrno : TSDB_CODE_APP_ERROR;
   }
 
+  pBuf->statis.flushUs += taosGetTimestampUs() - startUs;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -452,6 +453,7 @@ static char* flushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
 // load file block data in disk
 static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
+  int64_t startUs = taosGetTimestampUs();
   if (pg->offset < 0 || pg->length <= 0) {
     uError("failed to load buf page from disk, offset:%" PRId64 ", length:%d, %s", pg->offset, pg->length, pBuf->id);
     return TSDB_CODE_INVALID_PARA;
@@ -505,7 +507,11 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   pBuf->statis.loadPages += 1;
 
   int32_t fullSize = 0;
-  return doDecompressData(pPage, dataLen, &fullSize, pBuf);
+  int32_t code = doDecompressData(pPage, dataLen, &fullSize, pBuf);
+  if (code == TSDB_CODE_SUCCESS) {
+    pBuf->statis.loadUs += taosGetTimestampUs() - startUs;
+  }
+  return code;
 }
 
 static SPageInfo* registerNewPageInfo(SDiskbasedBuf* pBuf, int32_t pageId) {
@@ -689,6 +695,9 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
   char* availablePage = NULL;
   if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
     availablePage = evictBufPage(pBuf);
+    if (availablePage != NULL) {
+      pBuf->statis.evictPages += 1;
+    }
     if (availablePage == NULL) {
       uWarn("no available buf pages, current:%d, max:%d, reason: %s, %s", listNEles(pBuf->lruList), pBuf->inMemPages,
             terrstr(), pBuf->id)
@@ -703,6 +712,11 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
 
 void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
   pBuf->statis.getPages += 1;
+  if (pBuf->statis.getPages % 100000 == 0) {
+    uInfo("paged buffer progress id:%s get:%d inmem:%" PRId64 " disk:%" PRId64 " lru:%" PRId64,
+          pBuf->id, pBuf->statis.getPages, pBuf->statis.inMemPages, pBuf->statis.diskPages,
+          pBuf->statis.lruMoves);
+  }
 
   char* availablePage = doExtractPage(pBuf);
   if (availablePage == NULL) {
@@ -797,6 +811,7 @@ static void* getBufPageImpl(SDiskbasedBuf* pBuf, int32_t id,
   }
 
   if (BUF_PAGE_IN_MEM(*pi)) {  // it is in memory
+    pBuf->statis.inMemPages += 1;
     // no need to update the LRU list if only one page exists
     if (pBuf->numOfPages == 1) {
       (*pi)->used = true;
@@ -814,6 +829,7 @@ static void* getBufPageImpl(SDiskbasedBuf* pBuf, int32_t id,
     }
     if (updateLru) {
       lruListMoveToFront(pBuf->lruList, (*pi));
+      pBuf->statis.lruMoves += 1;
     }
     (*pi)->used = true;
 
@@ -822,6 +838,7 @@ static void* getBufPageImpl(SDiskbasedBuf* pBuf, int32_t id,
 #endif
     return (void*)(GET_PAYLOAD_DATA(*pi));
   } else {  // not in memory
+    pBuf->statis.diskPages += 1;
 
     (*pi)->pData = doExtractPage(pBuf);
 
@@ -926,6 +943,13 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   // print the statistics information
   {
     SDiskbasedBufStatis* ps = &pBuf->statis;
+    if (ps->flushPages > 0 || ps->loadPages > 0) {
+      uInfo("paged buffer stats id:%s pages:%d inmem:%d get:%d release:%d evict:%d flush:%d/%" PRId64
+            "B/%" PRId64 "us load:%d/%" PRId64 "B/%" PRId64 "us",
+            pBuf->id, pBuf->numOfPages, listNEles(pBuf->lruList), ps->getPages, ps->releasePages,
+            ps->evictPages, ps->flushPages, ps->flushBytes, ps->flushUs, ps->loadPages, ps->loadBytes,
+            ps->loadUs);
+    }
     if (ps->loadPages == 0) {
       uDebug("Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages)", ps->getPages,
              ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f, ps->loadPages);

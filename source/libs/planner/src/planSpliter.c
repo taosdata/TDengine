@@ -30,6 +30,7 @@
 // on each original-table vgroup (nodeId == org vgId), and the top-level merge exchange reads those
 // readers directly, so the org-vgId-keyed agg exchange param matches the source nodeId.
 #define SPLIT_FLAG_VTB_AGG_PUSHDOWN SPLIT_FLAG_MASK(2)
+#define SPLIT_FLAG_LOCAL_BLOCK_EXCHANGE SUBPLAN_SPLIT_FLAG_LOCAL_BLOCK_EXCHANGE
 #define FAST_INTERVAL_MAX_PARTIAL_ROW_BYTES 500
 
 #define SPLIT_FLAG_SET_MASK(val, mask)  (val) |= (mask)
@@ -39,6 +40,7 @@ typedef struct SSplitContext {
   SPlanContext* pPlanCxt;
   uint64_t      queryId;
   int32_t       groupId;
+  bool          localBlockExchange;
   bool          split;
 } SSplitContext;
 
@@ -198,7 +200,7 @@ _return:
 }
 
 static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pSplitNode,
-                                               ESubplanType subplanType, bool seqScan) {
+                                               ESubplanType subplanType, bool seqScan, bool localBlockExchange) {
   SExchangeLogicNode* pExchange = NULL;
   int32_t             code = TSDB_CODE_SUCCESS;
 
@@ -206,6 +208,7 @@ static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubpla
 
   pExchange->dynTbname = nodeType(pSplitNode) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pSplitNode)->phTbnameScan : false;
   pExchange->seqRecvData = seqScan;
+  pExchange->localBlockExchange = localBlockExchange;
 
   PLAN_ERR_JRET(replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange));
   pSubplan->subplanType = subplanType;
@@ -913,8 +916,8 @@ static bool stbSplIntervalBaseEligible(const SWindowLogicNode* pWindow) {
     return false;
   }
 
-  if (pWindow->winType != WINDOW_TYPE_INTERVAL || (pWindow->partType & WINDOW_PART_HAS) ||
-      pWindow->interval <= 0 || pWindow->sliding != pWindow->interval ||
+  if (pWindow->winType != WINDOW_TYPE_INTERVAL || pWindow->interval <= 0 ||
+      pWindow->sliding != pWindow->interval ||
       pWindow->slidingUnit != pWindow->intervalUnit || pWindow->offset != 0 ||
       pWindow->node.groupAction == GROUP_ACTION_KEEP || LIST_LENGTH(pWindow->node.pChildren) != 1 ||
       LIST_LENGTH(pWindow->pTsmaSubplans) != 0) {
@@ -946,6 +949,31 @@ static bool stbSplIntervalBaseEligible(const SWindowLogicNode* pWindow) {
 static bool stbSplFastIntervalEligible(const SWindowLogicNode* pWindow) {
   if (NULL == pWindow || !stbSplIntervalBaseEligible(pWindow)) {
     return false;
+  }
+
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pWindow->pFuncs) {
+    if (NULL == pFunc || QUERY_NODE_FUNCTION != nodeType(pFunc) ||
+        fmIsIntervalInterpoFunc(((SFunctionNode*)pFunc)->funcId)) {
+      return false;
+    }
+  }
+
+  if (pWindow->partType & WINDOW_PART_HAS) {
+    if (!(pWindow->partType & WINDOW_PART_TB) || 1 != LIST_LENGTH(pWindow->node.pChildren)) {
+      return false;
+    }
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0);
+    while (NULL != pChild && QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) && 1 == LIST_LENGTH(pChild->pChildren)) {
+      pChild = (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);
+    }
+    if (NULL == pChild || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+      return false;
+    }
+    SNodeList* pGroupTags = ((SScanLogicNode*)pChild)->pGroupTags;
+    if (1 != LIST_LENGTH(pGroupTags) || !keysHasTbname(pGroupTags)) {
+      return false;
+    }
   }
 
   SLogicNode* pRoot = getLogicNodeRootNode((SLogicNode*)pWindow);
@@ -1344,6 +1372,19 @@ static bool stbSplNeedSeqRecvData(SLogicNode* pNode) {
 }
 
 static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  SWindowLogicNode* pWindow = (SWindowLogicNode*)pInfo->pSplitNode;
+  bool fastInterval = !inStreamCalcClause(pCxt->pPlanCxt) && stbSplFastIntervalEligible(pWindow) &&
+                      stbSplFastIntervalPartialRowEligible((SLogicNode*)pWindow);
+  if (fastInterval) {
+    int32_t numOfScans = 0;
+    pWindow->fastInterval = true;
+    int32_t code = stbSplMarkIntervalTableScan((SLogicNode*)pWindow, true, false, &numOfScans);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (1 != numOfScans) {
+      qError("FAST_INTERVAL tbname partition requires exactly one table scan, actual:%d", numOfScans);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+  }
   if (NULL != pInfo->pSplitNode->pParent && QUERY_NODE_LOGIC_PLAN_FILL == nodeType(pInfo->pSplitNode->pParent)) {
     pInfo->pSplitNode = pInfo->pSplitNode->pParent;
   }
@@ -1423,7 +1464,8 @@ _return:
 }
 
 static int32_t stbSplSplitAggNodeForPartTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pInfo->pSplitNode, SUBPLAN_TYPE_MERGE, false);
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pInfo->pSplitNode, SUBPLAN_TYPE_MERGE, false,
+                                                 false);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pInfo->pSplitNode, SPLIT_FLAG_STABLE_SPLIT));
@@ -1622,7 +1664,8 @@ static int32_t stbSplSplitInterpFuncNode(SSplitContext* pCxt, SStableSplitInfo* 
   // exchange, so the per-vnode interp sits directly on its table scan and the
   // prev/main step-done early-stop notify reaches the scan. Eligibility and
   // rationale: isPartTableInterp().
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pInfo->pSplitNode, SUBPLAN_TYPE_MERGE, false);
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pInfo->pSplitNode, SUBPLAN_TYPE_MERGE, false,
+                                                 false);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pInfo->pSplitNode, SPLIT_FLAG_STABLE_SPLIT));
@@ -1817,7 +1860,8 @@ static int32_t stbSplSplitScanNodeWithoutPartTags(SSplitContext* pCxt, SStableSp
   SLogicNode* pSplitNode = NULL;
   int32_t     code = stbSplGetSplitNodeForScan(pInfo, &pSplitNode);
   if (TSDB_CODE_SUCCESS == code) {
-    code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pSplitNode, pInfo->pSubplan->subplanType, false);
+    code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pSplitNode, pInfo->pSubplan->subplanType, false,
+                                           false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     splSetSubplanType(pInfo->pSubplan);
@@ -1985,7 +2029,8 @@ static int32_t stbSplSplitMergeScanNode(SSplitContext* pCxt, SLogicSubplan* pSub
 
 static int32_t stbSplSplitExternalScanNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SScanLogicNode* pScan,
                                            SStableSplitInfo* pInfo) {
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pSubplan, (SLogicNode*)pScan, pSubplan->subplanType, false);
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pSubplan, (SLogicNode*)pScan, pSubplan->subplanType, false,
+                                                 false);
   if (TSDB_CODE_SUCCESS == code) {
     if ((void*)pInfo->pSplitNode == (void*)pScan) {
       pInfo->pSplitNode = NULL;
@@ -2030,7 +2075,7 @@ static int32_t stbSplSplitTagRefSourceNode(SSplitContext* pCxt, SStableSplitInfo
   // Create exchange node for the TagRefSource
   // This allows merging results from multiple vgroups
   code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, (SLogicNode*)pTagRefSource,
-                                         pInfo->pSubplan->subplanType, false);
+                                         pInfo->pSubplan->subplanType, false, false);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -2309,7 +2354,8 @@ static int32_t singleTableJoinSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan
     return TSDB_CODE_SUCCESS;
   }
   bool hasScan = checkScanLogicNode((SLogicNode*)nodesListGetNode(info.pJoin->node.pChildren, 0));
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, hasScan ? SUBPLAN_TYPE_SCAN : SUBPLAN_TYPE_MERGE, false);
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode,
+                                                 hasScan ? SUBPLAN_TYPE_SCAN : SUBPLAN_TYPE_MERGE, false, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0));
   }
@@ -2504,7 +2550,8 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
 
   SLogicSubplan* pNewSubplan = NULL;
   SNodeList*     pSubplanChildren = info.pSubplan->pChildren;
-  int32_t        code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, SUBPLAN_TYPE_MODIFY, false);
+  int32_t        code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, SUBPLAN_TYPE_MODIFY,
+                                                         false, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = splCreateSubplan(pCxt, info.pQueryRoot, &pNewSubplan);
   }
@@ -2660,7 +2707,8 @@ static int32_t mergeTableScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan)
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
         ((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_TABLE_MERGE &&
         ((SLogicNode*)pChild)->dynamicOp) {
-      PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)pChild, SUBPLAN_TYPE_SCAN, false));
+      PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)pChild, SUBPLAN_TYPE_SCAN,
+                                                   false, false));
       PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)pChild, 0)));
       ++(pCxt->groupId);
     }
@@ -2701,7 +2749,8 @@ static int32_t mergeAggColsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, SUBPLAN_TYPE_MERGE, false));
+  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, SUBPLAN_TYPE_MERGE, false,
+                                               false));
   PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0)));
 
   ++(pCxt->groupId);
@@ -2763,7 +2812,8 @@ static int32_t mergeExtWinSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false));
+  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType,
+                                               false, false));
   PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0)));
 
   // After moving the scan out, re-evaluate the parent subplan type: if no scan
@@ -2777,28 +2827,127 @@ static int32_t mergeExtWinSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
 }
 
 typedef struct SQnodeSplitInfo {
-  SLogicNode*    pSplitNode;
-  SLogicSubplan* pSubplan;
+  SLogicNode*        pSplitNode;
+  SLogicSubplan*     pSubplan;
+  SScanLogicNode*    pScan;
 } SQnodeSplitInfo;
+
+static bool qndSplHasSplitScanHint(const SSplitContext* pCxt, const SLogicNode* pNode) {
+  if (NULL != pNode) {
+    SLogicNode* pRoot = getLogicNodeRootNode((SLogicNode*)pNode);
+    if (NULL != pRoot && getOptHint(pRoot->pHint, HINT_SPLIT_SCAN)) {
+      return true;
+    }
+  }
+
+  if (NULL == pCxt || NULL == pCxt->pPlanCxt || NULL == pCxt->pPlanCxt->pAstRoot) {
+    return false;
+  }
+
+  SNode* pAstRoot = pCxt->pPlanCxt->pAstRoot;
+  if (QUERY_NODE_EXPLAIN_STMT == nodeType(pAstRoot)) {
+    pAstRoot = ((SExplainStmt*)pAstRoot)->pQuery;
+  }
+  return QUERY_NODE_SELECT_STMT == nodeType(pAstRoot) &&
+         getOptHint(((SSelectStmt*)pAstRoot)->pHint, HINT_SPLIT_SCAN);
+}
+
+static bool qndSplFindFastIntervalWindow(SLogicNode* pScan, SWindowLogicNode** ppWindow) {
+  if (NULL == pScan || NULL == ppWindow) {
+    return false;
+  }
+
+  for (SLogicNode* pParent = pScan->pParent; NULL != pParent; pParent = pParent->pParent) {
+    if (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pParent)) {
+      continue;
+    }
+
+    SWindowLogicNode* pWindow = (SWindowLogicNode*)pParent;
+    if (WINDOW_TYPE_INTERVAL != pWindow->winType || !stbSplFastIntervalEligible(pWindow) ||
+        !stbSplFastIntervalPartialRowEligible((SLogicNode*)pWindow)) {
+      continue;
+    }
+
+    *ppWindow = pWindow;
+    return true;
+  }
+
+  return false;
+}
 
 static bool qndSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                 SQnodeSplitInfo* pInfo) {
+  bool forceSplit = pCxt->localBlockExchange || qndSplHasSplitScanHint(pCxt, pNode);
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && NULL != pNode->pParent &&
       QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC != nodeType(pNode->pParent) &&
       QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC != nodeType(pNode->pParent) &&
       !pNode->pParent->dynamicOp &&
       ((SScanLogicNode*)pNode)->scanType != SCAN_TYPE_EXTERNAL &&  // skip external (federated) scans
-      ((SScanLogicNode*)pNode)->scanSeq[0] <= 1 &&
-      ((SScanLogicNode*)pNode)->scanSeq[1] <= 1) {
-    pInfo->pSplitNode = pNode;
+      (forceSplit || (((SScanLogicNode*)pNode)->scanSeq[0] <= 1 &&
+                      ((SScanLogicNode*)pNode)->scanSeq[1] <= 1))) {
+    SWindowLogicNode* pWindow = NULL;
+    if (qndSplHasSplitScanHint(pCxt, pNode) && qndSplFindFastIntervalWindow(pNode, &pWindow)) {
+      pWindow->windowAlgo = INTERVAL_ALGO_HASH;
+      pWindow->fastInterval = true;
+      ((SScanLogicNode*)pNode)->fastInterval = true;
+      pInfo->pSplitNode = (SLogicNode*)pWindow;
+      pInfo->pScan = (SScanLogicNode*)pNode;
+    } else {
+      pInfo->pSplitNode = pNode;
+      pInfo->pScan = (SScanLogicNode*)pNode;
+    }
     pInfo->pSubplan = pSubplan;
     return true;
   }
   return false;
 }
 
+static void qndSplSetLocalBlockExchange(SLogicNode* pNode, int32_t groupId) {
+  if (QUERY_NODE_LOGIC_PLAN_EXCHANGE == nodeType(pNode)) {
+    SExchangeLogicNode* pExchange = (SExchangeLogicNode*)pNode;
+    if (groupId >= pExchange->srcStartGroupId && groupId <= pExchange->srcEndGroupId) {
+      pExchange->localBlockExchange = true;
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) { qndSplSetLocalBlockExchange((SLogicNode*)pChild, groupId); }
+}
+
+// SuperTableSplit may have already moved the scan into a child subplan before qnodeSplit runs.
+// Mark those scan subplans so their dispatchers use the in-process block handoff.
+static bool qndSplMarkExistingScanSubplans(SLogicSubplan* pSubplan) {
+  bool   marked = false;
+  SNode* pChild = NULL;
+
+  FOREACH(pChild, pSubplan->pChildren) {
+    if (QUERY_NODE_LOGIC_SUBPLAN != nodeType(pChild)) {
+      continue;
+    }
+
+    SLogicSubplan* pChildSubplan = (SLogicSubplan*)pChild;
+    if (SUBPLAN_TYPE_SCAN == pChildSubplan->subplanType) {
+      SPLIT_FLAG_SET_MASK(pChildSubplan->splitFlag, SPLIT_FLAG_LOCAL_BLOCK_EXCHANGE);
+      pSubplan->execOnChildNode = true;
+      qndSplSetLocalBlockExchange(pSubplan->pNode, pChildSubplan->id.groupId);
+      marked = true;
+    }
+    if (qndSplMarkExistingScanSubplans(pChildSubplan)) {
+      marked = true;
+    }
+  }
+
+  return marked;
+}
+
 static int32_t qnodeSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
-  if (QUERY_POLICY_QNODE != tsQueryPolicy) {
+  bool localBlockExchange = pCxt->localBlockExchange;
+  bool hasSplitScanHint = qndSplHasSplitScanHint(pCxt, pSubplan->pNode);
+  if (QUERY_POLICY_QNODE != tsQueryPolicy && !localBlockExchange && !hasSplitScanHint) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (localBlockExchange && qndSplMarkExistingScanSubplans(pSubplan)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2806,8 +2955,10 @@ static int32_t qnodeSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)qndSplFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
-  ((SScanLogicNode*)info.pSplitNode)->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false);
+  info.pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType,
+                                                 false, localBlockExchange);
+  info.pSubplan->execOnChildNode = localBlockExchange;
   if (TSDB_CODE_SUCCESS == code) {
     SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
     if (NULL != pScanSubplan) {
@@ -2818,6 +2969,9 @@ static int32_t qnodeSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
         info.pSubplan->numOfComputeNodes = 1;
       }
       code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pScanSubplan);
+      if (localBlockExchange) {
+        pScanSubplan->splitFlag |= SPLIT_FLAG_LOCAL_BLOCK_EXCHANGE;
+      }
     } else {
       code = terrno;
     }
@@ -2898,7 +3052,7 @@ static int32_t dynVirtualScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan)
   }
 
   PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pDyn,
-                                                info.pSubplan->subplanType, false));
+                                                info.pSubplan->subplanType, false, false));
   pScanSubplan = splCreateScanSubplan(pCxt, (SLogicNode*)info.pDyn, 0);
   if (NULL == pScanSubplan) {
     PLAN_ERR_JRET(terrno);
@@ -2916,7 +3070,6 @@ static int32_t dynVirtualScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan)
   SLogicSubplan* pOwnedScanSubplan = pScanSubplan;
   pScanSubplan = NULL;
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pOwnedScanSubplan));
-
   info.pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
   ++(pCxt->groupId);
 
@@ -2997,7 +3150,8 @@ static int32_t vstbAggSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren,
                                             (SNode*)splCreateScanSubplan(pCxt, pPartAgg, scanSubplanFlag)));
   } else {
-    PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pAgg, info.pSubplan->subplanType, false));
+    PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pAgg,
+                                                  info.pSubplan->subplanType, false, false));
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)info.pAgg, 0)));
   }
 
@@ -3089,7 +3243,7 @@ static int32_t vstbIntervalSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   }
 
   if (info.splitScanOnly) {
-    int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pScan, SUBPLAN_TYPE_MERGE, false);
+    int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pScan, SUBPLAN_TYPE_MERGE, false, false);
     if (TSDB_CODE_SUCCESS == code) {
       SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pScan, SPLIT_FLAG_STABLE_SPLIT);
       if (NULL == pScanSubplan) {
@@ -3141,7 +3295,8 @@ static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
   while (splMatch(pCxt, pSubplan, SPLIT_FLAG_VTB_AGG_PUSHDOWN, (FSplFindSplitNode)streamScanFindSplitNode, &info)) {
-    PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false));
+    PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType,
+                                                 false, false));
     SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
     if (NULL != pScanSubplan) {
       if (NULL != info.pSubplan->pVgroupList) {
@@ -3206,6 +3361,7 @@ static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) 
 static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
   SSplitContext cxt = {
       .pPlanCxt = pCxt, .queryId = pSubplan->id.queryId, .groupId = pCxt->groupId + 1, .split = false};
+  cxt.localBlockExchange = pCxt->splitScan;
   bool    split = false;
   int32_t code =TSDB_CODE_SUCCESS;
   PLAN_ERR_RET(dumpLogicSubplan(NULL, pSubplan));

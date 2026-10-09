@@ -738,6 +738,8 @@ int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, bool resetRetry
 int32_t  schNotifyJobAllTasks(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
 int32_t  schFailedTaskNeedRetry(SSchTask *pTask, SSchJob *pJob, int32_t rspCode);
 int32_t  schGetTaskCurrentNodeAddr(SSchTask *pTask, SSchJob *pJob, SQueryNodeAddr **ppAddr);
+// Returns true only for a pure VNode scan that may run on a follower replica.
+bool     schTaskAllowFollowerRead(const SSchJob *pJob, const SSchTask *pTask);
 int32_t  schLaunchJobImpl(SSchJob *pJob);
 
 extern SSchDebug gSCHDebug;

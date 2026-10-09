@@ -16272,6 +16272,7 @@ int32_t tSerializeSDownstreamSourceNode(SEncoder *pEncoder, SDownstreamSourceNod
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pSource->execId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pSource->fetchMsgType));
   TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pSource->localExec));
+  TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pSource->allowFollowerRead));
 
 _exit:
 
@@ -16682,6 +16683,9 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
       }
     }
   }
+  if (pReq->allowFollowerRead) {
+    TAOS_CHECK_EXIT(tEncodeBool(&encoder, true));
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -16713,6 +16717,7 @@ int32_t tDeserializeSDownstreamSourceNode(SDecoder *pDecoder, SDownstreamSourceN
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pSource->execId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pSource->fetchMsgType));
   TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pSource->localExec));
+  TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pSource->allowFollowerRead));
   pSource->type = QUERY_NODE_DOWNSTREAM_SOURCE;
 
 _exit:
@@ -16798,6 +16803,17 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   } else {
     pReq->txnId = 0;
   }
+
+  bool followerReadDecoded = false;
+
+  // The follower-read flag is an optional one-byte tail after the optional
+  // correlation payload. Decode it before producerNum when it is the only
+  // remaining byte, otherwise it would be interpreted as a truncated int32.
+  if (decoder.size - decoder.pos == sizeof(bool)) {
+    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->allowFollowerRead));
+    followerReadDecoded = true;
+  }
+
   if (!tDecodeIsEnd(&decoder)) {
     int32_t producerNum = 0;
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &producerNum));
@@ -16896,6 +16912,11 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
         }
       }
     }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->allowFollowerRead));
+  } else if (!followerReadDecoded) {
+    pReq->allowFollowerRead = false;
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
@@ -18092,6 +18113,12 @@ static int32_t tEncodeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq
     TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->readerFetchId));
     tEndEncodeStreamTailFrame(&encoder);
   }
+  if (pReq->allowFollowerRead) {
+    TAOS_CHECK_EXIT(tStartEncodeStreamTailFrame(&encoder, SRES_FETCH_FOLLOWER_READ_FRAME_MAGIC,
+                                                SRES_FETCH_FOLLOWER_READ_FRAME_VERSION, 0));
+    TAOS_CHECK_EXIT(tEncodeBool(&encoder, true));
+    tEndEncodeStreamTailFrame(&encoder);
+  }
 
   tEndEncode(&encoder);
 
@@ -18205,6 +18232,7 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
   bool runnerEogBatchSeen = false;
   pReq->readerGroupMode = false;
   pReq->runnerEogBatch = false;
+  bool followerReadSeen = false;
   while (!tDecodeIsEnd(&decoder)) {
     SStreamTailFrameDecoder frame = {0};
     const int32_t           frameStart = decoder.pos;
@@ -18273,6 +18301,23 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
       resetModeSeen = true;
       code = tDecodeBool(&frame.payloadDecoder, &pReq->reuseReader);
       if (code == TSDB_CODE_SUCCESS && pReq->reuseReader)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else {
+        if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+      }
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
+    if (frame.magic == SRES_FETCH_FOLLOWER_READ_FRAME_MAGIC) {
+      if (followerReadSeen || frame.version != SRES_FETCH_FOLLOWER_READ_FRAME_VERSION || frame.flags != 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      followerReadSeen = true;
+      code = tDecodeBool(&frame.payloadDecoder, &pReq->allowFollowerRead);
+      if (code == TSDB_CODE_SUCCESS && pReq->allowFollowerRead)
         code = tFinishDecodeStreamTailFrame(&frame, true);
       else {
         if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INVALID_MSG;

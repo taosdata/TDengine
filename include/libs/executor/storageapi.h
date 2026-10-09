@@ -38,6 +38,7 @@ extern "C" {
 #define CACHESCAN_RETRIEVE_TYPE_SINGLE 0x2
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
+#define CACHESCAN_RETRIEVE_BATCH_ALL   0x10
 
 #define META_READER_LOCK   0x0
 #define META_READER_NOLOCK 0x1
@@ -140,6 +141,15 @@ typedef struct SMetaReader {
   struct SStoreMeta* pAPI;
   int64_t            txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
 } SMetaReader;
+
+// Batched table lookup result. code describes this entry; the batch call itself
+// only fails when it cannot continue processing the request.
+typedef struct {
+  uint64_t   uid;
+  uint64_t   suid;
+  ETableType type;
+  int32_t    code;
+} SMetaTableBatchInfo;
 
 typedef struct SMTbCursor {
   void*       pMeta;
@@ -384,6 +394,8 @@ typedef struct SStoreMeta {
   const void* (*extractTagVal)(const void* tag, int16_t type, STagVal* tagVal);  // todo remove it
 
   int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid, int64_t txnId);
+  int32_t (*getTableUidsByNames)(void* pVnode, const SArray* pTbNames, SArray* pUids, int64_t txnId);
+  int32_t (*getTableInfosByNames)(void* pVnode, const SArray* pTbNames, SArray* pInfos, int64_t txnId);
   int32_t (*getTableTypeSuidByName)(void* pVnode, char* tbName, ETableType* tbType, uint64_t* suid, int64_t txnId);
   int32_t (*getTableNameByUid)(void* pVnode, uint64_t uid, char* tbName, int64_t txnId);
   bool (*isTableExisted)(void* pVnode, tb_uid_t uid);

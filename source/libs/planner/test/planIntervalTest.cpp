@@ -120,12 +120,41 @@ TEST_F(PlanIntervalTest, fastIntervalHint) {
   ASSERT_TRUE(findPlanNode("Merge"));
   ASSERT_FALSE(planContains("\"FastInterval\""));
 
+  run("SELECT /*+ FAST_INTERVAL() */ INTERP(c1) FROM st1 "
+      "RANGE('2022-04-01 00:00:00', '2022-04-01 01:00:00') EVERY(10s) FILL(NULL)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+
   run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range + "INTERVAL(1d)");
   ASSERT_TRUE(findPlanNode("Merge"));
   ASSERT_FALSE(planContains("\"FastInterval\""));
 
-  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
+  run(std::string("SELECT /*+ SPLIT_SCAN() FAST_INTERVAL() */ TBNAME, _WSTART, AVG(c1) FROM st1") + range +
       "PARTITION BY TBNAME INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Exchange"));
+  ASSERT_TRUE(exchangeSubplansContain("HashInterval"));
+  ASSERT_FALSE(findPlanNode("MergeAlignedInterval"));
+  ASSERT_TRUE(planContains("\"FastInterval\":true"));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ TBNAME, _WSTART, AVG(c1) FROM st1") + range +
+      "PARTITION BY TBNAME INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Exchange"));
+  ASSERT_TRUE(exchangeSubplansContain("HashInterval"));
+  ASSERT_FALSE(findPlanNode("MergeAlignedInterval"));
+  ASSERT_TRUE(planContains("\"FastInterval\":true"));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
+      "PARTITION BY c1 INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
+      "PARTITION BY tag1 INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
+      "PARTITION BY TBNAME, c1 INTERVAL(10s)");
   ASSERT_FALSE(planContains("\"FastInterval\""));
 }
 
@@ -155,6 +184,15 @@ TEST_F(PlanIntervalTest, exIntervalHint) {
       "PARTITION BY TBNAME INTERVAL(10s)");
   ASSERT_FALSE(planContains("\"ExInterval\""));
   ASSERT_FALSE(planContains("\"DelayFreeTask\""));
+}
+
+TEST_F(PlanIntervalTest, splitScanHint) {
+  useDb("root", "test");
+
+  run("SELECT /*+ SPLIT_SCAN() */ _WSTART, COUNT(*) FROM st1 "
+      "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' PARTITION BY TBNAME INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Exchange"));
+  ASSERT_TRUE(exchangeSubplansContain("TableScan"));
 }
 
 TEST_F(PlanIntervalTest, streamCalcDisablesIntervalHints) {

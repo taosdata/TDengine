@@ -101,6 +101,7 @@ int32_t  qwtTestDestroyTaskCount = 0;
 int32_t  qwtTestPutDataBlockCount = 0;
 int32_t  qwtCorrelationCloseCount = 0;
 int32_t  qwtCorrelationCloseCode = TSDB_CODE_SUCCESS;
+int32_t  qwtTestStreamExecTaskOptCount = 0;
 
 SSubQueryMsg       qwtqueryMsg = {0};
 SRpcMsg            qwtfetchRpc = {0};
@@ -392,6 +393,8 @@ int32_t qwtExecTask(qTaskInfo_t tinfo, SSDataBlock **pRes, uint64_t *useconds) {
 
 void qwtSetTaskScalarExtraInfo(qTaskInfo_t tinfo) {}
 
+const char* qwtGetExtErrMsg(qTaskInfo_t) { return nullptr; }
+
 int32_t qwtExecTaskOptError(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore,
                             SLocalFetch* pLocal, bool processOneBlock) {
   return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -411,6 +414,36 @@ int32_t qwtExecTaskOptOneBlock(qTaskInfo_t tinfo, SArray* pResList, uint64_t* us
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qwtExecTaskOptStreamLocalBlocks(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore,
+                                         SLocalFetch* pLocal, bool processOneBlock) {
+  if (NULL == pLocal || !pLocal->directBlock || NULL == pLocal->putBlockFp) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  ++qwtTestStreamExecTaskOptCount;
+  for (int32_t i = 0; i < 3; ++i) {
+    SSDataBlock* pRes = (SSDataBlock*)taosMemoryCalloc(1, sizeof(SSDataBlock));
+    if (NULL == pRes) {
+      return terrno;
+    }
+
+    pRes->info.rows = 10;
+    bool continueExec = true;
+    int32_t code = pLocal->putBlockFp(pLocal->putBlockParam, pRes, &continueExec);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    if (!continueExec) {
+      pLocal->continueExec = false;
+      *hasMore = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  *hasMore = false;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qwtKillTask(qTaskInfo_t qinfo, int32_t rspCode) { return 0; }
 
 void qwtDestroyTask(qTaskInfo_t qHandle) { ++qwtTestDestroyTaskCount; }
@@ -421,6 +454,7 @@ int32_t qwtPutDataBlock(DataSinkHandle handle, const SInputData *pInput, bool *p
   }
 
   taosMemoryFree((void *)pInput->pData);
+  taosMemoryFree(pInput->pTask);
 
   taosWLockLatch(&qwtTestSinkLock);
 
@@ -565,6 +599,7 @@ void stubSetExecTaskOptError() {
   static Stub stub;
   stub.set(setTaskScalarExtraInfo, qwtSetTaskScalarExtraInfo);
   stub.set(qExecTaskOpt, qwtExecTaskOptError);
+  stub.set(qGetExtErrMsg, qwtGetExtErrMsg);
   {
 #ifdef WINDOWS
     AddrAny                       any;
@@ -588,6 +623,16 @@ void stubSetExecTaskOptError() {
 #endif
     for (const auto& f : result) {
       stub.set(f.second, qwtExecTaskOptError);
+    }
+    result.clear();
+#ifdef WINDOWS
+    any.get_func_addr("qGetExtErrMsg", result);
+#endif
+#ifdef LINUX
+    any.get_global_func_addr_dynsym("^qGetExtErrMsg$", result);
+#endif
+    for (const auto& f : result) {
+      stub.set(f.second, qwtGetExtErrMsg);
     }
   }
 }
@@ -619,6 +664,37 @@ void stubSetExecTaskOptOneBlock() {
 #endif
     for (const auto& f : result) {
       stub.set(f.second, qwtExecTaskOptOneBlock);
+    }
+  }
+}
+
+void stubSetExecTaskOptStreamLocalBlocks() {
+  static Stub stub;
+  stub.set(setTaskScalarExtraInfo, qwtSetTaskScalarExtraInfo);
+  stub.set(qExecTaskOpt, qwtExecTaskOptStreamLocalBlocks);
+  {
+#ifdef WINDOWS
+    AddrAny                       any;
+    std::map<std::string, void *> result;
+    any.get_func_addr("setTaskScalarExtraInfo", result);
+    for (const auto& f : result) {
+      stub.set(f.second, qwtSetTaskScalarExtraInfo);
+    }
+    result.clear();
+    any.get_func_addr("qExecTaskOpt", result);
+#endif
+#ifdef LINUX
+    AddrAny                       any("libexecutor.so");
+    std::map<std::string, void *> result;
+    any.get_global_func_addr_dynsym("^setTaskScalarExtraInfo$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, qwtSetTaskScalarExtraInfo);
+    }
+    result.clear();
+    any.get_global_func_addr_dynsym("^qExecTaskOpt$", result);
+#endif
+    for (const auto& f : result) {
+      stub.set(f.second, qwtExecTaskOptStreamLocalBlocks);
     }
   }
 }
@@ -1173,6 +1249,28 @@ TEST(qwTaskLifecycleTest, activeCorrelationTaskTimeoutClosesSession) {
   EXPECT_EQ(TSDB_CODE_SCH_TIMEOUT_ERROR, qwtCorrelationCloseCode);
   EXPECT_EQ(TSDB_CODE_SCH_TIMEOUT_ERROR, ctx.rspCode);
   EXPECT_TRUE(QW_EVENT_RECEIVED(&ctx, QW_EVENT_DROP));
+}
+
+TEST(qwTaskLifecycleTest, localBlockStreamStopsAtSinkBackpressure) {
+  SQWorker    mgmt = {0};
+  SQWTaskCtx  ctx = {0};
+  qTaskInfo_t taskHandle = (qTaskInfo_t)0x1;
+  bool        queryStop = false;
+
+  qwtTestSinkBlockNum = 0;
+  qwtTestSinkMaxBlockNum = 2;
+  qwtTestStreamExecTaskOptCount = 0;
+  stubSetExecTaskOptStreamLocalBlocks();
+  stubSetPutDataBlock();
+
+  ctx.delayFreeTask = true;
+  ctx.localBlockSink = true;
+  ctx.taskHandle = taskHandle;
+  ctx.sinkHandle = (DataSinkHandle)0x1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, qwExecTask(&mgmt, 0, 0, 0, 0, 0, 0, &ctx, &queryStop, false));
+  ASSERT_TRUE(queryStop);
+  ASSERT_EQ(1, qwtTestStreamExecTaskOptCount);
+  ASSERT_EQ(2, qwtTestSinkBlockNum);
 }
 
 TEST(seqTest, normalCase) {

@@ -136,6 +136,7 @@ typedef struct SResultDataInfo {
 
 typedef struct SInputColumnInfoData {
   int32_t           totalRows;        // total rows in current columnar data
+  int32_t           smaSourceRows;    // physical rows represented by the current SMA block
   int32_t           startRowIndex;    // handle started row index
   int64_t           numOfRows;        // the number of rows needs to be handled
   bool              blankFill;        // fill blank data to block for empty table

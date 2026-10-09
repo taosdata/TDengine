@@ -973,6 +973,13 @@ static bool isExIntervalHint(const SToken* pToken) {
          0 == strncasecmp(pToken->z, kExIntervalHint, pToken->n);
 }
 
+static bool isSplitScanHint(const SToken* pToken) {
+  static const char kSplitScanHint[] = "SPLIT_SCAN";
+
+  return pToken->n == (int32_t)strlen(kSplitScanHint) &&
+         0 == strncasecmp(pToken->z, kSplitScanHint, pToken->n);
+}
+
 static EJoinAlgorithm getHintJoinAlgo(SNodeList* pHintList) {
   if (!pHintList) return JOIN_ALGO_UNKNOWN;
 
@@ -1030,6 +1037,9 @@ static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, E
     case HINT_NO_BATCH_SCAN:
     case HINT_FAST_INTERVAL:
     case HINT_EX_INTERVAL:
+      break;
+    case HINT_SPLIT_SCAN:
+      if (NULL != *ppParams) return true;
       break;
     case HINT_SORT_FOR_GROUP:
       if (hasHint(*ppHintList, HINT_PARTITION_FIRST)) return true;
@@ -1276,6 +1286,15 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
             break;
           }
           opt = HINT_EX_INTERVAL;
+          break;
+        }
+        if (!inParamList && isSplitScanHint(&t0)) {
+          lastComma = false;
+          if (0 != opt || inParamList) {
+            quit = true;
+            break;
+          }
+          opt = HINT_SPLIT_SCAN;
           break;
         }
       case TK_MERGE:

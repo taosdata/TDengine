@@ -29,6 +29,19 @@ static int32_t debugPrintNode(SNode* pNode) {
   return code;
 }
 
+static bool hasSplitScanHint(SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (QUERY_NODE_EXPLAIN_STMT == nodeType(pNode)) {
+    pNode = ((SExplainStmt*)pNode)->pQuery;
+  }
+
+  return QUERY_NODE_SELECT_STMT == nodeType(pNode) &&
+         getOptHint(((SSelectStmt*)pNode)->pHint, HINT_SPLIT_SCAN);
+}
+
 static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
   int32_t code = 0;
   if (!(qDebugFlag & DEBUG_DEBUG)) {
@@ -1609,6 +1622,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
             pCxt->queryId, pCxt->allocatorId, pCxt->pAstRoot ? (int)nodeType(pCxt->pAstRoot) : -1, pCxt->subqueryIndex);
 
   TAOS_CHECK_EXIT(nodesAcquireAllocator(pCxt->allocatorId));
+  pCxt->splitScan = hasSplitScanHint(pCxt->pAstRoot);
   TAOS_CHECK_EXIT(planCreateSubqueryState(pCxt, &pState));
   TAOS_CHECK_EXIT(planCollectCorrelationCalls(pState));
 
@@ -1725,6 +1739,11 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId,
       SNode* pNew = NULL;
       code = nodesCloneNode((SNode*)pSource, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
+        SDownstreamSourceNode* pNewSource = (SDownstreamSourceNode*)pNew;
+        if (pExchange->localBlockExchange) {
+          pNewSource->fetchMsgType |= DOWNSTREAM_SOURCE_LOCAL_BLOCK_FLAG;
+          pNewSource->localExec = false;
+        }
         return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, pNew);
       }
     }
@@ -1756,6 +1775,11 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId,
       SNode* pNew = NULL;
       code = nodesCloneNode((SNode*)pSource, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
+        SDownstreamSourceNode* pNewSource = (SDownstreamSourceNode*)pNew;
+        if (pMergeExchange->localBlockExchange) {
+          pNewSource->fetchMsgType |= DOWNSTREAM_SOURCE_LOCAL_BLOCK_FLAG;
+          pNewSource->localExec = false;
+        }
         return nodesListMakeStrictAppend(&pMergeExchange->pSrcEndPoints, pNew);
       }
     }

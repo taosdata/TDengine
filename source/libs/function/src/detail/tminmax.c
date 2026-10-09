@@ -616,7 +616,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
 
   // data in current data block are qualified to the query
   if (pInput->colDataSMAIsSet && !IS_STR_DATA_TYPE(type)) {
-    numOfElems = pInput->numOfRows - pAgg->numOfNull;
+    numOfElems = pInput->smaSourceRows - pAgg->numOfNull;
     if (numOfElems == 0) {
       goto _over;
     }

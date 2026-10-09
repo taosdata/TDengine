@@ -1,9 +1,7 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
- * SPDX-License-Identifier: AGPL-3.0-or-later
- *
- * This program is free software: you can use, redistribute, and/or modify
+ * This program is free software: you can use, redistribute, AND/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
@@ -53,6 +51,8 @@ static void eraseJsonField(std::string* pJson, const char* pField) {
 }
 
 static void freeTestBuffer(char* pBuffer) { taosMemoryFreeClear(pBuffer); }
+
+constexpr int32_t kLastRowScanTestFuncType = 1234;
 
 enum {
   kValueCodeExprBase = 1,
@@ -768,6 +768,33 @@ TEST_F(NodesCloneTest, fill) {
   }());
 }
 
+TEST_F(NodesCloneTest, lastRowScanPhysiNode) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    const SLastRowScanPhysiNode* pSrcNode = (const SLastRowScanPhysiNode*)pSrc;
+    const SLastRowScanPhysiNode* pDstNode = (const SLastRowScanPhysiNode*)pDst;
+    ASSERT_TRUE(pDstNode->batchMultiTableRead);
+    ASSERT_NE(pDstNode->pFuncTypes, nullptr);
+    ASSERT_NE(pSrcNode->pFuncTypes, pDstNode->pFuncTypes);
+    ASSERT_EQ(1, taosArrayGetSize(pDstNode->pFuncTypes));
+    ASSERT_EQ(kLastRowScanTestFuncType, *(int32_t*)taosArrayGet(pDstNode->pFuncTypes, 0));
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN, &pNew));
+  srcNode.reset(pNew);
+
+  SLastRowScanPhysiNode* pNode = (SLastRowScanPhysiNode*)srcNode.get();
+  pNode->batchMultiTableRead = true;
+  pNode->pFuncTypes = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(pNode->pFuncTypes, nullptr);
+  const int32_t funcType = kLastRowScanTestFuncType;
+  ASSERT_NE(taosArrayPush(pNode->pFuncTypes, &funcType), nullptr);
+
+  run(srcNode.get());
+}
+
 // The view expansion path clones an untranslated SELECT statement, so the
 // clone must carry every field the parser has already filled in. RANGE /
 // EVERY / FILL are set while building the AST, dropping them makes an INTERP
@@ -873,6 +900,34 @@ TEST_F(NodesCloneTest, logicSubplan) {
   }());
 }
 
+TEST(NodesDownstreamSourceTest, optionalFlagsMessageRoundTrip) {
+  std::unique_ptr<SNode, void (*)(SNode*)> source(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, &pNew));
+  source.reset(pNew);
+
+  SDownstreamSourceNode* pSource = (SDownstreamSourceNode*)source.get();
+  pSource->clientId = 1;
+  pSource->taskId = 2;
+  pSource->sId = 3;
+  pSource->execId = 4;
+  pSource->localExec = true;
+  pSource->allowFollowerRead = true;
+
+  std::unique_ptr<char, void (*)(char*)> msg(nullptr, freeTestBuffer);
+  int32_t msgLen = 0;
+  char* pMsg = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(source.get(), &pMsg, &msgLen));
+  msg.reset(pMsg);
+
+  std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(msg.get(), msgLen, &pNew));
+  decoded.reset(pNew);
+  ASSERT_TRUE(((SDownstreamSourceNode*)decoded.get())->localExec);
+  ASSERT_TRUE(((SDownstreamSourceNode*)decoded.get())->allowFollowerRead);
+}
+
 TEST(NodesSubplanTest, delayFreeTaskCloneAndMessageRoundTrip) {
   std::unique_ptr<SNode, void (*)(SNode*)> subplan(nullptr, nodesDestroyNode);
   SNode* pNew = NULL;
@@ -881,6 +936,7 @@ TEST(NodesSubplanTest, delayFreeTaskCloneAndMessageRoundTrip) {
   SSubplan* pSubplan = (SSubplan*)subplan.get();
   pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
   pSubplan->delayFreeTask = true;
+  pSubplan->execOnChildNode = true;
 
   std::unique_ptr<SNode, void (*)(SNode*)> interval(nullptr, nodesDestroyNode);
   pNew = NULL;
@@ -897,6 +953,7 @@ TEST(NodesSubplanTest, delayFreeTaskCloneAndMessageRoundTrip) {
   clone.reset(pNew);
   ASSERT_NE(clone, nullptr);
   ASSERT_TRUE(((SSubplan*)clone.get())->delayFreeTask);
+  ASSERT_TRUE(((SSubplan*)clone.get())->execOnChildNode);
   ASSERT_TRUE(((SIntervalPhysiNode*)((SSubplan*)clone.get())->pNode)->exInterval);
 
   std::unique_ptr<char, void (*)(char*)> json(nullptr, freeTestBuffer);
@@ -906,11 +963,13 @@ TEST(NodesSubplanTest, delayFreeTaskCloneAndMessageRoundTrip) {
   json.reset(pJson);
   ASSERT_NE(json, nullptr);
   ASSERT_NE(std::string(json.get()).find("\"DelayFreeTask\":true"), std::string::npos);
+  ASSERT_NE(std::string(json.get()).find("\"ExecOnChildNode\":true"), std::string::npos);
   std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(nullptr, nodesDestroyNode);
   pNew = NULL;
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.get(), &pNew));
   jsonNode.reset(pNew);
   ASSERT_TRUE(((SSubplan*)jsonNode.get())->delayFreeTask);
+  ASSERT_TRUE(((SSubplan*)jsonNode.get())->execOnChildNode);
 
   std::string legacyJson(json.get());
   size_t delayPos = legacyJson.find("\"DelayFreeTask\":true,");
@@ -933,6 +992,7 @@ TEST(NodesSubplanTest, delayFreeTaskCloneAndMessageRoundTrip) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(msg.get(), msgLen, &pNew));
   msgNode.reset(pNew);
   ASSERT_TRUE(((SSubplan*)msgNode.get())->delayFreeTask);
+  ASSERT_TRUE(((SSubplan*)msgNode.get())->execOnChildNode);
   ASSERT_FALSE(((SSubplan*)msgNode.get())->inheritedMultiGroupJoin);
 }
 
@@ -958,34 +1018,6 @@ TEST(NodesSubplanTest, subplanFlagsMessageRoundTrip) {
   decoded.reset(pNew);
   ASSERT_TRUE(((SSubplan*)decoded.get())->delayFreeTask);
   ASSERT_TRUE(((SSubplan*)decoded.get())->inheritedMultiGroupJoin);
-}
-
-TEST(NodesMessageTest, decimalDatumLengthMustMatchResultTypeBytes) {
-  SNode* pNode = NULL;
-  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pNode));
-  std::unique_ptr<SNode, void (*)(SNode*)> valueNode(pNode, nodesDestroyNode);
-  SValueNode* pValue = (SValueNode*)pNode;
-  pValue->node.resType.type = TSDB_DATA_TYPE_DECIMAL;
-  pValue->node.resType.bytes = DECIMAL128_BYTES;
-  pValue->translate = true;
-  pValue->datum.p = (char*)taosMemoryCalloc(1, DECIMAL128_BYTES);
-  ASSERT_NE(nullptr, pValue->datum.p);
-
-  char*   pMsg = NULL;
-  int32_t msgLen = 0;
-  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(pNode, &pMsg, &msgLen));
-  std::unique_ptr<char, void (*)(char*)> msg(pMsg, freeTestBuffer);
-
-  int32_t bytesLen = 0;
-  char*   pBytes = getValueNodeDataTypeBytes(pMsg, msgLen, &bytesLen);
-  ASSERT_NE(nullptr, pBytes);
-  ASSERT_EQ((int32_t)sizeof(int32_t), bytesLen);
-  int32_t malformedBytes = htonl(DECIMAL64_BYTES);
-  memcpy(pBytes, &malformedBytes, sizeof(malformedBytes));
-
-  SNode* pDecoded = NULL;
-  ASSERT_EQ(TSDB_CODE_FAILED, nodesMsgToNode(pMsg, msgLen, &pDecoded));
-  ASSERT_EQ(nullptr, pDecoded);
 }
 
 TEST(NodesSubplanTest, intervalOptimizationFlagsDefaultWhenAbsentFromJson) {

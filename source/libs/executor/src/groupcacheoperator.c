@@ -548,6 +548,8 @@ static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) 
     return terrno;
   }
   (*ppDst)->pBlockAgg = NULL;
+  (*ppDst)->pBlockAggBuf = NULL;
+  (*ppDst)->pBlockAggBufSize = 0;
   (*ppDst)->pDataBlock = taosArrayDup(pSrc->pDataBlock, NULL);
   if (NULL == (*ppDst)->pDataBlock) {
     taosMemoryFree(*ppDst);

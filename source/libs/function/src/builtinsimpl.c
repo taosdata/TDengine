@@ -733,8 +733,8 @@ static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
   if (1 == pInput->numOfRows && pInput->blankFill) {
     return 0;
   }
-  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
-    numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
+  if (pInput->colDataSMAIsSet) {
+    numOfElem = pInput->smaSourceRows - pInput->pColumnDataAgg[0]->numOfNull;
   } else {
     if (pInputCol->hasNull) {
       for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
@@ -1061,7 +1061,7 @@ static int32_t sumFunctionImpl(SqlFunctionCtx* pCtx) {
   }
 
   if (pInput->colDataSMAIsSet) {
-    numOfElem = pInput->numOfRows - pAgg->numOfNull;
+    numOfElem = pInput->smaSourceRows - pAgg->numOfNull;
 
     if (IS_SIGNED_NUMERIC_TYPE(type)) {
       SUM_RES_INC_ISUM(pSumRes, pAgg->sum);
@@ -2521,7 +2521,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
         SET_DOUBLE_VAL(&pInfo->maxval, tmax);
       }
 
-      pInfo->numOfElems += (pInput->numOfRows - pAgg->numOfNull);
+      pInfo->numOfElems += (pInput->smaSourceRows - pAgg->numOfNull);
     } else {
       // check the valid data one by one
       int32_t start = pInput->startRowIndex;
@@ -6119,7 +6119,7 @@ int32_t spreadFunction(SqlFunctionCtx* pCtx) {
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   if (pInput->colDataSMAIsSet) {
-    numOfElems = pInput->numOfRows - pAgg->numOfNull;
+    numOfElems = pInput->smaSourceRows - pAgg->numOfNull;
     if (numOfElems == 0) {
       goto _spread_over;
     }
@@ -6312,7 +6312,7 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
 
   SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  numOfElems = pInput->numOfRows;  // since this is the primary timestamp, no need to exclude NULL values
+  numOfElems = pInput->colDataSMAIsSet ? pInput->smaSourceRows : pInput->numOfRows;
   if (numOfElems == 0) {
     // for stream
     if (pCtx->end.key != INT64_MIN) {

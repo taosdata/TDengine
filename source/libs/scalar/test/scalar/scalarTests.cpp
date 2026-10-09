@@ -3860,6 +3860,34 @@ TEST(ScalarFunctionTest, ncharToBinaryInvalidDataShouldReturnNcharConvertError) 
   taosMemoryFree(validNchar);
 }
 
+TEST(ScalarFunctionTest, lowerFunction_reassigned_varchar_column) {
+  const int32_t rowNum = 2;
+  const char    text[] = "AbCd";
+  char          value[VARSTR_HEADER_SIZE + sizeof(text) - 1] = {0};
+  SScalarParam *pInput = NULL;
+  SScalarParam *pOutput = NULL;
+
+  varDataSetLen(value, sizeof(text) - 1);
+  (void)memcpy(varDataVal(value), text, sizeof(text) - 1);
+
+  ASSERT_EQ(scltMakeDataBlock(&pInput, TSDB_DATA_TYPE_VARCHAR, NULL, rowNum, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeDataBlock(&pOutput, TSDB_DATA_TYPE_VARCHAR, NULL, rowNum, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pInput->columnData, 0, value, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(pInput->columnData, 1, 0, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(pInput->columnData->reassigned);
+  ASSERT_EQ(colDataGetLength(pInput->columnData, rowNum), rowNum * varDataTLen(value));
+
+  ASSERT_EQ(lowerFunction(pInput, 1, pOutput), TSDB_CODE_SUCCESS);
+  for (int32_t row = 0; row < rowNum; ++row) {
+    const char *output = colDataGetData(pOutput->columnData, row);
+    ASSERT_EQ(varDataLen(output), sizeof(text) - 1);
+    ASSERT_EQ(memcmp(varDataVal(output), "abcd", sizeof(text) - 1), 0);
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
 TEST(ScalarFunctionTest, absFunction_constant) {
   SScalarParam *pInput, *pOutput;
   int32_t       code = TSDB_CODE_SUCCESS;
@@ -6252,7 +6280,7 @@ static const SArray *getInheritedCorrelationParamsMock(const SCorrelationTaskSes
 static int32_t reserveCorrelationResultMock(SCorrelationTaskSession *pSession, int64_t bytes) {
   auto *pMock = reinterpret_cast<CorrelationScalarMock *>(pSession);
   if (pMock->limitBytes > 0 && pMock->chargedBytes + bytes > pMock->limitBytes) {
-    return TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   pMock->chargedBytes += bytes;
   pMock->peakBytes = TMAX(pMock->peakBytes, pMock->chargedBytes);
@@ -6939,7 +6967,7 @@ TEST(CorrelationScalarTest, FilterUsesTemporaryResultAndPropagatesErrors) {
   mock.failOnCall = 0;
   mock.limitBytes = 1;
   EXPECT_EQ(filterExecuteWithCorrelation(pFilter, pBlock, &pMask, nullptr, 2, &status, &correlation),
-            TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
+            TSDB_CODE_OUT_OF_MEMORY);
   EXPECT_EQ(mock.calls, 0);
   EXPECT_EQ(pMask, nullptr);
   EXPECT_EQ(mock.chargedBytes, 0);
