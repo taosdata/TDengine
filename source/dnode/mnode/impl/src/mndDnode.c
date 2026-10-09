@@ -839,9 +839,12 @@ extern char   *tsMonSlowLogUri;
 static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatisReq statisReq = {0};
-  int32_t    code = -1;
 
-  TAOS_CHECK_RETURN(tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq));
+  int32_t code = tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq);
+  if (code != 0) {
+    tFreeSStatisReq(&statisReq);
+    TAOS_RETURN(code);
+  }
 
   if (tsMonitorLogProtocol) {
     mInfo("process statis req,\n %s", statisReq.pCont);
@@ -862,8 +865,11 @@ static int32_t mndProcessAuditReq(SRpcMsg *pReq) {
   if (tsEnableAudit && tsAuditLevel >= AUDIT_LEVEL_DATA) {
     SMnode   *pMnode = pReq->info.node;
     SAuditReq auditReq = {0};
-
-    TAOS_CHECK_RETURN(tDeserializeSAuditReq(pReq->pCont, pReq->contLen, &auditReq));
+    int32_t   code = tDeserializeSAuditReq(pReq->pCont, pReq->contLen, &auditReq);
+    if (code != 0) {
+      tFreeSAuditReq(&auditReq);
+      TAOS_RETURN(code);
+    }
 
     mDebug("received audit req:%s, %s, %s, %s", auditReq.operation, auditReq.db, auditReq.table, auditReq.pSql);
 
@@ -880,8 +886,11 @@ static int32_t mndProcessBatchAuditReq(SRpcMsg *pReq) {
   if (tsEnableAudit && tsAuditLevel >= AUDIT_LEVEL_DATA) {
     SMnode        *pMnode = pReq->info.node;
     SBatchAuditReq auditReq = {0};
-
-    TAOS_CHECK_RETURN(tDeserializeSBatchAuditReq(pReq->pCont, pReq->contLen, &auditReq));
+    int32_t        code = tDeserializeSBatchAuditReq(pReq->pCont, pReq->contLen, &auditReq);
+    if (code != 0) {
+      tFreeSBatchAuditReq(&auditReq);
+      TAOS_RETURN(code);
+    }
 
     int32_t nAudit = taosArrayGetSize(auditReq.auditArr);
 

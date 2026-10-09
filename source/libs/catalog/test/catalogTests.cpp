@@ -1181,14 +1181,15 @@ void ctgTestRspDndeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
   rpcFreeCont(pMsg->pCont);
 
   SDnodeListRsp dRsp = {0};
-  dRsp.dnodeList = taosArrayInit(1, sizeof(SEpSet));
+  dRsp.dnodeList = taosArrayInit(1, sizeof(SDNodeAddr));
   ASSERT(dRsp.dnodeList != NULL);
-  SEpSet epSet = {0};
-  epSet.numOfEps = 1;
-  tstrncpy(epSet.eps[0].fqdn, "localhost", TSDB_FQDN_LEN);
-  epSet.eps[0].port = 6030;
+  SDNodeAddr dnodeAddr = {0};
+  dnodeAddr.nodeId = 1;
+  dnodeAddr.epSet.numOfEps = 1;
+  tstrncpy(dnodeAddr.epSet.eps[0].fqdn, "localhost", TSDB_FQDN_LEN);
+  dnodeAddr.epSet.eps[0].port = 6030;
 
-  ASSERT(NULL != taosArrayPush(dRsp.dnodeList, &epSet));
+  ASSERT(NULL != taosArrayPush(dRsp.dnodeList, &dnodeAddr));
 
   int32_t contLen = tSerializeSDnodeListRsp(NULL, 0, &dRsp);
   ASSERT(contLen > 0);
@@ -3646,6 +3647,11 @@ TEST(apiTest, catalogGetDnodeList_test) {
   code = catalogGetDnodeList(pCtg, mockPointer, &pList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize(pList), 1);
+
+  SDNodeAddr *pAddr = (SDNodeAddr *)taosArrayGet(pList, 0);
+  ASSERT_NE(pAddr, nullptr);
+  ASSERT_EQ(pAddr->nodeId, 1);
+  ASSERT_EQ(pAddr->epSet.eps[0].port, 6030);
 
   taosArrayDestroy(pList);
 

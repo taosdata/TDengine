@@ -107,11 +107,28 @@ int32_t xDecodeCowStr(SDecoder *decoder, CowStr *cow, bool shouldClone) {
   if (shouldClone) {
     uint64_t len = 0;
     TAOS_CHECK_EXIT(tDecodeBinaryAlloc(decoder, (void**)&cow->ptr, &len));
-    cow->len = (int32_t)len - 1;
-    cow->shouldFree = true;
+    if (len == 0) {
+      cow->ptr = NULL;
+      cow->len = 0;
+      cow->shouldFree = false;
+    } else {
+      cow->shouldFree = true;
+      if (((const char *)cow->ptr)[len - 1] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_XNODE_INVALID_MSG);
+      }
+      cow->len = (int32_t)len - 1;
+    }
   } else {
-    TAOS_CHECK_EXIT(tDecodeBinary(decoder, (uint8_t**)&cow->ptr, (uint32_t *)&cow->len));
-    cow->len -= 1;
+    uint32_t len = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(decoder, (uint8_t**)&cow->ptr, &len));
+    if (len == 0) {
+      cow->ptr = NULL;
+      cow->len = 0;
+    } else if (((const char *)cow->ptr)[len - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_XNODE_INVALID_MSG);
+    } else {
+      cow->len = (int32_t)len - 1;
+    }
     cow->shouldFree = false;
   }
 _exit:
@@ -192,15 +209,33 @@ int32_t tDeserializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq
 
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->urlLen));
   if (pReq->urlLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->url, NULL));
+    uint64_t binLen = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->url, &binLen));
+    if (binLen != (uint64_t)pReq->urlLen) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+  } else if (pReq->urlLen < 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->userLen));
   if (pReq->userLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->user, NULL));
+    uint64_t binLen = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->user, &binLen));
+    if (binLen != (uint64_t)pReq->userLen) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+  } else if (pReq->userLen < 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passLen));
   if (pReq->passLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->pass, NULL));
+    uint64_t binLen = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->pass, &binLen));
+    if (binLen != (uint64_t)pReq->passLen) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+  } else if (pReq->passLen < 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passIsMd5));
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->token, true));
@@ -209,6 +244,9 @@ int32_t tDeserializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq
 
 _exit:
   tDecoderClear(&decoder);
+  if (code != 0) {
+    tFreeSMCreateXnodeReq(pReq);
+  }
   return code;
 }
 
@@ -471,12 +509,18 @@ int32_t tDeserializeSMCreateXnodeTaskReq(void *buf, int32_t bufLen, SMCreateXnod
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->name, true));
   TAOS_CHECK_EXIT(xDeserializeTaskSource(&decoder, &pReq->source));
   TAOS_CHECK_EXIT(xDeserializeTaskSink(&decoder, &pReq->sink));
+  if (pReq->name.ptr == NULL || pReq->source.cstr.ptr == NULL || pReq->sink.cstr.ptr == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_XNODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(xDeserializeTaskOptions(&decoder, &pReq->options));
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->desiredState, true));
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
+  if (code != 0) {
+    tFreeSMCreateXnodeTaskReq(pReq);
+  }
   return code;
 }
 void tFreeSMCreateXnodeTaskReq(SMCreateXnodeTaskReq *pReq) {
@@ -910,11 +954,17 @@ int32_t tDeserializeSMCreateXnodeJobReq(void *buf, int32_t bufLen, SMCreateXnode
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->status, true));
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->desiredState, true));
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->config, true));
+  if (pReq->config.ptr == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_XNODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->reason, true));
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
+  if (code != 0) {
+    tFreeSMCreateXnodeJobReq(pReq);
+  }
   return code;
 }
 void tFreeSMCreateXnodeJobReq(SMCreateXnodeJobReq *pReq) {
@@ -981,13 +1031,24 @@ int32_t tDeserializeSMUpdateXnodeJobReq(void *buf, int32_t bufLen, SMUpdateXnode
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->status, true));
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->desiredState, true));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->configLen));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->config, NULL));
+  uint64_t cfgLen = 0;
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->config, &cfgLen));
+  if (cfgLen != (uint64_t)pReq->configLen && cfgLen != (uint64_t)pReq->configLen + 1) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->reasonLen));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->reason, NULL));
+  uint64_t rsnLen = 0;
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->reason, &rsnLen));
+  if (rsnLen != (uint64_t)pReq->reasonLen && rsnLen != (uint64_t)pReq->reasonLen + 1) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
+  if (code != 0) {
+    tFreeSMUpdateXnodeJobReq(pReq);
+  }
   return code;
 }
 
@@ -1170,12 +1231,18 @@ int32_t tDeserializeSMCreateXnodeAgentReq(void *buf, int32_t bufLen, SMCreateXno
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   DECODESQL();
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->name, true));
+  if (pReq->name.ptr == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_XNODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->status, true));
   TAOS_CHECK_EXIT(xDeserializeTaskOptions(&decoder, &pReq->options));
 
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);
+  if (code != 0) {
+    tFreeSMCreateXnodeAgentReq(pReq);
+  }
   return code;
 }
 

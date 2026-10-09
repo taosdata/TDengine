@@ -448,10 +448,8 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SUseDbRsp usedbRsp = {0};
     if (tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp) != 0) {
       tscError("QID:0x%" PRIx64 ", deserialize SUseDbRsp failed", pRequest->requestId);
-    }
-    struct SCatalog* pCatalog = NULL;
-
-    if (usedbRsp.vgVersion >= 0) {  // cached in local
+    } else if (usedbRsp.vgVersion >= 0) {  // cached in local
+      struct SCatalog* pCatalog = NULL;
       int64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
       int32_t code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {
@@ -485,19 +483,16 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   SUseDbRsp usedbRsp = {0};
-  if (tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp) != 0) {
-    tscError("QID:0x%" PRIx64 ", deserialize SUseDbRsp failed", pRequest->requestId);
+  code = tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+  if (code == TSDB_CODE_SUCCESS && strlen(usedbRsp.db) == 0) {
+    code = usedbRsp.errCode != 0 ? usedbRsp.errCode : TSDB_CODE_APP_ERROR;
   }
 
-  if (strlen(usedbRsp.db) == 0) {
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-
-    if (usedbRsp.errCode != 0) {
-      return usedbRsp.errCode;
-    } else {
-      return TSDB_CODE_APP_ERROR;
-    }
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("QID:0x%" PRIx64 ", invalid SUseDbRsp, db:%s, failed since %s", pRequest->requestId, usedbRsp.db,
+             tstrerror(code));
+    setErrno(pRequest, code);
+    goto End;
   }
 
   tscTrace("db:%s, usedbRsp received, numOfVgroups:%d", usedbRsp.db, usedbRsp.vgNum);
@@ -520,10 +515,12 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SUseDbOutput output = {0};
   code = queryBuildUseDbOutput(&output, &usedbRsp);
   if (code != 0) {
-    terrno = code;
     if (output.dbVgroup) taosHashCleanup(output.dbVgroup->vgHash);
 
-    tscError("QID:0x%" PRIx64 ", failed to build use db output since %s", pRequest->requestId, terrstr());
+    tscError("QID:0x%" PRIx64 ", failed to build use db output since %s", pRequest->requestId, tstrerror(code));
+    taosMemoryFreeClear(output.dbVgroup);
+    setErrno(pRequest, code);
+    goto End;
   } else if (output.dbVgroup && output.dbVgroup->vgHash) {
     struct SCatalog* pCatalog = NULL;
 
@@ -541,7 +538,6 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFreeClear(output.dbVgroup);
-  tFreeSUsedbRsp(&usedbRsp);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   if (tNameGetDbName(&name, db) != TSDB_CODE_SUCCESS) {
@@ -550,6 +546,8 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   setConnectionDB(pRequest->pTscObj, db);
 
+End:
+  tFreeSUsedbRsp(&usedbRsp);
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
@@ -560,7 +558,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscError("failed to post semaphore");
     }
   }
-  return 0;
+  return code;
 }
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
