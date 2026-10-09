@@ -5060,3 +5060,204 @@ TEST(td_msg_test, connect_req_roundtrip) {
   EXPECT_STREQ(decoded.token, "token");
   EXPECT_STREQ(decoded.sVer, "3.4.1.6");
 }
+
+// The xnode and anode create requests carry url/user/pass as an explicit i32 length next
+// to a length-prefixed blob. The mnode handlers memcpy exactly the declared number of
+// bytes into a buffer of that size and then read the result with strlen/%s, so the
+// terminator has to sit inside the declared range: a blob whose last byte is not '\0', or
+// one that is longer than the declared length, must be refused.
+
+struct SBlobOnWire {
+  int32_t lenFieldOff;  // the i32 the decoder compares the blob length against
+  int32_t payloadOff;   // first payload byte
+  int32_t binLen;       // real payload size, taken from the varint prefix
+};
+
+static int32_t readWireI32(const uint8_t* p) {
+  int32_t value = 0;
+  memcpy(&value, p, sizeof(value));
+  return value;
+}
+
+static void writeWireI32(uint8_t* p, int32_t value) { memcpy(p, &value, sizeof(value)); }
+
+// A blob is wire-encoded as <i32 length><varint length><bytes>, so for every value used
+// here (< 128 bytes) the two lengths sit exactly five bytes ahead of the payload. Locate
+// the triple by its payload text and confirm the two lengths agree before trusting it.
+static bool findBlobOnWire(const std::vector<uint8_t>& frame, const char* value, SBlobOnWire* pOut) {
+  const int32_t valueLen = static_cast<int32_t>(strlen(value));
+  for (size_t i = 5; i + static_cast<size_t>(valueLen) <= frame.size(); ++i) {
+    if (memcmp(frame.data() + i, value, static_cast<size_t>(valueLen)) != 0) {
+      continue;
+    }
+    const int32_t binLen = frame[i - 1];
+    if (readWireI32(frame.data() + i - 5) != binLen) {
+      continue;
+    }
+    pOut->lenFieldOff = static_cast<int32_t>(i) - 5;
+    pOut->payloadOff = static_cast<int32_t>(i);
+    pOut->binLen = binLen;
+    return true;
+  }
+  return false;
+}
+
+TEST(td_msg_test, create_anode_req_rejects_url_that_is_not_a_c_string) {
+  const char* url = "http://localhost:6041";
+
+  SMCreateAnodeReq req = {0};
+  req.urlLen = static_cast<int32_t>(strlen(url)) + 1;
+  req.url = (char*)taosMemoryCalloc(1, req.urlLen);
+  ASSERT_NE(req.url, nullptr);
+  tstrncpy(req.url, url, req.urlLen);
+
+  const int32_t size = tSerializeSMCreateAnodeReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> honest(size);
+  ASSERT_EQ(tSerializeSMCreateAnodeReq(honest.data(), size, &req), size);
+
+  SBlobOnWire blob = {0};
+  ASSERT_TRUE(findBlobOnWire(honest, url, &blob));
+  EXPECT_EQ(blob.binLen, req.urlLen);
+
+  SMCreateAnodeReq decoded = {0};
+  ASSERT_EQ(tDeserializeSMCreateAnodeReq(honest.data(), size, &decoded), TSDB_CODE_SUCCESS);
+  ASSERT_NE(decoded.url, nullptr);
+  EXPECT_EQ(decoded.urlLen, req.urlLen);
+  EXPECT_STREQ(decoded.url, url);
+  tFreeSMCreateAnodeReq(&decoded);
+
+  // Declared length one byte short of the blob: the terminator is the extra byte at index
+  // declaredLen, just outside the declaredLen bytes the handler copies, so the copy would
+  // not be a C string.
+  std::vector<uint8_t> inflated = honest;
+  writeWireI32(inflated.data() + blob.lenFieldOff, req.urlLen - 1);
+  decoded = SMCreateAnodeReq{0};
+  EXPECT_EQ(tDeserializeSMCreateAnodeReq(inflated.data(), size, &decoded), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(decoded.url, nullptr);
+
+  // As long as declared, but the blob ends with a non-terminator byte.
+  std::vector<uint8_t> unterminated = honest;
+  unterminated[blob.payloadOff + blob.binLen - 1] = 'X';
+  decoded = SMCreateAnodeReq{0};
+  EXPECT_EQ(tDeserializeSMCreateAnodeReq(unterminated.data(), size, &decoded), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(decoded.url, nullptr);
+
+  // Shorter than declared: the handler's memcpy would read past the blob.
+  std::vector<uint8_t> truncated = honest;
+  writeWireI32(truncated.data() + blob.lenFieldOff, req.urlLen + 16);
+  decoded = SMCreateAnodeReq{0};
+  EXPECT_EQ(tDeserializeSMCreateAnodeReq(truncated.data(), size, &decoded), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(decoded.url, nullptr);
+
+  tFreeSMCreateAnodeReq(&req);
+}
+
+TEST(td_msg_test, create_xnode_req_rejects_url_user_pass_that_are_not_c_strings) {
+  const char* url = "http://localhost:6041";
+  const char* user = "xnodeuser";
+  const char* pass = "xnodepassword";
+
+  SMCreateXnodeReq req = {0};
+  req.urlLen = static_cast<int32_t>(strlen(url)) + 1;
+  req.url = (char*)taosMemoryCalloc(1, req.urlLen);
+  ASSERT_NE(req.url, nullptr);
+  tstrncpy(req.url, url, req.urlLen);
+  req.userLen = static_cast<int32_t>(strlen(user)) + 1;
+  req.user = (char*)taosMemoryCalloc(1, req.userLen);
+  ASSERT_NE(req.user, nullptr);
+  tstrncpy(req.user, user, req.userLen);
+  req.passLen = static_cast<int32_t>(strlen(pass)) + 1;
+  req.pass = (char*)taosMemoryCalloc(1, req.passLen);
+  ASSERT_NE(req.pass, nullptr);
+  tstrncpy(req.pass, pass, req.passLen);
+
+  const int32_t size = tSerializeSMCreateXnodeReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> honest(size);
+  ASSERT_EQ(tSerializeSMCreateXnodeReq(honest.data(), size, &req), size);
+
+  SBlobOnWire blobs[3] = {};
+  ASSERT_TRUE(findBlobOnWire(honest, url, &blobs[0]));
+  ASSERT_TRUE(findBlobOnWire(honest, user, &blobs[1]));
+  ASSERT_TRUE(findBlobOnWire(honest, pass, &blobs[2]));
+
+  SMCreateXnodeReq decoded = {0};
+  ASSERT_EQ(tDeserializeSMCreateXnodeReq(honest.data(), size, &decoded), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(decoded.url, url);
+  EXPECT_STREQ(decoded.user, user);
+  EXPECT_STREQ(decoded.pass, pass);
+  tFreeSMCreateXnodeReq(&decoded);
+
+  const int32_t declaredLen[3] = {req.urlLen, req.userLen, req.passLen};
+  const char*   fieldName[3] = {"url", "user", "pass"};
+  for (int32_t i = 0; i < 3; ++i) {
+    // One byte short of the blob: the terminator falls outside the copied range.
+    std::vector<uint8_t> inflated = honest;
+    writeWireI32(inflated.data() + blobs[i].lenFieldOff, declaredLen[i] - 1);
+    decoded = SMCreateXnodeReq{0};
+    EXPECT_EQ(tDeserializeSMCreateXnodeReq(inflated.data(), size, &decoded), TSDB_CODE_INVALID_MSG) << fieldName[i];
+
+    // As long as declared, but the blob ends with a non-terminator byte.
+    std::vector<uint8_t> unterminated = honest;
+    unterminated[blobs[i].payloadOff + blobs[i].binLen - 1] = 'X';
+    decoded = SMCreateXnodeReq{0};
+    EXPECT_EQ(tDeserializeSMCreateXnodeReq(unterminated.data(), size, &decoded), TSDB_CODE_INVALID_MSG)
+        << fieldName[i];
+  }
+
+  tFreeSMCreateXnodeReq(&req);
+}
+
+// The CREATE XNODE TASK / AGENT handlers return on a decode failure without calling the request's
+// free helper (mndProcessCreateXnodeTaskReq / mndProcessCreateXnodeAgentReq both do
+// `TAOS_RETURN(code)`), so the decoder has to release what it already allocated. An absent
+// mandatory field is the reachable trigger: the NULL guard fires only after the fields decoded
+// ahead of it were allocated. A rejected decode leaves the request empty, which is assertable
+// without a leak checker.
+TEST(td_msg_test, create_xnode_task_req_releases_partial_decode_on_error) {
+  SMCreateXnodeTaskReq req = {0};
+  const char          *sql = "create xnode task";
+  req.xnodeId = 7;
+  req.sqlLen = static_cast<int32_t>(strlen(sql));
+  req.sql = static_cast<char *>(taosMemoryCalloc(1, req.sqlLen));
+  ASSERT_NE(req.sql, nullptr);
+  memcpy(req.sql, sql, req.sqlLen);
+  req.source = xCreateClonedTaskSource(XNODE_TASK_SOURCE_DSN, 11, (char *)"source-dsn");
+  req.sink = xCreateClonedTaskSink(XNODE_TASK_SINK_DSN, 9, (char *)"sink-dsn");
+  // name stays NULL: the wire carries a zero length and the decoder rejects the request.
+
+  const int32_t size = tSerializeSMCreateXnodeTaskReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(tSerializeSMCreateXnodeTaskReq(frame.data(), size, &req), size);
+  tFreeSMCreateXnodeTaskReq(&req);
+
+  SMCreateXnodeTaskReq decoded = {0};
+  EXPECT_EQ(tDeserializeSMCreateXnodeTaskReq(frame.data(), size, &decoded), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  EXPECT_EQ(decoded.sql, nullptr);
+  EXPECT_EQ(decoded.name.ptr, nullptr);
+  EXPECT_EQ(decoded.source.cstr.ptr, nullptr);
+  EXPECT_EQ(decoded.sink.cstr.ptr, nullptr);
+}
+
+TEST(td_msg_test, create_xnode_agent_req_releases_partial_decode_on_error) {
+  SMCreateXnodeAgentReq req = {0};
+  const char           *sql = "create xnode agent";
+  req.sqlLen = static_cast<int32_t>(strlen(sql));
+  req.sql = static_cast<char *>(taosMemoryCalloc(1, req.sqlLen));
+  ASSERT_NE(req.sql, nullptr);
+  memcpy(req.sql, sql, req.sqlLen);
+  // name stays NULL, so the decoder rejects the request after sql was allocated.
+
+  const int32_t size = tSerializeSMCreateXnodeAgentReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(tSerializeSMCreateXnodeAgentReq(frame.data(), size, &req), size);
+  tFreeSMCreateXnodeAgentReq(&req);
+
+  SMCreateXnodeAgentReq decoded = {0};
+  EXPECT_EQ(tDeserializeSMCreateXnodeAgentReq(frame.data(), size, &decoded), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  EXPECT_EQ(decoded.sql, nullptr);
+  EXPECT_EQ(decoded.name.ptr, nullptr);
+}

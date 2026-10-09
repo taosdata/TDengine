@@ -6749,7 +6749,11 @@ static FORCE_INLINE int32_t tDecodeSKv(SDecoder* pDecoder, SKv* pKv) {
   if (pKv->value == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  TAOS_CHECK_RETURN(tDecodeCStrToN(pDecoder, (char*)pKv->value, pKv->valueLen + 1));
+  int32_t code = tDecodeCStrToN(pDecoder, (char*)pKv->value, pKv->valueLen + 1);
+  if (code != 0) {
+    taosMemoryFreeClear(pKv->value);
+    return code;
+  }
   return 0;
 }
 

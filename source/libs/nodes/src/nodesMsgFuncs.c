@@ -300,6 +300,9 @@ static int32_t tlvGetNextTlv(STlvDecoder* pDecoder, STlv** pTlv) {
     *pTlv = NULL;
     return TSDB_CODE_SUCCESS;
   }
+  if (pDecoder->offset > pDecoder->bufSize - (int32_t)sizeof(STlv)) {
+    return TSDB_CODE_FAILED;
+  }
 
   *pTlv = (STlv*)(pDecoder->pBuf + pDecoder->offset);
   (*pTlv)->type = ntohs((*pTlv)->type);

@@ -1347,6 +1347,10 @@ static SXnodeTaskObj *mndAcquireXnodeTaskById(SMnode *pMnode, int32_t tid) {
 }
 static SXnodeTaskObj *mndAcquireXnodeTaskByName(SMnode *pMnode, const char *name) {
   SSdb *pSdb = pMnode->pSdb;
+  if (name == NULL) {
+    terrno = TSDB_CODE_MND_XNODE_INVALID_MSG;
+    return NULL;
+  }
 
   void *pIter = NULL;
   while (1) {
@@ -7115,6 +7119,10 @@ SXnodeAgentObj *mndAcquireXnodeAgentById(SMnode *pMnode, int32_t id) {
 
 static SXnodeAgentObj *mndAcquireXnodeAgentByName(SMnode *pMnode, const char *name) {
   SSdb *pSdb = pMnode->pSdb;
+  if (name == NULL) {
+    terrno = TSDB_CODE_MND_XNODE_INVALID_MSG;
+    return NULL;
+  }
 
   void *pIter = NULL;
   while (1) {

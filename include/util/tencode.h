@@ -605,6 +605,29 @@ static FORCE_INLINE int32_t tDecodeCStrAlloc(SDecoder* pCoder, char** val) {
   return tDecodeCStrAndLenAlloc(pCoder, val, &len);
 }
 
+// Decode a length-prefixed blob that the caller will use as a C string. *pLen receives the
+// decoded byte count (0 when the wire value is empty, in which case *val is NULL) so the
+// caller can compare it with the length field that was decoded next to the blob. A blob
+// whose last byte is not the terminator is refused: callers memcpy exactly the declared
+// number of bytes into a buffer of that size and then read it with strlen/%s, so the
+// terminator has to land inside the copied range.
+static FORCE_INLINE int32_t tDecodeCStrAllocChecked(SDecoder* pCoder, void** val, uint64_t* pLen) {
+  uint64_t len = 0;
+
+  TAOS_CHECK_RETURN(tDecodeBinaryAlloc(pCoder, val, &len));
+
+  if (len > 0 && ((const char*)(*val))[len - 1] != '\0') {
+    taosMemoryFreeClear(*val);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (pLen != NULL) {
+    *pLen = len;
+  }
+
+  return 0;
+}
+
 static FORCE_INLINE bool tDecodeIsEnd(SDecoder* pCoder) { return (pCoder->size == pCoder->pos); }
 
 static FORCE_INLINE void* tEncoderMalloc(SEncoder* pCoder, int64_t size) {
