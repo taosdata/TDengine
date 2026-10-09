@@ -14,8 +14,24 @@ toc_max_heading_level: 5
 
 - TDengine `v3.3.6.0` 及以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
-- Spark 3.3.2 及以上版本（ [Spark 下载](https://spark.apache.org/downloads.html)）。
-- JDBC 驱动建议使用较新版本（文档示例基于 3.6.2 及以上）。可从 [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver) 下载。
+- Spark 3.3.x 版本（[Spark 下载](https://spark.apache.org/downloads.html)），方言 v1.0.0 基于 Spark 3.3.2 / Scala 2.13 构建并验证。
+- JDBC 驱动建议使用较新版本（文档示例基于 3.9.2 及以上）。可从 [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver) 下载。
+- Spark 方言 `tdengine-spark-dialect` `v1.0.0` 及以上版本，已发布至 [maven.org](https://central.sonatype.com/artifact/com.taosdata.spark/tdengine-spark-dialect)，源码见 [GitHub](https://github.com/taosdata/tdengine-spark-dialect)。在项目的 `pom.xml` 中添加以下依赖（JDBC 驱动不会随方言传递引入，需显式声明）：
+
+    ``` xml
+    <dependency>
+        <groupId>com.taosdata.spark</groupId>
+        <artifactId>tdengine-spark-dialect</artifactId>
+        <version>1.0.0</version>
+    </dependency>
+    <dependency>
+        <groupId>com.taosdata.jdbc</groupId>
+        <artifactId>taos-jdbcdriver</artifactId>
+        <version>3.9.2</version>
+    </dependency>
+    ```
+
+    也可在 `spark-submit` 提交任务时通过 `--packages com.taosdata.spark:tdengine-spark-dialect:1.0.0,com.taosdata.jdbc:taos-jdbcdriver:3.9.2` 参数引入。
 
 ## 配置数据源
 
@@ -38,6 +54,9 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
       .master("local[*]")
       .getOrCreate();
   
+  // register TDengine dialect (com.taosdata.spark.TDengineDialect)
+  JdbcDialects.registerDialect(new TDengineDialect());
+
   // connect TDengine and create reader
   String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
   String driver  = "com.taosdata.jdbc.ws.WebSocketDriver";
@@ -50,7 +69,17 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
 
 ## 数据交互
 
-数据接入需注册 TDengine 方言，方言中主要处理反引号，数据类型映射与 JDBC 相同，无需额外处理，参见：[JDBC 数据类型映射](../../10-developer-guide/08-connectors-reference/02-java.mdx#数据类型映射)
+数据接入需注册 TDengine 方言。官方方言 `tdengine-spark-dialect` 已发布，添加依赖（见 [前置条件](#前置条件)）后在任务中注册一次即可：
+
+``` java
+import com.taosdata.spark.TDengineDialect;
+import org.apache.spark.sql.jdbc.JdbcDialects;
+
+// register TDengine dialect
+JdbcDialects.registerDialect(new TDengineDialect());
+```
+
+方言负责使用反引号引用标识符，并处理 TDengine 与 Spark SQL 之间的数据类型映射：TDengine 的 `NCHAR`、`JSON` 列会映射为 Spark 的 `StringType`；Spark 建表时，Spark SQL 类型会映射为 TDengine 类型（如 `StringType` 映射为 `VARCHAR(4096)`、`DateType` 映射为 `TIMESTAMP`）。JDBC 层面的数据类型映射遵循 JDBC 驱动，参见：[JDBC 数据类型映射](../../10-developer-guide/08-connectors-reference/02-java.mdx#数据类型映射)
 
 下面以 JAVA 语言编写 Spark 任务，通过 `spark-submit` 提交任务执行为例，介绍数据接入，后附完整示例代码。
 
