@@ -61,7 +61,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache Go modules on Linux and macOS
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
@@ -72,7 +72,7 @@ jobs:
 
       - name: Cache Homebrew on macOS
         if: runner.os == 'macOS'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /usr/local/Homebrew
           key: ${{ runner.os }}-brew-${{ hashFiles('**/Brewfile') }}
@@ -113,10 +113,13 @@ jobs:
             gflags \
             geos \
             jansson \
-            openssl \
+            openssl@3 \
             pkg-config \
             snappy \
             zlib
+          OPENSSL_PREFIX=$(brew --prefix openssl@3)
+          echo "OPENSSL_ROOT_DIR=$OPENSSL_PREFIX" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$OPENSSL_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
       - name: Show software version
         run: |
@@ -132,7 +135,7 @@ jobs:
         id: cache-ext
         with:
           path: ${{ github.workspace }}/.externals
-          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-debug-build-ext-v3 # this is tailing cache-version-tick
+          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**', '.github/workflows/tdengine-build.yml') }}-debug-build-ext-v3 # this is tailing cache-version-tick
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' }}
         name: Build externals on Linux and macOS
