@@ -3219,16 +3219,17 @@ TEST_F(ParserStreamTest, CreateStreamRejectsInvalidFinalTimeContextBeforeCommand
   struct TestCase {
     const char* sql;
     int32_t     error;
+    const char* msg;  // Expected error detail, or nullptr to skip the check.
   };
   const array<TestCase, 2> cases = {{
       {"create stream stream_streamdb.s_bad_timezone interval(1s) sliding(1s) "
        "from stream_triggerdb.stream_t1 stream_options(config(timezone='Bad/Zone')) "
        "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
-       TSDB_CODE_PAR_INVALID_TIMEZONE},
+       TSDB_CODE_PAR_INVALID_TIMEZONE, "Invalid timezone: 'Bad/Zone'"},
       {"create stream stream_streamdb.s_bad_fdow interval(1s) sliding(1s) "
        "from stream_triggerdb.stream_t1 stream_options(config(firstDayOfWeek=7)) "
        "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
-       TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK},
+       TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK, nullptr},
   }};
 
   for (const TestCase& testCase : cases) {
@@ -3236,6 +3237,9 @@ TEST_F(ParserStreamTest, CreateStreamRejectsInvalidFinalTimeContextBeforeCommand
     SQuery*           pQuery = nullptr;
     EXPECT_EQ(testCase.error, pstTranslateCreateStreamSql(testCase.sql, &pQuery, msgBuf.data(), msgBuf.max_size()))
         << testCase.sql << ": " << msgBuf.data();
+    if (testCase.msg != nullptr) {
+      EXPECT_STREQ(testCase.msg, msgBuf.data()) << testCase.sql;
+    }
     unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
     ASSERT_NE(pQuery, nullptr);
     EXPECT_EQ(pQuery->pCmdMsg, nullptr);

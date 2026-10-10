@@ -143,6 +143,11 @@ class TestStreamTimeConfig:
         )
         for statement in invalid_statements:
             tdSql.error(statement)
+        # the rejected value is reported instead of a bare '%s' placeholder
+        # (tdSql strips single quotes from the error text)
+        tdSql.error(invalid_statements[0], expectedErrno=0x26B2,
+                    expectErrInfo="Invalid timezone: Invalid/Zone",
+                    fullMatched=False)
 
         previous_process_timezone = os.environ.get("TZ")
         try:

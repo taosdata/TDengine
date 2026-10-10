@@ -42,10 +42,10 @@ time_t     mktime_z(timezone_t, struct tm *);
 timezone_t tzalloc(char const *);
 void       tzfree(timezone_t);
 void       getTimezoneStr(char *tz);
-void       truncateTimezoneString(char *tz);
 
 #endif
 
+void    truncateTimezoneString(char *tz);
 int32_t taosGetLocalTimezoneOffset(int32_t *code);
 /*
  * Return the timezone's current/default UTC offset in seconds.

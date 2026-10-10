@@ -331,6 +331,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "WHERE clause cannot reference EXTERNAL_WINDOW column: %s";
     case TSDB_CODE_OSS_NOT_SUPPORT:
       return "Operation not supported in community edition: %s";
+    case TSDB_CODE_PAR_INVALID_TIMEZONE:
+      return "Invalid timezone: '%s'";
     default:
       return "Unknown error";
   }

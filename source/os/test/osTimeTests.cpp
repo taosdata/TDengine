@@ -33,6 +33,7 @@
 
 #include "os.h"
 #include "tlog.h"
+#include "ttime.h"
 
 TEST(osTimeTests, taosLocalTime) {
   // Test 1: Test when both timep and result are not NULL
@@ -129,6 +130,29 @@ TEST(osTimeTests, taosMktime) {
 }
 
 #ifdef WINDOWS
+static void checkWindowsTimezoneDisplay() {
+  char name[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(name, tsTimezoneStr, sizeof(name));
+  truncateTimezoneString(name);
+  char normalized[TD_TIMEZONE_LEN] = {0};
+  EXPECT_EQ(taosValidateAndNormalizeTimezone(name, normalized,
+                                           sizeof(normalized), NULL),
+            TSDB_CODE_SUCCESS);
+
+  const char *suffix = strstr(tsTimezoneStr, " (UTC, ");
+  ASSERT_NE(suffix, nullptr);
+  char sign = '\0';
+  int hours = 0;
+  int minutes = 0;
+  ASSERT_EQ(sscanf(suffix, " (UTC, %c%2d%2d)", &sign, &hours, &minutes), 3);
+  ASSERT_TRUE(sign == '+' || sign == '-');
+  ASSERT_LT(hours, 24);
+  ASSERT_LT(minutes, 60);
+  int64_t displayOffset = (hours * 60 + minutes) * 60;
+  if (sign == '-') displayOffset = -displayOffset;
+  EXPECT_EQ(displayOffset, -getWindowsTimezoneOffset());
+}
+
 TEST(osTimeTests, windowsGlobalTimezoneOffset) {
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
   ASSERT_EQ(getWindowsTimezoneOffset(), -TdEastZone8);
@@ -175,9 +199,21 @@ TEST(osTimeTests, windowsInitTimezoneFromSystemZone) {
   
   // Clear any pre-existing TZ
   SetEnvironmentVariableA("TZ", NULL);
+
+  // Match startup: osDefaultInit resolves the name before config takes a copy.
+  ASSERT_EQ(taosGetSystemTimezone(tsTimezoneStr), TSDB_CODE_SUCCESS);
+  ASSERT_NE(tsTimezoneStr[0], '\0');
+  char systemTimezone[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(systemTimezone, tsTimezoneStr, sizeof(systemTimezone));
   
   // Call initTimezoneInfo() - should read system timezone and set TZ env var
   ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
+  truncateTimezoneString(systemTimezone);
+  char resolvedName[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(resolvedName, tsTimezoneStr, sizeof(resolvedName));
+  truncateTimezoneString(resolvedName);
+  EXPECT_STREQ(resolvedName, systemTimezone);
+  checkWindowsTimezoneDisplay();
   
   // Verify TZ is now set after initTimezoneInfo
   char tzEnv[128] = {0};
@@ -194,6 +230,37 @@ TEST(osTimeTests, windowsInitTimezoneFromSystemZone) {
   uInfo("[test] taosGetLocalTimezoneOffset = %d seconds, code = %d", tz_offset, code);
   
   // Restore to a known state
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+}
+
+TEST(osTimeTests, windowsInitTimezoneWithoutResolvedName) {
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", NULL));
+  tsTimezoneStr[0] = '\0';
+
+  ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
+
+  char tzEnv[128] = {0};
+  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
+  char resolvedName[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(resolvedName, tsTimezoneStr, sizeof(resolvedName));
+  truncateTimezoneString(resolvedName);
+  EXPECT_STREQ(resolvedName, tzEnv);
+  checkWindowsTimezoneDisplay();
+
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+}
+
+TEST(osTimeTests, windowsInitTimezoneRefreshesDisplayOffset) {
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", NULL));
+  // Model the stale registry Display suffix. Deliberately use an offset
+  // outside current Windows system zones to exercise refresh on every host.
+  tstrncpy(tsTimezoneStr, "America/New_York (UTC, -2359)", TD_TIMEZONE_LEN);
+  ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
+  char resolvedName[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(resolvedName, tsTimezoneStr, sizeof(resolvedName));
+  truncateTimezoneString(resolvedName);
+  EXPECT_STREQ(resolvedName, "America/New_York");
+  checkWindowsTimezoneDisplay();
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
 }
 
