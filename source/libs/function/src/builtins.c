@@ -358,9 +358,9 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
      *
      * First try to extract a fixed offset from global display text so
      * scalar offset parser can still compute local boundary correctly.
-     * This is especially important for Windows values like:
-     *   "System (UTC, +0800)"
-     * where taking the leading token ("System") would lose offset info.
+     * On Windows, e.g. "America/New_York (UTC, -0400)", the suffix
+     * carries the effective startup offset including DST. Taking only
+     * the name would lose that offset on the fixed-offset fallback path.
      *
      * If offset extraction fails, keep legacy behavior and use leading token
      * as a best-effort fallback.

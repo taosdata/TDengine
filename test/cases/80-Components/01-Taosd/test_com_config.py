@@ -227,7 +227,20 @@ class TestAlterConfig:
         tdSql.execute("alter all dnodes 'timezone UTC'")
         # forbidden to alter one dnode timezone
         tdSql.error("alter dnode 1 'timezone UTC'")
-        
+        # The single-dnode scope check runs before the value is validated.
+        tdSql.error("alter dnode 1 'timezone' 'UTF-8'", expectedErrno=0x0119)
+        # The mnode rejects invalid values before persisting either spelling.
+        for sql in (
+            "alter all dnodes 'timezone' 'UTF-8'",
+            "alter all dnodes 'timezone UTF-8'",
+        ):
+            tdSql.error(
+                sql,
+                expectedErrno=0x26B2,
+                expectErrInfo="Invalid timezone: UTF-8",
+                fullMatched=False,
+            )
+
         tdSql.query("show local variables like 'timezone'")
         tdSql.checkData(0, 1, "UTC (UTC, +0000)")
         tdSql.query("show dnode 1 variables like 'timezone'")
