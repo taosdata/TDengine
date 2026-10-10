@@ -878,6 +878,13 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
         goto _exit;
       }
     } break;
+    case CFG_DTYPE_TIMEZONE: {
+      // The mnode persists a global config before dnodes apply it, so reject
+      // bad values here instead of leaving a retry-forever transaction.
+      char normBuf[TD_TIMEZONE_LEN] = {0};
+      TAOS_CHECK_EXIT(taosValidateAndNormalizeTimezone(pVal, normBuf,
+                                                       sizeof(normBuf), NULL));
+    } break;
     default:
       break;
   }

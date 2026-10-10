@@ -270,6 +270,40 @@ TEST_F(CfgTest, clsRefreshIntervalAlterRange) {
   cfgCleanup(pConfig);
 }
 
+TEST_F(CfgTest, timezoneAlterValidation) {
+  SConfig *pConfig = NULL;
+  ASSERT_EQ(cfgInit(&pConfig), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pConfig, nullptr);
+
+  ASSERT_EQ(cfgAddTimezone(pConfig, "timezone", "UTC", CFG_SCOPE_BOTH,
+                           CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL),
+            TSDB_CODE_SUCCESS);
+
+  // A charset value must be rejected before the mnode persists it.
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "timezone", "UTF-8", true,
+                                      CFG_ALTER_ALL_DNODES),
+            TSDB_CODE_PAR_INVALID_TIMEZONE);
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "timezone", "CST", true,
+                                      CFG_ALTER_ALL_DNODES),
+            TSDB_CODE_PAR_INVALID_TIMEZONE);
+
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "timezone", "Asia/Shanghai",
+                                      true, CFG_ALTER_ALL_DNODES),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "timezone", "+08:00", true,
+                                      CFG_ALTER_ALL_DNODES),
+            TSDB_CODE_SUCCESS);
+  // ALTER LOCAL goes through the same check.
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "timezone", "UTF-8", false,
+                                      CFG_ALTER_LOCAL),
+            TSDB_CODE_PAR_INVALID_TIMEZONE);
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "timezone", "UTC", false,
+                                      CFG_ALTER_LOCAL),
+            TSDB_CODE_SUCCESS);
+
+  cfgCleanup(pConfig);
+}
+
 TEST_F(CfgTest, cfgDumpItemCategory) {
   SConfig *pConfig = NULL;
   int32_t  code = cfgInit(&pConfig);

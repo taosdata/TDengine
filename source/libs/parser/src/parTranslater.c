@@ -25249,6 +25249,10 @@ static int32_t resolveCreateStreamTimeContext(STranslateContext* pCxt, SCreateSt
   timezone_t        timezone = NULL;
   SStreamTimeConfig config = {.timezone = {0}, .firstDayOfWeek = (int8_t)firstDayOfWeek};
   code = taosValidateAndNormalizeTimezone(pTimezoneSource, config.timezone, sizeof(config.timezone), &timezone);
+  if (TSDB_CODE_PAR_INVALID_TIMEZONE == code) {
+    // Report the rejected value; the bare error text only has a '%s' slot.
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, code, pTimezoneSource);
+  }
   taosMemoryFree(pTimezone);
   if (TSDB_CODE_SUCCESS != code) {
     return code;

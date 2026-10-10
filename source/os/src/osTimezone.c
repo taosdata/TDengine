@@ -1619,15 +1619,14 @@ int32_t initTimezoneInfo(void) {
     } else {
       _tzset();
       uInfo("[tz] Windows timezone initialized from system: TZ=%s", winStr);
-      // Also update tsTimezoneStr for consistency
-      LONG utc_offset_minutes = -minute_offset;  // Flip to UTC direction for display
-      int32_t utc_hours = utc_offset_minutes / 60;
-      int32_t utc_mins = utc_offset_minutes % 60;
-      if (utc_mins < 0) utc_mins = -utc_mins;
-      snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", "System",
-               utc_offset_minutes >= 0 ? '+' : '-', 
-               utc_hours >= 0 ? utc_hours : -utc_hours,
-               utc_mins);
+      // Keep the resolved name, but refresh the display offset from effective
+      // bias (including DST) so scalar functions use the same offset as TZ.
+      char name[TD_TIMEZONE_LEN] = {0};
+      const char *src = tsTimezoneStr[0] != '\0' ? tsTimezoneStr : winStr;
+      tstrncpy(name, src, sizeof(name));
+      truncateTimezoneString(name);
+      snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", name,
+               minute_offset <= 0 ? '+' : '-', offset_hours, offset_mins);
     }
   } else {
     // Fallback: default to UTC if GetTimeZoneInformation fails

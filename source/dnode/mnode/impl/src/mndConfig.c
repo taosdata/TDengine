@@ -837,8 +837,21 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     }
 
     CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
-    TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true, alterType), &lino,
-                    _err_out);
+    code = cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config,
+                                     dcfgReq.value, true, alterType);
+    if (code == TSDB_CODE_PAR_INVALID_TIMEZONE) {
+      char detail[TSDB_DNODE_VALUE_LEN + sizeof("Invalid timezone: ''")] = {0};
+      (void)snprintf(detail, sizeof(detail), "Invalid timezone: '%s'",
+                     dcfgReq.value);
+      int32_t detailLen = strlen(detail) + 1;
+      void   *pRsp = rpcMallocCont(detailLen);
+      if (pRsp != NULL) {
+        memcpy(pRsp, detail, detailLen);
+        pReq->info.rsp = pRsp;
+        pReq->info.rspLen = detailLen;
+      }
+    }
+    TAOS_CHECK_GOTO(code, &lino, _err_out);
   }
   SConfigItem *pItem = cfgGetItem(taosGetCfg(), dcfgReq.config);
   // Update config in sdb.
