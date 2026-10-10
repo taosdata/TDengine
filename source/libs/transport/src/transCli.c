@@ -2916,8 +2916,7 @@ FORCE_INLINE bool cliTryUpdateEpset(SCliReq* pReq, STransMsg* pResp) {
     tError("failed to deserialize epset, code:%d", code);
     return false;
   }
-  SEpSet  tepset;
-  int32_t tlen = tSerializeSEpSet(NULL, 0, &tepset);
+  int32_t tlen = tSerializeSEpSet(NULL, 0, &epset);
 
   char*   buf = NULL;
   int32_t len = pResp->contLen - tlen;
