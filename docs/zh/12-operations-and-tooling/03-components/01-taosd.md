@@ -2927,7 +2927,7 @@ SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
 - 最大值：1
 - 参数类型：局部配置参数
 - 动态修改：不支持
-- 支持版本：从 `v3.3.6.0` 版本开始引入
+- 支持版本：从 `v3.4.2.0` 版本开始引入
 
 #### managementCpuCores
 
@@ -2938,7 +2938,7 @@ SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
 - 最大值：256
 - 参数类型：局部配置参数
 - 动态修改：不支持
-- 支持版本：从 `v3.3.6.0` 版本开始引入
+- 支持版本：从 `v3.4.2.0` 版本开始引入
 
 #### readCpuCores
 
@@ -2949,7 +2949,7 @@ SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
 - 最大值：256
 - 参数类型：局部配置参数
 - 动态修改：不支持
-- 支持版本：从 `v3.3.6.0` 版本开始引入
+- 支持版本：从 `v3.4.2.0` 版本开始引入
 
 #### otherCpuCores
 
@@ -2960,7 +2960,7 @@ SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
 - 最大值：256
 - 参数类型：局部配置参数
 - 动态修改：不支持
-- 支持版本：从 `v3.3.6.0` 版本开始引入
+- 支持版本：从 `v3.4.2.0` 版本开始引入
 
 ### 压缩参数
 
