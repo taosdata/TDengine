@@ -4812,7 +4812,10 @@ static bool queryHasExternalTable(const SNode* pQuery) {
       return tableHasExternalTable(((const SSelectStmt*)pQuery)->pFromTable);
     case QUERY_NODE_SET_OPERATOR: {
       const SSetOperator* pSet = (const SSetOperator*)pQuery;
-      return queryHasExternalTable(pSet->pLeft) || queryHasExternalTable(pSet->pRight);
+      for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i) {
+        if (queryHasExternalTable(setOperatorChildAt(pSet, i))) return true;
+      }
+      return false;
     }
     case QUERY_NODE_INSERT_STMT:
       return queryHasExternalTable(((const SInsertStmt*)pQuery)->pQuery);
@@ -4846,7 +4849,7 @@ static bool hasExternalOrVirtualTableInExpr(STranslateContext* pCxt, SNode* pNod
   return cxt.found;
 }
 // Create a __timestamp_scale(expr, target_precision) function node.
-// The caller must NOT free pExpr after this call  -  ownership transfers to the function node.
+// Ownership of pExpr transfers on success; the caller retains it on failure.
 static int32_t createTimestampScaleNode(SNode* pExpr, int8_t targetPrec, SNode** ppOut) {
   int32_t code = TSDB_CODE_SUCCESS;
   SFunctionNode* pFunc = NULL;
@@ -4856,39 +4859,34 @@ static int32_t createTimestampScaleNode(SNode* pExpr, int8_t targetPrec, SNode**
   snprintf(pFunc->functionName, sizeof(pFunc->functionName), "__timestamp_scale");
 
   // Param 1: the timestamp expression
-  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pExpr);
+  code = nodesListMakeAppend(&pFunc->pParameterList, pExpr);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pFunc);
-    return code;
+    goto _err;
   }
 
   // Param 2: target precision constant (TINYINT)
   SValueNode* pPrec = NULL;
   code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pPrec);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pFunc);
-    return code;
+    goto _err;
   }
   pPrec->node.resType = (SDataType){.type = TSDB_DATA_TYPE_TINYINT,
                                     .bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes};
   code = nodesSetValueNodeValue(pPrec, &targetPrec);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pPrec);
-    nodesDestroyNode((SNode*)pFunc);
-    return code;
+    goto _err;
   }
   pPrec->translate = true;
   code = nodesListStrictAppend(pFunc->pParameterList, (SNode*)pPrec);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pFunc);
-    return code;
+    goto _err;
   }
 
   // Resolve the function (sets funcId, funcType, resType via translateFunc)
   code = fmGetFuncInfo(pFunc, NULL, 0);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pFunc);
-    return code;
+    goto _err;
   }
 
   // Set aliasName so that the physical plan's slot-hash can identify this expression.
@@ -4903,6 +4901,14 @@ static int32_t createTimestampScaleNode(SNode* pExpr, int8_t targetPrec, SNode**
 
   *ppOut = (SNode*)pFunc;
   return TSDB_CODE_SUCCESS;
+
+_err:
+  // The caller's AST still owns the original expression on failure.
+  if (NULL != pFunc->pParameterList && NULL != pFunc->pParameterList->pHead) {
+    pFunc->pParameterList->pHead->pNode = NULL;
+  }
+  nodesDestroyNode((SNode*)pFunc);
+  return code;
 }
 
 // Cross-precision TIMESTAMP scaling for IN/NOT IN operators.
@@ -6238,8 +6244,10 @@ static int32_t collectStreamCalcRelationNames(const SNode* pQuery, SArray* pName
   }
   if (nodeType(pQuery) == QUERY_NODE_SET_OPERATOR) {
     const SSetOperator* pSet = (const SSetOperator*)pQuery;
-    int32_t             code = collectStreamCalcRelationNames(pSet->pLeft, pNames);
-    if (code == TSDB_CODE_SUCCESS) code = collectStreamCalcRelationNames(pSet->pRight, pNames);
+    int32_t             code = TSDB_CODE_SUCCESS;
+    for (int32_t i = 0; i < setOperatorChildCount(pSet) && code == TSDB_CODE_SUCCESS; ++i) {
+      code = collectStreamCalcRelationNames(setOperatorChildAt(pSet, i), pNames);
+    }
     if (code == TSDB_CODE_SUCCESS) code = collectStreamCalcSubqueryNames(pSet->pSubQueries, pNames);
     return code;
   }
@@ -6373,8 +6381,8 @@ static void bindStreamLayerPlaceholdersInQuery(SNode* pQuery, SStreamLayerBindCo
     SSetOperator* pSet = (SSetOperator*)pQuery;
     nodesRewriteExprs(pSet->pProjectionList, bindStreamLayerPlaceholderImpl, pBind);
     nodesRewriteExprs(pSet->pOrderByList, bindStreamLayerPlaceholderImpl, pBind);
-    bindStreamLayerPlaceholdersInQuery(pSet->pLeft, pBind);
-    bindStreamLayerPlaceholdersInQuery(pSet->pRight, pBind);
+    for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i)
+      bindStreamLayerPlaceholdersInQuery(setOperatorChildAt(pSet, i), pBind);
     bindStreamLayerPlaceholdersInSubqueries(pSet->pSubQueries, pBind);
   }
 }
@@ -10611,39 +10619,18 @@ static int32_t rewriteNonLeafVstQuery(STranslateContext* pCxt, SNode** pTable, S
     return TSDB_CODE_SUCCESS;
   }
 
-  // Multiple leaves: build UNION ALL
+  // Multiple leaves: keep all UNION ALL operands in one flat node.
   SNode* pSetOp = NULL;
-  SNode* pLeft = NULL;
-  SNode* pRight = NULL;
-  PAR_ERR_JRET(buildLeafSelectStmt(pCxt, rsp.pLeaves[0].dbFName, rsp.pLeaves[0].stbName, pParentMeta, &pLeft));
-  PAR_ERR_JRET(buildLeafSelectStmt(pCxt, rsp.pLeaves[1].dbFName, rsp.pLeaves[1].stbName, pParentMeta, &pRight));
-
   SSetOperator* pOp = NULL;
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&pOp));
-  pOp->opType = SET_OP_TYPE_UNION_ALL;
-  pOp->pLeft = pLeft;
-  pOp->pRight = pRight;
-  snprintf(pOp->stmtName, TSDB_TABLE_NAME_LEN, "%p", pOp);
-  pLeft = NULL;
-  pRight = NULL;
   pSetOp = (SNode*)pOp;
-
-  for (int32_t i = 2; i < rsp.numLeaves; ++i) {
+  pOp->opType = SET_OP_TYPE_UNION_ALL;
+  for (int32_t i = 0; i < rsp.numLeaves; ++i) {
     SNode* pNext = NULL;
     PAR_ERR_JRET(buildLeafSelectStmt(pCxt, rsp.pLeaves[i].dbFName, rsp.pLeaves[i].stbName, pParentMeta, &pNext));
-    SSetOperator* pNewOp = NULL;
-    code = nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&pNewOp);
-    if (TSDB_CODE_SUCCESS != code) {
-      // pNext built above is not yet attached; destroy to avoid leak on nodesMakeNode failure.
-      nodesDestroyNode(pNext);
-      goto _return;
-    }
-    pNewOp->opType = SET_OP_TYPE_UNION_ALL;
-    pNewOp->pLeft = pSetOp;
-    pNewOp->pRight = pNext;
-    snprintf(pNewOp->stmtName, TSDB_TABLE_NAME_LEN, "%p", pNewOp);
-    pSetOp = (SNode*)pNewOp;
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pOp->pOperands, pNext));
   }
+  snprintf(pOp->stmtName, TSDB_TABLE_NAME_LEN, "%p", pOp);
 
   // Wrap in STempTableNode
   STempTableNode* pTempTable = NULL;
@@ -10664,8 +10651,6 @@ static int32_t rewriteNonLeafVstQuery(STranslateContext* pCxt, SNode** pTable, S
 
 _return:
   nodesDestroyNode(pSetOp);
-  nodesDestroyNode(pLeft);
-  nodesDestroyNode(pRight);
   tFreeSVstLeavesRsp(&rsp);
   return code;
 }
@@ -13518,7 +13503,9 @@ static bool queryContainsExternalRealTable(SNode* pQuery) {
       return tableContainsExternalRealTable(((SSelectStmt*)pQuery)->pFromTable);
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSet = (SSetOperator*)pQuery;
-      return queryContainsExternalRealTable(pSet->pLeft) || queryContainsExternalRealTable(pSet->pRight);
+      for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i)
+        if (queryContainsExternalRealTable(setOperatorChildAt(pSet, i))) return true;
+      return false;
     }
     default:
       return false;
@@ -19354,56 +19341,11 @@ static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
   return (SNode*)pCol;
 }
 
-static bool isUionOperator(SNode* pNode) {
-  return QUERY_NODE_SET_OPERATOR == nodeType(pNode) && (((SSetOperator*)pNode)->opType == SET_OP_TYPE_UNION ||
-                                                        ((SSetOperator*)pNode)->opType == SET_OP_TYPE_UNION_ALL);
-}
-
-static int32_t pushdownCastForUnion(STranslateContext* pCxt, SNode* pNode, SExprNode* pExpr, int pos) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (isUionOperator(pNode)) {
-    SSetOperator* pSetOperator = (SSetOperator*)pNode;
-    SNodeList*    pLeftProjections = getProjectList(pSetOperator->pLeft);
-    SNodeList*    pRightProjections = getProjectList(pSetOperator->pRight);
-    if (LIST_LENGTH(pLeftProjections) != LIST_LENGTH(pRightProjections)) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCORRECT_NUM_OF_COL);
-    }
-
-    SNode*  pLeft = NULL;
-    SNode*  pRight = NULL;
-    int32_t index = 0;
-    FORBOTH(pLeft, pLeftProjections, pRight, pRightProjections) {
-      ++index;
-      if (index < pos) {
-        continue;
-      }
-      SNode* pRightFunc = NULL;
-      code = createCastFunc(pCxt, pRight, pExpr->resType, &pRightFunc);
-      if (TSDB_CODE_SUCCESS != code || NULL == pRightFunc) {
-        return code;
-      }
-      REPLACE_LIST2_NODE(pRightFunc);
-      code = pushdownCastForUnion(pCxt, pSetOperator->pRight, (SExprNode*)pRightFunc, index);
-      if (TSDB_CODE_SUCCESS != code) return code;
-
-      SNode* pLeftFunc = NULL;
-      code = createCastFunc(pCxt, pLeft, pExpr->resType, &pLeftFunc);
-      if (TSDB_CODE_SUCCESS != code || NULL == pLeftFunc) {
-        return code;
-      }
-      REPLACE_LIST1_NODE(pLeftFunc);
-      code = pushdownCastForUnion(pCxt, pSetOperator->pLeft, (SExprNode*)pLeftFunc, index);
-      if (TSDB_CODE_SUCCESS != code) return code;
-      break;
-    }
+static int32_t castSetOperandColumn(STranslateContext* pCxt, SNode* pQuery, int32_t index,
+                                   const SDataType* pTargetType) {
+  if (NULL == pQuery || NULL == pTargetType) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
-  return TSDB_CODE_SUCCESS;
-}
-
-// A SetOp must receive a uniform timestamp representation from each child.
-// Push the scalar conversion to SELECT leaves so an intermediate SetOp,
-// Exchange, or Sort never observes mixed precision values.
-static int32_t alignSetOperandTimestampPrecision(SNode* pQuery, int32_t index, int8_t targetPrec) {
   SNodeList* pProjections = getProjectList(pQuery);
   if (NULL == pProjections || index < 0 || index >= LIST_LENGTH(pProjections)) {
     return TSDB_CODE_PAR_INTERNAL_ERROR;
@@ -19415,103 +19357,111 @@ static int32_t alignSetOperandTimestampPrecision(SNode* pQuery, int32_t index, i
   }
 
   SExprNode* pExpr = (SExprNode*)pCell->pNode;
-  if (TSDB_DATA_TYPE_TIMESTAMP != pExpr->resType.type) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
     SSetOperator* pSet = (SSetOperator*)pQuery;
-    PAR_ERR_RET(alignSetOperandTimestampPrecision(pSet->pLeft, index, targetPrec));
-    PAR_ERR_RET(alignSetOperandTimestampPrecision(pSet->pRight, index, targetPrec));
-    pExpr->resType.precision = targetPrec;
-    pSet->precision = TMAX(pSet->precision, targetPrec);
+    if (setOperatorChildCount(pSet) <= 0) {
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i) {
+      PAR_ERR_RET(castSetOperandColumn(pCxt, setOperatorChildAt(pSet, i), index, pTargetType));
+    }
+    pExpr->resType = *pTargetType;
+    if (TSDB_DATA_TYPE_TIMESTAMP == pTargetType->type) {
+      pSet->precision = TMAX(pSet->precision, pTargetType->precision);
+    }
     return TSDB_CODE_SUCCESS;
   }
 
-  if (QUERY_NODE_SELECT_STMT != nodeType(pQuery) || pExpr->resType.precision >= targetPrec) {
+  if (QUERY_NODE_SELECT_STMT != nodeType(pQuery)) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  if (TSDB_DATA_TYPE_TIMESTAMP == pTargetType->type) {
+    SSelectStmt* pSelect = (SSelectStmt*)pQuery;
+    pSelect->precision = TMAX(pSelect->precision, pTargetType->precision);
+  }
+  if (dataTypeEqual(&pExpr->resType, pTargetType)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  char aliasName[TSDB_COL_NAME_LEN] = {0};
-  char userAlias[TSDB_COL_NAME_LEN] = {0};
-  tstrncpy(aliasName, pExpr->aliasName, sizeof(aliasName));
-  tstrncpy(userAlias, pExpr->userAlias, sizeof(userAlias));
-
-  SNode* pScale = NULL;
-  PAR_ERR_RET(createTimestampScaleNode(pCell->pNode, targetPrec, &pScale));
-  tstrncpy(((SExprNode*)pScale)->aliasName, aliasName, sizeof(((SExprNode*)pScale)->aliasName));
-  tstrncpy(((SExprNode*)pScale)->userAlias, userAlias, sizeof(((SExprNode*)pScale)->userAlias));
-  pCell->pNode = pScale;
-  ((SSelectStmt*)pQuery)->precision = TMAX(((SSelectStmt*)pQuery)->precision, targetPrec);
+  SNode* pCast = NULL;
+  if (TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type && TSDB_DATA_TYPE_TIMESTAMP == pTargetType->type &&
+      pExpr->resType.precision != pTargetType->precision) {
+    PAR_ERR_RET(createTimestampScaleNode(pCell->pNode, pTargetType->precision, &pCast));
+  } else {
+    PAR_ERR_RET(createCastFunc(pCxt, pCell->pNode, *pTargetType, &pCast));
+  }
+  if (NULL == pCast) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  tstrncpy(((SExprNode*)pCast)->aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(((SExprNode*)pCast)->userAlias, pExpr->userAlias, TSDB_COL_NAME_LEN);
+  pCell->pNode = pCast;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pSetOperator) {
-  SNodeList* pLeftProjections = getProjectList(pSetOperator->pLeft);
-  SNodeList* pRightProjections = getProjectList(pSetOperator->pRight);
-  if (LIST_LENGTH(pLeftProjections) != LIST_LENGTH(pRightProjections)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCORRECT_NUM_OF_COL);
+  SNode* pBaseQuery = setOperatorChildAt(pSetOperator, 0);
+  if (NULL == pBaseQuery) return TSDB_CODE_PAR_INTERNAL_ERROR;
+  SNodeList* pBaseProjections = getProjectList(pBaseQuery);
+  if (NULL == pBaseProjections) return TSDB_CODE_PAR_INTERNAL_ERROR;
+  for (int32_t operand = 1; operand < setOperatorChildCount(pSetOperator); ++operand) {
+    SNode* pQuery = setOperatorChildAt(pSetOperator, operand);
+    if (NULL == pQuery) return TSDB_CODE_PAR_INTERNAL_ERROR;
+    SNodeList* pProjections = getProjectList(pQuery);
+    if (NULL == pProjections) return TSDB_CODE_PAR_INTERNAL_ERROR;
+    if (LIST_LENGTH(pBaseProjections) != LIST_LENGTH(pProjections)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCORRECT_NUM_OF_COL);
+    }
   }
 
-  SNode*  pLeft = NULL;
-  SNode*  pRight = NULL;
-  int32_t index = 0;
-  FORBOTH(pLeft, pLeftProjections, pRight, pRightProjections) {
-    SExprNode* pLeftExpr = (SExprNode*)pLeft;
-    SExprNode* pRightExpr = (SExprNode*)pRight;
-    ++index;
-    int32_t comp = dataTypeComp(&pLeftExpr->resType, &pRightExpr->resType);
-    if (pLeftExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
-        pRightExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
-        pLeftExpr->resType.precision != pRightExpr->resType.precision) {
-      int8_t targetPrec = (int8_t)TMAX(pLeftExpr->resType.precision, pRightExpr->resType.precision);
-
-      int32_t code = alignSetOperandTimestampPrecision(pSetOperator->pLeft, index - 1, targetPrec);
-      if (TSDB_CODE_SUCCESS != code) return code;
-      code = alignSetOperandTimestampPrecision(pSetOperator->pRight, index - 1, targetPrec);
-      if (TSDB_CODE_SUCCESS != code) return code;
-
-      pLeft = nodesListGetNode(pLeftProjections, index - 1);
-      pRight = nodesListGetNode(pRightProjections, index - 1);
-      pLeftExpr = (SExprNode*)pLeft;
-      pRightExpr = (SExprNode*)pRight;
-    } else if (comp > 0) {
-      SNode*  pRightFunc = NULL;
-      int32_t code = createCastFunc(pCxt, pRight, pLeftExpr->resType, &pRightFunc);
-      if (TSDB_CODE_SUCCESS != code || NULL == pRightFunc) {  // deal scan coverity
-        return code;
+  for (int32_t index = 0; index < LIST_LENGTH(pBaseProjections); ++index) {
+    SExprNode* pBaseExpr = (SExprNode*)nodesListGetNode(pBaseProjections, index);
+    if (NULL == pBaseExpr) return TSDB_CODE_PAR_INTERNAL_ERROR;
+    SDataType  targetType = pBaseExpr->resType;
+    // Resolve the final type before casting so later widening covers every operand.
+    for (int32_t operand = 1; operand < setOperatorChildCount(pSetOperator); ++operand) {
+      SExprNode* pExpr = (SExprNode*)nodesListGetNode(
+          getProjectList(setOperatorChildAt(pSetOperator, operand)), index);
+      if (NULL == pExpr) return TSDB_CODE_PAR_INTERNAL_ERROR;
+      int32_t comp = dataTypeComp(&targetType, &pExpr->resType);
+      if (comp < 0) {
+        targetType = pExpr->resType;
       }
-      REPLACE_LIST2_NODE(pRightFunc);
-      pRightExpr = (SExprNode*)pRightFunc;
-      code = pushdownCastForUnion(pCxt, pSetOperator->pRight, pRightExpr, index);
-      if (TSDB_CODE_SUCCESS != code) return code;
-    } else if (comp < 0) {
-      SNode*  pLeftFunc = NULL;
-      int32_t code = createCastFunc(pCxt, pLeft, pRightExpr->resType, &pLeftFunc);
-      if (TSDB_CODE_SUCCESS != code || NULL == pLeftFunc) {  // deal scan coverity
-        return code;
+      if (targetType.type == TSDB_DATA_TYPE_TIMESTAMP && pExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        targetType.precision = TMAX(targetType.precision, pExpr->resType.precision);
       }
-      REPLACE_LIST1_NODE(pLeftFunc);
-      SExprNode* pLeftFuncExpr = (SExprNode*)pLeftFunc;
-      snprintf(pLeftFuncExpr->aliasName, sizeof(pLeftFuncExpr->aliasName), "%s", pLeftExpr->aliasName);
-      snprintf(pLeftFuncExpr->userAlias, sizeof(pLeftFuncExpr->userAlias), "%s", pLeftExpr->userAlias);
-      pLeft = pLeftFunc;
-      pLeftExpr = pLeftFuncExpr;
-      code = pushdownCastForUnion(pCxt, pSetOperator->pLeft, pLeftExpr, index);
-      if (TSDB_CODE_SUCCESS != code) return code;
     }
-    snprintf(pRightExpr->aliasName, sizeof(pRightExpr->aliasName), "%s", pLeftExpr->aliasName);
-    SNode* pProj = createSetOperProject(pSetOperator->stmtName, pLeft);
-    bool   isLeftPrimTs = isPrimaryKeyImpl(pLeft);
-    bool   isRightPrimTs = isPrimaryKeyImpl(pRight);
 
-    if (isLeftPrimTs && isRightPrimTs) {
-      SColumnNode* pFCol = (SColumnNode*)pProj;
-      pFCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-      pFCol->isPrimTs = true;
+    for (int32_t operand = 0; operand < setOperatorChildCount(pSetOperator); ++operand) {
+      PAR_ERR_RET(castSetOperandColumn(pCxt, setOperatorChildAt(pSetOperator, operand), index, &targetType));
     }
-    if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList, pProj)) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+    pBaseExpr = (SExprNode*)nodesListGetNode(pBaseProjections, index);
+    pBaseExpr->resType = targetType;
+    bool allPrimaryTs = isPrimaryKeyImpl((SNode*)pBaseExpr);
+    for (int32_t operand = 1; operand < setOperatorChildCount(pSetOperator); ++operand) {
+      SNodeList* pProjections = getProjectList(setOperatorChildAt(pSetOperator, operand));
+      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pProjections, index);
+      allPrimaryTs = allPrimaryTs && isPrimaryKeyImpl((SNode*)pExpr);
+      tstrncpy(pExpr->aliasName, pBaseExpr->aliasName, TSDB_COL_NAME_LEN);
+      if (!isPrimaryKeyImpl((SNode*)pExpr)) {
+        if ('\0' != pBaseExpr->userAlias[0]) {
+          tstrncpy(pExpr->userAlias, pBaseExpr->userAlias, TSDB_COL_NAME_LEN);
+        } else {
+          tstrncpy(pExpr->userAlias, pBaseExpr->aliasName, TSDB_COL_NAME_LEN);
+        }
+      }
+    }
+    SNode* pProj = createSetOperProject(pSetOperator->stmtName, (SNode*)pBaseExpr);
+    if (NULL == pProj) return TSDB_CODE_OUT_OF_MEMORY;
+    int32_t code = nodesListMakeAppend(&pSetOperator->pProjectionList, pProj);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pProj);
+      return code;
+    }
+    if (allPrimaryTs) {
+      SColumnNode* pCol = (SColumnNode*)pProj;
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->isPrimTs = true;
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -19531,15 +19481,14 @@ static uint8_t getSetOperatorProjectionPrecision(SNode* pStmt, uint8_t fallback)
 }
 
 static uint8_t calcSetOperatorPrecision(SSetOperator* pSetOperator) {
-  uint8_t lp = getStmtPrecision(pSetOperator->pLeft);
-  uint8_t rp = getStmtPrecision(pSetOperator->pRight);
-  if (!queryHasExternalTable((SNode*)pSetOperator)) {
-    return TMAX(lp, rp);
+  uint8_t precision = 0;
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOperator); ++i) {
+    SNode* pOperand = setOperatorChildAt(pSetOperator, i);
+    uint8_t value = getStmtPrecision(pOperand);
+    if (queryHasExternalTable(pOperand)) value = getSetOperatorProjectionPrecision(pOperand, value);
+    precision = TMAX(precision, value);
   }
-
-  lp = getSetOperatorProjectionPrecision(pSetOperator->pLeft, lp);
-  rp = getSetOperatorProjectionPrecision(pSetOperator->pRight, rp);
-  return TMAX(lp, rp);
+  return precision;
 }
 
 static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pSetOperator) {
@@ -19601,26 +19550,27 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
 
   bool    hasTrows = false;
   int32_t code = TSDB_CODE_SUCCESS;
-  PAR_ERR_RET(translateQuery(pCxt, pSetOperator->pLeft));
-
-  if (inStreamCalcClause(pCxt)) {
-    hasTrows = BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
-    BIT_FLAG_UNSET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
-  }
-
-  PAR_ERR_RET(resetHighLevelTranslateNamespace(pCxt));
-  PAR_ERR_RET(translateQuery(pCxt, pSetOperator->pRight));
-
-  if (inStreamCalcClause(pCxt) && hasTrows) {
-    if (BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS)) {
-      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
-                                          "%%%%trows cannot appear multiple times in a union query"));
-    } else {
-      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOperator); ++i) {
+    PAR_ERR_RET(translateQuery(pCxt, setOperatorChildAt(pSetOperator, i)));
+    if (inStreamCalcClause(pCxt)) {
+      bool operandHasTrows = BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
+      if (operandHasTrows && hasTrows) {
+        PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
+                                            "%%%%trows cannot appear multiple times in a union query"));
+      }
+      hasTrows = hasTrows || operandHasTrows;
+      BIT_FLAG_UNSET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
     }
+    if (i + 1 < setOperatorChildCount(pSetOperator)) PAR_ERR_RET(resetHighLevelTranslateNamespace(pCxt));
+  }
+  if (inStreamCalcClause(pCxt) && hasTrows) {
+    BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
   }
 
-  pSetOperator->joinContains = getBothJoinContais(pSetOperator->pLeft, pSetOperator->pRight);
+  pSetOperator->joinContains = false;
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOperator); ++i) {
+    pSetOperator->joinContains = pSetOperator->joinContains || getBothJoinContais(setOperatorChildAt(pSetOperator, i), NULL);
+  }
   pSetOperator->precision = calcSetOperatorPrecision(pSetOperator);
 
   PAR_ERR_RET(translateSetOperProject(pCxt, pSetOperator));
@@ -25429,8 +25379,8 @@ static void rebindStreamTimeQuery(SNode* pNode, STranslateContext* pCxt) {
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
     SSetOperator* pSet = (SSetOperator*)pNode;
     nodesWalkExprs(pSet->pProjectionList, rebindStreamTimeNode, pCxt);
-    rebindStreamTimeQuery(pSet->pLeft, pCxt);
-    rebindStreamTimeQuery(pSet->pRight, pCxt);
+    for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i)
+      rebindStreamTimeQuery(setOperatorChildAt(pSet, i), pCxt);
     nodesWalkExprs(pSet->pOrderByList, rebindStreamTimeNode, pCxt);
     nodesWalkExpr(pSet->pLimit, rebindStreamTimeNode, pCxt);
     SNode* pSubquery = NULL;
@@ -33924,8 +33874,8 @@ void updateContextFromSubQ(STranslateContext* pCxt, SNode* pNode, STranslateCont
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSet = (SSetOperator*)pNode;
-      updateContextFromSubQ(pCxt, pSet->pLeft, NULL);
-      updateContextFromSubQ(pCxt, pSet->pRight, NULL);
+      for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i)
+        updateContextFromSubQ(pCxt, setOperatorChildAt(pSet, i), NULL);
       break;
     }
     default:

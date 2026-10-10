@@ -1041,6 +1041,8 @@ typedef struct SSetOperator {
   EQuantifyType    quantify;
   SNodeList*       pSubQueries;   // non table subqueries
   SNodeList*       pProjectionList;
+  // Flattened operands for a consecutive chain using this node's opType.
+  SNodeList*       pOperands;
   SNode*           pLeft;
   SNode*           pRight;
   SNodeList*       pOrderByList;  // SOrderByExprNode
@@ -1054,6 +1056,20 @@ typedef struct SSetOperator {
   // statement of a subquery expression.  See SSelectStmt.pOrigSubquerySql.
   char*            pOrigSubquerySql;
 } SSetOperator;
+
+static inline int32_t setOperatorChildCount(const SSetOperator* pSet) {
+  if (pSet == NULL) return 0;
+  if (pSet->pOperands != NULL) return pSet->pOperands->length;
+  return (pSet->pLeft != NULL ? 1 : 0) + (pSet->pRight != NULL ? 1 : 0);
+}
+
+static inline SNode* setOperatorChildAt(const SSetOperator* pSet, int32_t index) {
+  if (pSet == NULL || index < 0) return NULL;
+  if (pSet->pOperands != NULL) return nodesListGetNode(pSet->pOperands, index);
+  if (index == 0) return pSet->pLeft;
+  if (index == 1) return pSet->pRight;
+  return NULL;
+}
 
 typedef enum ESqlClause {
   SQL_CLAUSE_FROM = 1,

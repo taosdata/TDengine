@@ -514,9 +514,15 @@ static bool isEmptyResultQuery(SNode* pStmt) {
       break;
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOp = (SSetOperator*)pStmt;
-      isEmptyResult = isEmptyResultQuery(pSetOp->pLeft);
-      if (isEmptyResult) {
-        isEmptyResult = isEmptyResultQuery(pSetOp->pRight);
+      int32_t childCount = setOperatorChildCount(pSetOp);
+      if (childCount > 0) {
+        isEmptyResult = true;
+        for (int32_t i = 0; i < childCount; ++i) {
+          if (!isEmptyResultQuery(setOperatorChildAt(pSetOp, i))) {
+            isEmptyResult = false;
+            break;
+          }
+        }
       }
       break;
     }
@@ -598,15 +604,15 @@ static SNodeList* getChildProjection(SNode* pStmt) {
 }
 
 static void eraseSetOpChildProjection(SSetOperator* pSetOp, int32_t index) {
-  SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
-  (void)nodesListErase(pLeftProjs, nodesListGetCell(pLeftProjs, index));
-  if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pLeft)) {
-    eraseSetOpChildProjection((SSetOperator*)pSetOp->pLeft, index);
-  }
-  SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
-  (void)nodesListErase(pRightProjs, nodesListGetCell(pRightProjs, index));
-  if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pRight)) {
-    eraseSetOpChildProjection((SSetOperator*)pSetOp->pRight, index);
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i) {
+    SNode* pOperand = setOperatorChildAt(pSetOp, i);
+    SNodeList* pProjs = getChildProjection(pOperand);
+    if (pProjs == NULL) continue;
+    SListCell* pCell = nodesListGetCell(pProjs, index);
+    if (pCell != NULL) (void)nodesListErase(pProjs, pCell);
+    if (QUERY_NODE_SET_OPERATOR == nodeType(pOperand)) {
+      eraseSetOpChildProjection((SSetOperator*)pOperand, index);
+    }
   }
 }
 
@@ -668,8 +674,10 @@ static bool isSubqueryProjUseless(SNode* pStmt, int32_t index) {
       if (pSetOp->opType == SET_OP_TYPE_UNION) {
         return false;
       }
-      return isSubqueryProjUseless(pSetOp->pLeft, index) &&
-             isSubqueryProjUseless(pSetOp->pRight, index);
+      for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i) {
+        if (!isSubqueryProjUseless(setOperatorChildAt(pSetOp, i), index)) return false;
+      }
+      return true;
     }
     default:
       break;
@@ -682,8 +690,10 @@ static bool isSetUselessCol(SSetOperator* pSetOp, int32_t index, SExprNode* pPro
     return false;
   }
 
-  return isSubqueryProjUseless(pSetOp->pLeft, index) &&
-         isSubqueryProjUseless(pSetOp->pRight, index);
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i) {
+    if (!isSubqueryProjUseless(setOperatorChildAt(pSetOp, i), index)) return false;
+  }
+  return true;
 }
 
 static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
@@ -718,11 +728,8 @@ static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* 
 
 static int32_t calcConstSetOperator(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
   int32_t code = calcConstSetOpProjections(pCxt, pSetOp, subquery);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstQuery(pCxt, pSetOp->pLeft, false);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstQuery(pCxt, pSetOp->pRight, false);
+  for (int32_t i = 0; TSDB_CODE_SUCCESS == code && i < setOperatorChildCount(pSetOp); ++i) {
+    code = calcConstQuery(pCxt, setOperatorChildAt(pSetOp, i), false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstList(pSetOp->pOrderByList);
@@ -759,17 +766,11 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
   return code;
 }
 
-
-static void replaceSetOpWithChild(SNode** ppStmt, SSetOperator* pSetOp, bool keepLeft) {
-  SNode* pKeep = keepLeft ? pSetOp->pLeft : pSetOp->pRight;
-  SNode* pDrop = keepLeft ? pSetOp->pRight : pSetOp->pLeft;
-
+static void replaceSetOpWithChild(SNode** ppStmt, SSetOperator* pSetOp, SNode* pKeep, SNode* pDrop) {
   SNode* pKeepProj = NULL;
   SNode* pSetOpProj = NULL;
   FORBOTH(pKeepProj, getChildProjection(pKeep), pSetOpProj, pSetOp->pProjectionList) {
-    SExprNode* pKeepExpr = (SExprNode*)pKeepProj;
-    SExprNode* pSetOpExpr = (SExprNode*)pSetOpProj;
-    tstrncpy(pKeepExpr->aliasName, pSetOpExpr->aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(((SExprNode*)pKeepProj)->aliasName, ((SExprNode*)pSetOpProj)->aliasName, TSDB_COL_NAME_LEN);
   }
 
   // Outer column references must retain the set operator's output namespace.
@@ -779,15 +780,24 @@ static void replaceSetOpWithChild(SNode** ppStmt, SSetOperator* pSetOp, bool kee
     tstrncpy(((SSetOperator*)pKeep)->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
   }
 
-  pSetOp->pLeft = NULL;
-  pSetOp->pRight = NULL;
-  nodesDestroyNode(pDrop);
+  if (pSetOp->pOperands != NULL) {
+    SListCell* pKeepCell = nodesListGetCell(pSetOp->pOperands, 0);
+    if (pKeepCell != NULL) pKeepCell->pNode = NULL;
+  } else {
+    if (pSetOp->pLeft == pKeep) pSetOp->pLeft = NULL;
+    if (pSetOp->pRight == pKeep) pSetOp->pRight = NULL;
+    if (pSetOp->pLeft == pDrop) pSetOp->pLeft = NULL;
+    if (pSetOp->pRight == pDrop) pSetOp->pRight = NULL;
+  }
+  if (pDrop != NULL) nodesDestroyNode(pDrop);
+  nodesDestroyList(pSetOp->pOperands);
+  pSetOp->pOperands = NULL;
   nodesDestroyList(pSetOp->pProjectionList);
   pSetOp->pProjectionList = NULL;
   nodesDestroyNode((SNode*)pSetOp);
-
   *ppStmt = pKeep;
 }
+
 
 static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt);
 
@@ -836,9 +846,17 @@ static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt) {
   }
 
   SSetOperator* pSetOp = (SSetOperator*)*ppStmt;
-  int32_t       code = pruneEmptyUnionAllBranches(&pSetOp->pLeft);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = pruneEmptyUnionAllBranches(&pSetOp->pRight);
+  int32_t       code = TSDB_CODE_SUCCESS;
+  if (pSetOp->pOperands != NULL) {
+    for (SListCell* pCell = pSetOp->pOperands->pHead; TSDB_CODE_SUCCESS == code && pCell != NULL;
+         pCell = pCell->pNext) {
+      code = pruneEmptyUnionAllBranches(&pCell->pNode);
+    }
+  } else {
+    code = pruneEmptyUnionAllBranches(&pSetOp->pLeft);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = pruneEmptyUnionAllBranches(&pSetOp->pRight);
+    }
   }
   if (TSDB_CODE_SUCCESS == code && pSetOp->pSubQueries) {
     code = pruneEmptyUnionAllBranchesInList(pSetOp->pSubQueries);
@@ -851,13 +869,37 @@ static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt) {
     return TSDB_CODE_SUCCESS;
   }
 
-  bool leftEmpty = isEmptyResultQuery(pSetOp->pLeft);
-  bool rightEmpty = isEmptyResultQuery(pSetOp->pRight);
-  if (leftEmpty == rightEmpty) {
-    return TSDB_CODE_SUCCESS;
+  bool hasNonEmptyOperand = false;
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i) {
+    if (!isEmptyResultQuery(setOperatorChildAt(pSetOp, i))) {
+      hasNonEmptyOperand = true;
+      break;
+    }
   }
+  // Keep an all-empty UNION ALL intact so it continues to carry the output
+  // projection/type metadata; removing every operand would create an invalid
+  // zero-child set operator.
+  if (!hasNonEmptyOperand) return TSDB_CODE_SUCCESS;
 
-  replaceSetOpWithChild(ppStmt, pSetOp, !leftEmpty);
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOp);) {
+    if (isEmptyResultQuery(setOperatorChildAt(pSetOp, i))) {
+      if (pSetOp->pOperands == NULL) break;
+      nodesListErase(pSetOp->pOperands, nodesListGetCell(pSetOp->pOperands, i));
+    } else {
+      ++i;
+    }
+  }
+  if (setOperatorChildCount(pSetOp) == 1 && pSetOp->pOperands != NULL) {
+    SNode* pKeep = setOperatorChildAt(pSetOp, 0);
+    replaceSetOpWithChild(ppStmt, pSetOp, pKeep, NULL);
+  } else if (pSetOp->pOperands == NULL) {
+    bool leftEmpty = isEmptyResultQuery(pSetOp->pLeft);
+    bool rightEmpty = isEmptyResultQuery(pSetOp->pRight);
+    if (leftEmpty != rightEmpty) {
+      replaceSetOpWithChild(ppStmt, pSetOp, leftEmpty ? pSetOp->pRight : pSetOp->pLeft,
+                            leftEmpty ? pSetOp->pLeft : pSetOp->pRight);
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -883,10 +925,8 @@ static void resetProjectNullType(SNode* pStmt) {
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOp = (SSetOperator*)pStmt;
       resetProjectNullTypeImpl(pSetOp->pProjectionList);
-      if (pSetOp->pLeft)
-        resetProjectNullType(pSetOp->pLeft);
-      if (pSetOp->pRight)
-        resetProjectNullType(pSetOp->pRight);
+      for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i)
+        resetProjectNullType(setOperatorChildAt(pSetOp, i));
       break;
     }
     default:
