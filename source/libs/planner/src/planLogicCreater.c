@@ -10079,19 +10079,12 @@ static int32_t createSetOpLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetO
       break;
   }
 
-  SLogicNode* pLeft = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createQueryLogicNode(pCxt, pSetOperator->pLeft, &pLeft);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pSetOp->pChildren, (SNode*)pLeft);
-  }
-  SLogicNode* pRight = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createQueryLogicNode(pCxt, pSetOperator->pRight, &pRight);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListStrictAppend(pSetOp->pChildren, (SNode*)pRight);
+  for (int32_t i = 0; TSDB_CODE_SUCCESS == code && i < setOperatorChildCount(pSetOperator); ++i) {
+    SLogicNode* pChild = NULL;
+    code = createQueryLogicNode(pCxt, setOperatorChildAt(pSetOperator, i), &pChild);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pSetOp->pChildren, (SNode*)pChild);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {

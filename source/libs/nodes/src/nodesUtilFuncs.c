@@ -2205,6 +2205,7 @@ void nodesDestroyNode(SNode* pNode) {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pSubQueries);
       nodesDestroyList(pStmt->pProjectionList);
+      nodesDestroyList(pStmt->pOperands);
       nodesDestroyNode(pStmt->pLeft);
       nodesDestroyNode(pStmt->pRight);
       nodesDestroyList(pStmt->pOrderByList);

@@ -806,8 +806,8 @@ static void rewriteQueryExprAlias(SNode* pRoot, int32_t* pNo) {
       break;
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOper = (SSetOperator*)pRoot;
-      rewriteQueryExprAlias(pSetOper->pLeft, pNo);
-      rewriteQueryExprAlias(pSetOper->pRight, pNo);
+      for (int32_t i = 0; i < setOperatorChildCount(pSetOper); ++i)
+        rewriteQueryExprAlias(setOperatorChildAt(pSetOper, i), pNo);
       break;
     }
     default:

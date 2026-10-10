@@ -493,9 +493,9 @@ static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t authSetOperator(SAuthCxt* pCxt, SSetOperator* pSetOper) {
-  int32_t code = authQuery(pCxt, pSetOper->pLeft);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = authQuery(pCxt, pSetOper->pRight);
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOper) && TSDB_CODE_SUCCESS == code; ++i) {
+    code = authQuery(pCxt, setOperatorChildAt(pSetOper, i));
   }
   return code;
 }

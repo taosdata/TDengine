@@ -4273,8 +4273,8 @@ static void stmt2RestoreQueryContext(SNode* pRoot, SStmt2QueryContext* pCxt) {
       SSetOperator* pSetOper = (SSetOperator*)pRoot;
       nodesWalkExprs(pSetOper->pProjectionList, stmt2RestoreNodeContext, pCxt);
       nodesWalkExprs(pSetOper->pOrderByList, stmt2RestoreNodeContext, pCxt);
-      stmt2RestoreQueryContext(pSetOper->pLeft, pCxt);
-      stmt2RestoreQueryContext(pSetOper->pRight, pCxt);
+      for (int32_t i = 0; i < setOperatorChildCount(pSetOper); ++i)
+        stmt2RestoreQueryContext(setOperatorChildAt(pSetOper, i), pCxt);
       break;
     }
     default:
