@@ -70,7 +70,8 @@ endif()
 # endif(${BUILD_TEST})
 
 if(BUILD_TEST AND TD_LINUX)
-  add_executable(transportTest test/transportTests.cpp test/transportHeartbeatHarness.c)
+  add_executable(transportTest test/transportTests.cpp test/transportHeartbeatHarness.c
+                 test/transSvrUserInfoHarness.c)
   DEP_ext_gtest(transportTest)
   target_include_directories(transportTest PRIVATE $<TARGET_PROPERTY:transport,INCLUDE_DIRECTORIES>)
   target_compile_definitions(transportTest PRIVATE $<TARGET_PROPERTY:transport,COMPILE_DEFINITIONS>)

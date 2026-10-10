@@ -420,3 +420,63 @@ TEST_F(AstraHeartbeatTest, OtherResponseKeepsContextFallback) {
   EXPECT_EQ(callbacks, 1);
 }
 #endif
+
+#ifndef TD_ASTRA_RPC
+/*
+ * TD-SEC-2026-001 regression tests.
+ *
+ * uvConnMayGetUserInfo() must reject any packet whose declared msgLen cannot
+ * hold the rpc head plus the attached user info (or token), so that the body
+ * length computation can never underflow into a giant unsigned value.
+ * testUvConnMayGetUserInfo() lives in the test-only transSvrUserInfoHarness.c
+ * translation unit (which includes transSvr.c) and drives the real check.
+ */
+extern "C" int32_t testUvConnMayGetUserInfo(int32_t msgLen, int8_t withUserInfo, int8_t isToken);
+
+class UserInfoSecurityTest : public ::testing::Test {
+ protected:
+  static constexpr int32_t kHead = (int32_t)sizeof(STransMsgHead);
+  static constexpr int32_t kUserOff = TSDB_UNI_LEN;  // sizeof(SSvrConn::user)
+  static constexpr int32_t kTokenOff = 128;          // sizeof(SSvrConn::identifier)
+};
+
+TEST_F(UserInfoSecurityTest, ShortBody_User_10bytes) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + 10, 1, 0), 0);
+}
+
+TEST_F(UserInfoSecurityTest, ShortBody_Token_10bytes) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + 10, 1, 1), 0);
+}
+
+TEST_F(UserInfoSecurityTest, ZeroBody_User) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead, 1, 0), 0);
+}
+
+TEST_F(UserInfoSecurityTest, BelowHead_User) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead - 1, 1, 0), 0);
+}
+
+TEST_F(UserInfoSecurityTest, OffByOne_User) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kUserOff - 1, 1, 0), 0);
+}
+
+TEST_F(UserInfoSecurityTest, OffByOne_Token) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kTokenOff - 1, 1, 1), 0);
+}
+
+TEST_F(UserInfoSecurityTest, ExactSize_User) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kUserOff, 1, 0), 1);
+}
+
+TEST_F(UserInfoSecurityTest, NormalPacket_User_WithPayload) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kUserOff + 64, 1, 0), 1);
+}
+
+TEST_F(UserInfoSecurityTest, NormalPacket_Token_WithPayload) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kTokenOff + 32, 1, 1), 1);
+}
+
+TEST_F(UserInfoSecurityTest, WithUserInfoNotSet) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + 1024, 0, 0), 0);
+}
+#endif
