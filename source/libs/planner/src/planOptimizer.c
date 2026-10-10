@@ -8557,6 +8557,7 @@ static int32_t lastSmaNotNullOptInspectPlan(SLogicNode* pNode, SLastSmaNotNullOp
       pCxt->pScan = pScan;
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       pCxt->valid = false;
       return TSDB_CODE_SUCCESS;
@@ -8596,7 +8597,9 @@ static bool lastSmaNotNullOptHasScanFilter(const SScanLogicNode* pScan) {
 }
 
 static bool lastSmaNotNullOptCanUseScan(const SScanLogicNode* pScan) {
-  if (NULL == pScan) {
+  // Source scans retain these markers after virtual scan elimination or rewrite.
+  if (NULL == pScan || pScan->virtualStableScan ||
+      OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_ELIMINATE_VSCAN)) {
     return false;
   }
 
