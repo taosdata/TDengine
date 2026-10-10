@@ -15,7 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <array>
+#include <memory>
+
 #include "mockCatalog.h"  // mockChkColRefByPrivCode: drive the stubbed RESTRICT verdict
+#include "parInt.h"
 #include "parTestUtil.h"
 
 using namespace std;
@@ -72,6 +76,58 @@ TEST_F(ParserInitialATest, alterAccount) {
  * ALTER DNODE dnode_id 'config' ['value']
  * ALTER ALL DNODES 'config' ['value']
  */
+TEST_F(ParserInitialATest, alterDnodeTimezoneValidatedByServer) {
+  // Error-code-only responses and logs must not expose format placeholders.
+  EXPECT_STREQ(tstrerror(TSDB_CODE_PAR_INVALID_TIMEZONE), "Invalid timezone");
+  struct TestCase {
+    const char* sql;
+    int32_t dnodeId;
+    const char* config;
+    const char* value;
+  };
+  const array<TestCase, 8> cases = {{
+      {"ALTER ALL DNODES 'timezone' 'UTF-8'", -1, "timezone", "UTF-8"},
+      {"ALTER ALL DNODES 'timezone UTF-8'", -1, "timezone UTF-8", ""},
+      {"ALTER DNODE 1 'timezone' 'UTF-8'", 1, "timezone", "UTF-8"},
+      {"ALTER ALL DNODES 'TIMEZONE' 'UTF-8'", -1, "TIMEZONE", "UTF-8"},
+      {"ALTER ALL DNODES 'timezone' 'Europe/Kyiv'", -1,
+       "timezone", "Europe/Kyiv"},
+      {"ALTER ALL DNODES 'timezone Europe/Kyiv'", -1,
+       "timezone Europe/Kyiv", ""},
+      {"ALTER ALL DNODES 'timezone' 'America/Nuuk'", -1,
+       "timezone", "America/Nuuk"},
+      {"ALTER ALL DNODES 'timezone America/Nuuk'", -1,
+       "timezone America/Nuuk", ""},
+  }};
+  for (const auto& testCase : cases) {
+    const char* sql = testCase.sql;
+    array<char, 1024> message = {0};
+    SParseContext context = {0};
+    context.acctId = 0;
+    context.db = "test";
+    context.pUser = "root";
+    context.pSql = sql;
+    context.sqlLen = strlen(sql);
+    context.pMsg = message.data();
+    context.msgLen = message.size();
+    SQuery* query = nullptr;
+    ASSERT_EQ(parse(&context, &query), TSDB_CODE_SUCCESS) << sql;
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> guard(query, qDestroyQuery);
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(translate(&context, query, nullptr), TSDB_CODE_SUCCESS) << sql;
+    ASSERT_NE(query->pCmdMsg, nullptr) << sql;
+    EXPECT_EQ(query->pCmdMsg->msgType, TDMT_MND_CONFIG_DNODE) << sql;
+    SMCfgDnodeReq req = {0};
+    ASSERT_EQ(tDeserializeSMCfgDnodeReq(query->pCmdMsg->pMsg,
+                                        query->pCmdMsg->msgLen, &req),
+              TSDB_CODE_SUCCESS) << sql;
+    EXPECT_EQ(req.dnodeId, testCase.dnodeId) << sql;
+    EXPECT_STREQ(req.config, testCase.config) << sql;
+    EXPECT_STREQ(req.value, testCase.value) << sql;
+    tFreeSMCfgDnodeReq(&req);
+  }
+}
+
 TEST_F(ParserInitialATest, alterDnode) {
   useDb("root", "test");
 
@@ -112,6 +168,14 @@ TEST_F(ParserInitialATest, alterDnode) {
 
   setCfgDnodeReq(-1, "qDebugflag", "135");
   run("ALTER ALL DNODES 'qDebugflag' '135'");
+  clearCfgDnodeReq();
+
+  setCfgDnodeReq(-1, "timezone", "UTC");
+  run("ALTER ALL DNODES 'timezone' 'UTC'");
+  clearCfgDnodeReq();
+
+  setCfgDnodeReq(-1, "timezone UTC");
+  run("ALTER ALL DNODES 'timezone UTC'");
   clearCfgDnodeReq();
 }
 
