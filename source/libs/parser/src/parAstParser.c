@@ -581,9 +581,9 @@ static int32_t collectMetaKeyFromExprs(SCollectMetaKeyCxt* pCxt, SNodeList* pLis
 }
 
 static int32_t collectMetaKeyFromSetOperator(SCollectMetaKeyCxt* pCxt, SSetOperator* pStmt) {
-  int32_t code = collectMetaKeyFromQuery(pCxt, pStmt->pLeft);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectMetaKeyFromQuery(pCxt, pStmt->pRight);
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < setOperatorChildCount(pStmt) && TSDB_CODE_SUCCESS == code; ++i) {
+    code = collectMetaKeyFromQuery(pCxt, setOperatorChildAt(pStmt, i));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromExprs(pCxt, pStmt->pOrderByList);

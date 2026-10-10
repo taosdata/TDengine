@@ -2106,6 +2106,7 @@ static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
   COPY_SCALAR_FIELD(quantify);
   CLONE_NODE_LIST_FIELD(pSubQueries);
   CLONE_NODE_LIST_FIELD(pProjectionList);
+  CLONE_NODE_LIST_FIELD(pOperands);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
   CLONE_NODE_LIST_FIELD(pOrderByList);
@@ -2319,8 +2320,8 @@ static void rebindStreamCreateTimeQuery(SNode* pNode, SStreamCreateTimeInfo* pIn
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
     SSetOperator* pSet = (SSetOperator*)pNode;
     nodesWalkExprs(pSet->pProjectionList, rebindStreamCreateTimeNode, pInfo);
-    rebindStreamCreateTimeQuery(pSet->pLeft, pInfo);
-    rebindStreamCreateTimeQuery(pSet->pRight, pInfo);
+    for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i)
+      rebindStreamCreateTimeQuery(setOperatorChildAt(pSet, i), pInfo);
     nodesWalkExprs(pSet->pOrderByList, rebindStreamCreateTimeNode, pInfo);
     nodesWalkExpr(pSet->pLimit, rebindStreamCreateTimeNode, pInfo);
     SNode* pSubquery = NULL;

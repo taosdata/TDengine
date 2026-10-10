@@ -139,8 +139,9 @@ static void planWalkQueryCorrelationExprs(SNode* pQuery, FNodeWalker walker, voi
     SSetOperator* pSet = (SSetOperator*)pQuery;
     nodesWalkExprs(pSet->pProjectionList, walker, pContext);
     nodesWalkExprs(pSet->pOrderByList, walker, pContext);
-    planWalkQueryCorrelationExprs(pSet->pLeft, walker, pContext);
-    planWalkQueryCorrelationExprs(pSet->pRight, walker, pContext);
+    for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i) {
+      planWalkQueryCorrelationExprs(setOperatorChildAt(pSet, i), walker, pContext);
+    }
     return;
   }
   if (QUERY_NODE_SELECT_STMT != nodeType(pQuery)) {
@@ -298,8 +299,9 @@ static void planParamizeQueryOuterRefs(SNode* pQuery, SPlanParamizeContext* pCxt
     SSetOperator* pSet = (SSetOperator*)pQuery;
     nodesRewriteExprs(pSet->pProjectionList, planReplaceOuterRefWithParam, pCxt);
     nodesRewriteExprs(pSet->pOrderByList, planReplaceOuterRefWithParam, pCxt);
-    planParamizeQueryOuterRefs(pSet->pLeft, pCxt);
-    planParamizeQueryOuterRefs(pSet->pRight, pCxt);
+    for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i) {
+      planParamizeQueryOuterRefs(setOperatorChildAt(pSet, i), pCxt);
+    }
     return;
   }
   if (QUERY_NODE_SELECT_STMT != nodeType(pQuery)) {

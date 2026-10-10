@@ -3315,13 +3315,53 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&setOp);
   CHECK_MAKE_NODE(setOp);
   setOp->opType = type;
-  setOp->pLeft = pLeft;
-  setSubquery(setOp->pLeft);
-  setOp->pRight = pRight;
-  setSubquery(setOp->pRight);
+  bool flatten = QUERY_NODE_SET_OPERATOR == nodeType(pLeft) &&
+                 NULL == ((SSetOperator*)pLeft)->pOrigSubquerySql &&
+                 NULL == ((SSetOperator*)pLeft)->pOrderByList &&
+                 NULL == ((SSetOperator*)pLeft)->pLimit &&
+                 ((SSetOperator*)pLeft)->opType == type;
+  bool preserveTree = QUERY_NODE_SET_OPERATOR == nodeType(pLeft) && !flatten;
+  if (flatten) {
+    SSetOperator* pPrev = (SSetOperator*)pLeft;
+    setOp->pOperands = pPrev->pOperands;
+    pPrev->pOperands = NULL;
+    if (setOp->pOperands == NULL) {
+      pCxt->errCode = nodesListMakeStrictAppend(&setOp->pOperands, pPrev->pLeft);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) goto _err;
+      pPrev->pLeft = NULL;
+      pCxt->errCode = nodesListStrictAppend(setOp->pOperands, pPrev->pRight);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) goto _err;
+      pPrev->pRight = NULL;
+    }
+    setSubquery(pRight);
+    pCxt->errCode = nodesListStrictAppend(setOp->pOperands, pRight);
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      pRight = NULL;
+      goto _err;
+    }
+    pRight = NULL;
+    nodesDestroyNode(pLeft);
+  } else if (preserveTree) {
+    setOp->pLeft = pLeft;
+    setSubquery(setOp->pLeft);
+    setOp->pRight = pRight;
+    setSubquery(setOp->pRight);
+    pLeft = NULL;
+    pRight = NULL;
+  } else {
+    pCxt->errCode = nodesListMakeStrictAppend(&setOp->pOperands, pLeft);
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) goto _err;
+    pLeft = NULL;
+    setSubquery(nodesListGetNode(setOp->pOperands, 0));
+    setSubquery(pRight);
+    pCxt->errCode = nodesListStrictAppend(setOp->pOperands, pRight);
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) goto _err;
+    pRight = NULL;
+  }
   snprintf(setOp->stmtName, TSDB_TABLE_NAME_LEN, "%p", setOp);
   return (SNode*)setOp;
 _err:
+  nodesDestroyNode((SNode*)setOp);
   nodesDestroyNode(pLeft);
   nodesDestroyNode(pRight);
   return NULL;

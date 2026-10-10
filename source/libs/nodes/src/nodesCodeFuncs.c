@@ -10580,6 +10580,7 @@ static int32_t jsonToDataBlockDescNode(const SJson* pJson, void* pObj) {
 
 static const char* jkSetOperatorOpType = "OpType";
 static const char* jkSetOperatorProjections = "Projections";
+static const char* jkSetOperatorOperands = "Operands";
 static const char* jkSetOperatorLeft = "Left";
 static const char* jkSetOperatorRight = "Right";
 static const char* jkSetOperatorOrderByList = "OrderByList";
@@ -10591,6 +10592,9 @@ static int32_t setOperatorToJson(const void* pObj, SJson* pJson) {
   int32_t code = tjsonAddIntegerToObject(pJson, jkSetOperatorOpType, pNode->opType);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkSetOperatorProjections, pNode->pProjectionList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSetOperatorOperands, pNode->pOperands);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSetOperatorLeft, nodeToJson, pNode->pLeft);
@@ -10615,6 +10619,9 @@ static int32_t jsonToSetOperator(const SJson* pJson, void* pObj) {
   tjsonGetNumberValue(pJson, jkSetOperatorOpType, pNode->opType, code);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSetOperatorProjections, &pNode->pProjectionList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSetOperatorOperands, &pNode->pOperands);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSetOperatorLeft, &pNode->pLeft);
