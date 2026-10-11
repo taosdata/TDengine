@@ -506,7 +506,7 @@ curl -L 'http://localhost:6041/input_json/v1/rule1?dry_run=true' \
 
 ## 安装
 
-taosAdapter 是 TDengine 服务端软件的一部分，如果你使用 TDengine server 你不需要任何额外的步骤来安装 taosAdapter。你可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果你需要使用源代码编译生成 taosAdapter，你可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
+taosAdapter 是 TDengine 服务端软件的一部分，如果你使用 TDengine server 你不需要任何额外的步骤来安装 taosAdapter。你可以从 [涛思数据官方网站](https://www.taosdata.com/download-center?product=TDengine+TSDB-OSS) 下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果你需要使用源代码编译生成 taosAdapter，你可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/README.md) 文档。
 
 安装完成后使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。
 

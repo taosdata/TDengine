@@ -100,7 +100,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号严格对�
 
 - 异步查询示例：[异步查询](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/asyncdemo.c)
 
-- 参数绑定示例：[参数绑定](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/prepare.c)
+- 参数绑定示例：[参数绑定](https://github.com/taosdata/TDengine/blob/main/docs/examples/c/prepare.c)
 
 - 无模式写入示例：[无模式写入](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/schemaless.c)
 
@@ -608,7 +608,7 @@ stmt 升级到 stmt2 的改动：
 
 说明：如果 `taos_stmt_execute()` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt_prepare()` 的解析结果，直接进行第 3 ～ 6 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt_init()` 步骤重新开始。
 
-接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/docs/examples/c/prepare.c) 文件中使用对应函数的方式）：
+接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/main/docs/examples/c/prepare.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 
