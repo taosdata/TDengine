@@ -245,6 +245,11 @@ class BeforeTest:
             }]
         }
         dnode_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taos_config.yaml'))
+        # Apply the CI default before copying configs for nodes and case overrides.
+        ci_memory_reserve = os.environ.get("CI_MIN_RESERVED_MEMORY_MB")
+        if ci_memory_reserve is not None:
+            dnode_config_template["minReservedMemorySize"] = ci_memory_reserve
+            tdLog.info(f"CI dnode default: minReservedMemorySize={ci_memory_reserve} MB")
         adapter_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taosadapter_config.yaml'))
         taoskeeper_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taoskeeper_config.yaml'))
         servers = []

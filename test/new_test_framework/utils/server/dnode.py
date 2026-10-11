@@ -218,6 +218,10 @@ class TDDnode:
             self.cfg("privateIp", "192.168.0.%d" % (self.index))
         self.cfgDict["dataDir"] = self.dataDir
         self.cfgDict["logDir"] = self.logDir
+        # CI containers share host memory; use a fixed reserve before case overrides.
+        ci_memory_reserve = os.environ.get("CI_MIN_RESERVED_MEMORY_MB")
+        if ci_memory_reserve is not None:
+            self.cfgDict["minReservedMemorySize"] = ci_memory_reserve
         # self.cfg("dataDir",self.dataDir)
         # self.cfg("logDir",self.logDir)
         # print(updatecfgDict)
