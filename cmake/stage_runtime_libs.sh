@@ -226,6 +226,19 @@ should_skip_ldd_dep() {
       return 0
       ;;
   esac
+  # libselinux ships with the base OS and is linked by coreutils (find, mkdir,
+  # cp, ...).  On some build images the staged closure pulls it in (e.g. an
+  # RHEL-style libkrb5support needed by libmsodbcsql links it), and the copied
+  # build-machine build has no version symbols.  Shadowing the container's own
+  # copy through LD_LIBRARY_PATH then makes every one of those tools print
+  # "no version information available" on stderr — which breaks tests that
+  # parse merged tool output (12-UDFs locates UDF libraries with `find`).
+  # The host copy is always the right one, so never stage it.
+  case "${base}" in
+    libselinux.so*)
+      return 0
+      ;;
+  esac
   return 1
 }
 

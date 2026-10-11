@@ -7696,6 +7696,76 @@ static int32_t eliminateProjOptAlignExtScanOutputs(SProjectLogicNode* pProjectNo
     return code;
   }
 
+  // These clones still carry the inner source's table alias (normally the base
+  // table name).  When the project being eliminated is a derived table, the
+  // caller has just rewritten the scan columns to the derived alias
+  // (pProjectNode->stmtName) via eliminateProjOptRewriteScanTableAlias; since
+  // this alignment replaces those columns with the clones, the same rewrite must
+  // be applied here or qualified references from the outer query (a.id / b.id)
+  // can no longer bind to this scan by full key, and slot resolution silently
+  // falls back to a name-only match that may bind the other join child.
+  if (NULL != pProjectNode->node.pParent && '\0' != pProjectNode->stmtName[0]) {
+    RewriteTableAliasCxt cxt = {.newTableAlias = pProjectNode->stmtName, .rewriteColName = false};
+    nodesWalkExprs(pNewScanCols, eliminateProjOptRewriteScanTableAlias, &cxt);
+  }
+
+  // The scan's own WHERE still executes locally against the scan output, so any
+  // column a condition references must survive the alignment even when the
+  // project does not select it.  createExternalScanLogicNode collects those
+  // dependency columns for exactly this reason; dropping them here leaves the
+  // condition without a slot and planning fails with
+  // TSDB_CODE_PLAN_SLOT_NOT_FOUND ("Planner slot key not found").
+  if (NULL != pScan->node.pConditions) {
+    SNodeList* pCondCols = NULL;
+    code = nodesCollectColumnsFromNode(pScan->node.pConditions, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-eliminateProject: collect condition columns for external scan failed scan=%p code=0x%x", pScan,
+                code);
+      nodesDestroyList(pNewScanCols);
+      return code;
+    }
+
+    SNode* pCondCol = NULL;
+    FOREACH(pCondCol, pCondCols) {
+      if (QUERY_NODE_COLUMN != nodeType(pCondCol)) {
+        continue;
+      }
+
+      const SColumnNode* pCondColumn = (const SColumnNode*)pCondCol;
+      bool               exists = false;
+      SNode*             pScanCol = NULL;
+      FOREACH(pScanCol, pNewScanCols) {
+        if (QUERY_NODE_COLUMN != nodeType(pScanCol)) {
+          continue;
+        }
+        const SColumnNode* pCol = (const SColumnNode*)pScanCol;
+        if (0 == strcmp(pCol->colName, pCondColumn->colName) &&
+            0 == strcmp(pCol->tableAlias, pCondColumn->tableAlias)) {
+          exists = true;
+          break;
+        }
+      }
+
+      if (!exists) {
+        SNode* pClone = NULL;
+        code = nodesCloneNode(pCondCol, &pClone);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodesListMakeStrictAppend(&pNewScanCols, pClone);
+        }
+        if (TSDB_CODE_SUCCESS != code) {
+          planError("FQ-eliminateProject: append condition dependency column %s to external scan failed scan=%p code=0x%x",
+                    pCondColumn->colName, pScan, code);
+          nodesDestroyList(pCondCols);
+          nodesDestroyList(pNewScanCols);
+          return code;
+        }
+        planDebug("FQ-eliminateProject: kept condition dependency column %s for scan=%p", pCondColumn->colName,
+                  pScan);
+      }
+    }
+    nodesDestroyList(pCondCols);
+  }
+
   SNodeList* pNewTargets = NULL;
   code = createColumnByRewriteExprs(pNewScanCols, &pNewTargets);
   if (TSDB_CODE_SUCCESS != code) {
@@ -19217,6 +19287,8 @@ static int32_t fqAppendRemoteProjectScanCols(SProjectLogicNode* pRemoteProj, con
   return code;
 }
 
+static int32_t fqCloneScanAsLeaf(SScanLogicNode* pSrc, SScanLogicNode** ppLeaf);
+
 static int32_t fqBuildPartialRemoteProject(SScanLogicNode* pScan, SProjectLogicNode* pProj,
                                            const SExtSourceCapability* pCap,
                                            const SExtCapSessionOverlay* pOverlay,
@@ -19336,7 +19408,31 @@ static int32_t fqBuildPartialRemoteProject(SScanLogicNode* pScan, SProjectLogicN
         pScan->pRemoteLogicPlan = (SNode*)pRemoteProj;
       }
     } else {
-      pScan->pRemoteLogicPlan = (SNode*)pRemoteProj;
+      // No remote chain was committed for this scan (every clause demoted - the
+      // federated-query baseline mode).  The partial project still needs a FROM
+      // source, so build the same bare leaf scan the passthrough remote plan
+      // uses; attaching a child-less project makes the renderer fail with
+      // TSDB_CODE_EXT_SQL_RENDER_ERROR ("query group has no FROM source").
+      SScanLogicNode* pLeaf = NULL;
+      code = fqCloneScanAsLeaf(pScan, &pLeaf);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesMakeList(&pRemoteProj->node.pChildren);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pLeaf);
+        }
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesListStrictAppend(pRemoteProj->node.pChildren, (SNode*)pLeaf);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pLeaf);
+        } else {
+          pLeaf->node.pParent = (SLogicNode*)pRemoteProj;
+          planDebug("FQ-partialProject: attached bare leaf scan=%p under remote project=%p", pLeaf, pRemoteProj);
+        }
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        pScan->pRemoteLogicPlan = (SNode*)pRemoteProj;
+      }
     }
   }
 

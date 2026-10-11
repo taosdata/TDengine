@@ -7624,6 +7624,7 @@ static const char* jkColumnNumOfPKs = "NumOfPKs";
 static const char* jkColumnHasRef = "HasRef";
 static const char* jkColumnHasDep = "HasDep";
 static const char* jkColumnRefSource = "RefSource";
+static const char* jkColumnRefSchema = "RefSchema";
 static const char* jkColumnRefDb = "RefDb";
 static const char* jkColumnRefTable = "RefTable";
 static const char* jkColumnRefCol = "RefCol";
@@ -7683,6 +7684,11 @@ static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkColumnRefSource, pNode->refSourceName);
+  }
+  // Optional field: emitted only when set, so plans without a schema segment
+  // keep byte-identical JSON (DS 9.6.2: an absent key means the default).
+  if (TSDB_CODE_SUCCESS == code && pNode->refSchemaName[0] != '\0') {
+    code = tjsonAddStringToObject(pJson, jkColumnRefSchema, pNode->refSchemaName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkColumnRefDb, pNode->refDbName);
@@ -7753,6 +7759,14 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue1(pJson, jkColumnRefSource, pNode->refSourceName, sizeof(pNode->refSourceName));
+  }
+  // Optional field: old plans have no RefSchema key -> keep it empty.
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != tjsonGetObjectItem(pJson, jkColumnRefSchema)) {
+      code = tjsonGetStringValue1(pJson, jkColumnRefSchema, pNode->refSchemaName, sizeof(pNode->refSchemaName));
+    } else {
+      pNode->refSchemaName[0] = '\0';
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue1(pJson, jkColumnRefDb, pNode->refDbName, sizeof(pNode->refDbName));
@@ -10364,11 +10378,17 @@ static int32_t jsonToStreamNotifyOptions(const SJson* pJson, void* pObj) {
 static const char* jkColumnReferenceColumnName = "ColumnName";
 static const char* jkColumnReferenceRefDbName = "RefDbName";
 static const char* jkColumnReferenceRefTableName = "RefTableName";
+static const char* jkColumnReferenceRefSchemaName = "RefSchemaName";
 static const char* jkColumnReferenceRefColumnName = "RefColumnName";
 static const char* jkColumnReferenceFilterCond = "FilterCond";
 static int32_t     columnReferenceToJson(const void* pObj, SJson* pJson) {
   const SColumnRefNode* pNode = (const SColumnRefNode*)pObj;
   int32_t               code = tjsonAddStringToObject(pJson, jkColumnReferenceColumnName, pNode->colName);
+  // Optional field: emitted only when set, so plans without a schema segment
+  // keep byte-identical JSON (DS 9.6.2: an absent key means the default).
+  if (TSDB_CODE_SUCCESS == code && pNode->refSchemaName[0] != '\0') {
+    code = tjsonAddStringToObject(pJson, jkColumnReferenceRefSchemaName, pNode->refSchemaName);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkColumnReferenceRefDbName, pNode->refDbName);
   }
@@ -10388,6 +10408,15 @@ static int32_t jsonToColumnReference(const SJson* pJson, void* pObj) {
   SColumnRefNode* pNode = (SColumnRefNode*)pObj;
 
   int32_t code = tjsonGetStringValue1(pJson, jkColumnReferenceColumnName, pNode->colName, sizeof(pNode->colName));
+  // Optional field: old plans have no RefSchemaName key -> keep it empty.
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != tjsonGetObjectItem(pJson, jkColumnReferenceRefSchemaName)) {
+      code = tjsonGetStringValue1(pJson, jkColumnReferenceRefSchemaName, pNode->refSchemaName,
+                                  sizeof(pNode->refSchemaName));
+    } else {
+      pNode->refSchemaName[0] = '\0';
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue1(pJson, jkColumnReferenceRefDbName, pNode->refDbName, sizeof(pNode->refDbName));
   }

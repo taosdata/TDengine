@@ -84,12 +84,20 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
         exercise,
         trigger: str = "INTERVAL(1m) SLIDING(1m)",
     ):
-        remote_db = "ucctl_mdb"
+        # Per-source remote database (ucctl_mdb for MySQL, ucctl_sdb for SQL
+        # Server — _with_std_sources provisions both).
+        remote_db = f"ucctl_{src_name[-1]}db"
+        # SQL Server 3-segment refs carry the schema in the middle segment
+        # (database comes from the source default, DS §5.3.3).
+        ref_mid = "dbo" if src_name.endswith("_s") else remote_db
         stream = f"s_opt_{case_id}"
         sink = f"sink_opt_{case_id}"
-        ExtSrcEnv.mysql_exec_cfg(
-            self._mysql_cfg(), remote_db, ["DELETE FROM `src_t`"]
-        )
+        if src_name.endswith("_s"):
+            ExtSrcEnv.sqlserver_exec(remote_db, ["DELETE FROM dbo.src_t"])
+        else:
+            ExtSrcEnv.mysql_exec_cfg(
+                self._mysql_cfg(), remote_db, ["DELETE FROM `src_t`"]
+            )
         tdSql.execute(f"USE {self.DB}")
         tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
         tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -98,7 +106,7 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
         )
         sql = (
             f"CREATE STREAM {stream} {trigger} "
-            f"FROM {src_name}.{remote_db}.src_t "
+            f"FROM {src_name}.{ref_mid}.src_t "
             f"{option_clause}"
             f"INTO {self.DB}.{sink} AS "
             "SELECT cast(_twstart/1000 as timestamp) AS ts, "
@@ -172,14 +180,14 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
         ]
 
         def exercise(stream: str, sink: str, remote_db: str):
-            self._insert_rows("m", remote_db, normal_data, src_name)
+            self._insert_rows(src_name[-1], remote_db, normal_data, src_name)
             self._assert_sink_stays(sink, 1)
             tdLog.info(
                 f"{option_label} result: normal data produced one sink row"
             )
 
-            self._insert_rows("m", remote_db, old_data, src_name)
-            self._insert_rows("m", remote_db, fresh_data, src_name)
+            self._insert_rows(src_name[-1], remote_db, old_data, src_name)
+            self._insert_rows(src_name[-1], remote_db, fresh_data, src_name)
             wait_stream_window_closed(stream, self.DB, sink, 3, timeout=20)
             self._verify(stream, sink, expected, src_name)
             tdLog.info(
@@ -206,14 +214,14 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
         ]
 
         def exercise(stream: str, sink: str, remote_db: str):
-            self._insert_rows("m", remote_db, normal_data, src_name)
+            self._insert_rows(src_name[-1], remote_db, normal_data, src_name)
             self._assert_sink_stays(sink, 1)
             tdLog.info(
                 "DELETE_RECALC result: initial data produced one closed window"
             )
 
-            self._delete_rows("m", remote_db, base + 10_000, src_name)
-            self._insert_rows("m", remote_db, fresh_data, src_name)
+            self._delete_rows(src_name[-1], remote_db, base + 10_000, src_name)
+            self._insert_rows(src_name[-1], remote_db, fresh_data, src_name)
             wait_stream_window_closed(stream, self.DB, sink, 3, timeout=20)
             self._verify(stream, sink, expected, src_name)
             tdLog.info("DELETE_RECALC result: delete behavior verified, rows=3")
@@ -229,13 +237,13 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
         expected = [(self._ms_to_dt(base), 1, 102)]
 
         def exercise(stream: str, sink: str, remote_db: str):
-            self._insert_rows("m", remote_db, normal_data, src_name)
+            self._insert_rows(src_name[-1], remote_db, normal_data, src_name)
             self._assert_sink_stays(sink, 1)
             tdLog.info(
                 "DELETE_OUTPUT_TABLE result: initial data produced one sink row"
             )
 
-            self._drop_table("m", remote_db, src_name)
+            self._drop_table(src_name[-1], remote_db, src_name)
             time.sleep(5)
             wait_stream_window_closed(stream, self.DB, sink, 1, timeout=20)
             self._verify(stream, sink, expected, src_name)
@@ -296,6 +304,9 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
         def body(src_name: str):
             remote_db = f"{prefix}_{src_name[-1]}db"
+            # SQL Server 3-segment refs carry the schema in the middle segment
+            # (database comes from the source default, DS §5.3.3).
+            ref_mid = "dbo" if src_name.endswith("_s") else remote_db
             stream = f"s_{src_name}"
             sink = f"sink_{src_name}"
             option_clause = (
@@ -303,7 +314,7 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
             )
             sql = (
                 f"CREATE STREAM {stream} COUNT_WINDOW(1) "
-                f"FROM {src_name}.{remote_db}.src_t "
+                f"FROM {src_name}.{ref_mid}.src_t "
                 f"{option_clause}"
                 f"INTO {self.DB}.{sink} AS "
                 "SELECT cast(_twstart/1000 as timestamp) AS ts, "
@@ -320,7 +331,7 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 tdSql.execute(sql)
                 tdStream.checkStreamStatus(stream)
                 for batch_index, (rows, expected) in enumerate(batches, start=1):
-                    self._insert_rows("m", remote_db, rows, src_name)
+                    self._insert_rows(src_name[-1], remote_db, rows, src_name)
                     self._verify(stream, sink, expected, src_name)
                     tdLog.info(
                         f"{option_label} batch verified: "

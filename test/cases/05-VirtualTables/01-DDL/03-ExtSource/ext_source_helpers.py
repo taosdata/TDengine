@@ -75,6 +75,14 @@ def create_ext_source(name, src_type, database, schema="public"):
             f"HOST='{ExtSrcEnv.INFLUX_HOST}' PORT={ExtSrcEnv.INFLUX_PORT} "
             f"API_TOKEN='{token}' "
             f"DATABASE={database} OPTIONS('protocol'='flight_sql')")
+    elif src_type == "sqlserver":
+        # The shared default schema is PG's "public"; SQL Server's default is "dbo".
+        sqlserver_schema = "dbo" if schema in ("", None, "public") else schema
+        tdSql.execute(
+            f"CREATE EXTERNAL SOURCE {name} TYPE='{src_type}' "
+            f"HOST='{ExtSrcEnv.SQLSERVER_HOST}' PORT={ExtSrcEnv.SQLSERVER_PORT} "
+            f"USER='{ExtSrcEnv.SQLSERVER_USER}' PASSWORD='{ExtSrcEnv.SQLSERVER_PASS}' "
+            f"DATABASE={database} SCHEMA={sqlserver_schema}")
     else:
         raise ValueError(f"Unknown source type: {src_type}")
 
@@ -96,6 +104,8 @@ def create_remote_db(src_type, database):
         ExtSrcEnv.mysql_create_db(database)
     elif src_type == "influxdb":
         ExtSrcEnv.influx_create_db(database)
+    elif src_type == "sqlserver":
+        ExtSrcEnv.sqlserver_create_db(database)
     else:
         raise ValueError(f"Unknown source type: {src_type}")
 
@@ -142,6 +152,33 @@ def create_mysql_table(database, table, col_defs, rows=None):
     if rows:
         stmts.append(f"INSERT INTO {table} VALUES {', '.join(rows)}")
     ExtSrcEnv.mysql_exec(database, stmts)
+
+
+def create_sqlserver_table(database, table, col_defs, rows=None, schema="dbo"):
+    """Create (or replace) a SQL Server table and optionally insert rows.
+
+    Args:
+        database: SQL Server database name
+        table:    table name
+        col_defs: column definition string, e.g.
+                  "ts datetime2(3) NOT NULL PRIMARY KEY, v INT"
+        rows:     optional list of row value strings, e.g.
+                  ["('2024-01-01 00:00:00.000', 11)"]
+        schema:   SQL Server schema (default 'dbo')
+    """
+    stmts = []
+    if schema != "dbo":
+        # A non-default schema must exist before the table can be created in it.
+        stmts.append(
+            f"IF SCHEMA_ID('{schema}') IS NULL EXEC('CREATE SCHEMA {schema}')")
+    stmts.extend([
+        f"IF OBJECT_ID('{schema}.{table}') IS NOT NULL DROP TABLE {schema}.{table}",
+        f"CREATE TABLE {schema}.{table} ({col_defs})",
+    ])
+    if rows:
+        stmts.append(
+            f"INSERT INTO {schema}.{table} VALUES {', '.join(rows)}")
+    ExtSrcEnv.sqlserver_exec(database, stmts)
 
 
 def create_pg_view(database, view, select_sql, schema="public"):

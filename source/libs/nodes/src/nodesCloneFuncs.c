@@ -238,6 +238,7 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(hasRef);
   COPY_SCALAR_FIELD(flags);
   COPY_CHAR_ARRAY_FIELD(refSourceName);
+  COPY_CHAR_ARRAY_FIELD(refSchemaName);
   COPY_CHAR_ARRAY_FIELD(refDbName);
   COPY_CHAR_ARRAY_FIELD(refTableName);
   COPY_CHAR_ARRAY_FIELD(refColName);
@@ -273,6 +274,7 @@ static int32_t columnOptionsCopy(const SColumnOptions* pSrc, SColumnOptions* pDs
   COPY_SCALAR_FIELD(hasRef);
   COPY_SCALAR_FIELD(refType);
   COPY_CHAR_ARRAY_FIELD(refSourceName);
+  COPY_CHAR_ARRAY_FIELD(refSchema);
   COPY_CHAR_ARRAY_FIELD(refDb);
   COPY_CHAR_ARRAY_FIELD(refTable);
   COPY_CHAR_ARRAY_FIELD(refColumn);
@@ -290,6 +292,7 @@ static int32_t columnReferenceCopy(const SColumnRefNode* pSrc, SColumnRefNode* p
   COPY_CHAR_ARRAY_FIELD(refTableName);
   COPY_CHAR_ARRAY_FIELD(refColName);
   COPY_CHAR_ARRAY_FIELD(refSourceName);
+  COPY_CHAR_ARRAY_FIELD(refSchemaName);
   CLONE_NODE_FIELD(pTagCond);
   CLONE_NODE_FIELD(pFilterCond);
   return TSDB_CODE_SUCCESS;
@@ -1013,6 +1016,7 @@ static int32_t alterTableStmtCopy(const SAlterTableStmt* pSrc, SAlterTableStmt* 
   CLONE_NODE_FIELD(pColOptions);
   CLONE_NODE_LIST_FIELD(pList);
   COPY_CHAR_ARRAY_FIELD(refSourceName);
+  COPY_CHAR_ARRAY_FIELD(refSchemaName);
   COPY_CHAR_ARRAY_FIELD(refDbName);
   COPY_CHAR_ARRAY_FIELD(refTableName);
   COPY_CHAR_ARRAY_FIELD(refColName);

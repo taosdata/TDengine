@@ -54,6 +54,7 @@ static const char* fedScanSourceTypeName(int8_t srcType) {
     case EXT_SOURCE_MYSQL:      return "mysql";
     case EXT_SOURCE_POSTGRESQL: return "postgresql";
     case EXT_SOURCE_INFLUXDB:   return "influxdb";
+    case EXT_SOURCE_SQLSERVER:  return "sqlserver";
     default:                    return "unknown";
   }
 }
@@ -2222,7 +2223,14 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   // external source returns rows in ascending timestamp order.
   offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " ORDER BY %c%s%c ASC", q, tsRemoteNameBuf, q);
   if (pFsParam->rowLimit > 0 && (pFsParam->pPushedCond == NULL || pushedCondFullyRendered)) {
-    offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " LIMIT %" PRId64, pFsParam->rowLimit);
+    if (EXT_SOURCE_SQLSERVER == srcType) {
+      // T-SQL has no LIMIT clause.  The statement always carries ORDER BY ts ASC
+      // here, so render the equivalent OFFSET/FETCH form (DS 5.3.6).
+      offset += snprintf(sqlBuf + offset, sqlBufLen - offset,
+                         " OFFSET 0 ROWS FETCH NEXT %" PRId64 " ROWS ONLY", pFsParam->rowLimit);
+    } else {
+      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " LIMIT %" PRId64, pFsParam->rowLimit);
+    }
   }
 
   qDebug("FederatedScan VStb: generated remote SQL source=%s table=%s sql=[%s]",

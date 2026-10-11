@@ -376,7 +376,9 @@ function install_lib() {
 
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
-      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*"; do
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
       for src in "${install_main_dir}/driver"/${pattern}; do
         [ -e "${src}" ] || continue
         ${csudo}rm -f "${src}" || :
@@ -393,7 +395,9 @@ function install_lib() {
 
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
-      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*"; do
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
       for src in "${binary_dir}/build/lib"/${pattern}; do
         [ -e "${src}" ] || continue
         ${csudo}cp -RfL "${src}" "${install_main_dir}/driver/" &&
@@ -439,7 +443,9 @@ function install_lib() {
 
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*" \
-      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*"; do
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
       for link_path in "${dir}"/${pattern}; do
         [ -L "${link_path}" ] || continue
         resolved=$(readlink -f "${link_path}" 2>/dev/null || true)

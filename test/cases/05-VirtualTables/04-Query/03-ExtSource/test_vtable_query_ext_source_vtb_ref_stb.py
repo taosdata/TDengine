@@ -219,3 +219,13 @@ class TestVTableQueryExtSourcePgVtbRefStb(_ExtSourceVtbRefStbQueryBase):
     def _prepare_vtables(cls):
         vtb_util = VtableQueryUtil()
         vtb_util.prepare_ext_source_virtual_ref_vtables("postgres")
+
+
+# SQL Server is a step-1 (zero pushdown) source: predicates and aggregations
+# stay local and the remote SQL is a plain base scan, so the shared golden
+# files apply unchanged. Its external timestamps are microsecond-precision.
+class TestVTableQueryExtSourceSqlserverVtbRefStb(_ExtSourceVtbRefStbQueryBase):
+    @classmethod
+    def _prepare_vtables(cls):
+        vtb_util = VtableQueryUtil()
+        vtb_util.prepare_ext_source_virtual_ref_vtables("sqlserver")

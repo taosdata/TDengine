@@ -60,6 +60,13 @@ _P_PASS   = ExtSrcEnv.PG_PASS
 _P_DB     = "fq03_type_pdb"
 _P_SCHEMA = "public"
 
+_S_HOST   = ExtSrcEnv.SQLSERVER_HOST
+_S_PORT   = ExtSrcEnv.SQLSERVER_PORT
+_S_USER   = ExtSrcEnv.SQLSERVER_USER
+_S_PASS   = ExtSrcEnv.SQLSERVER_PASS
+_S_DB     = "fq03_type_sdb"
+_S_SCHEMA = ExtSrcEnv.SQLSERVER_SCHEMA
+
 _I_HOST  = ExtSrcEnv.INFLUX_HOST
 _I_PORT  = ExtSrcEnv.INFLUX_PORT
 _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
@@ -68,14 +75,16 @@ _I_DB    = "fq03_type_idb"
 _DYNAMIC_RESULT_COLUMNS = {"create_time", "ctime"}
 
 # ── Type shortcuts ─────────────────────────────────────────────────────────
-_mysql    = "mysql"
-_pg       = "postgresql"
-_influxdb = "influxdb"
+_mysql     = "mysql"
+_pg        = "postgresql"
+_influxdb  = "influxdb"
+_sqlserver = "sqlserver"
 
 # ── Source names ───────────────────────────────────────────────────────────
 _SRC_M = "fq03_src_m"
 _SRC_P = "fq03_src_p"
 _SRC_I = "fq03_src_i"
+_SRC_S = "fq03_src_s"
 
 # ── Step sentinel classes ──────────────────────────────────────────────────
 
@@ -814,6 +823,163 @@ def _influx_setup_lines():
 # CASE definitions
 # ══════════════════════════════════════════════════════════════════════════
 
+def _sqlserver_setup_sqls():
+    """Return list of SQL statements to create the SQL Server type tables."""
+    sqls = []
+    sqls.append("IF OBJECT_ID('dbo.all_types_ss') IS NOT NULL DROP TABLE dbo.all_types_ss")
+    sqls.append(
+        "CREATE TABLE dbo.all_types_ss ("
+        "  ts                datetime2(6)     NOT NULL,"
+        "  c_bit             bit,"
+        "  c_tinyint         tinyint,"
+        "  c_smallint        smallint,"
+        "  c_int             int,"
+        "  c_bigint          bigint,"
+        "  c_real            real,"
+        "  c_float           float,"
+        "  c_decimal         decimal(18,4),"
+        "  c_decimal_big     decimal(38,10),"
+        "  c_money           money,"
+        "  c_smallmoney      smallmoney,"
+        "  c_char            char(20),"
+        "  c_varchar         varchar(100),"
+        "  c_nchar           nchar(20),"
+        "  c_nvarchar        nvarchar(100),"
+        "  c_uniqueidentifier uniqueidentifier,"
+        "  c_xml             xml,"
+        "  c_binary          binary(16),"
+        "  c_varbinary       varbinary(100),"
+        "  c_image           image,"
+        "  c_date            date,"
+        "  c_time            time(6),"
+        "  c_datetime        datetime,"
+        "  c_datetime2       datetime2(6),"
+        "  c_datetimeoffset  datetimeoffset,"
+        "  c_smalldatetime   smalldatetime,"
+        "  c_geography       geography,"
+        "  c_geometry        geometry"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO dbo.all_types_ss VALUES ("
+        "'2024-01-01T00:00:00.123456',"
+        " 1, 100, -32768, 42, -9223372036854775808,"
+        " 3.5, 2.718281828459045,"
+        " 12345.6789, 1234567890.1234567890,"
+        " 314.1592, -12.3456,"
+        " 'hello', 'ascii-varchar', N'宽字符', N'宽字符测试UTF8',"
+        " 'A1B2C3D4-E5F6-7890-ABCD-EF1234567890',"
+        " '<root><v>1</v></root>',"
+        " 0x48454C4C4F0000000000000000000000, 0xDEADBEEF, 0xAABB,"
+        " '2024-06-15', '10:30:00.000000',"
+        " '2024-01-01T12:00:00', '2024-01-01T12:00:00.123456',"
+        " '2024-01-01T12:00:00.123456+08:00', '2024-01-01T12:00:00',"
+        " geography::STGeomFromText('POINT(116.39 39.91)', 4326),"
+        " geometry::STGeomFromText('POINT(116.39 39.91)', 4326)"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO dbo.all_types_ss VALUES ("
+        "'2024-01-01T00:01:00.000000',"
+        " 0, 127, 32767, -2147483648, 9223372036854775807,"
+        " -3.5, -2.718281828459045,"
+        " -99999999999999.9999, -9999999999.9999999999,"
+        " -314.1592, 12.3456,"
+        " '', '', N'', N'',"
+        " '00000000-0000-0000-0000-000000000000',"
+        " '<root/>',"
+        " 0x00000000000000000000000000000000, 0x00, 0x00,"
+        " '2023-12-31', '00:00:01.000000',"
+        " '2023-12-31T00:00:00', '2023-12-31T00:00:01.000000',"
+        " '2023-12-31T00:00:00.000000-05:00', '2023-12-31T00:00:00',"
+        " geography::STGeomFromText('POINT(0 0)', 4326),"
+        " geometry::STGeomFromText('POINT(0 0)', 4326)"
+        ")"
+    )
+    # Unmappable types: referencing them must fail, never fall back to string.
+    sqls.append("IF OBJECT_ID('dbo.unmappable_ss') IS NOT NULL DROP TABLE dbo.unmappable_ss")
+    sqls.append(
+        "CREATE TABLE dbo.unmappable_ss ("
+        "  ts          datetime2(6) NOT NULL,"
+        "  c_variant   sql_variant,"
+        "  c_hier      hierarchyid"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO dbo.unmappable_ss VALUES ("
+        "'2024-01-01T00:00:00', CAST(1 AS sql_variant), '/1/'"
+        ")"
+    )
+    # rowversion (a.k.a. timestamp) is a row-version counter, not a time value:
+    # DS maps it to VARBINARY and it can never be the virtual-table timeline.
+    # Only its mapping is asserted (the counter itself is non-deterministic).
+    # SQL Server tinyint is unsigned 0-255 while TDengine TINYINT is signed:
+    # a value > 127 must fail at execution time (DS 5.3.2.1), never silently
+    # wrap or fall back to a string.
+    sqls.append("IF OBJECT_ID('dbo.tinyint_overflow_ss') IS NOT NULL DROP TABLE dbo.tinyint_overflow_ss")
+    sqls.append(
+        "CREATE TABLE dbo.tinyint_overflow_ss ("
+        "  ts          datetime2(6) NOT NULL,"
+        "  c_tinyint   tinyint"
+        ")"
+    )
+    sqls.append("INSERT INTO dbo.tinyint_overflow_ss VALUES ('2024-01-01T00:00:00', 200)")
+    sqls.append("IF OBJECT_ID('dbo.rowversion_ss') IS NOT NULL DROP TABLE dbo.rowversion_ss")
+    sqls.append(
+        "CREATE TABLE dbo.rowversion_ss ("
+        "  ts           datetime2(6) NOT NULL,"
+        "  c_rowversion rowversion,"
+        "  c_v          int"
+        ")"
+    )
+    sqls.append("INSERT INTO dbo.rowversion_ss (ts, c_v) VALUES ('2024-01-01T00:00:00', 1)")
+    return sqls
+
+
+def _sqlserver_case_steps():
+    """SQL Server type-mapping steps (one query per mapped type family)."""
+    src = _SRC_S
+    steps = [
+        f"select ts, c_bit from {src}.all_types_ss order by ts",
+        f"select ts, c_tinyint, c_smallint, c_int, c_bigint from {src}.all_types_ss order by ts",
+        f"select ts, c_real, c_float from {src}.all_types_ss order by ts",
+        f"select ts, c_decimal, c_decimal_big from {src}.all_types_ss order by ts",
+        f"select ts, c_money, c_smallmoney from {src}.all_types_ss order by ts",
+        f"select ts, c_char, c_varchar from {src}.all_types_ss order by ts",
+        f"select ts, c_nchar, c_nvarchar from {src}.all_types_ss order by ts",
+        f"select ts, c_uniqueidentifier from {src}.all_types_ss order by ts",
+        f"select ts, c_xml from {src}.all_types_ss order by ts",
+        f"select ts, c_binary from {src}.all_types_ss order by ts",
+        f"select ts, c_varbinary from {src}.all_types_ss order by ts",
+        f"select ts, c_image from {src}.all_types_ss order by ts",
+        f"select ts, c_date, c_time from {src}.all_types_ss order by ts",
+        f"select ts, c_datetime, c_datetime2 from {src}.all_types_ss order by ts",
+        f"select ts, c_datetimeoffset from {src}.all_types_ss order by ts",
+        f"select ts, c_smalldatetime from {src}.all_types_ss order by ts",
+        f"select ts, c_geography from {src}.all_types_ss order by ts",
+        f"select ts, c_geometry from {src}.all_types_ss order by ts",
+        # Column count and metadata
+        f"describe {src}.all_types_ss",
+        # tinyint out of TDengine's signed range: execution-time error
+        f"select ts, c_tinyint from {src}.tinyint_overflow_ss order by ts",
+        # rowversion: mapped to VARBINARY, usable as a data column
+        f"describe {src}.rowversion_ss",
+        f"select ts, c_v from {src}.rowversion_ss order by ts",
+        # Unmappable types: rejected explicitly, no silent string fallback
+        _expect_error(f"select ts, c_variant from {src}.unmappable_ss",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select * from {src}.unmappable_ss",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select ts, c_hier from {src}.unmappable_ss",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        # Path forms over the same table
+        f"select ts, c_int from {src}.{_S_DB}.{_S_SCHEMA}.all_types_ss order by ts",
+        f"select ts, c_int from {src}.{_S_SCHEMA}.all_types_ss order by ts",
+        _clear_source_step(),
+    ]
+    return steps
+
+
 _CASES = [
     # ── CASE-01m: MySQL full type mapping ─────────────────────────────────
     ["01m", [_mysql], [_SRC_M], "MySQL full type mapping", [
@@ -1175,6 +1341,13 @@ _CASES = [
 
         _clear_source_step(),
     ]],
+    # ── CASE-01s: SQL Server full type mapping ──────────────────────────
+    ["01s", [_sqlserver], [_SRC_S], "SQL Server full type mapping",
+     [f"drop external source if exists {_SRC_S}",
+      f"create external source {_SRC_S} type='sqlserver' host='{_S_HOST}' "
+      f"port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' "
+      f"database={_S_DB} schema={_S_SCHEMA}"] + _sqlserver_case_steps()],
+
 ]
 
 
@@ -1240,6 +1413,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         # ── PostgreSQL ──
         ExtSrcEnv.pg_create_db_cfg(pg_cfg, _P_DB)
         ExtSrcEnv.pg_exec_cfg(pg_cfg, _P_DB, _pg_setup_sqls())
+
+        # ── SQL Server ──
+        ExtSrcEnv.sqlserver_create_db(_S_DB)
+        ExtSrcEnv.sqlserver_exec(_S_DB, _sqlserver_setup_sqls())
 
         # ── InfluxDB ──
         ExtSrcEnv.influx_create_db_cfg(influx_cfg, _I_DB)

@@ -727,3 +727,82 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                     ExtSrcEnv.influx_drop_db_cfg(ver_cfg, bucket)
                 except Exception:
                     pass
+
+    # ------------------------------------------------------------------
+    # FQSS-COMP-001..003  SQL Server version compatibility (2019 / 2022)
+    # ------------------------------------------------------------------
+
+    def test_fq_ss_comp_version_compat(self):
+        """FQSS-COMP-001..003: SQL Server version compatibility — core query & mapping consistent
+
+        TS: SQL Server 2019 / 2022 execute the same core query with identical
+        results; with a single version configured only that version is
+        validated (2019 requires FQ_SQLSERVER_VERSIONS=2019,2022 plus the 2019
+        container; the default environment ships 2022 only).
+
+        The remote SQL text assertion covers the dialect requirements from the
+        SQL Server TS: bracket-quoted identifiers, three-part [db].[schema].[table]
+        naming, and ISO-8601 timestamp literals without the TIMESTAMP keyword.
+
+        Catalog:
+            - Query:FederatedCompatibility
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        first_result = None
+        for ver_cfg in ExtSrcEnv.sqlserver_version_configs():
+            tag = ver_cfg.version.replace(".", "")
+            ext_db = f"comp13_sqlserver_{tag}"
+            src    = f"comp13_sqlserver_v{tag}"
+            self._cleanup(src)
+            try:
+                ExtSrcEnv.sqlserver_create_db_cfg(ver_cfg, ext_db)
+                ExtSrcEnv.sqlserver_exec_cfg(ver_cfg, ext_db, [
+                    "IF OBJECT_ID('dbo.t1') IS NOT NULL DROP TABLE dbo.t1",
+                    "CREATE TABLE dbo.t1 (ts datetime2(3) NOT NULL PRIMARY KEY, id INT, val FLOAT, name NVARCHAR(64))",
+                    "INSERT INTO dbo.t1 VALUES "
+                    "('2024-01-01 00:00:00.000', 1, 1.5, 'alpha'),"
+                    "('2024-01-01 00:01:00.000', 2, 2.5, 'beta'),"
+                    "('2024-01-01 00:02:00.000', 3, 3.5, 'gamma')",
+                ])
+                self._active_sqlserver_ver = ver_cfg.version
+                self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+                tdSql.query(
+                    f"select id, val, name from {src}.{ext_db}.dbo.t1 order by id")
+                tdSql.checkRows(3)
+                tdSql.checkData(0, 0, 1)
+                tdSql.checkData(0, 1, 1.5)
+                tdSql.checkData(0, 2, "alpha")
+                tdSql.checkData(2, 0, 3)
+                result = list(tdSql.queryResult)
+                if first_result is None:
+                    first_result = result
+                else:
+                    assert result == first_result, (
+                        f"SQL Server {ver_cfg.version} results differ from first version")
+
+                # Dialect SQL text: remote SQL must carry the full three-part
+                # name and ISO-8601 literals without the TIMESTAMP keyword.
+                tdSql.query(
+                    "explain verbose true "
+                    f"select id, val from {src}.{ext_db}.dbo.t1 where name = 'alpha'")
+                plan = "\n".join(
+                    str(cell)
+                    for row in (tdSql.queryResult or [])
+                    for cell in row
+                    if cell is not None
+                )
+                assert f"[{ext_db}].[dbo].[t1]" in plan, plan
+                assert "TIMESTAMP '" not in plan, plan
+                tdLog.debug(
+                    f"FQSS-COMP SQL Server {ver_cfg.version}: 3 rows OK, dialect SQL text OK")
+            finally:
+                self._cleanup(src)
+                try:
+                    ExtSrcEnv.sqlserver_drop_db_cfg(ver_cfg, ext_db)
+                except Exception:
+                    pass

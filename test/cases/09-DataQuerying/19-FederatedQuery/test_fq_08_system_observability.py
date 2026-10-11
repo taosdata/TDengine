@@ -74,6 +74,11 @@ _I_HOST  = ExtSrcEnv.INFLUX_HOST
 _I_PORT  = ExtSrcEnv.INFLUX_PORT
 _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
 
+_S_HOST = ExtSrcEnv.SQLSERVER_HOST
+_S_PORT = ExtSrcEnv.SQLSERVER_PORT
+_S_USER = ExtSrcEnv.SQLSERVER_USER
+_S_PASS = ExtSrcEnv.SQLSERVER_PASS
+
 _MASKED = "******"
 
 # ── SHOW EXTERNAL SOURCES / ins_ext_sources column indices (DS §5.4) ───────
@@ -100,6 +105,7 @@ _SQL_RESERVED_WORDS = {
 _mysql    = "mysql"
 _pg       = "postgresql"
 _influxdb = "influxdb"
+_sqlserver = "sqlserver"
 
 
 # ── Step sentinel classes ──────────────────────────────────────────────────
@@ -233,6 +239,17 @@ _CASES = [
          "drop external source if exists fq08_s005_i",
          f"create external source fq08_s005_i type='influxdb' host='{_I_HOST}' port={_I_PORT} user='admin' database='telegraf' options('api_token'='secret_token','protocol'='flight_sql')",
          "select source_name, `type`, `host`, `port`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq08_s005_i'",
+         _clear_source_step(),
+     ],
+     ],
+
+    ["sys006s", [_sqlserver], ["fq08_s006_s"],
+     "SQL Server source: type=sqlserver, schema='dbo' stored in col[7], OPTIONS visible, password masked (covers SYS-001/SYS-005)",
+     [
+         "drop external source if exists fq08_s006_s",
+         f"create external source fq08_s006_s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='sqlsrvdb' schema='dbo' options('trust_server_certificate'='true','connect_timeout_ms'='3000')",
+         "select source_name, `type`, `host`, `port`, `user`, `password`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq08_s006_s'",
+         "select count(*) from information_schema.ins_ext_sources where source_name='fq08_s006_s' and create_time is not null",
          _clear_source_step(),
      ],
      ],

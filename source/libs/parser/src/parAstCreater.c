@@ -4076,6 +4076,7 @@ SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNode* pRef)
   pColOptions->hasRef = true;
   pColOptions->refType = pColRef->refType;
   tstrncpy(pColOptions->refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(pColOptions->refSchema, pColRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
   tstrncpy(pColOptions->refDb, pColRef->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pColOptions->refTable, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pColOptions->refColumn, pColRef->refColName, TSDB_COL_NAME_LEN);
@@ -4157,6 +4158,7 @@ SNode* createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNod
   tstrncpy(pCol->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pCol->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
   tstrncpy(pCol->refSourceName, ((SColumnRefNode*)pRef)->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(pCol->refSchemaName, ((SColumnRefNode*)pRef)->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
   pCol->pFilterCond = ((SColumnRefNode*)pRef)->pFilterCond;
   ((SColumnRefNode*)pRef)->pFilterCond = NULL;
   nodesDestroyNode(pRef);
@@ -4233,7 +4235,7 @@ _err:
 STokenTriplet* setColumnName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri, SToken pName) {
   CHECK_PARSER_STATUS(pCxt);
 
-  if (pTokenTri->numOfName >= 4) {
+  if (pTokenTri->numOfName >= 5) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     goto _err;
   }
@@ -4276,7 +4278,9 @@ SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenT
       break;
     }
     case 4: {
-      // 4-part external source reference: source.db.table.column
+      // 4-part external source reference: source.<mid>.table.column
+      // The middle segment is interpreted at translate time per source type:
+      // database for MySQL/InfluxDB, schema for SQL Server (DS 5.3.3).
       pCol->refType = 1;
       trimEscape(pCxt, &pTokenTri->name[0], true);
       COPY_STRING_FORM_ID_TOKEN(pCol->refSourceName, &pTokenTri->name[0]);
@@ -4286,6 +4290,21 @@ SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenT
       COPY_STRING_FORM_ID_TOKEN(pCol->refDbName, &pTokenTri->name[1]);
       COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, &pTokenTri->name[2]);
       COPY_STRING_FORM_ID_TOKEN(pCol->refColName, &pTokenTri->name[3]);
+      break;
+    }
+    case 5: {
+      // 5-part external source reference: source.database.schema.table.column
+      pCol->refType = 1;
+      trimEscape(pCxt, &pTokenTri->name[0], true);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refSourceName, &pTokenTri->name[0]);
+      CHECK_NAME(checkDbName(pCxt, &pTokenTri->name[1], true));
+      CHECK_NAME(checkDbName(pCxt, &pTokenTri->name[2], true));
+      CHECK_NAME(checkTableName(pCxt, &pTokenTri->name[3]));
+      CHECK_NAME(checkColumnName(pCxt, &pTokenTri->name[4]));
+      COPY_STRING_FORM_ID_TOKEN(pCol->refDbName, &pTokenTri->name[1]);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refSchemaName, &pTokenTri->name[2]);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, &pTokenTri->name[3]);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refColName, &pTokenTri->name[4]);
       break;
     }
     default: {
@@ -4817,6 +4836,7 @@ SNode* createAlterTableAddTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int
   SColumnRefNode* pColRef = (SColumnRefNode*)pRef;
   pStmt->refType = pColRef->refType;  // external source refs (refType==1) must carry their source name
   tstrncpy(pStmt->refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(pStmt->refSchemaName, pColRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
   tstrncpy(pStmt->refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pStmt->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
@@ -4853,6 +4873,7 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
       pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF;
       pStmt->refType = pOption->refType;
       tstrncpy(pStmt->refSourceName, pOption->refSourceName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pStmt->refSchemaName, pOption->refSchema, TSDB_EXT_SOURCE_SCHEMA_LEN);
       tstrncpy(pStmt->refDbName, pOption->refDb, TSDB_DB_NAME_LEN);
       tstrncpy(pStmt->refTableName, pOption->refTable, TSDB_TABLE_NAME_LEN);
       tstrncpy(pStmt->refColName, pOption->refColumn, TSDB_COL_NAME_LEN);
@@ -4941,6 +4962,7 @@ SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, i
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   pStmt->refType = ((SColumnRefNode*)pRef)->refType;
   tstrncpy(pStmt->refSourceName, ((SColumnRefNode*)pRef)->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(pStmt->refSchemaName, ((SColumnRefNode*)pRef)->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
   tstrncpy(pStmt->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pStmt->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
@@ -9866,6 +9888,7 @@ static int8_t parseExtSourceType(const SToken* pToken) {
   if (strcmp(buf, "postgresql") == 0) return EXT_SOURCE_POSTGRESQL;
   if (strcmp(buf, "influxdb") == 0)   return EXT_SOURCE_INFLUXDB;
   if (strcmp(buf, "tdengine") == 0)   return EXT_SOURCE_TDENGINE;
+  if (strcmp(buf, "sqlserver") == 0)  return EXT_SOURCE_SQLSERVER;
   return -1;
 }
 
@@ -10427,6 +10450,38 @@ SNode* createRealTableNodeExt3(SAstCreateContext* pCxt,
   COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[1], pSeg2);
   COPY_STRING_FORM_ID_TOKEN(pNode->table.tableName, pTableName);
   pNode->table.dbName[0] = '\0';  // 3-seg cannot be local, leave dbName empty
+  if (NULL != pAlias && TK_NK_NIL != pAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pAlias);
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableName);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+// Four-segment external path: src.mid0.mid1.table.
+// The source name and both intermediate segments are carried in extSeg[0..2];
+// table.dbName stays empty because a 4-segment path can never be a local table.
+SNode* createRealTableNodeExt4(SAstCreateContext* pCxt, SToken* pSeg1, SToken* pSeg2, SToken* pSeg3,
+                               SToken* pTableName, SToken* pAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  // Strip backtick/quote escapes from all path segments (matching createRealTableNode behavior)
+  trimEscape(pCxt, pSeg1, true);
+  trimEscape(pCxt, pSeg2, true);
+  trimEscape(pCxt, pSeg3, true);
+  trimEscape(pCxt, pTableName, true);
+  if (NULL != pAlias && TK_NK_NIL != pAlias->type) trimEscape(pCxt, pAlias, true);
+  SRealTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->numPathSegments = 4;
+  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[0], pSeg1);
+  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[1], pSeg2);
+  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[2], pSeg3);
+  COPY_STRING_FORM_ID_TOKEN(pNode->table.tableName, pTableName);
+  pNode->table.dbName[0] = '\0';  // 4-seg cannot be local, leave dbName empty
   if (NULL != pAlias && TK_NK_NIL != pAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pAlias);
   } else {

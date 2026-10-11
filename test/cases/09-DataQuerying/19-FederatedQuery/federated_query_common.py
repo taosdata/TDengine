@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import glob
 import os
 import re
 import sys
@@ -370,6 +371,8 @@ FQ_PG_CLIENT_KEY        = os.path.join(_FQ_CERT_DIR, "pg", "client-key.pem")
 _MySQLVerCfg  = namedtuple("_MySQLVerCfg",  ["version", "host", "port", "user", "password"])
 _PGVerCfg     = namedtuple("_PGVerCfg",     ["version", "host", "port", "user", "password"])
 _InfluxVerCfg = namedtuple("_InfluxVerCfg", ["version", "host", "port", "token", "org"])
+_SqlserverVerCfg = namedtuple("_SqlserverVerCfg",
+                              ["version", "host", "port", "user", "password", "schema"])
 
 
 # =====================================================================
@@ -416,6 +419,12 @@ class ExtSrcEnv:
     INFLUX_VERSIONS = [v.strip() for v in
                        os.getenv("FQ_INFLUX_VERSIONS", "3.0").split(",")
                        if v.strip()]
+    # SQL Server version axis.  Deliberately NOT merged into _version_combos():
+    # existing scenarios keep their my/pg/inf labels (and golden file names);
+    # SQL Server scenarios select their version explicitly.
+    SQLSERVER_VERSIONS = [v.strip() for v in
+                          os.getenv("FQ_SQLSERVER_VERSIONS", "2022").split(",")
+                          if v.strip()]
 
     # Per-version port assignments — non-default, test-dedicated ports so
     # multiple versions can run simultaneously alongside any production instance.
@@ -435,6 +444,10 @@ class ExtSrcEnv:
         "1.8": int(os.getenv("FQ_INFLUX_PORT_18", "18085")),
         "3.0": int(os.getenv("FQ_INFLUX_PORT_30", "18086")),
         "3.5": int(os.getenv("FQ_INFLUX_PORT_35", "18087")),
+    }
+    _SQLSERVER_VERSION_PORTS = {
+        "2019": int(os.getenv("FQ_SQLSERVER_PORT_2019", "1434")),
+        "2022": int(os.getenv("FQ_SQLSERVER_PORT_2022", "1433")),
     }
 
     # ------------------------------------------------------------------
@@ -465,6 +478,19 @@ class ExtSrcEnv:
         or "test-token"
     )
     INFLUX_ORG   = os.getenv("FQ_INFLUX_ORG",   "test-org")
+
+    SQLSERVER_HOST   = os.getenv("FQ_SQLSERVER_HOST", "127.0.0.1")
+    SQLSERVER_PORT   = _SQLSERVER_VERSION_PORTS.get(
+        SQLSERVER_VERSIONS[0], int(os.getenv("FQ_SQLSERVER_PORT", "1433")))
+    SQLSERVER_USER   = os.getenv("FQ_SQLSERVER_USER", "sa")
+    SQLSERVER_PASS   = os.getenv("FQ_SQLSERVER_PASS", "TaosFq!2026")
+    # SQL Server resolves unqualified two-segment paths against this schema
+    # (database default from the DDL / USE); "dbo" is the engine default.
+    SQLSERVER_SCHEMA = os.getenv("FQ_SQLSERVER_SCHEMA", "dbo")
+    # Managed by ensure_ext_env.sh: one native engine process per configured
+    # version, from packages extracted under FQ_BASE_DIR/sqlserver/<ver>
+    # (the same provisioning model as MySQL / PostgreSQL / InfluxDB).
+    SQLSERVER_PKG_VERSION = os.getenv("FQ_SQLSERVER_PKG_VERSION", "16.0.4295.3")
 
     # Pool-exhaustion test user — created by ensure_ext_env.sh with
     # MAX_USER_CONNECTIONS limited to FQ_POOL_TEST_MAX_CONN (default 1).
@@ -503,6 +529,10 @@ class ExtSrcEnv:
         env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
         env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
         env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
+        env["FQ_SQLSERVER_VERSIONS"] = ",".join(cls.SQLSERVER_VERSIONS)
+        env["FQ_SQLSERVER_PASS"]  = cls.SQLSERVER_PASS
+        env["FQ_SQLSERVER_USER"]  = cls.SQLSERVER_USER
+        cls._sqlserver_lib_env(env)
 
         if sys.platform == "win32":
             ps1 = os.path.join(here, "ensure_ext_env.ps1")
@@ -588,11 +618,37 @@ class ExtSrcEnv:
                 errors.append(
                     f"  InfluxDB {cfg.version} @ {cfg.host}:{cfg.port} — {e}")
 
+        # --- SQL Server (all configured versions; native engine process) ---
+        for cfg in cls.sqlserver_version_configs():
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                # The script's readiness probe can pass and the engine still be
+                # gone moments later (CI observation); capture the engine log
+                # and the process state so the case log alone explains why.
+                log_path = os.path.join(cls.sqlserver_base_dir(cfg.version),
+                                        "sqlservr.log")
+                detail = ""
+                try:
+                    with open(log_path, encoding="utf-8", errors="replace") as fh:
+                        tail = [ln.rstrip() for ln in fh.readlines()[-12:]]
+                    detail = "".join(f"\n      {ln}" for ln in tail)
+                except OSError as e:
+                    detail = f"\n      <cannot read log: {e}>"
+                try:
+                    pg = subprocess.run(["pgrep", "-af", "sqlservr"],
+                                        capture_output=True, text=True, timeout=5)
+                    procs = pg.stdout.strip() or "<no sqlservr process>"
+                except Exception as e:
+                    procs = f"<pgrep failed: {e}>"
+                errors.append(
+                    f"  SQL Server {cfg.version} @ {cfg.host}:{cfg.port} — "
+                    f"engine not reachable (run ensure_ext_env.sh; log: {log_path})"
+                    f"\n      processes: {procs}{detail}")
+
         if errors:
             raise RuntimeError(
                 "External test databases not reachable after ensure_ext_env.sh.\n"
                 "(Override hosts/ports via FQ_MYSQL_HOST/FQ_PG_HOST/"
-                "FQ_INFLUX_HOST env vars)\n"
+                "FQ_INFLUX_HOST/FQ_SQLSERVER_HOST env vars)\n"
                 + "\n".join(errors))
 
         # ------------------------------------------------------------------
@@ -708,6 +764,9 @@ class ExtSrcEnv:
             if not cls._tcp_probe(cfg.host, cfg.port):
                 dead.append(f"InfluxDB {cfg.version} @ {cfg.host}:{cfg.port}")
                 dead_influx.append(cfg.version)
+        for cfg in cls.sqlserver_version_configs():
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                dead.append(f"SQL Server {cfg.version} @ {cfg.host}:{cfg.port}")
 
         if not dead:
             return False      # all alive — nothing to do
@@ -728,6 +787,13 @@ class ExtSrcEnv:
         env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
         env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
         env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
+        env["FQ_SQLSERVER_VERSIONS"] = ",".join(cls.SQLSERVER_VERSIONS)
+        env["FQ_SQLSERVER_PASS"]  = cls.SQLSERVER_PASS
+        env["FQ_SQLSERVER_USER"]  = cls.SQLSERVER_USER
+        cls._sqlserver_lib_env(env)
+        # revive_if_dead runs mid-test: start the existing SQL Server
+        # container so the data prepared at file start survives.
+        env["FQ_SQLSERVER_QUICK_RESTART"] = "1"
         # Use quick restart for InfluxDB: preserve the data directory so that
         # the existing admin token stays valid.  revive_if_dead is a mid-test
         # recovery; hard reset would generate a new token, making _I_TOKEN
@@ -750,6 +816,9 @@ class ExtSrcEnv:
         for cfg in cls.influx_version_configs():
             if not cls._tcp_probe(cfg.host, cfg.port):
                 still_dead.append(f"InfluxDB {cfg.version}")
+        for cfg in cls.sqlserver_version_configs():
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                still_dead.append(f"SQL Server {cfg.version}")
         if still_dead:
             raise RuntimeError(
                 f"[FQ revive] ext DBs still dead after restart: {still_dead}")
@@ -801,6 +870,7 @@ class ExtSrcEnv:
         env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
         env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
         env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
+        env["FQ_SQLSERVER_VERSIONS"] = ",".join(cls.SQLSERVER_VERSIONS)
 
         if sys.platform != "win32":
             sh = os.path.join(here, "ensure_ext_env.sh")
@@ -838,6 +908,140 @@ class ExtSrcEnv:
             port = cls._INFLUX_VERSION_PORTS.get(ver, cls.INFLUX_PORT)
             yield _InfluxVerCfg(ver, cls.INFLUX_HOST, port,
                                 cls._get_influx_token(ver), cls.INFLUX_ORG)
+
+    @classmethod
+    def sqlserver_version_configs(cls):
+        """Yield one _SqlserverVerCfg per configured SQL Server version."""
+        for ver in cls.SQLSERVER_VERSIONS:
+            port = cls._SQLSERVER_VERSION_PORTS.get(ver, cls.SQLSERVER_PORT)
+            yield _SqlserverVerCfg(ver, cls.SQLSERVER_HOST, port,
+                                   cls.SQLSERVER_USER, cls.SQLSERVER_PASS,
+                                   cls.SQLSERVER_SCHEMA)
+
+    @classmethod
+    def sqlserver_base_dir(cls, ver=None):
+        """Install directory of the native SQL Server instance for a version."""
+        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        return os.path.join(fq_base, "sqlserver", str(ver or cls.SQLSERVER_VERSIONS[0]))
+
+    @classmethod
+    def sqlserver_server_bin(cls, ver=None):
+        """Path of the sqlservr binary for a version."""
+        return os.path.join(cls.sqlserver_base_dir(ver),
+                            "server", "opt", "mssql", "bin", "sqlservr")
+
+    @classmethod
+    def sqlserver_sqlcmd_path(cls, ver=None):
+        """Path of the sqlcmd binary extracted next to the engine binaries."""
+        base = cls.sqlserver_base_dir(ver)
+        for rel in ("tools/opt/mssql-tools18/bin/sqlcmd",
+                    "tools/opt/mssql-tools/bin/sqlcmd"):
+            cand = os.path.join(base, rel)
+            if os.path.isfile(cand):
+                return cand
+        cand = "/opt/mssql-tools18/bin/sqlcmd"
+        return cand if os.path.isfile(cand) else None
+
+    @classmethod
+    def _sqlserver_driver_dir(cls):
+        """Directory holding the staged libmsodbcsql18 driver, or None.
+
+        The ODBC runtime (driver manager + driver) is staged into the build
+        tree, and the framework's LD_LIBRARY_PATH points at it; in CI
+        containers that is the only place the driver exists.  Shared by the
+        direct sqlcmd environment and the ensure_ext_env.sh invocation.
+        """
+        for dirname in [d for d in os.environ.get("LD_LIBRARY_PATH", "").split(":") if d]:
+            hits = sorted(glob.glob(os.path.join(dirname, "libmsodbcsql-18.*.so*")))
+            if hits:
+                return dirname
+        return None
+
+    @classmethod
+    def _ensure_sqlserver_driver_resources(cls, driver_dir):
+        """Stage the msodbcsql driver's localisation resources next to the .so.
+
+        The driver resolves share/resources/en_US/msodbcsqlr18.rll relative to
+        its own directory; a build tree that staged only the .so makes every
+        SQLAllocHandle(SQL_HANDLE_ENV) fail with the opaque
+        "Driver's SQLAllocHandle on SQL_HANDLE_HENV failed".  The runtime
+        staging script (ensure_fq_runtime_libs.sh) covers the engine side, but
+        sqlcmd runs from test jobs that never staged the runtime — an fs-only
+        CI job on a fresh worker hits this before creating any stream — so
+        stage lazily here too.  Both sqlcmd and taosd load the same .so from
+        the same tree, so this repair covers the engine's connections as well.
+        Best effort: a miss leaves only the driver's own error text behind.
+        """
+        if not driver_dir:
+            return
+        dst = os.path.join(os.path.dirname(os.path.abspath(driver_dir)), "share", "resources")
+        if os.path.isfile(os.path.join(dst, "en_US", "msodbcsqlr18.rll")):
+            return
+        import shutil
+        here = os.path.dirname(os.path.abspath(__file__))
+        repo = os.path.abspath(os.path.join(here, *([".."] * 6)))
+        cfg = os.getenv("TD_CONFIG_NAME", "Debug")
+        candidates = [
+            "/opt/microsoft/msodbcsql18/share/resources",
+            "/opt/microsoft/msodbcsql/share/resources",
+            os.path.join(repo, ".externals", "install", "ext_msodbc", cfg, "share", "resources"),
+            os.path.join(repo, ".externals", "build", cfg, "ext_msodbc", "src", "ext_msodbc", "share", "resources"),
+        ]
+        for src in candidates:
+            if not os.path.isdir(src):
+                continue
+            try:
+                os.makedirs(dst, exist_ok=True)
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+            except Exception:
+                continue
+            if os.path.isfile(os.path.join(dst, "en_US", "msodbcsqlr18.rll")):
+                return
+
+    @classmethod
+    def _sqlserver_lib_env(cls, env):
+        """Point env at the staged ODBC runtime dir for ensure_ext_env.sh.
+
+        The script runs sqlcmd for its probes and for --sqlserver-exec and
+        resolves the driver manager and driver through this variable (the CI
+        test process' LD_LIBRARY_PATH is not visible to it).  Only this
+        dedicated variable is used — LD_LIBRARY_PATH would leak into the
+        other engines' processes and the script sanitizes it on purpose.
+        """
+        driver_dir = cls._sqlserver_driver_dir()
+        if driver_dir:
+            env["FQ_SQLSERVER_LIB_DIR"] = driver_dir
+        return env
+
+    @classmethod
+    def _sqlserver_sqlcmd_env(cls):
+        """Environment for sqlcmd.
+
+        The tools load the ODBC driver that travels with the dependency
+        package; register it in a private odbcinst.ini so no system
+        registration is required (DS 3.3).  LD_LIBRARY_PATH already carries
+        the staged runtime lib directory in every FQ run.
+        """
+        env = _fq_subprocess_env()
+        driver_dir = cls._sqlserver_driver_dir()
+        if driver_dir:
+            driver = sorted(glob.glob(os.path.join(driver_dir, "libmsodbcsql-18.*.so*")))[0]
+            conf_dir = os.path.join(os.getenv("FQ_BASE_DIR", "/opt/taostest/fq"),
+                                    "sqlserver", "odbc")
+            os.makedirs(conf_dir, exist_ok=True)
+            with open(os.path.join(conf_dir, "odbcinst.ini"), "w", encoding="utf-8") as fh:
+                fh.write("[ODBC Driver 18 for SQL Server]\n"
+                         f"Driver={driver}\nUsageCount=1\n")
+            env["ODBCSYSINI"] = conf_dir
+            # _fq_subprocess_env() drops LD_LIBRARY_PATH, so sqlcmd would fall
+            # back to the container's own unixODBC (absent or a different build
+            # on the CI image — observed as "Driver's SQLAllocHandle on
+            # SQL_HANDLE_HENV failed").  Re-add only the driver's directory:
+            # sqlcmd, the driver manager and the driver then all come from the
+            # same staging tree that taosd uses.
+            prev = env.get("LD_LIBRARY_PATH", "")
+            env["LD_LIBRARY_PATH"] = driver_dir + (f":{prev}" if prev else "")
+        return env
 
     @classmethod
     def _get_influx_token(cls, ver):
@@ -1133,6 +1337,100 @@ class ExtSrcEnv:
             raise RuntimeError(
                 f"InfluxDB {ver} is still accepting connections at "
                 f"{cfg.host}:{cfg.port} after SIGKILL")
+
+    @classmethod
+    def _sqlserver_pids(cls, ver):
+        """PIDs of the engine processes belonging to one version.
+
+        Matches on the full binary path under that version's base directory,
+        so a leftover container process (or another version's engine) is never
+        signalled by mistake.
+        """
+        bin_path = cls.sqlserver_server_bin(ver)
+        pids = set()
+        if os.path.isdir("/proc"):
+            for proc in os.scandir("/proc"):
+                if not proc.name.isdigit():
+                    continue
+                try:
+                    with open(os.path.join(proc.path, "cmdline"), "rb") as cmdline:
+                        args = cmdline.read().replace(b"\0", b" ").decode(
+                            errors="ignore").strip()
+                except OSError:
+                    continue
+                if args and bin_path in args:
+                    pids.add(int(proc.name))
+        return pids
+
+    @classmethod
+    def kill_sqlserver_instance(cls, ver):
+        """Hard-stop the engine process (kill -9 equivalent)."""
+        import signal
+        for pid in cls._sqlserver_pids(ver):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+    @classmethod
+    def stop_sqlserver_instance(cls, ver, wait_s=30):
+        """Graceful engine stop (service disruption scenarios)."""
+        import signal
+        import time
+        for pid in cls._sqlserver_pids(ver):
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        cfg = next((c for c in cls.sqlserver_version_configs()
+                    if c.version == ver), None)
+        if cfg is None:
+            return
+        deadline = time.time() + wait_s
+        while time.time() < deadline:
+            if not cls._sqlserver_pids(ver) and not cls._tcp_probe(cfg.host, cfg.port):
+                return
+            time.sleep(1)
+
+    @classmethod
+    def start_sqlserver_instance(cls, ver, wait_s=120):
+        """Start the engine process and wait until a probe query succeeds."""
+        import subprocess
+        import time
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "ensure_ext_env.sh")
+        env = _fq_subprocess_env()
+        # Reset only SQL Server (not MySQL/PG/Influx) and keep its databases:
+        # the disruption scenarios stop/start the engine, not the fixture data.
+        env["FQ_SERVICES_TO_RESET"] = "sqlserver"
+        env["FQ_SQLSERVER_VERSIONS"] = str(ver)
+        env["FQ_SQLSERVER_QUICK_RESTART"] = "1"
+        subprocess.run(["bash", script], env=env, capture_output=True,
+                       text=True, timeout=600)
+        cfg = next((c for c in cls.sqlserver_version_configs()
+                    if c.version == ver), None)
+        if cfg is None:
+            return False
+        deadline = time.time() + wait_s
+        while time.time() < deadline:
+            if cls._tcp_probe(cfg.host, cfg.port):
+                try:
+                    cls.sqlserver_query_cfg(cfg, "master", "SELECT 1")
+                    # A restart accepts connections on master while user
+                    # databases are still recovering; wait until every
+                    # non-system database reports ONLINE so the first query or
+                    # metadata refresh after the restart cannot hit
+                    # RECOVERY_PENDING.
+                    pending = cls.sqlserver_query_cfg(
+                        cfg, "master",
+                        "SELECT COUNT(*) FROM sys.databases "
+                        "WHERE database_id > 4 AND state_desc <> 'ONLINE'")
+                    if pending is not None and str(pending).strip() in ("0", ""):
+                        return True
+                except Exception:
+                    pass
+            time.sleep(1)
+        return False
 
     @classmethod
     def start_influx_instance(cls, ver, wait_s=10):
@@ -1654,6 +1952,167 @@ class ExtSrcEnv:
         r.raise_for_status()
         return r.json()
 
+    # ------------------------------------------------------------------
+    # SQL Server direct-connection helpers.
+    #
+    # Data preparation runs inside the managed container through sqlcmd, so no
+    # additional Python driver (pyodbc/pymssql) is required on the test host.
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _sqlserver_sqlcmd(cls, cfg, database, sql):
+        """Run one SQL batch through the extracted sqlcmd; return its stdout.
+
+        -b makes sqlcmd exit non-zero on a SQL error so failures surface here
+        instead of silently producing an empty result set.
+        """
+        import subprocess
+        sqlcmd = cls.sqlserver_sqlcmd_path(cfg.version)
+        if sqlcmd is None:
+            raise RuntimeError(
+                "[FQ] sqlcmd not found — run ensure_ext_env.sh to install the "
+                "SQL Server packages under FQ_BASE_DIR/sqlserver/<ver>")
+        # The driver's HENV failure (missing msodbcsqlr18.rll) must not depend
+        # on whether this job happened to run the runtime staging script first.
+        cls._ensure_sqlserver_driver_resources(cls._sqlserver_driver_dir())
+        # Run through ensure_ext_env.sh's own sqlcmd path — it owns the
+        # engine, port and private ODBC registration.  Pass it the staged
+        # ODBC runtime directory explicitly: the script resolves sqlcmd's
+        # driver manager and driver through FQ_SQLSERVER_LIB_DIR /
+        # LD_LIBRARY_PATH, and inside CI test processes TAOS_BIN_PATH is not
+        # set, so without this it aborted before running sqlcmd (exit 1, no
+        # output at all).  Fall back to a direct call only when the script is
+        # unavailable.
+        env_sh = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "ensure_ext_env.sh")
+        if os.path.exists(env_sh):
+            cmd = ["bash", env_sh, "--sqlserver-exec", cfg.version, database, sql]
+            script_env = cls._sqlserver_lib_env(_fq_subprocess_env())
+            driver_dir = cls._sqlserver_driver_dir()
+            if driver_dir:
+                # Belt and braces for this one-shot exec path: the script also
+                # scans LD_LIBRARY_PATH for the driver dir.  Not done for the
+                # long-running env-setup call, where it would leak into the
+                # other engines' processes.
+                script_env["LD_LIBRARY_PATH"] = driver_dir
+            script_env["FQ_SQLSERVER_USER"] = cfg.user
+            script_env["FQ_SQLSERVER_PASS"] = cfg.password
+            proc = subprocess.run(cmd, capture_output=True, text=True,
+                                  env=script_env)
+        else:
+            cmd = [sqlcmd,
+                   "-S", f"{cfg.host},{cfg.port}",
+                   "-U", cfg.user, "-P", cfg.password, "-C",
+                   "-b", "-d", database, "-Q", sql]
+            proc = subprocess.run(cmd, capture_output=True, text=True,
+                                  env=cls._sqlserver_sqlcmd_env())
+        if proc.returncode != 0:
+            # Attach just enough environment state to diagnose driver-side
+            # failures from the CI log alone (the container is gone afterwards).
+            diag = []
+            try:
+                ch_env = cls._sqlserver_sqlcmd_env()
+                diag.append(f"driver-dir={cls._sqlserver_driver_dir() or '<unresolved>'}")
+                diag.append(f"LD_LIBRARY_PATH={ch_env.get('LD_LIBRARY_PATH') or '<unset>'}")
+                diag.append(f"ODBCSYSINI={ch_env.get('ODBCSYSINI') or '<unset>'}")
+                ldd = subprocess.run(["ldd", sqlcmd], capture_output=True,
+                                     text=True, timeout=10)
+                missing = [ln.strip() for ln in ldd.stdout.splitlines()
+                           if "not found" in ln]
+                diag.append("ldd-sqlcmd: " + ("; ".join(missing) if missing else "ok"))
+                for name in ("libodbc.so.2", "libodbcinst.so.2",
+                             "libmsodbcsql-18.*.so*"):
+                    hits = []
+                    for dirname in (ch_env.get("LD_LIBRARY_PATH") or "").split(":"):
+                        if dirname:
+                            hits += glob.glob(os.path.join(dirname, name))
+                    diag.append(f"{name}: " + (", ".join(sorted(hits)[:2]) or "<not staged>"))
+            except Exception as e:  # diagnostics must never mask the real error
+                diag.append(f"diag failed: {e}")
+            raise RuntimeError(
+                f"[FQ] SQL Server statement failed (sqlcmd {sqlcmd}): "
+                f"{(proc.stderr or proc.stdout or '').strip()[:400]}\n"
+                "  [diag] " + "\n  [diag] ".join(diag))
+        return proc.stdout
+
+    @classmethod
+    def sqlserver_exec_cfg(cls, cfg, database, sqls):
+        """Execute SQL statements on a specific SQL Server instance."""
+        for sql in sqls:
+            cls._sqlserver_sqlcmd(cfg, database, sql)
+
+    @classmethod
+    def sqlserver_exec(cls, database, sqls):
+        """Execute SQL statements on the primary SQL Server instance."""
+        cls.sqlserver_exec_cfg(next(cls.sqlserver_version_configs()), database, sqls)
+
+    @classmethod
+    def sqlserver_query_cfg(cls, cfg, database, sql):
+        """Return the first column of the first row (list-of-strings form)."""
+        out = cls._sqlserver_sqlcmd(cfg, database, sql)
+        rows = []
+        for line in out.splitlines():
+            stripped = line.strip()
+            if not stripped or set(stripped) <= set("-"):
+                continue
+            if "rows affected" in stripped.lower():
+                continue
+            rows.append(stripped)
+        # sqlcmd prints a header line followed by the value rows; skip both the
+        # dashed separator and the trailing "(N rows affected)" summary.
+        if len(rows) >= 2:
+            return rows[1]
+        return rows[0] if rows else None
+
+    @classmethod
+    def sqlserver_query(cls, database, sql):
+        """Query the primary SQL Server instance (first value of first row)."""
+        return cls.sqlserver_query_cfg(next(cls.sqlserver_version_configs()), database, sql)
+
+    @classmethod
+    def sqlserver_create_db(cls, db):
+        """Create a SQL Server database (idempotent)."""
+        cls.sqlserver_create_db_cfg(next(cls.sqlserver_version_configs()), db)
+
+    @classmethod
+    def sqlserver_create_db_cfg(cls, cfg, db):
+        """Create a SQL Server database on a specific version (idempotent).
+
+        An engine killed mid-drop can leave the database files behind while
+        master no longer lists the database; CREATE DATABASE then fails with
+        Msg 5170.  Remove the orphaned files and retry in that case.
+        """
+        stmt = f"IF DB_ID(N'{db}') IS NULL CREATE DATABASE [{db}]"
+        try:
+            cls.sqlserver_exec_cfg(cfg, "master", [stmt])
+            return
+        except Exception:
+            pass
+        import subprocess
+        # SQL Server names the data file <db>.mdf but the log file <db>_log.ldf,
+        # so remove every file the database owns before retrying.  The native
+        # engine keeps its data in the default directory, same as the container
+        # image did.
+        for suffix in (".mdf", ".ldf", "_log.ldf", "_log.mdf"):
+            subprocess.run(
+                ["rm", "-f", f"/var/opt/mssql/data/{db}{suffix}"],
+                capture_output=True, env=_fq_subprocess_env())
+        cls.sqlserver_exec_cfg(cfg, "master", [stmt])
+
+    @classmethod
+    def sqlserver_drop_db(cls, db):
+        """Drop a SQL Server database (idempotent, forces single-user)."""
+        cls.sqlserver_drop_db_cfg(next(cls.sqlserver_version_configs()), db)
+
+    @classmethod
+    def sqlserver_drop_db_cfg(cls, cfg, db):
+        """Drop a SQL Server database on a specific version (idempotent)."""
+        cls.sqlserver_exec_cfg(
+            cfg, "master", [
+                f"IF DB_ID(N'{db}') IS NOT NULL BEGIN "
+                f"ALTER DATABASE [{db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; "
+                f"DROP DATABASE [{db}]; END"])
+
 
 # =====================================================================
 # Shared test mixin — eliminates duplicated helpers across test files
@@ -1755,6 +2214,32 @@ class FederatedQueryTestMixin:
             sql += f" database={database}"
         if schema:
             sql += f" schema={schema}"
+        tdSql.execute(sql)
+
+    def _mk_sqlserver_real(self, name, database=None, schema=None,
+                           extra_options=None, user=None, password=None):
+        """Create a SQL Server external source against the primary test instance.
+
+        database / schema default to the values of the active SQL Server
+        version config; pass empty strings to exercise the "not configured"
+        namespace cases.
+        """
+        tdSql.execute(f"drop database if exists {name}")
+        tdSql.execute(f"drop external source if exists {name}")
+        cfg = self._sqlserver_cfg()
+        _user = user if user is not None else cfg.user
+        _pass = password if password is not None else cfg.password
+        sql = (f"create external source {name} "
+               f"type='sqlserver' host='{cfg.host}' "
+               f"port={cfg.port} "
+               f"user='{_user}' "
+               f"password='{_pass}'")
+        if database:
+            sql += f" database={database}"
+        if schema:
+            sql += f" schema={schema}"
+        if extra_options:
+            sql += f" options({extra_options})"
         tdSql.execute(sql)
 
     def _resolve_influx_protocol(self, protocol=None):
@@ -1873,6 +2358,16 @@ class FederatedQueryTestMixin:
                 return cfg
         return next(ExtSrcEnv.pg_version_configs())
 
+    def _sqlserver_cfg(self):
+        """Return the SQL Server config for the active (or primary) version."""
+        ver = getattr(self, '_active_sqlserver_ver', None)
+        if ver is None:
+            return next(ExtSrcEnv.sqlserver_version_configs())
+        for cfg in ExtSrcEnv.sqlserver_version_configs():
+            if cfg.version == ver:
+                return cfg
+        return next(ExtSrcEnv.sqlserver_version_configs())
+
     def _influx_cfg(self):
         """Return InfluxDB config for the currently active test version."""
         ver = getattr(self, '_active_influx_ver', None)
@@ -1885,7 +2380,8 @@ class FederatedQueryTestMixin:
 
     def _with_std_sources(self, prefix, body_fn, *,
                           table="src_t",
-                          skip_mysql=False, skip_pg=False, skip_influx=False):
+                          skip_mysql=False, skip_pg=False, skip_influx=False,
+                          skip_sqlserver=False):
         """Create standard 5-row test data in MySQL / PG / InfluxDB; call body_fn(src) for each.
 
         Standard table schema (``src_t`` by default):
@@ -1896,14 +2392,18 @@ class FederatedQueryTestMixin:
         ``body_fn(src_name: str) -> None`` receives the external source name and should
         execute the same SQL/assertions against ``{src_name}.{table}``.
 
+        SQL Server: ts datetime2(3), val INT, score FLOAT, name nvarchar(32), flag BIT.
+
         Each source is created, tested, and cleaned up sequentially.
         """
         m_src = f"{prefix}_m"
         p_src = f"{prefix}_p"
         i_src = f"{prefix}_i"
+        s_src = f"{prefix}_s"
         m_db  = f"{prefix}_mdb"
         p_db  = f"{prefix}_pdb"
         i_db  = f"{prefix}_idb"
+        s_db  = f"{prefix}_sdb"
         rows_sql = ", ".join(
             f"('{_ms_to_dt(ts)}', {val}, {score}, '{name}', {flag})"
             for ts, val, score, name, flag in _STD_ROWS
@@ -1972,10 +2472,33 @@ class FederatedQueryTestMixin:
                 except Exception:
                     pass
 
+        # ----- SQL Server -----
+        if not skip_sqlserver:
+            self._cleanup_src(s_src)
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            try:
+                ExtSrcEnv.sqlserver_exec(s_db, [
+                    f"IF OBJECT_ID('dbo.{table}') IS NOT NULL DROP TABLE dbo.{table}",
+                    f"CREATE TABLE dbo.{table} ("
+                    f"  ts datetime2(3) NOT NULL, val int, score float,"
+                    f"  name nvarchar(32), flag bit)",
+                    f"INSERT INTO dbo.{table} (ts, val, score, name, flag) VALUES {rows_sql}",
+                ])
+                self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+                body_fn(s_src)
+            finally:
+                self._cleanup_src(s_src)
+                try:
+                    ExtSrcEnv.sqlserver_drop_db(s_db)
+                except Exception:
+                    pass
+
     def _with_custom_sources(self, prefix, body_fn, *,
                              mysql_setup=None, pg_setup=None, influx_lines=None,
+                             sqlserver_setup=None,
                              mysql_table=None, pg_table=None, influx_table=None,
-                             skip_mysql=False, skip_pg=False, skip_influx=False):
+                             skip_mysql=False, skip_pg=False, skip_influx=False,
+                             skip_sqlserver=False):
         """Create custom data in MySQL / PG / InfluxDB; call body_fn(src, db_type) for each.
 
         Unlike ``_with_std_sources`` which writes a fixed 5-row ``src_t`` table,
@@ -1984,10 +2507,13 @@ class FederatedQueryTestMixin:
         Args:
             prefix:       Unique name prefix for external sources and databases.
             body_fn:      ``body_fn(src_name: str, db_type: str) -> None``.
-                          *db_type* is ``'mysql'``, ``'pg'``, or ``'influx'``.
+                          *db_type* is ``'mysql'``, ``'pg'``, ``'influx'``, or
+                          ``'sqlserver'``.
             mysql_setup:  List of SQL strings to execute in MySQL (DDL + INSERT).
             pg_setup:     List of SQL strings to execute in PostgreSQL.
             influx_lines: List of InfluxDB line-protocol strings.
+            sqlserver_setup: List of T-SQL strings executed on the SQL Server
+                             instance (DDL + INSERT).
             mysql_table:  Table name used when querying MySQL (for docs only).
             pg_table:     Table name used when querying PG.
             influx_table: Measurement name used when querying InfluxDB.
@@ -1996,9 +2522,11 @@ class FederatedQueryTestMixin:
         m_src = f"{prefix}_m"
         p_src = f"{prefix}_p"
         i_src = f"{prefix}_i"
+        s_src = f"{prefix}_s"
         m_db  = f"{prefix}_mdb"
         p_db  = f"{prefix}_pdb"
         i_db  = f"{prefix}_idb"
+        s_db  = f"{prefix}_sdb"
 
         # ----- MySQL -----
         if not skip_mysql and mysql_setup:
@@ -2043,6 +2571,21 @@ class FederatedQueryTestMixin:
                 self._cleanup_src(i_src)
                 try:
                     ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+                except Exception:
+                    pass
+
+        # ----- SQL Server -----
+        if not skip_sqlserver and sqlserver_setup:
+            self._cleanup_src(s_src)
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            try:
+                ExtSrcEnv.sqlserver_exec(s_db, sqlserver_setup)
+                self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+                body_fn(s_src, "sqlserver")
+            finally:
+                self._cleanup_src(s_src)
+                try:
+                    ExtSrcEnv.sqlserver_drop_db(s_db)
                 except Exception:
                     pass
 
@@ -2604,7 +3147,7 @@ def parity_signed_zero_eq(a, b):
 
 # Precision scaling factors relative to local TDengine (ms precision=0).
 # MySQL/PG use µs (precision=1) → factor 1000; InfluxDB uses ns (precision=2) → factor 1000000.
-_EXT_PRECISION_FACTOR = {"MySQL": 1000, "PG": 1000, "InfluxDB": 1000000}
+_EXT_PRECISION_FACTOR = {"MySQL": 1000, "PG": 1000, "InfluxDB": 1000000, "SQLServer": 1000}
 
 import re as _re
 

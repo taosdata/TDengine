@@ -80,10 +80,14 @@ void schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pT
   if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
     fillTypeFromTypeMod(pType, typeMod);
   } else if (IS_DECIMAL_TYPE(pSchema->type)) {
+    // Legacy external schemas encode precision/scale inside the schema bytes; when
+    // typeMod is also present the packed form must still be unpacked first, or the
+    // packed int would be taken as the column value size.
+    if (hasDecimalBytesTypeInfo(pType->bytes)) {
+      extractDecimalTypeInfoFromBytes(&pType->bytes, &pType->precision, &pType->scale);
+    }
     if (typeMod != 0) {
       fillTypeFromTypeMod(pType, typeMod);
-    } else if ((((uint32_t)pSchema->bytes) >> 24) != 0) {
-      extractDecimalTypeInfoFromBytes(&pType->bytes, &pType->precision, &pType->scale);
     }
   }
 }
@@ -708,7 +712,8 @@ end:
 }
 
 int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
-                  char* refDbName, int8_t refType, const char* refSourceName, const char* tagCondJson, int32_t tagCondLen) {
+                  char* refDbName, const char* refSchemaName, int8_t refType, const char* refSourceName,
+                  const char* tagCondJson, int32_t tagCondLen) {
   colRef->id = colId;
   colRef->hasRef = true;
   colRef->refType = refType;
@@ -720,7 +725,11 @@ int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* re
   } else {
     colRef->refSourceName[0] = '\0';
   }
-  colRef->refSchemaName[0] = '\0';
+  if (refSchemaName && refSchemaName[0]) {
+    tstrncpy(colRef->refSchemaName, refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  } else {
+    colRef->refSchemaName[0] = '\0';
+  }
   if (tagCondLen > 0) {
     colRef->tagCondJson = taosStrdup(tagCondJson);
     colRef->tagCondLen = tagCondLen;

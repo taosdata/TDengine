@@ -286,12 +286,19 @@ _SRC_PG = "fq_exp_pg"
 _SRC_INFLUX = "fq_exp_influx"
 _SRC_MYSQL_ASCII = "fq_exp_mysql_ascii"
 _SRC_PG_ASCII = "fq_exp_pg_ascii"
+_SRC_SQLSERVER = "fq_exp_sqlserver"
+_SQLSERVER_DB  = "fq_exp_ssdb"
 
 # Per-source metadata for expansion
 _SINGLE_SOURCES = [
     {"label": "mysql",  "src": _SRC_MYSQL,  "db": _MYSQL_DB},
     {"label": "pg",     "src": _SRC_PG,     "db": _PG_DB},
     {"label": "influx", "src": _SRC_INFLUX, "db": _INFLUX_BUCKET},
+    # SQL Server runs zero pushdown in step 1 (DS 9.6.x): every clause stays
+    # local, so the pushdown-form checks are replaced by the bare-scan
+    # contract asserted in _validate().
+    {"label": "sqlserver", "src": _SRC_SQLSERVER, "db": _SQLSERVER_DB,
+     "zero_pushdown": True, "zero_pushdown_db": _SQLSERVER_DB},
 ]
 
 _ASCII_LENGTH_SOURCES = [
@@ -309,6 +316,14 @@ _CROSS_PAIRS = [
      "src2": _SRC_INFLUX, "db2": _INFLUX_BUCKET},
     {"label": "pg_influx",    "src": _SRC_PG,     "db": _PG_DB,
      "src2": _SRC_INFLUX, "db2": _INFLUX_BUCKET},
+    # Cross pairs with the zero-pushdown source: the other leg keeps its
+    # pushed-down form, the SQL Server leg stays a bare scan.
+    {"label": "mysql_sqlserver", "src": _SRC_MYSQL, "db": _MYSQL_DB,
+     "src2": _SRC_SQLSERVER, "db2": _SQLSERVER_DB, "zero_pushdown": True, "zero_pushdown_db": _SQLSERVER_DB},
+    {"label": "pg_sqlserver",    "src": _SRC_PG,    "db": _PG_DB,
+     "src2": _SRC_SQLSERVER, "db2": _SQLSERVER_DB, "zero_pushdown": True, "zero_pushdown_db": _SQLSERVER_DB},
+    {"label": "influx_sqlserver", "src": _SRC_INFLUX, "db": _INFLUX_BUCKET,
+     "src2": _SRC_SQLSERVER, "db2": _SQLSERVER_DB, "zero_pushdown": True, "zero_pushdown_db": _SQLSERVER_DB},
 ]
 
 
@@ -15235,11 +15250,16 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         #    LENGTH rewrite branch without perturbing the shared 3-source corpus.
         self._setup_ascii_length_sources()
 
+        # -- SQL Server (sensor + region_info): the 4th source every matrix
+        #    case now runs against (zero pushdown in step 1).
+        self._setup_sqlserver_explain_source()
+
         TestFq13Explain._class_setup_done = True
 
     def teardown_class(self):
         tmp = TestFq13Explain()
-        for src in [_SRC_MYSQL, _SRC_PG, _SRC_INFLUX, _SRC_MYSQL_ASCII, _SRC_PG_ASCII]:
+        for src in [_SRC_MYSQL, _SRC_PG, _SRC_INFLUX, _SRC_MYSQL_ASCII,
+                    _SRC_PG_ASCII, _SRC_SQLSERVER]:
             tmp._cleanup_src(src)
         for drop_fn, drop_args in [
             (ExtSrcEnv.mysql_drop_db_cfg, (tmp._mysql_cfg(), _MYSQL_DB)),
@@ -15247,6 +15267,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             (ExtSrcEnv.pg_drop_db_cfg, (tmp._pg_cfg(), _PG_DB)),
             (ExtSrcEnv.pg_drop_db_cfg, (tmp._pg_cfg(), _PG_ASCII_DB)),
             (ExtSrcEnv.influx_drop_db, (_INFLUX_BUCKET,)),
+            (ExtSrcEnv.sqlserver_drop_db, (_SQLSERVER_DB,)),
         ]:
             try:
                 drop_fn(*drop_args)
@@ -15385,6 +15406,15 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         with open(tmp_file, "w") as f:
             f.write(normalized_output)
         tdLog.info(f"Temp result: {tmp_file}")
+
+        # Explicit, env-gated baseline update.  Used when a new source is added
+        # to the matrix: the shared blocks must stay byte-identical, which is
+        # checked with `git diff` (additions only) before the change is kept.
+        if os.environ.get("FQ13_WRITE_BASELINE") == "1":
+            with open(baseline_file, "w", encoding="utf-8") as f:
+                f.write(normalized_output)
+            tdLog.info(f"FQ13_WRITE_BASELINE: rewrote {baseline_file}")
+            return
 
         if not os.path.isfile(baseline_file):
             msg = (
@@ -15769,6 +15799,69 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # Strict-mode toggle
     # ------------------------------------------------------------------
 
+    # Pushdown-form checks that cannot hold for a zero-pushdown source; the
+    # bare-scan contract in _assert_zero_pushdown_remote() covers those cases.
+    _ZERO_PUSHDOWN_SKIPPED_CHECKS = frozenset({
+        "remote_has", "verbose_remote_has", "remote_any_has",
+        "remote_any_count_eq", "remote_any_count_ge", "compound_where",
+        "local_not_has", "dialect_backtick", "dialect_double_quote",
+        "soft_remote_has", "pushdown_flags",
+        # Numeric-count checks: their per-source expectation dicts have no
+        # SQL Server entry, and _per_src() then yields an empty list.
+        "min_federated_scans", "remote_any_count_eq", "remote_any_count_ge",
+        # Absence of a pushed form is asserted by the bare-scan contract.
+        "remote_any_not_has",
+        # One scan per referenced table is correct when the JOIN stays local.
+        "single_federated_scan",
+    })
+
+    # Markers that must never appear in a zero-pushdown remote scan.  A ts
+    # range filter and the scan-injected primary-key ORDER BY are part of the
+    # base scan (DS 10.2.5) and stay allowed, so "where"/"order by" are vetted
+    # separately by _assert_zero_pushdown_remote().
+    _ZERO_PUSHDOWN_FORBIDDEN = (
+        " group by ", " limit ", " having ", " join ", " distinct ",
+        " union ", "sum(", "avg(", "count(", "min(", "max(",
+    )
+
+    def _assert_zero_pushdown_remote(self, lines, mode, src_info, case_id, errors):
+        """Assert the zero-pushdown bare-scan contract on the remote SQL.
+
+        The remote statement may list the referenced columns and carry the
+        scan-injected primary-key ordering, but no user clause (predicate,
+        aggregate, join, group by, limit, ordering) may reach the source.
+        """
+        if mode not in VERBOSE_MODES:
+            return
+        # The zero-pushdown leg is the SQL Server one: single blocks carry it
+        # in "db", cross pairs in "db2" (see _CROSS_PAIRS).
+        own_db = src_info.get("zero_pushdown_db", "") or src_info.get("db", "")
+        remote_lines = [l for l in lines if "remote sql:" in l.lower()]
+        if not remote_lines:
+            return
+        own = [l for l in remote_lines if own_db and own_db.lower() in l.lower()]
+        targets = own if own else remote_lines
+        for line in targets:
+            low = line.lower()
+            for token in self._ZERO_PUSHDOWN_FORBIDDEN:
+                if token in low:
+                    errors.append((case_id, "zero_pushdown_remote",
+                                   f"[{_MODE_LABELS[mode]}] remote SQL carried "
+                                   f"{token!r}: {line.strip()[:200]}"))
+                    break
+            # Any ORDER BY must be the scan-injected primary-key ordering on
+            # the timestamp column (the base scan always sorts by it).
+            for part in low.split("order by ")[1:]:
+                for col in part.split(" desc")[0].split(" asc")[0].split(","):
+                    col = col.strip()
+                    if not col or col in ("(select",):
+                        continue
+                    if not col.lstrip("[\"#'").startswith(("ts", "time")):
+                        errors.append((case_id, "zero_pushdown_remote",
+                                       f"[{_MODE_LABELS[mode]}] remote SQL carried a "
+                                       f"user ORDER BY on {col!r}: {line.strip()[:200]}"))
+                        break
+
     @staticmethod
     def _is_strict():
         """Return True unless ``FQ_EXPLAIN_STRICT`` is explicitly disabled.
@@ -15823,8 +15916,19 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         src_name = src_info.get("src", "")
         db_name = src_info.get("db", "")
 
+        # Zero-pushdown source (SQL Server, step 1): the remote statement is a
+        # bare scan and every declared clause executes locally, so the checks
+        # that assert a pushed-down remote form are replaced by the bare-scan
+        # contract below instead of silently passing.
+        is_zero_pushdown = bool(src_info.get("zero_pushdown")) or \
+            "sqlserver" in src_label.lower()
+        if is_zero_pushdown:
+            self._assert_zero_pushdown_remote(lines, mode, src_info, case_id, errors)
+
         for chk in checks:
             try:
+                if is_zero_pushdown and chk in self._ZERO_PUSHDOWN_SKIPPED_CHECKS:
+                    continue
                 if chk == "federated_scan":
                     assert "Federated Scan" in text, \
                         f"[{mode_label}] 'Federated Scan' not found in plan"
@@ -16264,110 +16368,127 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         _id_filter = os.environ.get("FQ_ID_FILTER", "")
         _id_filters = [part.strip() for part in _id_filter.split(",") if part.strip()]
         _subq_scope = os.environ.get("FQ_SUBQUERY_SCOPE", "").strip().lower()
-        for case_def in _EXPLAIN_CASES:
-            if not _id_filter and _case_filter and _case_filter not in case_def["id"]:
-                continue
-            if _subq_scope in ("flat", "non_recursive", "nonrecursive"):
-                if _max_subquery_depth(case_def["sql"]) > 1:
+        # Two phases: every non-SQL-Server block first (byte-for-byte the
+        # previous execution order, so the shared baselines keep matching), then
+        # the SQL Server blocks.  SQL Server blocks carry a `use <src>` pre-SQL
+        # for the unqualified-reference cases, and execising that context
+        # changes how a following MySQL interval expression is rendered - the
+        # blocks are therefore run last instead of interleaved.
+        # Each mode starts from a fresh session: a previous mode test can end
+        # with a SQL Server USE context (the unqualified-reference cases in
+        # phase 2 issue `use <src>`), and execising that context changes how a
+        # later MySQL interval expression is rendered (an extra FROM_UNIXTIME
+        # wrap).  Reconnecting restores the state the shared baselines were
+        # produced in.
+        self._reset_td_session()
+        for phase in (0, 1):
+            for case_def in _EXPLAIN_CASES:
+                if not _id_filter and _case_filter and _case_filter not in case_def["id"]:
                     continue
-            elif _subq_scope == "recursive":
-                if _max_subquery_depth(case_def["sql"]) <= 1:
-                    continue
-            sql_tpl = case_def["sql"]
-            expect_err_spec = case_def.get("expect_err", False)
-            raw_args = case_def.get("check_args", {})
+                if _subq_scope in ("flat", "non_recursive", "nonrecursive"):
+                    if _max_subquery_depth(case_def["sql"]) > 1:
+                        continue
+                elif _subq_scope == "recursive":
+                    if _max_subquery_depth(case_def["sql"]) <= 1:
+                        continue
+                sql_tpl = case_def["sql"]
+                expect_err_spec = case_def.get("expect_err", False)
+                raw_args = case_def.get("check_args", {})
 
-            for expanded_id, src_info, src_type in \
-                    self._expand_sources(case_def):
-                if _id_filters and not any(part in expanded_id for part in _id_filters):
-                    continue
-                # Per-source expect_err: accepts bool (all sources) or
-                # dict{label:bool} (per-source).  Resolve for this source.
-                src_label = src_info.get("label", "")
-                expect_err = _per_src(expect_err_spec, src_label)
-                expect_err_contains = _per_src(
-                    raw_args.get("expect_err_contains", []), src_label)
-                if isinstance(expect_err_contains, str):
-                    expect_err_contains = [expect_err_contains]
-                sql = self._make_real_sql(sql_tpl, src_info, src_type)
-                for attempt in range(2):
-                    t0 = _time.monotonic()
-                    try:
-                        self._exec_case_sqls(case_def, "pre_sql", src_info, src_type, expanded_id)
-                        lines = self._exec_explain(sql, mode)
-                        elapsed = _time.monotonic() - t0
-                        if expect_err:
-                            # EXPLAIN succeeded but we expected it to fail —
-                            # this is an unexpected success (regression).
-                            msg = (f"[{_MODE_LABELS[mode]}] EXPLAIN unexpectedly "
-                                   f"succeeded (expect_err=True): {sql}")
-                            tdLog.info(
-                                f"[{expanded_id:<24s}] FAIL  expect_err: {msg}  "
-                                f"[{elapsed:.2f}s]")
-                            failed.append((expanded_id, "expect_err", msg))
-                            # Still serialize the result for the baseline record.
-                            blocks.append(self._serialize_explain(
-                                expanded_id, sql, lines))
-                        else:
-                            errs = self._validate(expanded_id, mode, lines,
-                                                  case_def, src_info)
-                            blocks.append(self._serialize_explain(
-                                expanded_id, sql, lines))
-                            if errs:
-                                for eid, chk, msg in errs:
-                                    tdLog.info(
-                                        f"[{eid:<24s}] FAIL  {chk}: {msg}  "
-                                        f"[{elapsed:.2f}s]")
-                                    failed.append((eid, chk, msg))
-                            else:
+                for expanded_id, src_info, src_type in \
+                        self._expand_sources(case_def):
+                    if _id_filters and not any(part in expanded_id for part in _id_filters):
+                        continue
+                    is_ss_block = "sqlserver" in expanded_id.lower()
+                    if (phase == 1) != is_ss_block:
+                        continue
+                    # Per-source expect_err: accepts bool (all sources) or
+                    # dict{label:bool} (per-source).  Resolve for this source.
+                    src_label = src_info.get("label", "")
+                    expect_err = _per_src(expect_err_spec, src_label)
+                    expect_err_contains = _per_src(
+                        raw_args.get("expect_err_contains", []), src_label)
+                    if isinstance(expect_err_contains, str):
+                        expect_err_contains = [expect_err_contains]
+                    sql = self._make_real_sql(sql_tpl, src_info, src_type)
+                    for attempt in range(2):
+                        t0 = _time.monotonic()
+                        try:
+                            self._exec_case_sqls(case_def, "pre_sql", src_info, src_type, expanded_id)
+                            lines = self._exec_explain(sql, mode)
+                            elapsed = _time.monotonic() - t0
+                            if expect_err:
+                                # EXPLAIN succeeded but we expected it to fail —
+                                # this is an unexpected success (regression).
+                                msg = (f"[{_MODE_LABELS[mode]}] EXPLAIN unexpectedly "
+                                       f"succeeded (expect_err=True): {sql}")
                                 tdLog.info(
-                                    f"[{expanded_id:<24s}] PASS  "
-                                    f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
-                        break
-                    except Exception as e:
-                        elapsed = _time.monotonic() - t0
-                        if self._maybe_recover_case(expanded_id, sql, e, attempt):
-                            continue
-                        if expect_err:
-                            err_text = str(e)
-                            missing = [
-                                kw for kw in expect_err_contains
-                                if kw not in err_text
-                            ]
-                            if missing:
-                                msg = (
-                                    f"[{_MODE_LABELS[mode]}] Expected error "
-                                    f"missing {missing}: {err_text}"
-                                )
-                                tdLog.info(
-                                    f"[{expanded_id:<24s}] FAIL  "
-                                    f"expect_err_contains: {msg}  "
+                                    f"[{expanded_id:<24s}] FAIL  expect_err: {msg}  "
                                     f"[{elapsed:.2f}s]")
-                                failed.append(
-                                    (expanded_id, "expect_err_contains", msg))
-                            # Expected failure — record as POS block (error text
-                            # captured in baseline for change detection).
-                            tdLog.info(
-                                f"[{expanded_id:<24s}] PASS(expected-err)  "
-                                f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
-                            blocks.append(self._serialize_err(
-                                expanded_id, sql, str(e)))
-                        else:
-                            # Unexpected failure — this is a real test failure.
-                            tdLog.info(
-                                f"[{expanded_id:<24s}] FAIL(exec-err)  "
-                                f"{sql_tpl[:55]}  [{elapsed:.2f}s]  {e}")
-                            blocks.append(self._serialize_err(
-                                expanded_id, sql, str(e)))
-                            failed.append((expanded_id, "exec_err", str(e)))
-                        break
-                try:
-                    self._exec_case_sqls(case_def, "post_sql", src_info, src_type, expanded_id)
-                except Exception as e:
-                    tdLog.info(
-                        f"[{expanded_id:<24s}] FAIL(post-sql)  "
-                        f"{sql_tpl[:55]}  {e}")
-                    failed.append((expanded_id, "post_sql", str(e)))
+                                failed.append((expanded_id, "expect_err", msg))
+                                # Still serialize the result for the baseline record.
+                                blocks.append(self._serialize_explain(
+                                    expanded_id, sql, lines))
+                            else:
+                                errs = self._validate(expanded_id, mode, lines,
+                                                      case_def, src_info)
+                                blocks.append(self._serialize_explain(
+                                    expanded_id, sql, lines))
+                                if errs:
+                                    for eid, chk, msg in errs:
+                                        tdLog.info(
+                                            f"[{eid:<24s}] FAIL  {chk}: {msg}  "
+                                            f"[{elapsed:.2f}s]")
+                                        failed.append((eid, chk, msg))
+                                else:
+                                    tdLog.info(
+                                        f"[{expanded_id:<24s}] PASS  "
+                                        f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
+                            break
+                        except Exception as e:
+                            elapsed = _time.monotonic() - t0
+                            if self._maybe_recover_case(expanded_id, sql, e, attempt):
+                                continue
+                            if expect_err:
+                                err_text = str(e)
+                                missing = [
+                                    kw for kw in expect_err_contains
+                                    if kw not in err_text
+                                ]
+                                if missing:
+                                    msg = (
+                                        f"[{_MODE_LABELS[mode]}] Expected error "
+                                        f"missing {missing}: {err_text}"
+                                    )
+                                    tdLog.info(
+                                        f"[{expanded_id:<24s}] FAIL  "
+                                        f"expect_err_contains: {msg}  "
+                                        f"[{elapsed:.2f}s]")
+                                    failed.append(
+                                        (expanded_id, "expect_err_contains", msg))
+                                # Expected failure — record as POS block (error text
+                                # captured in baseline for change detection).
+                                tdLog.info(
+                                    f"[{expanded_id:<24s}] PASS(expected-err)  "
+                                    f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
+                                blocks.append(self._serialize_err(
+                                    expanded_id, sql, str(e)))
+                            else:
+                                # Unexpected failure — this is a real test failure.
+                                tdLog.info(
+                                    f"[{expanded_id:<24s}] FAIL(exec-err)  "
+                                    f"{sql_tpl[:55]}  [{elapsed:.2f}s]  {e}")
+                                blocks.append(self._serialize_err(
+                                    expanded_id, sql, str(e)))
+                                failed.append((expanded_id, "exec_err", str(e)))
+                            break
+                    try:
+                        self._exec_case_sqls(case_def, "post_sql", src_info, src_type, expanded_id)
+                    except Exception as e:
+                        tdLog.info(
+                            f"[{expanded_id:<24s}] FAIL(post-sql)  "
+                            f"{sql_tpl[:55]}  {e}")
+                        failed.append((expanded_id, "post_sql", str(e)))
 
         output = "\n".join(blocks) + "\n"
         # When either filter is active, extract only the matching blocks from
@@ -16484,3 +16605,106 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         """
         self._run_mode(EXPLAIN_ANALYZE_VERBOSE,
                        "test_explain_analyze_verbose")
+
+    # ------------------------------------------------------------------
+    # SQL Server EXPLAIN — step 1 zero pushdown
+    # ------------------------------------------------------------------
+
+    _SS_DB = _SQLSERVER_DB
+    _SS_SRC = _SRC_SQLSERVER
+
+    def _setup_sqlserver_explain_source(self):
+        ExtSrcEnv.sqlserver_create_db(self._SS_DB)
+        # Same schema and rows as the MySQL/PG fixtures, so every matrix SQL
+        # (written against `time`/`voltage`/`region`/...) runs unchanged.
+        ExtSrcEnv.sqlserver_exec(self._SS_DB, [
+            "IF OBJECT_ID('dbo.sensor') IS NOT NULL DROP TABLE dbo.sensor",
+            "CREATE TABLE dbo.sensor ("
+            # `time`/`current` are T-SQL keywords and must stay bracketed.
+            " [time] datetime2(3) NOT NULL PRIMARY KEY, [voltage] float, [current] real,"
+            " [region] nvarchar(32), [date_str] nvarchar(32), [json_str] nvarchar(64),"
+            " [b64_str] nvarchar(32), [geom_wkt] nvarchar(64))",
+            "INSERT INTO dbo.sensor VALUES "
+            " ('2024-01-01T00:00:00.000',220.5,1.2,N'north',N'2024-01-01',N'{\"k\":1}',N'aGVsbG8=',N'POINT(0 0)'),"
+            " ('2024-01-01T00:01:00.000',221.0,1.3,N'south',N'2024-01-02',N'{\"k\":2}',N'd29ybGQ=',N'POINT(1 1)'),"
+            " ('2024-01-01T00:02:00.000',219.8,1.1,N'north',N'2024-01-03',N'{\"k\":3}',N'Zm9v',N'POINT(2 2)'),"
+            " ('2024-01-01T00:03:00.000',222.0,1.4,N'south',N'2024-01-04',N'{\"k\":4}',N'YmFy',N'POINT(3 3)'),"
+            " ('2024-01-01T00:04:00.000',220.0,1.0,N'north',N'2024-01-05',N'{\"k\":5}',N'YmF6',N'POINT(4 4)')",
+            "IF OBJECT_ID('dbo.region_info') IS NOT NULL DROP TABLE dbo.region_info",
+            "CREATE TABLE dbo.region_info ("
+            " [time] datetime2(3) NOT NULL PRIMARY KEY, [region] nvarchar(32), [area] int)",
+            "INSERT INTO dbo.region_info VALUES "
+            " ('2024-01-01T00:00:00.000',N'north',1),"
+            " ('2024-01-01T00:01:00.000',N'south',2)",
+        ])
+        self._cleanup_src(self._SS_SRC)
+        self._mk_sqlserver_real(self._SS_SRC, database=self._SS_DB, schema="dbo")
+
+    @staticmethod
+    def _ss_plan_text(sql, mode="verbose"):
+        if mode == "verbose":
+            tdSql.query(f"explain verbose true {sql}")
+        elif mode == "analyze":
+            # `explain analyze` does not take the verbose flag.
+            tdSql.query(f"explain analyze {sql}")
+        else:
+            tdSql.query(f"explain {sql}")
+        return "\n".join(
+            str(cell) for row in (tdSql.queryResult or ()) for cell in row if cell is not None
+        )
+
+    def test_explain_sqlserver_zero_pushdown(self):
+        """FQSS-SYS-002/003 + step-1 zero-pushdown EXPLAIN contract.
+
+        Every SQL Server statement must render a plain remote scan: the remote
+        SQL carries no WHERE / GROUP BY / LIMIT and no user ORDER BY (the
+        injected primary-key ordering is allowed), while the federated scan is
+        present and the clauses execute locally.
+
+        Catalog: - Query:FederatedExplain
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        self._setup_sqlserver_explain_source()
+        try:
+            base = f"{self._SS_SRC}.{self._SS_DB}.dbo.sensor"
+            # The projection is absorbed by the scan's column pruning (the
+            # remote SELECT lists exactly the referenced columns), so only the
+            # clauses that stay local are asserted by name.
+            cases = [
+                (f"select voltage from {base}", [], True),
+                (f"select voltage from {base} where voltage > 220.0", ["Filter:"], False),
+                (f"select voltage from {base} order by voltage limit 1", ["Sort", "Limit"], False),
+                (f"select count(*), avg(voltage) from {base}", ["Aggregate"], False),
+            ]
+            for sql, local_tokens, column_pruned in cases:
+                text = self._ss_plan_text(sql)
+                lower = text.lower()
+                assert "federated scan" in lower, f"no federated scan for {sql!r}: {text!r}"
+                remote = "\n".join(
+                    line for line in text.splitlines() if "remote sql:" in line.lower())
+                assert remote, f"no Remote SQL for {sql!r}: {text!r}"
+                for forbidden in (" where ", " group by ", " limit "):
+                    assert forbidden not in remote.lower(), (
+                        f"baseline mode pushed {forbidden!r} for {sql!r}: {remote!r}")
+                assert "sum(" not in remote.lower() and "avg(" not in remote.lower(), (
+                    f"baseline mode pushed an aggregate for {sql!r}: {remote!r}")
+                if column_pruned:
+                    assert "voltage" in remote.lower(), (
+                        f"scan did not prune to the referenced column for {sql!r}: {remote!r}")
+                for token in local_tokens:
+                    assert token.lower() in lower, (
+                        f"local plan lacks {token!r} for {sql!r}: {text!r}")
+                # Analyze mode must still produce metrics for the federated scan.
+                analyze = self._ss_plan_text(sql, mode="analyze")
+                assert "federated" in analyze.lower(), (
+                    f"analyze plan lacks the federated scan for {sql!r}: {analyze!r}")
+        finally:
+            self._cleanup_src(self._SS_SRC)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(self._SS_DB)
+            except Exception:
+                pass

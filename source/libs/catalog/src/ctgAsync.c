@@ -6648,7 +6648,8 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     if (pReq->rawMidSegs[1][0] != '\0') {
       // 4-segment path (src.db.schema.table): rawMidSegs[0] is the database.
       tstrncpy(cfg.default_database, pReq->rawMidSegs[0], TSDB_EXT_SOURCE_DATABASE_LEN);
-    } else if (pReq->rawMidSegs[0][0] != '\0' && pSrcInfo->type != EXT_SOURCE_POSTGRESQL) {
+    } else if (pReq->rawMidSegs[0][0] != '\0' && pSrcInfo->type != EXT_SOURCE_POSTGRESQL &&
+               pSrcInfo->type != EXT_SOURCE_SQLSERVER) {
       // 3-segment non-PG path (src.db.table) or a USE-ns keyed reservation
       // (rawMidSegs[0] = USE namespace = database).
       // For PostgreSQL rawMidSegs[0] is the schema, not the database, so PG is
@@ -6708,6 +6709,13 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
           tstrncpy(tblNode.table.dbName, cfg.default_database, TSDB_DB_NAME_LEN);
           tstrncpy(tblNode.schemaName, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
         }
+      } else if (pReq->rawMidSegs[1][0] == '\0' && pSrcInfo->type == EXT_SOURCE_SQLSERVER) {
+        // SQL Server 3-segment path src.schema.table: rawMidSegs[0] is the schema
+        // and the database stays the effective (source/connection) one.
+        // A 4-segment column ref src.db.schema.table.col arrives with
+        // rawMidSegs[1] set and is handled by the generic branch below.
+        tstrncpy(tblNode.table.dbName, cfg.default_database, TSDB_DB_NAME_LEN);
+        tstrncpy(tblNode.schemaName, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
       } else {
         tstrncpy(tblNode.table.dbName, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
       }
@@ -6723,10 +6731,13 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
       tstrncpy(tblNode.schemaName, pReq->rawMidSegs[1], TSDB_DB_NAME_LEN);
     }
 
-    // For PG sources with 2-segment path, use source's configured default schema
-    if (tblNode.schemaName[0] == '\0' && pSrcInfo->type == EXT_SOURCE_POSTGRESQL) {
+    // Sources with a two-level namespace (PG, SQL Server) fill the configured
+    // default schema for 2-segment paths; the lookup cannot proceed without it.
+    if (tblNode.schemaName[0] == '\0' &&
+        (pSrcInfo->type == EXT_SOURCE_POSTGRESQL || pSrcInfo->type == EXT_SOURCE_SQLSERVER)) {
       if (pSrcInfo->schema_name[0] == '\0') {
-        qError("ctgAsync: PG source '%s' has no default schema configured", pReq->sourceName);
+        qError("ctgAsync: source '%s' (type %d) has no default schema configured", pReq->sourceName,
+               (int)pSrcInfo->type);
         extConnectorClose(pHandle);
         res.code = TSDB_CODE_EXT_DEFAULT_NS_MISSING;
         if (NULL == taosArrayPush(pJob->jobRes.pExtTableMetaRsp, &res)) {

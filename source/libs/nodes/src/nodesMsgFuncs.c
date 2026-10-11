@@ -752,6 +752,7 @@ enum {
   COLUMN_CODE_USER_ALIAS,
   COLUMN_CODE_HAS_NULL,
   COLUMN_CODE_REF_SOURCE_NAME,
+  COLUMN_CODE_REF_SCHEMA_NAME,   // appended: SQL Server schema segment on external column refs
 };
 
 static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -839,6 +840,9 @@ static int32_t columnNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, COLUMN_CODE_REF_SOURCE_NAME, pNode->refSourceName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, COLUMN_CODE_REF_SCHEMA_NAME, pNode->refSchemaName);
   }
 
   return code;
@@ -935,6 +939,9 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case COLUMN_CODE_REF_SOURCE_NAME:
         code = tlvDecodeCStr(pTlv, pNode->refSourceName, sizeof(pNode->refSourceName));
+        break;
+      case COLUMN_CODE_REF_SCHEMA_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->refSchemaName, sizeof(pNode->refSchemaName));
         break;
       default:
         break;
