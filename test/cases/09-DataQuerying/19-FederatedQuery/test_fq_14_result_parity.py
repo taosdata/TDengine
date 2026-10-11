@@ -128,6 +128,7 @@ def _ms_to_dt(ms_ts):
 
 _MYSQL_DB      = "fq_parity_m"
 _PG_DB         = "fq_parity_p"
+_SQLSERVER_DB  = "fq_parity_s"
 _INFLUX_BUCKET = "fq_parity_i"
 _LOCAL_DB      = "fq_parity_local"
 _LOCAL_US_DB   = "fq_parity_local_us"
@@ -855,7 +856,13 @@ _PARITY_GROUPS: Dict[str, list] = {
     "tochar": [
         ("SELECT TO_CHAR(time, 'yyyy-MM-dd') FROM {tbl} WHERE id = 1 ORDER BY time",),
         ("SELECT TO_TIMESTAMP(ts_str, 'YYYY-MM-DD HH24:mi:ss') FROM {tbl} WHERE id = 1 ORDER BY time",),
-        ("SELECT TO_UNIXTIMESTAMP(time) FROM {tbl} WHERE id = 1",),
+        # TO_UNIXTIMESTAMP returns the epoch in the column's own precision.
+        # MySQL/PG/InfluxDB push the conversion to the remote source (rendered as
+        # epoch * 1000 -> ms, see DS 5.3.x TO_UNIXTIMESTAMP); SQL Server runs the
+        # baseline (no pushdown) so the function is evaluated locally against the
+        # microsecond-precision external column and yields us.  Accept the source
+        # precision factor for that column only.
+        ("SELECT TO_UNIXTIMESTAMP(time) FROM {tbl} WHERE id = 1", dict(precision_cols={0})),
     ],
     # ── interp: INTERP 时间序列插值（RANGE / EVERY / FILL）
     # Data: val=10,20,30,40,50 at 1-minute intervals from 2024-01-01 00:00:00
@@ -1123,6 +1130,22 @@ _PG_SETUP = [
     for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS_DT
 ]
 
+_SQLSERVER_SETUP = [
+    "IF OBJECT_ID('dbo.parity_t') IS NOT NULL DROP TABLE dbo.parity_t",
+    "CREATE TABLE dbo.parity_t ("
+    "  time datetime2(3) NOT NULL,"
+    "  id int, val int, Mapped_Val int, score float, label nvarchar(32),"
+    "  nullable_val int, lat float, lon float,"
+    "  wkt_point nvarchar(64), wkt_poly nvarchar(256), ts_str nvarchar(32)"
+    ")",
+] + [
+    "INSERT INTO dbo.parity_t (time, id, val, Mapped_Val, score, label,"
+    " nullable_val, lat, lon, wkt_point, wkt_poly, ts_str) VALUES ({})".format(
+        ", ".join(parity_sql_val(x) for x in (ts, i, v, 100 + i, s, l, nv, lat, lon, wp, wy, tss))
+    )
+    for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS_DT
+]
+
 # InfluxDB line-protocol: label tag; numeric/string fields; timestamp in ns.
 # nullable_val is omitted for NULL rows (InfluxDB has no NULL — omitting a field
 # makes it NULL when read back via TDengine federated query).
@@ -1188,6 +1211,7 @@ class TestFq14ResultParity(ParityTestBase):
     _SRC_MYSQL  = "fq_parity_src_m"
     _SRC_PG     = "fq_parity_src_p"
     _SRC_INFLUX = "fq_parity_src_i"
+    _SRC_SQLSERVER = "fq_parity_src_s"
     _class_setup_done = False
     _FLOAT_TOL = _FLOAT_TOL
     _BASELINE_FILE = os.path.join(os.path.dirname(__file__), "ans", "test_fq_14_result_parity.txt")
@@ -1204,9 +1228,10 @@ class TestFq14ResultParity(ParityTestBase):
 
     def _ext_sources(self):
         return [
-            ("MySQL",    f"{self._SRC_MYSQL}.parity_t"),
-            ("PG",       f"{self._SRC_PG}.parity_t"),
-            ("InfluxDB", f"{self._SRC_INFLUX}.parity_t"),
+            ("MySQL",     f"{self._SRC_MYSQL}.parity_t"),
+            ("PG",        f"{self._SRC_PG}.parity_t"),
+            ("InfluxDB",  f"{self._SRC_INFLUX}.parity_t"),
+            ("SQLServer", f"{self._SRC_SQLSERVER}.parity_t"),
         ]
 
     def _join_ts_source_map(self, *, local_ref=False):
@@ -1219,6 +1244,7 @@ class TestFq14ResultParity(ParityTestBase):
                 "mysql": local_us_tbl,
                 "pg": local_us_tbl,
                 "influx": local_us_tbl,
+                "sqlserver": local_us_tbl,
             }
         return {
             "local": local_tbl,
@@ -1226,6 +1252,7 @@ class TestFq14ResultParity(ParityTestBase):
             "mysql": f"{self._SRC_MYSQL}.parity_t",
             "pg": f"{self._SRC_PG}.parity_t",
             "influx": f"{self._SRC_INFLUX}.parity_t",
+            "sqlserver": f"{self._SRC_SQLSERVER}.parity_t",
         }
 
     def _run_join_ts_external_sort_matrix(self):
@@ -1296,11 +1323,20 @@ class TestFq14ResultParity(ParityTestBase):
         self._cleanup_src(self._SRC_INFLUX)
         self._mk_influx_real(self._SRC_INFLUX, database=_INFLUX_BUCKET)
 
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, _SQLSERVER_SETUP)
+        self._cleanup_src(self._SRC_SQLSERVER)
+        self._mk_sqlserver_real(self._SRC_SQLSERVER, database=_SQLSERVER_DB, schema="dbo")
+
         TestFq14ResultParity._class_setup_done = True
 
     def teardown_class(self):
         tmp = TestFq14ResultParity()
-        tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX)
+        tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX, tmp._SRC_SQLSERVER)
+        try:
+            ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_DB)
+        except Exception:
+            pass
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_US_DB}")
         for drop in [
@@ -1542,7 +1578,24 @@ class TestFq14ResultParity(ParityTestBase):
                 outer_tail = normalized_sql.rsplit(" ON ", 1)[-1]
                 outer_tail = outer_tail.split(" ORDER BY ", 1)[0]
                 outer_where = " WHERE " in outer_tail
-                if case_id in ("join-22", "join-28"):
+                if label == "SQLServer":
+                    # SQL Server runs the federated-query pushdown baseline: JOIN
+                    # and WHERE stay local, so both join legs render as separate
+                    # remote scans and neither predicate may leak into remote SQL.
+                    assert len(remote_lines) == 2, (
+                        f"[{case_id} {label}] expected two remote input scans: {remote_lines!r}"
+                    )
+                    assert all(" join " not in line.lower() for line in remote_lines), (
+                        f"[{case_id} {label}] JOIN leaked into a remote input scan: {remote_lines!r}"
+                    )
+                    assert " WHERE " not in normalized_sql, (
+                        f"[{case_id} {label}] predicate leaked into baseline remote SQL: {remote_sql}"
+                    )
+                    plan_details = [
+                        "REMOTE JOIN: NO",
+                        "REMOTE WHERE: NO",
+                    ]
+                elif case_id in ("join-22", "join-28"):
                     if case_id == "join-22":
                         derived_pattern = r"FROM \(SELECT .+ WHERE .+\) [`\"]?a[`\"]? LEFT JOIN"
                     else:

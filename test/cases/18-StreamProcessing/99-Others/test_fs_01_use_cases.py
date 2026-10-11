@@ -59,10 +59,14 @@ from fs_common import (  # noqa: E402
 
 
 def _mid_segment(prefix: str, src_name: str) -> str:
-    """For src '{prefix}_{m|p|i}', return remote db (mysql/influx) or schema (pg)."""
+    """For src '{prefix}_{m|p|s|i}', return remote db (mysql/influx) or schema (pg/sqlserver)."""
     suffix = src_name[-1]
     if suffix == "p":
         return "public"
+    if suffix == "s":
+        # SQL Server 3-segment refs carry the schema in the middle segment;
+        # the database comes from the source default (DS §5.3.3).
+        return "dbo"
     return f"{prefix}_{suffix}db"
 
 

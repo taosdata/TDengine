@@ -1830,6 +1830,7 @@ static const char* extSrcTypeToStr(int8_t srcType) {
     case 0: return "mysql";
     case 1: return "postgresql";
     case 2: return "influxdb";
+    case EXT_SOURCE_SQLSERVER: return "sqlserver";
     default: return "unknown";
   }
 }

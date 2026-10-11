@@ -32,7 +32,7 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table,
-    create_mysql_table, create_influx_measurement)
+    create_mysql_table, create_influx_measurement, create_sqlserver_table)
 
 
 _LOCAL_DB = "valter_local"
@@ -42,6 +42,8 @@ _MY_DB    = "valter_my"
 _MY_SRC   = "valter_my_src"
 _INF_DB   = "valter_inf"
 _INF_SRC  = "valter_inf_src"
+_SS_DB    = "valter_ss"
+_SS_SRC   = "valter_ss_src"
 
 
 def _ensure_pg_source_and_tables():
@@ -64,6 +66,29 @@ def _ensure_mysql_source_and_tables():
                        ["('2024-01-01 00:00:00.000', 1, 10)",
                         "('2024-01-01 00:01:00.000', 2, 20)"])
     create_ext_source(_MY_SRC, "mysql", _MY_DB)
+
+
+def _ensure_sqlserver_source_and_tables():
+    """SQL Server source for the ALTER matrix.
+
+    The local database uses PRECISION 'ns' so the microsecond SQL Server
+    timestamp resolution is accepted; references use the 5-segment path
+    source.database.schema.table.column (DS 5.3.3).
+
+    The remote tables mirror the PG/MySQL r1/r2 pair, plus a second-schema
+    table to prove the schema segment stays part of the binding.
+    """
+    create_remote_db("sqlserver", _SS_DB)
+    create_sqlserver_table(_SS_DB, "r1",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v INT, w INT",
+                           ["('2024-01-01 00:00:00.000', 1, 10)",
+                            "('2024-01-01 00:01:00.000', 2, 20)"])
+    create_sqlserver_table(_SS_DB, "r2",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v INT, x FLOAT",
+                           ["('2024-01-01 00:00:00.000', 100, 1.5)",
+                            "('2024-01-01 00:01:00.000', 200, 2.5)"],
+                           schema="other")
+    create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
 
 
 def _check_describe_layout(table, expected):
@@ -91,6 +116,7 @@ class TestVtableAlterExtSource:
         ExtSrcEnv.ensure_qnode()
         _ensure_pg_source_and_tables()
         _ensure_mysql_source_and_tables()
+        _ensure_sqlserver_source_and_tables()
         create_remote_db("influxdb", _INF_DB)
         create_influx_measurement(_INF_DB, [
             "r_inftag,device=sensor1 value=42.0 1700000000000000000"
@@ -106,6 +132,7 @@ class TestVtableAlterExtSource:
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_PG_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_MY_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SS_SRC}")
 
     # -------------------------------------------------------------------
     # 4.1 — Normal vtable
@@ -202,6 +229,100 @@ class TestVtableAlterExtSource:
             f"FROM {_INF_SRC}.{_INF_DB}.r_inftag.device")
         tdSql.execute(f"DROP VTABLE IF EXISTS {n}")
 
+    def test_sqlserver_alter_references(self):
+        """§4.1 — ALTER on a virtual table referencing SQL Server.
+
+        Mirrors the PG/MySQL ALTER matrix over the 5-segment SQL Server path
+        source.database.schema.table.column: ADD COLUMN with / without FROM,
+        a second-schema binding, DROP COLUMN, RENAME COLUMN, MODIFY COLUMN
+        rejection, and ALTER after the source was dropped.
+
+        Since: v3.4.4.0
+
+        """
+        # (a) ADD COLUMN with FROM succeeds and keeps the binding.
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_alter")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_alter (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r1.v)")
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_alter ADD COLUMN w int "
+            f"FROM {_SS_SRC}.{_SS_DB}.dbo.r1.w")
+        _check_describe_layout("v_ss_alter", [
+            ("ts", "TIMESTAMP", ""),
+            ("v", "INT", f"{_SS_SRC}.{_SS_DB}.r1.v"),
+            ("w", "INT", f"{_SS_SRC}.{_SS_DB}.r1.w"),
+        ])
+        tdSql.query("SELECT w FROM v_ss_alter ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(1, 0, 20)
+
+        # (b) ADD COLUMN bound to a same-database table in another schema.
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_alter ADD COLUMN xs double "
+            f"FROM {_SS_SRC}.{_SS_DB}.other.r2.x")
+        tdSql.query("SELECT xs FROM v_ss_alter ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1.5)
+        tdSql.checkData(1, 0, 2.5)
+
+        # (c) ADD COLUMN without FROM is a NULL placeholder: the scan still
+        # returns the referenced rows.  A predicate that touches only the
+        # placeholder matches no row - the same behaviour the PG/MySQL matrix
+        # records (test_vstb_add_column_propagates logs the count instead of
+        # asserting it), so the count is only recorded here as well.
+        tdSql.execute("ALTER VTABLE v_ss_alter ADD COLUMN nu int")
+        tdSql.query("SELECT count(*) FROM v_ss_alter")
+        tdSql.checkData(0, 0, 2)
+        tdSql.query("SELECT count(*) FROM v_ss_alter WHERE nu IS NULL")
+        tdLog.info(f"[contract] SQL Server ADD COLUMN without FROM: null={tdSql.getData(0, 0)}")
+
+        # (d) DROP COLUMN with ext ref succeeds for both bindings.
+        tdSql.execute("ALTER VTABLE v_ss_alter DROP COLUMN w")
+        tdSql.execute("ALTER VTABLE v_ss_alter DROP COLUMN xs")
+        _check_describe_layout("v_ss_alter", [
+            ("ts", "TIMESTAMP", ""),
+            ("v", "INT", f"{_SS_SRC}.{_SS_DB}.r1.v"),
+            ("nu", "INT", ""),
+        ])
+
+        # (e) RENAME COLUMN preserves the FROM binding.
+        tdSql.execute("ALTER VTABLE v_ss_alter RENAME COLUMN v vrenamed")
+        _check_describe_layout("v_ss_alter", [
+            ("ts", "TIMESTAMP", ""),
+            ("vrenamed", "INT", f"{_SS_SRC}.{_SS_DB}.r1.v"),
+            ("nu", "INT", ""),
+        ])
+        tdSql.query("SELECT vrenamed FROM v_ss_alter ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_alter")
+
+        # (f) MODIFY COLUMN on a referenced column is rejected both ways.
+        create_sqlserver_table(_SS_DB, "r_mod",
+                               "ts datetime2(3) NOT NULL PRIMARY KEY, s NVARCHAR(64)")
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_mod")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_mod (ts timestamp, "
+            f"s nchar(16) FROM {_SS_SRC}.{_SS_DB}.dbo.r_mod.s)")
+        tdSql.error("ALTER VTABLE v_ss_mod MODIFY COLUMN s nchar(64)")
+        tdSql.error("ALTER VTABLE v_ss_mod MODIFY COLUMN s nchar(4)")
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_mod")
+
+        # (g) ALTER referencing a dropped source fails.
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_dropsrc")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_dropsrc (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r1.v)")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SS_SRC}")
+        tdSql.error(
+            f"ALTER VTABLE v_ss_dropsrc ADD COLUMN x int "
+            f"FROM {_SS_SRC}.{_SS_DB}.dbo.r1.w")
+        _ensure_sqlserver_source_and_tables()
+        tdSql.execute(f"USE {_LOCAL_DB}")
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_dropsrc")
+
     # -------------------------------------------------------------------
     # 4.2 — vstb
     # -------------------------------------------------------------------
@@ -241,6 +362,36 @@ class TestVtableAlterExtSource:
         tdLog.info(f"[contract] vstb ADD COLUMN w propagation: null={n_null}")
         tdSql.execute("DROP VTABLE IF EXISTS vctb_alter")
         tdSql.execute(f"DROP STABLE IF EXISTS {stb}")
+
+    def test_vstb_sqlserver_child_add_column_propagates(self):
+        """§4.2 — ALTER STABLE ADD COLUMN propagates to a SQL Server child.
+
+        The virtual child references SQL Server through the 5-segment path;
+        the stable-level column addition must reach the child schema while the
+        child's external binding stays intact.
+
+        Since: v3.4.4.0
+
+        """
+        tdSql.execute("DROP STABLE IF EXISTS vstb_alter_ss")
+        tdSql.execute(
+            "CREATE STABLE vstb_alter_ss (ts timestamp, v int) "
+            "TAGS (site nchar(16)) VIRTUAL 1")
+        tdSql.execute(
+            "CREATE VTABLE vctb_alter_ss ("
+            f"v FROM {_SS_SRC}.{_SS_DB}.dbo.r1.v) "
+            "USING vstb_alter_ss TAGS ('siteD')")
+        tdSql.execute("ALTER STABLE vstb_alter_ss ADD COLUMN w int")
+        _check_describe_layout("vctb_alter_ss", [
+            ("ts", "TIMESTAMP", ""),
+            ("v", "INT", f"{_SS_SRC}.{_SS_DB}.r1.v"),
+            ("w", "INT", ""),
+            ("site", "NCHAR"),
+        ])
+        tdSql.query("SELECT count(*) FROM vctb_alter_ss")
+        tdSql.checkData(0, 0, 2)
+        tdSql.execute("DROP VTABLE IF EXISTS vctb_alter_ss")
+        tdSql.execute("DROP STABLE IF EXISTS vstb_alter_ss")
 
     # -------------------------------------------------------------------
     # 4.4 — External source lifecycle and refreshed remote schema
@@ -298,6 +449,27 @@ class TestVtableAlterExtSource:
         tdSql.query("SELECT count(*) FROM v_refresh_inf")
         tdSql.checkData(0, 0, 1)
         tdSql.execute("DROP VTABLE IF EXISTS v_refresh_inf")
+
+        # SQL Server: same lifecycle over the 5-segment reference path.
+        create_sqlserver_table(_SS_DB, "r_refresh",
+                               "ts datetime2(3) NOT NULL PRIMARY KEY, v INT",
+                               ["('2024-01-01 00:00:00.000', 1)",
+                                "('2024-01-01 00:01:00.000', 2)"])
+        tdSql.execute("DROP VTABLE IF EXISTS v_refresh_ss")
+        tdSql.execute(
+            "CREATE VTABLE v_refresh_ss (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r_refresh.v)")
+        tdSql.query("SELECT count(*) FROM v_refresh_ss")
+        tdSql.checkData(0, 0, 2)
+        tdSql.execute(f"REFRESH EXTERNAL SOURCE {_SS_SRC}")
+        tdSql.query("SELECT count(*) FROM v_refresh_ss")
+        tdSql.checkData(0, 0, 2)
+        tdSql.execute(f"DROP EXTERNAL SOURCE {_SS_SRC}")
+        tdSql.error("SELECT count(*) FROM v_refresh_ss")
+        create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
+        tdSql.query("SELECT count(*) FROM v_refresh_ss")
+        tdSql.checkData(0, 0, 2)
+        tdSql.execute("DROP VTABLE IF EXISTS v_refresh_ss")
 
     def test_alter_column_set_ref_after_remote_schema_change(self):
         """Ref binding sees refreshed remote schema and rejects incompatible type changes.
@@ -360,6 +532,36 @@ class TestVtableAlterExtSource:
         tdSql.execute("ALTER VTABLE v_mut_my ALTER COLUMN w SET NULL")
         tdSql.error(f"ALTER VTABLE v_mut_my ALTER COLUMN w SET {_MY_SRC}.{_MY_DB}.r_mut.w")
         tdSql.execute("DROP VTABLE IF EXISTS v_mut_my")
+
+        create_sqlserver_table(_SS_DB, "r_mut",
+                               "ts datetime2(3) NOT NULL PRIMARY KEY, v INT",
+                               ["('2024-01-01 00:00:00.000', 1)"])
+        tdSql.execute("DROP VTABLE IF EXISTS v_mut_ss")
+        tdSql.execute(
+            "CREATE VTABLE v_mut_ss (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r_mut.v, w int)")
+        tdSql.error(f"ALTER VTABLE v_mut_ss ALTER COLUMN w SET {_SS_SRC}.{_SS_DB}.dbo.r_mut.w")
+        ExtSrcEnv.sqlserver_exec(_SS_DB, [
+            "ALTER TABLE dbo.r_mut ADD w INT",
+            "UPDATE dbo.r_mut SET w = 7",
+        ])
+        try:
+            tdSql.execute(f"ALTER VTABLE v_mut_ss ALTER COLUMN w SET {_SS_SRC}.{_SS_DB}.dbo.r_mut.w")
+        except Exception as err:
+            tdLog.info(f"pre-refresh SQL Server SET ref failed as allowed: {err}")
+        tdSql.execute(f"REFRESH EXTERNAL SOURCE {_SS_SRC}")
+        tdSql.execute(f"ALTER VTABLE v_mut_ss ALTER COLUMN w SET {_SS_SRC}.{_SS_DB}.dbo.r_mut.w")
+        tdSql.query("SELECT w FROM v_mut_ss")
+        tdSql.checkData(0, 0, 7)
+        ExtSrcEnv.sqlserver_exec(_SS_DB, [
+            "ALTER TABLE dbo.r_mut ALTER COLUMN w NVARCHAR(32)",
+            "UPDATE dbo.r_mut SET w = 'bad'",
+        ])
+        tdSql.execute(f"REFRESH EXTERNAL SOURCE {_SS_SRC}")
+        tdSql.error("SELECT w FROM v_mut_ss")
+        tdSql.execute("ALTER VTABLE v_mut_ss ALTER COLUMN w SET NULL")
+        tdSql.error(f"ALTER VTABLE v_mut_ss ALTER COLUMN w SET {_SS_SRC}.{_SS_DB}.dbo.r_mut.w")
+        tdSql.execute("DROP VTABLE IF EXISTS v_mut_ss")
 
     def test_vstb_drop_column_propagates(self):
         """Vstb drop column propagates

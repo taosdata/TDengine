@@ -170,6 +170,37 @@ _PG_VIEW_SQLS = [
 ]
 
 
+# ── SQL Server push_t data (s04 / PARTITION BY TBNAME error group) ───────────
+_SQLSERVER_PUSH_DB = "fq18_push_sdb"
+_SQLSERVER_PUSH_SQLS = [
+    "IF OBJECT_ID('dbo.push_t') IS NOT NULL DROP TABLE dbo.push_t",
+    "CREATE TABLE dbo.push_t "
+    "(val INT, score FLOAT, name NVARCHAR(32), flag BIT, status NVARCHAR(16))",
+    "INSERT INTO dbo.push_t VALUES "
+    "(1,1.5,'alpha',1,'active'),"
+    "(2,2.5,'beta',0,'idle'),"
+    "(3,3.5,'gamma',1,'active'),"
+    "(4,4.5,'delta',0,'idle'),"
+    "(5,5.5,'epsilon',1,'active')",
+]
+
+# ── SQL Server VIEW data (vw-s group) ───────────────────────────────────────
+_SQLSERVER_VIEW_DB = "fq18_view_sdb"
+_SQLSERVER_VIEW_SQLS = [
+    "IF OBJECT_ID('dbo.v_summary') IS NOT NULL DROP VIEW dbo.v_summary",
+    "IF OBJECT_ID('dbo.v_users') IS NOT NULL DROP VIEW dbo.v_users",
+    "IF OBJECT_ID('dbo.orders') IS NOT NULL DROP TABLE dbo.orders",
+    "IF OBJECT_ID('dbo.users') IS NOT NULL DROP TABLE dbo.users",
+    "CREATE TABLE dbo.users (id INT, name NVARCHAR(50))",
+    "CREATE TABLE dbo.orders (id INT, user_id INT, amount INT, status INT)",
+    "INSERT INTO dbo.users VALUES (1, 'Alice'), (2, 'Bob')",
+    "INSERT INTO dbo.orders VALUES (1, 1, 100, 1), (2, 1, 200, 2)",
+    "CREATE VIEW dbo.v_summary AS "
+    "  SELECT status, sum(amount) as total FROM dbo.orders GROUP BY status",
+    "CREATE VIEW dbo.v_users AS SELECT id, name FROM dbo.users WHERE id <= 10",
+]
+
+
 # ---------------------------------------------------------------------------
 # Unified case array  (case_id, sql_template, positive, expected_errno, opts)
 # ---------------------------------------------------------------------------
@@ -182,6 +213,9 @@ _PG_VIEW_SQLS = [
 #   {M_INFO_DB} — MySQL INFORMATION_SCHEMA database name
 #   {M_PUSH}    — MySQL push_t source
 #   {P_PUSH}    — PostgreSQL push_t source
+#   {S_PUSH}    — SQL Server push_t source
+#   {S_VIEW}    — SQL Server view source
+#   {S_VIEW_DB} — SQL Server view database name
 #
 # opts keys:
 #   float_cols  — set of column indices compared as float (default empty)
@@ -279,6 +313,41 @@ _CASES = [
      "GROUP BY v.id, v.name ORDER BY v.id",
      True, None, {}),
 
+    # ── SQL Server: PARTITION BY / SELECT TBNAME / _TAGS (s04 group) ─────────
+    # SQL Server (zero pushdown) still shares the TDengine-side rejection
+    # rules: PARTITION BY TBNAME and TBNAME/_TAGS pseudo columns are not
+    # defined for external relational sources.
+    ("s04-01",
+     "SELECT COUNT(*) FROM {S_PUSH}.push_t PARTITION BY tbname",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("s04-02",
+     "SELECT tbname FROM {S_PUSH}.push_t",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("s04-03",
+     "SELECT _TAGS FROM {S_PUSH}.push_t",
+     False, TSDB_CODE_PAR_INVALID_TAGS_PC, {}),
+
+    # ── SQL Server: VIEW query (vw-s group) ──────────────────────────────────
+    # v_summary: status=1 -> total=100; status=2 -> total=200
+    ("vw-s-01",
+     "SELECT * FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_summary ORDER BY status",
+     True, None, {}),
+    ("vw-s-02",
+     "SELECT v.id, v.name, SUM(o.amount) AS total "
+     "FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_users v "
+     "JOIN {S_VIEW}.{S_VIEW_DB}.dbo.orders o ON v.id = o.user_id "
+     "GROUP BY v.id, v.name ORDER BY v.id",
+     True, None, {}),
+    # SQL Server collation/case: with zero pushdown the predicate is evaluated
+    # locally by TDengine, so string comparison follows TDengine semantics
+    # (case-sensitive) rather than the remote column's CI collation.
+    ("s-coll-01",
+     "SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'ALPHA' ORDER BY val",
+     True, None, {}),
+    ("s-coll-02",
+     "SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'alpha' ORDER BY val",
+     True, None, {}),
+
     # ── InfluxDB: "ts" column not found (i-neg group) ─────────────────────────
     # InfluxDB primary key is always "time"; querying with "ts" must fail at
     # parse time because the column does not exist in the external schema.
@@ -318,6 +387,8 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
     _SRC_P_PUSH = "fq18_s04_p"
     _SRC_M_VIEW = "fq18_view_m"
     _SRC_P_VIEW = "fq18_view_p"
+    _SRC_S_PUSH = "fq18_s04_s"
+    _SRC_S_VIEW = "fq18_view_s"
     _SRC_I18    = "fq18_influx18"
 
     # ── Remote databases / buckets ───────────────────────────────────────────
@@ -354,6 +425,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             self._SRC_I_TAG, self._SRC_I_CPU,
             self._SRC_M_INFO, self._SRC_M_PUSH, self._SRC_P_PUSH,
             self._SRC_M_VIEW, self._SRC_P_VIEW,
+            self._SRC_S_PUSH, self._SRC_S_VIEW,
             self._SRC_I18,
         )
         for fn in [
@@ -364,6 +436,8 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), self._P_PUSH_DB),
             lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), self._M_VIEW_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), self._P_VIEW_DB),
+            lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_PUSH_DB),
+            lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_VIEW_DB),
         ]:
             try:
                 fn()
@@ -429,6 +503,19 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         ExtSrcEnv.pg_exec_cfg(
             self._pg_cfg(), self._P_VIEW_DB, _PG_VIEW_SQLS)
         self._mk_pg_real(self._SRC_P_VIEW, database=self._P_VIEW_DB)
+
+        # ── SQL Server push_t source (s04 group) ─────────────────────────────
+        self._cleanup_src(self._SRC_S_PUSH)
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_PUSH_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_PUSH_DB, _SQLSERVER_PUSH_SQLS)
+        self._mk_sqlserver_real(self._SRC_S_PUSH, database=_SQLSERVER_PUSH_DB, schema="dbo")
+
+        # ── SQL Server VIEW source (vw-s group) ──────────────────────────────
+        self._cleanup_src(self._SRC_S_VIEW)
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_VIEW_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_VIEW_DB, _SQLSERVER_VIEW_SQLS)
+        self._mk_sqlserver_real(self._SRC_S_VIEW, database=_SQLSERVER_VIEW_DB, schema="dbo")
+
         # ── InfluxDB 1.8 source (i18 group, conditional) ─────────────────────
         # Only created when "1.8" is listed in FQ_INFLUX_VERSIONS.
         # Uses protocol='http' so the HTTP connector probes /api/v3/query_sql
@@ -470,6 +557,9 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             M_VIEW=self._SRC_M_VIEW,
             M_VIEW_DB=self._M_VIEW_DB,
             P_VIEW=self._SRC_P_VIEW,
+            S_PUSH=self._SRC_S_PUSH,
+            S_VIEW=self._SRC_S_VIEW,
+            S_VIEW_DB=_SQLSERVER_VIEW_DB,
             I18=self._SRC_I18,
         )
 

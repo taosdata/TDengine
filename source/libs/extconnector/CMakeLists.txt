@@ -23,6 +23,7 @@ if(TD_ENTERPRISE)
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxPlugin.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorMySQL.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorPG.c
+    ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorSQLServer.c
   )
 endif()
 
@@ -71,6 +72,16 @@ if(TD_ENTERPRISE)
     message(STATUS "ExtConnector: InfluxDB provider enabled via optional runtime plugin")
   else()
     message(STATUS "ExtConnector: BUILD_WITH_ARROW=OFF — InfluxDB provider disabled")
+  endif()
+
+  if(BUILD_WITH_ODBC)
+    target_compile_definitions(extconnector PRIVATE HAVE_ODBC)
+    # Headers only: libodbc is loaded at runtime, same load-time independence
+    # as the MariaDB / libpq providers.
+    DEP_ext_odbc(extconnector)
+    message(STATUS "ExtConnector: SQL Server provider enabled with runtime unixODBC loading")
+  else()
+    message(STATUS "ExtConnector: BUILD_WITH_ODBC=OFF — SQL Server provider disabled")
   endif()
 
   target_link_libraries(extconnector PRIVATE crypt)
@@ -128,6 +139,38 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       get_filename_component(_libpq_runtime_dir "${EXT_LIBPQ_SO_SRCPATH}" DIRECTORY)
       _stage_fq_provider_runtime("${_libpq_runtime_dir}"
         "libpq.so*" "libpq*.dylib*")
+    endif()
+  endif()
+
+  if(BUILD_WITH_ODBC)
+    if(TARGET ext_odbc)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_odbc)
+      endif()
+      _stage_fq_provider_runtime("${ext_odbc_install}/lib"
+        "libodbc.so*" "libodbcinst.so*" "libodbc*.dylib*")
+    elseif(DEFINED EXT_ODBC_SO_SRCPATH AND NOT "${EXT_ODBC_SO_SRCPATH}" STREQUAL "")
+      get_filename_component(_odbc_runtime_dir "${EXT_ODBC_SO_SRCPATH}" DIRECTORY)
+      _stage_fq_provider_runtime("${_odbc_runtime_dir}"
+        "libodbc.so*" "libodbcinst.so*" "libodbc*.dylib*")
+    endif()
+
+    # Microsoft ODBC Driver 18 (SQL Server): staged next to libodbc, the same
+    # place the dependency package puts it (`driver/` in the installed tree).
+    if(TARGET ext_msodbc)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_msodbc)
+      endif()
+      _stage_fq_provider_runtime("${ext_msodbc_install}/lib"
+        "libmsodbcsql*.so*" "libmsodbcsql*.dylib*")
+    elseif(DEFINED EXT_MSODBC_SO_SRCPATH AND NOT "${EXT_MSODBC_SO_SRCPATH}" STREQUAL "")
+      if(IS_DIRECTORY "${EXT_MSODBC_SO_SRCPATH}")
+        set(_msodbc_runtime_dir "${EXT_MSODBC_SO_SRCPATH}")
+      else()
+        get_filename_component(_msodbc_runtime_dir "${EXT_MSODBC_SO_SRCPATH}" DIRECTORY)
+      endif()
+      _stage_fq_provider_runtime("${_msodbc_runtime_dir}"
+        "libmsodbcsql*.so*" "libmsodbcsql*.dylib*")
     endif()
   endif()
 endif()

@@ -2193,6 +2193,9 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
     tstrncpy(pOwnRef->refSourceName, pReq->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
   }
   tstrncpy(pOwnRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
+  if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
+    tstrncpy(pOwnRef->refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  }
   tstrncpy(pOwnRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pOwnRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
   pEntry->own.nOwnCols = nOwnCols + 1;
@@ -2876,7 +2879,11 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
       } else {
         tmpRef.refSourceName[0] = '\0';
       }
-      tmpRef.refSchemaName[0] = '\0';
+      if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
+        tstrncpy(tmpRef.refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+      } else {
+        tmpRef.refSchemaName[0] = '\0';
+      }
       tstrncpy(tmpRef.refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
       tstrncpy(tmpRef.refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
       tstrncpy(tmpRef.refColName, pReq->refColName, TSDB_COL_NAME_LEN);
@@ -5660,7 +5667,11 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   pColRef->id = pSchema->pSchema[iColumn].colId;
   pColRef->refType = pReq->refType;
   tstrncpy(pColRef->refSourceName, pReq->refSourceName ? pReq->refSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
-  pColRef->refSchemaName[0] = '\0';
+  if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
+    tstrncpy(pColRef->refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  } else {
+    pColRef->refSchemaName[0] = '\0';
+  }
   tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);

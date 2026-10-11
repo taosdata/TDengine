@@ -54,12 +54,20 @@ _P_PASS   = ExtSrcEnv.PG_PASS
 _P_DB     = "fq01_fw_pdb"
 _P_SCHEMA = "public"
 
+_S_HOST   = ExtSrcEnv.SQLSERVER_HOST
+_S_PORT   = ExtSrcEnv.SQLSERVER_PORT
+_S_USER   = ExtSrcEnv.SQLSERVER_USER
+_S_PASS   = ExtSrcEnv.SQLSERVER_PASS
+_S_DB     = "fq01_fw_sdb"
+_S_SCHEMA = ExtSrcEnv.SQLSERVER_SCHEMA
+
 _I_HOST  = ExtSrcEnv.INFLUX_HOST
 _I_PORT  = ExtSrcEnv.INFLUX_PORT
 _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
 _I_DB    = "fq01_fw_idb"
 
 _FW_TABLE = "src_t"
+_sqlserver = "sqlserver"
 _MASKED   = "******"
 _BASE_TS  = 1_704_067_200_000  # 2024-01-01T00:00:00Z in ms
 
@@ -120,6 +128,21 @@ def _q_count_step(negative: bool = False, count: int = 5) -> _QCountStep:
 
 def _clear_source_step() -> _ClearSourceStep:
     return _ClearSourceStep()
+
+def _sqlserver_exec_step(database: Optional[str], sqls: Union[str, Sequence[str]],
+                         marker_sql: str = "select 1"):
+    """Run side-effect SQL directly on SQL Server and return a marker query step."""
+    if isinstance(sqls, str):
+        statements = [sqls]
+    else:
+        statements = [str(s) for s in sqls]
+
+    def _step(src_type: str):
+        ExtSrcEnv.sqlserver_exec(database or _S_DB, statements)
+        return marker_sql
+
+    return _step
+
 
 def _connect(user: str, password: str) -> _ConnectStep:
     return _ConnectStep(user, password)
@@ -2475,6 +2498,166 @@ _CASES = [
             _clear_source_step(),
         ],
     ],
+    ## 001s — same basic lifecycle as 001m/001p/001i
+    ["001s", [_sqlserver], ["fq01_src001s"], "basic create / show (auto) / describe (auto) / query / drop", [
+            "drop external source if exists fq01_src001s",
+            f"create external source fq01_src001s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## 008s — ALTER TYPE is always denied
+    ["008s", [_sqlserver], ["fq01_src008s"], "ALTER TYPE is always denied; SQL Server attempts to change to another type", [
+            "drop external source if exists fq01_src008s",
+            f"create external source fq01_src008s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "alter external source fq01_src008s set type='mysql'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-001: DATABASE + SCHEMA both given
+    ["EXT001", [_sqlserver], ["fq01_ext001"], "FQSS-EXT-001 create with DATABASE and SCHEMA; SHOW/DESCRIBE/query/drop", [
+            "drop external source if exists fq01_ext001",
+            f"create external source fq01_ext001 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "select source_name, type from information_schema.ins_ext_sources where source_name='fq01_ext001'",
+            "describe fq01_ext001",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-002: DATABASE only — two-segment path needs the schema default
+    ["EXT002", [_sqlserver], ["fq01_ext002"], "FQSS-EXT-002 create with DATABASE only; short path reports missing schema", [
+            "drop external source if exists fq01_ext002",
+            f"create external source fq01_ext002 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}'",
+            f"select count(*) from fq01_ext002.{_FW_TABLE}",
+            f"select count(*) from fq01_ext002.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-003: SCHEMA only — two-segment path needs the database default
+    ["EXT003", [_sqlserver], ["fq01_ext003"], "FQSS-EXT-003 create with SCHEMA only; short path reports missing database", [
+            "drop external source if exists fq01_ext003",
+            f"create external source fq01_ext003 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' schema='{_S_SCHEMA}'",
+            f"select count(*) from fq01_ext003.{_FW_TABLE}",
+            f"select count(*) from fq01_ext003.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-004: neither DATABASE nor SCHEMA
+    ["EXT004", [_sqlserver], ["fq01_ext004"], "FQSS-EXT-004 create without namespace defaults; fully qualified path still works", [
+            "drop external source if exists fq01_ext004",
+            f"create external source fq01_ext004 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}'",
+            f"select count(*) from fq01_ext004.{_FW_TABLE}",
+            f"select count(*) from fq01_ext004.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-005: unknown TYPE value is rejected (no alias)
+    ["EXT005", [_sqlserver], ["fq01_ext005"], "FQSS-EXT-005 type='mssql' is an unknown type, not an alias", [
+            "drop external source if exists fq01_ext005",
+            f"create external source fq01_ext005 type='mssql' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext005'",
+    ]],
+
+    ## FQSS-EXT-006: OPTIONS whitelist persists and masks
+    ["EXT006", [_sqlserver], ["fq01_ext006"], "FQSS-EXT-006 OPTIONS whitelist (tls/timeout) visible in SHOW", [
+            "drop external source if exists fq01_ext006",
+            f"create external source fq01_ext006 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' "
+            f"options('tls_enabled'='false', 'trust_server_certificate'='true', 'connect_timeout_ms'='5000', 'read_timeout_ms'='5000')",
+            "select source_name, type, options from information_schema.ins_ext_sources where source_name='fq01_ext006'",
+            "describe fq01_ext006",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-007: unknown option key
+    ["EXT007", [_sqlserver], ["fq01_ext007"], "FQSS-EXT-007 unknown option key is rejected / not persisted", [
+            "drop external source if exists fq01_ext007",
+            f"create external source fq01_ext007 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('unknown_fw_opt'='1')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext007'",
+    ]],
+
+    ## FQSS-EXT-008: SHOW reports the type and masks the password
+    ["EXT008", [_sqlserver], ["fq01_ext008"], "FQSS-EXT-008 SHOW reports type='sqlserver' and masks the password", [
+            "drop external source if exists fq01_ext008",
+            f"create external source fq01_ext008 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "show external sources",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-009: DESCRIBE masks the password
+    ["EXT009", [_sqlserver], ["fq01_ext009"], "FQSS-EXT-009 DESCRIBE shows the definition with the masked password", [
+            "drop external source if exists fq01_ext009",
+            f"create external source fq01_ext009 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "describe fq01_ext009",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-010: ALTER DATABASE takes effect for short paths
+    ["EXT010", [_sqlserver], ["fq01_ext010"], "FQSS-EXT-010 ALTER DATABASE re-resolves the short path", [
+            "drop external source if exists fq01_ext010",
+            f"create external source fq01_ext010 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            f"alter external source fq01_ext010 set database='fq01_fw_sdb2'",
+            _q_count_step(negative=True),
+            f"alter external source fq01_ext010 set database='{_S_DB}'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-011: ALTER SCHEMA re-resolves the short path
+    ["EXT011", [_sqlserver], ["fq01_ext011"], "FQSS-EXT-011 ALTER SCHEMA re-resolves the short path", [
+            "drop external source if exists fq01_ext011",
+            f"create external source fq01_ext011 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            f"alter external source fq01_ext011 set schema='dbo_none'",
+            _q_count_step(negative=True),
+            f"alter external source fq01_ext011 set schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-012: unreachable host — DDL succeeds, query fails
+    ["EXT012", [_sqlserver], ["fq01_ext012"], "FQSS-EXT-012 ALTER HOST to an unreachable address fails only at query time", [
+            "drop external source if exists fq01_ext012",
+            f"create external source fq01_ext012 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "alter external source fq01_ext012 set host='127.0.0.1' port=14330",
+            "select source_name, type from information_schema.ins_ext_sources where source_name='fq01_ext012'",
+            _q_count_step(negative=True),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-013: REFRESH picks up remote schema changes
+    ["EXT013", [_sqlserver], ["fq01_ext013"], "FQSS-EXT-013 REFRESH exposes a new remote column", [
+            "drop external source if exists fq01_ext013",
+            f"create external source fq01_ext013 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} ADD extra_col int NULL",
+                f"UPDATE dbo.{_FW_TABLE} SET extra_col = 7 WHERE val = 1",
+            ]),
+            f"select extra_col from fq01_ext013.{_FW_TABLE} where val = 1",
+            "refresh external source fq01_ext013",
+            f"select extra_col from fq01_ext013.{_FW_TABLE} where val = 1",
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} DROP COLUMN extra_col",
+            ]),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-014: DROP and IF EXISTS semantics
+    ["EXT014", [_sqlserver], ["fq01_ext014"], "FQSS-EXT-014 DROP removes the source; IF EXISTS is idempotent", [
+            "drop external source if exists fq01_ext014",
+            f"create external source fq01_ext014 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "drop external source fq01_ext014",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext014'",
+            "drop external source if exists fq01_ext014",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext014'",
+    ]],
+
+
 ]
 
 
@@ -2553,6 +2736,18 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             f"insert into `{_FW_TABLE}` values {mysql_values}",
         ])
 
+        # ── SQL Server ──
+        ExtSrcEnv.sqlserver_create_db(_S_DB)
+        ExtSrcEnv.sqlserver_exec(_S_DB, [
+            f"IF OBJECT_ID('dbo.{_FW_TABLE}') IS NOT NULL DROP TABLE dbo.{_FW_TABLE}",
+            (
+                f"CREATE TABLE dbo.{_FW_TABLE} ("
+                "ts datetime2(3) NOT NULL, val int, score float, "
+                "name nvarchar(32), flag bit)"
+            ),
+            f"INSERT INTO dbo.{_FW_TABLE} (ts, val, score, name, flag) VALUES {mysql_values}",
+        ])
+
         ExtSrcEnv.pg_create_db_cfg(pg_cfg, _P_DB)
         ExtSrcEnv.pg_exec_cfg(pg_cfg, _P_DB, [
             f"drop table if exists {_P_SCHEMA}.{_FW_TABLE}",
@@ -2585,6 +2780,8 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             return f"{src_name}.{_M_DB}.{_FW_TABLE}"
         elif src_type == _pg:
             return f"{src_name}.{_P_SCHEMA}.{_FW_TABLE}"
+        elif src_type == _sqlserver:
+            return f"{src_name}.{_S_SCHEMA}.{_FW_TABLE}"
         else:  # influxdb
             return f"{src_name}.{_FW_TABLE}"
 

@@ -39,22 +39,26 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table, create_mysql_table,
-    create_influx_measurement, extract_show_create_sql as _extract_show_create_sql)
+    create_influx_measurement, create_sqlserver_table,
+    extract_show_create_sql as _extract_show_create_sql)
 
 
 _LOCAL_DB = "vpers_local"
 _PG_DB    = "vpers_pg"
 _MY_DB    = "vpers_my"
 _INF_DB   = "vpers_inf"
+_SS_DB    = "vpers_ss"
 _PG_SRC   = "vpers_pg_src"
 _MY_SRC   = "vpers_my_src"
 _INF_SRC  = "vpers_inf_src"
+_SS_SRC   = "vpers_ss_src"
 
 
 def _provision_remote():
     create_remote_db("postgresql", _PG_DB)
     create_remote_db("mysql", _MY_DB)
     create_remote_db("influxdb", _INF_DB)
+    create_remote_db("sqlserver", _SS_DB)
     create_pg_table(_PG_DB, "r",
                     "ts TIMESTAMP PRIMARY KEY, v DOUBLE PRECISION",
                     ["('2024-01-01 00:00:00', 1.0)",
@@ -69,12 +73,25 @@ def _provision_remote():
     ])
     create_influx_measurement(
         _INF_DB, ["_snapshot_trigger_persist value=1i 1000000000000000000"])
+    # SQL Server: the same table name in two schemas. The persisted ref of the
+    # `other`-schema vtable must keep the schema segment so a restarted dnode
+    # still resolves the same object (FQSS-VTBL-006).
+    create_sqlserver_table(_SS_DB, "r_schema",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v FLOAT",
+                           ["('2024-01-01 00:00:00.000', 11.0)",
+                            "('2024-01-01 00:01:00.000', 12.0)"])
+    create_sqlserver_table(_SS_DB, "r_schema",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v FLOAT",
+                           ["('2024-01-01 00:00:00.000', 21.0)",
+                            "('2024-01-01 00:01:00.000', 22.0)"],
+                           schema="other")
 
 
 def _ensure_sources():
     create_ext_source(_PG_SRC, "postgresql", _PG_DB)
     create_ext_source(_MY_SRC, "mysql", _MY_DB)
     create_ext_source(_INF_SRC, "influxdb", _INF_DB)
+    create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
 
 
 # ===========================================================================
@@ -117,11 +134,20 @@ class TestVtableDDLPersistence:
             "CREATE VTABLE vctb_series_persist (value FROM s1.value) "
             "USING vstb_series_persist TAGS ('inf') "
             f"SERIES s1 AS {_INF_SRC}.{_INF_DB}.persist_m (device='d1')")
+        # SQL Server schema-binding fixtures (FQSS-VTBL-006): the same remote
+        # table name exists under dbo and under `other`; the two vtables must
+        # keep returning their own schema's values after a restart.
+        tdSql.execute(
+            "CREATE VTABLE v_persist_ss_dbo (ts timestamp, "
+            f"v double FROM {_SS_SRC}.{_SS_DB}.dbo.r_schema.v)")
+        tdSql.execute(
+            "CREATE VTABLE v_persist_ss_other (ts timestamp, "
+            f"v double FROM {_SS_SRC}.{_SS_DB}.other.r_schema.v)")
 
     @classmethod
     def teardown_class(cls):
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        for n in (_PG_SRC, _MY_SRC, _INF_SRC):
+        for n in (_PG_SRC, _MY_SRC, _INF_SRC, _SS_SRC):
             tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {n}")
 
     # -------------------------------------------------------------------
@@ -143,7 +169,7 @@ class TestVtableDDLPersistence:
         """Preserve external sources and normal virtual-table metadata after restart
 
         1. Restart the dnode and restore the query node
-        2. Verify all three external sources and the normal virtual table remain registered
+        2. Verify all four external sources and the normal virtual table remain registered
 
         Catalog:
             - VirtualTable
@@ -156,14 +182,16 @@ class TestVtableDDLPersistence:
 
         History:
             - 2026-09-07 Jing Sima Document existing persistence coverage
+            - 2026-10-09 Add SQL Server to the source-count assertion
 
         """
         if not self._restart_dnode():
             return
         tdSql.execute(f"USE {_LOCAL_DB}")
         tdSql.query(f"SELECT count(*) FROM information_schema.ins_ext_sources "
-                    f"WHERE source_name IN ('{_PG_SRC}', '{_MY_SRC}', '{_INF_SRC}')")
-        tdSql.checkData(0, 0, 3)
+                    f"WHERE source_name IN ('{_PG_SRC}', '{_MY_SRC}', "
+                    f"'{_INF_SRC}', '{_SS_SRC}')")
+        tdSql.checkData(0, 0, 4)
         tdSql.query(f"SELECT count(*) FROM information_schema.ins_tables "
                     f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_persist'")
         tdSql.checkData(0, 0, 1)
@@ -297,6 +325,47 @@ class TestVtableDDLPersistence:
         tdSql.checkData(0, 0, 2)
         tdSql.query("SELECT count(*) FROM vstb_series_persist")
         tdSql.checkData(0, 0, 2)
+
+    def test_restart_preserves_sqlserver_schema_binding(self):
+        """Preserve the SQL Server schema segment of a persisted column reference
+
+        1. Verify both same-name SQL Server vtables (dbo / other schema) return their own values
+        2. Restart the dnode and verify the bindings still resolve the same remote objects
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Add SQL Server schema persistence coverage (FQSS-VTBL-006)
+
+        """
+        tdSql.execute(f"USE {_LOCAL_DB}")
+        tdSql.query("SELECT v FROM v_persist_ss_dbo ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 11.0)
+        tdSql.checkData(1, 0, 12.0)
+        tdSql.query("SELECT v FROM v_persist_ss_other ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 21.0)
+        tdSql.checkData(1, 0, 22.0)
+
+        if not self._restart_dnode():
+            return
+        tdSql.execute(f"USE {_LOCAL_DB}")
+        tdSql.query("SELECT v FROM v_persist_ss_dbo ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 11.0)
+        tdSql.checkData(1, 0, 12.0)
+        tdSql.query("SELECT v FROM v_persist_ss_other ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 21.0)
+        tdSql.checkData(1, 0, 22.0)
 
     # -------------------------------------------------------------------
     # 7.2 — concurrent ALTER STABLE

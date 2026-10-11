@@ -827,6 +827,151 @@ static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *
 // ---------------------------------------------------------------------------
 // InfluxDB 3.x (Arrow type names)  ->  TDengine  (DS section 5.3.2)
 // ---------------------------------------------------------------------------
+/* Copy the base type name (before any '(' modifier) into buf, lowercased. */
+static void sqlserverBaseTypeName(const char *typeName, char *buf, int32_t bufLen) {
+  int32_t n = 0;
+  for (const char *p = typeName; *p != '\0' && *p != '(' && n < bufLen - 1; ++p) {
+    buf[n++] = (char)tolower((unsigned char)*p);
+  }
+  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) {
+    --n;
+  }
+  buf[n] = '\0';
+}
+
+// SQL Server type map (DS 5.3.2.1).  Type names come from
+// INFORMATION_SCHEMA.DATA_TYPE, normalized by the provider to carry their
+// length/precision modifiers ("varchar(50)", "nvarchar(max)", "decimal(18,2)",
+// "datetime2(3)").  Unicode strings are converted by the connector, so the
+// charset argument is unused.
+static int32_t sqlserverTypeMap(const char *typeName, const char *charset, SDataType *pTd) {
+  (void)charset;
+
+  char base[64] = {0};
+  sqlserverBaseTypeName(typeName, base, sizeof(base));
+  if ('\0' == base[0]) {
+    return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+  }
+
+  /* Integer family */
+  if (strcmp(base, "bit") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "tinyint") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_TINYINT, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "smallint") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "int") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "bigint") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Floating point */
+  if (strcmp(base, "real") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_FLOAT, 4);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "float") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Exact numerics */
+  if (strcmp(base, "decimal") == 0 || strcmp(base, "numeric") == 0) {
+    setDecimalMapping(typeName, pTd);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "money") == 0 || strcmp(base, "smallmoney") == 0) {
+    /* Money keeps value semantics; its scale is fixed at 4. */
+    setDecimalMapping(strcmp(base, "money") == 0 ? "decimal(19,4)" : "decimal(10,4)", pTd);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Strings */
+  if (strcmp(base, "char") == 0 || strcmp(base, "varchar") == 0) {
+    int32_t len = parseTypeLength(typeName);
+    if (len <= 0) {
+      len = EXT_DEFAULT_VARCHAR_LEN;
+    }
+    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "nchar") == 0 || strcmp(base, "nvarchar") == 0) {
+    int32_t len = parseTypeLength(typeName);
+    if (len <= 0) {
+      len = EXT_DEFAULT_VARCHAR_LEN / TSDB_NCHAR_SIZE;
+    }
+    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "uniqueidentifier") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 36 + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "xml") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Binary family */
+  if (strcmp(base, "binary") == 0 || strcmp(base, "varbinary") == 0) {
+    int32_t len = parseTypeLength(typeName);
+    if (len <= 0) {
+      len = EXT_DEFAULT_VARCHAR_LEN;
+    }
+    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, len + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "image") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_BLOB, TSDB_MAX_BLOB_LEN);
+    return TSDB_CODE_SUCCESS;
+  }
+  /* timestamp / rowversion is a row-version counter, not a time value: it maps
+   * to VARBINARY and can never be a virtual-table timeline (FS 4.3). */
+  if (strcmp(base, "timestamp") == 0 || strcmp(base, "rowversion") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, 8 + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Temporal types (DS 5.3.2.1) */
+  if (strcmp(base, "date") == 0 || strcmp(base, "datetime") == 0 ||
+      strcmp(base, "smalldatetime") == 0 || strcmp(base, "datetime2") == 0 ||
+      strcmp(base, "datetimeoffset") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "time") == 0) {
+    /* Microseconds since midnight, matching PG's time mapping. */
+    SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Spatial */
+  if (strcmp(base, "geography") == 0 || strcmp(base, "geometry") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Deliberately unsupported: referencing them is an error, never a silent
+   * string fallback (DS 5.3.2.1). */
+  if (strcmp(base, "sql_variant") == 0 || strcmp(base, "hierarchyid") == 0 ||
+      strcmp(base, "vector") == 0) {
+    return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+  }
+
+  qError("sqlserverTypeMap: unknown SQL Server type '%s'", typeName);
+  return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+}
+
 static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
   // Compute base length and first char for two-level dispatch.
   // Strip both '(...)' and '[...]' suffix notations so that type strings like
@@ -966,6 +1111,9 @@ int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeNam
     case EXT_SOURCE_INFLUXDB:
       code = influxTypeMap(extTypeName, pTdType);  // charset unused; Utf8 always maps to NCHAR
       break;
+    case EXT_SOURCE_SQLSERVER:
+      code = sqlserverTypeMap(extTypeName, extCharsetName, pTdType);
+      break;
     default:
       qError("extTypeNameToTDengineType: unknown source type %d for type '%s'", srcType, extTypeName);
       return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
@@ -996,6 +1144,10 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
       break;
     case EXT_SOURCE_INFLUXDB:
       return TSDB_TIME_PRECISION_NANO;
+    case EXT_SOURCE_SQLSERVER:
+      // datetime2/datetimeoffset carry up to 7 fractional digits; the connector
+      // reads them at microsecond resolution (DS 5.3.7).
+      return TSDB_TIME_PRECISION_MICRO;
     default:
       break;
   }

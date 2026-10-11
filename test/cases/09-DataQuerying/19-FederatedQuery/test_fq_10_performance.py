@@ -31,6 +31,11 @@ Design notes:
       QPS, P50, P95, and P99.
     - All tests are guarded with try/finally so the environment is cleaned up
       even on failure.
+    - SQL Server runs under the step-1 "zero pushdown" mode: the range filter
+      and every aggregation are executed locally, the remote SQL is a base
+      scan.  The SQL Server entries (PERF-013 / PERF-014) therefore record
+      zero-pushdown baselines only; the step-2 pushdown comparison is
+      intentionally out of scope (TS "Performance Tests" section 9).
 
 Environment requirements:
     - Enterprise edition with federatedQueryEnable = 1.
@@ -47,6 +52,7 @@ from federated_query_common import (
     FederatedQueryVersionedMixin,
     ExtSrcEnv,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+    _ms_to_dt,
 )
 
 
@@ -324,6 +330,58 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def _teardown_merge(self):
         tdSql.execute(f"drop database if exists {self.MERGE_DB}")
         tdSql.execute(f"drop database if exists {self.MERGE_SRC}")
+
+    def _prepare_sqlserver_data(self, ext_db, row_count=None):
+        """Create the remote SQL Server table for zero-pushdown baselines.
+
+        row_count defaults to ``self._PERF_ROW_COUNT`` when not given.
+
+        The remote shape follows the SQL Server convention used across the
+        federated suites: the time axis is ``datetime2(3) NOT NULL PRIMARY
+        KEY`` (the range filter and the ts join rely on millisecond
+        resolution) and the value columns are integers (text columns are
+        returned character-by-character on the baseline connector, so all
+        assertions use COUNT/SUM).
+
+        Dataset mirrors ``_prepare_internal_data``:
+
+            dbo.perf_ss_t  : row_count rows
+                             ts = BASE + i*1000 ms (1-second intervals)
+                             v  = i % 100  (int)
+                             g  = i % 10   (int)
+
+        Timestamps are written via ``_ms_to_dt`` — naive remote timestamp
+        strings must be in local time for the epoch round-trip to be correct
+        (same convention as the shared standard sources).
+        """
+        _BASE = 1704067200000  # 2024-01-01 00:00:00 UTC ms
+        if row_count is None:
+            row_count = self._PERF_ROW_COUNT
+
+        ExtSrcEnv.sqlserver_create_db(ext_db)
+        ExtSrcEnv.sqlserver_exec(ext_db, [
+            "IF OBJECT_ID('dbo.perf_ss_t') IS NOT NULL "
+            "DROP TABLE dbo.perf_ss_t",
+            "CREATE TABLE dbo.perf_ss_t "
+            "(ts datetime2(3) NOT NULL PRIMARY KEY, v int, g int)",
+        ])
+
+        batch = []
+        for i in range(row_count):
+            batch.append(
+                f"('{_ms_to_dt(_BASE + i * 1000)}', {i % 100}, {i % 10})"
+            )
+            if len(batch) >= 500:
+                ExtSrcEnv.sqlserver_exec(ext_db, [
+                    "INSERT INTO dbo.perf_ss_t (ts, v, g) VALUES "
+                    + ",".join(batch)
+                ])
+                batch = []
+        if batch:
+            ExtSrcEnv.sqlserver_exec(ext_db, [
+                "INSERT INTO dbo.perf_ss_t (ts, v, g) VALUES "
+                + ",".join(batch)
+            ])
 
     # ------------------------------------------------------------------
     # Latency + QPS measurement
@@ -1180,3 +1238,180 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         except Exception as e:
             self._record_fail(_test_name, str(e))
             raise
+
+    # ------------------------------------------------------------------
+    # PERF-013  SQL Server single-source zero-pushdown baseline (step 1)
+    # ------------------------------------------------------------------
+
+    def test_fq_perf_013_sqlserver_zero_pushdown_scan(self):
+        """SQL Server single-source range query — zero-pushdown baseline (step 1)
+
+        TS: SQL Server performance baseline, step 1 only (no pushdown metrics).
+        A time-range query over the SQL Server source runs in zero-pushdown
+        mode: the range filter is applied locally and the remote SQL is a base
+        scan.  The aggregate projection reduces the pulled rows to a scalar
+        metric and is also computed locally, so this stays a pure zero-pushdown
+        baseline for the step-2 comparison.  Record QPS and P50/P95/P99 via
+        serial runs.
+
+        Catalog:
+            - Query:FederatedPerformance
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Initial implementation (SQL Server step-1 baseline)
+
+        """
+        _test_name = "PERF-013_sqlserver_zero_pushdown_scan"
+        row_count = self._PERF_ROW_COUNT
+        _BASE = 1704067200000  # 2024-01-01 00:00:00 UTC ms
+        self._start_test(
+            _test_name,
+            f"SQL Server {row_count}-row time-range query local filter, "
+            f"{self._PERF_LATENCY_RUNS} runs serial",
+            self._PERF_LATENCY_RUNS,
+        )
+        src = "fq_perf_ss_src"
+        ext_db = "fq_perf_ss_db"
+        self._cleanup_src(src)
+        try:
+            self._prepare_sqlserver_data(ext_db, row_count)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            # Window covers the first half of the dataset (i is 0-based):
+            # rows with i in [0, half) -> the predicate runs locally.
+            half = row_count // 2
+            t0 = _ms_to_dt(_BASE)
+            t1 = _ms_to_dt(_BASE + half * 1000)
+            sql = (
+                f"select count(*), sum(v) from {src}.perf_ss_t "
+                f"where ts >= '{t0}' and ts < '{t1}'"
+            )
+            expect_count = half
+            expect_sum = sum(i % 100 for i in range(half))
+
+            # Correctness check before measurement
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, expect_count)
+            tdSql.checkData(0, 1, expect_sum)
+            tdLog.debug(
+                f"{_test_name}: pulled rows={expect_count} "
+                f"(zero pushdown, remote base scan)"
+            )
+
+            # Latency: serial runs
+            stats = self._measure_latency(
+                sql, n_runs=self._PERF_LATENCY_RUNS, label=_test_name
+            )
+            self._record_pass(_test_name, perf_stats=stats)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # PERF-014  Local table JOIN SQL Server — zero-pushdown baseline (step 1)
+    # ------------------------------------------------------------------
+
+    def test_fq_perf_014_sqlserver_local_join(self):
+        """Local table JOIN SQL Server table — zero-pushdown baseline (step 1)
+
+        TS: SQL Server performance baseline, step 1 only.  A TDengine local
+        table is joined with the SQL Server remote table on the timestamp axis
+        in zero-pushdown mode (local hash join over a remote base scan); record
+        QPS and P50/P95/P99 as the step-2 comparison baseline.  Both sides use
+        the same ``_BASE`` epoch so the join matches every row — SQL Server
+        external timestamps are microsecond precision and the ms values are
+        exactly representable.
+
+        Catalog:
+            - Query:FederatedPerformance
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Initial implementation (SQL Server step-1 baseline)
+
+        """
+        _test_name = "PERF-014_sqlserver_local_join"
+        row_count = self._PERF_ROW_COUNT
+        _BASE = 1704067200000  # 2024-01-01 00:00:00 UTC ms
+        self._start_test(
+            _test_name,
+            f"Local {row_count}-row table JOIN SQL Server table on ts, "
+            f"{self._PERF_LATENCY_RUNS} runs serial",
+            self._PERF_LATENCY_RUNS,
+        )
+        src = "fq_perf_ss_src"
+        ext_db = "fq_perf_ss_db"
+        self._cleanup_src(src)
+        try:
+            self._prepare_sqlserver_data(ext_db, row_count)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            # Local side of the join: one row per remote row, same ts values
+            # (same epoch/batching idiom as _prepare_internal_data).
+            tdSql.execute(f"drop database if exists {self.PERF_DB}")
+            tdSql.execute(f"create database {self.PERF_DB}")
+            tdSql.execute(f"use {self.PERF_DB}")
+            tdSql.execute(
+                "create table perf_ss_local (ts timestamp, v_local int)")
+            batch = []
+            for i in range(row_count):
+                batch.append(f"({_BASE + i * 1000}, {i % 100})")
+                if len(batch) >= 500:
+                    tdSql.execute(
+                        "insert into perf_ss_local values " + ",".join(batch))
+                    batch = []
+            if batch:
+                tdSql.execute(
+                    "insert into perf_ss_local values " + ",".join(batch))
+
+            sql = (
+                f"select count(*), sum(b.v) "
+                f"from {self.PERF_DB}.perf_ss_local a, {src}.perf_ss_t b "
+                f"where a.ts = b.ts"
+            )
+            expect_count = row_count
+            expect_sum = sum(i % 100 for i in range(row_count))
+
+            # Correctness check before measurement
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, expect_count)
+            tdSql.checkData(0, 1, expect_sum)
+            tdLog.debug(
+                f"{_test_name}: joined rows={expect_count} "
+                f"(zero pushdown, remote base scan + local join)"
+            )
+
+            # Latency: serial runs
+            stats = self._measure_latency(
+                sql, n_runs=self._PERF_LATENCY_RUNS, label=_test_name
+            )
+            self._record_pass(_test_name, perf_stats=stats)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+            self._teardown_data()
