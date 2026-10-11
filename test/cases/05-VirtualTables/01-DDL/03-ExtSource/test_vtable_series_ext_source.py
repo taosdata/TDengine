@@ -44,7 +44,7 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table,
-    create_influx_measurement)
+    create_sqlserver_table, create_influx_measurement)
 
 # --- names ---
 _LOCAL_DB = "vseries_local"
@@ -53,6 +53,8 @@ _INF_SRC  = "vseries_inf_src"
 _INF_SRC_GROWTH = "vseries_inf_src_growth"
 _PG_DB    = "vseries_pg"
 _PG_SRC   = "vseries_pg_src"
+_SS_DB    = "vseries_ss"
+_SS_SRC   = "vseries_ss_src"
 
 # Nanosecond timestamps (InfluxDB line protocol precision = ns).
 _T0 = 1700000000000000000
@@ -101,6 +103,20 @@ def _write_pg_setup_data():
         ["('2024-01-01 00:00:00', 1)"])
 
 
+def _write_ss_setup_data():
+    """Second non-Influx source (SQL Server) for the SERIES rejection path.
+
+    SERIES is InfluxDB-only; SQL Server has no series semantics either, so the
+    same negative DDL must be rejected for a SQL Server reference as well
+    (TS 5.2.2 (d), FQSS-VTBL).
+    """
+    create_remote_db("sqlserver", _SS_DB)
+    create_sqlserver_table(
+        _SS_DB, "r",
+        "ts datetime2(3) NOT NULL PRIMARY KEY, v INTEGER",
+        ["('2024-01-01 00:00:00.000', 1)"])
+
+
 # ===========================================================================
 
 class TestVtableSeriesExtSource:
@@ -113,8 +129,10 @@ class TestVtableSeriesExtSource:
         ExtSrcEnv.ensure_qnode()
         _write_setup_data()
         _write_pg_setup_data()
+        _write_ss_setup_data()
         create_ext_source(_INF_SRC, "influxdb", _INF_DB)
         create_ext_source(_PG_SRC, "postgresql", _PG_DB)
+        create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -125,6 +143,7 @@ class TestVtableSeriesExtSource:
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC_GROWTH}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_PG_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SS_SRC}")
 
     def setup_method(self, method):
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -424,6 +443,12 @@ class TestVtableSeriesExtSource:
         tdSql.error(
             "CREATE VTABLE v_e1 (ts timestamp, v int FROM s1.v) "
             f"SERIES s1 AS {_PG_SRC}.{_PG_DB}.r (v='1')")
+
+        """E1b: the same is rejected for a SQL Server source (no series
+        semantics there either; four-segment path form)."""
+        tdSql.error(
+            "CREATE VTABLE v_e1b (ts timestamp, v int FROM s1.v) "
+            f"SERIES s1 AS {_SS_SRC}.{_SS_DB}.dbo.r (v='1')")
 
         """E2: m2 has tags host+region; pinning only host is rejected."""
         tdSql.error(

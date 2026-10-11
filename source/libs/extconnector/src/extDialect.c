@@ -41,6 +41,9 @@ int32_t extResolveDialectBySource(int8_t sourceType, int32_t* pDialect) {
     case EXT_SOURCE_INFLUXDB:
       *pDialect = EXT_SQL_DIALECT_INFLUXQL;
       return TSDB_CODE_SUCCESS;
+    case EXT_SOURCE_SQLSERVER:
+      *pDialect = EXT_SQL_DIALECT_SQLSERVER;
+      return TSDB_CODE_SUCCESS;
     default:
       uError("extResolveDialectBySource: unknown sourceType=%d", (int)sourceType);
       return TSDB_CODE_INVALID_PARA;

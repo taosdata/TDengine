@@ -42,6 +42,14 @@ _fq_runtime_should_enable() {
       *05-VirtualTables/*ExtSource*|*05-VirtualTables/*ext_source*|*05-VirtualTables/*federated*|*05-VirtualTables/06-Meta/test_vtable_series*)
         return 0
         ;;
+      # Federated-stream suites drive the same external sources (SQL Server
+      # included) and therefore need the FQ runtime staging exactly like the
+      # federated-query cases.  Without this an fs-only CI job on a fresh
+      # worker never staged the msodbcsql resources and every case died in
+      # the first sqlcmd with SQLAllocHandle(HENV).
+      *18-StreamProcessing/99-Others/test_fs_*|*99-Others/test_fs_*)
+        return 0
+        ;;
     esac
   done
 

@@ -43,6 +43,7 @@ from ext_source_helpers import (  # noqa: E402
     create_mysql_table,
     create_pg_table,
     create_remote_db,
+    create_sqlserver_table,
 )
 from federated_query_common import _code  # noqa: E402
 
@@ -57,12 +58,18 @@ _PG_SRC = "vt_runtime_libs_pg_src"
 _INFLUX_DB = "vt_runtime_libs_influx_db"
 _INFLUX_SRC = "vt_runtime_libs_influx_src"
 _INFLUX_HTTP_SRC = "vt_runtime_libs_influx_http_src"
+_SQLSERVER_DB = "vt_runtime_libs_sqlserver_db"
+_SQLSERVER_SRC = "vt_runtime_libs_sqlserver_src"
 _T0 = 1704067200000000000
 
 _PROVIDER_RUNTIME_PATTERNS = {
     "mysql": ("libmariadb*", "libmysqlclient*"),
     "postgresql": ("libpq*",),
     "influxdb": ("libtaos_ext_influx_arrow*", "libarrow*", "libparquet*"),
+    # SQL Server loads unixODBC at runtime and resolves the Microsoft ODBC
+    # Driver 18 from the same runtime dir (both are staged like the other
+    # providers' client libraries, DS 3.3).
+    "sqlserver": ("libodbc*", "libmsodbcsql*"),
 }
 _PROVIDER_PLUGIN_PATTERNS = {
     "influxdb": ("libtaos_ext_influx_arrow*",),
@@ -316,6 +323,15 @@ class TestVtableQueryExtSourceRuntimeLibs:
         create_ext_source(_INFLUX_SRC, "influxdb", _INFLUX_DB)
         _create_influx_source(_INFLUX_HTTP_SRC, "http")
 
+        create_remote_db("sqlserver", _SQLSERVER_DB)
+        create_sqlserver_table(
+            _SQLSERVER_DB,
+            "r_sqlserver",
+            "ts datetime2(3) NOT NULL PRIMARY KEY, v INT",
+            ["('2024-01-01 00:00:00.000', 41)", "('2024-01-01 00:00:01.000', 42)"],
+        )
+        create_ext_source(_SQLSERVER_SRC, "sqlserver", _SQLSERVER_DB)
+
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -332,6 +348,10 @@ class TestVtableQueryExtSourceRuntimeLibs:
             "CREATE VTABLE v_influx_http "
             f"(ts timestamp, v bigint FROM {_INFLUX_HTTP_SRC}.{_INFLUX_DB}.r_influx.v)"
         )
+        tdSql.execute(
+            "CREATE VTABLE v_sqlserver "
+            f"(ts timestamp, v int FROM {_SQLSERVER_SRC}.{_SQLSERVER_DB}.dbo.r_sqlserver.v)"
+        )
 
     @classmethod
     def teardown_class(cls):
@@ -340,6 +360,7 @@ class TestVtableQueryExtSourceRuntimeLibs:
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_PG_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INFLUX_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INFLUX_HTTP_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SQLSERVER_SRC}")
 
     def setup_method(self, method):
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -371,6 +392,7 @@ class TestVtableQueryExtSourceRuntimeLibs:
         self._check_vtable_fails_without_runtime_libs(
             "influxdb", ("v_influx", "v_influx_http")
         )
+        self._check_vtable_fails_without_runtime_libs("sqlserver", "v_sqlserver")
         print("missing runtime libraries fail vtable queries ......................... [ passed ]")
 
     def test_missing_runtime_libs_fail_vtable_queries(self):

@@ -2538,6 +2538,157 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         endif()  # NOT PostgreSQL_FOUND
     endif()  # BUILD_WITH_LIBPQ
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # unixODBC 2.3.12  (SQL Server external source, covers the ODBC driver
+    # manager; the Microsoft driver itself ships with the dependency package).
+    # Build-time use is header-only, matching the libpq / MariaDB pattern: the
+    # provider resolves the ODBC entry points at runtime.
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_ODBC})
+        find_package(ODBC QUIET)
+        if(ODBC_FOUND)
+            message(STATUS "[ext_odbc] Using system unixODBC — skipping ExternalProject build")
+            # Record the driver-manager path for extconnector runtime staging.
+            if(DEFINED ODBC_LIBRARIES AND ODBC_LIBRARIES)
+                set(EXT_ODBC_SO_SRCPATH "${ODBC_LIBRARIES}" CACHE INTERNAL "")
+            endif()
+            macro(DEP_ext_odbc tgt)
+                target_include_directories(${tgt} PRIVATE ${ODBC_INCLUDE_DIRS})
+                add_definitions(-D_ext_odbc)
+            endmacro()
+        else()
+            INIT_EXT(ext_odbc
+                INC_DIR  include
+                LIB      lib/libodbc.so
+            )
+            macro(DEP_ext_odbc tgt)
+                target_include_directories(${tgt} PRIVATE ${ext_odbc_inc_dir})
+                add_definitions(-D_ext_odbc)
+                if(NOT TD_EXTERNALS_USE_ONLY)
+                    add_dependencies(${tgt} ext_odbc)
+                endif()
+            endmacro()
+            get_from_local_if_exists(
+                "https://www.unixodbc.org/unixODBC-2.3.12.tar.gz"
+                "unixODBC-2.3.12.tar.gz"
+            )
+            ExternalProject_Add(ext_odbc
+                URL ${_url}
+                URL_HASH SHA256=f210501445ce21bf607ba51ef8c125e10e22dffdffec377646462df5f01915ec
+                PREFIX "${_base}"
+                BUILD_IN_SOURCE TRUE
+                CONFIGURE_COMMAND
+                    COMMAND "${CMAKE_COMMAND}" -E env
+                        "CFLAGS=${_td_ext_autotools_cflags}${TD_EXT_DEADSTRIP_SUFFIX}"
+                        ./configure --prefix=${_ins} --with-pic
+                            --enable-shared --disable-static
+                            --with-iconv=no
+                BUILD_COMMAND
+                    # Build only the driver-manager chain, in unixODBC's own
+                    # SUBDIRS dependency order (libodbcinst needs log/lst/ini).
+                    # exe/ (isql) and Drivers/ are not needed and pull extra
+                    # host dependencies such as readline.
+                    COMMAND ${_EXT_ENV_PREFIX} make -C extras
+                    COMMAND ${_EXT_ENV_PREFIX} make -C log
+                    COMMAND ${_EXT_ENV_PREFIX} make -C lst
+                    COMMAND ${_EXT_ENV_PREFIX} make -C ini
+                    # libltdl is not referenced by DriverManager/Makefile.am;
+                    # skipping it also avoids its autotools-regeneration rule.
+                    COMMAND ${_EXT_ENV_PREFIX} make -C odbcinst
+                    COMMAND ${_EXT_ENV_PREFIX} make -C DriverManager
+                INSTALL_COMMAND
+                    COMMAND ${_EXT_ENV_PREFIX} make -C include install
+                    # sqltypes.h includes the configure-generated unixodbc.h
+                    # (and unixodbc_conf.h); make install does not ship them.
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        <SOURCE_DIR>/unixodbc.h <SOURCE_DIR>/unixodbc_conf.h
+                        ${_ins}/include
+                    COMMAND ${_EXT_ENV_PREFIX} make -C DriverManager install
+                    COMMAND ${_EXT_ENV_PREFIX} make -C odbcinst install
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+            add_dependencies(build_externals ext_odbc)
+        endif()  # NOT ODBC_FOUND
+
+        # ──────────────────────────────────────────────────────────────────────
+        # Microsoft ODBC Driver 18 for SQL Server — prebuilt artifact.
+        # The driver is a Microsoft binary (no source build).  Resolution order:
+        #   1. EXT_MSODBC_SO_SRCPATH      — explicit driver .so path (or its dir)
+        #   2. standard system installs   — /opt/microsoft/msodbcsql18/...
+        #   3. the mirrored artifact      — unpacked when INSTALL_FQ_RUNTIME_LIBS
+        #      is ON (dependency-package / test builds) and LOCAL_URL is set.
+        # The tarball carries the official package contents (lib64/, include/,
+        # share/resources/, doc/) repackaged from msodbcsql18_18.7.1.1-1.
+        # ──────────────────────────────────────────────────────────────────────
+        set(_msodbc_artifact "")
+        set(_msodbc_artifact_hash "")
+        set(_msodbc_deb_arch "")
+        if(NOT ${TD_DARWIN} AND NOT ${TD_WINDOWS})
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-amd64.tar.gz")
+                set(_msodbc_artifact_hash "60a45737ed2a9d619e9966f95246d1fc5bed4bc8e91405ad3a2f040b1948d132")
+                set(_msodbc_deb_arch "amd64")
+            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-arm64.tar.gz")
+                set(_msodbc_artifact_hash "e23fe31dbf1e73d80d547f7f07d7b7d1739dab8a5eeaf6db9885b4893a47269c")
+                set(_msodbc_deb_arch "arm64")
+            endif()
+        endif()
+
+        set(_msodbc_prebuilt "")
+        if(DEFINED EXT_MSODBC_SO_SRCPATH AND NOT "${EXT_MSODBC_SO_SRCPATH}" STREQUAL "")
+            set(_msodbc_prebuilt "${EXT_MSODBC_SO_SRCPATH}")
+        else()
+            foreach(_msodbc_dir
+                    "/opt/microsoft/msodbcsql18/lib64" "/opt/microsoft/msodbcsql18/lib"
+                    "/opt/microsoft/msodbcsql/lib64"   "/opt/microsoft/msodbcsql/lib")
+                file(GLOB _msodbc_found "${_msodbc_dir}/libmsodbcsql-18.*")
+                if(_msodbc_found)
+                    list(GET _msodbc_found 0 _msodbc_prebuilt)
+                    break()
+                endif()
+            endforeach()
+        endif()
+
+        if(_msodbc_prebuilt)
+            message(STATUS "[ext_msodbc] Using prebuilt Microsoft ODBC Driver: ${_msodbc_prebuilt}")
+            set(EXT_MSODBC_SO_SRCPATH "${_msodbc_prebuilt}" CACHE INTERNAL "")
+        elseif(NOT INSTALL_FQ_RUNTIME_LIBS)
+            message(STATUS
+                "[ext_msodbc] No Microsoft ODBC Driver found (set EXT_MSODBC_SO_SRCPATH to the "
+                "driver .so or its directory); the driver is staged only with INSTALL_FQ_RUNTIME_LIBS=ON")
+        elseif("z${LOCAL_URL}" STREQUAL "z" OR "z${_msodbc_artifact}" STREQUAL "z")
+            message(STATUS
+                "[ext_msodbc] Microsoft ODBC Driver artifact unavailable for this platform/mirror "
+                "(LOCAL_URL=${LOCAL_URL}); the packaged driver will be missing")
+        else()
+            INIT_DIRS(ext_msodbc ${TD_EXTERNALS_BASE_DIR})
+            get_from_local_if_exists(
+                "https://packages.microsoft.com/ubuntu/22.04/prod/pool/main/m/msodbcsql18/msodbcsql18_18.7.1.1-1_${_msodbc_deb_arch}.deb"
+                "${_msodbc_artifact}"
+            )
+            ExternalProject_Add(ext_msodbc
+                URL ${_url}
+                URL_HASH SHA256=${_msodbc_artifact_hash}
+                PREFIX "${_base}"
+                CONFIGURE_COMMAND ""
+                BUILD_COMMAND ""
+                INSTALL_COMMAND
+                    COMMAND ${CMAKE_COMMAND} -E make_directory
+                        "${_ins}/lib" "${_ins}/include" "${_ins}/share"
+                        "${_ins}/share/doc/msodbcsql18"
+                    COMMAND cp -a "<SOURCE_DIR>/lib64/." "${_ins}/lib/"
+                    COMMAND cp -a "<SOURCE_DIR>/include/." "${_ins}/include/"
+                    COMMAND cp -a "<SOURCE_DIR>/share/." "${_ins}/share/"
+                    COMMAND cp -a "<SOURCE_DIR>/doc/." "${_ins}/share/doc/msodbcsql18/"
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+            add_dependencies(build_externals ext_msodbc)
+        endif()  # Microsoft ODBC Driver resolution
+    endif()  # BUILD_WITH_ODBC
+
 endif()   # } TD_ENTERPRISE ext connector client libraries
 
 

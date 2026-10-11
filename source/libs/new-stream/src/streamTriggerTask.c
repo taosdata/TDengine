@@ -10094,6 +10094,10 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         code = pIdentityRsp->code;
         QUERY_CHECK_CODE(code, lino, _end);
       }
+      // Range check covers the external source types stream processing supports today.
+      // EXT_SOURCE_SQLSERVER (=4) is deliberately outside the range: SQL Server external
+      // tables must not be referenced from streams in this release, so an identity
+      // response from a SQL Server source is rejected fail-closed here.
       QUERY_CHECK_CONDITION(pIdentityRsp->sourceType >= EXT_SOURCE_MYSQL && pIdentityRsp->sourceType <= EXT_SOURCE_TDENGINE,
                             code, lino, _end, TSDB_CODE_INVALID_MSG);
 

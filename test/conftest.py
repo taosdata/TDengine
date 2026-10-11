@@ -163,6 +163,12 @@ def _is_federated_query_pytest_invocation():
         "FederatedQuery",
         "federated_query",
         "test_fq_",
+        # Federated-stream suites drive the same external sources (SQL Server
+        # included) and need the same FQ runtime staging; without this hint an
+        # fs-only CI job on a fresh worker never staged the msodbcsql
+        # resources and every case failed in the first sqlcmd with
+        # SQLAllocHandle(HENV).
+        "test_fs_",
     )
     return any(any(hint in arg for hint in hints) for arg in sys.argv[1:])
 

@@ -26,6 +26,16 @@ Design notes:
       wall-clock latency bounds (those live in test_fq_15_service_disruption).
     - Each test injects a specific failure mode and validates the scheduler's
       response: retry count, state transition, and final query outcome.
+    - SQL Server (4th external source; zero pushdown in step 1, so the remote
+      SQL is a base scan) adds a parallel path to tests 001-005 and 007-009
+      using the shared SQL Server helpers (sqlserver_exec /
+      stop|start_sqlserver_instance / _mk_sqlserver_real) plus the lock-based
+      slow-query substitute _sqlserver_hold_table_lock — T-SQL has no
+      SELECT-embedded SLEEP().  Tests keep the existing MySQL/PG/InfluxDB
+      paths unchanged and add the SQL Server path at the end of each test.
+    - FQ-06-006 stays MySQL-only: SQL Server native error 916 maps to
+      EXT_ACCESS_DENIED, but a table-level permission error (native 229) falls
+      through to EXT_REMOTE_INTERNAL, which FQ-06-009 covers.
 """
 
 import pytest
@@ -116,6 +126,42 @@ _PG_FOJ_SQLS = [
     "DELETE FROM t2",
     "INSERT INTO t2 VALUES (1,'x'),(2,'y'),(4,'z')",
 ]
+
+# Standard 5-row SQL Server push_t table (T-SQL type mapping used across the
+# FQ suites: INT / FLOAT / NVARCHAR / BIT)
+_SQLSERVER_PUSH_T_SQLS = [
+    "IF OBJECT_ID('dbo.push_t') IS NOT NULL DROP TABLE dbo.push_t",
+    "CREATE TABLE dbo.push_t "
+    "(val INT, score FLOAT, name NVARCHAR(32), flag BIT, status NVARCHAR(16))",
+    "INSERT INTO dbo.push_t VALUES "
+    "(1,1.5,'alpha',1,'active'),"
+    "(2,2.5,'beta',0,'idle'),"
+    "(3,3.5,'gamma',1,'active'),"
+    "(4,4.5,'delta',0,'idle'),"
+    "(5,5.5,'epsilon',1,'active')",
+]
+
+
+def _sqlserver_hold_table_lock(database, seconds):
+    """Block remote readers of ``dbo.push_t`` for *seconds*.
+
+    SQL Server has no SELECT-embedded SLEEP(), so the row-locking waits used by
+    the MySQL paths cannot be translated literally.  A background sqlcmd
+    session opens a transaction, takes an exclusive table lock with
+    ``WITH (TABLOCKX)`` and holds it via ``WAITFOR DELAY`` before committing;
+    a concurrent plain SELECT (no locking hint) blocks for the whole window.
+    This is used to keep the single ext-connector pool slot busy (test 003)
+    and to make a remote scan deterministically slow.
+    """
+    ExtSrcEnv.sqlserver_exec(database, [
+        "BEGIN TRANSACTION; "
+        "SELECT COUNT(*) FROM dbo.push_t WITH (TABLOCKX); "
+        # WAITFOR takes HH:MM:SS; the seconds field must stay below 60, so
+        # anything from a minute upwards has to carry into the minutes field.
+        f"WAITFOR DELAY '{int(seconds) // 3600:02d}:{(int(seconds) % 3600) // 60:02d}:{int(seconds) % 60:02d}'; "
+        "COMMIT TRANSACTION",
+    ])
+
 
 # InfluxDB line-protocol data for push tests
 _INFLUX_BUCKET_S04 = "fq_push_s04_i"   # s04 uses its own bucket to avoid race with fq_push_029 drop
@@ -270,6 +316,43 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             except Exception:
                 pass
+        # --- SQL Server path ---
+        s_src = "fq_06_001_s"
+        s_db = "fq_06_001_s_ext"
+        ss_ver = getattr(self, "_active_sqlserver_ver", None) or ExtSrcEnv.SQLSERVER_VERSIONS[0]
+        self._cleanup_src(s_src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
+            self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+            # Verify works before stop; no _verify_pushdown_explain here —
+            # SQL Server runs zero pushdown in step 1 (base scan only).
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Dimension a/b) Stop instance → connection error, retry class.
+            # SQL Server reports 08001/08S01 on a stopped instance →
+            # EXT_CONNECT_FAILED.  The test asserts an error (and the same
+            # helper path) rather than pinning the dialect-specific errno.
+            ExtSrcEnv.stop_sqlserver_instance(ss_ver)
+            try:
+                tdSql.error(f"select * from {s_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+                # Dimension c) Source still in catalog after failed query
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{s_src}'")
+                tdSql.checkRows(1)
+            finally:
+                ExtSrcEnv.start_sqlserver_instance(ss_ver)
+                # Dimension d) Recovery: query succeeds again after service restart
+                tdSql.query(f"select count(*) from {s_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(s_src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(s_db)
+            except Exception:
+                pass
 
     def test_fq_06_002(self):
         """FQ-06-002: Auth error fast-fail — wrong credentials produce EXT_AUTH_FAILED
@@ -397,6 +480,35 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(i_src)
             try:
                 ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
+        # --- SQL Server path ---
+        s_src = "fq_06_002_s"
+        s_db = "fq_06_002_s_ext"
+        self._cleanup_src(s_src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
+            # Dimension a/b) Wrong password → native error 18456 (login failed),
+            # service up, only the credential wrong → EXT_AUTH_FAILED
+            # (extConnectorSQLServer maps SQLSTATE 28* / 18456).
+            self._mk_sqlserver_real(s_src, database=s_db, schema="dbo",
+                                    password="WRONG_PW_FQ06_b3k9x")
+            tdSql.error(f"select * from {s_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+            # Dimension c) Source still in catalog despite auth failure
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{s_src}'")
+            tdSql.checkRows(1)
+            # Dimension d) Recovery: recreate with correct password → query succeeds
+            self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(s_src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(s_db)
             except Exception:
                 pass
 
@@ -598,6 +710,106 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+        # ----------------------------------------------------------------
+        # SQL Server path — real RESOURCE_EXHAUSTED verification
+        #
+        # SQL Server has no SELECT-embedded SLEEP(): the single pool slot is
+        # held by a federated base scan that blocks on an exclusive table lock
+        # (TABLOCKX) held by a background sqlcmd session.  The 12s lock window
+        # outlasts the client's retry loop for the retryable
+        # EXT_RESOURCE_EXHAUSTED error, as with the MySQL SLEEP(10) above.
+        # ----------------------------------------------------------------
+        s_src = "fq_06_003_s"
+        s_db = "fq_06_003_s_ext"
+        self._cleanup_src(s_src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
+
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '1'")
+            time.sleep(0.5)  # wait for config propagation across the dnode
+            self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+
+            # Normal query works (pool created with maxPoolSize=1)
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            lock_errors: list = []
+            bg_errors: list = []
+
+            def _hold_lock():
+                try:
+                    _sqlserver_hold_table_lock(s_db, 12)
+                except Exception as exc:
+                    lock_errors.append(exc)
+
+            def _run_blocked():
+                import taos  # noqa: PLC0415  (local import for thread safety)
+                try:
+                    conn = taos.connect()
+                    try:
+                        cur = conn.cursor()
+                        try:
+                            cur.execute(f"select count(*) from {s_src}.push_t")
+                            cur.fetchall()
+                        except Exception as exc:
+                            bg_errors.append(exc)
+                        finally:
+                            cur.close()
+                    finally:
+                        conn.close()
+                except Exception as exc:
+                    bg_errors.append(exc)
+
+            lt = threading.Thread(target=_hold_lock, daemon=True)
+            lt.start()
+            time.sleep(1.5)  # let the lock holder acquire TABLOCKX
+            # Thread B: the blocked scan keeps the single pool slot busy.
+            bt = threading.Thread(target=_run_blocked, daemon=True)
+            bt.start()
+            time.sleep(1.5)  # blocked scan now occupies the pool slot
+
+            # Dimension a) Second query hits pool cap → RESOURCE_EXHAUSTED
+            tdSql.error(
+                f"select count(*) from {s_src}.push_t",
+                expectedErrno=TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
+            )
+
+            # Dimension b) Source still in catalog after the resource error
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{s_src}'"
+            )
+            tdSql.checkRows(1)
+
+            # Wait for the lock window to elapse and the blocked scan to finish
+            bt.join(timeout=60)
+            lt.join(timeout=30)
+            if bt.is_alive() or lt.is_alive():
+                tdLog.warning("Background SQL Server threads did not finish in time")
+            if lock_errors:
+                tdLog.warning(f"Lock-holder thread error: {lock_errors[0]}")
+            if bg_errors:
+                tdLog.warning(f"Blocked-query thread error: {bg_errors[0]}")
+
+            # Dimension c) Recovery: slot freed → next query succeeds
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+        finally:
+            self._cleanup_src(s_src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(s_db)
+            except Exception:
+                pass
+            # Restore original pool size regardless of test outcome
+            try:
+                tdSql.execute(
+                    "ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '64'"
+                )
+            except Exception:
+                pass
+
     def test_fq_06_004(self):
         """FQ-06-004: Availability state transitions — available/degraded/unavailable switching correct
 
@@ -739,6 +951,51 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             f"select source_name from information_schema.ins_ext_sources "
             f"where source_name = '{i_src}'")
         tdSql.checkRows(0)
+        # --- SQL Server path ---
+        s_src = "fq_06_004_s"
+        s_db = "fq_06_004_s_ext"
+        ss_ver = getattr(self, "_active_sqlserver_ver", None) or ExtSrcEnv.SQLSERVER_VERSIONS[0]
+        self._cleanup_src(s_src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
+            self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+            # Dimension a) Source available → in catalog
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{s_src}'")
+            tdSql.checkRows(1)
+            # Dimension b) Verify query works (available state)
+            # (no _verify_pushdown_explain — SQL Server zero pushdown, base scan only)
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Dimension c) Stop instance → state transitions to degraded/unavailable;
+            # 08001/08S01 on a stopped instance → EXT_CONNECT_FAILED class
+            ExtSrcEnv.stop_sqlserver_instance(ss_ver)
+            try:
+                tdSql.error(f"select * from {s_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+                # Source still in catalog despite failed state
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{s_src}'")
+                tdSql.checkRows(1)
+            finally:
+                ExtSrcEnv.start_sqlserver_instance(ss_ver)
+                # Dimension e) Recovery: source transitions back to available
+                tdSql.query(f"select count(*) from {s_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(s_src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(s_db)
+            except Exception:
+                pass
+        # Dimension d) After DROP: source removed from catalog
+        tdSql.query(
+            f"select source_name from information_schema.ins_ext_sources "
+            f"where source_name = '{s_src}'")
+        tdSql.checkRows(0)
 
     def test_fq_06_005(self):
         """FQ-06-005: EXT_TABLE_NOT_EXIST — remote table dropped while cached, triggers REFRESH path (catalogRemoveExtSource + restartAsyncQuery), exhausts retries, returns EXT_TABLE_NOT_EXIST to user.
@@ -836,6 +1093,37 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+        # ----------------------------------------------------------------
+        # SQL Server path
+        # ----------------------------------------------------------------
+        s_src = "fq_06_005_s"
+        s_db = "fq_06_005_s_ext"
+        self._cleanup_src(s_src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
+            self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+            # Verify normal query works — schema gets cached
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Drop the remote table directly — TDengine cache still has the schema
+            ExtSrcEnv.sqlserver_exec(s_db, ["DROP TABLE IF EXISTS dbo.push_t"])
+            # Dimension c) EXT_TABLE_NOT_EXIST after REFRESH exhausted
+            # (native 208 "invalid object name" → EXT_TABLE_NOT_EXIST)
+            tdSql.error(f"select * from {s_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+            # Source remains in catalog
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{s_src}'")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(s_src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(s_db)
+            except Exception:
+                pass
+
     def test_fq_06_006(self):
         """FQ-06-006: EXT_ACCESS_DENIED — insufficient table-level privileges, non-retryable.
 
@@ -851,6 +1139,12 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
           EXT_REMOTE_INTERNAL by pgMapError (which only inspects PQstatus).
           Therefore this test covers MySQL only for EXT_ACCESS_DENIED.
           See FQ-06-002 for PG auth-failure coverage.
+
+        SQL Server note: only native error 916 (no permission on the database)
+          maps to EXT_ACCESS_DENIED in extConnectorSQLServer; a table-level
+          permission error (native 229) falls through to EXT_REMOTE_INTERNAL.
+          EXT_ACCESS_DENIED is therefore not covered for SQL Server here; the
+          default-mapping behaviour is covered by FQ-06-009.
 
         Dimensions:
           a) MySQL user with SELECT denied on specific table → EXT_ACCESS_DENIED
@@ -1004,6 +1298,37 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+        # ----------------------------------------------------------------
+        # SQL Server path
+        # ----------------------------------------------------------------
+        s_src = "fq_06_007_s"
+        s_db = "fq_06_007_s_ext"
+        self._cleanup_src(s_src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
+            self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+            # Populate catalog cache
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # DROP the external source
+            tdSql.execute(f"drop external source if exists {s_src}")
+            # Dimension c) Catalog entry removed
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{s_src}'")
+            tdSql.checkRows(0)
+            # Dimension a) Query deleted source → MND_EXTERNAL_SOURCE_NOT_EXIST
+            tdSql.error(f"select * from {s_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST)
+        finally:
+            # Source already dropped; just guard against partial cleanup
+            self._cleanup_src(s_src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(s_db)
+            except Exception:
+                pass
+
     def test_fq_06_008(self):
         """FQ-06-008: EXT_SOURCE_CHANGED — ALTER EXTERNAL SOURCE triggers REFRESH path; client clears catalog cache and re-plans; query succeeds with updated metadata.
 
@@ -1095,6 +1420,38 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+        # ----------------------------------------------------------------
+        # SQL Server path
+        # ----------------------------------------------------------------
+        s_src = "fq_06_008_s"
+        s_db = "fq_06_008_s_ext"
+        self._cleanup_src(s_src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
+            self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+            # Baseline query (populates cache)
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # ALTER the external source to bump the mnode version → cache invalidated
+            tdSql.execute(
+                f"alter external source {s_src} "
+                f"set options('connect_timeout_ms'='5000')")
+            # Query after ALTER → REFRESH + re-plan → success
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Source still in catalog
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{s_src}'")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(s_src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(s_db)
+            except Exception:
+                pass
+
     def test_fq_06_009(self):
         """FQ-06-009: EXT_REMOTE_INTERNAL — unrecognised remote error, non-retryable.
 
@@ -1180,5 +1537,46 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
+
+        # ----------------------------------------------------------------
+        # SQL Server path
+        #
+        # Injection mechanism: a view whose projection CASTs the non-numeric
+        # NVARCHAR column `status` to INT.  The expression depends on a column,
+        # so it cannot be constant-folded and view creation succeeds; at SELECT
+        # time SQL Server raises native error 245 (conversion failed, SQLSTATE
+        # 22018), which is not in the extConnectorSQLServer switch →
+        # EXT_REMOTE_INTERNAL.  (CREATE VIEW is sent as its own sqlcmd batch,
+        # as T-SQL requires.)
+        # ----------------------------------------------------------------
+        s_src = "fq_06_009_s"
+        s_db = "fq_06_009_s_ext"
+        self._cleanup_src(s_src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(s_db)
+            ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS + [
+                "CREATE VIEW dbo.remote_err_v AS "
+                "SELECT val, CAST(status AS INT) AS boom FROM dbo.push_t",
+            ])
+            self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+            # Dimension a) Normal push_t query succeeds
+            tdSql.query(f"select count(*) from {s_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Dimension b) Query error-injected view → conversion error (245)
+            # → not in the connector switch → EXT_REMOTE_INTERNAL
+            tdSql.error(f"select * from {s_src}.remote_err_v limit 1",
+                        expectedErrno=TSDB_CODE_EXT_REMOTE_INTERNAL)
+        finally:
+            try:
+                ExtSrcEnv.sqlserver_exec(s_db, [
+                    "DROP VIEW IF EXISTS dbo.remote_err_v",
+                ])
+            except Exception:
+                pass
+            self._cleanup_src(s_src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(s_db)
             except Exception:
                 pass

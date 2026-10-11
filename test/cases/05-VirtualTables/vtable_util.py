@@ -124,6 +124,23 @@ VTABLE_COLUMN_TYPES_MYSQL = _override_column_types({
     "nchar_32_col": "nchar(32)",
 })
 
+# SQL Server: TINYINT is unsigned (0..255) and the engine has no unsigned-int
+# family, so integers are promoted exactly like MySQL (SMALLINT → INT → BIGINT,
+# plus signed TINYINT → SMALLINT so the CSV's negative values still fit).
+# binary_* use the non-Unicode varchar type so the connector maps them to
+# VARCHAR; nchar_* use the National type so the connector maps them to NCHAR.
+VTABLE_COLUMN_TYPES_SQLSERVER = _override_column_types({
+    "u_tinyint_col": "smallint",
+    "u_smallint_col": "int",
+    "u_int_col": "bigint",
+    "u_bigint_col": "bigint",
+    "tinyint_col": "smallint",
+    "binary_16_col": "varchar(16)",
+    "binary_32_col": "varchar(32)",
+    "nchar_16_col": "nchar(16)",
+    "nchar_32_col": "nchar(32)",
+})
+
 # InfluxDB: every integer is i64 (→ bigint); every float is f64 (→ double).
 # Strings only exist as Utf8 (→ nchar).
 VTABLE_COLUMN_TYPES_INFLUX = _override_column_types({
@@ -237,29 +254,34 @@ def _build_ext_virtual_ref_column_types(ext_types):
     return tuple(out)
 
 
-# --- All-sources (7-way) mode --------------------------------------------
+# --- All-sources (9-way) mode --------------------------------------------
 #
-# A single virtual table whose columns are split across 7 sources at once:
+# A single virtual table whose columns are split across 9 sources at once:
 #   bucket 0 → internal TDengine
 #   buckets 1,2 → PG sources       (pg_test_1, pg_test_2)
 #   buckets 3,4 → MySQL sources    (mysql_test_1, mysql_test_2)
 #   buckets 5,6 → Influx sources   (influx_test_1, influx_test_2)
+#   buckets 7,8 → SQL Server sources (ss_test_1, ss_test_2)
 #
 # Bucket assignment is by each column's POSITION in VTABLE_COLUMN_TYPES,
 # so the same column always lands in the same source across every vtable.
+# Every backend carries the same CSV data, so the shared in/ans results are
+# unaffected by which backend a column's bucket maps to.
 _ALL_SOURCE_CYCLE = (
-    ('internal', 0),
-    ('pg',       0),
-    ('pg',       1),
-    ('mysql',    0),
-    ('mysql',    1),
-    ('influx',   0),
-    ('influx',   1),
+    ('internal',  0),
+    ('pg',        0),
+    ('pg',        1),
+    ('mysql',     0),
+    ('mysql',     1),
+    ('influx',    0),
+    ('influx',    1),
+    ('sqlserver', 0),
+    ('sqlserver', 1),
 )
 
 
 def _build_all_column_buckets():
-    """Return {col_name: (backend, src_idx)} using 7-way positional cycle."""
+    """Return {col_name: (backend, src_idx)} using 9-way positional cycle."""
     buckets = {}
     data_idx = 0
     for col, _ in VTABLE_COLUMN_TYPES:
@@ -276,10 +298,11 @@ _ALL_COLUMN_BUCKETS = _build_all_column_buckets()
 def _build_all_column_types():
     """Per-column declared type matches each column's assigned backend."""
     type_map_by_backend = {
-        'internal': dict(VTABLE_COLUMN_TYPES),
-        'pg':       dict(VTABLE_COLUMN_TYPES_PG),
-        'mysql':    dict(VTABLE_COLUMN_TYPES_MYSQL),
-        'influx':   dict(VTABLE_COLUMN_TYPES_INFLUX),
+        'internal':  dict(VTABLE_COLUMN_TYPES),
+        'pg':        dict(VTABLE_COLUMN_TYPES_PG),
+        'mysql':     dict(VTABLE_COLUMN_TYPES_MYSQL),
+        'influx':    dict(VTABLE_COLUMN_TYPES_INFLUX),
+        'sqlserver': dict(VTABLE_COLUMN_TYPES_SQLSERVER),
     }
     out = []
     for col, base_type in VTABLE_COLUMN_TYPES:
@@ -331,6 +354,29 @@ MYSQL_TABLE_COLUMNS = (
     'nchar_16_col VARCHAR(16) CHARACTER SET utf8mb4',
     'nchar_32_col VARCHAR(32) CHARACTER SET utf8mb4',
     'groupid INT', 'location VARCHAR(64) CHARACTER SET utf8mb4',
+)
+
+# SQL Server table columns.  Numeric declarations mirror the MySQL promotions
+# (TINYINT is unsigned there too); real/float keep the CSV's float32/float64
+# widths and bit is the engine's boolean.  datetime2(3) is the millisecond
+# declaration — the connector exposes external ts at microsecond resolution, so
+# the millisecond CSV timestamps round-trip exactly.  char/varchar → VARCHAR
+# and nchar/nvarchar → NCHAR in the connector, so binary_* use varchar and
+# nchar_* use nvarchar to reach the same TDengine types as the other sources.
+# nchar_* MUST be the variable-length NVARCHAR: the fixed-length NCHAR blank-
+# pads every value to the declared length, and the padded value then reaches
+# TDengine (SQL Server comparisons ignore those blanks, the shell rendering
+# does not, so the shared millisecond fixtures would no longer match).
+SQLSERVER_TABLE_COLUMNS = (
+    'ts DATETIME2(3) NOT NULL PRIMARY KEY',
+    'u_tinyint_col SMALLINT', 'u_smallint_col INT',
+    'u_int_col BIGINT', 'u_bigint_col BIGINT',
+    'tinyint_col SMALLINT', 'smallint_col SMALLINT',
+    'int_col INT', 'bigint_col BIGINT',
+    'float_col REAL', 'double_col FLOAT', 'bool_col BIT',
+    'binary_16_col VARCHAR(16)', 'binary_32_col VARCHAR(32)',
+    'nchar_16_col NVARCHAR(16)', 'nchar_32_col NVARCHAR(32)',
+    'groupid INT', 'location NVARCHAR(64)',
 )
 
 # InfluxDB field columns: every vtable data column is a field — the 11 numeric
@@ -579,15 +625,30 @@ def build_vtable_child_sql(name, source_map, tags,
 # Section 4.  TDengine origin-table builders
 # ============================================================================
 
-def _create_vtable_database(db_name):
+def _create_vtable_database(db_name, precision="ns"):
     """Create a clean empty TDengine database to hold virtual tables.
 
     Used for ext-source mode where all columns come from the external source —
     no local origin tables are needed, only the database itself.
+
+    `precision` follows the source's inherent ts precision: an external scan
+    declares the source precision (µs for SQL Server), and ts literals in a
+    filter are parsed with it, so a database finer than the source makes every
+    ts-range filter compare µs constants against ns values and miss.
     """
     tdSql.execute(f"drop database if exists {db_name};")
-    tdSql.execute(f"create database {db_name} vgroups 2 precision 'ns';")
+    tdSql.execute(f"create database {db_name} vgroups 2 precision '{precision}';")
     tdSql.execute(f"use {db_name};")
+
+
+def _ext_source_db_precision(adapter):
+    """Local database precision for a source-specific vtable fixture.
+
+    SQL Server exposes timestamps at microsecond resolution (DS 5.3.7), so its
+    vtable database is created with PRECISION 'us' - the same convention the
+    dedicated SQL Server vtable suites use.
+    """
+    return "us" if getattr(adapter, "BACKEND", "") == "sqlserver" else "ns"
 
 
 def _prepare_one_origin_database(
@@ -638,7 +699,8 @@ def _prepare_one_origin_database(
 # ============================================================================
 #
 # Each adapter owns the lifecycle of one external backend (PG / MySQL /
-# Influx). It exposes a uniform interface used by the orchestrator:
+# Influx / SQL Server). It exposes a uniform interface used by the
+# orchestrator:
 #
 #     adapter.column_types         — VTABLE column types for ext-source mode
 #     adapter.mixed_column_types   — VTABLE column types for mixed mode
@@ -649,8 +711,8 @@ def _prepare_one_origin_database(
 #     adapter.ref_short(table, col)
 #
 # Connection params, exec helpers (mysql_exec / pg_exec / influx_write /
-# influx_query_sql), TCP probe and selective start_*_instance are delegated
-# to ExtSrcEnv to avoid duplication.
+# influx_query_sql / sqlserver_exec), TCP probe and selective
+# start_*_instance are delegated to ExtSrcEnv to avoid duplication.
 
 
 # --- PostgreSQL adapter ----------------------------------------------------
@@ -879,6 +941,153 @@ class _MysqlAdapter:
                 datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
                 self._load_csv(db, f"vtb_org_tb_{i}", datafile)
             ExtSrcEnv.mysql_exec(db, offset_stmts)
+
+
+# --- SQL Server adapter ----------------------------------------------------
+class _SqlserverAdapter:
+    BACKEND      = "sqlserver"
+    SOURCE_NAMES = ("ss_test_1", "ss_test_2")
+    DB_NAMES     = ("test_vtable_ext_1", "test_vtable_ext_2")
+    SCHEMA_NAME  = "dbo"
+
+    column_types       = VTABLE_COLUMN_TYPES_SQLSERVER
+    mixed_column_types = _build_mixed_column_types(VTABLE_COLUMN_TYPES_SQLSERVER)
+
+    # CSV columns that hold string literals (all others are numeric). The
+    # nchar_*/location values are emitted as National (N'…') literals so the
+    # non-ASCII text survives the sqlcmd round-trip.
+    STRING_COLUMNS  = ('ts', 'binary_16_col', 'binary_32_col',
+                       'nchar_16_col', 'nchar_32_col', 'location')
+    UNICODE_COLUMNS = ('nchar_16_col', 'nchar_32_col', 'location')
+    # One INSERT carries at most 1000 row constructors, and sqlcmd receives the
+    # whole statement as a single argv entry (128 KiB per-argument limit), so
+    # rows are shipped in bounded batches.
+    INSERT_BATCH_ROWS = 200
+
+    @property
+    def host(self):    return ExtSrcEnv.SQLSERVER_HOST
+    @property
+    def port(self):    return ExtSrcEnv.SQLSERVER_PORT
+    @property
+    def user(self):    return ExtSrcEnv.SQLSERVER_USER
+    @property
+    def password(self):return ExtSrcEnv.SQLSERVER_PASS
+    @property
+    def version(self): return ExtSrcEnv.SQLSERVER_VERSIONS[0]
+
+    def ensure_running(self):
+        if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
+            return
+        if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
+            raise RuntimeError(
+                f"FQ_SKIP_ENV_RESET=1 but SQL Server {self.version} not "
+                f"reachable at {self.host}:{self.port}")
+        tdLog.info(f"Starting SQL Server {self.version} via "
+                   f"ExtSrcEnv.start_sqlserver_instance ...")
+        ExtSrcEnv.start_sqlserver_instance(self.version)
+        if not ExtSrcEnv._tcp_probe(self.host, self.port, timeout=10):
+            raise RuntimeError(
+                f"SQL Server {self.version} not reachable at "
+                f"{self.host}:{self.port}")
+
+    def ref(self, table, col, idx):
+        # SQL Server references are 5-segment: source.database.schema.table.col.
+        s = self.SOURCE_NAMES[idx % 2]
+        d = self.DB_NAMES[idx % 2]
+        return f"{s}.{d}.{self.SCHEMA_NAME}.{table}.{col}"
+
+    def ref_short(self, table, col, idx):
+        # SQL Server external source references MUST include the database and
+        # schema even in child-vtable (short) form.  A 3-component
+        # "source.table.col" is ambiguous: TDengine cannot distinguish it from a
+        # local "db.table.col" and reports "External source not found".  Use the
+        # same 5-component format as ref() — "source.db.schema.table.col".
+        s = self.SOURCE_NAMES[idx % 2]
+        d = self.DB_NAMES[idx % 2]
+        return f"{s}.{d}.{self.SCHEMA_NAME}.{table}.{col}"
+
+    def create_external_source(self):
+        ExtSrcEnv.ensure_qnode()
+        for src, db in zip(self.SOURCE_NAMES, self.DB_NAMES):
+            tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {src}")
+            tdSql.execute(
+                f"CREATE EXTERNAL SOURCE IF NOT EXISTS {src} TYPE='sqlserver' "
+                f"HOST='{self.host}' PORT={self.port} "
+                f"USER='{self.user}' PASSWORD='{self.password}' "
+                f"DATABASE={db} SCHEMA={self.SCHEMA_NAME}")
+
+    @classmethod
+    def _value_literal(cls, column, value):
+        """Render one CSV cell as a T-SQL literal; empty / `null` → NULL."""
+        v = value.strip()
+        if v == "" or v.lower() == "null":
+            return "NULL"
+        if column not in cls.STRING_COLUMNS:
+            return v
+        escaped = v.replace("'", "''")
+        prefix = "N" if column in cls.UNICODE_COLUMNS else ""
+        return f"{prefix}'{escaped}'"
+
+    @classmethod
+    def _row_literal(cls, row):
+        """Render one CSV row as an INSERT VALUES row constructor."""
+        values = [cls._value_literal(col, row.get(col, ""))
+                  for col in PG_COPY_COLUMN_LIST]
+        return f"({', '.join(values)})"
+
+    @classmethod
+    def _insert_rows(cls, database, qualified_table, col_str, batch):
+        ExtSrcEnv.sqlserver_exec(database, [
+            f"INSERT INTO {qualified_table} ({col_str}) "
+            f"VALUES {', '.join(batch)}"])
+
+    def _load_csv(self, database, table_name, csv_path):
+        """Bulk-load a CSV into a SQL Server table via batched INSERTs.
+
+        Data preparation runs through sqlcmd inside the managed container (see
+        ExtSrcEnv.sqlserver_exec), so rows are rendered as T-SQL literals;
+        empty cells become NULL, exactly as the MySQL adapter's CSV loader.
+        """
+        import csv
+        col_str = ", ".join(PG_COPY_COLUMN_LIST)
+        qualified = f"{self.SCHEMA_NAME}.{table_name}"
+        with open(csv_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            batch = []
+            for row in reader:
+                batch.append(self._row_literal(row))
+                if len(batch) >= self.INSERT_BATCH_ROWS:
+                    self._insert_rows(database, qualified, col_str, batch)
+                    batch = []
+            if batch:
+                self._insert_rows(database, qualified, col_str, batch)
+
+    def prepare_origin_tables(self):
+        """Build identical origin tables in BOTH external DBs."""
+        tdLog.info(
+            f"prepare SQL Server origin tables in {self.DB_NAMES[0]} & "
+            f"{self.DB_NAMES[1]}.")
+        cols_sql = ", ".join(SQLSERVER_TABLE_COLUMNS)
+        create_stmts = [
+            f"CREATE TABLE {self.SCHEMA_NAME}.vtb_org_tb_{i} ({cols_sql})"
+            for i in range(18)]
+        insert_cols = ", ".join(PG_COPY_COLUMN_LIST)
+        select_cols = ", ".join(PG_COPY_COLUMN_LIST[1:])
+        # Tables 9..17 = 0..8 shifted +3 days; DATEADD keeps the ms scale.
+        offset_stmts = [
+            f"INSERT INTO {self.SCHEMA_NAME}.vtb_org_tb_{i} ({insert_cols}) "
+            f"SELECT DATEADD(day, 3, ts), {select_cols} "
+            f"FROM {self.SCHEMA_NAME}.vtb_org_tb_{i-9}"
+            for i in range(9, 18)]
+
+        for db in self.DB_NAMES:
+            ExtSrcEnv.sqlserver_drop_db(db)
+            ExtSrcEnv.sqlserver_create_db(db)
+            ExtSrcEnv.sqlserver_exec(db, create_stmts)
+            for i in range(9):
+                datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
+                self._load_csv(db, f"vtb_org_tb_{i}", datafile)
+            ExtSrcEnv.sqlserver_exec(db, offset_stmts)
 
 
 # --- InfluxDB adapter ------------------------------------------------------
@@ -1464,7 +1673,36 @@ class VtableQueryUtil:
     """
 
     @staticmethod
-    def _normalize_window_duration_to_milliseconds(result_file):
+    def _db_duration_divisor():
+        """Divisor turning the session database's timestamp-integer columns
+        (_wduration / to_unixtimestamp / elapsed) into milliseconds.
+
+        The shared golden files are millisecond fixtures.  An ns database
+        reports those columns in ns (1e6), a us database (SQL Server, whose
+        inherent precision is us - DS 5.3.7) in us (1e3) and an ms database
+        already in ms (1).  Falls back to the ns divisor when the session
+        database cannot be resolved.
+        """
+        try:
+            tdSql.query("select database()")
+            if not tdSql.queryResult or not tdSql.queryResult[0]:
+                return 1000000
+            db = str(tdSql.queryResult[0][0])
+            tdSql.query(
+                "select `precision` from information_schema.ins_databases "
+                f"where name = '{db}'")
+            if not tdSql.queryResult or not tdSql.queryResult[0]:
+                return 1000000
+            prec = str(tdSql.queryResult[0][0]).strip().lower()
+        except Exception:
+            return 1000000
+        if prec.startswith("u"):
+            return 1000
+        if prec.startswith("m"):
+            return 1
+        return 1000000
+
+    def _normalize_window_duration_to_milliseconds(result_file, duration_divisor=1000000):
         """Normalize nanosecond time results for shared millisecond answers."""
         integer_columns = set()
         iso8601_columns = set()
@@ -1476,7 +1714,10 @@ class VtableQueryUtil:
         )
         truncated_iso8601_pattern = re.compile(
             r"^(?P<date_time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})"
-            r"\.(?P<fraction>\d+)\.\.\.$"
+            # The us-precision fixtures (SQL Server) render six fractional
+            # digits, so the shell truncates the value - including the offset -
+            # with a trailing "...".  Accept both forms.
+            r"\.(?P<fraction>\d+)(?P<offset>Z|[+-][0-9:]*)?\.\.\.$"
         )
 
         def replace_value(field, value):
@@ -1525,7 +1766,7 @@ class VtableQueryUtil:
                             index in integer_columns
                             and value.lstrip("+-").isdigit()
                         ):
-                            normalized = str(int(value) // 1_000_000)
+                            normalized = str(int(value) // duration_divisor)
                             fields[index] = replace_value(field, normalized)
                             continue
 
@@ -1571,7 +1812,8 @@ class VtableQueryUtil:
     def compare_ext_source_testcase_result(cls, input_file, expected_file, test_case, float_tolerance=0.0):
         """Compare an external-source case against answers shared with millisecond fixtures."""
         result_file = tdCom.generate_query_result(input_file, test_case)
-        cls._normalize_window_duration_to_milliseconds(result_file)
+        cls._normalize_window_duration_to_milliseconds(
+            result_file, cls._db_duration_divisor())
         if not tdCom.compare_result_files(expected_file, result_file, float_tolerance=float_tolerance):
             tdLog.exit(
                 f"sqlfile:{input_file}, expect_file:{expected_file} != result_file:{result_file}"
@@ -1665,7 +1907,8 @@ class VtableQueryUtil:
         return raw_ref_map, direct_ref_map
 
     def _all_map(self, table_map, adapters_by_backend):
-        """Build the 7-way source map (internal + 2*pg + 2*mysql + 2*influx).
+        """Build the 9-way source map (internal + 2*pg + 2*mysql + 2*influx
+        + 2*sqlserver).
 
         Each column's (backend, src_idx) is fixed by _ALL_COLUMN_BUCKETS, so
         the same column always reads from the same physical source across
@@ -1877,7 +2120,8 @@ class VtableQueryUtil:
         # is exercised by the existing in/ans suite. Other backends are no-ops.
         if getattr(adapter, "BACKEND", "") == "influx":
             adapter.enable_series_mode()
-        _create_vtable_database(self.VTABLE_DB_NAME)
+        _create_vtable_database(self.VTABLE_DB_NAME,
+                                precision=_ext_source_db_precision(adapter))
         adapter.prepare_origin_tables()
         adapter.create_external_source()
 
@@ -1896,7 +2140,8 @@ class VtableQueryUtil:
         """Shared body for prepare_mixed_source_vtables_*."""
         adapter.ensure_running()
         _prepare_one_origin_database(
-            self.VTABLE_DB_NAME, debug_select_database=True, precision="ns"
+            self.VTABLE_DB_NAME, debug_select_database=True,
+            precision=_ext_source_db_precision(adapter)
         )
         adapter.prepare_origin_tables()
         tdSql.execute(f"use {self.VTABLE_DB_NAME};")
@@ -1916,15 +2161,17 @@ class VtableQueryUtil:
         """Shared body for prepare_all_ext_source_vtables.
 
         Builds a single TDengine database that hosts both internal origin
-        tables AND virtual tables whose columns are split 7-ways across:
-        internal + 2*PG + 2*MySQL + 2*Influx. All three external backends
-        plus a 2-source-per-backend EXTERNAL SOURCE setup are created.
+        tables AND virtual tables whose columns are split 9-ways across:
+        internal + 2*PG + 2*MySQL + 2*Influx + 2*SQL Server. All four external
+        backends plus a 2-source-per-backend EXTERNAL SOURCE setup are created.
         """
-        pg     = _PgAdapter()
-        mysql  = _MysqlAdapter()
-        influx = _InfluxAdapter()
-        adapters = (pg, mysql, influx)
-        adapters_by_backend = {'pg': pg, 'mysql': mysql, 'influx': influx}
+        pg        = _PgAdapter()
+        mysql     = _MysqlAdapter()
+        influx    = _InfluxAdapter()
+        sqlserver = _SqlserverAdapter()
+        adapters = (pg, mysql, influx, sqlserver)
+        adapters_by_backend = {'pg': pg, 'mysql': mysql, 'influx': influx,
+                               'sqlserver': sqlserver}
 
         for a in adapters:
             a.ensure_running()
@@ -2103,6 +2350,7 @@ class VtableQueryUtil:
         "postgres": _PgAdapter,
         "mysql": _MysqlAdapter,
         "influx": _InfluxAdapter,
+        "sqlserver": _SqlserverAdapter,
     }
 
     def prepare_ext_source_vtables(self, source, mode=1):
@@ -2121,6 +2369,7 @@ class VtableQueryUtil:
         "postgres": _PgAdapter,
         "mysql": _MysqlAdapter,
         "influx": _InfluxAdapter,
+        "sqlserver": _SqlserverAdapter,
     }
 
     def prepare_mixed_source_vtables(self, source, mode=1):
@@ -2130,9 +2379,10 @@ class VtableQueryUtil:
         self._prepare_mixed_source_vtables(adapter_cls(), mode)
 
     def prepare_all_ext_source_vtables(self, mode=1):
-        """Build vtables whose columns are split across all four sources
-        (internal TDengine + PG + MySQL + Influx), with two EXTERNAL SOURCE
-        instances per external backend (7 distinct sources total).
+        """Build vtables whose columns are split across all five sources
+        (internal TDengine + PG + MySQL + Influx + SQL Server), with two
+        EXTERNAL SOURCE instances per external backend (9 distinct sources
+        total).
         """
         self._prepare_all_ext_source_vtables(mode)
 

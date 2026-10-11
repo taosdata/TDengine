@@ -276,11 +276,17 @@ static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, char *buf, i
 
 /* ============================================================
  * Utility: return the correct table qualifier for manual SQL building.
- * For PostgreSQL, the qualifier is the schema name (extSchema, e.g. "public").
+ * For PostgreSQL and SQL Server, the qualifier is the schema name
+ * (extSchema, e.g. "public" / "dbo"): a 3-segment path flags the middle
+ * segment as schema (DS 5.3.3), and a bare "<db>.<table>" 2-segment name
+ * would make T-SQL look for a schema named after the database
+ * (42S02 "Invalid object name").  The database travels in the connection
+ * defaults (SrcDatabase).
  * For MySQL/InfluxDB, the qualifier is the database name (extDb).
  * ============================================================ */
 static const char *extTableQualifier(const SStreamExtTriggerSpec *pSpec) {
-  if ((EExtSourceType)pSpec->sourceType == EXT_SOURCE_POSTGRESQL &&
+  if (((EExtSourceType)pSpec->sourceType == EXT_SOURCE_POSTGRESQL ||
+       (EExtSourceType)pSpec->sourceType == EXT_SOURCE_SQLSERVER) &&
       pSpec->extSchema[0] != '\0') {
     return pSpec->extSchema;
   }
@@ -2404,10 +2410,17 @@ static int32_t extBuildRelationalMetaSql(const char *tblRef, const char *prefilt
   char dtBuf[32] = {0};
   epochToDatetimeStr(maxTs, boundPrecision, dtBuf, sizeof(dtBuf));
 
+  /* Emit the uid as its signed 64-bit representation: group uids are
+   * MurmurHash3 values with the full uint64 range, and roughly half of them
+   * exceed INT64_MAX.  The connector parses this literal back into an
+   * int64_t with a strict converter (ERANGE on > INT64_MAX) and the column
+   * is stored as int64 anyway, so the signed bit pattern round-trips
+   * exactly - an unsigned literal merely worked by luck when the hash
+   * happened to stay under 2^63. */
   int32_t sqlLen = snprintf(sqlBuf, sqlBufLen,
-                            "SELECT MIN(%s),MAX(%s),%" PRIu64 ",COUNT(*) FROM %s "
+                            "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s "
                             "WHERE %s%s > %s",
-                            tsCol, tsCol, uid,
+                            tsCol, tsCol, (int64_t)uid,
                             tblRef,
                             prefilterBuf,
                             tsCol, dtBuf);

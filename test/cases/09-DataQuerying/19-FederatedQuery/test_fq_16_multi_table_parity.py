@@ -75,6 +75,7 @@ from federated_query_common import (
 _MYSQL_DB      = "fq_mt_parity_m"
 _PG_DB         = "fq_mt_parity_p"
 _INFLUX_BUCKET = "fq_mt_parity_i"
+_SQLSERVER_DB  = "fq_mt_parity_s"
 _LOCAL_DB      = "fq_mt_parity_local"
 _FLOAT_TOL     = 1e-4
 
@@ -564,6 +565,51 @@ _CROSS_CASES: List[Tuple[str, str, dict]] = [
      "(SELECT 1 FROM {P}.tb b WHERE b.ref_id = a.id) "
      "ORDER BY id",
      {"error": TSDB_CODE_PAR_INVALID_EXPR_SUBQ}),
+    ("neg-csub-s-01",
+     "SELECT id FROM {S}.ta a "
+     "WHERE EXISTS "
+     "(SELECT 1 FROM {S}.tb b WHERE b.ref_id = a.id) "
+     "ORDER BY id",
+     {"error": TSDB_CODE_PAR_INVALID_EXPR_SUBQ}),
+    ("neg-csub-s-02",
+     "SELECT id FROM {S}.ta a "
+     "WHERE NOT EXISTS "
+     "(SELECT 1 FROM {S}.tb b WHERE b.ref_id = a.id) "
+     "ORDER BY id",
+     {"error": TSDB_CODE_PAR_INVALID_EXPR_SUBQ}),
+
+    # --- SQL Server cross-source / same-source combinations ---------------
+    # xsrc-28: MySQL + SQL Server UNION ALL -> 12 rows (6+6, identical data)
+    ("xsrc-28",
+     "SELECT id, val FROM {M}.ta "
+     "UNION ALL SELECT id, val FROM {S}.ta ORDER BY id",
+     {"rows": 12}),
+    # xsrc-29: SQL Server + PG UNION (dedup) -> 6 rows
+    ("xsrc-29",
+     "SELECT id, val FROM {S}.ta "
+     "UNION SELECT id, val FROM {P}.ta ORDER BY id",
+     {"rows": 6}),
+    # xsrc-30: SQL Server same-source ordinary-column JOIN -> 5 rows
+    ("xsrc-30",
+     "SELECT a.id, b.bid FROM {S}.ta a "
+     "JOIN {S}.tb b ON a.id = b.bid ORDER BY a.id",
+     {"rows": 5}),
+    # xsrc-31: MySQL.ta x SQL Server.tb ordinary-column JOIN -> 5 rows
+    ("xsrc-31",
+     "SELECT a.id, b.bid FROM {M}.ta a "
+     "JOIN {S}.tb b ON a.id = b.bid ORDER BY a.id",
+     {"rows": 5}),
+    # xsrc-32: SQL Server outer WHERE val > (MySQL.tb MAX scalar) -> 1 row
+    ("xsrc-32",
+     "SELECT id, val FROM {S}.ta "
+     "WHERE val > (SELECT MAX(val2) FROM {M}.tb WHERE flag = 1) "
+     "ORDER BY id",
+     {"rows": 1}),
+    # xsrc-33: SQL Server.ta x PG.tb FULL JOIN on timestamp -> 7 rows
+    ("xsrc-33",
+     "SELECT a.id, a.val, b.bid, b.val2 "
+     "FROM {S}.ta a FULL JOIN {P}.tb b ON a.time = b.time",
+     {"rows": 7, "ordered": False}),
 ]
 
 
@@ -608,6 +654,38 @@ def _build_pg_setup():
         f"('{dt}', {bid}, {ref_id}, {val2}, {flag})"
         for dt, bid, ref_id, val2, flag in _TB_ROWS_DT)
     sqls.append(f"INSERT INTO tb VALUES {vals}")
+    return sqls
+
+
+def _build_sqlserver_setup():
+    sqls = [
+        "IF OBJECT_ID('dbo.ta') IS NOT NULL DROP TABLE dbo.ta",
+        "IF OBJECT_ID('dbo.tb') IS NOT NULL DROP TABLE dbo.tb",
+        ("CREATE TABLE dbo.ta "
+         "(time datetime2(3) NOT NULL PRIMARY KEY, id INT, val INT, label NVARCHAR(32))"),
+        ("CREATE TABLE dbo.tb "
+         "(time datetime2(3) NOT NULL PRIMARY KEY, bid INT, ref_id INT, val2 INT, flag INT)"),
+    ]
+    vals = ", ".join(
+        f"('{dt}', {id_}, {val}, '{label}')"
+        for dt, id_, val, label in _TA_ROWS_DT)
+    sqls.append(f"INSERT INTO dbo.ta VALUES {vals}")
+    vals = ", ".join(
+        f"('{dt}', {bid}, {ref_id}, {val2}, {flag})"
+        for dt, bid, ref_id, val2, flag in _TB_ROWS_DT)
+    sqls.append(f"INSERT INTO dbo.tb VALUES {vals}")
+    return sqls
+
+
+def _build_sqlserver_disorder():
+    sqls = ["DELETE FROM dbo.ta", "DELETE FROM dbo.tb"]
+    for i in _TA_DISORDER_IDX:
+        dt, id_, val, label = _TA_ROWS_DT[i]
+        sqls.append(f"INSERT INTO dbo.ta VALUES ('{dt}', {id_}, {val}, '{label}')")
+    for i in _TB_DISORDER_IDX:
+        dt, bid, ref_id, val2, flag = _TB_ROWS_DT[i]
+        sqls.append(
+            f"INSERT INTO dbo.tb VALUES ('{dt}', {bid}, {ref_id}, {val2}, {flag})")
     return sqls
 
 
@@ -745,6 +823,7 @@ class TestFq16MultiTableParity(ParityTestBase):
     _SRC_MYSQL  = "fq_mt_parity_src_m"
     _SRC_PG     = "fq_mt_parity_src_p"
     _SRC_INFLUX = "fq_mt_parity_src_i"
+    _SRC_SQLSERVER = "fq_mt_parity_src_s"
     _class_setup_done = False
     _FLOAT_TOL = _FLOAT_TOL
     _BASELINE_FILE = os.path.join(
@@ -759,9 +838,10 @@ class TestFq16MultiTableParity(ParityTestBase):
 
     def _ext_sources(self):
         return [
-            ("MySQL",    self._SRC_MYSQL),
-            ("PG",       self._SRC_PG),
-            ("InfluxDB", self._SRC_INFLUX),
+            ("MySQL",     self._SRC_MYSQL),
+            ("PG",        self._SRC_PG),
+            ("InfluxDB",  self._SRC_INFLUX),
+            ("SQLServer", self._SRC_SQLSERVER),
         ]
 
     def _ensure_session_timezone(self):
@@ -801,17 +881,26 @@ class TestFq16MultiTableParity(ParityTestBase):
         self._cleanup_src(self._SRC_INFLUX)
         self._mk_influx_real(self._SRC_INFLUX, database=_INFLUX_BUCKET)
 
+        # --- SQL Server ---
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, _build_sqlserver_setup())
+        self._cleanup_src(self._SRC_SQLSERVER)
+        self._mk_sqlserver_real(
+            self._SRC_SQLSERVER, database=_SQLSERVER_DB, schema="dbo")
+
         TestFq16MultiTableParity._class_setup_done = True
 
     def teardown_class(self):
         tmp = TestFq16MultiTableParity()
-        tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX)
+        tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX,
+                         tmp._SRC_SQLSERVER)
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         for drop in [
             lambda: ExtSrcEnv.mysql_drop_db_cfg(tmp._mysql_cfg(), _MYSQL_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(tmp._pg_cfg(), _PG_DB),
             lambda: ExtSrcEnv.influx_drop_db_cfg(
                 tmp._influx_cfg(), _INFLUX_BUCKET),
+            lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_DB),
         ]:
             try:
                 drop()
@@ -834,13 +923,14 @@ class TestFq16MultiTableParity(ParityTestBase):
         M = self._SRC_MYSQL
         P = self._SRC_PG
         I = self._SRC_INFLUX
+        S = self._SRC_SQLSERVER
         L = _LOCAL_DB
 
         failed: List[Tuple[str, str, str]] = []
         serialized_blocks: List[str] = []
 
         for case_id, sql_tmpl, opts in cross_cases:
-            sql = sql_tmpl.format(M=M, P=P, I=I, L=L)
+            sql = sql_tmpl.format(M=M, P=P, I=I, S=S, L=L)
             expected_error = opts.get("error")
             positive = expected_error is None
             ordered = opts.get("ordered", True)
@@ -975,6 +1065,8 @@ class TestFq16MultiTableParity(ParityTestBase):
             ExtSrcEnv.influx_write_cfg(
                 self._influx_cfg(), _INFLUX_BUCKET,
                 _build_influx_disorder_lines())
+            ExtSrcEnv.sqlserver_exec(
+                _SQLSERVER_DB, _build_sqlserver_disorder())
             tdSql.executes(_build_local_disorder())
         else:
             restore_m = ["DELETE FROM ta", "DELETE FROM tb"]
@@ -990,6 +1082,9 @@ class TestFq16MultiTableParity(ParityTestBase):
                 self._influx_cfg(), _INFLUX_BUCKET)
             ExtSrcEnv.influx_write_cfg(
                 self._influx_cfg(), _INFLUX_BUCKET, _build_influx_lines())
+            restore_s = ["DELETE FROM dbo.ta", "DELETE FROM dbo.tb"]
+            restore_s += _build_sqlserver_setup()[-2:]
+            ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, restore_s)
             ta_vals = " ".join(
                 f"({ts}, {id_}, {val}, '{label}')"
                 for ts, id_, val, label in _TA_ROWS)

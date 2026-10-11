@@ -532,6 +532,7 @@ function clean_fq_runtime_links() {
     [ -d "$dir" ] || continue
     for name in "$dir"/libmariadb.so* "$dir"/libmysqlclient.so* "$dir"/libpq.so* \
                 "$dir"/libarrow*.so* "$dir"/libparquet.so* "$dir"/libtaos_ext_influx_arrow.so* \
+                "$dir"/libodbc.so* "$dir"/libodbcinst.so* "$dir"/libmsodbcsql*.so* \
                 "$dir"/libssl.so* "$dir"/libcrypto.so* "$dir"/libz.so*; do
       [ -L "$name" ] || continue
       target=$(readlink "$name")
@@ -556,6 +557,7 @@ libparquet.so libparquet.so.1900
 libmariadb.so libmariadb.so.3
 libpq.so.5 libpq.so.5.16
 libpq.so libpq.so.5
+libodbc.so libodbc.so.2
 libssl.so libssl.so.3
 libcrypto.so libcrypto.so.3
 libz.so libz.so.1

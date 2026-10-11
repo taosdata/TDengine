@@ -372,7 +372,7 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
 
       {
         const char* mid0 = (nSeg >= 3) ? pRealTable->extSeg[1] : "";
-        const char* mid1 = "";
+        const char* mid1 = (nSeg >= 4) ? pRealTable->extSeg[2] : "";
         parserDebug("collectMetaKeyFromRealTable reserve ext table meta: source:%s mid0:%s mid1:%s table:%s",
                     sourceName, mid0, mid1, pRealTable->table.tableName);
         pCxt->errCode = reserveExtTableMetaInCache(sourceName, mid0, mid1,
@@ -744,7 +744,8 @@ static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateV
 
     if (pOptions->refSourceName[0] != '\0') {
       PAR_ERR_RET(reserveExtSourceInCache(pOptions->refSourceName, pCxt->pMetaCache));
-      PAR_ERR_RET(reserveExtTableMetaInCache(pOptions->refSourceName, pOptions->refDb, "",
+      PAR_ERR_RET(reserveExtTableMetaInCache(pOptions->refSourceName, pOptions->refDb,
+                                             pOptions->refSchema,
                                              pOptions->refTable, pCxt->pMetaCache));
       continue;
     }
@@ -831,7 +832,8 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
       // External source 4-part refs: reserve ext source + ext table meta for DDL validation.
       if (pColRef->refSourceName[0] != '\0') {
         PAR_ERR_RET(reserveExtSourceInCache(pColRef->refSourceName, pCxt->pMetaCache));
-        PAR_ERR_RET(reserveExtTableMetaInCache(pColRef->refSourceName, pColRef->refDbName, "",
+        PAR_ERR_RET(reserveExtTableMetaInCache(pColRef->refSourceName, pColRef->refDbName,
+                                               pColRef->refSchemaName,
                                                pColRef->refTableName, pCxt->pMetaCache));
         continue;
       }
@@ -1256,9 +1258,14 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF) {
     if (pStmt->refType == 1) {
-      // External reference: pre-fetch ext source info and ext table meta
+      // External reference: pre-fetch ext source info and ext table meta.
+      // The cache key is (database, schema)  -  the schema segment must be part of
+      // the reservation, otherwise a 5-part SQL Server reference registers (db, "")
+      // while translate-time looks it up as (db, schema) and reports the table as
+      // missing (same rule as the CREATE VTABLE reservations above).
       PAR_ERR_RET(reserveExtSourceInCache(pStmt->refSourceName, pCxt->pMetaCache));
-      PAR_ERR_RET(reserveExtTableMetaInCache(pStmt->refSourceName, pStmt->refDbName, "",
+      PAR_ERR_RET(reserveExtTableMetaInCache(pStmt->refSourceName, pStmt->refDbName,
+                                             pStmt->refSchemaName,
                                              pStmt->refTableName, pCxt->pMetaCache));
     } else if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
                pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF) {
@@ -1430,7 +1437,7 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
       code = reserveExtSourceInCache(srcName, pCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS == code) {
         const char* mid0 = (nSeg >= 3) ? pStmt->extSeg[1] : "";
-        const char* mid1 = "";
+        const char* mid1 = (nSeg >= 4) ? pStmt->extSeg[2] : "";
         parserDebug("collectMetaKeyFromDescribe reserve ext table meta: source:%s mid0:%s mid1:%s table:%s",
                     srcName, mid0, mid1, pStmt->tableName);
         code = reserveExtTableMetaInCache(srcName, mid0, mid1, pStmt->tableName, pCxt->pMetaCache);

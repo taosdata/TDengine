@@ -31,27 +31,35 @@ if _FQ_DIR not in sys.path:
     sys.path.insert(0, _FQ_DIR)
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
-    create_ext_source, create_remote_db, create_pg_table, create_mysql_table)
+    create_ext_source, create_remote_db, create_pg_table, create_mysql_table,
+    create_sqlserver_table)
 
 
 _LOCAL_DB = "vdrop_local"
 _PG_DB    = "vdrop_pg"
 _MY_DB    = "vdrop_my"
+_SS_DB    = "vdrop_ss"
 _PG_SRC   = "vdrop_pg_src"
 _MY_SRC   = "vdrop_my_src"
+_SS_SRC   = "vdrop_ss_src"
 
 
 def _ensure_env():
     create_remote_db("postgresql", _PG_DB)
     create_remote_db("mysql", _MY_DB)
+    create_remote_db("sqlserver", _SS_DB)
     create_pg_table(_PG_DB, "r",
                     "ts TIMESTAMP PRIMARY KEY, v INTEGER",
                     ["('2024-01-01 00:00:00', 1)"])
     create_mysql_table(_MY_DB, "r",
                        "ts DATETIME(3) NOT NULL PRIMARY KEY, v INT",
                        ["('2024-01-01 00:00:00', 100)"])
+    create_sqlserver_table(_SS_DB, "r",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v INT",
+                           ["('2024-01-01 00:00:00.000', 1000)"])
     create_ext_source(_PG_SRC, "postgresql", _PG_DB)
     create_ext_source(_MY_SRC, "mysql", _MY_DB)
+    create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
 
 
 # ===========================================================================
@@ -70,7 +78,7 @@ class TestVtableDropExtSource:
     @classmethod
     def teardown_class(cls):
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        for n in (_PG_SRC, _MY_SRC):
+        for n in (_PG_SRC, _MY_SRC, _SS_SRC):
             tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {n}")
 
     def setup_method(self, method):
@@ -179,11 +187,51 @@ class TestVtableDropExtSource:
         tdSql.execute(
             f"CREATE VTABLE vctb_dh_my ("
             f"v FROM {_MY_SRC}.{_MY_DB}.r.v) USING stb_drop_het TAGS ('my')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_dh_ss ("
+            f"v FROM {_SS_SRC}.{_SS_DB}.dbo.r.v) USING stb_drop_het TAGS ('ss')")
         tdSql.execute("DROP STABLE stb_drop_het")
-        # After drop, both ext sources are still droppable — proves the
+        # After drop, all ext sources are still droppable — proves the
         # references were released.
         tdSql.execute(f"DROP EXTERNAL SOURCE {_PG_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE {_MY_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE {_SS_SRC}")
+        _ensure_env()
+        tdSql.execute(f"USE {_LOCAL_DB}")
+
+    def test_drop_sqlserver_referencing_vtables(self):
+        """Drop vtable / vstable that reference SQL Server
+
+        DROP VTABLE and DROP STABLE remove SQL Server-referencing virtual
+        tables (5-segment paths); afterwards the source is still droppable,
+        which proves the reference bookkeeping was cleaned up.
+
+        Since: v3.4.4.0
+
+        """
+        tdSql.execute(
+            "CREATE VTABLE v_drop_ss (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r.v)")
+        tdSql.query("SELECT count(*) FROM v_drop_ss")
+        tdSql.checkData(0, 0, 1)
+        tdSql.execute("DROP VTABLE v_drop_ss")
+        tdSql.query("SELECT count(*) FROM information_schema.ins_tables "
+                    f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_drop_ss'")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.execute(
+            "CREATE STABLE stb_drop_ss (ts timestamp, v int) "
+            "TAGS (s nchar(8)) VIRTUAL 1")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_drop_ss ("
+            f"v FROM {_SS_SRC}.{_SS_DB}.dbo.r.v) USING stb_drop_ss TAGS ('a')")
+        tdSql.execute("DROP VTABLE vctb_drop_ss")
+        tdSql.query("SELECT count(*) FROM information_schema.ins_tables "
+                    f"WHERE db_name='{_LOCAL_DB}' AND stable_name='stb_drop_ss'")
+        tdSql.checkData(0, 0, 0)
+        tdSql.execute("DROP STABLE stb_drop_ss")
+
+        tdSql.execute(f"DROP EXTERNAL SOURCE {_SS_SRC}")
         _ensure_env()
         tdSql.execute(f"USE {_LOCAL_DB}")
 

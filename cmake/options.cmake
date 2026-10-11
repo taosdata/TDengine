@@ -181,6 +181,7 @@ if(TD_ENTERPRISE)
     option(BUILD_WITH_MARIADB "If build with MariaDB Connector/C (ext source: MySQL)" ON)
     option(BUILD_WITH_LIBPQ   "If build with libpq (ext source: PostgreSQL)" ON)
     option(BUILD_WITH_ARROW   "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" ON)
+    option(BUILD_WITH_ODBC    "If build with unixODBC (ext source: SQL Server)" ON)
     option(INSTALL_FQ_RUNTIME_LIBS "Install optional federated-query runtime libraries" OFF)
     if(TD_WINDOWS)
         set(BUILD_WITH_MARIADB OFF CACHE BOOL
@@ -194,6 +195,15 @@ if(TD_ENTERPRISE)
         message(STATUS
             "[options] TD_WINDOWS=ON: federated query providers are disabled on Windows; "
             "taosdump still uses ext_arrow_static when TD_TAOS_TOOLS=ON")
+    endif()
+    if(TD_DARWIN)
+        # SQL Server support targets Linux servers: the Microsoft driver is a
+        # Linux artifact and the unixODBC provider build differs on Darwin.
+        # Keep the ODBC provider off on macOS, like the Windows case above.
+        set(BUILD_WITH_ODBC OFF CACHE BOOL
+            "If build with unixODBC (ext source: SQL Server)" FORCE)
+        message(STATUS
+            "[options] TD_DARWIN=ON: SQL Server (unixODBC/ODBC) provider is disabled on macOS")
     endif()
 else()
     set(BUILD_WITH_MARIADB OFF)

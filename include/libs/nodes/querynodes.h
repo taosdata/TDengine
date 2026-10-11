@@ -112,6 +112,7 @@ typedef struct SColumnNode {
     };
   };
   char refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];   // external schema (SQL Server); empty otherwise
   char refDbName[TSDB_DB_NAME_LEN];
   char refTableName[TSDB_TABLE_NAME_LEN];
   char refColName[TSDB_COL_NAME_LEN];
@@ -127,6 +128,7 @@ typedef struct SColumnRefNode {
   // [FG-9] Extended for federated query 4-segment path: source.db.table.col
   // Non-empty refSourceName indicates an external (4-segment path) reference.
   char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
+  char      refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema segment (5-segment path); empty otherwise
   SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
   SNode*    pFilterCond;        // MySQL/PostgreSQL external-column filter, or NULL
   // Own (extension) column declaration of a virtual child table: set when the col_ref
@@ -486,8 +488,8 @@ typedef struct SRealTableNode {
   bool               asSingleTable; // only used in stream calc query
   // External table path fields (3-segment or 4-segment path)
   SNode*             pExtTableNode;                      // translated external table node (enterprise only)
-  int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.schema.tbl; 4 = src.schema.db.tbl
-  char               extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=schema/mid
+  int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.mid0.tbl; 4 = src.mid0.mid1.tbl
+  char               extSeg[3][TSDB_EXT_SOURCE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=mid0 (db or schema); [2]=mid1 (schema; 4-seg only)
 } SRealTableNode;
 
 typedef struct STempTableNode {

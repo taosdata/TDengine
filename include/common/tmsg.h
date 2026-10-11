@@ -241,6 +241,7 @@ typedef enum EExtSourceType {
   EXT_SOURCE_POSTGRESQL = 1,
   EXT_SOURCE_INFLUXDB   = 2,
   EXT_SOURCE_TDENGINE   = 3,  // reserved, not delivered in Phase 1
+  EXT_SOURCE_SQLSERVER  = 4,  // Microsoft SQL Server (ODBC); appended, never reorder/reuse
 } EExtSourceType;
 
 // Federated pushdown demotion granularity.
@@ -470,9 +471,10 @@ int32_t tDecodeSExtPushdownDiagnostic(SDecoder* pDecoder, SExtPushdownDiagnostic
 // Defined here (alongside EExtSourceType) so that nodes/plannodes.h can reference
 // it without including extConnector.h, breaking the nodes  ->  extconnector dependency.
 typedef enum EExtSQLDialect {
-  EXT_SQL_DIALECT_MYSQL    = 0,
-  EXT_SQL_DIALECT_POSTGRES = 1,
-  EXT_SQL_DIALECT_INFLUXQL = 2,
+  EXT_SQL_DIALECT_MYSQL     = 0,
+  EXT_SQL_DIALECT_POSTGRES  = 1,
+  EXT_SQL_DIALECT_INFLUXQL  = 2,
+  EXT_SQL_DIALECT_SQLSERVER = 3,  // appended, never reorder/reuse
 } EExtSQLDialect;
 
 // Declared width (in characters) used for InfluxDB tag columns, both when the
@@ -502,17 +504,28 @@ typedef enum EExtSQLDialect {
 //   Low-byte layout:
 //     bits 0-2 : main capability    (MySQL=bit0, PG=bit1, Influx=bit2)
 //     bits 3-5 : sub-cap 1: CAST(timestamp -> integer)
-//     bits 6-7 : reserved for future sub-capabilities
+//     bit  6   : main capability - SQL Server (appended; see the note below)
+//     bit  7   : reserved for future sub-capabilities
 //
 //   High-byte layout (FQ_CAP_SESSION_SHIFT = 8):
 //     bits 8-10 : session override for main capability
 //     bits 11-13: session override for CAST(ts->int) sub-capability
-//     bits 14-15: reserved
+//     bit  14   : session override for SQL Server
+//     bit  15   : reserved
+//
+//   SQL Server placement note: the 4th main-capability bit sits at bit 6, not at
+//   bit 3, because bits 3-5 form the shift-derived CAST(ts->int) band shared by
+//   the first three dialects; `fqDialectBit(SQLSERVER) << FQ_CAP_CAST_TS_INT_SHIFT`
+//   (bit 9) would collide with the PG session-override bit.  SQL Server therefore
+//   does NOT take part in the shift-derived sub-capability band: code that derives
+//   a sub-capability bit must special-case it (SQL Server has no such sub-capability
+//   today; return FQ_CAP_NONE).
 
 // Main capability bits (low byte, bits 0-2):
 #define FQ_CAP_MYSQL   ((uint16_t)(1u << 0))   // MySQL / MariaDB
 #define FQ_CAP_PG      ((uint16_t)(1u << 1))   // PostgreSQL
 #define FQ_CAP_INFLUX  ((uint16_t)(1u << 2))   // InfluxDB v3 (DataFusion)
+#define FQ_CAP_SQLSERVER ((uint16_t)(1u << 6)) // SQL Server (ODBC); appended, see layout note
 #define FQ_CAP_ALL     ((uint16_t)(FQ_CAP_MYSQL | FQ_CAP_PG | FQ_CAP_INFLUX))
 
 // Session-override band: high byte (shift = 8).
@@ -521,6 +534,7 @@ typedef enum EExtSQLDialect {
 #define FQ_CAP_SESSION_MYSQL      ((uint16_t)(FQ_CAP_MYSQL  << FQ_CAP_SESSION_SHIFT))
 #define FQ_CAP_SESSION_PG         ((uint16_t)(FQ_CAP_PG     << FQ_CAP_SESSION_SHIFT))
 #define FQ_CAP_SESSION_INFLUX     ((uint16_t)(FQ_CAP_INFLUX << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_SQLSERVER  ((uint16_t)(FQ_CAP_SQLSERVER << FQ_CAP_SESSION_SHIFT))
 
 // Convenience: the dialect combinations used in the capability tables
 #define FQ_CAP_PG_INFLUX   ((uint16_t)(FQ_CAP_PG | FQ_CAP_INFLUX))
@@ -549,6 +563,7 @@ static inline uint16_t fqDialectBit(int32_t dialect) {
     case EXT_SQL_DIALECT_MYSQL:    return FQ_CAP_MYSQL;
     case EXT_SQL_DIALECT_POSTGRES: return FQ_CAP_PG;
     case EXT_SQL_DIALECT_INFLUXQL: return FQ_CAP_INFLUX;
+    case EXT_SQL_DIALECT_SQLSERVER: return FQ_CAP_SQLSERVER;
     default:                       return 0;
   }
 }
@@ -6419,6 +6434,10 @@ typedef struct SVAlterTbReq {
   char* refTbName;
   char* refColName;
   char* refSourceName;
+  // External schema segment of the reference (SQL Server 5-part paths; empty otherwise).
+  // Encoded as the last field of the message so that older readers simply ignore it and
+  // this decoder treats its absence as empty (same pattern as txnDdlQuota).
+  char* refSchemaName;
   int8_t refType;  // 0=local, 1=external
   int32_t filterCondLen;
   char*   filterCondJson;

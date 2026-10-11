@@ -51,6 +51,7 @@ from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db,
     create_pg_table, create_mysql_table, create_influx_measurement,
+    create_sqlserver_table,
     create_pg_view, create_mysql_view)
 
 
@@ -60,9 +61,11 @@ _P = "vtcreate_"
 _PG_DB      = "vtcreate_pg_db"
 _MY_DB      = "vtcreate_my_db"
 _INF_DB     = "vtcreate_inf_db"
+_SS_DB      = "vtcreate_ss_db"
 _PG_SRC     = "vtcreate_pg_src"
 _MY_SRC     = "vtcreate_my_src"
 _INF_SRC    = "vtcreate_inf_src"
+_SS_SRC     = "vtcreate_ss_src"
 
 # Local TDengine database that hosts the virtual tables under test.
 _LOCAL_DB   = "vtcreate_local"
@@ -190,6 +193,49 @@ _MY_TYPE_MATRIX = [
     ("c_json",      "JSON",                                 "nchar(64)"),
 ]
 
+_SS_TYPE_MATRIX = [
+    # --- integer family (bit is SQL Server's boolean) ---
+    ("c_bit",            "BIT",                 "bool"),
+    ("c_tinyint",        "TINYINT",             "tinyint"),
+    ("c_smallint",       "SMALLINT",            "smallint"),
+    ("c_int",            "INT",                 "int"),
+    ("c_bigint",         "BIGINT",              "bigint"),
+    # --- floating point ---
+    ("c_real",           "REAL",                "float"),
+    ("c_float",          "FLOAT",               "double"),
+    # --- exact numerics ---
+    ("c_decimal_184",    "DECIMAL(18,4)",       "decimal(18,4)"),
+    ("c_decimal_102",    "DECIMAL(10,2)",       "decimal(10,2)"),
+    ("c_numeric",        "NUMERIC(18,4)",       "decimal(18,4)"),
+    # money / smallmoney keep value semantics with a fixed scale of 4; their
+    # canonical targets (decimal(19,4) / decimal(10,4)) are outside _TDS_ALL.
+    ("c_money",          "MONEY",               "decimal(19,4)"),
+    ("c_smallmoney",     "SMALLMONEY",          "decimal(10,4)"),
+    # --- character / unicode (char/varchar are non-Unicode -> VARCHAR; the
+    #     n-prefixed types are Unicode -> NCHAR, per DS 5.3.2.1) ---
+    ("c_char",           "CHAR(8)",             "varchar(8)"),
+    ("c_varchar",        "VARCHAR(32)",         "varchar(32)"),
+    ("c_nchar",          "NCHAR(8)",            "nchar(8)"),
+    ("c_nvarchar",       "NVARCHAR(32)",        "nchar(32)"),
+    ("c_uuid",           "UNIQUEIDENTIFIER",    "varchar(36)"),
+    # xml maps to NCHAR; the connector clamps its width, and NCHAR widths are
+    # not part of the CREATE-time check, so a representative width is declared.
+    ("c_xml",            "XML",                 "nchar(64)"),
+    # --- binary (rowversion is a row-version counter mapped to VARBINARY; it
+    #     is usable as a data column but can never be the time axis) ---
+    ("c_binary",         "BINARY(16)",          "varbinary(16)"),
+    ("c_varbinary",      "VARBINARY(64)",       "varbinary(64)"),
+    ("c_image",          "IMAGE",               "blob"),        # not in _TDS_ALL
+    ("c_rowversion",     "ROWVERSION",          "varbinary(8)"),
+    # --- temporal (all non-rowversion temporal types map to TIMESTAMP) ---
+    ("c_date",           "DATE",                "timestamp"),
+    ("c_time",           "TIME(6)",             "bigint"),
+    ("c_datetime",       "DATETIME",            "timestamp"),
+    ("c_smalldatetime",  "SMALLDATETIME",       "timestamp"),
+    ("c_datetime2",      "DATETIME2(6)",        "timestamp"),
+    ("c_datetimeoffset", "DATETIMEOFFSET(6)",   "timestamp"),
+]
+
 _INF_TYPE_MATRIX = [
     # Influx 3 line-protocol types: integer (i64), unsigned (u64), float (f64),
     # string (Utf8), boolean. All numerics widen to TDengine's largest signed.
@@ -314,10 +360,48 @@ _INF_COMPAT = {
     "c_bool":  {"bool"},
 }
 
+# SQL Server: compatibility against the _TDS_ALL local types. Money types map
+# to decimal(19,4) / decimal(10,4) (outside _TDS_ALL), IMAGE maps to BLOB
+# (outside _TDS_ALL), so those entries have empty compatible sets. VARCHAR /
+# NCHAR / VARBINARY are VAR types: only the type kind is compared at CREATE
+# time, hence the _TDS_ALL representative width is compatible with any remote
+# width. TIMESTAMP references are accepted in 'us'/'ns' local databases.
+_SS_COMPAT = {
+    "c_bit":            {"bool"},
+    "c_tinyint":        {"tinyint"},
+    "c_smallint":       {"smallint"},
+    "c_int":            {"int"},
+    "c_bigint":         {"bigint"},
+    "c_real":           {"float"},
+    "c_float":          {"double"},
+    "c_decimal_184":    {"decimal(18,4)"},
+    "c_decimal_102":    {"decimal(10,2)"},
+    "c_numeric":        {"decimal(18,4)"},
+    "c_money":          set(),                  # → decimal(19,4)
+    "c_smallmoney":     set(),                  # → decimal(10,4)
+    "c_char":           {"varchar(32)"},        # VAR type, bytes ignored
+    "c_varchar":        {"varchar(32)"},
+    "c_nchar":          {"nchar(32)"},          # VAR type, bytes ignored
+    "c_nvarchar":       {"nchar(32)"},
+    "c_uuid":           {"varchar(32)"},        # UNIQUEIDENTIFIER → varchar(36)
+    "c_xml":            {"nchar(32)"},
+    "c_binary":         {"varbinary(64)"},      # VAR type, bytes ignored
+    "c_varbinary":      {"varbinary(64)"},
+    "c_image":          set(),                  # → BLOB
+    "c_rowversion":     {"varbinary(64)"},      # → varbinary(8)
+    "c_date":           {"timestamp"},
+    "c_time":           {"bigint"},
+    "c_datetime":       {"timestamp"},
+    "c_smalldatetime":  {"timestamp"},
+    "c_datetime2":      {"timestamp"},
+    "c_datetimeoffset": {"timestamp"},
+}
+
 def _check_compat_consistency():
     """Sanity: every compatible local decl listed in the matrices is one of
     the canonical TDengine type strings in _TDS_ALL."""
-    for name, m in (("PG", _PG_COMPAT), ("MY", _MY_COMPAT), ("INF", _INF_COMPAT)):
+    for name, m in (("PG", _PG_COMPAT), ("MY", _MY_COMPAT), ("INF", _INF_COMPAT),
+                    ("SS", _SS_COMPAT)):
         for col, ok in m.items():
             unknown = ok - set(_TDS_ALL)
             assert not unknown, (
@@ -350,6 +434,13 @@ def create_mysql_remote_table(table, matrix):
     cols = "ts DATETIME(3) NOT NULL PRIMARY KEY, " + ", ".join(
         f"{n} {t}" for n, t, _ in matrix)
     create_mysql_table(_MY_DB, table, cols)
+
+def create_sqlserver_remote_table(table, matrix, schema="dbo", rows=None):
+    # SQL Server temporal primary keys are exposed at microsecond resolution
+    # (DS 5.3.7), so datetime2(3) is the standard probe key here.
+    cols = "ts datetime2(3) NOT NULL PRIMARY KEY, " + ", ".join(
+        f"{n} {t}" for n, t, _ in matrix)
+    create_sqlserver_table(_SS_DB, table, cols, rows=rows, schema=schema)
 
 def create_influx_remote_table(meas):
     # Influx is schema-on-write — emit one row so all fields exist.
@@ -386,11 +477,20 @@ def _provision_heterogeneous_remote_tables():
         "kpi_in,site=a temperature=18.1,humidity=70.1,battery=87i "
             "1704067260000000000",
     ])
+    create_sqlserver_remote_table(
+        "kpi_ss",
+        [("temperature", "FLOAT",        "double"),
+         ("humidity",    "FLOAT",        "double"),
+         ("pressure",    "REAL",         "float"),
+         ("voltage",     "REAL",         "float")],
+        rows=["('2024-01-01 00:00:00.000', 30.5, 40.0, 1013.0, 3.30)",
+              "('2024-01-01 00:01:00.000', 31.5, 41.0, 1013.1, 3.31)"])
 
 def _ensure_sources():
     create_ext_source(_PG_SRC, "postgresql", _PG_DB)
     create_ext_source(_MY_SRC, "mysql", _MY_DB)
     create_ext_source(_INF_SRC, "influxdb", _INF_DB)
+    create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
 
 
 
@@ -408,6 +508,7 @@ class TestVtableCreateExtSource:
         create_remote_db("postgresql", _PG_DB)
         create_remote_db("mysql", _MY_DB)
         create_remote_db("influxdb", _INF_DB)
+        create_remote_db("sqlserver", _SS_DB)
         _ensure_sources()
         _create_local_db("ns")
         # Provision the heterogeneous kpi_* remote tables once for §3 vstable
@@ -573,14 +674,24 @@ class TestVtableCreateExtSource:
             "inf", _INF_COMPAT,
             lambda c: f"{_INF_SRC}.{_INF_DB}.t_typematrix_inf.{c}")
 
-        # (d) TIMESTAMP precision cross-product (3 sources × 3 local precisions).
+        # (c2) SQL Server type matrix: 28 remote types × 17 TDengine local
+        # types. The reference uses the 5-segment path
+        # source.database.schema.table.column (DS 5.3.3).
+        create_sqlserver_remote_table("t_typematrix_ss", _SS_TYPE_MATRIX)
+        self._check_type_compat_matrix(
+            "ss", _SS_COMPAT,
+            lambda c: f"{_SS_SRC}.{_SS_DB}.dbo.t_typematrix_ss.{c}")
+
+        # (d) TIMESTAMP precision cross-product (4 sources × 3 local precisions).
         create_pg_remote_table("ts_p", [("v", "INTEGER", "int")])
         create_mysql_remote_table("ts_p", [("v", "INTEGER", "int")])
         create_influx_remote_table("ts_p_inf")
+        create_sqlserver_remote_table("ts_p", [("v", "INT", "int")])
         backends = [
             ("pg",  "us", "int",    f"{_PG_SRC}.{_PG_DB}.ts_p.v"),
             ("my",  "ms", "int",    f"{_MY_SRC}.{_MY_DB}.ts_p.v"),
             ("inf", "ns", "bigint", f"{_INF_SRC}.{_INF_DB}.ts_p_inf.c_int"),
+            ("ss",  "us", "int",    f"{_SS_SRC}.{_SS_DB}.dbo.ts_p.v"),
         ]
         precision_rank = {"ms": 0, "us": 1, "ns": 2}
         for prec in ("ms", "us", "ns"):
@@ -879,6 +990,253 @@ class TestVtableCreateExtSource:
             "AND col_name='v'")
         tdSql.checkRows(1)
         tdSql.execute("DROP VTABLE IF EXISTS v_quoted_pg")
+
+    # -------------------------------------------------------------------
+    # SQL Server references (FQSS-VTBL-001 .. 005, 007 .. 010)
+    #
+    # SQL Server namespaces are <database>.<schema>.<object>, so column
+    # references use the 5-segment path source.database.schema.table.column
+    # (DS 5.3.3). SQL Server temporal columns are exposed at microsecond
+    # resolution, which is why the local database uses PRECISION 'ns'.
+    # -------------------------------------------------------------------
+
+    def test_sqlserver_legal_references_and_schema(self):
+        """FQSS-VTBL-001/004/005/007: legal SQL Server column references.
+
+        (a) mixed external + local placeholder columns addressed by the
+            5-segment path, with the persisted column source checked;
+        (b) the same table name in two schemas resolves to distinct objects;
+        (c) every temporal type can serve as the referenced table's time axis.
+
+        Since: v3.4.4.0
+
+        """
+        # --- (a) 5-segment path, mixed ext + local columns ---
+        create_sqlserver_remote_table(
+            "r_mixed", [("v", "INT", "int"), ("name", "NVARCHAR(32)", "nchar(32)")],
+            rows=["('2024-01-01 00:00:00.000', 11, 'alpha')",
+                  "('2024-01-01 00:01:00.000', 12, 'beta')"])
+        tdSql.execute(
+            "DROP VTABLE IF EXISTS v_ss_mixed")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_mixed ("
+            "ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r_mixed.v, "
+            f"name nchar(32) FROM {_SS_SRC}.{_SS_DB}.dbo.r_mixed.name, "
+            "local_col int)")
+        tdSql.query("DESCRIBE v_ss_mixed")
+        tdSql.checkData(0, 0, "ts")
+        tdSql.checkData(0, 1, "TIMESTAMP")
+        tdSql.checkData(1, 0, "v")
+        tdSql.checkData(1, 1, "INT")
+        tdSql.checkData(2, 0, "name")
+        tdSql.checkData(2, 1, "NCHAR")
+        tdSql.checkData(3, 0, "local_col")
+        tdSql.checkData(3, 1, "INT")
+
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_ss_mixed' "
+            "AND col_name='v'")
+        tdSql.checkRows(1)
+        col_source = str(tdSql.queryResult[0][0])
+        # The displayed source keeps source/db/table/column (the schema segment
+        # is part of the persisted ref but not of the display form).
+        assert col_source.startswith(f"{_SS_SRC}.{_SS_DB}."), \
+            f"unexpected SQL Server col_source: {col_source!r}"
+        assert col_source.endswith(".r_mixed.v"), \
+            f"unexpected SQL Server col_source: {col_source!r}"
+        tdSql.query("SELECT v, name, local_col FROM v_ss_mixed ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 11)
+        tdSql.checkData(0, 1, "alpha")
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 12)
+        tdSql.execute("DROP VTABLE v_ss_mixed")
+
+        # --- (b) same database, different schema, same table name ---
+        create_sqlserver_remote_table(
+            "r_schema", [("v", "INT", "int")],
+            rows=["('2024-01-01 00:00:00.000', 21)"], schema="other")
+        create_sqlserver_remote_table(
+            "r_schema", [("v", "INT", "int")],
+            rows=["('2024-01-01 00:00:00.000', 11)"])
+        tdSql.execute(
+            "CREATE VTABLE v_ss_dbo (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r_schema.v)")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_other (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.other.r_schema.v)")
+        tdSql.query("SELECT v FROM v_ss_dbo")
+        tdSql.checkData(0, 0, 11)
+        tdSql.query("SELECT v FROM v_ss_other")
+        tdSql.checkData(0, 0, 21)
+        tdSql.execute("DROP VTABLE v_ss_dbo")
+        tdSql.execute("DROP VTABLE v_ss_other")
+
+        # --- (c) every temporal type satisfies the time-axis requirement ---
+        axis_cases = [
+            ("t_dt2", "datetime2(3) NOT NULL PRIMARY KEY"),
+            ("t_dto", "datetimeoffset(3) NOT NULL PRIMARY KEY"),
+            ("t_dt",  "datetime NOT NULL PRIMARY KEY"),
+            ("t_sdt", "smalldatetime NOT NULL PRIMARY KEY"),
+            ("t_date", "date NOT NULL PRIMARY KEY"),
+        ]
+        for table, ts_decl in axis_cases:
+            create_sqlserver_table(_SS_DB, table, f"ts {ts_decl}, v INT")
+            vname = f"v_ss_axis_{table}"
+            tdSql.execute(f"DROP VTABLE IF EXISTS {vname}")
+            tdSql.execute(
+                f"CREATE VTABLE {vname} (ts timestamp, "
+                f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.{table}.v)")
+            tdSql.query(f"DESCRIBE {vname}")
+            tdSql.checkData(0, 0, "ts")
+            tdSql.checkData(0, 1, "TIMESTAMP")
+            tdSql.execute(f"DROP VTABLE {vname}")
+
+    def test_sqlserver_missing_objects_and_ts_requirement(self):
+        """FQSS-VTBL-008/010: SQL Server negative reference paths.
+
+        Rowversion-only tables and views without a time column cannot back a
+        virtual table; unknown database/schema components are rejected as well.
+
+        Since: v3.4.4.0
+
+        """
+        # (a) rowversion-only table: no temporal primary key exists.
+        create_sqlserver_table(_SS_DB, "r_rv",
+                               "rv rowversion, v INT",
+                               rows=["(DEFAULT, 41)"])
+        tdSql.error(
+            "CREATE VTABLE v_ss_rv_bad (ts timestamp, "
+            f"x varbinary(8) FROM {_SS_SRC}.{_SS_DB}.dbo.r_rv.rv)")
+        tdSql.query("SELECT count(*) FROM information_schema.ins_tables "
+                    f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_ss_rv_bad'")
+        tdSql.checkData(0, 0, 0)
+
+        # (b) view without a time column cannot be a column source.
+        create_sqlserver_remote_table("r_view_src", [("v", "INT", "int")],
+                                      rows=["('2024-01-01 00:00:00.000', 51)"])
+        ExtSrcEnv.sqlserver_exec(_SS_DB, [
+            "IF OBJECT_ID('dbo.v_ss_no_ts') IS NOT NULL DROP VIEW dbo.v_ss_no_ts",
+            "CREATE VIEW dbo.v_ss_no_ts AS SELECT v FROM dbo.r_view_src",
+        ])
+        tdSql.execute(f"REFRESH EXTERNAL SOURCE {_SS_SRC}")
+        tdSql.error(
+            "CREATE VTABLE v_ss_view_bad (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.v_ss_no_ts.v)")
+
+        # (c) unknown database / schema segments in a 5-segment path.
+        tdSql.error(
+            "CREATE VTABLE v_ss_nodb_bad (ts timestamp, "
+            f"v int FROM {_SS_SRC}.no_such_db.dbo.r_view_src.v)")
+        tdSql.error(
+            "CREATE VTABLE v_ss_noschema_bad (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.no_such_schema.r_view_src.v)")
+
+    def test_sqlserver_use_switch_freezes_reference(self):
+        """FQSS-VTBL-009: USE switching does not change an existing vtable.
+
+        The external reference is frozen when the vtable is created, so
+        switching the session namespace afterwards keeps the same source
+        object and the same persisted column reference.
+
+        Since: v3.4.4.0
+
+        """
+        create_sqlserver_remote_table(
+            "r_use", [("v", "INT", "int")],
+            rows=["('2024-01-01 00:00:00.000', 61)",
+                  "('2024-01-01 00:01:00.000', 62)"])
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_use")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_use (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r_use.v)")
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_ss_use' "
+            "AND col_name='v'")
+        before = str(tdSql.queryResult[0][0])
+
+        tdSql.execute(f"USE {_SS_SRC}")
+        tdSql.execute(f"USE {_LOCAL_DB}")
+
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_ss_use' "
+            "AND col_name='v'")
+        after = str(tdSql.queryResult[0][0])
+        assert before == after, f"USE switch changed ref: {before!r} -> {after!r}"
+        tdSql.query("SELECT v FROM v_ss_use ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 61)
+        tdSql.checkData(1, 0, 62)
+        tdSql.execute("DROP VTABLE v_ss_use")
+
+    def test_vstb_sqlserver_heterogeneous_child(self):
+        """FQSS-VTBL-002/003: virtual super table with a SQL Server child.
+
+        A virtual super table fans out across PG, MySQL, InfluxDB and SQL
+        Server children; the SQL Server child references its columns through
+        the 5-segment path and contributes to super-table aggregation.
+
+        Since: v3.4.4.0
+
+        """
+        tdSql.execute("DROP STABLE IF EXISTS vstb_ss_fan")
+        tdSql.execute(
+            "CREATE STABLE vstb_ss_fan (ts timestamp, "
+            "temperature double, humidity double) "
+            "TAGS (site nchar(32), backend nchar(16)) VIRTUAL 1")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_ss_fan_pg ("
+            f"temperature FROM {_PG_SRC}.{_PG_DB}.kpi_pg.temperature, "
+            f"humidity    FROM {_PG_SRC}.{_PG_DB}.kpi_pg.humidity) "
+            f"USING vstb_ss_fan TAGS ('siteA', 'pg')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_ss_fan_my ("
+            f"temperature FROM {_MY_SRC}.{_MY_DB}.kpi_my.temperature, "
+            f"humidity    FROM {_MY_SRC}.{_MY_DB}.kpi_my.humidity) "
+            f"USING vstb_ss_fan TAGS ('siteB', 'mysql')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_ss_fan_inf ("
+            f"temperature FROM {_INF_SRC}.{_INF_DB}.kpi_in.temperature, "
+            f"humidity    FROM {_INF_SRC}.{_INF_DB}.kpi_in.humidity) "
+            f"USING vstb_ss_fan TAGS ('siteC', 'influx')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_ss_fan_ss ("
+            f"temperature FROM {_SS_SRC}.{_SS_DB}.dbo.kpi_ss.temperature, "
+            f"humidity    FROM {_SS_SRC}.{_SS_DB}.dbo.kpi_ss.humidity) "
+            f"USING vstb_ss_fan TAGS ('siteD', 'sqlserver')")
+
+        tdSql.query(
+            "SELECT count(*) FROM information_schema.ins_tables "
+            f"WHERE db_name='{_LOCAL_DB}' AND stable_name='vstb_ss_fan'")
+        tdSql.checkData(0, 0, 4)
+
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='vctb_ss_fan_ss' "
+            "AND col_name='temperature'")
+        tdSql.checkRows(1)
+        col_source = str(tdSql.queryResult[0][0])
+        assert col_source.startswith(f"{_SS_SRC}.{_SS_DB}."), \
+            f"unexpected SQL Server child col_source: {col_source!r}"
+        assert col_source.endswith(".kpi_ss.temperature"), \
+            f"unexpected SQL Server child col_source: {col_source!r}"
+
+        tdSql.query("SELECT temperature, humidity FROM vctb_ss_fan_ss ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 30.5)
+        tdSql.checkData(0, 1, 40.0)
+        tdSql.checkData(1, 0, 31.5)
+        tdSql.checkData(1, 1, 41.0)
+
+        tdSql.query("SELECT count(*) FROM vstb_ss_fan")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("SELECT count(*) FROM vstb_ss_fan WHERE backend = 'sqlserver'")
+        tdSql.checkData(0, 0, 2)
+        tdSql.execute("DROP STABLE IF EXISTS vstb_ss_fan")
 
     # -------------------------------------------------------------------
     # §3 — CREATE STABLE … VIRTUAL 1 + CREATE VTABLE … USING (PATENT CORE)

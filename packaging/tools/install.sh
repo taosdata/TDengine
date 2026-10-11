@@ -527,6 +527,7 @@ libparquet.so libparquet.so.1900
 libmariadb.so libmariadb.so.3
 libpq.so.5 libpq.so.5.16
 libpq.so libpq.so.5
+libodbc.so libodbc.so.2
 libssl.so libssl.so.3
 libcrypto.so libcrypto.so.3
 libz.so libz.so.1

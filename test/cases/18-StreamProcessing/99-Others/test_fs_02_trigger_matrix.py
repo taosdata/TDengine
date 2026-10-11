@@ -115,6 +115,18 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                 [f"INSERT INTO public.src_t VALUES {rows_sql}"]
             )
             tdLog.info(f"[{src_name}] inserted {len(rows)} PG trigger rows")
+        elif suffix == "s":
+            # db_or_bucket is the remote database; the table lives in dbo.
+            rows_sql = ", ".join(
+                f"('{self._dt_str(ts)}', {val}, {score}, '{name}', {flag})"
+                for ts, val, score, name, flag in rows
+            )
+            ExtSrcEnv.sqlserver_exec(
+                db_or_bucket,
+                [f"INSERT INTO dbo.src_t (ts, val, score, name, flag) "
+                 f"VALUES {rows_sql}"]
+            )
+            tdLog.info(f"[{src_name}] inserted {len(rows)} SQL Server trigger rows")
         elif suffix == "i":
             lines = [
                 f'src_t val={val}i,score={score},name="{name}",flag={flag}i '
@@ -144,7 +156,16 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         prefix = "nwext"
 
         def body(src_name: str):
-            mid = f"{prefix}_{src_name[-1]}db"
+            # source.mid.table — mid is the schema for PG ("public") and SQL
+            # Server ("dbo"); the database comes from the source default
+            # (DS §5.3.3: a 3-segment SQL Server path fixes the middle
+            # segment as schema).  MySQL/InfluxDB take the db/bucket.
+            if src_name.endswith("_p"):
+                mid = "public"
+            elif src_name.endswith("_s"):
+                mid = "dbo"
+            else:
+                mid = f"{prefix}_{src_name[-1]}db"
             stream = f"s_{src_name}_nested"
             sink = f"{self.DB}.sink_{src_name}_nested"
             tdSql.execute(f"USE {self.DB}")
@@ -195,10 +216,15 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
           "trows" : FROM %%trows (the trigger's own rows), same raw passthrough.
         """
         def body(src_name: str):
-            # 3-segment ext table path is source.mid.table. For PG, mid is the
-            # *schema* (always "public" here); the database is a fixed mount-level
-            # property. For MySQL/InfluxDB, mid is the database itself.
-            mid = "public" if src_name.endswith("_p") else f"{prefix}_{src_name[-1]}db"
+            # 3-segment ext table path is source.mid.table. For PG and SQL
+            # Server, mid is the *schema* ("public" / "dbo"); the database is
+            # the source's default. For MySQL/InfluxDB, mid is the database.
+            if src_name.endswith("_p"):
+                mid = "public"
+            elif src_name.endswith("_s"):
+                mid = "dbo"
+            else:
+                mid = f"{prefix}_{src_name[-1]}db"
             stream = f"s_{src_name}"
             sink = f"sink_{src_name}"
             tdSql.execute(f"USE {self.DB}")

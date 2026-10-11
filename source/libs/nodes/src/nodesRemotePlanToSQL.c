@@ -43,6 +43,7 @@ static const char* dialectName(EExtSQLDialect d) {
     case EXT_SQL_DIALECT_MYSQL:    return "MySQL";
     case EXT_SQL_DIALECT_POSTGRES: return "PG";
     case EXT_SQL_DIALECT_INFLUXQL: return "InfluxDB";
+    case EXT_SQL_DIALECT_SQLSERVER: return "SQLServer";
     default:                      return "Unknown";
   }
 }
@@ -330,6 +331,12 @@ static char* dynSQLDetach(SDynSQL* s) {
 
 static void dynAppendQuotedId(SDynSQL* s, const char* name, EExtSQLDialect dialect) {
   char q = (dialect == EXT_SQL_DIALECT_MYSQL) ? '`' : '"';
+  char closeQ = q;
+  if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+    // T-SQL brackets identifiers; a literal ']' is escaped by doubling it.
+    q = '[';
+    closeQ = ']';
+  }
   const char* value = name;
   size_t      len = strlen(name);
   char        inputQuote = '\0';
@@ -350,12 +357,12 @@ static void dynAppendQuotedId(SDynSQL* s, const char* name, EExtSQLDialect diale
     if (inputQuote != '\0' && ch == inputQuote && i + 1 < len && value[i + 1] == inputQuote) {
       ++i;
     }
-    if (ch == q) {
-      dynSQLAppendChar(s, q);
+    if (ch == closeQ) {
+      dynSQLAppendChar(s, closeQ);
     }
     dynSQLAppendChar(s, ch);
   }
-  dynSQLAppendChar(s, q);
+  dynSQLAppendChar(s, closeQ);
 }
 
 static void dynAppendTablePath(SDynSQL* s, const SExtTableNode* pExtTable, EExtSQLDialect dialect) {
@@ -379,6 +386,35 @@ static void dynAppendTablePath(SDynSQL* s, const SExtTableNode* pExtTable, EExtS
       break;
     }
       break;
+    case EXT_SQL_DIALECT_SQLSERVER: {
+      // [database].[schema].[table]
+      // table.dbName / schemaName carry the resolved namespace (set by the parser);
+      // srcDatabase / srcSchema are the source's configured defaults.
+      const char* dbToUse = pExtTable->table.dbName[0] ? pExtTable->table.dbName : pExtTable->srcDatabase;
+      const char* schemaToUse = pExtTable->schemaName[0] ? pExtTable->schemaName : pExtTable->srcSchema;
+      const char* tblToUse = pExtTable->remoteTableName[0]
+                               ? pExtTable->remoteTableName
+                               : ((pExtTable->pExtMeta && pExtTable->pExtMeta->remoteTableName[0])
+                                   ? pExtTable->pExtMeta->remoteTableName
+                                   : pExtTable->table.tableName);
+      if (NULL != dbToUse && dbToUse[0]) {
+        dynAppendQuotedId(s, dbToUse, dialect);
+        dynSQLAppendChar(s, '.');
+      }
+      if (NULL == schemaToUse || '\0' == schemaToUse[0]) {
+        qError("FQ-SQL: SQL Server table path missing schema source=%s table=%s srcSchema=%s",
+               pExtTable->sourceName, pExtTable->table.tableName,
+               '\0' != pExtTable->srcSchema[0] ? pExtTable->srcSchema : "(empty)");
+        if (!s->err) {
+          s->err = TSDB_CODE_PLAN_INTERNAL_ERROR;
+        }
+        return;
+      }
+      dynAppendQuotedId(s, schemaToUse, dialect);
+      dynSQLAppendChar(s, '.');
+      dynAppendQuotedId(s, tblToUse, dialect);
+      break;
+    }
     case EXT_SQL_DIALECT_POSTGRES:
       // "schema"."table"
       if ('\0' == pExtTable->schemaName[0]) {
@@ -507,12 +543,17 @@ static void dynAppendTypedTimestampLiteral(SDynSQL* s, const char* tsText, EExtS
 
   char        normalizedTsText[64] = {0};
   const char* pLiteralText = tsText;
-  if ((dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_POSTGRES) &&
-      dynTimestampFractionDigits(precision) > EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS) {
+  // T-SQL datetime2 keeps at most 7 fractional digits; MySQL/PG literals keep 6.
+  int32_t     maxFractionDigits = (dialect == EXT_SQL_DIALECT_SQLSERVER)
+                                      ? EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS + 1
+                                      : EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS;
+  if ((dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_POSTGRES ||
+       dialect == EXT_SQL_DIALECT_SQLSERVER) &&
+      dynTimestampFractionDigits(precision) > maxFractionDigits) {
     tstrncpy(normalizedTsText, tsText, sizeof(normalizedTsText));
     char* pFraction = strrchr(normalizedTsText, '.');
-    if (pFraction != NULL && strlen(pFraction + 1) > EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS) {
-      pFraction[EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS + 1] = '\0';
+    if (pFraction != NULL && strlen(pFraction + 1) > (size_t)maxFractionDigits) {
+      pFraction[maxFractionDigits + 1] = '\0';
     }
     pLiteralText = normalizedTsText;
   }
@@ -535,6 +576,13 @@ static void dynAppendTypedTimestampLiteral(SDynSQL* s, const char* tsText, EExtS
       dynSQLAppendStr(s, "CAST(");
       dynAppendEscapedString(s, tsText, dialect);
       dynSQLAppendStr(s, " AS TIMESTAMP)");
+      break;
+    case EXT_SQL_DIALECT_SQLSERVER:
+      // T-SQL has no TIMESTAMP literal prefix and CAST(x AS TIMESTAMP) is invalid:
+      // emit the bare ISO 8601 string (the 'T' separator is produced by
+      // dynAppendTimestampLiteral), which SQL Server converts implicitly when
+      // compared with a datetime2 column (DS 5.3.12 rule R4).
+      dynAppendEscapedString(s, pLiteralText, dialect);
       break;
     default:
       dynAppendEscapedString(s, tsText, dialect);
@@ -579,8 +627,11 @@ static void dynAppendTimestampLiteral(SDynSQL* s, int64_t ts, int8_t precision,
   }
 
   char tsText[64] = {0};
-  (void)snprintf(tsText, sizeof(tsText), "%04d-%02d-%02d %02d:%02d:%02d.%0*" PRId64,
-                 tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
+  // T-SQL needs the ISO 8601 'T' separator to be language-independent; the other
+  // dialects keep the space-separated form they have always emitted.
+  const char sep = (dialect == EXT_SQL_DIALECT_SQLSERVER) ? 'T' : ' ';
+  (void)snprintf(tsText, sizeof(tsText), "%04d-%02d-%02d%c%02d:%02d:%02d.%0*" PRId64,
+                 tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday, sep,
                  tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec,
                  dynTimestampFractionDigits(precision), fraction);
   dynAppendTypedTimestampLiteral(s, tsText, dialect, precision);
@@ -2276,6 +2327,7 @@ static int8_t dialectToExtSourceType(EExtSQLDialect dialect) {
     case EXT_SQL_DIALECT_MYSQL:    return EXT_SOURCE_MYSQL;
     case EXT_SQL_DIALECT_POSTGRES: return EXT_SOURCE_POSTGRESQL;
     case EXT_SQL_DIALECT_INFLUXQL: return EXT_SOURCE_INFLUXDB;
+    case EXT_SQL_DIALECT_SQLSERVER: return EXT_SOURCE_SQLSERVER;
     default:                       return -1;
   }
 }
@@ -9715,6 +9767,7 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
     case EXT_SOURCE_MYSQL:      dialect = EXT_SQL_DIALECT_MYSQL;    break;
     case EXT_SOURCE_POSTGRESQL: dialect = EXT_SQL_DIALECT_POSTGRES; break;
     case EXT_SOURCE_INFLUXDB:   dialect = EXT_SQL_DIALECT_INFLUXQL; break;
+    case EXT_SOURCE_SQLSERVER:  dialect = EXT_SQL_DIALECT_SQLSERVER; break;
     default:                    dialect = EXT_SQL_DIALECT_MYSQL;    break;
   }
 
@@ -9831,6 +9884,7 @@ int32_t nodesRemotePlanToSQL(const SLogicNode* pRemotePlan, int8_t sourceType,
     case EXT_SOURCE_MYSQL:      dialect = EXT_SQL_DIALECT_MYSQL;    break;
     case EXT_SOURCE_POSTGRESQL: dialect = EXT_SQL_DIALECT_POSTGRES; break;
     case EXT_SOURCE_INFLUXDB:   dialect = EXT_SQL_DIALECT_INFLUXQL; break;
+    case EXT_SOURCE_SQLSERVER:  dialect = EXT_SQL_DIALECT_SQLSERVER; break;
     default:                    dialect = EXT_SQL_DIALECT_MYSQL;    break;
   }
 

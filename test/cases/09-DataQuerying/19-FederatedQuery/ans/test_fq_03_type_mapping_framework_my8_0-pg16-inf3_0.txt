@@ -1073,3 +1073,246 @@ OK
 CASE END: CASE-01i[INF]
 DESC: InfluxDB full type mapping
 ================================================================================================
+================================================================================================
+CASE START: CASE-01s[SQL]
+DESC: SQL Server full type mapping
+================================================================================================
+### CASE-01s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq03_src_s
+RESULT:
+OK
+---
+### CASE-01s[SQL] STEP-002 EXEC
+SQL: create external source fq03_src_s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database=fq03_type_sdb schema=dbo
+RESULT:
+OK
+---
+### CASE-01s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq03_src_s|sqlserver|127.0.0.1|1433|sa|******|fq03_type_sdb|dbo|{}
+---
+### CASE-01s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq03_src_s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq03_src_s|sqlserver|127.0.0.1|1433|sa|******|fq03_type_sdb|dbo|{}
+---
+### CASE-01s[SQL] STEP-003 QUERY
+SQL: select ts, c_bit from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_bit
+2024-01-01 00:00:00.123456+00:00|True
+2024-01-01 00:01:00+00:00|False
+---
+### CASE-01s[SQL] STEP-004 QUERY
+SQL: select ts, c_tinyint, c_smallint, c_int, c_bigint from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_tinyint|c_smallint|c_int|c_bigint
+2024-01-01 00:00:00.123456+00:00|100|-32768|42|-9223372036854775808
+2024-01-01 00:01:00+00:00|127|32767|-2147483648|9223372036854775807
+---
+### CASE-01s[SQL] STEP-005 QUERY
+SQL: select ts, c_real, c_float from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_real|c_float
+2024-01-01 00:00:00.123456+00:00|3.5|2.71828182846
+2024-01-01 00:01:00+00:00|-3.5|-2.71828182846
+---
+### CASE-01s[SQL] STEP-006 QUERY
+SQL: select ts, c_decimal, c_decimal_big from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_decimal|c_decimal_big
+2024-01-01 00:00:00.123456+00:00|12345.6789|1234567890.1234567890
+2024-01-01 00:01:00+00:00|-99999999999999.9999|-9999999999.9999999999
+---
+### CASE-01s[SQL] STEP-007 QUERY
+SQL: select ts, c_money, c_smallmoney from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_money|c_smallmoney
+2024-01-01 00:00:00.123456+00:00|314.1592|-12.3456
+2024-01-01 00:01:00+00:00|-314.1592|12.3456
+---
+### CASE-01s[SQL] STEP-008 QUERY
+SQL: select ts, c_char, c_varchar from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_char|c_varchar
+2024-01-01 00:00:00.123456+00:00|hello               |ascii-varchar
+2024-01-01 00:01:00+00:00|                    |
+---
+### CASE-01s[SQL] STEP-009 QUERY
+SQL: select ts, c_nchar, c_nvarchar from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_nchar|c_nvarchar
+2024-01-01 00:00:00.123456+00:00|宽字符                 |宽字符测试UTF8
+2024-01-01 00:01:00+00:00|                    |
+---
+### CASE-01s[SQL] STEP-010 QUERY
+SQL: select ts, c_uniqueidentifier from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_uniqueidentifier
+2024-01-01 00:00:00.123456+00:00|A1B2C3D4-E5F6-7890-ABCD-EF1234567890
+2024-01-01 00:01:00+00:00|00000000-0000-0000-0000-000000000000
+---
+### CASE-01s[SQL] STEP-011 QUERY
+SQL: select ts, c_xml from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_xml
+2024-01-01 00:00:00.123456+00:00|<root><v>1</v></root>
+2024-01-01 00:01:00+00:00|<root/>
+---
+### CASE-01s[SQL] STEP-012 QUERY
+SQL: select ts, c_binary from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_binary
+2024-01-01 00:00:00.123456+00:00|b'HELLO\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+2024-01-01 00:01:00+00:00|b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+---
+### CASE-01s[SQL] STEP-013 QUERY
+SQL: select ts, c_varbinary from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_varbinary
+2024-01-01 00:00:00.123456+00:00|b'\xde\xad\xbe\xef'
+2024-01-01 00:01:00+00:00|b'\x00'
+---
+### CASE-01s[SQL] STEP-014 QUERY
+SQL: select ts, c_image from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_image
+2024-01-01 00:00:00.123456+00:00|b'\xaa\xbb'
+2024-01-01 00:01:00+00:00|b'\x00'
+---
+### CASE-01s[SQL] STEP-015 QUERY
+SQL: select ts, c_date, c_time from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_date|c_time
+2024-01-01 00:00:00.123456+00:00|2024-06-15 00:00:00+00:00|37800000000
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:00+00:00|1000000
+---
+### CASE-01s[SQL] STEP-016 QUERY
+SQL: select ts, c_datetime, c_datetime2 from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_datetime|c_datetime2
+2024-01-01 00:00:00.123456+00:00|2024-01-01 12:00:00+00:00|2024-01-01 12:00:00.123456+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:00+00:00|2023-12-31 00:00:01+00:00
+---
+### CASE-01s[SQL] STEP-017 QUERY
+SQL: select ts, c_datetimeoffset from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_datetimeoffset
+2024-01-01 00:00:00.123456+00:00|2024-01-01 04:00:00.123456+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 05:00:00+00:00
+---
+### CASE-01s[SQL] STEP-018 QUERY
+SQL: select ts, c_smalldatetime from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_smalldatetime
+2024-01-01 00:00:00.123456+00:00|2024-01-01 12:00:00+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:00+00:00
+---
+### CASE-01s[SQL] STEP-019 QUERY
+SQL: select ts, c_geography from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_geography
+2024-01-01 00:00:00.123456+00:00|b'\xe6\x10\x00\x00\x01\x0c\x14\xaeG\xe1z\xf4C@)\\\x8f\xc2\xf5\x18]@'
+2024-01-01 00:01:00+00:00|b'\xe6\x10\x00\x00\x01\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+---
+### CASE-01s[SQL] STEP-020 QUERY
+SQL: select ts, c_geometry from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_geometry
+2024-01-01 00:00:00.123456+00:00|b'\xe6\x10\x00\x00\x01\x0c)\\\x8f\xc2\xf5\x18]@\x14\xaeG\xe1z\xf4C@'
+2024-01-01 00:01:00+00:00|b'\xe6\x10\x00\x00\x01\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+---
+### CASE-01s[SQL] STEP-021 QUERY
+SQL: describe fq03_src_s.all_types_ss
+RESULT:
+field|type|length|note
+ts|TIMESTAMP|8|
+c_bit|BOOL|1|
+c_tinyint|TINYINT|1|
+c_smallint|SMALLINT|2|
+c_int|INT|4|
+c_bigint|BIGINT|8|
+c_real|FLOAT|4|
+c_float|DOUBLE|8|
+c_decimal|DECIMAL(18, 4)|8|
+c_decimal_big|DECIMAL(38, 10)|16|
+c_money|DECIMAL(19, 4)|16|
+c_smallmoney|DECIMAL(10, 4)|8|
+c_char|VARCHAR|20|
+c_varchar|VARCHAR|100|
+c_nchar|NCHAR|20|
+c_nvarchar|NCHAR|100|
+c_uniqueidentifier|VARCHAR|36|
+c_xml|NCHAR|16379|
+c_binary|VARBINARY|16|
+c_varbinary|VARBINARY|100|
+c_image|BLOB|16777220|
+c_date|TIMESTAMP|8|
+c_time|BIGINT|8|
+c_datetime|TIMESTAMP|8|
+c_datetime2|TIMESTAMP|8|
+c_datetimeoffset|TIMESTAMP|8|
+c_smalldatetime|TIMESTAMP|8|
+c_geography|GEOMETRY|65517|
+c_geometry|GEOMETRY|65517|
+---
+### CASE-01s[SQL] STEP-022 QUERY
+SQL: select ts, c_tinyint from fq03_src_s.tinyint_overflow_ss order by ts
+RESULT:
+ERROR: query failed
+---
+### CASE-01s[SQL] STEP-023 QUERY
+SQL: describe fq03_src_s.rowversion_ss
+RESULT:
+field|type|length|note
+ts|TIMESTAMP|8|
+c_rowversion|VARBINARY|8|
+c_v|INT|4|
+---
+### CASE-01s[SQL] STEP-024 QUERY
+SQL: select ts, c_v from fq03_src_s.rowversion_ss order by ts
+RESULT:
+ts|c_v
+2024-01-01 00:00:00+00:00|1
+---
+### CASE-01s[SQL] STEP-025 EXPECT-ERROR
+SQL: select ts, c_variant from fq03_src_s.unmappable_ss
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01s[SQL] STEP-026 EXPECT-ERROR
+SQL: select * from fq03_src_s.unmappable_ss
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01s[SQL] STEP-027 EXPECT-ERROR
+SQL: select ts, c_hier from fq03_src_s.unmappable_ss
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01s[SQL] STEP-028 QUERY
+SQL: select ts, c_int from fq03_src_s.fq03_type_sdb.dbo.all_types_ss order by ts
+RESULT:
+ts|c_int
+2024-01-01 00:00:00.123456+00:00|42
+2024-01-01 00:01:00+00:00|-2147483648
+---
+### CASE-01s[SQL] STEP-029 QUERY
+SQL: select ts, c_int from fq03_src_s.dbo.all_types_ss order by ts
+RESULT:
+ts|c_int
+2024-01-01 00:00:00.123456+00:00|42
+2024-01-01 00:01:00+00:00|-2147483648
+---
+### CASE-01s[SQL] STEP-030 CLEANUP
+SQL: drop external source if exists fq03_src_s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-01s[SQL]
+DESC: SQL Server full type mapping
+================================================================================================
