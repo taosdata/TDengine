@@ -350,6 +350,7 @@ fi
 echo "docker run \
     ${name_param:+$name_param }--privileged=true \
     $asan_env \
+    -e CI_MIN_RESERVED_MEMORY_MB=${CI_MIN_RESERVED_MEMORY_MB:-2048} \
     -v $REP_MOUNT_PARAM \
     ${REP_MOUNT_INTERNAL:+-v $REP_MOUNT_INTERNAL} \
     ${REP_MOUNT_DOCS:+-v $REP_MOUNT_DOCS} \
@@ -363,6 +364,7 @@ echo "docker run \
 docker run \
     ${name_param:+$name_param} --privileged=true \
     $asan_env \
+    -e "CI_MIN_RESERVED_MEMORY_MB=${CI_MIN_RESERVED_MEMORY_MB:-2048}" \
     -v $REP_MOUNT_PARAM \
     ${REP_MOUNT_INTERNAL:+-v $REP_MOUNT_INTERNAL} \
     ${REP_MOUNT_DOCS:+-v $REP_MOUNT_DOCS} \
