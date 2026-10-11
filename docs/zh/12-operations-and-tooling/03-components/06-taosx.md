@@ -837,7 +837,7 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 :::warning
 
-本节描述的当前插件 ABI 约定从 `v3.4.1.15` 开始支持，不支持更早版本的 taosExplorer 和 taosX。若需要为旧版本开发或维护插件，请使用 [TDengine 3.4.0 taosX 数据解析插件文档](https://docs.taosdata.com/3.4.0/reference/components/taosx/#taosx-%E6%95%B0%E6%8D%AE%E8%A7%A3%E6%9E%90%E6%8F%92%E4%BB%B6) 中的 ABI 约定。
+本节描述的当前插件 ABI 约定从 `v3.4.1.15` 开始支持，不支持更早版本的 taosExplorer 和 taosX。若需要为旧版本开发或维护插件，请使用 [TDengine 3.4.0 taosX 数据解析插件文档](#legacy-parser-abi) 中的 ABI 约定。
 
 :::
 
@@ -939,6 +939,87 @@ ParserMutateStatus parser_mutate(
 - 出现其他错误时返回 `PARSER_MUTATE_ERROR`。
 
 #### 5. 释放解析器
+
+释放解析器对象内存。
+
+**函数签名**： void parser_free(void* parser);
+
+void* parser：parser_new 生成的对象指针。
+
+### 旧版解析插件 ABI 归档 {#legacy-parser-abi}
+
+:::warning
+
+以下内容归档自 TDengine v3.4.0 文档，仅用于维护 v3.4.1.15 之前的 taosX/taosExplorer 插件，不适用于上文当前 ABI。保留历史 API 描述；新插件请使用上文当前 ABI。
+
+:::
+
+#### 1. 获取插件名称 {#legacy-parser-api-1}
+
+获取插件名，用于前端显示。
+
+**函数签名**：const char* parser_name()
+
+**返回值**：字符串。
+
+#### 2. 获取插件版本 {#legacy-parser-api-2}
+
+插件版本，方便问题定位。
+
+**函数签名**：const char* parser_version()
+
+**返回值**：字符串。
+
+#### 3. 配置解析器 {#legacy-parser-api-3}
+
+将一个字符串参数解析为一个配置对象，仅插件内部使用。
+
+**函数签名**：parser_resp_t parser_new(char* ctx, uint32_t len);
+
+char* ctx：用户自定义配置字符串。
+
+uint32_t len：该字符串的二进制长度（不含 `\0`）。
+
+**返回值**：
+
+``` c
+struct parser_resp_t {
+  int e;    // 0 if success.
+  void* p;  // Success if contains.
+}
+```
+
+当创建对象失败时，e 不为 0。
+
+当创建成功时，e = 0，p 为解析器对象。
+
+#### 4. 解析数据 {#legacy-parser-api-4}
+
+**函数签名**：
+
+对输入 payload 进行解析，返回结果为 JSON 格式 [u8] 。返回的 JSON 将使用默认的 JSON 解析器进行完全解码（展开根数组和所有的对象）。
+
+``` c
+const char* parser_mutate(
+  void* parser,
+  const uint8_t* in_ptr, uint32_t in_len,
+  uint8_t** out_ptr, uint32_t* out_len
+);
+```
+
+`void* parser`：parser_new 生成的对象指针;
+
+`const uint8_t* in_ptr`：输入 Payload 的指针;
+
+`uint32_t in_len`：输入 Payload 的 bytes 长度（不含 `\0`）;
+
+`uint8_t** out_ptr`：用于接收输出 JSON 数据地址的指针。调用方传入指针变量的地址，插件通过 `*out_ptr` 写回数据地址；当 `*out_ptr` 为 NULL 时，表示没有输出。
+
+`uint32_t * out_len`：输出 JSON 字符串长度。
+
+**返回值**：当调用成功时，返回值为 NULL。
+
+#### 5. 释放解析器 {#legacy-parser-api-5}
 
 释放解析器对象内存。
 
