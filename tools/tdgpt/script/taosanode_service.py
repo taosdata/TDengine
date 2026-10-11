@@ -2287,17 +2287,20 @@ def print_resource_table(result, check=False):
     resources = result.get("resources", []) if check else result.get("models", [])
     if check:
         print(f"Release: {result.get('release', '-')}")
-        headers = ("NAME", "STATE", "VERSION", "SIZE", "DIGEST", "NOTE")
-        rows = [(item.get("name", "-"), item.get("state", "-"), item.get("version", "-"),
+        headers = ("NAME", "STATE", "MODEL_VERSION", "RESOURCE_VERSION", "SIZE", "DIGEST", "NOTE")
+        rows = [(item.get("name", "-"), item.get("state", "-"),
+                 ("-" if item.get("kind") == "runtime" else item.get("model_version") or "unknown"),
+                 item.get("version", "-"),
                  str(item.get("size") or "-"), (item.get("digest") or "-")[:20], item.get("note", ""))
                 for item in resources]
     else:
-        headers = ("NAME", "STATUS", "SERVICE", "VERSION", "SIZE", "PROGRESS", "NOTE")
+        headers = ("NAME", "STATUS", "SERVICE", "MODEL_VERSION", "RESOURCE_VERSION", "SIZE", "PROGRESS", "NOTE")
         rows = []
         for item in resources:
             done, total = item.get("bytes_done"), item.get("bytes_total")
             progress = f"{done}/{total}" if done and total else "-"
             rows.append((item.get("name", "-"), item.get("status", "-"), item.get("service_status", "-"),
+                         item.get("model_version") or "unknown",
                          item.get("version", "-"), str(item.get("size") or "-"), progress, item.get("note", "")))
     print("  ".join(headers))
     print("  ".join("-" * len(header) for header in headers))

@@ -13,7 +13,29 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from taosanodectl import build_parser, translate_args
+
+import pytest
+from taosanodectl import build_parser, get_version_banner, translate_args
+
+
+def test_version_banner_uses_packaged_tdgpt_version(tmp_path):
+    version_file = tmp_path / "lib" / "taosanalytics" / "__init__.py"
+    version_file.parent.mkdir(parents=True)
+    version_file.write_text('__version__ = "9.8.7"\n', encoding="utf-8")
+
+    script_path = tmp_path / "bin" / "taosanodectl.py"
+    assert get_version_banner(script_path) == (
+        "TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 9.8.7)"
+    )
+
+
+@pytest.mark.parametrize("flag", ["-V", "--version"])
+def test_version_flag(flag, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        build_parser().parse_args([flag])
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == get_version_banner() + "\n"
 
 
 def test_model_start_translation():

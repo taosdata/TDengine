@@ -313,7 +313,12 @@ def copy_python_files():
     if os.path.exists(init_file):
         with open(init_file, 'r', encoding='utf-8') as f:
             content = f.read()
-        content = re.sub(r"^__version__ = .*", f"__version__ = '{tdgpt_version.version}'", content)
+        content = re.sub(
+            r"^__version__ = .*",
+            f"__version__ = '{tdgpt_version.version}'",
+            content,
+            flags=re.MULTILINE,
+        )
         with open(init_file, 'w', encoding='utf-8') as f:
             f.write(content)
         logging.info(f"Updated version to {tdgpt_version.version} in __init__.py")

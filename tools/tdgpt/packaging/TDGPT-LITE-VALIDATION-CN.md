@@ -292,3 +292,12 @@ Windows 验收使用 `tdengine-tdgpt-lite-venv-1.0.1-windows-x64.zip`；该包�
 <!-- markdownlint-enable MD013 -->
 
 验收结论和产物 SHA256 保留在本文中；原始验收日志不作为发布产物保存。
+
+
+### 模型版本展示
+
+`taosanodectl resource list` 与 `taosanodectl resource check` 的表格分别显示
+`MODEL_VERSION`（如 `moirai-moe-1.0-r-small`）和 `RESOURCE_VERSION`（如 `1.0.0`）。
+`list` 读取本地安装记录，`check` 读取指定发布清单；后者展示的是发布提供的版本。
+旧安装缺少模型版本记录时显示 `unknown`，共享 runtime 的模型版本显示 `-`。
+JSON 输出保留原有 `model_version` 和 `version` 字段。
