@@ -103,4 +103,4 @@ TDengine 既不依赖任何第三方软件，也不是对既有开源数据库�
 - [TDengine 与 Cassandra 对比测试](https://www.taosdata.com/blog/2019/08/14/573.html)
 - [TDengine VS InfluxDB，写入性能大 PK！](https://www.taosdata.com/2021/11/05/3248.html)
 - [TDengine 和 InfluxDB 查询性能对比测试报告](https://www.taosdata.com/2022/02/22/5969.html)
-- [TDengine 与 InfluxDB、OpenTSDB、Cassandra、MySQL、ClickHouse 等数据库的对比测试报告](https://www.taosdata.com/downloads/TDengine_Testing_Report_cn.pdf)
+- [基于 TSBS 标准数据集的 TDengine、InfluxDB 与 TimescaleDB 性能对比测试](https://www.taosdata.com/performance-comparison-influxdb-and-timescaledb-vs-tdengine)

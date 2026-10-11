@@ -60,7 +60,6 @@ If the `taosd` process becomes unresponsive, you can manually generate a `.dmp` 
 
 A crash stack trace can only be resolved to function names and line numbers when combined with PDB files. PDB files can be obtained as follows:
 
-- **Community Edition users**: Download from the official symbol server at [TDengine Symbol Server](https://www.taosdata.com/symbols/) — select the matching version.
 - **Enterprise Edition users**: PDB files are not currently available for download. Contact TDengine technical support to obtain them.
 - **Locally compiled builds**: PDB files are in the same directory as the compiled executables.
 

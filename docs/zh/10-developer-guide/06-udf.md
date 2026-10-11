@@ -484,7 +484,7 @@ $env:PYTHONHOME = "C:\Python315"
 
 通常无需手动编译，因为安装包已内置 `taospyudf`。如需调试或二次开发，可在 TDengine 源码树中单独构建该目标。
 
-源文件可从 [GitHub](https://github.com/taosdata/TDengine/tree/main/source/taos-community/source/libs/pyudf/src) 下载。
+源文件可从 [GitHub](https://github.com/taosdata/TDengine/tree/main/source/libs/pyudf/src) 下载。
 
 #### Linux / macOS
 
@@ -503,7 +503,7 @@ git clone --depth=1 https://github.com/SergiusTheBest/plog.git /tmp/plog
 #    Python 头文件通过 python3-config 自动获取
 
 # 3. 编译（在 pyudf 源码目录执行）
-cd source/taos-community/source/libs/pyudf/src
+cd source/libs/pyudf/src
 g++ -std=c++17 -fPIC -shared taospyudf.cpp \
     -o libtaospyudf.so \
     -I/tmp/plog/include \

@@ -34,7 +34,7 @@ toc_max_heading_level: 4
 
 - TDengine JDBC 驱动：[Maven 仓库下载最新版本 dist 包](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
 - TDengine 服务：[官方安装文档](https://docs.tdengine.com/)
-- taosgen 工具（TDengine 自带，用于生成测试数据）：[taosgen 使用说明](https://docs.tdengine.com/reference/taos-data/taosgen/)
+- taosgen 工具（TDengine 自带，用于生成测试数据）：[taosgen 使用说明](https://docs.taosdata.com/operations-and-tooling/tools/taosgen/)
 
 > **本文档验证环境：**
 >
@@ -472,7 +472,7 @@ summary =   1500 in 00:00:03 =  500.0/s Avg:    2 Min:     1 Max:     6 Err:    
 | 测试环境（单端点） | `jdbc:TAOS-WS://localhost:6041/test?timezone=Asia/Shanghai` |
 | 生产环境（三节点） | `jdbc:TAOS-WS://td1:6041,td2:6041,td3:6041/prod_db?timezone=Asia/Shanghai` |
 
-**参考**：更多连接属性（如压缩 `enableCompression`、SSL `useSSL`、自动重连 `enableAutoReconnect` 等），请参考 [TDengine JDBC 连接器文档](https://docs.taosdata.com/reference/connector/java/#properties)
+**参考**：更多连接属性（如压缩 `enableCompression`、SSL `useSSL`、自动重连 `enableAutoReconnect` 等），请参考 [TDengine JDBC 连接器文档](https://docs.taosdata.com/developer-guide/connectors-reference/java/#properties)
 
 ---
 
