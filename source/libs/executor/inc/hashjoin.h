@@ -166,6 +166,7 @@ typedef struct SHJoinTableCtx {
   int32_t        keyNum;
   SHJoinColInfo* keyCols;
   char*          keyBuf;
+  size_t         keyBufCap;
   char*          keyData;
   
   int32_t        valNum;
@@ -257,7 +258,7 @@ int32_t hJoinAppendResRowsToBlock(struct SOperatorInfo* pOperator, SSDataBlock* 
                                   SBufRowInfo** ppStart, bool* allFetched);
 void hJoinSetDone(struct SOperatorInfo* pOperator);
 int32_t hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, bool* allFetched);
-bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t* pBufLen);
+int32_t hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t* pBufLen, bool* pNullKey);
 int32_t hJoinCopyMergeMidBlk(SHJoinOperatorInfo* pJoin, SSDataBlock** ppMid, SSDataBlock** ppFin);
 int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin, SHJoinCtx* pCtx);
 bool    hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows);

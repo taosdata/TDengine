@@ -291,6 +291,10 @@ void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, i
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
                                         SStorageAPI* pStorageAPI, int64_t txnId);
 
+// Copy one variable-length cell (varstr/blob/json) into a buffer whose capacity is cap;
+// refuses a value wider than cap instead of overrunning it (see executil.c).
+int32_t copyVarLenCellChecked(char* dst, int32_t type, const char* src, int32_t cap, int32_t* pLen);
+
 /**
  * @brief build a tuple into keyBuf
  * @param [out] keyBuf the output buf

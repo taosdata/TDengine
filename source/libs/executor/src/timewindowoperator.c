@@ -1735,9 +1735,9 @@ _end:
   return code;
 }
 
-static void saveDataBlockLastRow(SArray* pPrevKeys, const SSDataBlock* pBlock, SArray* pCols) {
+static int32_t saveDataBlockLastRow(SArray* pPrevKeys, const SSDataBlock* pBlock, SArray* pCols) {
   if (pBlock->pDataBlock == NULL) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   size_t num = taosArrayGetSize(pPrevKeys);
@@ -1754,11 +1754,28 @@ static void saveDataBlockLastRow(SArray* pPrevKeys, const SSDataBlock* pBlock, S
 
       char* val = colDataGetData(pColInfo, i);
       if (IS_VAR_DATA_TYPE(pkey->type)) {
-        if (IS_STR_DATA_BLOB(pkey->type)) {
-          memcpy(pkey->pData, val, blobDataTLen(val));
-        } else {
-          memcpy(pkey->pData, val, varDataTLen(val));
+        // The cell buffer is initially sized by the interpolation parameter's declared
+        // width; a virtual table column may carry a value wider than declared (the full
+        // source value is returned by design), so grow the cell instead of overrunning it.
+        // calcStrBytesByType dispatches the json/blob/varstr headers (varDataTLen
+        // would misparse the json envelope as a varstr prefix).
+        int32_t bytes = calcStrBytesByType(pkey->type, val);
+        // A negative length (truncated blob header) would bypass the bound and become
+        // a huge size_t in memcpy -- refuse it.
+        if (bytes < 0) {
+          qError("invalid varlen interp cell length %d", bytes);
+          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
         }
+        if (bytes > pkey->bytes) {
+          char* tmp = taosMemoryRealloc(pkey->pData, bytes);
+          if (NULL == tmp) {
+            qError("failed to grow interp cell to %d bytes", bytes);
+            return terrno;
+          }
+          pkey->pData = tmp;
+          pkey->bytes = bytes;
+        }
+        memcpy(pkey->pData, val, bytes);
       } else {
         memcpy(pkey->pData, val, pkey->bytes);
       }
@@ -1766,6 +1783,7 @@ static void saveDataBlockLastRow(SArray* pPrevKeys, const SSDataBlock* pBlock, S
       break;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t numOfExprs, SResultRowInfo* pResultRowInfo,
@@ -2222,7 +2240,10 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   }
 
   if (pInfo->timeWindowInterpo) {
-    saveDataBlockLastRow(pInfo->pPrevValues, pBlock, pInfo->pInterpCols);
+    ret = saveDataBlockLastRow(pInfo->pPrevValues, pBlock, pInfo->pInterpCols);
+    if (TSDB_CODE_SUCCESS != ret) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
   }
   return false;
 }
@@ -2765,6 +2786,30 @@ static int32_t stateWindowRowNullCheck(
 }
 
 /*
+ * A virtual table state column may carry a value wider than the declared width (the full
+ * source value is returned by design).  The key buffers are operator-owned heap memory, so
+ * grow them to fit instead of overflowing.
+ */
+static int32_t ensureStateKeyCapacity(SStateKeys* pKey, int32_t needBytes) {
+  // A negative length (truncated blob header) would satisfy the capacity test and
+  // later become a huge size_t in memcpy -- refuse it.
+  if (needBytes < 0) {
+    qError("invalid state key length %d", needBytes);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (needBytes <= pKey->bytes) {
+    return TSDB_CODE_SUCCESS;
+  }
+  char* p = taosMemoryRealloc(pKey->pData, needBytes);
+  if (NULL == p) {
+    return terrno;
+  }
+  pKey->pData = p;
+  pKey->bytes = needBytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
  * Assign state key values from the given row.  Only non-NULL
  * columns are copied; NULL columns keep their previous value
  * (or stay "undefined" if isNull is still true).
@@ -2785,8 +2830,14 @@ static int32_t assignStateWindowKeys(
     if (colDataIsNull(pColData, pBlock->info.rows, rowIndex, pAgg)) {
       continue;
     }
-    assignVal(pKey->pData, colDataGetData(pColData, rowIndex),
-              pColData->info.bytes, pKey->type);
+    char* pVal = colDataGetData(pColData, rowIndex);
+    if (IS_VAR_DATA_TYPE(pKey->type)) {
+      int32_t code = ensureStateKeyCapacity(pKey, calcStrBytesByType(pKey->type, pVal));
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+    assignVal(pKey->pData, pVal, pColData->info.bytes, pKey->type);
     pKey->isNull = false;
   }
   return TSDB_CODE_SUCCESS;
@@ -2796,36 +2847,52 @@ static int32_t assignStateWindowKeys(
  * Copy pendingKeys from stateKeys.  Called when a new window
  * opens or after pending rows are flushed.
  */
-static void syncPendingKeysFromState(SStateWindowOperatorInfo* pInfo) {
+static int32_t syncPendingKeysFromState(SStateWindowOperatorInfo* pInfo) {
   int32_t keyNum = taosArrayGetSize(pInfo->stateKeys);
   for (int32_t i = 0; i < keyNum; ++i) {
     SStateKeys* pSrc = taosArrayGet(pInfo->stateKeys, i);
     SStateKeys* pDst = taosArrayGet(pInfo->pendingKeys, i);
     if (pSrc == NULL || pDst == NULL) continue;
-    pDst->isNull = pSrc->isNull;
     if (!pSrc->isNull) {
+      // buffers may have been grown independently by ensureStateKeyCapacity
+      int32_t code = ensureStateKeyCapacity(pDst, pSrc->bytes);
+      if (TSDB_CODE_SUCCESS != code) {
+        // Fail the sync instead of leaving pDst claiming a defined value with stale data.
+        qError("syncPendingKeysFromState: failed to grow key buffer to %d bytes", pSrc->bytes);
+        return code;
+      }
       memcpy(pDst->pData, pSrc->pData, pSrc->bytes);
     }
+    pDst->isNull = pSrc->isNull;
   }
   memset(pInfo->pendingColTouched, 0, sizeof(bool) * keyNum);
   pInfo->hasPendingPartialNull = false;
+  return TSDB_CODE_SUCCESS;
 }
 
 /*
  * Copy stateKeys from pendingKeys.  Called when flushing
  * pending rows into the current window (all-non-NULL confirm).
  */
-static void syncStateKeysFromPending(SStateWindowOperatorInfo* pInfo) {
+static int32_t syncStateKeysFromPending(SStateWindowOperatorInfo* pInfo) {
   int32_t keyNum = taosArrayGetSize(pInfo->stateKeys);
   for (int32_t i = 0; i < keyNum; ++i) {
     SStateKeys* pSrc = taosArrayGet(pInfo->pendingKeys, i);
     SStateKeys* pDst = taosArrayGet(pInfo->stateKeys, i);
     if (pSrc == NULL || pDst == NULL) continue;
-    pDst->isNull = pSrc->isNull;
     if (!pSrc->isNull) {
+      // buffers may have been grown independently by ensureStateKeyCapacity
+      int32_t code = ensureStateKeyCapacity(pDst, pSrc->bytes);
+      if (TSDB_CODE_SUCCESS != code) {
+        // Fail the sync instead of leaving pDst claiming a defined value with stale data.
+        qError("syncStateKeysFromPending: failed to grow key buffer to %d bytes", pSrc->bytes);
+        return code;
+      }
       memcpy(pDst->pData, pSrc->pData, pSrc->bytes);
     }
+    pDst->isNull = pSrc->isNull;
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void resetPendingState(SStateWindowOperatorInfo* pInfo) {
@@ -2888,8 +2955,14 @@ static int32_t updatePendingKeysFromRow(
       continue;
     }
     if (pKey->isNull) {
-      assignVal(pKey->pData, colDataGetData(pColData, rowIndex),
-                pColData->info.bytes, pKey->type);
+      char* pVal = colDataGetData(pColData, rowIndex);
+      if (IS_VAR_DATA_TYPE(pKey->type)) {
+        int32_t code = ensureStateKeyCapacity(pKey, calcStrBytesByType(pKey->type, pVal));
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+      }
+      assignVal(pKey->pData, pVal, pColData->info.bytes, pKey->type);
       pKey->isNull = false;
     }
     pInfo->pendingColTouched[i] = true;
@@ -2947,7 +3020,7 @@ static int32_t checkPendingDualSideCompatible(
  * Commit pending rows to the current (old) window: add
  * numNullRows to numOfRows, copy pendingKeys -> stateKeys.
  */
-static void commitPendingToOldWindow(
+static int32_t commitPendingToOldWindow(
     SStateWindowOperatorInfo* pInfo, SWindowRowsSup* pRowSup) {
   /*
    * Partial-NULL rows must belong to a window (cannot be dropped).
@@ -2977,12 +3050,20 @@ static void commitPendingToOldWindow(
     SStateKeys* pSrc = taosArrayGet(pInfo->pendingKeys, i);
     SStateKeys* pDst = taosArrayGet(pInfo->stateKeys, i);
     if (pSrc == NULL || pDst == NULL) continue;
-    pDst->isNull = pSrc->isNull;
     if (!pSrc->isNull) {
+      // buffers may have been grown independently by ensureStateKeyCapacity
+      int32_t code = ensureStateKeyCapacity(pDst, pSrc->bytes);
+      if (TSDB_CODE_SUCCESS != code) {
+        // Fail the commit instead of leaving pDst claiming a defined value with stale data.
+        qError("%s:%d failed to grow key buffer to %d bytes", __func__, __LINE__, pSrc->bytes);
+        return code;
+      }
       memcpy(pDst->pData, pSrc->pData, pSrc->bytes);
     }
+    pDst->isNull = pSrc->isNull;
   }
   resetPendingState(pInfo);
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool shouldSplitDeferredPartialStandalone(const SStateWindowOperatorInfo* pInfo,
@@ -3111,8 +3192,14 @@ static int32_t compareStateWindowKeys(
       continue;
     }
 
-    assignVal(pKey->pData, colDataGetData(pColData, rowIndex),
-              pColData->info.bytes, pKey->type);
+    char* pVal = colDataGetData(pColData, rowIndex);
+    if (IS_VAR_DATA_TYPE(pKey->type)) {
+      int32_t code = ensureStateKeyCapacity(pKey, calcStrBytesByType(pKey->type, pVal));
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+    assignVal(pKey->pData, pVal, pColData->info.bytes, pKey->type);
     pKey->isNull = false;
   }
   return TSDB_CODE_SUCCESS;
@@ -3203,7 +3290,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
       }
-      syncPendingKeysFromState(pInfo);
+      code = syncPendingKeysFromState(pInfo);
+      if (TSDB_CODE_SUCCESS != code) {
+        pTaskInfo->code = code;
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
       pInfo->hasKey = true;
       doKeepNewStateWindowStartInfo(
         pRowSup, tsList, j, gid, &extendOption, false);
@@ -3245,7 +3336,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
       bool splitStandalone =
           shouldSplitDeferredPartialStandalone(pInfo, pRowSup, dualSide, extendOption);
       if (!dualSide && !splitStandalone) {
-        commitPendingToOldWindow(pInfo, pRowSup);
+        code = commitPendingToOldWindow(pInfo, pRowSup);
+        if (TSDB_CODE_SUCCESS != code) {
+          pTaskInfo->code = code;
+          T_LONG_JMP(pTaskInfo->env, code);
+        }
       }
       /* numNullRows left for EXTEND when dualSide==true */
       doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption, true);
@@ -3272,7 +3367,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
       }
-      syncPendingKeysFromState(pInfo);
+      code = syncPendingKeysFromState(pInfo);
+      if (TSDB_CODE_SUCCESS != code) {
+        pTaskInfo->code = code;
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
     } else {
       /* all non-NULL row */
       bool keysEqual = false;
@@ -3287,7 +3386,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
          * (deferred rows may have initialized undefined columns),
          * then doKeepTuple absorbs numNullRows (all-NULL + partial-NULL).
          */
-        syncStateKeysFromPending(pInfo);
+        code = syncStateKeysFromPending(pInfo);
+        if (TSDB_CODE_SUCCESS != code) {
+          pTaskInfo->code = code;
+          T_LONG_JMP(pTaskInfo->env, code);
+        }
         doKeepTuple(pRowSup, tsList[j], j, gid);
         pRowSup->numDeferredPartialNull = 0;
         pRowSup->firstDeferredPartialRowIndex = -1;
@@ -3304,7 +3407,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
       bool splitStandalone =
           shouldSplitDeferredPartialStandalone(pInfo, pRowSup, dualSide, extendOption);
       if (!dualSide && !splitStandalone) {
-        commitPendingToOldWindow(pInfo, pRowSup);
+        code = commitPendingToOldWindow(pInfo, pRowSup);
+        if (TSDB_CODE_SUCCESS != code) {
+          pTaskInfo->code = code;
+          T_LONG_JMP(pTaskInfo->env, code);
+        }
       }
       doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption, true);
       code = processClosedStateWindow(pInfo, pRowSup, pBlock, pTaskInfo,
@@ -3330,7 +3437,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
       }
-      syncPendingKeysFromState(pInfo);
+      code = syncPendingKeysFromState(pInfo);
+      if (TSDB_CODE_SUCCESS != code) {
+        pTaskInfo->code = code;
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
     }
   }
 
@@ -4839,13 +4950,18 @@ static int32_t processFastPartialFunction(SExecTaskInfo* pTaskInfo, SqlFunctionC
     } else {
       char* dest = GET_ROWCELL_INTERBUF(pCtx->resultInfo);
       char* data = colDataGetData(pColInfoData, rowIndex);
-      if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-        memcpy(dest, data, getJsonValueLen(data));
-      } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-          blobDataCopy(dest, data);
-        } else {
-          varDataCopy(dest, data);
+      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+        // The interbuf cell is sized by the expression's declared result width; a
+        // virtual table column may carry a value wider than declared (the full source
+        // value is returned by design) -- refuse to overrun it.
+        int32_t code = copyVarLenCellChecked(dest, pColInfoData->info.type, data,
+                                             (int32_t)pCtx->resDataInfo.interBufSize, NULL);
+        if (TSDB_CODE_SUCCESS != code) {
+          // Restore the saved input state like every other return path in this function.
+          pCtx->input.colDataSMAIsSet = savedHasAgg;
+          pCtx->input.numOfRows = savedNumOfRows;
+          pCtx->input.startRowIndex = savedStartOffset;
+          return code;
         }
       } else {
         memcpy(dest, data, pColInfoData->info.bytes);
@@ -6098,7 +6214,10 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   }
 
   if (iaInfo->timeWindowInterpo) {
-    saveDataBlockLastRow(iaInfo->pPrevValues, pBlock, iaInfo->pInterpCols);
+    code = saveDataBlockLastRow(iaInfo->pPrevValues, pBlock, iaInfo->pInterpCols);
+    if (TSDB_CODE_SUCCESS != code) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
   }
 }
 

@@ -3061,6 +3061,11 @@ int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* ke
     ret = 0;
   } else {
     *keyLen = buildKeys(keyBuf, pSortCols, pTuple->pBlock, pTuple->rowIndex);
+    // buildKeys returns the (negative) error code when a key value overruns the
+    // key buffer; error codes are negative by convention, so pass it through.
+    if (*keyLen < 0) {
+      return *keyLen;
+    }
     ret = 1;
   }
   return ret;

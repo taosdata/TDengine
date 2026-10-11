@@ -395,6 +395,7 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList, SN
     if (NULL == pTable->keyBuf) {
       return terrno;
     }
+    pTable->keyBufCap = bufSize;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1431,18 +1432,44 @@ int32_t hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes
   return TSDB_CODE_SUCCESS;
 }
 
-bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t* pBufLen) {
+int32_t hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t* pBufLen, bool* pNullKey) {
   char*  pData = NULL;
   size_t bufLen = 0;
 
+  *pNullKey = false;
+
   if (pTable->multiGroupJoin) {
+    for (int32_t i = 0; i < pTable->keyNum; ++i) {
+      if (colDataIsNull_s(pTable->keyCols[i].colData, rowIdx)) {
+        *pNullKey = true;
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+
+    size_t newTotal = sizeof(pTable->baseGId);
+    for (int32_t i = 0; i < pTable->keyNum; ++i) {
+      if (pTable->keyCols[i].vardata) {
+        pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
+        newTotal += varDataTLen(pData);
+      } else {
+        newTotal += pTable->keyCols[i].bytes;
+      }
+    }
+
+    // a virtual table column may carry a value wider than the plan-declared
+    // width, so the key buffer grows on demand
+    if (newTotal > pTable->keyBufCap) {
+      char* tmp = taosMemoryRealloc(pTable->keyBuf, newTotal);
+      if (NULL == tmp) {
+        return terrno;
+      }
+      pTable->keyBuf = tmp;
+      pTable->keyBufCap = newTotal;
+    }
+
     TAOS_MEMCPY(pTable->keyBuf, &pTable->baseGId, sizeof(pTable->baseGId));
     bufLen = sizeof(pTable->baseGId);
     for (int32_t i = 0; i < pTable->keyNum; ++i) {
-      if (colDataIsNull_s(pTable->keyCols[i].colData, rowIdx)) {
-        return true;
-      }
-
       pTable->keyCols[i].bufOffset = bufLen;
       if (pTable->keyCols[i].vardata) {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
@@ -1464,7 +1491,8 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t* p
     pTable->keyData = pTable->keyBuf;
   } else if (1 == pTable->keyNum) {
     if (colDataIsNull_s(pTable->keyCols[0].colData, rowIdx)) {
-      return true;
+      *pNullKey = true;
+      return TSDB_CODE_SUCCESS;
     }
     if (pTable->keyCols[0].vardata) {
       pData = pTable->keyCols[0].data + pTable->keyCols[0].offset[rowIdx];
@@ -1484,11 +1512,35 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t* p
   } else {
     for (int32_t i = 0; i < pTable->keyNum; ++i) {
       if (colDataIsNull_s(pTable->keyCols[i].colData, rowIdx)) {
-        return true;
+        *pNullKey = true;
+        return TSDB_CODE_SUCCESS;
       }
-      
+    }
+
+    size_t newTotal = 0;
+    for (int32_t i = 0; i < pTable->keyNum; ++i) {
+      if (pTable->keyCols[i].vardata) {
+        pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
+        newTotal += varDataTLen(pData);
+      } else {
+        newTotal += pTable->keyCols[i].bytes;
+      }
+    }
+
+    // a virtual table column may carry a value wider than the plan-declared
+    // width, so the key buffer grows on demand
+    if (newTotal > pTable->keyBufCap) {
+      char* tmp = taosMemoryRealloc(pTable->keyBuf, newTotal);
+      if (NULL == tmp) {
+        return terrno;
+      }
+      pTable->keyBuf = tmp;
+      pTable->keyBufCap = newTotal;
+    }
+
+    for (int32_t i = 0; i < pTable->keyNum; ++i) {
       pTable->keyCols[i].bufOffset = bufLen;
-      
+
       if (pTable->keyCols[i].vardata) {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
         TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, varDataTLen(pData));
@@ -1513,7 +1565,7 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t* p
     *pBufLen = bufLen;
   }
 
-  return false;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t hJoinSetKeyColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) {
@@ -1980,7 +2032,9 @@ static int32_t hJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* 
 
   size_t bufLen = 0;
   for (int32_t i = startIdx; i <= endIdx; ++i) {
-    if (hJoinCopyKeyColsDataToBuf(pBuild, i, &bufLen)) {
+    bool nullKey = false;
+    HJ_ERR_RET(hJoinCopyKeyColsDataToBuf(pBuild, i, &bufLen, &nullKey));
+    if (nullKey) {
       if (JOIN_TYPE_FULL == pJoin->joinType) {
         HJ_ERR_RET(hJoinAddBuildNullRowToList(pJoin, pBlock, i));
       }

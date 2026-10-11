@@ -3740,6 +3740,16 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     // match/nmatch for nchar type need convert from ucs4 to mbs
     if (info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR &&
         (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)) {
+      // The conversion buffer is sized by the declared column width; a virtual table column
+      // may carry a value wider than declared (full source value by design) -- refuse to
+      // overrun the buffer.  Threshold basis: taosUcs4ToMbs emits at most one UTF-8 code
+      // point (<= 4 bytes) per UCS-4 code point (4 bytes), so its output never exceeds
+      // the ucs4 input byte count; the buffer holds dataSize code points' worth of ucs4.
+      int32_t colDataCap = (int32_t)(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE);
+      if ((int32_t)varDataLen(colData) > colDataCap) {
+        qError("%s nchar value needs %d bytes, buffer width is %d", __func__, (int32_t)varDataLen(colData), colDataCap);
+        FLT_ERR_RET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+      }
       char *newColData = taosMemoryCalloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
       if (newColData == NULL) {
         FLT_ERR_RET(terrno);
@@ -3823,6 +3833,16 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
           } else {
             if (cunit->dataType == TSDB_DATA_TYPE_NCHAR &&
                 (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH)) {
+              // The conversion buffer is sized by the declared column width; a virtual table
+              // column may carry a value wider than declared (full source value by design) --
+              // the ucs4-to-mbs output is bounded by the actual ucs4 length (<= 4 output
+              // bytes per 4-byte ucs4 code point), refuse to overrun the buffer.
+              int32_t colDataCap = (int32_t)(cunit->dataSize * TSDB_NCHAR_SIZE);
+              if ((int32_t)varDataLen(colData) > colDataCap) {
+                qError("%s nchar value needs %d bytes, buffer width is %d", __func__, (int32_t)varDataLen(colData),
+                       colDataCap);
+                FLT_ERR_RET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+              }
               char *newColData = taosMemoryCalloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
               if (newColData == NULL) {
                 FLT_ERR_RET(terrno);

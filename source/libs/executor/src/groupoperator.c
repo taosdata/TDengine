@@ -713,7 +713,8 @@ static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
 }
 
 // assign the group keys or user input constant values if required
-static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t totalRows, int32_t rowIndex) {
+static int32_t doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t totalRows, int32_t rowIndex) {
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     if (pCtx[i].functionId == -1) {  // select count(*),key from t group by key.
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[i]);
@@ -724,14 +725,14 @@ static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t
         char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
         char* data = colDataGetData(pColInfoData, rowIndex);
 
-        if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-          int32_t dataLen = getJsonValueLen(data);
-          memcpy(dest, data, dataLen);
-        } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-            blobDataCopy(dest, data);
-          } else {
-            varDataCopy(dest, data);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          // The interbuf cell is sized by the expression's declared result width; a
+          // virtual table column may carry a value wider than declared (the full source
+          // value is returned by design) -- refuse to overrun it.
+          code = copyVarLenCellChecked(dest, pColInfoData->info.type, data,
+                                       (int32_t)pCtx[i].resDataInfo.interBufSize, NULL);
+          if (TSDB_CODE_SUCCESS != code) {
+            return code;
           }
         } else {
           memcpy(dest, data, pColInfoData->info.bytes);
@@ -743,6 +744,7 @@ static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t
       pEntryInfo->numOfRes = 1;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
@@ -804,7 +806,10 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     // assign the group keys or user input constant values if required
-    doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
+    code = doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
+    if (code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
     code = recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
@@ -827,7 +832,10 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
-    doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
+    code = doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
+    if (code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
   }
 }
 
@@ -2468,46 +2476,28 @@ STATIC_EXCEPT_TEST void doHashPartition(SOperatorInfo* pOperator,
           if (colDataIsNull_s(pSrcColInfoData, j)) {
             offset[(*rows)] = -1;
             contentLen = 0;
-          } else if (pSrcColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-            offset[*rows] = (*columnLen);
-            char*   src = colDataGetData(pSrcColInfoData, j);
-            int32_t dataLen = getJsonValueLen(src);
-
-            memcpy(data + (*columnLen), src, dataLen);
-            int32_t v = (data + (*columnLen) + dataLen - (char*)pPage);
-            QUERY_CHECK_CONDITION((v > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-
-            contentLen = dataLen;
           } else {
-            if (IS_STR_DATA_BLOB(pSrcColInfoData->info.type)) {
-              offset[*rows] = (*columnLen);
-              char* src = colDataGetData(pSrcColInfoData, j);
-              memcpy(data + (*columnLen), src, blobDataTLen(src));
-              int32_t v = (data + (*columnLen) + blobDataTLen(src) - (char*)pPage);
-              QUERY_CHECK_CONDITION((v > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-
-              contentLen = blobDataTLen(src);
-            } else {
-              offset[*rows] = (*columnLen);
-              char* src = colDataGetData(pSrcColInfoData, j);
-              memcpy(data + (*columnLen), src, varDataTLen(src));
-              int32_t v = (data + (*columnLen) + varDataTLen(src) - (char*)pPage);
-              QUERY_CHECK_CONDITION((v > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-
-              contentLen = varDataTLen(src);
+            // The page cell was reserved at the declared column width; a virtual table
+            // column may carry a value wider than declared (the full source value is
+            // returned by design) -- copyVarLenCellChecked refuses before the copy
+            // instead of overrunning the partition page.
+            offset[*rows] = (*columnLen);
+            char* src = colDataGetData(pSrcColInfoData, j);
+            code = copyVarLenCellChecked(data + (*columnLen), pSrcColInfoData->info.type, src, reservedBytes,
+                                         &contentLen);
+            if (TSDB_CODE_SUCCESS != code) {
+              qError("%s variable column exceeds partition page width: row:%d expr:%d slot:%d srcType:%d "
+                     "srcBytes:%d dstType:%d dstBytes:%d reserved:%d, code:%s",
+                     __func__, j, i, slotId, pSrcColInfoData->info.type,
+                     pSrcColInfoData->info.bytes, pDstColInfoData->info.type,
+                     pDstColInfoData->info.bytes, reservedBytes, tstrerror(code));
+              lino = __LINE__;
+              goto _end;
             }
+            int32_t v = (data + (*columnLen) + contentLen - (char*)pPage);
+            QUERY_CHECK_CONDITION((v > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
           }
 
-          if (contentLen > reservedBytes) {
-            qError("%s variable column exceeds partition page width: row:%d expr:%d slot:%d srcType:%d "
-                   "srcBytes:%d dstType:%d dstBytes:%d content:%d reserved:%d",
-                   __func__, j, i, slotId, pSrcColInfoData->info.type,
-                   pSrcColInfoData->info.bytes, pDstColInfoData->info.type,
-                   pDstColInfoData->info.bytes, contentLen, reservedBytes);
-            code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-            lino = __LINE__;
-            goto _end;
-          }
           QUERY_CHECK_CONDITION(
               ((*columnLen) + contentLen <= reservedBytes * rowCapacity),
               code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);

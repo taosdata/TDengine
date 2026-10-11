@@ -880,6 +880,7 @@ static int32_t mJoinInitKeyColsInfo(SMJoinTableCtx* pTable, SNodeList* pList, bo
     if (NULL == pTable->keyBuf) {
       return terrno;
     }
+    pTable->keyBufCap = TMAX(rowSize, pTable->keyNullSize);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1634,13 +1635,16 @@ int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t* pBufLen) {
+int32_t mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t* pBufLen, bool* pNullKey) {
   char*  pData = NULL;
   size_t bufLen = 0;
 
+  *pNullKey = false;
+
   if (1 == pTable->keyNum) {
     if (colDataIsNull_s(pTable->keyCols[0].colData, rowIdx)) {
-      return true;
+      *pNullKey = true;
+      return TSDB_CODE_SUCCESS;
     }
     if (pTable->keyCols[0].jsonData) {
       pData = pTable->keyCols[0].data + pTable->keyCols[0].offset[rowIdx];
@@ -1656,9 +1660,37 @@ bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t* p
   } else {
     for (int32_t i = 0; i < pTable->keyNum; ++i) {
       if (colDataIsNull_s(pTable->keyCols[i].colData, rowIdx)) {
-        return true;
+        *pNullKey = true;
+        return TSDB_CODE_SUCCESS;
       }
-      if (pTable->keyCols[0].jsonData) {
+    }
+
+    size_t newTotal = 0;
+    for (int32_t i = 0; i < pTable->keyNum; ++i) {
+      if (pTable->keyCols[i].jsonData) {
+        pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
+        newTotal += getJsonValueLen(pData);
+      } else if (pTable->keyCols[i].vardata) {
+        pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
+        newTotal += varDataTLen(pData);
+      } else {
+        newTotal += pTable->keyCols[i].bytes;
+      }
+    }
+
+    // a virtual table column may carry a value wider than the plan-declared
+    // width, so the key buffer grows on demand
+    if (newTotal > pTable->keyBufCap) {
+      char* tmp = taosMemoryRealloc(pTable->keyBuf, newTotal);
+      if (NULL == tmp) {
+        return terrno;
+      }
+      pTable->keyBuf = tmp;
+      pTable->keyBufCap = newTotal;
+    }
+
+    for (int32_t i = 0; i < pTable->keyNum; ++i) {
+      if (pTable->keyCols[i].jsonData) {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
         TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, getJsonValueLen(pData));
         bufLen += getJsonValueLen(pData);
@@ -1679,7 +1711,7 @@ bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t* p
     *pBufLen = bufLen;
   }
 
-  return false;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mJoinGetAvailableGrpArray(SMJoinTableCtx* pTable, SArray** ppRes) {
@@ -1765,7 +1797,9 @@ int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pT
 
     int32_t grpRows = GRP_REMAIN_ROWS(pGrp);
     for (int32_t r = 0; r < grpRows; ++r) {
-      if (mJoinCopyKeyColsDataToBuf(pTable, pGrp->beginIdx + r, &bufLen)) {
+      bool nullKey = false;
+      MJ_ERR_RET(mJoinCopyKeyColsDataToBuf(pTable, pGrp->beginIdx + r, &bufLen, &nullKey));
+      if (nullKey) {
         *(int16_t*)pTable->keyBuf = 0;
         pTable->keyData = pTable->keyBuf;
         bufLen = pTable->keyNullSize;
@@ -1797,7 +1831,9 @@ int32_t mJoinCreateBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable
 
     int32_t grpRows = GRP_REMAIN_ROWS(pGrp);
     for (int32_t r = 0; r < grpRows; ++r) {
-      if (mJoinCopyKeyColsDataToBuf(pTable, pGrp->beginIdx + r, &bufLen)) {
+      bool nullKey = false;
+      MJ_ERR_RET(mJoinCopyKeyColsDataToBuf(pTable, pGrp->beginIdx + r, &bufLen, &nullKey));
+      if (nullKey) {
         continue;
       }
 

@@ -4029,6 +4029,112 @@ static bool isSameVirtualTableCol(SVirtualTableNode* pVirtualTable, SColumnNode*
          0 == strcmp(pCol->tableName, pVirtualTable->table.tableName);
 }
 
+// Locate the source column schema for a virtual table column reference.  Only real table
+// references carry a locally cached schema; external sources negotiate widths at runtime.
+static const SSchema* findVtbRefColSchema(SVirtualTableNode* pVirtualTable, const SColRef* pRef, bool tagOnly) {
+  if (NULL == pVirtualTable || NULL == pRef || !pRef->hasRef || '\0' == pRef->refColName[0]) {
+    return NULL;
+  }
+  SNode* pNode = NULL;
+  FOREACH(pNode, pVirtualTable->refTables) {
+    if (QUERY_NODE_REAL_TABLE != nodeType(pNode)) {
+      continue;
+    }
+    SRealTableNode* pRefTable = (SRealTableNode*)pNode;
+    if (0 != strcmp(pRefTable->table.dbName, pRef->refDbName)) {
+      continue;
+    }
+    if (0 != strcmp(pRefTable->table.tableName, pRef->refTableName) &&
+        0 != strcmp(pRefTable->table.tableAlias, pRef->refTableName)) {
+      continue;
+    }
+    if (NULL == pRefTable->pMeta || NULL == pRefTable->pMeta->schema) {
+      return NULL;
+    }
+    // Search only the column or the tag section: an ordinary column and a tag can share a
+    // name, and widening one by the other's source width would be wrong.
+    int32_t begin = tagOnly ? pRefTable->pMeta->tableInfo.numOfColumns : 0;
+    int32_t end = tagOnly ? (pRefTable->pMeta->tableInfo.numOfColumns + pRefTable->pMeta->tableInfo.numOfTags)
+                          : pRefTable->pMeta->tableInfo.numOfColumns;
+    for (int32_t i = begin; i < end; ++i) {
+      if (0 == strcasecmp(pRefTable->pMeta->schema[i].name, pRef->refColName)) {
+        return &pRefTable->pMeta->schema[i];
+      }
+    }
+    return NULL;
+  }
+  return NULL;
+}
+
+// A virtual varlen column returns the full source value even when the source column is
+// wider than the declared virtual width (DDL gates only the type, by design).  Widen the
+// plan column to the source width so every downstream fixed-size buffer (function
+// interbuf, tuple-store row image, merge output column) stays a true upper bound.
+static void widenVirtualColWidth(SVirtualTableNode* pVirtualTable, SColumnNode* pCol, const SColRef* pRef,
+                                bool tagOnly) {
+  if (NULL == pCol || PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId ||
+      !IS_VAR_DATA_TYPE(pCol->node.resType.type)) {
+    return;
+  }
+  const SSchema* pRefSchema = findVtbRefColSchema(pVirtualTable, pRef, tagOnly);
+  if (NULL != pRefSchema && pRefSchema->bytes > pCol->node.resType.bytes) {
+    planDebug("widenVirtualColWidth: col %s, vtb bytes=%d, ref bytes=%d", pCol->colName, pCol->node.resType.bytes,
+              pRefSchema->bytes);
+    pCol->node.resType.bytes = pRefSchema->bytes;
+  }
+}
+
+// Same width adjustment for a column list on paths where syncVirtualTableColRefs never runs
+// (e.g. virtual super table scan columns).
+static void widenVirtualScanColsImpl(SVirtualTableNode* pVirtualTable, SNodeList* pCols, bool tagOnly) {
+  if (NULL == pVirtualTable || NULL == pVirtualTable->pMeta) {
+    return;
+  }
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      continue;
+    }
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    SColRef*     pRef = NULL;
+    // A tag list must resolve against tagRef only: a same-named ordinary column would
+    // otherwise match colRef first and widen the tag by the wrong source column.
+    int32_t colRefIndex = -1;
+    if (!tagOnly && NULL != pVirtualTable->pMeta->colRef) {
+      colRefIndex = findColRefIndex(pVirtualTable->pMeta->colRef, pVirtualTable, pCol->colId);
+      if (colRefIndex < 0) {
+        colRefIndex = findColRefIndexByName(pVirtualTable->pMeta->colRef, pVirtualTable, pCol->colName);
+      }
+    }
+    if (colRefIndex >= 0) {
+      pRef = &pVirtualTable->pMeta->colRef[colRefIndex];
+    } else {
+      int32_t tagRefIndex = (NULL != pVirtualTable->pMeta->tagRef)
+                             ? findTagRefIndex(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colId)
+                             : -1;
+      if (tagRefIndex < 0) {
+        tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
+      }
+      if (tagRefIndex >= 0) {
+        pRef = &pVirtualTable->pMeta->tagRef[tagRefIndex];
+      }
+    }
+    if (NULL != pRef && pRef->hasRef) {
+      // The ref may still have been resolved from tagRef above (the fallback branch);
+      // search the section it actually came from.
+      widenVirtualColWidth(pVirtualTable, pCol, pRef, tagOnly || colRefIndex < 0);
+    }
+  }
+}
+
+static void widenVirtualScanCols(SVirtualTableNode* pVirtualTable, SNodeList* pCols) {
+  widenVirtualScanColsImpl(pVirtualTable, pCols, false);
+}
+
+static void widenVirtualTagCols(SVirtualTableNode* pVirtualTable, SNodeList* pCols) {
+  widenVirtualScanColsImpl(pVirtualTable, pCols, true);
+}
+
 static EDealRes syncVirtualTableColRefImpl(SNode* pNode, void* pContext) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
@@ -4073,6 +4179,7 @@ static EDealRes syncVirtualTableColRefImpl(SNode* pNode, void* pContext) {
     tstrncpy(pCol->refDbName, pRef->refDbName, sizeof(pCol->refDbName));
     tstrncpy(pCol->refTableName, pRef->refTableName, sizeof(pCol->refTableName));
     tstrncpy(pCol->refColName, pRef->refColName, sizeof(pCol->refColName));
+    widenVirtualColWidth(pCxt->pVirtualTable, pCol, pRef, colRefIndex < 0);
     if (NULL != pCxt->pRefTablesMap && '\0' != pRef->refSourceName[0] &&
         PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId && !pCol->isPrimTs) {
       code = buildExtScanGroupKey(pRef, &pGroupKey, &groupKeyLen);
@@ -4119,6 +4226,35 @@ static int32_t syncVirtualTableStmtColRefs(SSelectStmt* pSelect, SVirtualTableNo
   SSyncVTableColRefCxt cxt = {.pVirtualTable = pVirtualTable, .pRefTablesMap = pRefTablesMap};
   nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, syncVirtualTableColRefImpl, &cxt);
   return cxt.code;
+}
+
+// Second pass after syncVirtualTable*ColRefs: _select_value subsidiaries size their tuple
+// row image from the function result width (prepareBuf), so a widened virtual column
+// parameter must widen the wrapping function too, keeping write/read strides consistent.
+static EDealRes widenSelectValueFuncWidthImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SFunctionNode* pFunc = (SFunctionNode*)pNode;
+  if (FUNCTION_TYPE_SELECT_VALUE != pFunc->funcType || !IS_VAR_DATA_TYPE(pFunc->node.resType.type) ||
+      LIST_LENGTH(pFunc->pParameterList) <= 0) {
+    return DEAL_RES_CONTINUE;
+  }
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN == nodeType(pParam)) {
+    SColumnNode* pCol = (SColumnNode*)pParam;
+    // Compare widths rather than checking hasRef: the virtual super-table widening
+    // (widenVirtualScanColsImpl) does not set hasRef, and _select_value is a pure
+    // passthrough whose result must follow its (possibly widened) parameter either way.
+    if (pCol->node.resType.bytes > pFunc->node.resType.bytes) {
+      pFunc->node.resType.bytes = pCol->node.resType.bytes;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void widenSelectValueFuncWidths(SSelectStmt* pSelect) {
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, widenSelectValueFuncWidthImpl, NULL);
 }
 
 static int32_t syncVirtualTablePrimaryTsRef(SVirtualTableNode* pVirtualTable) {
@@ -5672,6 +5808,15 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     }
   }
 
+  // Virtual super table columns are declared on the stable while each child may bind a
+  // wider source column; widen plan columns by the stable-level default refs where present
+  // (per-child overrides beyond that are rejected by executor-side capacity checks).
+  // Tag-ref columns were split off into pRefTagCols before this point, so widen that list
+  // too or its targets keep the declared narrow width while the tag values get wider.
+  widenVirtualScanCols(pVirtualTable, pVtableScan->pScanCols);
+  widenVirtualScanCols(pVirtualTable, pVtableScan->pScanPseudoCols);
+  widenVirtualTagCols(pVirtualTable, pVtableScan->pRefTagCols);
+
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pRefTagCols, &pVtableScan->node.pTargets));
@@ -6408,6 +6553,10 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   }
   pCxt->pPlanCxt->streamCxt.isVtableCalc = true;
   pCxt->pPlanCxt->hasScan = true;
+
+  // selectivity subsidiary row images are sized by the _select_value result width; widen
+  // those to follow the widened virtual columns (runs after the colRef syncs above).
+  widenSelectValueFuncWidths(pSelect);
 
   return code;
 _return:

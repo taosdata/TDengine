@@ -159,7 +159,9 @@ static int32_t mOuterJoinHashFullCart(SMJoinMergeCtx* pCtx) {
   size_t bufLen = 0;
   int32_t probeEndIdx = probeGrp->endIdx;
   for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); ++probeGrp->readIdx) {
-    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+    bool nullKey = false;
+    MJ_ERR_RET(mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen, &nullKey));
+    if (nullKey) {
       probeGrp->endIdx = probeGrp->readIdx;
       MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
       probeGrp->endIdx = probeEndIdx;
@@ -472,7 +474,9 @@ static int32_t mOuterJoinHashSeqCart(SMJoinMergeCtx* pCtx) {
   size_t bufLen = 0;
   int32_t probeEndIdx = probeGrp->endIdx;
   for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk);) {
-    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+    bool nullKey = false;
+    MJ_ERR_RET(mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen, &nullKey));
+    if (nullKey) {
       probeGrp->endIdx = probeGrp->readIdx;
       MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
       probeGrp->endIdx = probeEndIdx;
@@ -802,7 +806,9 @@ static int32_t mInnerJoinHashCart(SMJoinMergeCtx* pCtx) {
   size_t bufLen = 0;
   int32_t probeEndIdx = probeGrp->endIdx;
   for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); ++probeGrp->readIdx) {
-    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+    bool nullKey = false;
+    MJ_ERR_RET(mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen, &nullKey));
+    if (nullKey) {
       continue;
     }
 
@@ -1413,7 +1419,9 @@ static int32_t mSemiJoinHashSeqCart(SMJoinMergeCtx* pCtx) {
   size_t bufLen = 0;
   int32_t probeEndIdx = probeGrp->endIdx;
   for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); probeGrp->readIdx++) {
-    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+    bool nullKey = false;
+    MJ_ERR_RET(mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen, &nullKey));
+    if (nullKey) {
       continue;
     }
 
@@ -1447,7 +1455,9 @@ static int32_t mSemiJoinHashFullCart(SMJoinMergeCtx* pCtx) {
   size_t bufLen = 0;
 
   for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); ++probeGrp->readIdx) {
-    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+    bool nullKey = false;
+    MJ_ERR_RET(mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen, &nullKey));
+    if (nullKey) {
       continue;
     }
 
@@ -1705,7 +1715,9 @@ static int32_t mAntiJoinHashFullCart(SMJoinMergeCtx* pCtx) {
   int32_t probeEndIdx = probeGrp->endIdx;
 
   for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); ++probeGrp->readIdx) {
-    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+    bool nullKey = false;
+    MJ_ERR_RET(mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen, &nullKey));
+    if (nullKey) {
       probeGrp->endIdx = probeGrp->readIdx;
       MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
       probeGrp->endIdx = probeEndIdx;
@@ -1768,7 +1780,9 @@ static int32_t mAntiJoinHashSeqCart(SMJoinMergeCtx* pCtx) {
   int32_t probeEndIdx = probeGrp->endIdx;
 
   for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); probeGrp->readIdx++) {
-    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+    bool nullKey = false;
+    MJ_ERR_RET(mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen, &nullKey));
+    if (nullKey) {
       probeGrp->endIdx = probeGrp->readIdx;
       MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
       probeGrp->endIdx = probeEndIdx;

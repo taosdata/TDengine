@@ -915,14 +915,14 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
         char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
         char* data = colDataGetData(pColInfoData, rowIndex);
 
-        if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-          int32_t dataLen = getJsonValueLen(data);
-          memcpy(dest, data, dataLen);
-        } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-            blobDataCopy(dest, data);
-          } else {
-            varDataCopy(dest, data);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          // The interbuf cell is sized by the expression's declared result width; a
+          // virtual table column may carry a value wider than declared (the full source
+          // value is returned by design) -- refuse to overrun it.
+          code = copyVarLenCellChecked(dest, pColInfoData->info.type, data,
+                                       (int32_t)pCtx[k].resDataInfo.interBufSize, NULL);
+          if (TSDB_CODE_SUCCESS != code) {
+            TAOS_CHECK_EXIT(code);
           }
         } else {
           memcpy(dest, data, pColInfoData->info.bytes);
