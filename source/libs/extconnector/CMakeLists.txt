@@ -29,6 +29,8 @@ endif()
 
 add_library(extconnector STATIC ${EXT_CONNECTOR_SRC})
 
+target_include_directories(extconnector BEFORE PRIVATE "${TD_SOURCE_DIR}/include/libs/qcom")
+
 target_include_directories(
   extconnector
   PUBLIC  "${TD_SOURCE_DIR}/include/libs/extconnector"

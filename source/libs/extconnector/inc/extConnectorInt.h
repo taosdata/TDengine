@@ -93,8 +93,7 @@ extern SExtProvider gExtProviders[EXT_SOURCE_TYPE_COUNT];
 static_assert(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_SQLSERVER + 1),
               "EXT_SOURCE_TYPE_COUNT must match the highest EExtSourceType value (tmsg.h)");
 #else
-_Static_assert(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_SQLSERVER + 1),
-               "EXT_SOURCE_TYPE_COUNT must match the highest EExtSourceType value (tmsg.h)");
+typedef char SExtProviderCountCheck[(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_SQLSERVER + 1)) ? 1 : -1];
 #endif
 
 // ============================================================
