@@ -54,7 +54,9 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator) {
   }
 
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
-    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+    bool nullKey = false;
+    HJ_ERR_RET(hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen, &nullKey));
+    if (nullKey) {
       continue;
     }
     
@@ -128,7 +130,9 @@ int32_t hSemiJoinDo(struct SOperatorInfo* pOperator) {
   }
 
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
-    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+    bool nullKey = false;
+    HJ_ERR_RET(hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen, &nullKey));
+    if (nullKey) {
       continue;
     }
 
@@ -200,7 +204,9 @@ int32_t hAntiJoinDo(struct SOperatorInfo* pOperator) {
   if (E_JOIN_PHASE_CUR == pCtx->probePhase) {
     for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
       bool matched = false;
-      if (!hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+      bool nullKey = false;
+      HJ_ERR_RET(hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen, &nullKey));
+      if (!nullKey) {
         SGroupData* pGroup = tSimpleHashGet(pJoin->pKeyHash, pProbe->keyData, bufLen);
         if (pGroup != NULL) {
           matched = true;
@@ -333,7 +339,9 @@ int32_t hFullJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
   }
 
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
-    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+    bool nullKey = false;
+    HJ_ERR_RET(hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen, &nullKey));
+    if (nullKey) {
       HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
       if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
         ++pCtx->probeStartIdx;
@@ -440,7 +448,9 @@ int32_t hFullJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
   bool allFetched = false;
 
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
-    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+    bool nullKey = false;
+    HJ_ERR_RET(hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen, &nullKey));
+    if (nullKey) {
       HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
       if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
         ++pCtx->probeStartIdx;
@@ -596,7 +606,9 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
   }
 
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
-    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+    bool nullKey = false;
+    HJ_ERR_RET(hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen, &nullKey));
+    if (nullKey) {
       HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
       if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
         ++pCtx->probeStartIdx;
@@ -708,7 +720,9 @@ int32_t hLeftJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
   bool allFetched = false;
 
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
-    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+    bool nullKey = false;
+    HJ_ERR_RET(hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen, &nullKey));
+    if (nullKey) {
       HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
       if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
         ++pCtx->probeStartIdx;

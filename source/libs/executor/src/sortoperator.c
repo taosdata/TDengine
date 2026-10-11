@@ -303,6 +303,11 @@ static int32_t nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pIn
     } else {
       newGroup = tsortCompAndBuildKeys(pInfo->pGroupIdCalc->pSortColsArr, pInfo->pGroupIdCalc->keyBuf,
                                        &pInfo->pGroupIdCalc->lastKeysLen, retTuple);
+      // A negative return is an error code from buildKeys (a key value wider than the
+      // key buffer's declared width); fail the query instead of continuing.
+      if (newGroup < 0) {
+        return newGroup;
+      }
     }
 
     bool emptyBlock = (pBlock->info.rows == 0);

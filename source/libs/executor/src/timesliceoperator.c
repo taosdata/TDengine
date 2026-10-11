@@ -279,8 +279,32 @@ static FORCE_INLINE void copyColDataVal(void* dst, char* val, int8_t type,
   memcpy(dst, val, bytes);
 }
 
-static void doKeepRows(SArray* pRowKeeper, const SSDataBlock* pBlock,
-                       int32_t rowIndex) {
+// Copy one column value into a keeper cell, growing the cell buffer when a
+// virtual table column carries a value wider than the declared width the cell
+// was sized from (the full source value is returned by design).
+static int32_t copyColDataValGrow(SGroupKeys* pKey, const char* val) {
+  int32_t bytes = IS_VAR_DATA_TYPE(pKey->type) ? calcStrBytesByType(pKey->type, (char*)val) : pKey->bytes;
+  // A negative length (truncated blob header) would bypass the bound and become a
+  // huge size_t in memcpy -- refuse it.
+  if (bytes < 0) {
+    qError("invalid varlen keeper cell length %d", bytes);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+  if (bytes > pKey->bytes) {
+    char* tmp = taosMemoryRealloc(pKey->pData, bytes);
+    if (NULL == tmp) {
+      qError("failed to grow timeslice keeper cell to %d bytes", bytes);
+      return terrno;
+    }
+    pKey->pData = tmp;
+    pKey->bytes = bytes;
+  }
+  memcpy(pKey->pData, val, bytes);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doKeepRows(SArray* pRowKeeper, const SSDataBlock* pBlock,
+                          int32_t rowIndex) {
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
@@ -288,24 +312,35 @@ static void doKeepRows(SArray* pRowKeeper, const SSDataBlock* pBlock,
     SGroupKeys* pkey = taosArrayGet(pRowKeeper, i);
     if (!colDataIsNull_s(pColInfoData, rowIndex)) {
       pkey->isNull = false;
-      copyColDataVal(pkey->pData, colDataGetData(pColInfoData, rowIndex),
-                     pkey->type, pkey->bytes);
+      int32_t code = copyColDataValGrow(pkey, colDataGetData(pColInfoData, rowIndex));
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     } else {
       pkey->isNull = true;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
-static void doKeepPrevRows(SGroupInterpState* pState,
-                           const SSDataBlock* pBlock, int32_t rowIndex) {
-  doKeepRows(pState->pPrevRow, pBlock, rowIndex);
+static int32_t doKeepPrevRows(SGroupInterpState* pState,
+                              const SSDataBlock* pBlock, int32_t rowIndex) {
+  int32_t code = doKeepRows(pState->pPrevRow, pBlock, rowIndex);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   pState->isPrevRowSet = true;
+  return TSDB_CODE_SUCCESS;
 }
 
-static void doKeepNextRows(SGroupInterpState* pState,
-                           const SSDataBlock* pBlock, int32_t rowIndex) {
-  doKeepRows(pState->pNextRow, pBlock, rowIndex);
+static int32_t doKeepNextRows(SGroupInterpState* pState,
+                              const SSDataBlock* pBlock, int32_t rowIndex) {
+  int32_t code = doKeepRows(pState->pNextRow, pBlock, rowIndex);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   pState->isNextRowSet = true;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void doKeepLinearInfo(const SInterpQueryCtx* pCtx,
@@ -1051,17 +1086,20 @@ static int32_t initMainFirstKeeperInfo(SMainFirstGroupState* pGroup,
                         pBlock);
 }
 
-static void copyKeeperRow(SArray* pDst, const SArray* pSrc) {
+static int32_t copyKeeperRow(SArray* pDst, const SArray* pSrc) {
   int32_t numOfCols = taosArrayGetSize(pSrc);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SGroupKeys* pDstKey = taosArrayGet(pDst, i);
     SGroupKeys* pSrcKey = taosArrayGet(pSrc, i);
     pDstKey->isNull = pSrcKey->isNull;
     if (!pSrcKey->isNull) {
-      copyColDataVal(pDstKey->pData, pSrcKey->pData, pSrcKey->type,
-                     pSrcKey->bytes);
+      int32_t code = copyColDataValGrow(pDstKey, pSrcKey->pData);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void resetRowsKeeper(SArray* pRows, bool* pIsRowSet) {
@@ -1834,11 +1872,11 @@ int32_t interpMainFirstGetLeadHole(int64_t startTs, int64_t firstTs,
   return TSDB_CODE_SUCCESS;
 }
 
-static void doTimesliceImpl(SOperatorInfo* pOperator,
-                            STimeSliceOperatorInfo* pSliceInfo,
-                            const SInterpQueryCtx* pCtx,
-                            SGroupInterpState* pState, SSDataBlock* pBlock,
-                            SExecTaskInfo* pTaskInfo) {
+static int32_t doTimesliceImpl(SOperatorInfo* pOperator,
+                               STimeSliceOperatorInfo* pSliceInfo,
+                               const SInterpQueryCtx* pCtx,
+                               SGroupInterpState* pState, SSDataBlock* pBlock,
+                               SExecTaskInfo* pTaskInfo) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SSDataBlock*     pResBlock = pSliceInfo->pRes;
@@ -1921,7 +1959,8 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
       qDebug("%s TimeSlice: add-current row=%d ts=%" PRId64 " resRows=%d",
              GET_TASKID(pTaskInfo), i, ts, (int)pResBlock->info.rows);
 
-      doKeepPrevRows(pState, pBlock, i);
+      code = doKeepPrevRows(pState, pBlock, i);
+      QUERY_CHECK_CODE(code, lino, _end);
       if (!resumeFill) {
         doKeepLinearInfo(pCtx, pState, pBlock, i);
       }
@@ -1932,13 +1971,14 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
       }
       if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         saveBlockStatus(pSliceInfo, pBlock, i);
-        return;
+        return TSDB_CODE_SUCCESS;
       }
     } else if (ts < pState->current) {
       qDebug("%s TimeSlice: keep-prev row=%d ts=%" PRId64
              " current=%" PRId64,
              GET_TASKID(pTaskInfo), i, ts, pState->current);
-      doKeepPrevRows(pState, pBlock, i);
+      code = doKeepPrevRows(pState, pBlock, i);
+      QUERY_CHECK_CODE(code, lino, _end);
       if (!resumeFill) {
         doKeepLinearInfo(pCtx, pState, pBlock, i);
       }
@@ -1947,7 +1987,8 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
              " current=%" PRId64,
              GET_TASKID(pTaskInfo), i, ts, pState->current);
       if (!resumeFill) {
-        doKeepNextRows(pState, pBlock, i);
+        code = doKeepNextRows(pState, pBlock, i);
+        QUERY_CHECK_CODE(code, lino, _end);
         doKeepLinearInfo(pCtx, pState, pBlock, i);
       }
 
@@ -1972,7 +2013,7 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
           pSliceInfo->pRemainRes = pBlock;
           pSliceInfo->remainIndex = i;
           pSliceInfo->remainFill = true;
-          return;
+          return TSDB_CODE_SUCCESS;
         }
       }
 
@@ -1986,14 +2027,15 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
 
         pState->current = getNextTimestamp(pState->current, pInterval);
       }
-      doKeepPrevRows(pState, pBlock, i);
+      code = doKeepPrevRows(pState, pBlock, i);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       if (checkWindowBoundReached(pCtx, pState)) {
         break;
       }
       if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         saveBlockStatus(pSliceInfo, pBlock, i);
-        return;
+        return TSDB_CODE_SUCCESS;
       }
     }
   }
@@ -2008,6 +2050,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  return code;
 }
 
 static void genInterpAfterDataBlock(const SInterpQueryCtx* pCtx,
@@ -2049,8 +2092,10 @@ static int32_t copyPrevGroupKey(SExprSupp* pExprSup, SArray* pGroupKeys, SSDataB
         break;
       }
 
-      copyColDataVal(pGroupKey->pData, colDataGetData(pSrc, 0), pGroupKey->type,
-                     pGroupKey->bytes);
+      int32_t code = copyColDataValGrow(pGroupKey, colDataGetData(pSrc, 0));
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
       pGroupKey->isNull = false;
     }
   }
@@ -2093,12 +2138,16 @@ static int32_t setMainFirstLeadHole(const SInterpQueryCtx* pCtx,
 // The first block seen for a group (MAIN or side) supplies the PREV-hole
 // fallback row shared by both phases; capture it once, whichever phase
 // arrives first.
-static void captureMainFirstGroupRow(SMainFirstGroupState* pGroup,
-                                     const SSDataBlock* pBlock) {
+static int32_t captureMainFirstGroupRow(SMainFirstGroupState* pGroup,
+                                        const SSDataBlock* pBlock) {
   if (!pGroup->groupRowSet && pBlock->info.rows > 0) {
-    doKeepRows(pGroup->pGroupRow, pBlock, 0);
+    int32_t code = doKeepRows(pGroup->pGroupRow, pBlock, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     pGroup->groupRowSet = true;
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t captureMainFirstRows(SOperatorInfo* pOperator,
@@ -2107,7 +2156,10 @@ static int32_t captureMainFirstRows(SOperatorInfo* pOperator,
                                     SSDataBlock* pBlock) {
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock,
                                          pInfo->queryCtx.tsCol.slotId);
-  captureMainFirstGroupRow(pGroup, pBlock);
+  int32_t code = captureMainFirstGroupRow(pGroup, pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   int32_t lastValidRow = -1;
   for (int32_t i = 0; i < pBlock->info.rows; ++i) {
@@ -2121,11 +2173,14 @@ static int32_t captureMainFirstRows(SOperatorInfo* pOperator,
 
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, i);
     if (!pGroup->firstMainRowSet) {
-      doKeepRows(pGroup->pFirstMainRow, pBlock, i);
+      code = doKeepRows(pGroup->pFirstMainRow, pBlock, i);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
       pGroup->firstMainRowSet = true;
       if (pInfo->interpMode != INTERP_MODE_GROUP_FIRST ||
           interpGroupNeedsPrev(pInfo->queryCtx.fillType, true)) {
-        int32_t code = setMainFirstLeadHole(&pInfo->queryCtx, pGroup, ts);
+        code = setMainFirstLeadHole(&pInfo->queryCtx, pGroup, ts);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -2142,7 +2197,10 @@ static int32_t captureMainFirstRows(SOperatorInfo* pOperator,
   // Only the last valid row's snapshot survives; keep it once instead of
   // re-copying on every row in the block.
   if (lastValidRow >= 0) {
-    doKeepRows(pGroup->pLastMainRow, pBlock, lastValidRow);
+    code = doKeepRows(pGroup->pLastMainRow, pBlock, lastValidRow);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2237,8 +2295,11 @@ static int32_t processMainFirstMainBlock(SOperatorInfo* pOperator,
       initMainFirstOutputInfo(pInfo->pRes, &pGroup->blockId,
                              pGroup->scanFlag, SCAN_PHASE_MAIN);
     }
-    doTimesliceImpl(pOperator, pInfo, &pInfo->queryCtx, pState,
-                   pBlock, pOperator->pTaskInfo);
+    code = doTimesliceImpl(pOperator, pInfo, &pInfo->queryCtx, pState,
+                           pBlock, pOperator->pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     if (checkWindowBoundReached(&pInfo->queryCtx, pState)) {
       return notifyMainFirstMainResolved(
           pOperator, pBlock, pInfo->queryCtx.win.ekey);
@@ -2248,8 +2309,11 @@ static int32_t processMainFirstMainBlock(SOperatorInfo* pOperator,
 
   do {
     blockDataCleanup(pInfo->pRes);
-    doTimesliceImpl(pOperator, pInfo, &pInfo->queryCtx, pState,
-                    pBlock, pOperator->pTaskInfo);
+    code = doTimesliceImpl(pOperator, pInfo, &pInfo->queryCtx, pState,
+                           pBlock, pOperator->pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     code = appendMainFirstResult(pInfo, pGroup);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -2603,7 +2667,10 @@ static int32_t processMainFirstSideBlock(SOperatorInfo* pOperator,
         pOperator, pBlock, false, 0);
   }
 
-  captureMainFirstGroupRow(pGroup, pBlock);
+  code = captureMainFirstGroupRow(pGroup, pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   code = finalizeMainFirstGroup(pInfo, pGroup);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2644,13 +2711,19 @@ static int32_t processMainFirstSideBlock(SOperatorInfo* pOperator,
 
     if (pInfo->curPhase == SCAN_PHASE_NEXT &&
         !pGroup->interp.extNextRowSet) {
-      doKeepRows(pGroup->interp.pExtNextRow, pBlock, i);
+      code = doKeepRows(pGroup->interp.pExtNextRow, pBlock, i);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
       pGroup->interp.extNextRowSet = true;
       foundRef = true;
       refTs = ts;
     } else if (pInfo->curPhase == SCAN_PHASE_PREV &&
                !pGroup->interp.extPrevRowSet) {
-      doKeepRows(pGroup->interp.pExtPrevRow, pBlock, i);
+      code = doKeepRows(pGroup->interp.pExtPrevRow, pBlock, i);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
       pGroup->interp.extPrevRowSet = true;
       foundRef = true;
       refTs = ts;
@@ -2695,9 +2768,9 @@ static void setMainFirstLinearEndpoint(const SInterpQueryCtx* pCtx,
   }
 }
 
-static void prepareMainFirstEdgeRefs(const SInterpQueryCtx* pCtx,
-                                     SMainFirstGroupState* pGroup,
-                                     EInterpOutputStage stage) {
+static int32_t prepareMainFirstEdgeRefs(const SInterpQueryCtx* pCtx,
+                                        SMainFirstGroupState* pGroup,
+                                        EInterpOutputStage stage) {
   SGroupInterpState* pState = &pGroup->interp;
   const SArray* pPrev = NULL;
   const SArray* pNext = NULL;
@@ -2728,17 +2801,27 @@ static void prepareMainFirstEdgeRefs(const SInterpQueryCtx* pCtx,
   resetRowsKeeper(pState->pNextRow, &pState->isNextRowSet);
   resetFillLinearInfo(pState);
   if (NULL != pPrev) {
-    copyKeeperRow(pState->pPrevRow, pPrev);
+    int32_t code = copyKeeperRow(pState->pPrevRow, pPrev);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     pState->isPrevRowSet = true;
     setMainFirstLinearEndpoint(pCtx, pState, pPrev, true);
   } else if (pGroup->groupRowSet) {
-    copyKeeperRow(pState->pPrevRow, pGroup->pGroupRow);
+    int32_t code = copyKeeperRow(pState->pPrevRow, pGroup->pGroupRow);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
   if (NULL != pNext) {
-    copyKeeperRow(pState->pNextRow, pNext);
+    int32_t code = copyKeeperRow(pState->pNextRow, pNext);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     pState->isNextRowSet = true;
     setMainFirstLinearEndpoint(pCtx, pState, pNext, false);
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool mainFirstLinearRefsReady(const SInterpQueryCtx* pCtx,
@@ -2922,8 +3005,11 @@ static int32_t produceMainFirstEdge(SOperatorInfo* pOperator,
   SGroupInterpState* pState = &pGroup->interp;
 
   if (!pOutput->edgePrepared) {
-    prepareMainFirstEdgeRefs(&pInfo->queryCtx, pGroup,
-                             pOutput->stage);
+    int32_t code = prepareMainFirstEdgeRefs(&pInfo->queryCtx, pGroup,
+                                            pOutput->stage);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     pState->current = range.skey;
     pOutput->edgePrepared = true;
     pOutput->edgeDone = false;

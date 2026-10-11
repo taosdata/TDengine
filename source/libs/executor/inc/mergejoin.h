@@ -143,6 +143,7 @@ typedef struct SMJoinTableCtx {
   int32_t            keyNullSize;
   SMJoinColInfo*     keyCols;
   char*              keyBuf;
+  size_t             keyBufCap;
   char*              keyData;
 
   bool               newBlk;
@@ -487,7 +488,7 @@ void mWinJoinGroupReset(SMJoinOperatorInfo* pJoin);
 bool mJoinRetrieveBlk(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
 void mJoinSetDone(SOperatorInfo* pOperator);
 bool mJoinIsDone(SOperatorInfo* pOperator);
-bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
+int32_t mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen, bool* pNullKey);
 int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart);
 int32_t mJoinRetrieveEqGrpRows(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable, int64_t timestamp);
 int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);

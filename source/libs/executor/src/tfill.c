@@ -629,14 +629,32 @@ static bool fillShouldPause(SFillInfo* pFillInfo, const SSDataBlock* pDstBlock) 
   @param isNull  Whether the column value is null.
   @param rowTs   The timestamp of the row being copied.
 */
-static void copyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
-                                  const char* src, bool isNull, TSKEY rowTs) {
+static int32_t copyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
+                                     const char* src, bool isNull, TSKEY rowTs) {
   SGroupKeys* pKey = taosArrayGet(pRowVal->pRowVal, colIdx);
   if (isNull) {
     pKey->isNull = true;
   } else {
     if (IS_VAR_DATA_TYPE(pKey->type)) {
       int32_t bytes = calcStrBytesByType(pKey->type, (char*)src);
+      // A negative length (truncated blob header) would bypass the bound and become
+      // a huge size_t in memcpy -- refuse it.
+      if (bytes < 0) {
+        qError("invalid varlen fill cell length %d", bytes);
+        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+      }
+      // The cell buffer is initially sized by the fill expression's declared width; a
+      // virtual table column may carry a value wider than declared (the full source
+      // value is returned by design), so grow the cell instead of overrunning it.
+      if (bytes > pKey->bytes) {
+        char* tmp = taosMemoryRealloc(pKey->pData, bytes);
+        if (NULL == tmp) {
+          qError("failed to grow fill cell to %d bytes", bytes);
+          return terrno;
+        }
+        pKey->pData = tmp;
+        pKey->bytes = bytes;
+      }
       memcpy(pKey->pData, src, bytes);
     } else {
       memcpy(pKey->pData, src, pKey->bytes);
@@ -645,6 +663,7 @@ static void copyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
     int64_t* pValueTs = taosArrayGet(pRowVal->pValueTs, colIdx);
     *pValueTs = rowTs;
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -695,7 +714,8 @@ static int32_t copyCurrentRowIntoBuf(const SFillInfo* pFillInfo, int32_t rowInde
         if (isNull && !pFillInfo->ascNextOrDescPrev) continue;
       }
 
-      copyCurrentValIntoBuf(pRowVal, i, p, isNull, rowTs);
+      code = copyCurrentValIntoBuf(pRowVal, i, p, isNull, rowTs);
+      QUERY_CHECK_CODE(code, lino, _end);
     } else {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));

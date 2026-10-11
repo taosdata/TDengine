@@ -366,6 +366,12 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
 
           int32_t ret = compareLenBinaryVal(pLeft, pRight);
           if (ret < 0) {
+            // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
+            // value wider than declared (full source value by design) -- refuse to overrun.
+            if (calcStrBytesByType(pCol->info.type, pLeft) > pCol->info.bytes) {
+              uError("min/max value needs %d bytes, buffer width is %d", (int32_t)varDataTLen(pLeft), pCol->info.bytes);
+              return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -388,6 +394,12 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
 
           int32_t ret = compareLenPrefixedWStr(pLeft, pRight);
           if (ret < 0) {
+            // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
+            // value wider than declared (full source value by design) -- refuse to overrun.
+            if (calcStrBytesByType(pCol->info.type, pLeft) > pCol->info.bytes) {
+              uError("min/max value needs %d bytes, buffer width is %d", (int32_t)varDataTLen(pLeft), pCol->info.bytes);
+              return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -544,6 +556,12 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
 
           int32_t ret = compareLenBinaryVal(pLeft, pRight);
           if (ret > 0) {
+            // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
+            // value wider than declared (full source value by design) -- refuse to overrun.
+            if (calcStrBytesByType(pCol->info.type, pLeft) > pCol->info.bytes) {
+              uError("min/max value needs %d bytes, buffer width is %d", (int32_t)varDataTLen(pLeft), pCol->info.bytes);
+              return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -567,6 +585,12 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
 
           int32_t ret = compareLenPrefixedWStr(pLeft, pRight);
           if (ret > 0) {
+            // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
+            // value wider than declared (full source value by design) -- refuse to overrun.
+            if (calcStrBytesByType(pCol->info.type, pLeft) > pCol->info.bytes) {
+              uError("min/max value needs %d bytes, buffer width is %d", (int32_t)varDataTLen(pLeft), pCol->info.bytes);
+              return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -742,11 +766,19 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         case TSDB_DATA_TYPE_VARCHAR:
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_NCHAR: {
+          // The buffer is sized by the declared column width; a virtual table column may
+          // carry a value wider than declared (full source value by design) -- refuse to
+          // overrun it.
+          int32_t dataLen = calcStrBytesByType(pCol->info.type, colDataGetData(pCol, i));
+          if (dataLen > pCol->info.bytes) {
+            uError("min/max value needs %d bytes, buffer width is %d", dataLen, pCol->info.bytes);
+            return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+          }
           pBuf->str = taosMemoryMalloc(pCol->info.bytes);
           if (pBuf->str == NULL) {
             return terrno;
           }
-          (void)memcpy(pBuf->str, colDataGetData(pCol, i), varDataTLen(colDataGetData(pCol, i)));
+          (void)memcpy(pBuf->str, colDataGetData(pCol, i), dataLen);
           break;
         }
         case TSDB_DATA_TYPE_DECIMAL64:

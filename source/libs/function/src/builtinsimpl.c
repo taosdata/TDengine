@@ -222,6 +222,24 @@ void funcInputUpdate(SqlFunctionCtx* pCtx) {
   }
 }
 
+// Copy one cell out of a column for cross-block "previous row" bookkeeping.  Var-length
+// cells must be copied by their actual value length: the declared width both under-reads
+// short values (heap over-read past the cell) and truncates wide values while keeping the
+// original length prefix (a virtual table column may carry a value wider than declared --
+// the full source value is returned by design -- which downstream varDataTLen would then
+// use to walk off the copy).
+static int32_t dupInputRowCell(char** pDst, SColumnInfoData* pCol, int32_t rowIndex) {
+  char*   src = colDataGetData(pCol, rowIndex);
+  int32_t len = IS_VAR_DATA_TYPE(pCol->info.type) ? calcStrBytesByType(pCol->info.type, src) : pCol->info.bytes;
+  *pDst = taosMemoryMalloc(TMAX(len, 1));
+  if (NULL == *pDst) {
+    qError("out of memory when function get input row.");
+    return terrno;
+  }
+  (void)memcpy(*pDst, src, len);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow, bool* res) {
   if (pIter->finalRow) {
     if (pIter->hasPrev) {
@@ -249,22 +267,17 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
 
       pIter->prevIsDataNull = colDataIsNull_s(pIter->pDataCol, pIter->inputEndIndex);
 
-      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
-      if (NULL == pIter->pPrevData) {
-        qError("out of memory when function get input row.");
-        return terrno;
+      code = dupInputRowCell(&pIter->pPrevData, pIter->pDataCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
       }
-      char* srcData = colDataGetData(pIter->pDataCol, pIter->inputEndIndex);
-      (void)memcpy(pIter->pPrevData, srcData, pIter->pDataCol->info.bytes);
 
-      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
-      if (NULL == pIter->pPrevPk) {
-        qError("out of memory when function get input row.");
+      code = dupInputRowCell(&pIter->pPrevPk, pIter->pPkCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
         taosMemoryFree(pIter->pPrevData);
-        return terrno;
+        pIter->pPrevData = NULL;
+        return code;
       }
-      char* pkData = colDataGetData(pIter->pPkCol, pIter->inputEndIndex);
-      (void)memcpy(pIter->pPrevPk, pkData, pIter->pPkCol->info.bytes);
 
       code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
       pIter->hasPrev = true;
@@ -314,22 +327,18 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       pIter->hasPrev = true;
       pIter->prevBlockTsEnd = tsEnd;
       pIter->prevIsDataNull = colDataIsNull_s(pIter->pDataCol, pIter->inputEndIndex);
-      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
-      if (NULL == pIter->pPrevData) {
-        qError("out of memory when function get input row.");
-        return terrno;
+      int32_t code = dupInputRowCell(&pIter->pPrevData, pIter->pDataCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
       }
-      (void)memcpy(pIter->pPrevData, colDataGetData(pIter->pDataCol, pIter->inputEndIndex),
-                   pIter->pDataCol->info.bytes);
-      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
-      if (NULL == pIter->pPrevPk) {
-        qError("out of memory when function get input row.");
+      code = dupInputRowCell(&pIter->pPrevPk, pIter->pPkCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
         taosMemoryFree(pIter->pPrevData);
-        return terrno;
+        pIter->pPrevData = NULL;
+        return code;
       }
-      (void)memcpy(pIter->pPrevPk, colDataGetData(pIter->pPkCol, pIter->inputEndIndex), pIter->pPkCol->info.bytes);
 
-      int32_t code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
+      code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
       *res = false;
       return code;
     }
@@ -457,8 +466,10 @@ int32_t appendSelectivityCols(SqlFunctionCtx* pCtx, SSDataBlock* pSrcBlock, int3
 bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool firstOccur, int32_t* pRowIndex,
                               int32_t* nextFrom);
 
-static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
-                                      bool preferNonNullOnTsTie);
+static int32_t getFuncFirstParamColBytes(SqlFunctionCtx* pCtx);
+
+static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                         bool preferNonNullOnTsTie, int32_t destCap, bool* pTransferred);
 
 // COUNT(DISTINCT) state. The count is only authoritative while the set is resident; once the set
 // spills it is recomputed by countDistinctFinalize() replaying the spilled values.
@@ -679,7 +690,13 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  pDBuf->hasResult = firstLastTransferInfoImpl(pSBuf, pDBuf, true, false);
+  bool    transferred = false;
+  int32_t destCap = pDestCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  int32_t code = firstLastTransferInfoImpl(pSBuf, pDBuf, true, false, destCap, &transferred);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pDBuf->hasResult = transferred;
 
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
@@ -1528,7 +1545,23 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
     } break;
     default:
       if (pSBuf->assign && (strcmp(pDBuf->str, pSBuf->str) || !pDBuf->assign)) {
-        memcpy(pDBuf->str, pSBuf->str, varDataLen(pSBuf->str));
+        // The dest buffer was malloc'd at the first parameter's planned width (see
+        // doMinMaxHelper and getFuncFirstParamColBytes); a virtual table column may carry a
+        // wider value (full source value by design) -- refuse to overrun it.  Copy the whole
+        // varData (length prefix included) so the dest length prefix stays consistent with
+        // the payload, as doExtractVal writes it.
+        int32_t dataLen = varDataTLen(pSBuf->str);
+        // The dest buffer was malloc'd at the runtime input column's width (see
+        // doMinMaxHelper), which is the authoritative bound; fall back to the planned
+        // parameter width when the merge ctx has no input bound yet.
+        int32_t bufWidth = (NULL != pDestCtx->input.pData && NULL != pDestCtx->input.pData[0])
+                               ? pDestCtx->input.pData[0]->info.bytes
+                               : getFuncFirstParamColBytes(pDestCtx);
+        if (dataLen > bufWidth) {
+          qError("min/max combined value needs %d bytes, buffer width is %d", dataLen, bufWidth);
+          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+        }
+        memcpy(pDBuf->str, pSBuf->str, dataLen);
         replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
         pDBuf->assign = true;
       }
@@ -2050,6 +2083,10 @@ static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int
   if (input == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  // The result buffer is a fixed TSDB_MAX_FIELD_LEN block (see gconcatFunction); bound the
+  // running concatenation or a long group (a virtual table column carrying full source
+  // values makes each term wider) overruns it.
+  const int32_t maxPayload = TSDB_MAX_FIELD_LEN - (int32_t)VARSTR_HEADER_SIZE;
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4* newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     if (NULL == newBuf) {
@@ -2062,10 +2099,20 @@ static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int
       taosMemoryFree(newBuf);
       return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
     }
+    if ((int32_t)*dataLen + len > maxPayload) {
+      taosMemoryFree(newBuf);
+      qError("concat result needs %d bytes, buffer capacity is %d", (int32_t)*dataLen + len, maxPayload);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
     (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
     *dataLen += len;
     taosMemoryFree(newBuf);
   } else {
+    if ((int32_t)*dataLen + (int32_t)varDataLen(input) > maxPayload) {
+      qError("concat result needs %d bytes, buffer capacity is %d", (int32_t)*dataLen + (int32_t)varDataLen(input),
+             maxPayload);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
     (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
     *dataLen += varDataLen(input);
   }
@@ -3126,6 +3173,25 @@ int32_t getMaxValueBytes(int32_t type, int32_t bytes) {
   return IS_STR_DATA_BLOB(type) ? TSDB_MAX_BLOB_LEN : bytes;
 }
 
+// Planned width of the function's first parameter column.  The env sizing (getEnvFunc)
+// follows this width, which may exceed the function result schema for a virtual table
+// column that was widened to carry full source values; interbuf layouts must follow it too.
+static int32_t getFuncFirstParamColBytes(SqlFunctionCtx* pCtx) {
+  if (NULL == pCtx->pExpr || NULL == pCtx->pExpr->pExpr ||
+      QUERY_NODE_FUNCTION != pCtx->pExpr->pExpr->nodeType) {
+    return pCtx->resDataInfo.bytes;
+  }
+  SFunctionNode* pFunc = pCtx->pExpr->pExpr->_function.pFunctNode;
+  if (NULL == pFunc || NULL == pFunc->pParameterList || 0 == LIST_LENGTH(pFunc->pParameterList)) {
+    return pCtx->resDataInfo.bytes;
+  }
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
+    return pCtx->resDataInfo.bytes;
+  }
+  return ((SColumnNode*)pParam)->node.resType.bytes;
+}
+
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   // TODO: change SFunctionNode to add pk info
@@ -3223,17 +3289,26 @@ static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t 
     //   pInfo->bytes = varDataTLen(pData);
     // }
   }
+  if (pkData != NULL && IS_VAR_DATA_TYPE(pInfo->pkType)) {
+    pInfo->pkBytes = calcStrBytesByType(pInfo->pkType, pkData);
+    // if (pInfo->pkType == TSDB_DATA_TYPE_JSON) {
+    //   pInfo->pkBytes = getJsonValueLen(pkData);
+    // } else {
+    //   pInfo->pkBytes = varDataTLen(pkData);
+    // }
+  }
+
+  // A virtual table column may carry a value wider than the declared width this interbuf
+  // cell was sized from (the full source value is returned by design); refuse to overrun.
+  int32_t needBytes = pInfo->bytes + ((pkData != NULL) ? pInfo->pkBytes : 0);
+  int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  if (needBytes > bufCap) {
+    qError("first/last value needs %d bytes, interbuf capacity is %d", needBytes, bufCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
 
   (void)memcpy(pInfo->buf, pData, pInfo->bytes);
   if (pkData != NULL) {
-    if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
-      pInfo->pkBytes = calcStrBytesByType(pInfo->pkType, pkData);
-      // if (pInfo->pkType == TSDB_DATA_TYPE_JSON) {
-      //   pInfo->pkBytes = getJsonValueLen(pkData);
-      // } else {
-      //   pInfo->pkBytes = varDataTLen(pkData);
-      // }
-    }
     (void)memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
     pInfo->pkData = pInfo->buf + pInfo->bytes;
   }
@@ -3632,10 +3707,11 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
-                                      bool preferNonNullOnTsTie) {
+static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                         bool preferNonNullOnTsTie, int32_t destCap, bool* pTransferred) {
+  *pTransferred = false;
   if (!pInput->hasResult) {
-    return false;
+    return TSDB_CODE_SUCCESS;
   }
   __compar_fn_t pkCompareFn = NULL;
   if (pInput->pkData && pOutput->pkData) {
@@ -3645,23 +3721,32 @@ static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOut
     if (!pInput->hasTsOrder || !pOutput->hasTsOrder) {
       // Without a timestamp ordering key, preserve the incoming stream merge order.
       if (isFirst) {
-        return false;
+        return TSDB_CODE_SUCCESS;
       }
     } else if (isFirst) {
       if (pInput->ts > pOutput->ts ||
           (pInput->ts == pOutput->ts && (!pkCompareFn || pkCompareFn(pInput->pkData, pOutput->pkData) >= 0))) {
-        return false;
+        return TSDB_CODE_SUCCESS;
       }
     } else if (pInput->ts < pOutput->ts) {
-      return false;
+      return TSDB_CODE_SUCCESS;
     } else if (pInput->ts == pOutput->ts) {
       int32_t pkCompare = NULL != pkCompareFn ? pkCompareFn(pInput->pkData, pOutput->pkData) : 0;
       if ((NULL != pkCompareFn && pkCompare > 0) ||
           (preferNonNullOnTsTie && (NULL == pkCompareFn || 0 == pkCompare) && pInput->isNull &&
            !pOutput->isNull)) {
-        return false;
+        return TSDB_CODE_SUCCESS;
       }
     }
+  }
+
+  // A virtual table column may carry a value wider than the declared width the destination
+  // interbuf cell was sized from (the full source value is returned by design); refuse to
+  // overrun it.
+  int32_t needBytes = pInput->bytes + ((pInput->pkData != NULL) ? pInput->pkBytes : 0);
+  if (needBytes > destCap) {
+    qError("first/last transferred value needs %d bytes, interbuf capacity is %d", needBytes, destCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
   }
 
   pOutput->isNull = pInput->isNull;
@@ -3679,13 +3764,21 @@ static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOut
   } else {
     pOutput->pkData = NULL;
   }
-  return true;
+  *pTransferred = true;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
                                      bool preferNonNullOnTsTie, int32_t rowIndex) {
-  if (firstLastTransferInfoImpl(pInput, pOutput, isFirst, preferNonNullOnTsTie)) {
-    int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput, false);
+  bool    transferred = false;
+  int32_t destCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  int32_t code =
+      firstLastTransferInfoImpl(pInput, pOutput, isFirst, preferNonNullOnTsTie, destCap, &transferred);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (transferred) {
+    code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput, false);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -3832,7 +3925,13 @@ int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  pDBuf->hasResult = firstLastTransferInfoImpl(pSBuf, pDBuf, false, pSBuf->preferNonNullOnTsTie);
+  bool    transferred = false;
+  int32_t destCap = pDestCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  int32_t code = firstLastTransferInfoImpl(pSBuf, pDBuf, false, pSBuf->preferNonNullOnTsTie, destCap, &transferred);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pDBuf->hasResult = transferred;
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
@@ -3842,6 +3941,15 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
   SColumnInfoData*      pkCol = pInput->pPrimaryKey;
+
+  bool   hasPk = pCtx->hasPrimaryKey && !colDataIsNull_s(pkCol, rowIndex);
+  char*  pkData = NULL;
+  if (hasPk) {
+    pkData = colDataGetData(pkCol, rowIndex);
+    if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
+      pInfo->pkBytes = calcStrBytesByType(pInfo->pkType, pkData);
+    }
+  }
 
   if (colDataIsNull_s(pInputCol, rowIndex)) {
     pInfo->isNull = true;
@@ -3856,15 +3964,22 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
       //   pInfo->bytes = varDataTLen(pData);
       // }
     }
+  }
 
+  // A virtual table column may carry a value wider than the declared width this interbuf
+  // cell was sized from (the full source value is returned by design); refuse to overrun.
+  int32_t needBytes = pInfo->bytes + (hasPk ? pInfo->pkBytes : 0);
+  int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  if (needBytes > bufCap) {
+    qError("last/last_row value needs %d bytes, interbuf capacity is %d", needBytes, bufCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+
+  if (!pInfo->isNull) {
     (void)memcpy(pInfo->buf, pData, pInfo->bytes);
   }
 
-  if (pCtx->hasPrimaryKey && !colDataIsNull_s(pkCol, rowIndex)) {
-    char* pkData = colDataGetData(pkCol, rowIndex);
-    if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
-      pInfo->pkBytes = calcStrBytesByType(pInfo->pkType, pkData);
-    }
+  if (hasPk) {
     (void)memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
     pInfo->pkData = pInfo->buf + pInfo->bytes;
   } else {
@@ -5480,6 +5595,16 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
           case TSDB_DATA_TYPE_VARCHAR:
           case TSDB_DATA_TYPE_VARBINARY:
           case TSDB_DATA_TYPE_NCHAR: {
+            // The buffer is sized by the declared column width; a virtual table column may
+            // carry a value wider than declared (full source value by design) -- refuse to
+            // overrun it.
+            int32_t dataLen = varDataTLen(pv);
+            if (dataLen > pInputCol->info.bytes) {
+              qError("interp fill-forward value needs %d bytes, buffer width is %d", dataLen,
+                     pInputCol->info.bytes);
+              code = TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+              goto _exit;
+            }
             if (!pFillforwardInfo->nonnull) {
               pFillforwardInfo->str = taosMemoryMalloc(pInputCol->info.bytes);
               if (!pFillforwardInfo->str) {
@@ -5488,7 +5613,7 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
               }
             }
 
-            (void)memcpy(pFillforwardInfo->str, pv, varDataTLen(pv));
+            (void)memcpy(pFillforwardInfo->str, pv, dataLen);
           } break;
           default: {
             code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
@@ -5788,6 +5913,12 @@ int32_t serializeTupleData(SqlFunctionCtx* pCtx, const SSDataBlock* pSrcBlock, i
   char* nullList = buf;
   char* pStart = (char*)(nullList + sizeof(bool) * pSubsidiaryies->num);
 
+  // The tuple buffer is a fixed-stride row image: each column occupies its declared width
+  // (see prepareBuf). A virtual table column may carry a value wider than declared (the
+  // full source value is returned by design), which this layout cannot hold -- refuse
+  // rather than corrupt the buffer.
+  int32_t bufDataCap = pSubsidiaryies->rowLen - (int32_t)(pStart - buf);
+
   int32_t offset = 0;
   for (int32_t i = 0; i < pSubsidiaryies->num; ++i) {
     SqlFunctionCtx* pc = pSubsidiaryies->pCtx[i];
@@ -5811,13 +5942,15 @@ int32_t serializeTupleData(SqlFunctionCtx* pCtx, const SSDataBlock* pSrcBlock, i
         continue;
       }
 
-      char* p = colDataGetData(pCol, rowIndex);
-      if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-        int32_t bytes = calcStrBytesByType(pCol->info.type, p);
-        (void)memcpy(pStart + offset, p, bytes);
-      } else {
-        (void)memcpy(pStart + offset, p, pCol->info.bytes);
+      char*   p = colDataGetData(pCol, rowIndex);
+      int32_t copyLen =
+          IS_VAR_DATA_TYPE(pCol->info.type) ? calcStrBytesByType(pCol->info.type, p) : pCol->info.bytes;
+      if (copyLen > pCol->info.bytes || offset + copyLen > bufDataCap) {
+        qError("serializeTupleData: column %d needs %d bytes at offset %d, slot width %d, capacity %d",
+               srcSlotId, copyLen, offset, pCol->info.bytes, bufDataCap);
+        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
       }
+      (void)memcpy(pStart + offset, p, copyLen);
 
       offset += pCol->info.bytes;
       continue;
@@ -7555,7 +7688,10 @@ int32_t sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   pInfo->totalPoints = 0;
   pInfo->numSampled = 0;
   pInfo->colType = pCtx->resDataInfo.type;
-  pInfo->colBytes = pCtx->resDataInfo.bytes;
+  // The reservoir stride must match the env sizing (getSampleFuncEnv), which follows the
+  // first parameter's planned width.  That width may exceed the function result schema for
+  // a virtual table column widened to carry full source values.
+  pInfo->colBytes = getFuncFirstParamColBytes(pCtx);
   pInfo->nullTuplePos.pageId = -1;
   pInfo->nullTupleSaved = false;
   pInfo->data = (char*)pInfo + sizeof(SSampleInfo);
@@ -7564,32 +7700,52 @@ int32_t sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   return TSDB_CODE_SUCCESS;
 }
 
-static void sampleAssignResult(SSampleInfo* pInfo, char* data, int32_t index) {
+static int32_t sampleAssignResult(SSampleInfo* pInfo, char* data, int32_t index) {
+  // Reservoir slots are exactly colBytes wide; a virtual table column may carry a value
+  // wider than declared (the full source value is returned by design) -- refuse to overrun.
+  if (IS_VAR_DATA_TYPE(pInfo->colType)) {
+    int32_t bytes = calcStrBytesByType(pInfo->colType, data);
+    if (bytes > pInfo->colBytes) {
+      qError("sample value needs %d bytes, slot width is %d", bytes, pInfo->colBytes);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
+  }
   assignVal(pInfo->data + index * pInfo->colBytes, data, pInfo->colBytes, pInfo->colType);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* data, int32_t index) {
-  pInfo->totalPoints++;
+  int32_t code = TSDB_CODE_SUCCESS;
   if (pInfo->numSampled < pInfo->samples) {
-    sampleAssignResult(pInfo, data, pInfo->numSampled);
+    code = sampleAssignResult(pInfo, data, pInfo->numSampled);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     if (pCtx->subsidiaries.num > 0) {
-      int32_t code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[pInfo->numSampled]);
+      code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[pInfo->numSampled]);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
     }
     pInfo->numSampled++;
+    // Count the point only once it is reflected in the reservoir, so a failed assign
+    // leaves totalPoints consistent with the stored samples.
+    pInfo->totalPoints++;
   } else {
-    int32_t j = (int32_t)(taosRand() % (uint64_t)pInfo->totalPoints);
+    int32_t j = (int32_t)(taosRand() % (uint64_t)(pInfo->totalPoints + 1));
     if (j < pInfo->samples) {
-      sampleAssignResult(pInfo, data, j);
+      code = sampleAssignResult(pInfo, data, j);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
       if (pCtx->subsidiaries.num > 0) {
-        int32_t code = updateTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[j]);
+        code = updateTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[j]);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
       }
     }
+    pInfo->totalPoints++;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -7685,7 +7841,9 @@ int32_t tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
     pInfo->offset = 0;
   }
   pInfo->colType = pCtx->resDataInfo.type;
-  pInfo->colBytes = pCtx->resDataInfo.bytes;
+  // The per-item stride must match the env sizing (getTailFuncEnv), which follows the first
+  // parameter's planned width; see getFuncFirstParamColBytes.
+  pInfo->colBytes = getFuncFirstParamColBytes(pCtx);
   pInfo->nullTuplePos.pageId = -1;
   pInfo->nullTupleSaved = false;
 
@@ -7705,14 +7863,28 @@ int32_t tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
   return TSDB_CODE_SUCCESS;
 }
 
-static void tailAssignResult(STailItem* pItem, char* data, int32_t colBytes, TSKEY ts, bool isNull) {
+static int32_t tailAssignResult(STailItem* pItem, char* data, int32_t colType, int32_t colBytes, TSKEY ts,
+                                bool isNull) {
   pItem->timestamp = ts;
   if (isNull) {
     pItem->isNull = true;
   } else {
     pItem->isNull = false;
-    memcpy(pItem->data, data, colBytes);
+    if (IS_VAR_DATA_TYPE(colType)) {
+      // Each item's storage is exactly colBytes wide; a virtual table column may carry a
+      // value wider than declared (the full source value is returned by design) -- refuse
+      // to overrun.  Copy only the real value: the varstr header makes the tail unread.
+      int32_t bytes = calcStrBytesByType(colType, data);
+      if (bytes > colBytes) {
+        qError("tail value needs %d bytes, slot width is %d", bytes, colBytes);
+        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+      }
+      (void)memcpy(pItem->data, data, bytes);
+    } else {
+      (void)memcpy(pItem->data, data, colBytes);
+    }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tailCompFn(const void* p1, const void* p2, const void* param) {
@@ -7723,19 +7895,22 @@ static int32_t tailCompFn(const void* p1, const void* p2, const void* param) {
 
 static int32_t doTailAdd(SqlFunctionCtx* pCtx, STailInfo* pInfo, char* data, TSKEY ts, bool isNull, int32_t rowIndex,
                          const SSDataBlock* pSrcBlock) {
+  int32_t      code = TSDB_CODE_SUCCESS;
   STailItem** pList = pInfo->pItems;
   if (pInfo->numAdded < pInfo->numOfPoints) {
-    tailAssignResult(pList[pInfo->numAdded], data, pInfo->colBytes, ts, isNull);
+    code = tailAssignResult(pList[pInfo->numAdded], data, pInfo->colType, pInfo->colBytes, ts, isNull);
+    if (TSDB_CODE_SUCCESS != code) return code;
     if (pCtx->subsidiaries.num > 0) {
-      int32_t code = saveTupleData(pCtx, rowIndex, pSrcBlock, &pList[pInfo->numAdded]->tuplePos);
+      code = saveTupleData(pCtx, rowIndex, pSrcBlock, &pList[pInfo->numAdded]->tuplePos);
       if (code != TSDB_CODE_SUCCESS) return code;
     }
     taosheapsort((void*)pList, sizeof(STailItem**), pInfo->numAdded + 1, NULL, tailCompFn, 0);
     pInfo->numAdded++;
   } else if (pList[0]->timestamp < ts) {
-    tailAssignResult(pList[0], data, pInfo->colBytes, ts, isNull);
+    code = tailAssignResult(pList[0], data, pInfo->colType, pInfo->colBytes, ts, isNull);
+    if (TSDB_CODE_SUCCESS != code) return code;
     if (pCtx->subsidiaries.num > 0) {
-      int32_t code = updateTupleData(pCtx, rowIndex, pSrcBlock, &pList[0]->tuplePos);
+      code = updateTupleData(pCtx, rowIndex, pSrcBlock, &pList[0]->tuplePos);
       if (code != TSDB_CODE_SUCCESS) return code;
     }
     taosheapadjust((void*)pList, sizeof(STailItem**), 0, pInfo->numOfPoints - 1, NULL, tailCompFn, NULL, 0);
@@ -7969,18 +8144,24 @@ static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo* pI
   if (IS_VAR_DATA_TYPE(pInfo->colType)) {
     if (pInfo->colType == TSDB_DATA_TYPE_JSON) {
       saveLen = getJsonValueLen(data);
-      (void)memcpy(pInfo->buf, data, saveLen);
     } else if (IS_STR_DATA_BLOB(pInfo->colType)) {
       saveLen = blobDataTLen(data);
-      (void)memcpy(pInfo->buf, data, saveLen);
     } else {
       saveLen = varDataTLen(data);
-      (void)memcpy(pInfo->buf, data, saveLen);
     }
   } else {
     saveLen = pInfo->colBytes;
-    (void)memcpy(pInfo->buf, data, saveLen);
   }
+
+  // The scratch buffer is sized for one declared-width value (see getModeFuncEnv); a
+  // virtual table column may carry a value wider than declared (the full source value is
+  // returned by design) -- refuse to overrun it.
+  int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SModeInfo);
+  if (saveLen > (size_t)bufCap) {
+    qError("mode value needs %" PRIu64 " bytes, scratch capacity is %d", (uint64_t)saveLen, bufCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+  (void)memcpy(pInfo->buf, data, saveLen);
 
   return doSaveTupleData(&pCtx->saveHandle, pInfo->buf, saveLen, NULL, pPos, pCtx->pStore);
 }
@@ -8399,12 +8580,24 @@ int32_t valueChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRe
 
 // Store the current cell as the "previous compared value". For var-length types the cell is
 // varData (length prefix + content); copy the full varData so the comparator can reuse it.
-static void valueChangesSetPrev(SValueChangesInfo* pInfo, SColumnInfoData* pCol, const char* pData) {
-  int32_t bytes = IS_VAR_DATA_TYPE(pCol->info.type) ? varDataTLen(pData) : pCol->info.bytes;
+static int32_t valueChangesSetPrev(SValueChangesInfo* pInfo, SColumnInfoData* pCol, const char* pData,
+                                   int32_t prevCap) {
+  // calcStrBytesByType dispatches the varstr/blob/json headers correctly (varDataTLen
+  // misreads the 4-byte blob header as a 2-byte varstr one).
+  int32_t bytes = IS_VAR_DATA_TYPE(pCol->info.type) ? calcStrBytesByType(pCol->info.type, (char*)pData)
+                                                    : pCol->info.bytes;
+  // The interbuf cell is sized by the declared column width (see getValueChangesFuncEnv); a
+  // virtual table column may carry a value wider than declared (the full source value is
+  // returned by design) -- refuse to overrun it.
+  if (bytes > prevCap) {
+    qError("value_changes value needs %d bytes, interbuf capacity is %d", bytes, prevCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
   (void)memcpy(pInfo->prevData, pData, bytes);
   pInfo->prevBytes = bytes;
   pInfo->hasPrev = true;
   pInfo->prevIsNull = false;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
@@ -8430,6 +8623,8 @@ int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
   }
 
   funcInputUpdate(pCtx);  // prime the row iterator (sets up the primary-TS column)
+
+  int32_t prevCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SValueChangesInfo);
 
   SFuncInputRow row = {0};
   bool          result = false;
@@ -8466,12 +8661,18 @@ int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
 
     // non-NULL current row
     if (!pInfo->hasPrev) {
-      valueChangesSetPrev(pInfo, pCol, row.pData);
+      code = valueChangesSetPrev(pInfo, pCol, row.pData, prevCap);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
       continue;
     }
     if (pInfo->prevIsNull) {  // only reachable with ignore_null=0
       pInfo->count++;
-      valueChangesSetPrev(pInfo, pCol, row.pData);
+      code = valueChangesSetPrev(pInfo, pCol, row.pData, prevCap);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
       continue;
     }
     if (IS_DECIMAL_TYPE(pInfo->inputType)) {
@@ -8486,7 +8687,10 @@ int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
     } else if (pInfo->comparFn(pInfo->prevData, row.pData) != 0) {
       pInfo->count++;
     }
-    valueChangesSetPrev(pInfo, pCol, row.pData);
+    code = valueChangesSetPrev(pInfo, pCol, row.pData, prevCap);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   SET_VAL(pResInfo, pInfo->numOfElems, 1);
@@ -9404,7 +9608,7 @@ int32_t irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char* pk, double v) {
+static int32_t doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char* pk, double v) {
   if (isFirst) {
     pRateInfo->firstValue = v;
     pRateInfo->firstKey = ts;
@@ -9412,6 +9616,13 @@ static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char*
       int32_t pkBytes;
       if (IS_VAR_DATA_TYPE(pRateInfo->pkType)) {
         pkBytes = calcStrBytesByType(pRateInfo->pkType, pk);
+        // Each pk slot in the interbuf is pkBytes wide (see initializeRateInfo); a virtual
+        // table column may carry a value wider than declared (the full source value is
+        // returned by design) -- refuse to overrun the slot.
+        if (pkBytes > pRateInfo->pkBytes) {
+          qError("irate pk value needs %d bytes, slot width is %d", pkBytes, pRateInfo->pkBytes);
+          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+        }
       } else {
         pkBytes = pRateInfo->pkBytes;
       }
@@ -9424,12 +9635,18 @@ static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char*
       int32_t pkBytes;
       if (IS_VAR_DATA_TYPE(pRateInfo->pkType)) {
         pkBytes = calcStrBytesByType(pRateInfo->pkType, pk);
+        // Same oversized-pk guard as the firstPk slot above.
+        if (pkBytes > pRateInfo->pkBytes) {
+          qError("irate pk value needs %d bytes, slot width is %d", pkBytes, pRateInfo->pkBytes);
+          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+        }
       } else {
         pkBytes = pRateInfo->pkBytes;
       }
       (void)memcpy(pRateInfo->lastPk, pk, pkBytes);
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void initializeRateInfo(SqlFunctionCtx* pCtx, SRateInfo* pRateInfo, bool isMerge) {
@@ -9488,23 +9705,35 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
     GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
 
     if (INT64_MIN == pRateInfo->lastKey) {
-      doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      code = doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
       pRateInfo->hasResult = 1;
       continue;
     }
 
     if (row.ts > pRateInfo->lastKey) {
       if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
-        doSaveRateInfo(pRateInfo, true, pRateInfo->lastKey, pRateInfo->lastPk, pRateInfo->lastValue);
+        code = doSaveRateInfo(pRateInfo, true, pRateInfo->lastKey, pRateInfo->lastPk, pRateInfo->lastValue);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
       }
-      doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      code = doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
       continue;
     } else if (row.ts == pRateInfo->lastKey) {
       continue;  // skip duplicate timestamp
     }
 
     if ((INT64_MIN == pRateInfo->firstKey) || row.ts > pRateInfo->firstKey) {
-      doSaveRateInfo(pRateInfo, true, row.ts, row.pPk, v);
+      code = doSaveRateInfo(pRateInfo, true, row.ts, row.pPk, v);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
     } else if (row.ts == pRateInfo->firstKey) {
       continue;  // skip duplicate timestamp
     }
@@ -9538,28 +9767,36 @@ static double doCalcRate(const SRateInfo* pRateInfo, double tickPerSec) {
   return (duration > 0) ? ((double)diff) / (duration / tickPerSec) : 0.0;
 }
 
-static void irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInfo* pOutput, bool isFirstKey) {
+static int32_t irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInfo* pOutput, bool isFirstKey) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (inputKey > pOutput->lastKey) {
-    doSaveRateInfo(pOutput, true, pOutput->lastKey, pOutput->lastPk, pOutput->lastValue);
+    code = doSaveRateInfo(pOutput, true, pOutput->lastKey, pOutput->lastPk, pOutput->lastValue);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     if (isFirstKey) {
-      doSaveRateInfo(pOutput, false, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+      code = doSaveRateInfo(pOutput, false, pInput->firstKey, pInput->firstPk, pInput->firstValue);
     } else {
-      doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+      code = doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
     }
   } else if ((inputKey < pOutput->lastKey) && (inputKey > pOutput->firstKey)) {
     if (isFirstKey) {
-      doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+      code = doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
     } else {
-      doSaveRateInfo(pOutput, true, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+      code = doSaveRateInfo(pOutput, true, pInput->lastKey, pInput->lastPk, pInput->lastValue);
     }
   } else {
     // inputKey < pOutput->firstKey
   }
+  return code;
 }
 
-static void irateCopyInfo(SRateInfo* pInput, SRateInfo* pOutput) {
-  doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
-  doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+static int32_t irateCopyInfo(SRateInfo* pInput, SRateInfo* pOutput) {
+  int32_t code = doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  return doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
 }
 
 static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
@@ -9570,17 +9807,26 @@ static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
   }
 
   if (pOutput->hasResult == 0) {
-    irateCopyInfo(pInput, pOutput);
+    int32_t code = irateCopyInfo(pInput, pOutput);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     pOutput->hasResult = pInput->hasResult;
     return TSDB_CODE_SUCCESS;
   }
 
   if (pInput->firstKey != INT64_MIN) {
-    irateTransferInfoImpl(pInput->firstKey, pInput, pOutput, true);
+    int32_t code = irateTransferInfoImpl(pInput->firstKey, pInput, pOutput, true);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   if (pInput->lastKey != INT64_MIN) {
-    irateTransferInfoImpl(pInput->lastKey, pInput, pOutput, false);
+    int32_t code = irateTransferInfoImpl(pInput->lastKey, pInput, pOutput, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   pOutput->hasResult = pInput->hasResult;
@@ -9696,13 +9942,18 @@ int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
 
   if (valueRowIndex != -1) {
     // found a non-null value
-    char* data = colDataGetData(pInputCol, valueRowIndex);
-    if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
-      int32_t bytes = calcStrBytesByType(pInputCol->info.type, data);
-      (void)memcpy(pInfo->data, data, bytes);
-    } else {
-      (void)memcpy(pInfo->data, data, pInputCol->info.bytes);
+    char*   data = colDataGetData(pInputCol, valueRowIndex);
+    int32_t copyLen = IS_VAR_DATA_TYPE(pInputCol->info.type) ? calcStrBytesByType(pInputCol->info.type, data)
+                                                             : pInputCol->info.bytes;
+    // The interbuf cell is sized by the declared column width (see getGroupKeyFuncEnv); a
+    // virtual table column may carry a value wider than declared (the full source value is
+    // returned by design) -- refuse to overrun it.
+    int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SGroupKeyInfo);
+    if (copyLen > bufCap) {
+      qError("group key value needs %d bytes, interbuf capacity is %d", copyLen, bufCap);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
     }
+    (void)memcpy(pInfo->data, data, copyLen);
     pInfo->isNull = false;
   } else {
     // all values are null or first value is null for group by
@@ -9764,12 +10015,17 @@ int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
     goto _group_key_over;
   }
 
-  if (IS_VAR_DATA_TYPE(pSourceCtx->resDataInfo.type)) {
-    int32_t bytes = calcStrBytesByType(pSourceCtx->resDataInfo.type, pSBuf->data);
-    (void)memcpy(pDBuf->data, pSBuf->data, bytes);
-  } else {
-    (void)memcpy(pDBuf->data, pSBuf->data, pSourceCtx->resDataInfo.bytes);
+  int32_t copyLen = IS_VAR_DATA_TYPE(pSourceCtx->resDataInfo.type)
+                        ? calcStrBytesByType(pSourceCtx->resDataInfo.type, pSBuf->data)
+                        : pSourceCtx->resDataInfo.bytes;
+  // Same oversized-virtual-column guard as groupConstValueFunction: refuse to overrun the
+  // destination interbuf cell.
+  int32_t bufCap = pDestCtx->resDataInfo.interBufSize - (int32_t)sizeof(SGroupKeyInfo);
+  if (copyLen > bufCap) {
+    qError("group key value needs %d bytes, interbuf capacity is %d", copyLen, bufCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
   }
+  (void)memcpy(pDBuf->data, pSBuf->data, copyLen);
 
   pDBuf->hasResult = true;
 

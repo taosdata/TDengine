@@ -8005,6 +8005,29 @@ static int32_t rewriteTailOptCreateSort(SIndefRowsFuncLogicNode* pIndef, SLogicN
   return code;
 }
 
+// Bring the swapped-in project targets back in sync with the projection exprs, which
+// are cloned from the function parameters and may be virtual table columns widened to
+// carry full source values, while the targets still carry the function's declared result
+// width -- the output block desc is built from the targets and the executor hands the
+// wider source column through, so the dispatcher's row-size check would reject the block.
+static void syncProjectTargetWidths(SProjectLogicNode* pProject, bool* pWidened) {
+  *pWidened = false;
+  SNode* pTarget = NULL;
+  SNode* pProj = NULL;
+  FORBOTH(pTarget, pProject->node.pTargets, pProj, pProject->pProjections) {
+    if (QUERY_NODE_COLUMN != nodeType(pTarget)) {
+      continue;
+    }
+    SColumnNode* pTargetCol = (SColumnNode*)pTarget;
+    SExprNode*   pProjExpr = (SExprNode*)pProj;
+    if (IS_VAR_DATA_TYPE(pTargetCol->node.resType.type) &&
+        pProjExpr->resType.bytes > pTargetCol->node.resType.bytes) {
+      pTargetCol->node.resType.bytes = pProjExpr->resType.bytes;
+      *pWidened = true;
+    }
+  }
+}
+
 static int32_t rewriteTailOptCreateProjectExpr(SFunctionNode* pFunc, SNode** ppNode) {
   SNode*  pExpr = NULL;
   int32_t code = nodesCloneNode(nodesListGetNode(pFunc->pParameterList, 0), &pExpr);
@@ -8016,7 +8039,8 @@ static int32_t rewriteTailOptCreateProjectExpr(SFunctionNode* pFunc, SNode** ppN
   return code;
 }
 
-static int32_t rewriteTailOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLogicNode** pOutput) {
+static int32_t rewriteTailOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLogicNode** pOutput,
+                                          bool* pWidened) {
   SProjectLogicNode* pProject = NULL;
   int32_t            code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pProject);
   if (NULL == pProject) {
@@ -8050,6 +8074,8 @@ static int32_t rewriteTailOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLog
     }
   }
 
+  syncProjectTargetWidths(pProject, pWidened);
+
   // tail(expr, [limit, offset,] _rowts)
   int32_t limitIndex = LIST_LENGTH(pTail->pParameterList) > 2 ? 1 : -1;
   int32_t offsetIndex = LIST_LENGTH(pTail->pParameterList) > 3 ? 2 : -1;
@@ -8066,13 +8092,61 @@ static int32_t rewriteTailOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLog
   return code;
 }
 
+// Widen var-length target columns of the node's ancestors (and the node itself via
+// pChildTargets) to match the widths the child now produces: a rewritten project may carry
+// virtual table columns widened to hold full source values, while ancestors created before
+// the rewrite cloned the narrower targets and pass the column through by value at
+// execution, so their targets must follow or the dispatcher's row-size check breaks.
+// Column identity is (dbName, tableName, tableAlias, colName, colId), matching the
+// repo's columnNodeEqual convention: colName alone is not unique across joined inputs,
+// aliases distinguish self-joins of one table, and dataBlockId/slotId are only assigned
+// when the physical plan is created -- during optimization they are all zero.
+static void syncWidenedTargetsUpward(SLogicNode* pNode, SNodeList* pChildTargets) {
+  SLogicNode* pParent = pNode->pParent;
+  while (NULL != pParent) {
+    if (NULL == pParent->pTargets) {
+      // An ancestor without targets just passes its child's output through; keep
+      // walking so consumers further up still get their targets widened.
+      pParent = pParent->pParent;
+      continue;
+    }
+    SNode* pTarget = NULL;
+    FOREACH(pTarget, pParent->pTargets) {
+      if (QUERY_NODE_COLUMN != nodeType(pTarget)) {
+        continue;
+      }
+      SColumnNode* pTCol = (SColumnNode*)pTarget;
+      if (!IS_VAR_DATA_TYPE(pTCol->node.resType.type)) {
+        continue;
+      }
+      SNode* pChildTarget = NULL;
+      FOREACH(pChildTarget, pChildTargets) {
+        if (QUERY_NODE_COLUMN != nodeType(pChildTarget)) {
+          continue;
+        }
+        SColumnNode* pCCol = (SColumnNode*)pChildTarget;
+        if (pCCol->colId == pTCol->colId && 0 == strcmp(pCCol->dbName, pTCol->dbName) &&
+            0 == strcmp(pCCol->tableName, pTCol->tableName) &&
+            0 == strcmp(pCCol->tableAlias, pTCol->tableAlias) &&
+            0 == strcmp(pCCol->colName, pTCol->colName) &&
+            pCCol->node.resType.bytes > pTCol->node.resType.bytes) {
+          pTCol->node.resType.bytes = pCCol->node.resType.bytes;
+        }
+      }
+    }
+    pChildTargets = pParent->pTargets;
+    pParent = pParent->pParent;
+  }
+}
+
 static int32_t rewriteTailOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                        SIndefRowsFuncLogicNode* pIndef) {
   SLogicNode* pSort = NULL;
   SLogicNode* pProject = NULL;
+  bool        widened = false;
   int32_t     code = rewriteTailOptCreateSort(pIndef, &pSort);
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteTailOptCreateProject(pIndef, &pProject);
+    code = rewriteTailOptCreateProject(pIndef, &pProject, &widened);
   }
   if (TSDB_CODE_SUCCESS == code && ((SSortLogicNode*)pSort)->groupSort) {
     // Project applies LIMIT/OFFSET per group; GroupSort does not consume pLimit.
@@ -8086,6 +8160,11 @@ static int32_t rewriteTailOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
     code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pIndef, pProject);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    // Widen matching ancestor targets to the widths this rewritten project now produces
+    // (see syncWidenedTargetsUpward) -- only needed when a target was actually widened.
+    if (widened) {
+      syncWidenedTargetsUpward(pProject, pProject->pTargets);
+    }
     nodesDestroyNode((SNode*)pIndef);
   } else {
     nodesDestroyNode((SNode*)pSort);
@@ -8366,7 +8445,8 @@ static int32_t rewriteUniqueOptCreateProjectCol(SFunctionNode* pFunc, SNode** pp
   return code;
 }
 
-static int32_t rewriteUniqueOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLogicNode** pOutput) {
+static int32_t rewriteUniqueOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLogicNode** pOutput,
+                                            bool* pWidened) {
   SProjectLogicNode* pProject = NULL;
   int32_t            code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pProject);
   if (NULL == pProject) {
@@ -8394,6 +8474,12 @@ static int32_t rewriteUniqueOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SL
     }
   }
 
+  // Same target/projection width sync as the tail rewrite (see syncProjectTargetWidths);
+  // FORBOTH is safe on partially built lists when code != SUCCESS.
+  if (TSDB_CODE_SUCCESS == code) {
+    syncProjectTargetWidths(pProject, pWidened);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = (SLogicNode*)pProject;
   } else {
@@ -8406,9 +8492,10 @@ static int32_t rewriteUniqueOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
                                          SIndefRowsFuncLogicNode* pIndef) {
   SLogicNode* pAgg = NULL;
   SLogicNode* pProject = NULL;
+  bool        widened = false;
   int32_t     code = rewriteUniqueOptCreateAgg(pIndef, &pAgg);
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteUniqueOptCreateProject(pIndef, &pProject);
+    code = rewriteUniqueOptCreateProject(pIndef, &pProject, &widened);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeAppend(&pProject->pChildren, (SNode*)pAgg);
@@ -8423,6 +8510,11 @@ static int32_t rewriteUniqueOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pIndef, pProject);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    // Widen matching ancestor targets to the widths this rewritten project now produces
+    // (see syncWidenedTargetsUpward) -- only needed when a target was actually widened.
+    if (widened) {
+      syncWidenedTargetsUpward(pProject, pProject->pTargets);
+    }
     code = adjustLogicNodeDataRequirement(
         pProject, NULL == pProject->pParent ? DATA_ORDER_LEVEL_NONE : pProject->pParent->requireDataOrder);
     pProject = NULL;

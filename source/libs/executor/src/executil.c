@@ -1464,7 +1464,19 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
     }
     char* isNull = (char*)keyBuf + baseIdLen;
     char* pStart = (char*)keyBuf + baseIdLen + sizeof(int8_t) * LIST_LENGTH(group);
+    // groupData skips QUERY_NODE_VALUE nodes while keyLen above sums the whole list, so
+    // the per-column expression must be located with a cursor that skips them too.
+    int32_t groupCursor = 0;
     for (int j = 0; j < taosArrayGetSize(groupData); j++) {
+      while (groupCursor < LIST_LENGTH(group)) {
+        SNode* gn = nodesListGetNode(group, groupCursor);
+        if (nodeType(gn) != QUERY_NODE_VALUE) break;
+        groupCursor++;
+      }
+      SExprNode* pGroupExprAligned = (groupCursor < LIST_LENGTH(group))
+                                         ? (SExprNode*)nodesListGetNode(group, groupCursor)
+                                         : NULL;
+      groupCursor++;
       SColumnInfoData* pValue = (SColumnInfoData*)taosArrayGetP(groupData, j);
 
       if (groupIdMap != NULL && gInfo != NULL) {
@@ -1476,6 +1488,10 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
         }
       }
       
+      // keyBuf is budgeted from the group expressions' resType.bytes (see keyLen above),
+      // so the per-column ceiling is the matching expression's width, not the source
+      // column's info.bytes (which a virtual table may have widened beyond the budget).
+      int32_t colCap = (NULL != pGroupExprAligned) ? pGroupExprAligned->resType.bytes : pValue->info.bytes;
       if (colDataIsNull_s(pValue, i)) {
         isNull[j] = 1;
       } else {
@@ -1491,19 +1507,27 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
             continue;
           }
           int32_t len = getJsonValueLen(data);
+          // A virtual table column may carry a value wider than declared -- refuse to
+          // overrun the key buffer.
+          if (len > colCap) {
+            code = TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            goto end;
+          }
           memcpy(pStart, data, len);
           pStart += len;
         } else if (IS_VAR_DATA_TYPE(pValue->info.type)) {
+          // Same ceiling basis as the JSON branch above, including for BLOB (the value's
+          // own byte length, not the global BLOB maximum).
           if (IS_STR_DATA_BLOB(pValue->info.type)) {
-            if (blobDataTLen(data) > TSDB_MAX_BLOB_LEN) {
-              code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+            if (blobDataTLen(data) > colCap) {
+              code = TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
               goto end;
             }
             memcpy(pStart, data, blobDataTLen(data));
             pStart += blobDataTLen(data);
           } else {
-            if (varDataTLen(data) > pValue->info.bytes) {
-              code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+            if (varDataTLen(data) > colCap) {
+              code = TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
               goto end;
             }
             memcpy(pStart, data, varDataTLen(data));
@@ -5657,18 +5681,15 @@ int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t ol
     } else {
       if (isNull[i] != 0) return 1;
       const char* val = colDataGetData(pColInfoData, rowIndex);
-      if (pCol->type == TSDB_DATA_TYPE_JSON) {
-        int32_t len = getJsonValueLen(val);
+      if (IS_VAR_DATA_TYPE(pCol->type)) {
+        int32_t len = calcStrBytesByType(pCol->type, (char*)val);
+        // A value wider than the declared key width cannot be stored in the key buffer
+        // (see buildKeys); treat it as a different key without reading past the buffer.
+        // A negative length (blob header wider than int32 can express) must be rejected
+        // as well, or it turns into a huge size_t in memcmp.
+        if (len < 0 || len > pCol->bytes) return 1;
         if (memcmp(p, val, len) != 0) return 1;
         p += len;
-      } else if (IS_VAR_DATA_TYPE(pCol->type)) {
-        if (IS_STR_DATA_BLOB(pCol->type)) {
-          if (memcmp(p, val, blobDataTLen(val)) != 0) return 1;
-          p += blobDataTLen(val);
-        } else {
-          if (memcmp(p, val, varDataTLen(val)) != 0) return 1;
-          p += varDataTLen(val);
-        }
       } else {
         if (0 != memcmp(p, val, pCol->bytes)) return 1;
         p += pCol->bytes;
@@ -5677,6 +5698,26 @@ int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t ol
   }
   if ((int32_t)(p - oldkeyBuf) != oldKeysLen) return 1;
   return 0;
+}
+
+// Copy one variable-length cell (varstr/blob/json, header dispatch via
+// calcStrBytesByType) into a buffer whose capacity is cap -- the declared width the cell
+// was sized from.  A virtual table column may carry a value wider than declared (the full
+// source value is returned by design) -- refuse to overrun it.  *pLen receives the copied
+// byte count when non-NULL.
+int32_t copyVarLenCellChecked(char* dst, int32_t type, const char* src, int32_t cap, int32_t* pLen) {
+  int32_t bytes = calcStrBytesByType(type, (char*)src);
+  // A negative length (blob header wider than int32 can express) would bypass a plain
+  // upper-bound test and turn into a huge size_t in memcpy -- refuse it as well.
+  if (bytes < 0 || bytes > cap) {
+    qError("varlen value needs %d bytes, buffer width is %d", bytes, cap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+  memcpy(dst, src, bytes);
+  if (pLen != NULL) {
+    *pLen = bytes;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock* pBlock, int32_t rowIndex) {
@@ -5697,18 +5738,19 @@ int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock*
     } else {
       isNull[i] = 0;
       const char* val = colDataGetData(pColInfoData, rowIndex);
-      if (pCol->type == TSDB_DATA_TYPE_JSON) {
-        int32_t len = getJsonValueLen(val);
+      if (IS_VAR_DATA_TYPE(pCol->type)) {
+        // The key buffer is sized by the declared key widths (see extractKeysLen); a
+        // virtual table column may carry a value wider than declared (the full source
+        // value is returned by design) -- refuse to overrun it.  Error codes are
+        // negative by TAOS_DEF_ERROR_CODE convention, so the sign test in
+        // tsortCompAndBuildKeys catches this directly.
+        int32_t len = calcStrBytesByType(pCol->type, (char*)val);
+        if (len < 0 || len > pCol->bytes) {
+          qError("buildKeys key needs %d bytes, buffer width is %d", len, pCol->bytes);
+          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+        }
         memcpy(p, val, len);
         p += len;
-      } else if (IS_VAR_DATA_TYPE(pCol->type)) {
-        if (IS_STR_DATA_BLOB(pCol->type)) {
-          blobDataCopy(p, val);
-          p += blobDataTLen(val);
-        } else {
-          varDataCopy(p, val);
-          p += varDataTLen(val);
-        }
       } else {
         memcpy(p, val, pCol->bytes);
         p += pCol->bytes;
