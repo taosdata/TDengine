@@ -9,7 +9,7 @@ sudo apt-get install maven
 ## Install TDengine Client and TaosAdapter
 
 Make sure you have already installed a tdengine client on your current develop environment.
-Download the tdengine package on our website: ``https://www.taosdata.com/cn/all-downloads/`` and install the client.
+Download the tdengine package on our website: ``https://www.taosdata.com/download-center?product=TDengine+TSDB-OSS`` and install the client.
 
 ## Run Consumer Demo using mvn plugin
 

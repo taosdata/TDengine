@@ -260,7 +260,7 @@ tdengine:
   props: precision 'ms' vgroups 32 cachemodel 'last_row'
 ```
 
-> **Docs**: [TDengine Database Configuration](https://docs.tdengine.com/tdengine-reference/sql-manual/manage-databases/)
+> **Docs**: [TDengine Database Configuration](https://docs.tdengine.com/tdengine-sql/ddl/database/)
 
 ---
 
