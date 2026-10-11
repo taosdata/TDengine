@@ -35,6 +35,7 @@ class TestStableQueryTagDatatypes:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -53,7 +54,8 @@ class TestStableQueryTagDatatypes:
             - 2025-8-11 Simon Guan Migrated from tsim/tag/tinyint.sim
 
         """
-        self.ts = 1750003200000
+        # Fixed Asia/Shanghai noon (04:00 UTC); stay away from day boundaries.
+        self.ts = 1750046400000
         
         self.TagBigint()
         tdStream.dropAllStreamsAndDbs()
