@@ -195,3 +195,53 @@ class TestTaosanodeService:
             service_module.time, "sleep", return_value=None
         ):
             assert taosanode_service.wait_ready(timeout=2, interval=0.01) is True
+
+
+class TestResourceVersionDisplay:
+    def test_list_displays_model_and_resource_versions(self, capsys):
+        models = [
+            {"name": "moirai", "model_version": "moirai-moe-1.0-r-small", "version": "1.0.0"},
+            {"name": "timesfm", "model_version": "timesfm-2.5-200m-pytorch", "version": "1.0.0"},
+            {"name": "tdtsfm", "model_version": "tdtsfm-v1.0", "version": "1.0.0"},
+        ]
+        service_module.print_resource_table({"models": models})
+        lines = capsys.readouterr().out.splitlines()
+        headers = lines[0].split("  ")
+        assert "MODEL_VERSION" in headers
+        assert "RESOURCE_VERSION" in headers
+        assert "VERSION" not in headers
+        for item, line in zip(models, lines[2:]):
+            row = dict(zip(headers, line.split("  ")))
+            assert row["NAME"] == item["name"]
+            assert row["MODEL_VERSION"] == item["model_version"]
+            assert row["RESOURCE_VERSION"] == "1.0.0"
+
+    def test_check_displays_release_model_version_and_runtime_placeholder(self, capsys):
+        service_module.print_resource_table({
+            "release": "1.0.0",
+            "resources": [
+                {"kind": "model", "name": "moirai", "state": "missing",
+                 "model_version": "moirai-moe-1.0-r-small", "version": "1.0.0"},
+                {"kind": "runtime", "name": "tsfm_runtime", "state": "installed",
+                 "model_version": None, "version": "1.0.0"},
+            ],
+        }, check=True)
+        lines = capsys.readouterr().out.splitlines()
+        assert lines[0] == "Release: 1.0.0"
+        headers = lines[1].split("  ")
+        model, runtime = [dict(zip(headers, line.split("  "))) for line in lines[3:]]
+        assert model["MODEL_VERSION"] == "moirai-moe-1.0-r-small"
+        assert model["RESOURCE_VERSION"] == "1.0.0"
+        assert runtime["MODEL_VERSION"] == "-"
+        assert runtime["RESOURCE_VERSION"] == "1.0.0"
+
+    def test_missing_model_version_is_unknown(self, capsys):
+        for value in ({}, {"model_version": None}, {"model_version": ""}):
+            item = {"name": "legacy", "version": "1.0.0", **value}
+            for check in (False, True):
+                service_module.print_resource_table({"resources" if check else "models": [item]}, check=check)
+                lines = capsys.readouterr().out.splitlines()
+                headers = lines[1 if check else 0].split("  ")
+                row = dict(zip(headers, lines[-1].split("  ")))
+                assert row["MODEL_VERSION"] == "unknown"
+                assert row["RESOURCE_VERSION"] == "1.0.0"

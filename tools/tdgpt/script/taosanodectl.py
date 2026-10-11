@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -40,9 +41,48 @@ COMMANDS = {
     ("resource", "delete"): "resource-delete",
 }
 
+VERSION_BANNER = "TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver {version})"
+
+
+def get_version_banner(script_path: Path | None = None) -> str:
+    """Read the packaged TDgpt version without importing runtime dependencies."""
+    script_path = (script_path or Path(__file__)).resolve()
+    install_root = script_path.parent.parent
+    candidates = (
+        install_root / "lib" / "taosanalytics" / "__init__.py",
+        install_root / "taosanalytics" / "__init__.py",
+    )
+    for version_file in candidates:
+        if not version_file.is_file():
+            continue
+        match = re.search(
+            r'^__version__\s*=\s*["\']([^"\']+)["\']',
+            version_file.read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+        if match:
+            return VERSION_BANNER.format(version=match.group(1))
+    raise RuntimeError("unable to locate the TDgpt version information")
+
+
+class VersionAction(argparse.Action):
+    """Resolve the installed version only when the version flag is requested."""
+
+    def __init__(self, option_strings, dest=argparse.SUPPRESS, default=argparse.SUPPRESS, **kwargs):
+        super().__init__(option_strings, dest, nargs=0, default=default, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        try:
+            banner = get_version_banner()
+        except RuntimeError as exc:
+            parser.error(str(exc))
+        print(banner)
+        parser.exit()
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="TDgpt lifecycle and resource manager")
+    parser.add_argument("-V", "--version", action=VersionAction, help="show TDgpt version and exit")
     parser.add_argument("scope", choices=["service", "model", "resource"])
     parser.add_argument("action")
     parser.add_argument("target", nargs="?")

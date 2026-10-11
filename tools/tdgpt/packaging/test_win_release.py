@@ -14,6 +14,9 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import importlib.util
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).with_name("win_release.py")
@@ -21,6 +24,36 @@ SPEC = importlib.util.spec_from_file_location("tdgpt_win_release", MODULE_PATH)
 win_release = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(win_release)
+
+
+def test_windows_package_version_with_copyright_header(tmp_path, monkeypatch):
+    source_dir = tmp_path / "source"
+    analytics = source_dir / "taosanalytics"
+    analytics.mkdir(parents=True)
+    (analytics / "__init__.py").write_text(
+        "# Copyright (c) TAOS Data\n\n__version__ = '3.3.7.1'\n"
+        "raise RuntimeError('version lookup must not import analytics')\n",
+        encoding="utf-8",
+    )
+    install_dir = tmp_path / "Windows package"
+    monkeypatch.setattr(win_release.install_info, "source_dir", str(source_dir))
+    monkeypatch.setattr(win_release.install_info, "install_dir", str(install_dir))
+    monkeypatch.setattr(win_release.tdgpt_version, "version", "9.8.7")
+    win_release.copy_python_files()
+
+    bin_dir = install_dir / "bin"
+    bin_dir.mkdir()
+    ctl = bin_dir / "taosanodectl.py"
+    shutil.copyfile(MODULE_PATH.parents[1] / "script" / ctl.name, ctl)
+    for flag in ("-V", "--version"):
+        result = subprocess.run(
+            [sys.executable, "-S", str(ctl), flag],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == (
+            "TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 9.8.7)"
+        )
 
 
 def test_copy_icon_file_uses_gitlab_monorepo_taos_internal(tmp_path):
