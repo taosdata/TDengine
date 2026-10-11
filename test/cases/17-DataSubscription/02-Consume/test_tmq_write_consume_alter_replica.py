@@ -33,6 +33,7 @@ _TABLE_COUNT   = 10
 _ROWS_PER_TBL  = 10_000
 _TOTAL_ROWS    = _TABLE_COUNT * _ROWS_PER_TBL   # 100,000
 _ALTER_TRIGGER = 30_000                          # alter replica after consuming 30,000 rows
+_POLL_ERROR_STALL_SEC = 120
 
 
 class TestCase:
@@ -82,6 +83,7 @@ class TestCase:
 
             lastLogged = 0
             noDataCount = 0
+            pollErrorStart = None
             while True:
                 res = consumer.poll(2)
                 if not res:
@@ -93,7 +95,20 @@ class TestCase:
                             break
                         continue
                     else:
-                        tdLog.info(f"poll error: {taos_errstr(None)}")
+                        pollError = taos_errstr(None)
+                        if pollErrorStart is None:
+                            pollErrorStart = time.monotonic()
+                        stalled = time.monotonic() - pollErrorStart
+                        tdLog.info(
+                            f"poll error: {pollError}, code={err}, "
+                            f"consumed={consumedCounter[0]}, stalled={stalled:.1f}s"
+                        )
+                        if stalled >= _POLL_ERROR_STALL_SEC:
+                            errorHolder.append(
+                                f"poll errors without data for {stalled:.1f}s: "
+                                f"code={err}, error={pollError}, consumed={consumedCounter[0]}"
+                            )
+                            break
                         time.sleep(2)
                         continue
 
@@ -106,7 +121,10 @@ class TestCase:
                 val = res.value()
                 if val:
                     for block in val:
-                        consumedCounter[0] += len(block.fetchall())
+                        blockRows = len(block.fetchall())
+                        consumedCounter[0] += blockRows
+                        if blockRows:
+                            pollErrorStart = None
 
                 # print progress every 10,000 rows
                 if consumedCounter[0] // 10000 > lastLogged // 10000:
@@ -216,6 +234,12 @@ class TestCase:
 
         # 8. Validate
         if errorHolder:
+            for sql in ("SHOW DNODES", "SHOW CONSUMERS", "SHOW SUBSCRIPTIONS",
+                        f"SHOW {self.dbName}.VGROUPS"):
+                try:
+                    tdLog.info(f"TMQ failure snapshot: sql={sql}, result={tdSql.getResult(sql)}")
+                except Exception as e:
+                    tdLog.info(f"TMQ failure snapshot unavailable: sql={sql}, error={e}")
             tdLog.exit(f"consumer thread errors: {errorHolder}")
 
         tdSql.query(f"select count(*) from {self.dbName}.{self.stbName}")

@@ -287,10 +287,36 @@ class TestVirtualStreamMixedExternalPerf:
                 tdLog.info(f"mixed external throughput sink not ready: error={error}")
             time.sleep(0.5)
 
+        cls._log_failure_snapshot(rows, count_window)
         raise TimeoutError(
             f"mixed external throughput sink did not match: "
             f"got={last}, expected={(expected_windows, rows, expected_local, expected_ext)}"
         )
+
+    @classmethod
+    def _log_failure_snapshot(cls, rows, count_window):
+        tdLog.info(f"mixed external failure snapshot: rows={rows}, window={count_window}")
+        queries = [
+            f"SELECT count(*), min(ts), max(ts), sum(local_v) FROM {cls.DB}.{cls.LOCAL_TABLE}",
+            f"SELECT count(*), min(ts), max(ts), count(local_v), count(ext_v), "
+            f"sum(local_v), sum(ext_v) FROM {cls.DB}.{cls.VTABLE}",
+            f"SELECT ts, row_count, local_sum, ext_sum FROM {cls.DB}.{cls.SINK} ORDER BY ts LIMIT 200",
+            f"SELECT ts, local_v, ext_v FROM {cls.DB}.{cls.VTABLE} "
+            "WHERE local_v IS NULL OR ext_v IS NULL ORDER BY ts LIMIT 20",
+        ]
+        for sql in queries:
+            try:
+                tdLog.info(f"mixed external snapshot: sql={sql}, result={tdSql.getResult(sql)}")
+            except Exception as error:
+                tdLog.info(f"mixed external snapshot unavailable: sql={sql}, error={error}")
+        try:
+            result = ExtSrcEnv.mysql_query(
+                cls.MYSQL_DB,
+                f"SELECT count(*), min(ts), max(ts), sum(ext_v) FROM {cls.REMOTE_TABLE}",
+            )
+            tdLog.info(f"mixed external MySQL snapshot: result={result}")
+        except Exception as error:
+            tdLog.info(f"mixed external MySQL snapshot unavailable: error={error}")
 
     @classmethod
     def _timestamp(cls, index):
