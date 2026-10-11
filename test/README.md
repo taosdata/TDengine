@@ -248,6 +248,24 @@ To add a new test case, follow these steps:
 
 Please refer to `cases/demo/test_demo.py` as an example.
 
+## 5.1 Deterministic Test Timestamps
+
+- Use a fixed timestamp and explicit offsets for inserted test data. Avoid SQL `now`/`now()`, `today`, `datetime.now()`, and `time.time()` when the behavior under test does not depend on the current clock.
+- Derive time predicates from the same fixed baseline. Do not replace only the INSERT timestamps while leaving queries relative to `now`.
+- Recheck strict and inclusive boundaries (`<`, `<=`, `>`, `>=`, `=`). Replacing separately evaluated `now` calls with one timestamp changes equality behavior; express any intended offset explicitly in the data or query.
+- For calendar windows such as `interval(1d)`, choose timestamps away from unintended day boundaries and document timezone/alignment assumptions. Tests of midnight, DST, or window boundaries should use explicit timestamps on both sides of the boundary.
+- Set database retention (`KEEP`) appropriately when fixed historical data could expire; preserve the intended precision (`ms`, `us`, or `ns`).
+- Current-clock values are allowed when explicitly testing `now`/`today`, TTL/retention, or real-time behavior. Document the reason and use bounded/tolerant assertions instead of assuming separate clock reads are equal or that future offsets stay in today's window.
+
+```python
+base_ts = 1750046400000  # Fixed epoch milliseconds.
+query_ts = base_ts + 1  # Explicitly query just after the insert baseline.
+for i in range(20):
+    tdSql.execute(f"insert into t values ({base_ts + i * 60000}, {i})")
+tdSql.query(f"select * from t where ts < {query_ts + 4 * 60000}")
+tdSql.checkRows(5)
+```
+
 # 6. Add New Case to CI
 
 To add a new test case to the CI pipeline, include the case run command in the `test/ci/cases.task` file. For example:
