@@ -15,11 +15,14 @@
 
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from contextlib import contextmanager
+
+import pytest
 
 from new_test_framework.utils import tdCom, tdDnodes, tdLog, tdSql
 
@@ -31,6 +34,10 @@ _PROVIDER_RUNTIME_PATTERNS = {
     "mysql": ("libmariadb*", "libmysqlclient*"),
     "postgresql": ("libpq*",),
     "influxdb": ("libtaos_ext_influx_arrow*", "libarrow*", "libparquet*"),
+    # SQL Server loads unixODBC at runtime and resolves the Microsoft ODBC
+    # Driver 18 from the same runtime dir (both are staged like the other
+    # providers' client libraries, DS 3.3).
+    "sqlserver": ("libodbc*", "libmsodbcsql*"),
 }
 _PROVIDER_PLUGIN_PATTERNS = {
     "influxdb": ("libtaos_ext_influx_arrow*",),
@@ -108,6 +115,27 @@ def _try_prepare_runtime_libs():
 def _check_provider_missing(src, sql):
     tdSql.execute(f"drop external source if exists {src}")
     tdSql.error(sql, expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT)
+
+
+def _odbcinst_registers_driver18():
+    """True when the host registers 'ODBC Driver 18 for SQL Server' in odbcinst.
+
+    The provider resolves the driver by absolute path first and deliberately
+    does not require a registration (DS 3.3); but when a registration exists it
+    is used as the fallback driver name, so hiding libmsodbcsql alone does not
+    make SQL Server unreachable on such hosts.
+    """
+    for path in ("/etc/odbcinst.ini",
+                 "/usr/local/etc/odbcinst.ini",
+                 os.path.expanduser("~/.odbcinst.ini")):
+        try:
+            with open(path, encoding="utf-8", errors="ignore") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        if re.search(r"^\s*\[ODBC Driver 18 for SQL Server\]", text, re.M):
+            return True
+    return False
 
 
 class TestFq19RuntimeLibs(FederatedQueryTestMixin):
@@ -241,6 +269,29 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
 
         assert lib.read_text() == "mysql runtime"
         assert nested_lib.read_text() == "nested mysql runtime"
+
+    def test_missing_driver_moves_only_sqlserver_driver_libs(self, monkeypatch, tmp_path):
+        """Hide only the Microsoft driver when a driver-scoped check is requested.
+
+        Verify that the pattern-scoped hide used by the SQL Server
+        driver-missing check (FQSS-LIB-003) moves libmsodbcsql* out of the
+        runtime directory while leaving libodbc in place, and restores both.
+
+        Since: v3.4.4.0
+
+        """
+        (tmp_path / "libodbc.so.2").write_text("driver manager")
+        driver = tmp_path / "libmsodbcsql-18.so"
+        driver.write_text("driver")
+        monkeypatch.setattr(self, "_runtime_lib_dir", lambda: str(tmp_path))
+
+        with self._without_provider_runtime_libs(
+                {"sqlserver"}, patterns=["libmsodbcsql*"]):
+            assert not driver.exists()
+            assert (tmp_path / "libodbc.so.2").exists()
+
+        assert driver.read_text() == "driver"
+        assert (tmp_path / "libodbc.so.2").read_text() == "driver manager"
 
     def test_missing_influx_runtime_moves_arrow_third_party_libs(self, monkeypatch, tmp_path):
         """Restore InfluxDB plugin and Arrow dependencies after a runtime check.
@@ -543,6 +594,16 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             path for path in files if self._path_is_under(path, runtime_dir)
         )
 
+    def _runtime_files_for_patterns(self, patterns):
+        runtime_dir = self._runtime_lib_dir()
+        files = []
+        for pattern in patterns:
+            files.extend(glob.glob(os.path.join(runtime_dir, pattern)))
+            files.extend(glob.glob(os.path.join(runtime_dir, "**", pattern), recursive=True))
+        return self._existing_runtime_files(
+            path for path in files if self._path_is_under(path, runtime_dir)
+        )
+
     def _provider_plugin_files(self, provider):
         runtime_dir = self._runtime_lib_dir()
         files = []
@@ -616,11 +677,15 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         return files
 
     @contextmanager
-    def _without_provider_runtime_libs(self, providers, require_present=True):
+    def _without_provider_runtime_libs(self, providers, require_present=True, patterns=None):
         hidden_dir = tempfile.mkdtemp(prefix=".fq-runtime-hidden.", dir=self._runtime_lib_dir())
         moved = []
         try:
-            for path in self._provider_runtime_files(providers):
+            if patterns is None:
+                candidates = self._provider_runtime_files(providers)
+            else:
+                candidates = self._runtime_files_for_patterns(patterns)
+            for path in candidates:
                 hidden_path = os.path.join(hidden_dir, f"{len(moved)}-{os.path.basename(path)}")
                 shutil.move(path, hidden_path)
                 moved.append((hidden_path, path))
@@ -668,6 +733,13 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                 f"create external source {missing_src} type='postgresql' "
                 "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='public'",
             )
+        if src.endswith("_s"):
+            return (
+                "sqlserver",
+                missing_src,
+                f"create external source {missing_src} type='sqlserver' "
+                "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='dbo'",
+            )
         return (
             "influxdb",
             missing_src,
@@ -684,6 +756,25 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                     _check_provider_missing(missing_create_src, missing_create_sql)
                     tdSql.error(
                         f"select count(*) from {src}.{table}",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+                    )
+            finally:
+                self._restart_taosd()
+
+    def _check_sqlserver_driver_missing(self, src):
+        """Hide only libmsodbcsql*, keep libodbc: the driver-manager survives
+        but the provider's path resolution finds no driver, so the query must
+        fail with IM002 -> TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT (FQSS-LIB-003,
+        DS 3.3 排障区分) instead of crashing."""
+        self._check_remote_count(src)
+        with self._isolated_runtime_copy():
+            try:
+                with self._without_provider_runtime_libs(
+                        {"sqlserver"}, require_present=False,
+                        patterns=["libmsodbcsql*"]):
+                    self._restart_taosd()
+                    tdSql.error(
+                        f"select count(*) from {src}.src_t",
                         expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
                     )
             finally:
@@ -752,6 +843,12 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             "create external source fq19_runtime_pg type='postgresql' "
             "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='public'",
         )
+        self._check_create_missing_with_runtime_hidden(
+            "sqlserver",
+            "fq19_runtime_sqlserver",
+            "create external source fq19_runtime_sqlserver type='sqlserver' "
+            "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='dbo'",
+        )
         for protocol in ("http", "flight_sql"):
             self._check_create_missing_with_runtime_hidden(
                 "influxdb",
@@ -812,3 +909,34 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             self._with_std_sources("fq19_runtime", self._check_remote_count_and_missing_runtime)
             self._with_influx_http_source(self._check_influx_http_missing_runtime)
         self._check_create_all_missing()
+
+    def test_sqlserver_missing_driver_uses_provider_error(self):
+        """Check SQL Server reports the missing-driver gate without unixODBC loss
+
+        1. Build a SQL Server external source with all dependencies staged
+        2. Hide only libmsodbcsql* (the driver) and keep libodbc in place
+        3. Expect the IM002-mapped error, not a crash or silent fallback
+
+        The provider resolves the driver by path and only then falls back to
+        the odbcinst driver name; hosts that register 'ODBC Driver 18 for SQL
+        Server' make the fallback reachable, so those hosts skip this check.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Claude Add FQSS-LIB-003 driver-missing coverage
+
+        """
+        if _odbcinst_registers_driver18():
+            pytest.skip("host odbcinst registers 'ODBC Driver 18 for SQL Server'")
+        ExtSrcEnv.ensure_env()
+        self._with_std_sources(
+            "fq19_runtime_ssdrv", self._check_sqlserver_driver_missing,
+            skip_mysql=True, skip_pg=True, skip_influx=True)

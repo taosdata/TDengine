@@ -150,6 +150,11 @@ if [[ -n "${FQ_INFLUX_VERSIONS+x}" && -z "${FQ_INFLUX_VERSIONS}" ]]; then
 else
     IFS=',' read -ra INFLUX_VERSIONS <<< "${FQ_INFLUX_VERSIONS:-3.0}"
 fi
+if [[ -n "${FQ_SQLSERVER_VERSIONS+x}" && -z "${FQ_SQLSERVER_VERSIONS}" ]]; then
+    SQLSERVER_VERSIONS=()
+else
+    IFS=',' read -ra SQLSERVER_VERSIONS <<< "${FQ_SQLSERVER_VERSIONS:-2022}"
+fi
 
 MYSQL_USER="${FQ_MYSQL_USER:-root}"
 MYSQL_PASS="${FQ_MYSQL_PASS:-taosdata}"
@@ -158,6 +163,14 @@ PG_PASS="${FQ_PG_PASS:-taosdata}"
 PG_TIMEZONE="${FQ_PG_TIMEZONE:-Asia/Shanghai}"
 export TZ="${TZ:-$PG_TIMEZONE}"
 export PGTZ="${PGTZ:-$PG_TIMEZONE}"
+SQLSERVER_USER="${FQ_SQLSERVER_USER:-sa}"
+SQLSERVER_PASS="${FQ_SQLSERVER_PASS:-TaosFq!2026}"
+# Container image template; {ver} is replaced by the configured version
+# (e.g. 2022 -> mcr.microsoft.com/mssql/server:2022-latest).
+# {ver} cannot be used inside ${VAR:-...}: the closing brace would end the
+# parameter expansion.  %VER% is substituted per version below.
+# (removed) SQL Server now runs as a native process — see ensure_sqlserver().
+
 INFLUX_TOKEN="${FQ_INFLUX_TOKEN:-test-token}"
 INFLUX_ORG="${FQ_INFLUX_ORG:-test-org}"
 
@@ -233,6 +246,45 @@ port_open() {
     return
 }
 
+# SQL Server runs as a plain background process from packages extracted under
+# ${FQ_BASE_DIR}/sqlserver/<ver> — the same provisioning model as the other
+# engines (no docker anywhere).
+sqlserver_base() {
+    echo "${FQ_BASE_DIR}/sqlserver/$1"
+}
+
+sqlserver_bin() {
+    echo "$(sqlserver_base "$1")/server/opt/mssql/bin/sqlservr"
+}
+
+sqlserver_deps_dir() {
+    echo "$(sqlserver_base "$1")/server/deps/usr/lib/x86_64-linux-gnu"
+}
+
+sqlserver_port() {
+    case "$1" in
+        2019) echo "${FQ_SQLSERVER_PORT_2019:-1434}" ;;
+        2022) echo "${FQ_SQLSERVER_PORT_2022:-1433}" ;;
+        *)    echo "${FQ_SQLSERVER_PORT:-1433}" ;;
+    esac
+}
+
+# Locate sqlcmd (extracted from mssql-tools18 next to the engine binaries).
+sqlserver_sqlcmd_path() {
+    local ver="$1"
+    local base; base="$(sqlserver_base "${ver}")"
+    local cand
+    for cand in "${base}/tools/opt/mssql-tools18/bin/sqlcmd" \
+                "${base}/tools/opt/mssql-tools/bin/sqlcmd" \
+                /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do
+        if [[ -x "${cand}" ]]; then
+            echo "${cand}"
+            return 0
+        fi
+    done
+    return 1
+}
+
 wait_port() {
     local port="$1" max="${2:-60}" i=0
     while ! port_open "$port"; do
@@ -263,8 +315,14 @@ _list_matching_pids() {
 
             comm=""
             IFS= read -r comm < "${pid_dir}/comm" 2>/dev/null || continue
+            # NOTE: every long-running FQ engine must be listed here — a missing
+            # name silently turns the corresponding stop/kill into a no-op.
+            # sqlservr was missing, so _sqlserver_stop_procs never stopped the
+            # engine: the "hard reset" then started a SECOND instance which
+            # failed bootstrap against the still-held /var/opt/mssql ("Access is
+            # denied") while the probe passed against the old one.
             case "$comm" in
-                postgres|initdb|mysqld|influxdb3|influxd) ;;
+                postgres|initdb|mysqld|influxdb3|influxd|sqlservr) ;;
                 *) continue ;;
             esac
 
@@ -1027,6 +1085,17 @@ _install_libnuma_from_direct_deb() {
     _install_libnuma_deb "$_deb"
 }
 
+# apt-get with hard network bounds, mirroring _apt_update_retry: every caller
+# has an offline fallback, so a stalled mirror must fail fast instead of
+# holding the env run hostage.
+_apt_get_install_bounded() {
+    timeout "${FQ_APT_NET_TIMEOUT_S:-180}" \
+        env DEBIAN_FRONTEND=noninteractive \
+        apt-get install -y -q --no-install-recommends \
+        -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 \
+        -o Acquire::Retries=1 "$@"
+}
+
 _ensure_linux_engine_deps() {
     [[ "$OS" != "Linux" ]] && return 0
     command -v apt-get &>/dev/null || return 0
@@ -1040,7 +1109,13 @@ _ensure_linux_engine_deps() {
         return 0
     fi
 
-    _ensure_engine_deps_apt_index
+    # Refresh the apt index only when a needed package is actually missing:
+    # in CI the refresh is the slowest part of every env run and can stall
+    # (see _apt_update_retry).  When libaio / libnuma / nc already work there
+    # is nothing to install, so skip it entirely.
+    if ! { _libaio_present && _libnuma_present && command -v nc >/dev/null 2>&1; }; then
+        _ensure_engine_deps_apt_index
+    fi
 
     # Install libaio separately so we can fall back from libaio1t64 to libaio1.
     # Modern Debian (trixie+) renamed the package to libaio1t64; older distros
@@ -1048,10 +1123,8 @@ _ensure_linux_engine_deps() {
     # the whole apt-get call to fail — so we try them individually.
     if ! _libaio_present; then
         info "installing engine OS deps: libaio (libaio1t64 or libaio1) ..."
-        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -q \
-                --no-install-recommends libaio1t64; then
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -q \
-                --no-install-recommends libaio1 \
+        if ! _apt_get_install_bounded libaio1t64; then
+            _apt_get_install_bounded libaio1 \
                 || _install_libaio_from_local_cache \
                 || _install_libaio_from_direct_deb \
                 || warn "engine OS deps: libaio could not be installed (tried apt, local cache, and direct deb)."
@@ -1061,7 +1134,7 @@ _ensure_linux_engine_deps() {
     local _need=()
     if ! _libnuma_present; then
         info "installing engine OS deps: libnuma1 ..."
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends libnuma1 \
+        _apt_get_install_bounded libnuma1 \
             || _libnuma_present \
             || _install_libnuma_from_local_cache \
             || _install_libnuma_from_direct_deb \
@@ -1076,8 +1149,7 @@ _ensure_linux_engine_deps() {
 
     if [[ ${#_need[@]} -gt 0 ]]; then
         info "installing engine OS deps: ${_need[*]} ..."
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
-            "${_need[@]}" 2>/dev/null || warn "engine OS deps install had warnings."
+        _apt_get_install_bounded "${_need[@]}" 2>/dev/null || warn "engine OS deps install had warnings."
     fi
 
     # Ensure libaio.so.1 symlink exists.  The t64 ABI-transition packages ship
@@ -1227,7 +1299,14 @@ _apt_update_retry() {
     local wait_s=2
 
     while [[ "$attempt" -le "$max_attempts" ]]; do
-        if apt-get update -qq; then
+        # Hard network bounds: the CI Nexus apt mirror can stall under parallel
+        # load, and an unbounded apt-get update has held whole env runs inside
+        # the case timeout (observed: cases stuck at "refreshing apt package
+        # index" for the full 1200 s).  Failing fast lets every caller fall
+        # back to its offline path.
+        if timeout "${FQ_APT_NET_TIMEOUT_S:-120}" apt-get update -qq \
+                -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 \
+                -o Acquire::Retries=1; then
             return 0
         fi
         warn "apt-get update failed (attempt ${attempt}/${max_attempts}); retrying in ${wait_s}s ..."
@@ -1713,13 +1792,18 @@ _mysql_init() {
     local init_timeout="${FQ_MYSQL_INIT_TIMEOUT_S:-300}"
     local _init_rc=0
     if [[ -n "$_ldlp_prefix" ]]; then
+        # --innodb-use-native-aio=0: CI hosts run many case containers in
+        # parallel and InnoDB's native AIO exhausts the host's fs.aio-max-nr
+        # (io_setup EAGAIN), which aborts init/start and failed whole suites.
         _fq_env_clean env LD_LIBRARY_PATH="$_ldlp_prefix" timeout "$init_timeout" "$mysqld" --initialize-insecure \
+            --innodb-use-native-aio=0 \
             --basedir="$base" \
             --datadir="$data" \
             $user_opt \
             2>"${log}/init.log" || _init_rc=$?
     else
         _fq_env_clean timeout "$init_timeout" "$mysqld" --initialize-insecure \
+            --innodb-use-native-aio=0 \
             --basedir="$base" \
             --datadir="$data" \
             $user_opt \
@@ -1787,6 +1871,7 @@ _mysql_start() {
         _start_daemon "$pidfile" "${log}/mysqld.log" \
             env LD_LIBRARY_PATH="$_ldlp_prefix" \
             "$mysqld" \
+                --innodb-use-native-aio=0 \
                 --basedir="$base" \
                 --datadir="$data" \
                 --port="$port" \
@@ -1800,6 +1885,7 @@ _mysql_start() {
     else
         _start_daemon "$pidfile" "${log}/mysqld.log" \
             "$mysqld" \
+                --innodb-use-native-aio=0 \
                 --basedir="$base" \
                 --datadir="$data" \
                 --port="$port" \
@@ -2175,6 +2261,425 @@ FLUSH PRIVILEGES;" \
 # ──────────────────────────────────────────────────────────────────────────────
 # 10.  PostgreSQL
 # ──────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# SQL Server (native process; byte-identical engine build to the former
+# container image so every recorded remote-side expectation still holds).
+#
+# Microsoft ships the engine as deb/rpm packages only, so extract the package
+# contents under ${FQ_BASE_DIR}/sqlserver/<ver> and run
+# ${base}/server/opt/mssql/bin/sqlservr directly — the same model the other
+# three engines use.  sqlcmd comes from the mssql-tools18 package extracted
+# next to it; it loads the ODBC driver that travels with the dependency
+# package (DS 3.3: no system odbcinst registration required).
+# ---------------------------------------------------------------------------
+SQLSERVER_PKG_VERSION="${FQ_SQLSERVER_PKG_VERSION:-16.0.4295.3}"
+SQLSERVER_SERVER_URL="${FQ_SQLSERVER_SERVER_URL:-https://packages.microsoft.com/ubuntu/22.04/mssql-server-2022/pool/main/m/mssql-server/mssql-server_${SQLSERVER_PKG_VERSION}-1_amd64.deb}"
+SQLSERVER_TOOLS_URL="${FQ_SQLSERVER_TOOLS_URL:-https://packages.microsoft.com/ubuntu/22.04/prod/pool/main/m/mssql-tools18/mssql-tools18_18.6.1.1-1_amd64.deb}"
+SQLSERVER_OPENLDAP_URL="${FQ_SQLSERVER_OPENLDAP_URL:-http://archive.ubuntu.com/ubuntu/pool/main/o/openldap/libldap-2.5-0_2.5.20+dfsg-0ubuntu0.22.04.1_amd64.deb}"
+
+# CI keeps every engine installer in a host package cache (compat-packages,
+# mounted read-only as /usr/local/src inside the case containers) and the other
+# three engines resolve their tarballs from there, so no case container ever
+# touches the public network for them.  SQL Server must follow the same order:
+# without it every single case downloads the ~276 MB server deb from
+# packages.microsoft.com, which is slow enough to exhaust the per-case timeout
+# and fails outright on network hiccups (mass "engine not reachable" and
+# 1200s timeouts across all ext-source suites in CI).
+# Resolution order per package:
+#   1. FQ_SQLSERVER_PKG_CACHE — files left by an earlier install
+#   2. staged bundle fq-sqlserver-<ver>.tar.gz, or the individual .deb files,
+#      in FQ_TARBALL_CACHE_DIR / FQ_STAGING_DIR / /usr/local/src /
+#      /data0/compat-packages
+#   3. internal mirror registry (same generic package as msodbcsql18-*.tar.gz)
+#   4. upstream public URL (last resort)
+FQ_SQLSERVER_MIRROR_URL="${FQ_SQLSERVER_MIRROR_URL:-${FQ_MIRROR_URL:-https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest}}"
+FQ_SQLSERVER_BUNDLE_NAME="${FQ_SQLSERVER_BUNDLE_NAME:-fq-sqlserver-${SQLSERVER_PKG_VERSION}.tar.gz}"
+
+_sqlserver_stage_dirs() {
+    local seen="" d
+    for d in "$(_fq_writable_tarball_dir "${FQ_TARBALL_CACHE_DIR}" 2>/dev/null)" $(_fq_staging_dirs); do
+        [[ -n "${d}" && -d "${d}" ]] || continue
+        [[ " ${seen} " == *" ${d} "* ]] && continue
+        seen+=" ${d}"
+        printf '%s\n' "${d}"
+    done
+}
+
+# Extract a staged bundle into the package cache when one is available.
+_sqlserver_stage_bundle() {
+    local cache="$1" d f
+    while IFS= read -r d; do
+        for f in "${d}/${FQ_SQLSERVER_BUNDLE_NAME}" "${d}"/fq-sqlserver-*.tar.gz; do
+            [[ -s "${f}" ]] || continue
+            if tar -xzf "${f}" -C "${cache}" 2>/dev/null; then
+                info "SQL Server: extracted staged bundle $(basename "${f}")"
+                return 0
+            fi
+        done
+    done < <(_sqlserver_stage_dirs)
+    return 1
+}
+
+# Staged file → internal mirror → upstream public URL.  The public host is
+# deliberately last: it is the one that made CI unusable.
+_sqlserver_resolve_pkg() {
+    local dest="$1" url="$2" base d f
+    [[ -s "${dest}" ]] && return 0
+    base="$(basename "${url}")"
+    while IFS= read -r d; do
+        f="${d}/${base}"
+        [[ -s "${f}" ]] || continue
+        if cp -f "${f}" "${dest}" 2>/dev/null || ln -sf "${f}" "${dest}" 2>/dev/null; then
+            info "SQL Server: using staged ${base}"
+            return 0
+        fi
+    done < <(_sqlserver_stage_dirs)
+    if [[ "${FQ_SQLSERVER_USE_MIRROR:-1}" == "1" ]] \
+            && curl -fsI --connect-timeout 8 --max-time 20 "${FQ_SQLSERVER_MIRROR_URL}/${base}" >/dev/null 2>&1; then
+        _download_with_retry "${FQ_SQLSERVER_MIRROR_URL}/${base}" "${dest}" 2 && return 0
+        warn "SQL Server: mirror fetch of ${base} failed; falling back to upstream."
+    fi
+    _download_with_retry "${url}" "${dest}"
+}
+
+_sqlserver_extract_deb() {
+    local deb="$1" dir="$2"
+    mkdir -p "${dir}"
+    if command -v dpkg-deb >/dev/null 2>&1; then
+        dpkg-deb -x "${deb}" "${dir}"
+    else
+        ( cd "${dir}" && ar x "${deb}" && tar -xf data.tar.* )
+    fi
+}
+
+_sqlserver_install() {
+    local ver="$1" base="$2"
+    local cache="${FQ_SQLSERVER_PKG_CACHE:-${FQ_BASE_DIR}/sqlserver/packages}"
+    mkdir -p "${cache}"
+    local srv="${cache}/$(basename "${SQLSERVER_SERVER_URL}")"
+    local tools="${cache}/$(basename "${SQLSERVER_TOOLS_URL}")"
+    local ldap="${cache}/$(basename "${SQLSERVER_OPENLDAP_URL}")"
+    if [[ ! -s "${srv}" || ! -s "${tools}" || ! -s "${ldap}" ]]; then
+        _sqlserver_stage_bundle "${cache}" || true
+    fi
+    [[ -s "${srv}" ]]   || _sqlserver_resolve_pkg "${srv}"   "${SQLSERVER_SERVER_URL}"   || return 1
+    [[ -s "${tools}" ]] || _sqlserver_resolve_pkg "${tools}" "${SQLSERVER_TOOLS_URL}"   || return 1
+    [[ -s "${ldap}" ]]  || _sqlserver_resolve_pkg "${ldap}"  "${SQLSERVER_OPENLDAP_URL}" || return 1
+    info "SQL Server ${ver}: extracting packages ..."
+    _sqlserver_extract_deb "${srv}"   "${base}/server" || return 1
+    _sqlserver_extract_deb "${tools}" "${base}/tools"  || return 1
+    _sqlserver_extract_deb "${ldap}"  "${base}/server/deps" || return 1
+    [[ -x "${base}/server/opt/mssql/bin/sqlservr" ]] || return 1
+}
+
+# Runtime-lib directories that carry the staged provider libraries
+# (libodbc*/libmsodbcsql*).  Candidates in order: FQ_SQLSERVER_LIB_DIR (the
+# caller's resolved driver dir), the build lib dir next to TAOS_BIN_PATH
+# (fallback <repo>/debug/build/lib), any LD_LIBRARY_PATH entry, and
+# FQ_BASE_DIR/sqlserver/lib.
+_sqlserver_lib_dirs() {
+    # Candidate directories that may hold the staged ODBC runtime
+    # (libmsodbcsql18 + its unixODBC driver manager).  In CI the driver only
+    # exists in the build tree's lib dir, so TAOS_BIN_PATH alone is not
+    # enough: the framework passes the dir it resolved via
+    # FQ_SQLSERVER_LIB_DIR / LD_LIBRARY_PATH.
+    local bin="${TAOS_BIN_PATH:-}"
+    if [[ -z "${bin}" ]]; then
+        local root; root="$(cd "${SCRIPT_DIR}/../../../../.." 2>/dev/null && pwd -P)"
+        bin="${root}/debug/build/bin"
+    fi
+    local cands=()
+    [[ -n "${FQ_SQLSERVER_LIB_DIR:-}" ]] && cands+=("${FQ_SQLSERVER_LIB_DIR}")
+    cands+=("$(dirname "${bin}")/lib")
+    local ld IFS_OLD="${IFS}"
+    IFS=':'
+    for ld in ${LD_LIBRARY_PATH:-}; do
+        [[ -n "${ld}" ]] && cands+=("${ld}")
+    done
+    IFS="${IFS_OLD}"
+    cands+=("${FQ_BASE_DIR}/sqlserver/lib")
+    local d out=""
+    for d in "${cands[@]}"; do
+        [[ -n "${d}" && -d "${d}" ]] || continue
+        case ":${out}:" in *":${d}:"*) continue ;; esac
+        out="${out:+${out}:}${d}"
+    done
+    [[ -z "${out}" ]] || printf '%s\n' "${out}" | tr ':' '\n'
+}
+
+_sqlserver_driver_path() {
+    local lib hit
+    while IFS= read -r lib; do
+        hit="$(ls "${lib}"/libmsodbcsql-18.*.so* 2>/dev/null | head -1)"
+        if [[ -n "${hit}" ]]; then
+            printf '%s\n' "${hit}"
+            return 0
+        fi
+    done < <(_sqlserver_lib_dirs)
+    return 1
+}
+
+# Private ODBC registration for sqlcmd: point it at the driver shipped with
+# the dependency package (no system odbcinst registration, DS 3.3).
+_sqlserver_odbc_conf() {
+    local conf_dir="${FQ_BASE_DIR}/sqlserver/odbc"
+    mkdir -p "${conf_dir}"
+    local cur=""
+    [[ -s "${conf_dir}/odbcinst.ini" ]] && \
+        cur="$(sed -n 's/^Driver=//p' "${conf_dir}/odbcinst.ini" | head -1)"
+    # Rewrite when absent — or stale: a recorded Driver path that no longer
+    # exists makes the driver manager fail the handle allocation (observed as
+    # "Can't open lib ... file not found" / HENV errors) even though a valid
+    # driver is staged elsewhere.
+    if [[ -z "${cur}" || ! -e "${cur}" ]]; then
+        local hit
+        hit="$(_sqlserver_driver_path)" || true
+        if [[ -n "${hit}" ]]; then
+            printf '[ODBC Driver 18 for SQL Server]\nDriver=%s\nUsageCount=1\n' \
+                "${hit}" > "${conf_dir}/odbcinst.ini"
+        fi
+    fi
+    echo "${conf_dir}"
+}
+
+_sqlserver_run_sql() {
+    local ver="$1" db="$2" sql="$3"
+    # Lookup failures must be loud: silently returning 1 here made the whole
+    # sqlcmd path (including --sqlserver-exec callers) fail with an empty
+    # message, which is undiagnosable from CI logs.
+    local cmd
+    if ! cmd="$(sqlserver_sqlcmd_path "${ver}")"; then
+        echo "sqlcmd not found for SQL Server ${ver} (searched under $(sqlserver_base "${ver}")/tools)" >&2
+        return 1
+    fi
+    local port; port="$(sqlserver_port "${ver}")"
+    local odbc_dir; odbc_dir="$(_sqlserver_odbc_conf)"
+    local driver
+    if ! driver="$(_sqlserver_driver_path)"; then
+        echo "libmsodbcsql18 (ODBC Driver 18) not found; searched: $(_sqlserver_lib_dirs | tr '\n' ' ')" >&2
+        return 1
+    fi
+    local lib_dir; lib_dir="$(dirname "${driver}")"
+    # sqlcmd itself loads libodbc* from the same staged directory.
+    LD_LIBRARY_PATH="${lib_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+        ODBCSYSINI="${odbc_dir}" "${cmd}" -S "127.0.0.1,${port}" \
+        -U "${SQLSERVER_USER}" -P "${SQLSERVER_PASS}" -C -b -d "${db}" -Q "${sql}"
+}
+
+_sqlserver_start() {
+    local ver="$1"
+    local base; base="$(sqlserver_base "${ver}")"
+    local deps; deps="$(sqlserver_deps_dir "${ver}")"
+    # Cap the engine and disable its memory-pressure self-shutdown.  CI hosts
+    # run many case containers at once; with no cgroup limit the engine sizes
+    # its caches to the *host's* memory and then either gets OOM-killed or
+    # shuts itself down under pressure seconds after becoming ready (observed
+    # as "engine not reachable" right after a successful probe).  The FQ test
+    # workload needs very little; 2 GB is ample.
+    ACCEPT_EULA=Y MSSQL_PID=Developer MSSQL_SA_PASSWORD="${SQLSERVER_PASS}" \
+        MSSQL_TCP_PORT="$(sqlserver_port "${ver}")" \
+        MSSQL_MEMORY_LIMIT_MB="${FQ_SQLSERVER_MEMORYLIMIT_MB:-2048}" \
+        MSSQL_DISABLE_MEMORY_PRESSURE=1 \
+        LD_LIBRARY_PATH="${deps}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+        setsid nohup "${base}/server/opt/mssql/bin/sqlservr" \
+        >"${base}/sqlservr.log" 2>&1 &
+}
+
+_sqlserver_stop_procs() {
+    local ver="$1" sig="${2:-TERM}"
+    _kill_matching "$(sqlserver_bin "${ver}")" "${sig}"
+}
+
+# True when the engine process for this version is alive.
+_sqlserver_running() {
+    local bin; bin="$(sqlserver_bin "$1")"
+    pgrep -f "${bin}" >/dev/null 2>&1
+}
+
+# Any sqlservr whose executable is not under this version's base is an orphan
+# from an earlier run (a scratch validation directory, another payload).  The
+# engine always keeps its system databases in the fixed /var/opt/mssql path, so
+# a foreign instance owns them and makes our instance fail to bootstrap
+# ("BootstrapSystemDataDirectories() failure ... Access is denied") — observed
+# in practice after a validation run left an engine behind.  Scan /proc rather
+# than pgrep -f: the path may contain pattern characters and pgrep would also
+# match the launcher shell.
+_sqlserver_foreign_pids() {
+    local ver="$1"
+    local base; base="$(sqlserver_base "${ver}")"
+    local dir exe pid
+    for dir in /proc/[0-9]*; do
+        pid="${dir#/proc/}"
+        exe="$(readlink -f "${dir}/exe" 2>/dev/null)" || continue
+        exe="${exe% (deleted)}"
+        [[ "$(basename "${exe}")" == "sqlservr" ]] || continue
+        case "${exe}" in
+            "${base}/"*) continue ;;   # our own instance
+        esac
+        printf '%s\n' "${pid}"
+    done
+}
+
+# Terminate orphan instances so they release /var/opt/mssql before we start.
+_sqlserver_kill_foreign() {
+    local ver="$1"
+    local pids; pids="$(_sqlserver_foreign_pids "${ver}")"
+    [[ -n "${pids}" ]] || return 0
+    warn "SQL Server ${ver}: terminating orphan sqlservr process(es) from another path: $(printf '%s ' ${pids})"
+    local pid i alive
+    for pid in ${pids}; do kill -TERM "${pid}" 2>/dev/null || true; done
+    for i in $(seq 1 20); do
+        alive=""
+        for pid in ${pids}; do
+            kill -0 "${pid}" 2>/dev/null && alive=1
+        done
+        [[ -z "${alive}" ]] && break
+        sleep 0.5
+    done
+    for pid in ${pids}; do kill -KILL "${pid}" 2>/dev/null || true; done
+    # Let the kernel release the data-directory locks before we (re)start.
+    sleep 1
+}
+
+# Diagnosability: dump the engine log tail and any unresolved shared libraries
+# so a failing environment is analysable from the test log alone (the container
+# that ran the engine no longer exists afterwards).
+_sqlserver_log_failure() {
+    local ver="$1" base="$2"
+    err "SQL Server ${ver}: probe failed after start (see ${base}/sqlservr.log)"
+    local _line
+    if [[ -f "${base}/sqlservr.log" ]]; then
+        while IFS= read -r _line; do err "  [sqlservr] ${_line}"; done \
+            < <(tail -n 30 "${base}/sqlservr.log")
+    fi
+    local _missing
+    _missing="$(ldd "$(sqlserver_bin "${ver}")" 2>/dev/null | grep "not found" || true)"
+    [[ -n "${_missing}" ]] && while IFS= read -r _line; do err "  [ldd] ${_line}"; done <<< "${_missing}"
+}
+
+# Engine runtime dependencies.  Microsoft's packages target Ubuntu; other
+# distributions (the CI test image is Debian-based) may lack some of the
+# libraries they declare.  Install them tolerantly, one package at a time,
+# so one unknown name cannot abort the batch.
+_sqlserver_ensure_deps() {
+    command -v apt-get >/dev/null 2>&1 || return 0
+    [[ "$(id -u)" -eq 0 ]] || return 0
+    local pkg
+    for pkg in libc++1 libc++abi1 libsss-nss-idmap0 libsasl2-2 libgssapi-krb5-2; do
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -q \
+            --no-install-recommends "${pkg}" >/dev/null 2>&1 \
+            || warn "SQL Server: runtime package ${pkg} not available (continuing)"
+    done
+}
+
+ensure_sqlserver() {
+    local ver="$1"
+    local base; base="$(sqlserver_base "${ver}")"
+
+    info "SQL Server ${ver}: port=$(sqlserver_port "${ver}"), base=${base}"
+
+    if [[ ! -x "${base}/server/opt/mssql/bin/sqlservr" ]]; then
+        _sqlserver_install "${ver}" "${base}" \
+            || { err "SQL Server ${ver}: package install failed"; return 1; }
+    fi
+    _sqlserver_ensure_deps
+
+    # Orphans from an earlier run (any path outside this version's base) hold
+    # the fixed /var/opt/mssql directory; clear them before any (re)start.
+    _sqlserver_kill_foreign "${ver}"
+
+    # ── quick restart mode: (re)start the engine, preserve user databases ────
+    # The engine must be STARTED before probing: a disruption test stops it and
+    # then expects the same databases to come back.  Probing a stopped engine
+    # would fall through to the hard reset (which drops every user database) and
+    # break the recovery assertions.
+    if [[ "${FQ_SQLSERVER_QUICK_RESTART:-0}" == "1" ]]; then
+        info "SQL Server ${ver}: quick restart (existing data preserved) ..."
+        if ! _sqlserver_running "${ver}"; then
+            _sqlserver_start "${ver}"
+        fi
+        if _sqlserver_probe "${ver}"; then
+            info "SQL Server ${ver}: quick restart complete."
+            return 0
+        fi
+        warn "SQL Server ${ver}: quick restart probe failed; falling back to hard reset."
+    fi
+
+    # ── legacy cleanup: a container from an older run may still hold the port ─
+    # (same guard as _mysql_reset_env: docker-proxied listeners survive pkill).
+    if command -v docker >/dev/null 2>&1; then
+        local _port _cid
+        _port="$(sqlserver_port "${ver}")"
+        _cid=$(docker ps -q --filter "publish=${_port}" 2>/dev/null || true)
+        if [[ -n "${_cid}" ]]; then
+            warn "SQL Server ${ver}: Docker container(s) binding port ${_port} — killing: ${_cid}"
+            docker rm -f ${_cid} >/dev/null 2>&1 || true
+            sleep 1
+        fi
+    fi
+
+    # ── hard reset: restart the engine and drop every user database ──────────
+    # The caller only needs a clean *data* state; dropping the databases is the
+    # process-mode equivalent of the other engines' data-directory wipe.
+    info "SQL Server ${ver}: hard reset (restart engine → drop user databases)..."
+    _sqlserver_stop_procs "${ver}" KILL
+    _sqlserver_start "${ver}"
+    if ! _sqlserver_probe "${ver}"; then
+        _sqlserver_log_failure "${ver}" "${base}"
+        # A foreign instance that was holding the fixed /var/opt/mssql
+        # directory (killed above) or a half-wiped directory leaves the
+        # bootstrap failing with "Access is denied".  Wipe and retry once so a
+        # dirty host cannot fail the environment.
+        if grep -qE "BootstrapSystemDataDirectories|Access is denied|0x80070005" \
+                "${base}/sqlservr.log" 2>/dev/null; then
+            warn "SQL Server ${ver}: bootstrap failure (dirty /var/opt/mssql); wiping and retrying once."
+            _sqlserver_kill_foreign "${ver}"
+            _sqlserver_stop_procs "${ver}" KILL
+            rm -rf /var/opt/mssql
+            _sqlserver_start "${ver}"
+            if ! _sqlserver_probe "${ver}"; then
+                _sqlserver_log_failure "${ver}" "${base}"
+                return 1
+            fi
+        else
+            return 1
+        fi
+    fi
+    _sqlserver_drop_user_dbs "${ver}" || warn "SQL Server ${ver}: could not wipe user databases"
+    info "SQL Server ${ver}: reset complete."
+}
+
+# Drop every user database (system databases have database_id <= 4) so the next
+# test file starts from a clean slate.
+_sqlserver_drop_user_dbs() {
+    local ver="$1"
+    _sqlserver_run_sql "${ver}" master \
+        "DECLARE @sql NVARCHAR(MAX) = N''; SELECT @sql += N'ALTER DATABASE [' + name + N'] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [' + name + N'];' FROM sys.databases WHERE database_id > 4; EXEC sp_executesql @sql;" \
+        >/dev/null 2>&1
+}
+
+# Wait for the engine to accept logins and run a probe query.
+_sqlserver_probe() {
+    local ver="$1"
+    local port; port="$(sqlserver_port "${ver}")"
+    local i=0 err=""
+
+    while [[ ${i} -lt 120 ]]; do
+        if port_open "${port}"; then
+            if err="$(_sqlserver_run_sql "${ver}" master "SELECT 1" 2>&1 >/dev/null)"; then
+                return 0
+            fi
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    # Failure is tolerated for SQL Server only (main() keeps MySQL/PG/Influx
+    # coverage alive), so record *why* for the CI log — otherwise the cause is
+    # invisible until a test trips over it much later.
+    [[ -z "${err}" ]] || warn "SQL Server ${ver}: probe failed: ${err}"
+    return 1
+}
+
 ensure_pg() {
     local ver="$1"
     local port; port="$(pg_port "$ver")"
@@ -3313,7 +3818,18 @@ teardown_all() {
     for ver in "${MYSQL_VERSIONS[@]}";  do _teardown_mysql  "$ver" || true; done
     for ver in "${PG_VERSIONS[@]}";     do _teardown_pg     "$ver" || true; done
     for ver in "${INFLUX_VERSIONS[@]}"; do _teardown_influx "$ver" || true; done
+    for ver in "${SQLSERVER_VERSIONS[@]}"; do _teardown_sqlserver "$ver" || true; done
     log "Teardown complete."
+}
+
+# SQL Server teardown: stop the engine process (the data directory is kept for
+# the next run, like the other engines' stop semantics; ensure_sqlserver wipes
+# its databases).
+_teardown_sqlserver() {
+    local ver="$1"
+    _sqlserver_stop_procs "${ver}" TERM
+    _sqlserver_kill_foreign "${ver}"
+    info "SQL Server ${ver}: engine stopped."
 }
 
 _probe_mysql_ready() {
@@ -3525,6 +4041,10 @@ final_probe_selected_services() {
     [[ "$services" == *mysql*  ]] && for ver in "${MYSQL_VERSIONS[@]}";  do _final_probe_mysql  "$ver" || return 1; done
     [[ "$services" == *pg*     ]] && for ver in "${PG_VERSIONS[@]}";     do _final_probe_pg     "$ver" || return 1; done
     [[ "$services" == *influx* ]] && for ver in "${INFLUX_VERSIONS[@]}"; do _final_probe_influx "$ver" || return 1; done
+    [[ "$services" == *sqlserver* ]] && for ver in "${SQLSERVER_VERSIONS[@]}"; do
+        _sqlserver_probe "${ver}" \
+            || err "SQL Server ${ver}: readiness probe failed (non-fatal)"
+    done
 
     log "Final cross-engine readiness probe passed."
     return 0
@@ -3546,6 +4066,7 @@ _is_single_service_quick_restart() {
         mysql)  [[ "${FQ_MYSQL_QUICK_RESTART:-0}" == "1" ]] ;;
         pg)     [[ "${FQ_PG_QUICK_RESTART:-0}" == "1" ]] ;;
         influx) [[ "${FQ_INFLUX_QUICK_RESTART:-0}" == "1" ]] ;;
+        sqlserver) [[ "${FQ_SQLSERVER_QUICK_RESTART:-0}" == "1" ]] ;;
         *)      return 1 ;;
     esac
 }
@@ -3561,7 +4082,7 @@ main() {
 
     # FQ_SERVICES_TO_RESET controls which services are processed.
     # Default: all three. In-test restarts set this to a single service.
-    local _services="${FQ_SERVICES_TO_RESET:-mysql pg influx}"
+    local _services="${FQ_SERVICES_TO_RESET:-mysql pg influx sqlserver}"
 
     log "========================================================"
     log "FederatedQuery external-source setup"
@@ -3572,6 +4093,7 @@ main() {
     log "  MySQL    : ${MYSQL_VERSIONS[*]}"
     log "  PG       : ${PG_VERSIONS[*]}"
     log "  InfluxDB : ${INFLUX_VERSIONS[*]}"
+    log "  SQLServer: ${SQLSERVER_VERSIONS[*]}"
     log "========================================================"
 
     if [[ "$_services" == *mysql* ]]; then
@@ -3588,6 +4110,21 @@ main() {
     [[ "$_services" == *pg*      ]] && for ver in "${PG_VERSIONS[@]}";     do ensure_pg     "$ver" || OVERALL_OK=1; done
     [[ "$_services" == *mysql*   ]] && for ver in "${MYSQL_VERSIONS[@]}";  do ensure_mysql  "$ver" || OVERALL_OK=1; done
     [[ "$_services" == *influx*  ]] && for ver in "${INFLUX_VERSIONS[@]}"; do ensure_influx "$ver" || OVERALL_OK=1; done
+    if [[ "$_services" == *sqlserver* ]]; then
+        # Native-process mode runs one engine version at a time: sqlservr keeps
+        # its system databases in the fixed /var/opt/mssql path, so a second
+        # concurrent version cannot initialize.  Multi-version checks
+        # (fq_12's optional 2019+2022 matrix) therefore need separate hosts.
+        if [[ ${#SQLSERVER_VERSIONS[@]} -gt 1 ]]; then
+            warn "SQL Server: native process mode provisions one version at a time — using ${SQLSERVER_VERSIONS[0]} only"
+        fi
+        for ver in "${SQLSERVER_VERSIONS[@]:0:1}"; do
+            ensure_sqlserver "$ver" || _sqlserver_env_failed=1
+        done
+        # Non-fatal: SQL Server scenarios fail on their own when the instance is
+        # unavailable; MySQL/PG/Influx coverage must not be reduced by it.
+        [[ "${_sqlserver_env_failed:-0}" -eq 0 ]] || err "SQL Server environment not ready; SQL Server scenarios will fail."
+    fi
 
     if _is_single_service_quick_restart "$_services"; then
         log "Single-service quick restart complete; caller will run readiness probe."
@@ -3625,6 +4162,17 @@ main() {
 if [[ "${FQ_SOURCE_ONLY:-0}" != "1" && "${BASH_SOURCE[0]}" == "$0" ]]; then
     case "${1:-}" in
         --teardown) teardown_all ;;
+        --sqlserver-exec)
+            # Internal helper: run one SQL batch through the exact sqlcmd
+            # invocation this script uses (see _sqlserver_run_sql).  The Python
+            # FQ fixtures call this instead of rebuilding the environment
+            # themselves — a replicated environment failed in CI containers
+            # with "Driver's SQLAllocHandle on SQL_HANDLE_HENV failed" while
+            # this path works there (and everywhere else).
+            [[ $# -eq 4 ]] || { echo "usage: $0 --sqlserver-exec <version> <database> <sql>" >&2; exit 2; }
+            _sqlserver_run_sql "$2" "$3" "$4"
+            exit $?
+            ;;
         *)          main "$@"    ;;
     esac
 fi

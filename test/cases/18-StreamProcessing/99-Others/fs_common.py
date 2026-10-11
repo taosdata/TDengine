@@ -239,6 +239,15 @@ class FsSharedFixtureMixin:
             #     [f"INSERT INTO public.src_t VALUES {rows_sql}"]
             # )
             tdLog.info(f"[{label}] delete {ts} PG rows")
+        elif suffix == 's':
+            timestamp = dt_str(ts)
+            ExtSrcEnv.sqlserver_exec(
+                db_or_bucket,
+                [f"DELETE FROM dbo.src_t WHERE ts = '{timestamp}'"]
+            )
+            tdLog.info(
+                f"[{label}] deleted SQL Server row: ts_ms={ts}, ts={timestamp}"
+            )
         elif suffix == 'i':
             # lines = [
             #     f'src_t val={val}i,score={score},name="{name}",flag={flag}i '
@@ -267,6 +276,9 @@ class FsSharedFixtureMixin:
             #     [f"INSERT INTO public.src_t VALUES {rows_sql}"]
             # )
             tdLog.info(f"[{label}] drop table PG")
+        elif suffix == 's':
+            ExtSrcEnv.sqlserver_exec(db_or_bucket, ["DROP TABLE dbo.src_t"])
+            tdLog.info(f"[{label}] drop table SQL Server")
         elif suffix == 'i':
             # lines = [
             #     f'src_t val={val}i,score={score},name="{name}",flag={flag}i '
@@ -299,6 +311,18 @@ class FsSharedFixtureMixin:
                 [f"INSERT INTO public.src_t VALUES {rows_sql}"]
             )
             tdLog.info(f"[{label}] inserted {len(rows)} PG rows")
+        elif suffix == 's':
+            # db_or_bucket is the remote database; the table lives in dbo.
+            rows_sql = ", ".join(
+                f"('{dt_str(ts)}', {val}, {score}, '{name}', {flag})"
+                for ts, val, score, name, flag in rows
+            )
+            ExtSrcEnv.sqlserver_exec(
+                db_or_bucket,
+                [f"INSERT INTO dbo.src_t (ts, val, score, name, flag) "
+                 f"VALUES {rows_sql}"]
+            )
+            tdLog.info(f"[{label}] inserted {len(rows)} SQL Server rows")
         elif suffix == 'i':
             lines = [
                 f'src_t val={val}i,score={score},name="{name}",flag={flag}i '

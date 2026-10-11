@@ -22,6 +22,12 @@ SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t SESSION(ti
 =================================================================
  1704067200000000000 |                     5 |                   150 |
 ---
+### ewin-01 SQLServer
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t SESSION(time, 2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     5 |                   150 |
+---
 ### ewin-02 local
 SQL: SELECT _wstart, COUNT(*) FROM fq_parity_local.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 ORDER BY _wstart
     _wstart     |       count(*)        |
@@ -45,6 +51,12 @@ SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_i.parity_t EVENT_WINDOW START W
     _wstart     |       count(*)        |
 =========================================
  1704067320000000000 |                     1 |
+---
+### ewin-02 SQLServer
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_s.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 ORDER BY _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067320000000 |                     1 |
 ---
 ### ewin-03 local
 SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t COUNT_WINDOW(2) ORDER BY _wstart
@@ -77,6 +89,14 @@ SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t COUNT_WIND
  1704067200000000000 |                     2 |                    30 |
  1704067320000000000 |                     2 |                    70 |
  1704067440000000000 |                     1 |                    50 |
+---
+### ewin-03 SQLServer
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t COUNT_WINDOW(2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     2 |                    30 |
+ 1704067320000000 |                     2 |                    70 |
+ 1704067440000000 |                     1 |                    50 |
 ---
 ### ewin-04 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL) ORDER BY _wstart
@@ -138,6 +158,21 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067440000000000 |                        50 |
  1704067470000000000 | NULL                      |
 ---
+### ewin-04 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 | NULL                      |
+ 1704067260000000 |                        20 |
+ 1704067290000000 | NULL                      |
+ 1704067320000000 |                        30 |
+ 1704067350000000 | NULL                      |
+ 1704067380000000 |                        40 |
+ 1704067410000000 | NULL                      |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
 ### ewin-05 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
     _wstart     |         avg(val)          |
@@ -197,6 +232,21 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067410000000000 |                         0 |
  1704067440000000000 |                        50 |
  1704067470000000000 |                         0 |
+---
+### ewin-05 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                         0 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                         0 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                         0 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                         0 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                         0 |
 ---
 ### ewin-06 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) ORDER BY _wstart
@@ -258,6 +308,21 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067440000000000 |                        50 |
  1704067470000000000 |                        50 |
 ---
+### ewin-06 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        40 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                        50 |
+---
 ### ewin-07 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
     _wstart     |         avg(val)          |
@@ -317,6 +382,21 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067410000000000 |                        50 |
  1704067440000000000 |                        50 |
  1704067470000000000 | NULL                      |
+---
+### ewin-07 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        20 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        30 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        40 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        50 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
 ---
 ### ewin-08 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
@@ -378,6 +458,21 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067440000000000 |                        50 |
  1704067470000000000 | NULL                      |
 ---
+### ewin-08 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        15 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        25 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        35 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        45 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
 ### ewin-09 local
 SQL: SELECT _wstart, COUNT(*) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' PARTITION BY id INTERVAL(1m) ORDER BY id, _wstart
     _wstart     |       count(*)        |
@@ -417,6 +512,16 @@ SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067320000000000 |                     1 |
  1704067380000000000 |                     1 |
  1704067440000000000 |                     1 |
+---
+### ewin-09 SQLServer
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' PARTITION BY id INTERVAL(1m) ORDER BY id, _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067200000000 |                     1 |
+ 1704067260000000 |                     1 |
+ 1704067320000000 |                     1 |
+ 1704067380000000 |                     1 |
+ 1704067440000000 |                     1 |
 ---
 ### ewin-10 local
 SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t STATE_WINDOW(id) ORDER BY _wstart
@@ -458,6 +563,16 @@ SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t STATE_WIND
  1704067380000000000 |                     1 |                    40 |
  1704067440000000000 |                     1 |                    50 |
 ---
+### ewin-10 SQLServer
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t STATE_WINDOW(id) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     1 |                    10 |
+ 1704067260000000 |                     1 |                    20 |
+ 1704067320000000 |                     1 |                    30 |
+ 1704067380000000 |                     1 |                    40 |
+ 1704067440000000 |                     1 |                    50 |
+---
 ### ewin-11 local
 SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t STATE_WINDOW(CASE WHEN val > 30 THEN 1 ELSE 0 END) ORDER BY _wstart
     _wstart     |       count(*)        |       sum(val)        |
@@ -485,6 +600,13 @@ SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t STATE_WIND
 =================================================================
  1704067200000000000 |                     3 |                    60 |
  1704067380000000000 |                     2 |                    90 |
+---
+### ewin-11 SQLServer
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t STATE_WINDOW(CASE WHEN val > 30 THEN 1 ELSE 0 END) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     3 |                    60 |
+ 1704067380000000 |                     2 |                    90 |
 ---
 ### ewin-12 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NONE) ORDER BY _wstart
@@ -525,6 +647,16 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067320000000000 |                        30 |
  1704067380000000000 |                        40 |
  1704067440000000000 |                        50 |
+---
+### ewin-12 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NONE) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067440000000 |                        50 |
 ---
 ### ewin-13 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEAR) ORDER BY _wstart
@@ -586,6 +718,21 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067440000000000 |                        50 |
  1704067470000000000 |                        50 |
 ---
+### ewin-13 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEAR) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        40 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                        50 |
+---
 ### ewin-14 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart
     _wstart     |         avg(val)          |
@@ -645,6 +792,21 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067410000000000 | NULL                      |
  1704067440000000000 |                        50 |
  1704067470000000000 | NULL                      |
+---
+### ewin-14 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 | NULL                      |
+ 1704067260000000 |                        20 |
+ 1704067290000000 | NULL                      |
+ 1704067320000000 |                        30 |
+ 1704067350000000 | NULL                      |
+ 1704067380000000 |                        40 |
+ 1704067410000000 | NULL                      |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
 ---
 ### ewin-15 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE_F, 0) ORDER BY _wstart
@@ -706,6 +868,21 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067440000000000 |                        50 |
  1704067470000000000 |                         0 |
 ---
+### ewin-15 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE_F, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                         0 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                         0 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                         0 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                         0 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                         0 |
+---
 ### ewin-16 local
 SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t INTERVAL(2m)) w) ORDER BY _wstart
     _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
@@ -737,6 +914,14 @@ SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_i.
  1704067200000000000 | 1704067320000000000 |          120000000000 |                     3 |                    60 |
  1704067320000000000 | 1704067440000000000 |          120000000000 |                     3 |                   120 |
  1704067440000000000 | 1704067560000000000 |          120000000000 |                     1 |                    50 |
+---
+### ewin-16 SQLServer
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_s.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000000 | 1704067320000000 |             120000000 |                     3 |                    60 |
+ 1704067320000000 | 1704067440000000 |             120000000 |                     3 |                   120 |
+ 1704067440000000 | 1704067560000000 |             120000000 |                     1 |                    50 |
 ---
 ### ewin-17 local
 SQL: SELECT _wstart, _wend, w.win_max, COUNT(*), AVG(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend, MAX(val) win_max FROM fq_parity_local.parity_t INTERVAL(2m)) w) ORDER BY _wstart
@@ -770,6 +955,14 @@ SQL: SELECT _wstart, _wend, w.win_max, COUNT(*), AVG(val) FROM fq_parity_src_i.p
  1704067320000000000 | 1704067440000000000 |                    40 |                     3 |                        40 |
  1704067440000000000 | 1704067560000000000 |                    50 |                     1 |                        50 |
 ---
+### ewin-17 SQLServer
+SQL: SELECT _wstart, _wend, w.win_max, COUNT(*), AVG(val) FROM fq_parity_src_s.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend, MAX(val) win_max FROM fq_parity_src_s.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |   win_max   |       count(*)        |         avg(val)          |
+====================================================================================================
+ 1704067200000000 | 1704067320000000 |          20 |                     3 |                        20 |
+ 1704067320000000 | 1704067440000000 |          40 |                     3 |                        40 |
+ 1704067440000000 | 1704067560000000 |          50 |                     1 |                        50 |
+---
 ### ewin-18 local
 SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t EVENT_WINDOW START WITH val >= 20 END WITH val >= 40) w) ORDER BY _wstart
     _wstart     |     _wend      |       count(*)        |       sum(val)        |
@@ -797,6 +990,13 @@ SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t EXT
 ==================================================================================
  1704067260000000000 | 1704067380000000000 |                     3 |                    90 |
  1704067440000000000 | 1704067440000000000 |                     1 |                    50 |
+---
+### ewin-18 SQLServer
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_s.parity_t EVENT_WINDOW START WITH val >= 20 END WITH val >= 40) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067260000000 | 1704067380000000 |                     3 |                    90 |
+ 1704067440000000 | 1704067440000000 |                     1 |                    50 |
 ---
 ### ewin-19 local
 SQL: SELECT _wstart, _wend, id, COUNT(*), SUM(val) FROM fq_parity_local.parity_t PARTITION BY id EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t INTERVAL(2m)) w) ORDER BY id, _wstart
@@ -846,6 +1046,18 @@ SQL: SELECT _wstart, _wend, id, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t
  1704067320000000000 | 1704067440000000000 |                     5 |                     1 |                    50 |
  1704067440000000000 | 1704067560000000000 |                     5 |                     1 |                    50 |
 ---
+### ewin-19 SQLServer
+SQL: SELECT _wstart, _wend, id, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t PARTITION BY id EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_s.parity_t INTERVAL(2m)) w) ORDER BY id, _wstart
+    _wstart     |     _wend      |     id      |       count(*)        |       sum(val)        |
+================================================================================================
+ 1704067200000000 | 1704067320000000 |           1 |                     1 |                    10 |
+ 1704067200000000 | 1704067320000000 |           2 |                     1 |                    20 |
+ 1704067200000000 | 1704067320000000 |           3 |                     1 |                    30 |
+ 1704067320000000 | 1704067440000000 |           3 |                     1 |                    30 |
+ 1704067320000000 | 1704067440000000 |           4 |                     1 |                    40 |
+ 1704067320000000 | 1704067440000000 |           5 |                     1 |                    50 |
+ 1704067440000000 | 1704067560000000 |           5 |                     1 |                    50 |
+---
 ### ewin-20 local
 SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t INTERVAL(2m)) w) HAVING COUNT(*) >= 2 ORDER BY _wstart
     _wstart     |     _wend      |       count(*)        |       sum(val)        |
@@ -873,6 +1085,13 @@ SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t EXT
 ==================================================================================
  1704067200000000000 | 1704067320000000000 |                     3 |                    60 |
  1704067320000000000 | 1704067440000000000 |                     3 |                   120 |
+---
+### ewin-20 SQLServer
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_s.parity_t INTERVAL(2m)) w) HAVING COUNT(*) >= 2 ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000000 | 1704067320000000 |                     3 |                    60 |
+ 1704067320000000 | 1704067440000000 |                     3 |                   120 |
 ---
 ### ewin-21 local
 SQL: SELECT _wstart, _wend, COUNT(*), MAX(val), MIN(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t INTERVAL(2m)) w) ORDER BY _wstart
@@ -906,6 +1125,14 @@ SQL: SELECT _wstart, _wend, COUNT(*), MAX(val), MIN(val) FROM fq_parity_src_i.pa
  1704067320000000000 | 1704067440000000000 |                     3 |                    50 |                    30 |
  1704067440000000000 | 1704067560000000000 |                     1 |                    50 |                    50 |
 ---
+### ewin-21 SQLServer
+SQL: SELECT _wstart, _wend, COUNT(*), MAX(val), MIN(val) FROM fq_parity_src_s.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_s.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |  max(val)   |  min(val)   |
+======================================================================================
+ 1704067200000000 | 1704067320000000 |                     3 |          30 |          10 |
+ 1704067320000000 | 1704067440000000 |                     3 |          50 |          30 |
+ 1704067440000000 | 1704067560000000 |                     1 |          50 |          50 |
+---
 ### ewin-22 local
 SQL: SELECT _wstart, COUNT(*) FROM fq_parity_local.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 TRUE_FOR(1m)
 ---
@@ -917,6 +1144,9 @@ SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_p.parity_t EVENT_WINDOW START W
 ---
 ### ewin-22 InfluxDB
 SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_i.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 TRUE_FOR(1m)
+---
+### ewin-22 SQLServer
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_s.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 TRUE_FOR(1m)
 ---
 ### ewin-23 local
 SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m) SLIDING(1m) ORDER BY _wstart
@@ -962,6 +1192,17 @@ SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t WHERE time
  1704067380000000000 |                     2 |                    90 |
  1704067440000000000 |                     1 |                    50 |
 ---
+### ewin-23 SQLServer
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m) SLIDING(1m) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067140000000 |                     1 |                    10 |
+ 1704067200000000 |                     2 |                    30 |
+ 1704067260000000 |                     2 |                    50 |
+ 1704067320000000 |                     2 |                    70 |
+ 1704067380000000 |                     2 |                    90 |
+ 1704067440000000 |                     1 |                    50 |
+---
 ### ewin-24 local
 SQL: SELECT _QSTART, _QEND, COUNT(*) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(1m) ORDER BY _wstart
     _qstart     |     _qend      |       count(*)        |
@@ -1001,6 +1242,16 @@ SQL: SELECT _QSTART, _QEND, COUNT(*) FROM fq_parity_src_i.parity_t WHERE time >=
  1704067200000000000 | 1704067499999999999 |                     1 |
  1704067200000000000 | 1704067499999999999 |                     1 |
  1704067200000000000 | 1704067499999999999 |                     1 |
+---
+### ewin-24 SQLServer
+SQL: SELECT _QSTART, _QEND, COUNT(*) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(1m) ORDER BY _wstart
+    _qstart     |     _qend      |       count(*)        |
+==========================================================
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
 ---
 ### ewin-25 local
 SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_local.parity_t INTERVAL(1m) ORDER BY _wstart
@@ -1042,6 +1293,16 @@ SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_i.
  1704067380000000000 | 1704067440000000000 |           60000000000 |                     1 |                    40 |
  1704067440000000000 | 1704067500000000000 |           60000000000 |                     1 |                    50 |
 ---
+### ewin-25 SQLServer
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t INTERVAL(1m) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000000 | 1704067260000000 |              60000000 |                     1 |                    10 |
+ 1704067260000000 | 1704067320000000 |              60000000 |                     1 |                    20 |
+ 1704067320000000 | 1704067380000000 |              60000000 |                     1 |                    30 |
+ 1704067380000000 | 1704067440000000 |              60000000 |                     1 |                    40 |
+ 1704067440000000 | 1704067500000000 |              60000000 |                     1 |                    50 |
+---
 ### ewin-26 local
 SQL: SELECT _wstart, _wend, COUNT(*) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m, 30s) ORDER BY _wstart
     _wstart     |     _wend      |       count(*)        |
@@ -1074,6 +1335,14 @@ SQL: SELECT _wstart, _wend, COUNT(*) FROM fq_parity_src_i.parity_t WHERE time >=
  1704067230000000000 | 1704067350000000000 |                     2 |
  1704067350000000000 | 1704067470000000000 |                     2 |
 ---
+### ewin-26 SQLServer
+SQL: SELECT _wstart, _wend, COUNT(*) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m, 30s) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |
+==========================================================
+ 1704067110000000 | 1704067230000000 |                     1 |
+ 1704067230000000 | 1704067350000000 |                     2 |
+ 1704067350000000 | 1704067470000000 |                     2 |
+---
 ### ewin-27 local
 SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t COUNT_WINDOW(3, 2) ORDER BY _wstart
     _wstart     |       count(*)        |       sum(val)        |
@@ -1105,6 +1374,14 @@ SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t COUNT_WIND
  1704067200000000000 |                     3 |                    60 |
  1704067320000000000 |                     3 |                   120 |
  1704067440000000000 |                     1 |                    50 |
+---
+### ewin-27 SQLServer
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t COUNT_WINDOW(3, 2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     3 |                    60 |
+ 1704067320000000 |                     3 |                   120 |
+ 1704067440000000 |                     1 |                    50 |
 ---
 ### ewin-28 local
 SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_local.parity_t PARTITION BY label SESSION(time, 30s) ORDER BY label, _wstart
@@ -1146,6 +1423,16 @@ SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_i.parity_t PARTITION BY 
  south                          | 1704067260000000000 |                     1 |
  south                          | 1704067380000000000 |                     1 |
 ---
+### ewin-28 SQLServer
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_s.parity_t PARTITION BY label SESSION(time, 30s) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000000 |                     1 |
+ north                          | 1704067200000000 |                     1 |
+ north                          | 1704067320000000 |                     1 |
+ south                          | 1704067260000000 |                     1 |
+ south                          | 1704067380000000 |                     1 |
+---
 ### ewin-29 local
 SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t PARTITION BY label EVENT_WINDOW START WITH val >= 20 END WITH val >= 40 ORDER BY label, _wstart
              label              |    _wstart     |       count(*)        |       sum(val)        |
@@ -1173,6 +1460,13 @@ SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t PAR
 ==================================================================================================
  east                           | 1704067440000000000 |                     1 |                    50 |
  south                          | 1704067260000000000 |                     2 |                    60 |
+---
+### ewin-29 SQLServer
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t PARTITION BY label EVENT_WINDOW START WITH val >= 20 END WITH val >= 40 ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000000 |                     1 |                    50 |
+ south                          | 1704067260000000 |                     2 |                    60 |
 ---
 ### ewin-30 local
 SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_local.parity_t PARTITION BY label COUNT_WINDOW(2) ORDER BY label, _wstart
@@ -1205,6 +1499,14 @@ SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_i.parity_t PARTITION BY 
  east                           | 1704067440000000000 |                     1 |
  north                          | 1704067200000000000 |                     2 |
  south                          | 1704067260000000000 |                     2 |
+---
+### ewin-30 SQLServer
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_s.parity_t PARTITION BY label COUNT_WINDOW(2) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000000 |                     1 |
+ north                          | 1704067200000000 |                     2 |
+ south                          | 1704067260000000 |                     2 |
 ---
 ### ewin-31 local
 SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t PARTITION BY label STATE_WINDOW(val >= 30) ORDER BY label, _wstart
@@ -1246,6 +1548,16 @@ SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t PAR
  south                          | 1704067260000000000 |                     1 |                    20 |
  south                          | 1704067380000000000 |                     1 |                    40 |
 ---
+### ewin-31 SQLServer
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t PARTITION BY label STATE_WINDOW(val >= 30) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000000 |                     1 |                    50 |
+ north                          | 1704067200000000 |                     1 |                    10 |
+ north                          | 1704067320000000 |                     1 |                    30 |
+ south                          | 1704067260000000 |                     1 |                    20 |
+ south                          | 1704067380000000 |                     1 |                    40 |
+---
 ### ewin-32 local
 SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t SESSION(time, 30s)) w) ORDER BY _wstart
     _wstart     |     _wend      |       count(*)        |       sum(val)        |
@@ -1286,6 +1598,16 @@ SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t EXT
  1704067380000000000 | 1704067380000000000 |                     1 |                    40 |
  1704067440000000000 | 1704067440000000000 |                     1 |                    50 |
 ---
+### ewin-32 SQLServer
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_s.parity_t SESSION(time, 30s)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000000 | 1704067200000000 |                     1 |                    10 |
+ 1704067260000000 | 1704067260000000 |                     1 |                    20 |
+ 1704067320000000 | 1704067320000000 |                     1 |                    30 |
+ 1704067380000000 | 1704067380000000 |                     1 |                    40 |
+ 1704067440000000 | 1704067440000000 |                     1 |                    50 |
+---
 ### ewin-33 local
 SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t STATE_WINDOW(val >= 30) TRUE_FOR(2m)
     _wstart     |       count(*)        |       sum(val)        |
@@ -1310,6 +1632,12 @@ SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t STATE_WIND
 =================================================================
  1704067320000000000 |                     3 |                   120 |
 ---
+### ewin-33 SQLServer
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_s.parity_t STATE_WINDOW(val >= 30) TRUE_FOR(2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067320000000 |                     3 |                   120 |
+---
 ### ewin-34 local
 SQL: SELECT _wstart, COUNT(*) FROM fq_parity_local.parity_t EVENT_WINDOW START WITH val > 10 END WITH val >= 40 TRUE_FOR(COUNT 2)
     _wstart     |       count(*)        |
@@ -1333,6 +1661,12 @@ SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_i.parity_t EVENT_WINDOW START W
     _wstart     |       count(*)        |
 =========================================
  1704067260000000000 |                     3 |
+---
+### ewin-34 SQLServer
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_s.parity_t EVENT_WINDOW START WITH val > 10 END WITH val >= 40 TRUE_FOR(COUNT 2)
+    _wstart     |       count(*)        |
+=========================================
+ 1704067260000000 |                     3 |
 ---
 ### ewin-35 local
 SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) SURROUND(1m, 0) ORDER BY _wstart
@@ -1393,4 +1727,19 @@ SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-
  1704067410000000000 |                        40 |
  1704067440000000000 |                        50 |
  1704067470000000000 |                        50 |
+---
+### ewin-35 SQLServer
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_s.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) SURROUND(1m, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        40 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                        50 |
 ---

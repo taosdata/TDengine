@@ -156,7 +156,7 @@ typedef struct STokenPair {
 typedef struct STokenTriplet {
   ENodeType type;
   int32_t   numOfName;
-  SToken    name[4];  // up to 4 parts: [source.]db.table.col or db.table.col
+  SToken    name[5];  // up to 5 parts: [source.]db[.schema].table.col
 } STokenTriplet;
 
 typedef struct SSqlWindowFrameExtent {
@@ -673,6 +673,8 @@ SNode* createExtOptionNodeFromId(SAstCreateContext* pCxt, const SToken* pKey, co
 SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType, SNodeList* pOpts, const SToken* pVal);
 SNode* createShowExtSourceCapabilityStmt(SAstCreateContext* pCxt, const SToken* pName, const SToken* pKeyword);
 SNode* createRealTableNodeExt3(SAstCreateContext* pCxt, SToken* pSeg1, SToken* pSeg2, SToken* pTableName, SToken* pAlias);
+SNode* createRealTableNodeExt4(SAstCreateContext* pCxt, SToken* pSeg1, SToken* pSeg2, SToken* pSeg3, SToken* pTableName,
+                               SToken* pAlias);
 
 #ifdef __cplusplus
 }

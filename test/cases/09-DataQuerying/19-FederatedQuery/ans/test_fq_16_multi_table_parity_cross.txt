@@ -438,3 +438,71 @@ ERROR -0x7fffd95a: Not supported subquery as expr
 SQL: SELECT id FROM {P}.ta a WHERE NOT EXISTS (SELECT 1 FROM {P}.tb b WHERE b.ref_id = a.id) ORDER BY id
 ERROR -0x7fffd95a: Not supported subquery as expr
 ---
+### neg-csub-s-01 NEG
+SQL: SELECT id FROM {S}.ta a WHERE EXISTS (SELECT 1 FROM {S}.tb b WHERE b.ref_id = a.id) ORDER BY id
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### neg-csub-s-02 NEG
+SQL: SELECT id FROM {S}.ta a WHERE NOT EXISTS (SELECT 1 FROM {S}.tb b WHERE b.ref_id = a.id) ORDER BY id
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### xsrc-28 POS
+SQL: SELECT id, val FROM {M}.ta UNION ALL SELECT id, val FROM {S}.ta ORDER BY id
+RESULT
+1|10
+1|10
+2|20
+2|20
+3|30
+3|30
+4|40
+4|40
+5|50
+5|50
+6|10
+6|10
+---
+### xsrc-29 POS
+SQL: SELECT id, val FROM {S}.ta UNION SELECT id, val FROM {P}.ta ORDER BY id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+6|10
+---
+### xsrc-30 POS
+SQL: SELECT a.id, b.bid FROM {S}.ta a JOIN {S}.tb b ON a.id = b.bid ORDER BY a.id
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
+---
+### xsrc-31 POS
+SQL: SELECT a.id, b.bid FROM {M}.ta a JOIN {S}.tb b ON a.id = b.bid ORDER BY a.id
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
+---
+### xsrc-32 POS
+SQL: SELECT id, val FROM {S}.ta WHERE val > (SELECT MAX(val2) FROM {M}.tb WHERE flag = 1) ORDER BY id
+RESULT
+5|50
+---
+### xsrc-33 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {S}.ta a FULL JOIN {P}.tb b ON a.time = b.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+4|40|NULL|NULL
+5|50|NULL|NULL
+6|10|4|45
+NULL|NULL|5|50
+---

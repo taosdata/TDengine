@@ -650,7 +650,8 @@ void    destroyQueryExecRes(SExecResult* pRes);
 int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
 void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
 int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
-                  char* refDbName, int8_t refType, const char* refSourceName, const char* tagCondJson, int32_t tagCondLen);
+                  char* refDbName, const char* refSchemaName, int8_t refType, const char* refSourceName,
+                  const char* tagCondJson, int32_t tagCondLen);
 int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);

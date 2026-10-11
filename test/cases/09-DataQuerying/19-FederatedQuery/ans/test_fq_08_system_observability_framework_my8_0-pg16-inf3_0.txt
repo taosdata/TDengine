@@ -128,6 +128,53 @@ CASE END: CASE-sys005i[INF]
 DESC: InfluxDB source: type=influxdb, database=telegraf, api_token masked, protocol visible in options (covers s05 + SYS-017)
 ================================================================================================
 ================================================================================================
+CASE START: CASE-sys006s[SQL]
+DESC: SQL Server source: type=sqlserver, schema='dbo' stored in col[7], OPTIONS visible, password masked (covers SYS-001/SYS-005)
+================================================================================================
+### CASE-sys006s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq08_s006_s
+RESULT:
+OK
+---
+### CASE-sys006s[SQL] STEP-002 EXEC
+SQL: create external source fq08_s006_s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='sqlsrvdb' schema='dbo' options('trust_server_certificate'='true','connect_timeout_ms'='3000')
+RESULT:
+OK
+---
+### CASE-sys006s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s006_s|sqlserver|127.0.0.1|1433|sa|******|sqlsrvdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"3000"}
+---
+### CASE-sys006s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_s006_s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s006_s|sqlserver|127.0.0.1|1433|sa|******|sqlsrvdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"3000"}
+---
+### CASE-sys006s[SQL] STEP-003 QUERY
+SQL: select source_name, `type`, `host`, `port`, `user`, `password`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq08_s006_s'
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s006_s|sqlserver|127.0.0.1|1433|sa|******|sqlsrvdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"3000"}
+---
+### CASE-sys006s[SQL] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq08_s006_s' and create_time is not null
+RESULT:
+count(*)
+1
+---
+### CASE-sys006s[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq08_s006_s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-sys006s[SQL]
+DESC: SQL Server source: type=sqlserver, schema='dbo' stored in col[7], OPTIONS visible, password masked (covers SYS-001/SYS-005)
+================================================================================================
+================================================================================================
 CASE START: CASE-empty001[MYS]
 DESC: SELECT for non-existent source name returns 0 rows (not error); count also 0 (covers s01)
 ================================================================================================

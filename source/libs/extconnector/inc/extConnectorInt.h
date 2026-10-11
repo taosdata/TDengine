@@ -83,10 +83,19 @@ typedef struct SExtProvider {
 } SExtProvider;
 
 // EXT_SOURCE_TYPE_COUNT  -  must match the EExtSourceType enum in tmsg.h
-#define EXT_SOURCE_TYPE_COUNT  4   // MYSQL=0, POSTGRESQL=1, INFLUXDB=2, TDENGINE=3(reserved)
+#define EXT_SOURCE_TYPE_COUNT  5   // MYSQL=0, POSTGRESQL=1, INFLUXDB=2, TDENGINE=3(reserved), SQLSERVER=4
 
-// Global provider table (indexed by EExtSourceType)
+// Global provider table (indexed by EExtSourceType).
+// The table is indexed by the raw source-type value, so EXT_SOURCE_TYPE_COUNT
+// lagging behind the enum is an out-of-bounds access, not a compile error.
 extern SExtProvider gExtProviders[EXT_SOURCE_TYPE_COUNT];
+#if defined(__cplusplus)
+static_assert(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_SQLSERVER + 1),
+              "EXT_SOURCE_TYPE_COUNT must match the highest EExtSourceType value (tmsg.h)");
+#else
+_Static_assert(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_SQLSERVER + 1),
+               "EXT_SOURCE_TYPE_COUNT must match the highest EExtSourceType value (tmsg.h)");
+#endif
 
 // ============================================================
 // Connection pool entry state
@@ -269,6 +278,8 @@ void mysqlProviderCleanup(void);
 void mysqlProviderThreadCleanup(void);
 bool pgProviderInit(void);
 void pgProviderCleanup(void);
+extern SExtProvider sqlserverProvider;
+bool sqlserverProviderInit(void);
 bool influxProviderInit(SExtProvider *pProvider);
 void influxProviderCleanup(void);
 void *extConnectorLoadRuntimeLibrary(const char *const *names, int32_t numNames, const char **pLoadedName);

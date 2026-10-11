@@ -114,6 +114,17 @@ has_any() {
     return 1
 }
 
+has_glob() {
+    local dir=$1
+    local pattern=$2
+    local found
+    # shellcheck disable=SC2086
+    for found in "${dir}"/${pattern}; do
+        [ -e "${found}" ] && return 0
+    done
+    return 1
+}
+
 first_csv_value() {
     local value="${1:-}"
     value="${value%%,*}"
@@ -137,6 +148,10 @@ clean_influx() {
     rm -f "${RUNTIME_DIR}"/libtaos_ext_influx_arrow* \
           "${RUNTIME_DIR}"/libarrow* \
           "${RUNTIME_DIR}"/libparquet* 2>/dev/null || true
+}
+
+clean_odbc() {
+    rm -f "${RUNTIME_DIR}"/libodbc* 2>/dev/null || true
 }
 
 ensure_mysql() {
@@ -221,6 +236,112 @@ ensure_influx() {
     fi
 }
 
+ensure_odbc() {
+    if [ "${OS}" = "Darwin" ]; then
+        has_any libodbc.2.dylib libodbc.dylib && return 0
+    else
+        has_any libodbc.so.2 libodbc.so && return 0
+    fi
+
+    copy_glob "${STAGED_DIR}" 'libodbc.so*' 'libodbc*.dylib*' || true
+    copy_glob "${REPO_ROOT}/.externals/install/ext_odbc/${TD_CONFIG_NAME:-Debug}/lib" \
+        'libodbc.so*' 'libodbcinst.so*' 'libodbc*.dylib*' || true
+    copy_glob /usr/lib/x86_64-linux-gnu 'libodbc.so*' 'libodbcinst.so*' || true
+    copy_glob /usr/lib/aarch64-linux-gnu 'libodbc.so*' 'libodbcinst.so*' || true
+    copy_glob /usr/local/lib 'libodbc.so*' 'libodbcinst.so*' 'libodbc*.dylib*' || true
+
+    if [ "${OS}" = "Darwin" ]; then
+        has_any libodbc.2.dylib libodbc.dylib
+    else
+        has_any libodbc.so.2 libodbc.so
+    fi
+}
+
+# The Microsoft ODBC Driver 18 travels with the dependency package; stage it
+# next to libodbc, where the provider resolves `libmsodbcsql-18.*` from
+# (`../lib` or `../driver` relative to taosd).  Only SQL Server needs it, so a
+# miss is reported as a warning instead of failing the whole staging step.
+ensure_msodbc() {
+    if has_glob "${RUNTIME_DIR}" 'libmsodbcsql*.so*' ||
+       has_glob "${RUNTIME_DIR}" 'libmsodbcsql*.dylib*'; then
+        return 0
+    fi
+
+    copy_glob "${STAGED_DIR}" 'libmsodbcsql*.so*' 'libmsodbcsql*.dylib*' || true
+    copy_glob "${REPO_ROOT}/.externals/install/ext_msodbc/${TD_CONFIG_NAME:-Debug}/lib" \
+        'libmsodbcsql*.so*' 'libmsodbcsql*.dylib*' || true
+    copy_glob "${BUILD_DIR}/build/driver" 'libmsodbcsql*.so*' 'libmsodbcsql*.dylib*' || true
+    copy_glob /opt/microsoft/msodbcsql18/lib64 'libmsodbcsql*.so*' || true
+    copy_glob /opt/microsoft/msodbcsql18/lib 'libmsodbcsql*.so*' || true
+    copy_glob /opt/microsoft/msodbcsql/lib64 'libmsodbcsql*.so*' || true
+
+    has_glob "${RUNTIME_DIR}" 'libmsodbcsql*.so*' ||
+        has_glob "${RUNTIME_DIR}" 'libmsodbcsql*.dylib*'
+}
+
+# The Microsoft driver loads its localisation resource relative to its own
+# directory (`<driver_dir>/../share/resources/en_US/msodbcsqlr18.rll`).  A
+# tree that staged only the .so makes every SQLAllocHandle(SQL_HANDLE_ENV)
+# fail — sqlcmd *and* the engine's own connections — with the opaque
+# "Driver's SQLAllocHandle on SQL_HANDLE_HENV failed" (seen on CI, where the
+# driver was picked up from the image's /opt/microsoft install and the build
+# tree never carried share/resources).
+ensure_msodbc_resources() {
+    local dst="${BUILD_DIR}/build/share/resources"
+    [ -f "${dst}/en_US/msodbcsqlr18.rll" ] && return 0
+
+    local src drv
+    for src in \
+        /opt/microsoft/msodbcsql18/share/resources \
+        /opt/microsoft/msodbcsql/share/resources \
+        "${REPO_ROOT}/.externals/install/ext_msodbc/${TD_CONFIG_NAME:-Debug}/share/resources"; do
+        [ -d "${src}" ] || continue
+        mkdir -p "${dst}"
+        if cp -r "${src}/." "${dst}/" 2>/dev/null && [ -f "${dst}/en_US/msodbcsqlr18.rll" ]; then
+            echo "[fq-runtime] staged Microsoft ODBC driver resources from ${src}" >&2
+            return 0
+        fi
+    done
+    # A driver already copied into the tree carries its share/ one level up.
+    for drv in "${RUNTIME_DIR}"/libmsodbcsql*.so* "${STAGED_DIR}"/libmsodbcsql*.so*; do
+        [ -e "${drv}" ] || continue
+        src="$(dirname "$(dirname "${drv}")")/share/resources"
+        [ -d "${src}" ] || continue
+        mkdir -p "${dst}"
+        if cp -r "${src}/." "${dst}/" 2>/dev/null && [ -f "${dst}/en_US/msodbcsqlr18.rll" ]; then
+            echo "[fq-runtime] staged Microsoft ODBC driver resources from ${src}" >&2
+            return 0
+        fi
+    done
+
+    # Last resort: the mirrored msodbcsql18 package carries share/resources/.
+    local arch url archive out_dir
+    case "$(uname -m)" in
+        x86_64|amd64)  arch=amd64 ;;
+        aarch64|arm64) arch=arm64 ;;
+        *)             arch="" ;;
+    esac
+    [ -n "${arch}" ] || return 1
+    url="${FQ_MSODBC_RESOURCES_URL:-${FQ_SQLSERVER_MIRROR_URL:-${FQ_MIRROR_URL:-https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest}}/msodbcsql18-18.7.1.1-${arch}.tar.gz}"
+    archive="${CACHE_DIR}/$(basename "${url}")"
+    if [ ! -s "${archive}" ]; then
+        curl -fL --retry 3 --retry-delay 5 --connect-timeout 30 -o "${archive}" "${url}" 2>/dev/null || true
+    fi
+    [ -s "${archive}" ] || return 1
+    out_dir="${CACHE_DIR}/msodbc-resources"
+    rm -rf "${out_dir}"
+    mkdir -p "${out_dir}"
+    tar -xzf "${archive}" -C "${out_dir}" 2>/dev/null || true
+    src="$(find "${out_dir}" -type d -path '*/share/resources' 2>/dev/null | head -1)"
+    [ -n "${src}" ] || return 1
+    mkdir -p "${dst}"
+    if cp -r "${src}/." "${dst}/" 2>/dev/null && [ -f "${dst}/en_US/msodbcsqlr18.rll" ]; then
+        echo "[fq-runtime] staged Microsoft ODBC driver resources from ${url}" >&2
+        return 0
+    fi
+    return 1
+}
+
 if ! ensure_mysql; then
     echo "[fq-runtime] missing MySQL runtime libs; set FQ_MYSQL_RUNTIME_URL to a libmariadb runtime archive" >&2
     exit 1
@@ -232,6 +353,19 @@ fi
 if ! ensure_influx; then
     echo "[fq-runtime] missing Influx runtime libs; set FQ_INFLUX_RUNTIME_URL to a runtime archive" >&2
     exit 1
+fi
+if ! ensure_odbc; then
+    echo "[fq-runtime] missing ODBC driver-manager runtime libs (libodbc); rebuild with BUILD_WITH_ODBC=ON" >&2
+    exit 1
+fi
+if ! ensure_msodbc; then
+    echo "[fq-runtime] WARNING: Microsoft ODBC Driver 18 (libmsodbcsql-18.*) not found; SQL Server" >&2
+    echo "[fq-runtime]          federated-query tests will fail. Install msodbcsql18, set" >&2
+    echo "[fq-runtime]          EXT_MSODBC_SO_SRCPATH, or rebuild with INSTALL_FQ_RUNTIME_LIBS=ON." >&2
+fi
+if ! ensure_msodbc_resources; then
+    echo "[fq-runtime] WARNING: Microsoft ODBC driver resources (msodbcsqlr18.rll) not staged;" >&2
+    echo "[fq-runtime]          SQL Server connections will fail with SQLAllocHandle(HENV)." >&2
 fi
 
 bash "${STAGE_SCRIPT}" fix-darwin-rpaths "${RUNTIME_DIR}" || true

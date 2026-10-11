@@ -61,11 +61,13 @@ TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG = _code(
 _MYSQL = "mysql"
 _PG = "postgresql"
 _INFLUX = "influxdb"
-_ALL_SOURCES = (_MYSQL, _PG, _INFLUX)
+_SQLSERVER = "sqlserver"
+_ALL_SOURCES = (_MYSQL, _PG, _INFLUX, _SQLSERVER)
 
 _MYSQL_DB = "fq07_boundary_m"
 _PG_DB = "fq07_boundary_p"
 _INFLUX_DB = "fq07_boundary_i"
+_SQLSERVER_DB = "fq07_boundary_s"
 _LOCAL_DB = "fq07_boundary_local"
 
 _BOUNDARY_EPOCH_MS = (1704067200000, 1704067260000, 1704067320000)
@@ -74,6 +76,15 @@ _FETCH_BOUNDARY_ROWS = 8193
 _NCHAR_VALUES = (
     "x" * (_NCHAR_LIMIT_CHARS - 1),
     "y" * _NCHAR_LIMIT_CHARS,
+    "z" * (_NCHAR_LIMIT_CHARS + 1),
+)
+
+# SQL Server nvarchar holds characters but TDengine NCHAR budgets bytes
+# (nvarchar carries UTF-16 on the wire), so the SQL Server fixtures stay inside
+# the 16379-byte budget and the over-budget row exceeds it by characters.
+_SQLSERVER_NCHAR_VALUES = (
+    "x" * (_NCHAR_LIMIT_CHARS // 2 - 1),
+    "y" * (_NCHAR_LIMIT_CHARS // 2),
     "z" * (_NCHAR_LIMIT_CHARS + 1),
 )
 
@@ -496,6 +507,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             _MYSQL: SourceSpec(_MYSQL, "fq07_src_m", _MYSQL_DB, _MYSQL_DB, "ts"),
             _PG: SourceSpec(_PG, "fq07_src_p", _PG_DB, "public", "ts"),
             _INFLUX: SourceSpec(_INFLUX, "fq07_src_i", _INFLUX_DB, _INFLUX_DB, "time"),
+            _SQLSERVER: SourceSpec(_SQLSERVER, "fq07_src_s", _SQLSERVER_DB, "dbo", "ts"),
         }
 
     def setup_method(self, method):
@@ -598,6 +610,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), _PG_DB),
             lambda: ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_DB),
+            lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_DB),
         ):
             try:
                 cleanup()
@@ -638,6 +651,10 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             cfg = self._pg_cfg()
             sql = (f"create external source {self._source_ref(name)} type='postgresql' host='{cfg.host}' "
                    f"port={cfg.port} user='{cfg.user}' password='{cfg.password}'")
+        elif spec.key == _SQLSERVER:
+            cfg = self._sqlserver_cfg()
+            sql = (f"create external source {self._source_ref(name)} type='sqlserver' host='{cfg.host}' "
+                   f"port={cfg.port} user='{cfg.user}' password='{cfg.password}'")
         else:
             cfg = self._influx_cfg()
             sql = (f"create external source {self._source_ref(name)} type='influxdb' host='{cfg.host}' "
@@ -647,6 +664,10 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             sql += f" database='{database}'"
         if spec.key == _PG and schema:
             sql += f" schema='{schema}'"
+        if spec.key == _SQLSERVER:
+            # The shared helper passes PG's default; SQL Server's default schema is dbo.
+            sqlserver_schema = "dbo" if schema in ("", None, "public") else schema
+            sql += f" schema='{sqlserver_schema}'"
         if options:
             sql += f" options({options})"
         return sql
@@ -656,6 +677,8 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             self._drop_source(spec.source)
             if spec.key == _PG:
                 tdSql.execute(self._source_sql(spec, schema="public"))
+            elif spec.key == _SQLSERVER:
+                tdSql.execute(self._source_sql(spec, schema="dbo"))
             else:
                 tdSql.execute(self._source_sql(spec))
             self._assert_source_exists(spec.source)
@@ -663,6 +686,8 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             self._assert_source_config_value(spec.source, "database", spec.database)
             if spec.key == _PG:
                 self._assert_source_config_value(spec.source, "schema", "public")
+            if spec.key == _SQLSERVER:
+                self._assert_source_config_value(spec.source, "schema", "dbo")
 
     def _prepare_remote_data(self):
         first_dt, second_dt, third_dt = (
@@ -773,6 +798,66 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         assert ExtSrcEnv.pg_query_cfg(
             pg_cfg, _PG_DB, "select count(*) from fetch_t"
         ) == [(_FETCH_BOUNDARY_ROWS,)]
+
+        # -- SQL Server ------------------------------------------------------
+        sqlserver_cfg = self._sqlserver_cfg()
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, [
+            "IF OBJECT_ID('dbo.boundary_t') IS NOT NULL DROP TABLE dbo.boundary_t",
+            "IF OBJECT_ID('dbo.schema_t') IS NOT NULL DROP TABLE dbo.schema_t",
+            "IF OBJECT_ID('dbo.unknown_t') IS NOT NULL DROP TABLE dbo.unknown_t",
+            "IF OBJECT_ID('dbo.value_t') IS NOT NULL DROP TABLE dbo.value_t",
+            "IF OBJECT_ID('dbo.quoted_t') IS NOT NULL DROP TABLE dbo.quoted_t",
+            "IF OBJECT_ID('dbo.interp_t') IS NOT NULL DROP TABLE dbo.interp_t",
+            "IF OBJECT_ID('dbo.fetch_t') IS NOT NULL DROP TABLE dbo.fetch_t",
+            "IF OBJECT_ID('dbo.structured_t') IS NOT NULL DROP TABLE dbo.structured_t",
+            "CREATE TABLE dbo.boundary_t ("
+            " ts datetime2(3) NOT NULL PRIMARY KEY, id int, val int, score float, "
+            " name nvarchar(32), category nvarchar(8), note nvarchar(32), "
+            " dec_ok decimal(18,4), flag bit)",
+            "INSERT INTO dbo.boundary_t VALUES "
+            f"('{first_dt}',1,10,1.5,N'alpha',N'a',N'',123.4567,1),"
+            f"('{second_dt}',2,20,2.5,N'beta',N'b',N'中文',-1.0000,0),"
+            f"('{third_dt}',3,NULL,NULL,N'',N'a',N'emoji🙂',NULL,NULL)",
+            "CREATE TABLE dbo.schema_t ("
+            " ts datetime2(3) NOT NULL PRIMARY KEY, c_char char(4), "
+            " c_varchar varchar(8), c_bin varbinary(8), c_json nvarchar(max), "
+            " c_dec decimal(18,4), c_geom geometry)",
+            "INSERT INTO dbo.schema_t VALUES ('2024-01-01T00:00:00.000','ab','text',"
+            "0x00ff,N'{\"k\":1}',123.4567,geometry::STGeomFromText('POINT(1 2)',4326))",
+            "CREATE TABLE dbo.unknown_t (ts datetime2(3) NOT NULL PRIMARY KEY, id int, shape hierarchyid)",
+            "INSERT INTO dbo.unknown_t VALUES ('2024-01-01T00:00:00.000',1,hierarchyid::Parse('/1/'))",
+            # The over-budget value lives in its own table: SQL Server is
+            # zero-pushdown, so a scan converts whole blocks before the local
+            # filter runs - keeping it in value_t would fail the id < 3 query
+            # too (see the boundary check below).
+            "CREATE TABLE dbo.value_t (id int NOT NULL PRIMARY KEY, note nvarchar(max))",
+            "INSERT INTO dbo.value_t VALUES "
+            f"(1,N'{_SQLSERVER_NCHAR_VALUES[0]}'),(2,N'{_SQLSERVER_NCHAR_VALUES[1]}')",
+            "CREATE TABLE dbo.value_big_t (id int NOT NULL PRIMARY KEY, note nvarchar(max))",
+            f"INSERT INTO dbo.value_big_t VALUES (3,N'{_SQLSERVER_NCHAR_VALUES[2]}')",
+            "CREATE TABLE dbo.quoted_t (ts datetime2(3) NOT NULL PRIMARY KEY, [select] int)",
+            f"INSERT INTO dbo.quoted_t VALUES ('{first_dt}',10),('{second_dt}',20)",
+            "CREATE TABLE dbo.interp_t (ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+            "INSERT INTO dbo.interp_t VALUES ('2024-01-01T00:00:00.000',10),"
+            "('2024-01-01T00:02:00.000',30)",
+            "CREATE TABLE dbo.fetch_t (ts datetime2(3) NOT NULL PRIMARY KEY, id int, val int)",
+            ";WITH seq AS (SELECT TOP ("
+            f"{_FETCH_BOUNDARY_ROWS}"
+            ") ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS k "
+            "FROM sys.all_objects a CROSS JOIN sys.all_objects b) "
+            "INSERT INTO dbo.fetch_t (ts, id, val) "
+            "SELECT DATEADD(second, k, CAST('2024-02-01T00:00:00' AS datetime2(3))), k, k * 3 "
+            "FROM seq",
+            "CREATE TABLE dbo.structured_t (id int NOT NULL PRIMARY KEY, doc nvarchar(max))",
+            "INSERT INTO dbo.structured_t VALUES "
+            "(1, N'{\"a\": [1, 2], \"flag\": true, \"name\": \"v\"}')",
+        ])
+        assert ExtSrcEnv.sqlserver_query(
+            _SQLSERVER_DB, "SELECT COUNT(*) FROM dbo.boundary_t") == "3"
+        assert ExtSrcEnv.sqlserver_query(
+            _SQLSERVER_DB, "SELECT COUNT(*) FROM dbo.fetch_t"
+        ) == str(_FETCH_BOUNDARY_ROWS)
 
         influx_cfg = self._influx_cfg()
         ExtSrcEnv.influx_create_db_cfg(influx_cfg, _INFLUX_DB)
@@ -888,6 +973,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             source_specs = (
                 (self.specs[_MYSQL].source, self.specs[_MYSQL].timestamp_column),
                 (self.specs[_PG].source, self.specs[_PG].timestamp_column),
+                (self.specs[_SQLSERVER].source, self.specs[_SQLSERVER].timestamp_column),
                 (flight.source, flight.timestamp_column),
                 (http_source, flight.timestamp_column),
             )
@@ -909,11 +995,13 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         structured_expected = {
             _MYSQL: ((1, '{"a": [1, 2], "flag": true, "name": "v"}'),),
             _PG: ((1, '{"a": [1, 2], "flag": true, "name": "v"}'),),
+            _SQLSERVER: ((1, '{"a": [1, 2], "flag": true, "name": "v"}'),),
             _INFLUX: ((1, '{"a":[1,2],"flag":true,"name":"v"}'),),
         }
         decimal_expected = {
             _MYSQL: ((1, Decimal("123.4567")), (2, Decimal("-1.0000")), (3, None)),
             _PG: ((1, Decimal("123.4567")), (2, Decimal("-1.0000")), (3, None)),
+            _SQLSERVER: ((1, Decimal("123.4567")), (2, Decimal("-1.0000")), (3, None)),
             _INFLUX: ((1, 123.4567), (2, -1.0), (3, None)),
         }
         for spec in self.specs.values():
@@ -956,7 +1044,14 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                 "select id, name from boundary_t order by id", expected_external
             )
 
-            tdSql.execute(f"use {self._source_ref(spec.source)}.{self._source_ref(spec.namespace)}")
+            if spec.key == _SQLSERVER:
+                # Two-segment USE switches the database for SQL Server; the schema
+                # comes from the source default (DS 5.3.4).
+                tdSql.execute(
+                    f"use {self._source_ref(spec.source)}.{self._source_ref(spec.database)}")
+            else:
+                tdSql.execute(
+                    f"use {self._source_ref(spec.source)}.{self._source_ref(spec.namespace)}")
             self._assert_rows(
                 "select id, name from boundary_t order by id", expected_external
             )
@@ -1121,11 +1216,10 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             self._drop_source(name)
             if spec.key == _INFLUX:
                 options = f"'api_token'='{secret}','protocol'='flight_sql'"
-            elif spec.key == _MYSQL:
-                options = "'connect_timeout_ms'='1000'"
             else:
                 options = "'connect_timeout_ms'='1000'"
-            tdSql.execute(self._source_sql(spec, name=name, schema="public", options=options))
+            source_schema = "dbo" if spec.key == _SQLSERVER else "public"
+            tdSql.execute(self._source_sql(spec, name=name, schema=source_schema, options=options))
             self._assert_source_exists(name)
             self._assert_error(
                 f"alter external source {self._source_ref(name)} "
@@ -1157,6 +1251,15 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                 ("c_json", "NCHAR", 16379, ""), ("c_xml", "NCHAR", 16379, ""),
                 ("c_array", "NCHAR", 16379, ""), ("c_dec", "DECIMAL(18, 4)", 8, ""),
             ),
+            _SQLSERVER: (
+                # SQL Server char/varchar are non-Unicode columns and map to
+                # VARCHAR; only nchar/nvarchar map to NCHAR (unlike MySQL, whose
+                # utf8mb4 text columns are Unicode and map to NCHAR).
+                ("ts", "TIMESTAMP", 8, ""), ("c_char", "VARCHAR", 4, ""),
+                ("c_varchar", "VARCHAR", 8, ""), ("c_bin", "VARBINARY", 8, ""),
+                ("c_json", "NCHAR", 16379, ""), ("c_dec", "DECIMAL(18, 4)", 8, ""),
+                ("c_geom", "GEOMETRY", 65517, ""),
+            ),
             _INFLUX: (
                 ("time", "TIMESTAMP", 8, ""), ("c_float", "DOUBLE", 8, ""),
                 ("c_int", "BIGINT", 8, ""), ("c_str", "NCHAR", 16379, ""),
@@ -1178,6 +1281,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         expected = {
             _MYSQL: common + (FieldSchema("note", FieldType.C_NCHAR, 0, 0, 32),),
             _PG: common + (FieldSchema("note", FieldType.C_NCHAR, 0, 0, 16379),),
+            _SQLSERVER: common + (FieldSchema("note", FieldType.C_NCHAR, 0, 0, 32),),
             _INFLUX: (
                 FieldSchema("id", FieldType.C_BIGINT, 0, 0, 8),
                 FieldSchema("score", FieldType.C_DOUBLE, 0, 0, 8),
@@ -1213,17 +1317,29 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         print("FQ07 TAOS_FIELD_E metadata ...................... [ passed ]")
 
     def do_value_conversion_boundaries(self):
-        expected = ((1, _NCHAR_VALUES[0]), (2, _NCHAR_VALUES[1]))
+        expected_by_source = {
+            _SQLSERVER: ((1, _SQLSERVER_NCHAR_VALUES[0]), (2, _SQLSERVER_NCHAR_VALUES[1])),
+        }
         for spec in self.specs.values():
+            expected = expected_by_source.get(
+                spec.key, ((1, _NCHAR_VALUES[0]), (2, _NCHAR_VALUES[1])))
             table = f"{spec.source}.value_t"
             sql = f"select id as id, note as note from {table} where id < 3 order by id"
             self._assert_rows(sql, expected)
             self._assert_result_columns(sql, ("id", "note"))
             if spec.key == _INFLUX:
+                # InfluxDB strings are unbounded, so there is no fixed-width
+                # overflow to detect.
                 self._assert_rows("select 1", ((1,),))
                 continue
+            # SQL Server keeps the over-budget value in value_big_t: it is
+            # zero-pushdown, so the scan converts the whole block before the
+            # local filter runs and a single over-budget row would fail every
+            # query on value_t (not just the one selecting that row).
+            overflow_table = (f"{spec.source}.value_big_t"
+                              if spec.key == _SQLSERVER else table)
             self._assert_error(
-                f"select id, note from {table} where id = 3",
+                f"select id, note from {overflow_table} where id = 3",
                 TSDB_CODE_EXT_TYPE_CONVERT_FAILED,
                 "conversion failed",
             )
@@ -1243,7 +1359,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             "select id from (select id, shape from {table}) q",
             "select id from {table} union all select id from {table} where shape is null",
         )
-        for source_key in (_MYSQL, _PG):
+        for source_key in (_MYSQL, _PG, _SQLSERVER):
             spec = self.specs[source_key]
             table = f"{spec.source}.unknown_t"
             self._assert_rows(f"select id from {table} order by id", ((1,),))
@@ -1349,9 +1465,17 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             )
             self._assert_rows(direct_sql, ((1, 10), (2, 20)))
             self._assert_result_columns(direct_sql, ("id", "val"))
-            self._assert_remote_sql(
-                direct_sql, ("select", "where", "order by", "limit"), ("federated",)
-            )
+            if spec.key == _SQLSERVER:
+                # Step 1 keeps every clause local: the remote SQL stays a plain
+                # scan and the predicate/order/limit are applied by TDengine.
+                self._assert_remote_sql(
+                    direct_sql, ("select", "boundary_t"),
+                    ("federated",), ("federated", " where ", " order by ", " limit "),
+                )
+            else:
+                self._assert_remote_sql(
+                    direct_sql, ("select", "where", "order by", "limit"), ("federated",)
+                )
 
             partial_sql = (
                 f"select e.id as id, d.weight as weight from {spec.table} e "
@@ -1369,9 +1493,17 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             )
             self._assert_rows(remote_filter_join_sql, ((1, 100), (2, 200)))
             self._assert_result_columns(remote_filter_join_sql, ("id", "weight"))
-            self._assert_remote_sql(
-                remote_filter_join_sql, ("select", "where"), ("federated", "join")
-            )
+            if spec.key == _SQLSERVER:
+                # Step 1 keeps the predicate local for SQL Server, so the join's
+                # remote SQL stays a plain scan (fq_14 records REMOTE WHERE: NO
+                # with LOCAL FILTER: YES for the same shape).
+                self._assert_remote_sql(
+                    remote_filter_join_sql, ("select",), ("federated", "join")
+                )
+            else:
+                self._assert_remote_sql(
+                    remote_filter_join_sql, ("select", "where"), ("federated", "join")
+                )
 
             local_filter_join_sql = (
                 f"select e.id as id, d.weight as weight from {spec.table} e "

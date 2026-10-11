@@ -1073,6 +1073,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         case EXT_SOURCE_MYSQL:      srcType = "mysql";      break;
         case EXT_SOURCE_POSTGRESQL: srcType = "postgresql"; break;
         case EXT_SOURCE_INFLUXDB:   srcType = "influxdb";   break;
+        case EXT_SOURCE_SQLSERVER:  srcType = "sqlserver";  break;
         default: break;
       }
       EXPLAIN_ROW_NEW(level, EXPLAIN_FEDERATED_SCAN_FORMAT, extSrcName, extTblName, srcType);

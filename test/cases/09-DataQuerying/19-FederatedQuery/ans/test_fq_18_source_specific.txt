@@ -52,3 +52,23 @@ SQL: SELECT v.id, v.name, SUM(o.amount) AS total FROM {P_VIEW}.public.v_users v 
 RESULT
 1|Alice|300
 ---
+### vw-s-01 POS
+SQL: SELECT * FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_summary ORDER BY status
+RESULT
+1|100
+2|200
+---
+### vw-s-02 POS
+SQL: SELECT v.id, v.name, SUM(o.amount) AS total FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_users v JOIN {S_VIEW}.{S_VIEW_DB}.dbo.orders o ON v.id = o.user_id GROUP BY v.id, v.name ORDER BY v.id
+RESULT
+1|Alice|300
+---
+### s-coll-01 POS
+SQL: SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'ALPHA' ORDER BY val
+RESULT
+---
+### s-coll-02 POS
+SQL: SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'alpha' ORDER BY val
+RESULT
+1|alpha
+---

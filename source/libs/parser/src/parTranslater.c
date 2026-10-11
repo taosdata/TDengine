@@ -2462,6 +2462,11 @@ static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSch
   pCol->hasIndex = false;
   pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
+  // Same legacy packing as setColumnInfoBySchema: unpack before typeMod refinement.
+  if (IS_DECIMAL_TYPE(pCol->node.resType.type) && hasDecimalBytesTypeInfo(pCol->node.resType.bytes)) {
+    extractDecimalTypeInfoFromBytes(&pCol->node.resType.bytes, &pCol->node.resType.precision,
+                                    &pCol->node.resType.scale);
+  }
   if (pTable->pMeta->schemaExt && tagFlag < 0 && IS_DECIMAL_TYPE(pCol->node.resType.type)) {
     int32_t colIdx = (int32_t)(pColSchema - pTable->pMeta->schema);
     if (colIdx >= 0 && colIdx < pTable->pMeta->tableInfo.numOfColumns) {
@@ -2539,6 +2544,14 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   pCol->node.resType.bytes = pColSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type) {
     pCol->node.resType.precision = pTable->pMeta->tableInfo.precision;
+  }
+  // External (synthetic) table schemas may carry DECIMAL precision/scale packed
+  // into the schema bytes (the legacy external-schema encoding).  Normalize to
+  // the plain value size before typeMod refinement; otherwise the packed value
+  // would leak into the column type and downstream blocks.
+  if (IS_DECIMAL_TYPE(pCol->node.resType.type) && hasDecimalBytesTypeInfo(pCol->node.resType.bytes)) {
+    extractDecimalTypeInfoFromBytes(&pCol->node.resType.bytes, &pCol->node.resType.precision,
+                                    &pCol->node.resType.scale);
   }
   pCol->tableHasPk = hasPkInTable(pTable->pMeta);
   pCol->isPk = (pCol->tableHasPk) && (pColSchema->flags & COL_IS_KEY);
@@ -11158,24 +11171,39 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
 
   PAR_ERR_JRET(getExternalSourceInfo(pCxt, pColRef->refSourceName, &pExtInfo));
 
-  if (pColRef->refSchemaName[0] != '\0' &&
-      0 != strcmp(pColRef->refSchemaName, pExtInfo->schema_name)) {
+  // SQL Server is <database>.<schema>.<object>; MySQL / PostgreSQL are
+  // database-scoped.  A SQL Server 4-part column path (source.schema.table.column)
+  // carries the schema in the middle segment, so re-map it before resolving
+  // (DS 5.3.3).  A 5-part path already fills refSchemaName.
+  const char* refDb = pColRef->refDbName;
+  const char* refSchema = pColRef->refSchemaName;
+  if ((EExtSourceType)pExtInfo->type == EXT_SOURCE_SQLSERVER && refSchema[0] == '\0' &&
+      refDb[0] != '\0') {
+    refSchema = refDb;
+    refDb = "";
+  }
+
+  // PostgreSQL stores a single creation-time schema per source: a different ref
+  // schema means the source's schema changed after the vtable was created.
+  // SQL Server references may legitimately name other databases / schemas.
+  if ((EExtSourceType)pExtInfo->type != EXT_SOURCE_SQLSERVER && refSchema[0] != '\0' &&
+      0 != strcmp(refSchema, pExtInfo->schema_name)) {
     qError("external ref schema mismatch, source:%s, db:%s, table:%s, refSchema:%s, sourceSchema:%s",
            pColRef->refSourceName, pColRef->refDbName, pColRef->refTableName,
-           pColRef->refSchemaName, pExtInfo->schema_name);
+           refSchema, pExtInfo->schema_name);
     code = TSDB_CODE_EXT_SCHEMA_CHANGED;
     goto _return;
   }
 
-  const char* dbName = pColRef->refDbName[0] != '\0' ? pColRef->refDbName : pExtInfo->database;
-  const char* schemaName = pColRef->refSchemaName[0] != '\0' ? pColRef->refSchemaName : pExtInfo->schema_name;
-  PAR_ERR_JRET(getExternalTableMeta(pCxt, pExtInfo, pColRef->refSourceName, pColRef->refDbName, NULL,
+  const char* dbName = refDb[0] != '\0' ? refDb : pExtInfo->database;
+  const char* schemaName = refSchema[0] != '\0' ? refSchema : pExtInfo->schema_name;
+  PAR_ERR_JRET(getExternalTableMeta(pCxt, pExtInfo, pColRef->refSourceName, refDb, NULL,
                                     dbName, schemaName, pColRef->refTableName, false, &pExtMeta));
   ownsExtMeta = (NULL != pExtMeta);
 
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_EXTERNAL_TABLE, (SNode**)&pExtNode));
   tstrncpy(pExtNode->sourceName, pColRef->refSourceName, sizeof(pExtNode->sourceName));
-  tstrncpy(pExtNode->table.dbName, pColRef->refDbName, sizeof(pExtNode->table.dbName));
+  tstrncpy(pExtNode->table.dbName, dbName, sizeof(pExtNode->table.dbName));
   tstrncpy(pExtNode->table.tableName, pColRef->refTableName, sizeof(pExtNode->table.tableName));
   tstrncpy(pExtNode->table.tableAlias, pColRef->refTableName, sizeof(pExtNode->table.tableAlias));
   pExtNode->pExtMeta = pExtMeta;
@@ -11187,7 +11215,7 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
   tstrncpy(pExtNode->srcUser, pExtInfo->user, sizeof(pExtNode->srcUser));
   tstrncpy(pExtNode->srcPassword, pExtInfo->password, sizeof(pExtNode->srcPassword));
   tstrncpy(pExtNode->srcDatabase, pExtInfo->database, sizeof(pExtNode->srcDatabase));
-  tstrncpy(pExtNode->schemaName, pExtInfo->schema_name, sizeof(pExtNode->schemaName));
+  tstrncpy(pExtNode->schemaName, schemaName, sizeof(pExtNode->schemaName));
   tstrncpy(pExtNode->srcSchema, pExtInfo->schema_name, sizeof(pExtNode->srcSchema));
   tstrncpy(pExtNode->srcOptions, pExtInfo->options, sizeof(pExtNode->srcOptions));
   pExtNode->metaVersion = pExtInfo->meta_version;
@@ -11197,7 +11225,13 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
   pExtNode->tsPrimaryColIdx = -1;
   if (pExtNode->pExtMeta != NULL) {
     for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; i++) {
-      if (!pExtNode->pExtMeta->pCols[i].isPrimaryKey) continue;
+      // MySQL / PG and SQL Server report the remote key in isRemotePrimaryKey;
+      // the normalized isPrimaryKey only exists after a metadata refresh pass.
+      // Accept either marker for the primary timestamp column.
+      if (!pExtNode->pExtMeta->pCols[i].isPrimaryKey &&
+          !pExtNode->pExtMeta->pCols[i].isRemotePrimaryKey) {
+        continue;
+      }
       SDataType tdType = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_MAX_BINARY_LEN};
       int32_t mapCode = extTypeNameToTDengineType((EExtSourceType)pExtNode->sourceType,
                                                    pExtNode->pExtMeta->pCols[i].extTypeName,
@@ -11641,7 +11675,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
       const SSchema* pTsSchema = &pMeta->schema[0];
       const SSchema* pRefTsSchema = &pSingleRef->pMeta->schema[0];
         PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, NULL, (char*)pRefTsSchema->name,
-                               pSingleRef->table.tableName, pSingleRef->table.dbName, 0, "", NULL, 0));
+                               pSingleRef->table.tableName, pSingleRef->table.dbName, NULL, 0, "", NULL, 0));
     }
   }
   nodesDestroyNode(*pTable);
@@ -12289,7 +12323,17 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     tstrncpy(pRealTable->extSeg[0], pParCxt->currentExtSource, sizeof(pRealTable->extSeg[0]));
     tstrncpy(pRealTable->extSeg[1], pParCxt->currentExtNs1,    sizeof(pRealTable->extSeg[1]));
     pRealTable->table.dbName[0] = '\0';
-    pRealTable->numPathSegments = 3;
+    // Two-level USE context (SQL Server: USE source.db.schema sets both Ns1 and
+    // Ns2): carry the schema in the third segment and resolve through the
+    // four-segment form, otherwise the database value would be read as the
+    // schema.  Single-level namespaces (MySQL / PG / InfluxDB) keep Ns2 empty
+    // and the historical three-segment form.
+    if (pParCxt->currentExtNs2[0] != '\0') {
+      tstrncpy(pRealTable->extSeg[2], pParCxt->currentExtNs2, sizeof(pRealTable->extSeg[2]));
+      pRealTable->numPathSegments = 4;
+    } else {
+      pRealTable->numPathSegments = 3;
+    }
     PAR_ERR_JRET(checkExtTableWriteReject(pCxt));
     code = translateExternalTableImpl(pCxt, pRealTable, /*srcNameFromUseContext=*/true);
     if (TSDB_CODE_SUCCESS != code) {
@@ -27391,6 +27435,34 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   // collect trigger cols and set slot id
   PAR_ERR_JRET(createStreamSetNodeSlotId(pTriggerWindow, *pTriggerSlotHash, pTriggerCols));
 
+  // For an EXT-driven (federated) trigger table the runtime trigger-data block is exactly
+  // pTriggerCols filtered to COLUMN nodes, in list order: the reader builds its SELECT (and
+  // hence the block) from the serialized triggerCols list, skipping non-COLUMN entries.  The
+  // slot index found by findTsSlotId() above is a position over the federated scan's column
+  // list (pScanCols), which can carry columns that never reach that block - e.g. a SQL Server
+  // PRE_FILTER column (scan columns [val, ts] while the block is [ts]) - so the trigger task
+  // would read a missing or wrong column ("Out of range" via a stale terrno, task undeployed).
+  // Recompute the ts slot as the ts column's position inside the very list the reader turns
+  // into the block; the window's own timestamp node carries the slot id that the collect pass
+  // above assigned to its clone in pTriggerCols, so match on that.
+  if (pNested == NULL && nodeType(pScanNode) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN &&
+      pReq->triTsSlotId != -1) {
+    SColumnNode* pWindowTsCol = getStreamWindowTimestampColumn(pTriggerWindow);
+    int16_t      tsSlotId = (pWindowTsCol != NULL) ? pWindowTsCol->slotId : (int16_t)-1;
+    int16_t      blockIdx = 0;
+    bool         found = false;
+    SNode*       pColumnNode = NULL;
+    FOREACH(pColumnNode, pTriggerCols) {
+      if (nodeType(pColumnNode) != QUERY_NODE_COLUMN) continue;
+      if (((SColumnNode*)pColumnNode)->slotId == tsSlotId) {
+        found = true;
+        break;
+      }
+      ++blockIdx;
+    }
+    if (found) pReq->triTsSlotId = blockIdx;
+  }
+
   if (pNested != NULL) {
     resolveStreamNestedProjectionRefs(pOutputRoot, pScanNode, pReq, pNested);
     SColumnNode* pTs = NULL;
@@ -32763,15 +32835,16 @@ static int32_t translateRollbackTrans(STranslateContext* pCxt, SRollbackTransStm
 // Federated query: external source DDL translation helpers
 // ============================================================
 
-/* Valid OPTIONS keys per source type (EXT_SOURCE_MYSQL=0, PG=1, InfluxDB=2, TDengine=3). */
+/* Valid OPTIONS keys per source type (EXT_SOURCE_MYSQL=0, PG=1, InfluxDB=2, TDengine=3, SQLSERVER=4). */
 static const char* const s_extCommonOpts[] = {
     "tls_enabled", "tls_ca_cert", "tls_client_cert", "tls_client_key",
     "connect_timeout_ms", "read_timeout_ms", NULL};
-static const char* const s_extTypeSpecOpts[4][8] = {
+static const char* const s_extTypeSpecOpts[5][8] = {
     /* MySQL      */ {"charset", "ssl_mode", NULL},
   /* PostgreSQL */ {"sslmode", NULL},
     /* InfluxDB   */ {"api_token", "protocol", NULL},
     /* TDengine (reserved) */ {NULL},
+    /* SQL Server */ {"trust_server_certificate", NULL},
 };
 
 /* Serialize a list of SExtOptionNode into a compact JSON object string.
@@ -32781,7 +32854,7 @@ static bool isKnownExtOpt(int8_t srcType, const char* key) {
   for (int i = 0; s_extCommonOpts[i]; i++) {
     if (strcasecmp(key, s_extCommonOpts[i]) == 0) return true;
   }
-  if (srcType >= 0 && srcType < 4) {
+  if (srcType >= 0 && srcType < (int8_t)(sizeof(s_extTypeSpecOpts) / sizeof(s_extTypeSpecOpts[0]))) {
     for (int i = 0; s_extTypeSpecOpts[srcType][i]; i++) {
       if (strcasecmp(key, s_extTypeSpecOpts[srcType][i]) == 0) return true;
     }
@@ -32852,6 +32925,14 @@ static int32_t validateExtSourceOptionSemantic(int8_t srcType, const char* key, 
     if (value != NULL && value[0] != '\0' && !extOptValueInSet(value, s_influxProtocols)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "protocol must be one of flight_sql/http");
+    }
+  }
+
+  if (srcType == EXT_SOURCE_SQLSERVER && strcasecmp(key, "trust_server_certificate") == 0) {
+    static const char* const s_boolValues[] = {"true", "false", "1", "0", NULL};
+    if (value != NULL && value[0] != '\0' && !extOptValueInSet(value, s_boolValues)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "trust_server_certificate must be one of true/false/1/0");
     }
   }
 
@@ -35779,7 +35860,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
         PAR_ERR_JRET(nodesNodeToString(pOpts->pTagCond, false, &tagJson, &tagCondLen));
       }
       code = setColRef(&req.colRef.pColRef[index], index + 1, NULL, pOpts->refColumn,
-                       pOpts->refTable, pOpts->refDb,
+                       pOpts->refTable, pOpts->refDb, pOpts->refSchema,
                        pOpts->refType, pOpts->refSourceName, tagJson, tagCondLen);
       taosMemoryFree(tagJson);
       PAR_ERR_JRET(code);
@@ -35840,8 +35921,8 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
       if (pTagDef->pOptions && ((SColumnOptions*)pTagDef->pOptions)->hasRef) {
         SColumnOptions* pTagOptions = (SColumnOptions*)pTagDef->pOptions;
         PAR_ERR_JRET(setColRef(&req.colRef.pTagRef[tIdx], pS->colId, pS->name, pTagOptions->refColumn,
-                               pTagOptions->refTable, pTagOptions->refDb, pTagOptions->refType,
-                               pTagOptions->refSourceName, NULL, 0));
+                               pTagOptions->refTable, pTagOptions->refDb, pTagOptions->refSchema,
+                               pTagOptions->refType, pTagOptions->refSourceName, NULL, 0));
         PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &req.colRef.pTagRef[tIdx]));
       }
       ++tIdx;
@@ -35879,6 +35960,12 @@ static col_id_t getTagSchemaIndex(const STableMeta* pTableMeta, const char* pTag
 
 static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRef) {
   if (pColRef == NULL || pColRef->refSourceName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // A schema segment captured from the reference path takes precedence; the
+  // source's configured default is only a fallback (DS 5.3.10 item 7).
+  if (pColRef->refSchemaName[0] != '\0') {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -36041,7 +36128,8 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
           PAR_ERR_JRET(nodesNodeToString(pColRef->pTagCond, false, &tagJson, &tagCondLen));
         }
         code = setColRef(&pDef->ref, 0, pColRef->colName, pColRef->refColName, pColRef->refTableName,
-                         pColRef->refDbName, pColRef->refType, pColRef->refSourceName, tagJson, tagCondLen);
+                         pColRef->refDbName, pColRef->refSchemaName, pColRef->refType, pColRef->refSourceName,
+                         tagJson, tagCondLen);
         taosMemoryFree(tagJson);
         PAR_ERR_JRET(code);
         PAR_ERR_JRET(serializeFilterCond(pColRef->pFilterCond, &pDef->ref.filterCondLen,
@@ -36056,7 +36144,7 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
         PAR_ERR_JRET(nodesNodeToString(pColRef->pTagCond, false, &tagJson, &tagCondLen));
       }
       code = setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pSchema->name, pColRef->refColName,
-                       pColRef->refTableName, pColRef->refDbName,
+                       pColRef->refTableName, pColRef->refDbName, pColRef->refSchemaName,
                        pColRef->refType, pColRef->refSourceName, tagJson, tagCondLen);
       taosMemoryFree(tagJson);
       PAR_ERR_JRET(code);
@@ -36075,7 +36163,7 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
         PAR_ERR_JRET(nodesNodeToString(pColRef->pTagCond, false, &tagJson, &tagCondLen));
       }
       code = setColRef(&req.colRef.pColRef[index], pSchema->colId, pSchema->name, pColRef->refColName,
-                       pColRef->refTableName, pColRef->refDbName,
+                       pColRef->refTableName, pColRef->refDbName, pColRef->refSchemaName,
                        pColRef->refType, pColRef->refSourceName, tagJson, tagCondLen);
       taosMemoryFree(tagJson);
       PAR_ERR_JRET(code);
@@ -36101,7 +36189,8 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
         PAR_ERR_JRET(nodesNodeToString(pOpts->pTagCond, false, &tagJson, &tagCondLen));
       }
       code = setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pSchema->name, pOpts->refColumn,
-                       pOpts->refTable, pOpts->refDb, pOpts->refType, pOpts->refSourceName, tagJson, tagCondLen);
+                       pOpts->refTable, pOpts->refDb, pOpts->refSchema, pOpts->refType, pOpts->refSourceName,
+                       tagJson, tagCondLen);
       taosMemoryFree(tagJson);
       PAR_ERR_JRET(code);
       PAR_ERR_JRET(serializeFilterCond(pOpts->pFilterCond, &req.colRef.pColRef[schemaIdx].filterCondLen,
@@ -36149,7 +36238,7 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
         PAR_ERR_JRET(nodesNodeToString(pTagRef->pTagCond, false, &tagJson, &tagCondLen));
       }
       code = setColRef(&req.colRef.pTagRef[tagIdx], pSchema->colId, pSchema->name, pTagRef->refColName,
-                       pTagRef->refTableName, pTagRef->refDbName,
+                       pTagRef->refTableName, pTagRef->refDbName, pTagRef->refSchemaName,
                        pTagRef->refType, pTagRef->refSourceName, tagJson, tagCondLen);
       taosMemoryFree(tagJson);
       PAR_ERR_JRET(code);
@@ -36187,7 +36276,8 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
           SColumnRefNode* pTagRef = (SColumnRefNode*)pRefNode;
           if (0 == strncmp(pTagRef->colName, pTagDef->colName, TSDB_COL_NAME_LEN)) {
             code = setColRef(&pDef->ref, 0, pTagDef->colName, pTagRef->refColName, pTagRef->refTableName,
-                             pTagRef->refDbName, pTagRef->refType, pTagRef->refSourceName, NULL, 0);
+                             pTagRef->refDbName, pTagRef->refSchemaName, pTagRef->refType, pTagRef->refSourceName,
+                             NULL, 0);
             PAR_ERR_JRET(code);
             // same backfill as the own-column/vstb ref paths above: resolve the origin's
             // schema name from the ext source cache when refSourceName is set
@@ -38124,7 +38214,8 @@ _return:
 // Validate that refCol exists in the external table.
 // Uses getExternalTableMeta so async and sync metadata lookup follow the same ownership contract.
 static int32_t checkSeriesExtColRef(STranslateContext* pCxt, const char* sourceName,
-                                    const char* refDb, const char* refTable,
+                                    const char* refDb, const char* refSchema,
+                                    const char* refTable,
                                     const char* refCol, int8_t precision) {
   SExtTableMeta*  pExtMeta = NULL;
   SExtSourceInfo* pExtInfo = NULL;
@@ -38136,8 +38227,18 @@ static int32_t checkSeriesExtColRef(STranslateContext* pCxt, const char* sourceN
 
   pCxt->pParseCxt->async = false;
   PAR_ERR_JRET(getExternalSourceInfo(pCxt, sourceName, &pExtInfo));
-  PAR_ERR_JRET(getExternalTableMeta(pCxt, pExtInfo, sourceName, refDb, NULL, refDb,
-                                    pExtInfo->schema_name, refTable, false, &pExtMeta));
+  const char* seriesDb = refDb;
+  const char* seriesSchema = (NULL != refSchema) ? refSchema : "";
+  if (EXT_SOURCE_SQLSERVER == (EExtSourceType)pExtInfo->type && seriesSchema[0] == '\0' &&
+      seriesDb[0] != '\0') {
+    // SQL Server 4-part reference: the middle segment is the schema.
+    seriesSchema = seriesDb;
+    seriesDb = "";
+  }
+  if (seriesDb[0] == '\0') seriesDb = pExtInfo->database;
+  if (seriesSchema[0] == '\0') seriesSchema = pExtInfo->schema_name;
+  PAR_ERR_JRET(getExternalTableMeta(pCxt, pExtInfo, sourceName, refDb, refSchema, seriesDb,
+                                    seriesSchema, refTable, false, &pExtMeta));
   pCxt->pParseCxt->async = savedAsync;
 
   int32_t extColIdx = -1;
@@ -38159,7 +38260,7 @@ static int32_t checkSeriesExtColRef(STranslateContext* pCxt, const char* sourceN
   }
 
   for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    if (!pExtMeta->pCols[i].isPrimaryKey) {
+    if (!pExtMeta->pCols[i].isPrimaryKey && !pExtMeta->pCols[i].isRemotePrimaryKey) {
       continue;
     }
     int8_t sourcePrecision = extTimestampTypePrecision((EExtSourceType)pExtInfo->type,
@@ -38231,7 +38332,8 @@ static int32_t rejectUnsupportedExternalFilter(STranslateContext* pCxt, const SN
 }
 
 static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceName, const char* refDb,
-                                   const char* refTable, const char* refCol, const char* colName,
+                                   const char* refSchema, const char* refTable, const char* refCol,
+                                   const char* colName,
                                    SDataType declaredType, int8_t precision, SNode* pFilterCond) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SExtTableMeta*  pExtMeta = NULL;
@@ -38241,9 +38343,23 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
   EExtSourceType sourceType = (EExtSourceType)pInfo->type;
   PAR_ERR_JRET(rejectUnsupportedExternalFilter(pCxt, pFilterCond, sourceType));
 
-  // (2-3) External DB + table must exist (resolved by catalog via connector probe)
-  code = getExternalTableMeta(pCxt, pInfo, sourceName, refDb, NULL, refDb,
-                              pInfo->schema_name, refTable, false, &pExtMeta);
+  // (2-3) External DB + table must exist (resolved by catalog via connector probe).
+  // The namespace comes from the reference path, with the source defaults filling
+  // whichever component the path omitted:
+  //   MySQL / PG : source.database.table.column
+  //   SQL Server : source.database.schema.table.column, where the 4-part form
+  //                source.schema.table.column carries the schema in the middle
+  //                segment (mirrors createExtTableRefNode / DS 5.3.3).
+  const char* dbName = refDb;
+  const char* schemaName = (NULL != refSchema) ? refSchema : "";
+  if (EXT_SOURCE_SQLSERVER == sourceType && schemaName[0] == '\0' && dbName[0] != '\0') {
+    schemaName = dbName;
+    dbName = "";
+  }
+  if (dbName[0] == '\0') dbName = pInfo->database;
+  if (schemaName[0] == '\0') schemaName = pInfo->schema_name;
+  code = getExternalTableMeta(pCxt, pInfo, sourceName, refDb, refSchema, dbName,
+                              schemaName, refTable, false, &pExtMeta);
   if (pCxt->pParseCxt->async && (TSDB_CODE_SUCCESS != code || NULL == pExtMeta)) {
     // Fallback: 3-seg speculative pre-fetch uses empty db (source db not known at pre-fetch time).
     // After disambiguation refDb is filled, but the cache key still has empty db  -  try that key.
@@ -38312,8 +38428,19 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
     pTsPk = &pExtMeta->pCols[tsPrimaryKeyIndex];
   } else {
     for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
-      if (pExtMeta->pCols[i].isPrimaryKey) {
-        pTsPk = &pExtMeta->pCols[i];
+      // Providers normalize the TDengine timestamp marker into isPrimaryKey, but
+      // this validation also runs before that normalization (vtable DDL), so the
+      // raw remote-key flag counts too.  Only a primary-key column that maps to
+      // TIMESTAMP can serve as the virtual table's time axis.
+      const SExtColumnDef* pCol = &pExtMeta->pCols[i];
+      if (!pCol->isPrimaryKey && !pCol->isRemotePrimaryKey) {
+        continue;
+      }
+      SDataType pkMapped = {0};
+      if (TSDB_CODE_SUCCESS != extTypeNameToTDengineType((EExtSourceType)pInfo->type, pCol->extTypeName,
+                                                         pCol->extCharsetName, &pkMapped) ||
+          TSDB_DATA_TYPE_TIMESTAMP == pkMapped.type) {
+        pTsPk = pCol;
         break;
       }
     }
@@ -38489,13 +38616,15 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       if (!expandedFromSeries) {
         // Explicit 4-seg external reference  -  validate via checkExternalColRef
         PAR_ERR_RET(checkExternalColRef(pCxt, pStmt->refSourceName, pStmt->refDbName,
-                                         pStmt->refTableName, pStmt->refColName,
+                                         pStmt->refSchemaName, pStmt->refTableName,
+                                         pStmt->refColName,
                                          pStmt->colName, colType, pTableMeta->tableInfo.precision,
                                          pFilterCond));
       } else {
         // Series-expanded ref: validate column exists via catalog global cache
         PAR_ERR_RET(checkSeriesExtColRef(pCxt, pStmt->refSourceName, pStmt->refDbName,
-                                          pStmt->refTableName, pStmt->refColName,
+                                          pStmt->refSchemaName, pStmt->refTableName,
+                                          pStmt->refColName,
                                           pTableMeta->tableInfo.precision));
       }
     } else {
@@ -38512,6 +38641,9 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     pReq->refTbName = taosStrdup(pStmt->refTableName);
     pReq->refType = pStmt->refType;
     pReq->refSourceName = taosStrdup(pStmt->refSourceName);
+    // Keep the schema segment of the reference (5-part SQL Server paths) so the
+    // stored column reference resolves the same remote object.
+    pReq->refSchemaName = ('\0' != pStmt->refSchemaName[0]) ? taosStrdup(pStmt->refSchemaName) : NULL;
     if (expandedFromSeries && matchedSeriesAlias[0]) {
       pReq->seriesAlias = taosStrdup(matchedSeriesAlias);
     }
@@ -38845,7 +38977,8 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
   }
 
   if (isDirectExternalRef) {
-    PAR_ERR_RET(checkExternalColRef(pCxt, pStmt->refSourceName, pStmt->refDbName, pStmt->refTableName,
+    PAR_ERR_RET(checkExternalColRef(pCxt, pStmt->refSourceName, pStmt->refDbName,
+                                    pStmt->refSchemaName, pStmt->refTableName,
                                     pStmt->refColName, pStmt->colName, colType,
                                     pTableMeta->tableInfo.precision, pStmt->pFilterCond));
     pReq->colName = taosStrdup(pStmt->colName);
@@ -38854,6 +38987,8 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
     pReq->refTbName = taosStrdup(pStmt->refTableName);
     pReq->refColName = taosStrdup(pStmt->refColName);
     pReq->refType = 1;
+    // External schema segment of the reference (5-part SQL Server paths).
+    pReq->refSchemaName = ('\0' != pStmt->refSchemaName[0]) ? taosStrdup(pStmt->refSchemaName) : NULL;
     if (!pReq->colName || !pReq->refSourceName || !pReq->refDbName || !pReq->refTbName || !pReq->refColName) {
       return terrno;
     }
@@ -38867,6 +39002,7 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
 
     // Validate ext column exists via catalog global cache
     PAR_ERR_RET(checkSeriesExtColRef(pCxt, pMatchedSeries->sourceName, pMatchedSeries->dbName,
+                                      pStmt->refSchemaName,
                                       pMatchedSeries->measurementName, actualRefCol,
                                       pTableMeta->tableInfo.precision));
 
@@ -39339,6 +39475,7 @@ static void destroyAlterTbReqInner(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->refTbName);
   taosMemoryFree(pReq->refColName);
   taosMemoryFree(pReq->refSourceName);
+  taosMemoryFree(pReq->refSchemaName);
   taosMemoryFree(pReq->filterCondJson);
 
   for (int i = 0; i < taosArrayGetSize(pReq->pTagArray); ++i) {
@@ -40483,7 +40620,8 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
       }
       if (pColOptions->refType == 1) {
         PAR_ERR_JRET(checkExternalColRef(pCxt, pColOptions->refSourceName, pColOptions->refDb,
-                                         pColOptions->refTable, pColOptions->refColumn,
+                                         pColOptions->refSchema, pColOptions->refTable,
+                                         pColOptions->refColumn,
                                          pColNode->colName, colType, dbCfg.precision,
                                          pColOptions->pFilterCond));
       } else {
@@ -40590,7 +40728,8 @@ static int32_t checkCreateVChildOwnColRef(STranslateContext* pCxt, SCreateVSubTa
     PAR_ERR_RET(rejectUnsupportedExternalFilter(pCxt, pColRef->pFilterCond, EXT_SOURCE_TDENGINE));
   }
   if (pColRef->refType == 1) {
-    PAR_ERR_RET(checkExternalColRef(pCxt, pColRef->refSourceName, pColRef->refDbName, pColRef->refTableName,
+    PAR_ERR_RET(checkExternalColRef(pCxt, pColRef->refSourceName, pColRef->refDbName,
+                                    pColRef->refSchemaName, pColRef->refTableName,
                                     pColRef->refColName, pColRef->colName, colType,
                                     pSuperTableMeta->tableInfo.precision, pColRef->pFilterCond));
   } else {
@@ -41090,7 +41229,8 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
       }
       if (pColRef->refType == 1) {
         PAR_ERR_JRET(checkExternalColRef(pCxt, pColRef->refSourceName, pColRef->refDbName,
-                                         pColRef->refTableName, pColRef->refColName,
+                                         pColRef->refSchemaName, pColRef->refTableName,
+                                         pColRef->refColName,
                                          pColRef->colName, colType, pSuperTableMeta->tableInfo.precision,
                                          pColRef->pFilterCond));
       } else {
@@ -41118,7 +41258,8 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
       }
       if (pColRef->refType == 1) {
         PAR_ERR_JRET(checkExternalColRef(pCxt, pColRef->refSourceName, pColRef->refDbName,
-                                         pColRef->refTableName, pColRef->refColName,
+                                         pColRef->refSchemaName, pColRef->refTableName,
+                                         pColRef->refColName,
                                          pColRef->colName, colType, pSuperTableMeta->tableInfo.precision,
                                          pColRef->pFilterCond));
       } else {
@@ -41151,7 +41292,8 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
                                  pColOptions->refColumn, colType, pSuperTableMeta->tableInfo.precision));
       } else {
         PAR_ERR_JRET(checkExternalColRef(pCxt, pColOptions->refSourceName, pColOptions->refDb,
-                                         pColOptions->refTable, pColOptions->refColumn,
+                                         pColOptions->refSchema, pColOptions->refTable,
+                                         pColOptions->refColumn,
                                          pColDef->colName, colType, pSuperTableMeta->tableInfo.precision,
                                          pColOptions->pFilterCond));
       }

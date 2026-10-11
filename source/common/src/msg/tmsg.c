@@ -20990,6 +20990,11 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeSVAlterTbReqFilterCond(pEncoder, pReq));
   // Per-vnode DDL budget share; only meaningful for the WHERE-based bulk tag update.
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->txnDdlQuota));
+  // External schema segment of a column/tag reference (SQL Server 5-part paths).
+  // Written last: a pre-3.4.4 reader ignores the trailing bytes (tEndDecode does not
+  // require full consumption), and a pre-3.4.4 message decoded here leaves the field
+  // empty (tDecodeIsEnd guard), which keeps the previous 4-part behaviour.
+  TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refSchemaName ? pReq->refSchemaName : ""));
 
   tEndEncode(pEncoder);
 _exit:
@@ -21347,6 +21352,7 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   TAOS_CHECK_EXIT(tStartDecode(pDecoder));
   TAOS_CHECK_EXIT(tDecodeSVAlterTbReqCommon(pDecoder, pReq));
 
+  pReq->refSchemaName = NULL;
   pReq->ctimeMs = 0;
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->ctimeMs));
@@ -21370,6 +21376,11 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   // unlimited, preserving the old (uncapped) behaviour for them.
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->txnDdlQuota));
+  }
+  // External schema segment of the reference. Absent from pre-3.4.4 clients, which
+  // leaves it empty = the previous 4-part resolution.
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refSchemaName));
   }
 
   tEndDecode(pDecoder);

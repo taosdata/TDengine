@@ -32,7 +32,8 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table,
-    create_influx_measurement, extract_show_create_sql as _extract_show_create_sql)
+    create_influx_measurement, create_sqlserver_table,
+    extract_show_create_sql as _extract_show_create_sql)
 
 
 _LOCAL_DB = "vmeta_local"
@@ -40,6 +41,8 @@ _PG_DB    = "vmeta_pg"
 _PG_SRC   = "vmeta_pg_src"
 _INF_DB   = "vmeta_inf"
 _INF_SRC  = "vmeta_inf_src"
+_SS_DB    = "vmeta_ss"
+_SS_SRC   = "vmeta_ss_src"
 
 
 def _ensure_env():
@@ -56,6 +59,18 @@ def _ensure_env():
     create_influx_measurement(
         _INF_DB, ["_snapshot_trigger_meta value=1i 1000000000000000000"])
     create_ext_source(_INF_SRC, "influxdb", _INF_DB)
+    create_remote_db("sqlserver", _SS_DB)
+    # The same table name under two schemas: metadata must keep the schema
+    # segment of the persisted reference even though the display form of
+    # col_source renders only source.database.table.column.
+    create_sqlserver_table(_SS_DB, "r",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v INT, w INT",
+                           ["('2024-01-01 00:00:00.000', 11, 10)"])
+    create_sqlserver_table(_SS_DB, "r",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v INT, w INT",
+                           ["('2024-01-01 00:00:00.000', 21, 20)"],
+                           schema="other")
+    create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
 
 
 # ===========================================================================
@@ -96,11 +111,31 @@ class TestVtableMetaExtSource:
             "USING vstb_series_meta TAGS ('siteSeries') "
             f"SERIES s1 AS {_INF_SRC}.{_INF_DB}.m_meta (device='d1')")
 
+        # SQL Server: same table/column names under two schemas, plus a
+        # virtual child table. References use the full 5-segment path
+        # source.database.schema.table.column.
+        tdSql.execute(
+            f"CREATE VTABLE v_meta_ss (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r.v, "
+            f"w int FROM {_SS_SRC}.{_SS_DB}.dbo.r.w, "
+            f"local_only int)")
+        tdSql.execute(
+            "CREATE VTABLE v_meta_ss_other (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.other.r.v)")
+        tdSql.execute(
+            "CREATE STABLE vstb_ss_meta (ts timestamp, v int) "
+            "TAGS (site nchar(16)) VIRTUAL 1")
+        tdSql.execute(
+            "CREATE VTABLE vctb_ss_meta ("
+            f"v FROM {_SS_SRC}.{_SS_DB}.dbo.r.v) "
+            f"USING vstb_ss_meta TAGS ('siteSS')")
+
     @classmethod
     def teardown_class(cls):
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_PG_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SS_SRC}")
 
     # -------------------------------------------------------------------
     # 6.1 — Normal vtable meta
@@ -475,3 +510,146 @@ class TestVtableMetaExtSource:
         tdSql.query("SELECT count(*) FROM vctb_series_meta_rt")
         tdSql.checkData(0, 0, 2)
         tdSql.execute("DROP VTABLE vctb_series_meta_rt")
+
+    # -------------------------------------------------------------------
+    # 6.3 — SQL Server meta
+    # -------------------------------------------------------------------
+
+    def test_describe_sqlserver_vtable(self):
+        """Describe a SQL Server-backed normal virtual table
+
+        1. Describe the virtual table whose columns reference SQL Server
+        2. Verify the column order and that the 5-segment reference resolves data
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Add SQL Server as the fourth external source
+
+        """
+        tdSql.query("DESCRIBE v_meta_ss")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "ts")
+        tdSql.checkData(1, 0, "v")
+        tdSql.checkData(2, 0, "w")
+        tdSql.checkData(3, 0, "local_only")
+        tdSql.query("SELECT v, w FROM v_meta_ss")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 11)
+        tdSql.checkData(0, 1, 10)
+
+    def test_sqlserver_ins_columns_keeps_schema_binding(self):
+        """Expose SQL Server column references and keep the schema binding
+
+        1. Read the referenced columns of the dbo- and other-schema vtables from ins_columns
+        2. Verify the col_source display form and that both bindings resolve their own schema
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Add SQL Server as the fourth external source
+
+        """
+        tdSql.query(
+            "SELECT col_name, col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_meta_ss' "
+            "AND col_name IN ('local_only', 'ts', 'v', 'w') "
+            "ORDER BY col_name")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "local_only")
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, "ts")
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(2, 0, "v")
+        tdSql.checkData(2, 1, f"{_SS_SRC}.{_SS_DB}.r.v")
+        tdSql.checkData(3, 0, "w")
+        tdSql.checkData(3, 1, f"{_SS_SRC}.{_SS_DB}.r.w")
+
+        # col_source renders source.database.table.column: the SQL Server
+        # schema segment is kept in the persisted reference but is not part
+        # of the display form.  Both vtables therefore render the same
+        # col_source; their values prove the schemas are still applied.
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_meta_ss_other' "
+            "AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{_SS_SRC}.{_SS_DB}.r.v")
+        tdSql.query("SELECT v FROM v_meta_ss")
+        tdSql.checkData(0, 0, 11)
+        tdSql.query("SELECT v FROM v_meta_ss_other")
+        tdSql.checkData(0, 0, 21)
+
+    def test_sqlserver_child_vtable_ins_columns_shows_from(self):
+        """Expose a SQL Server-backed virtual child table's column reference
+
+        1. Read the child table's value column from ins_columns
+        2. Verify its source includes the SQL Server source, database, table, and column
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Add SQL Server as the fourth external source
+
+        """
+        tdSql.query(
+            "SELECT col_name, col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='vctb_ss_meta' "
+            "AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "v")
+        tdSql.checkData(0, 1, f"{_SS_SRC}.{_SS_DB}.r.v")
+
+    def test_show_create_sqlserver_vtable_contains_source(self):
+        """Render a SQL Server reference in SHOW CREATE
+
+        1. Verify SHOW CREATE includes the SQL Server source, database, table, column, and unbound column
+        2. Confirm the statement is not replayed: the rendered 4-segment path drops the schema
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Add SQL Server as the fourth external source
+
+        """
+        sql = _extract_show_create_sql("SHOW CREATE VTABLE v_meta_ss")
+        for expected in (_SS_SRC, _SS_DB, "r", "v", "local_only"):
+            if expected not in sql:
+                tdLog.exit(f"expected {expected} in {sql}")
+        # SHOW CREATE renders the reference as the 4-segment form
+        # source.database.table.column (the SQL Server schema segment is not
+        # emitted).  Replaying it would make the SQL Server ref resolver
+        # treat the database segment as a schema, so a round-trip is not
+        # attempted here; the schema binding is verified behaviorally in
+        # test_sqlserver_ins_columns_keeps_schema_binding and in the
+        # persistence suite (FQSS-VTBL-006).
+        tdSql.query("SELECT v FROM v_meta_ss")
+        tdSql.checkData(0, 0, 11)

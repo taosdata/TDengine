@@ -77,6 +77,13 @@ _LOCAL_DB_NS = "fq04_local_ns"
 _SRC_M = "fq04_src_m"
 _SRC_P = "fq04_src_p"
 _SRC_I = "fq04_src_i"
+# SQL Server — 4th external source.  Step 1 runs the dialect with zero pushdown
+# (DS §5.3.7), so every function is evaluated locally with the source's
+# inherent µs precision.
+_SRC_S = "fq04_src_s"
+# Database/schema shared with the SQL Server specific test at the bottom of
+# this file (it re-creates its own tables before use).
+_SQLSERVER_DB = "fq04_sdb"
 
 # ── Core 5-row data ──
 # (ms_epoch, us_epoch, ns_epoch, val)
@@ -324,6 +331,90 @@ for _ts_pk, _ts_aware, _ts_naive, _ts_date_epoch, _v in _MULTI_TS_DATA:
     )
 
 # =====================================================================
+# SQL Server data setup (T-SQL) — mirrors the MySQL tables 1:1
+# =====================================================================
+# Type mapping (DS §5.3.7「时间精度与时区」):
+#   * datetimeoffset = tz-aware   — the value carries its own offset.  Every row
+#     is written as the UTC instant of the matching MySQL/PG row, so the same
+#     SELECT returns the same instant regardless of the client timezone.
+#   * datetime2 / date = tz-naive — interpreted in the CLIENT timezone, exactly
+#     like MySQL DATETIME and PG TIMESTAMP WITHOUT TIME ZONE (§5.3.7 时区类型分类表).
+# SQL Server's inherent precision is µs (§5.3.7 精度表), the same as MySQL/PG,
+# so CAST(ts AS BIGINT) yields comparable µs epochs across all three sources.
+# T-SQL keyword identifiers are bracket-escaped in the DDL below.
+
+def _tsql_naive(literal):
+    """'YYYY-MM-DD HH:MM:SS[.ffffff]' → T-SQL datetime2/date literal."""
+    return literal.replace(" ", "T")
+
+
+def _tsql_aware(us):
+    """µs epoch → T-SQL datetimeoffset literal carrying the exact instant."""
+    return _us_to_dt_str(us).replace(" ", "T") + "+00:00"
+
+
+# MySQL ts_types DATE values kept verbatim (row 3 intentionally differs from
+# its datetime columns) so the same SELECT can be compared 1:1 across sources.
+_TZ_TYPE_DATE_STRINGS = ["2024-01-01", "2024-01-02", "2024-06-15", "2024-06-15"]
+
+_ts_types_rows = []
+for _i, (_us, _v) in enumerate(_TZ_TIMESTAMPS):
+    _cst_str = _us_to_tz_local_str(_us, "Asia/Shanghai")
+    _aware = f"'{_tsql_aware(_us)}'"
+    _ts_types_rows.append(
+        f"({_v}, {_aware}, '{_tsql_naive(_cst_str)}',"
+        f" '{_tsql_naive(_cst_str[:23])}', '{_TZ_TYPE_DATE_STRINGS[_i]}', {_aware})"
+    )
+
+_SQLSERVER_SETUP = [
+    "IF OBJECT_ID('dbo.ts_types') IS NOT NULL DROP TABLE dbo.ts_types",
+    "CREATE TABLE dbo.ts_types ("
+    " [id] int NOT NULL PRIMARY KEY,"
+    " [c_timestamp] datetimeoffset(6),"   # ↔ MySQL TIMESTAMP(6) / PG timestamptz
+    " [c_datetime] datetime2(6),"         # ↔ MySQL DATETIME(6)
+    " [c_datetime3] datetime2(3),"        # ↔ MySQL DATETIME(3)
+    " [c_date] date,"                     # ↔ MySQL DATE
+    " [c_dto] datetimeoffset(3))",        # ↔ PG c_timestamptz (tz-aware)
+    "INSERT INTO dbo.ts_types"
+    " ([id], [c_timestamp], [c_datetime], [c_datetime3], [c_date], [c_dto]) VALUES "
+    + ", ".join(_ts_types_rows),
+    # pk_dt mirrors MySQL pk_dt DATETIME(3): tz-naive ms wall-clock values.
+    "IF OBJECT_ID('dbo.pk_dt') IS NOT NULL DROP TABLE dbo.pk_dt",
+    "CREATE TABLE dbo.pk_dt ([ts] datetime2(3) NOT NULL PRIMARY KEY, [val] int)",
+    "INSERT INTO dbo.pk_dt ([ts], [val]) VALUES " + ", ".join(
+        f"('{_tsql_naive(_ms_to_dt_str(_ms))}', {_v})" for _ms, _us, _ns, _v in _ROWS),
+    # pk_ts mirrors PG pk_ts TIMESTAMP: tz-naive µs UTC wall-clock values.
+    "IF OBJECT_ID('dbo.pk_ts') IS NOT NULL DROP TABLE dbo.pk_ts",
+    "CREATE TABLE dbo.pk_ts ([ts] datetime2(6) NOT NULL PRIMARY KEY, [val] int)",
+    "INSERT INTO dbo.pk_ts ([ts], [val]) VALUES " + ", ".join(
+        f"('{_tsql_naive(_us_to_dt_str(_us))}', {_v})" for _ms, _us, _ns, _v in _ROWS),
+    # pk_ts_parity mirrors PG pk_ts_parity: CST wall-clock strings so the CST
+    # session reconstructs the same UTC epoch through the client timezone (the
+    # UTC session uses pk_ts above, exactly like the PG parity source).
+    "IF OBJECT_ID('dbo.pk_ts_parity') IS NOT NULL DROP TABLE dbo.pk_ts_parity",
+    "CREATE TABLE dbo.pk_ts_parity ([ts] datetime2(6) NOT NULL PRIMARY KEY, [val] int)",
+    "INSERT INTO dbo.pk_ts_parity ([ts], [val]) VALUES " + ", ".join(
+        f"('{_tsql_naive(_us_to_tz_local_str(_us, 'Asia/Shanghai'))}', {_v})"
+        for _ms, _us, _ns, _v in _ROWS),
+    # pk_dto mirrors MySQL pk_ts / PG pk_tstz: tz-aware µs timestamps.
+    "IF OBJECT_ID('dbo.pk_dto') IS NOT NULL DROP TABLE dbo.pk_dto",
+    "CREATE TABLE dbo.pk_dto ([ts] datetimeoffset(6) NOT NULL PRIMARY KEY, [val] int)",
+    "INSERT INTO dbo.pk_dto ([ts], [val]) VALUES " + ", ".join(
+        f"('{_tsql_aware(_us)}', {_v})" for _ms, _us, _ns, _v in _ROWS),
+    # multi_ts mirrors MySQL multi_ts (ms pk + tz-aware + tz-naive + date).
+    "IF OBJECT_ID('dbo.multi_ts') IS NOT NULL DROP TABLE dbo.multi_ts",
+    "CREATE TABLE dbo.multi_ts ([ts] datetime2(3) NOT NULL PRIMARY KEY,"
+    " [ts_aware] datetimeoffset(6), [ts_naive] datetime2(6), [ts_date] date, [val] int)",
+    "INSERT INTO dbo.multi_ts ([ts], [ts_aware], [ts_naive], [ts_date], [val]) VALUES "
+    + ", ".join(
+        f"('{_tsql_naive(_us_to_dt_str(_ts_pk)[:23])}', '{_tsql_aware(_ts_aware)}',"
+        f" '{_tsql_naive(_us_to_dt_str(_ts_naive))}',"
+        f" '{_dt_mod.datetime.utcfromtimestamp(_ts_date_epoch / 1000.0).strftime('%Y-%m-%d')}'"
+        f", {_v})"
+        for _ts_pk, _ts_aware, _ts_naive, _ts_date_epoch, _v in _MULTI_TS_DATA),
+]
+
+# =====================================================================
 # InfluxDB data setup (line protocol, ns precision)
 # =====================================================================
 
@@ -411,6 +502,46 @@ _TZ_CASES = [
     ("neg-02", "SELECT CAST(TO_TIMESTAMP('2024-01-01', '%H:%M:%S') AS BIGINT) FROM {M}.pk_dt LIMIT 1"),
     ("neg-03", "SELECT TO_TIMESTAMP('2024-13-01', '%Y-%m-%d') FROM {M}.pk_dt LIMIT 1"),
     ("neg-04", "SELECT CAST(TO_TIMESTAMP('2024-01-01', '%Q') AS BIGINT) FROM {M}.pk_dt LIMIT 1"),
+    # ── SQL Server counterparts (step 1, zero pushdown) ──
+    # tz-s01..tz-s12 mirror tz-m01..tz-m12 (c_timestamp is tz-aware;
+    # c_datetime/c_datetime3/c_date are tz-naive, DS §5.3.7 时区类型分类表).
+    ("tz-s01", "SELECT CAST(c_timestamp AS BIGINT) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s02", "SELECT CAST(c_datetime AS BIGINT) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s03", "SELECT CAST(c_datetime3 AS BIGINT) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s04", "SELECT CAST(c_date AS BIGINT) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s05", "SELECT TO_ISO8601(c_timestamp) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s06", "SELECT TO_ISO8601(c_datetime) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s07", "SELECT val FROM {S}.pk_dto WHERE ts >= '2024-01-01' AND ts < '2024-01-02' ORDER BY ts"),
+    ("tz-s08", "SELECT val FROM {S}.pk_dto WHERE ts >= 1704067200000 AND ts < 1704153600000 ORDER BY ts"),
+    ("tz-s09", "SELECT val FROM {S}.pk_dt WHERE ts >= '2024-01-01' AND ts < '2024-01-02' ORDER BY ts"),
+    ("tz-s10", "SELECT val FROM {S}.pk_dt WHERE ts >= 1704067200000 AND ts < 1704153600000 ORDER BY ts"),
+    ("tz-s11", "SELECT WEEKDAY(c_datetime) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s12", "SELECT DATE(c_datetime) FROM {S}.ts_types ORDER BY id"),
+    # tz-s13..tz-s23 mirror tz-p01..tz-p11 (PG's tz-aware c_timestamptz maps to
+    # the SQL Server tz-aware c_dto; PG pk_tstz maps to pk_dto).
+    ("tz-s13", "SELECT CAST(c_dto AS BIGINT) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s14", "SELECT CAST(c_datetime AS BIGINT) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s15", "SELECT CAST(c_date AS BIGINT) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s16", "SELECT TO_ISO8601(c_dto) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s17", "SELECT TO_ISO8601(c_datetime3) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s18", "SELECT val FROM {S}.pk_dto WHERE ts >= '2024-01-01' AND ts < '2024-01-02' ORDER BY ts"),
+    ("tz-s19", "SELECT val FROM {S}.pk_dto WHERE ts >= 1704067200000 AND ts < 1704153600000 ORDER BY ts"),
+    ("tz-s20", "SELECT val FROM {S}.pk_ts WHERE ts >= '2024-01-01' AND ts < '2024-01-02' ORDER BY ts"),
+    ("tz-s21", "SELECT val FROM {S}.pk_ts WHERE ts >= 1704067200000 AND ts < 1704153600000 ORDER BY ts"),
+    ("tz-s22", "SELECT WEEKDAY(c_dto) FROM {S}.ts_types ORDER BY id"),
+    ("tz-s23", "SELECT DATE(c_dto) FROM {S}.ts_types ORDER BY id"),
+    # tz-s24..tz-s28 mirror the cross-source cases tz-x01..tz-x03 with a SQL
+    # Server leg ({M}×{S} and {S}×{P}).
+    ("tz-s24", "SELECT TIMEZONE() FROM {S}.pk_dt LIMIT 1"),
+    ("tz-s25", "SELECT a.val FROM {M}.pk_ts a INNER JOIN {S}.pk_dto b ON a.ts = b.ts ORDER BY a.ts"),
+    ("tz-s26", "SELECT a.val FROM {S}.pk_dto a INNER JOIN {P}.pk_tstz b ON a.ts = b.ts ORDER BY a.ts"),
+    ("tz-s27", "SELECT a.val FROM {M}.pk_dt a INNER JOIN {S}.pk_ts b ON a.ts = b.ts ORDER BY a.ts"),
+    ("tz-s28", "SELECT a.val FROM {S}.pk_dt a INNER JOIN {P}.pk_ts b ON a.ts = b.ts ORDER BY a.ts"),
+    # neg-s02..neg-s04 mirror neg-02..neg-04 — the malformed time strings are
+    # parsed by the engine, so the dialect does not change the outcome.
+    ("neg-s02", "SELECT CAST(TO_TIMESTAMP('2024-01-01', '%H:%M:%S') AS BIGINT) FROM {S}.pk_dt LIMIT 1"),
+    ("neg-s03", "SELECT TO_TIMESTAMP('2024-13-01', '%Y-%m-%d') FROM {S}.pk_dt LIMIT 1"),
+    ("neg-s04", "SELECT CAST(TO_TIMESTAMP('2024-01-01', '%Q') AS BIGINT) FROM {S}.pk_dt LIMIT 1"),
 ]
 
 # ── TFMT group (WHERE time format variants — TZ-insensitive only) ──
@@ -429,6 +560,15 @@ _TFMT_CASES = [
     ("tfmt-18", "SELECT val FROM {L_ns}.t WHERE ts > 1704067260000000000 ORDER BY ts"),
     ("tfmt-19", "SELECT val FROM {M}.pk_dt WHERE ts < NOW() ORDER BY ts"),
     ("tfmt-20", "SELECT val FROM {M}.pk_dt WHERE ts < TODAY() ORDER BY ts"),
+    # ── SQL Server counterparts (tfmt-s02/s06/s08 mirror tfmt-02/06/08,
+    # tfmt-s04/s10 mirror tfmt-04/10, tfmt-s19/s20 mirror tfmt-19/20) ──
+    ("tfmt-s02", "SELECT val FROM {S}.pk_dt WHERE ts > 1704067260000 ORDER BY ts"),
+    ("tfmt-s04", "SELECT val FROM {S}.pk_dto WHERE ts > 1704067260000 ORDER BY ts"),
+    ("tfmt-s06", "SELECT val FROM {S}.pk_dt WHERE ts BETWEEN 1704067260000 AND 1704067380000 ORDER BY ts"),
+    ("tfmt-s08", "SELECT val FROM {S}.pk_ts WHERE ts > 1704067260000 ORDER BY ts"),
+    ("tfmt-s10", "SELECT val FROM {S}.pk_dto WHERE ts > 1704067260000 ORDER BY ts"),
+    ("tfmt-s19", "SELECT val FROM {S}.pk_dt WHERE ts < NOW() ORDER BY ts"),
+    ("tfmt-s20", "SELECT val FROM {S}.pk_dt WHERE ts < TODAY() ORDER BY ts"),
 ]
 
 # ── TFMT-TZ group (TZ-sensitive WHERE time format variants; tested in test_timezone) ──
@@ -443,6 +583,15 @@ _TFMT_TZ_CASES = [
     ("tfmt-09", "SELECT val FROM {P}.pk_ts WHERE ts > 1704067260000000 ORDER BY ts"),
     ("tfmt-11", "SELECT val FROM {I}.sensor WHERE time > '2024-01-01 00:01:00' ORDER BY time"),
     ("tfmt-15", "SELECT val FROM {M}.pk_dt WHERE ts > 1704067260000 UNION ALL SELECT val FROM {P}.pk_ts WHERE ts > '2024-01-01 00:01:00' ORDER BY 1"),
+    # ── SQL Server counterparts ──
+    ("tfmt-s01", "SELECT val FROM {S}.pk_dt WHERE ts > '2024-01-01 00:01:00' ORDER BY ts"),
+    ("tfmt-s03", "SELECT val FROM {S}.pk_dt WHERE ts > 1704067260000000 ORDER BY ts"),
+    ("tfmt-s05", "SELECT val FROM {S}.pk_dt WHERE ts BETWEEN '2024-01-01 00:01:00' AND '2024-01-01 00:03:00' ORDER BY ts"),
+    ("tfmt-s07", "SELECT val FROM {S}.pk_ts WHERE ts > '2024-01-01 00:01:00' ORDER BY ts"),
+    ("tfmt-s09", "SELECT val FROM {S}.pk_ts WHERE ts > 1704067260000000 ORDER BY ts"),
+    # tfmt-s15a/s15b mirror the {M}∪{P} union in tfmt-15 with a SQL Server leg.
+    ("tfmt-s15a", "SELECT val FROM {M}.pk_dt WHERE ts > 1704067260000 UNION ALL SELECT val FROM {S}.pk_dt WHERE ts > '2024-01-01 00:01:00' ORDER BY 1"),
+    ("tfmt-s15b", "SELECT val FROM {S}.pk_dt WHERE ts > 1704067260000 UNION ALL SELECT val FROM {P}.pk_ts WHERE ts > '2024-01-01 00:01:00' ORDER BY 1"),
 ]
 
 # ── PREC group (single precision correctness — TZ-insensitive only) ──
@@ -695,6 +844,23 @@ _PREC_CASES = [
     ("prec-82", "SELECT TIMEDIFF(ts, 1704067200000000000, 1b) FROM {L_ns}.t ORDER BY ts",
         {"expect": [[r[2] - _ROWS[0][2]] for r in _ROWS]}),
     ("prec-83", "SELECT TIMEDIFF(time, 1704067200000000000, 1b) FROM {I}.sensor ORDER BY time"),
+    # ── SQL Server counterparts (prec-s04/s14/s19 mirror prec-04/14/19,
+    # prec-s64/91 mirror prec-64/91, prec-s74 mirrors prec-74,
+    # prec-s137/s139 mirror prec-137/139, prec-s157 mirrors prec-157) ──
+    ("prec-s04", "SELECT CAST(ts AS BIGINT), val FROM {S}.pk_dto ORDER BY ts"),
+    ("prec-s14", "SELECT CAST(TIMETRUNCATE(ts, 1s) AS BIGINT) FROM {S}.pk_dto ORDER BY ts"),
+    ("prec-s19", "SELECT CAST(MIN(ts) AS BIGINT), CAST(MAX(ts) AS BIGINT) FROM {S}.pk_dto"),
+    ("prec-s64", "SELECT COUNT(*) FROM {S}.pk_dto WHERE ts < NOW()", {"expect": _E_COUNT5}),
+    ("prec-s74", "SELECT TO_ISO8601(ts, '+00:00') FROM {S}.pk_dto ORDER BY ts"),
+    ("prec-s91", "SELECT NOW() > MAX(ts) FROM {S}.pk_dto", {"expect": _E_TRUE}),
+    # SQL Server inherent precision is µs (DS §5.3.7 精度表), so NOW()/TODAY()
+    # from this source carries 16 digits like MySQL/PG.
+    ("prec-s137", "SELECT NOW(), LENGTH(CAST(CAST(NOW() AS BIGINT) AS VARCHAR(30))) FROM {S}.pk_dto LIMIT 1",
+        {"non_deterministic": True, "expect": [[_ANY, 16]]}),
+    ("prec-s139", "SELECT TODAY(), LENGTH(CAST(CAST(TODAY() AS BIGINT) AS VARCHAR(30))) FROM {S}.pk_dto LIMIT 1",
+        {"non_deterministic": True, "expect": [[_ANY, 16]]}),
+    ("prec-s157", "SELECT COUNT(*) FROM {S}.pk_dto WHERE CAST(NOW() AS BIGINT) BETWEEN 1000000000000000 AND 9999999999999999",
+        {"expect": _E_COUNT5}),
 ]
 
 # ── PREC-TZ group (TZ-sensitive precision cases; tested in test_timezone) ──
@@ -767,6 +933,61 @@ _PREC_TZ_CASES = [
     ("prec-t46", "SELECT COUNT(*) FROM {M}.pk_dt WHERE CAST(NOW() AS BIGINT) BETWEEN 1000000000000 AND 9999999999999",
         {"expect": []}),
     ("prec-t47", "SELECT COUNT(*) FROM {P}.pk_ts WHERE CAST(NOW() AS BIGINT) BETWEEN 1000000000000 AND 9999999999999",
+        {"expect": []}),
+    # ── SQL Server counterparts ──
+    # prec-s01/s02/s03 mirror prec-01/02/03; prec-s09/s10 mirror prec-09/10;
+    # prec-s11/s12 mirror prec-11/12; prec-s-t14..t47 mirror prec-t14..t47.
+    # SQL Server inherent precision is µs (DS §5.3.7 精度表).
+    ("prec-s01", "SELECT CAST(ts AS BIGINT), val FROM {S}.pk_dt ORDER BY ts"),
+    ("prec-s02", "SELECT CAST(ts AS BIGINT), val FROM {S}.pk_dto ORDER BY ts"),
+    ("prec-s03", "SELECT CAST(ts AS BIGINT), val FROM {S}.pk_ts ORDER BY ts"),
+    ("prec-s09", "SELECT CAST(ts AS BIGINT), CAST(ts_aware AS BIGINT), CAST(ts_naive AS BIGINT) FROM {S}.multi_ts ORDER BY ts"),
+    ("prec-s10", "SELECT CAST(ts AS BIGINT), CAST(ts_aware AS BIGINT), CAST(ts_naive AS BIGINT) FROM {S}.multi_ts ORDER BY ts"),
+    ("prec-s11", "SELECT TO_ISO8601(ts) FROM {S}.pk_dt ORDER BY ts"),
+    ("prec-s12", "SELECT TO_ISO8601(ts) FROM {S}.pk_ts ORDER BY ts"),
+    ("prec-s-t14", "SELECT CAST(TIMETRUNCATE(ts, 1s) AS BIGINT) FROM {S}.pk_dt ORDER BY ts"),
+    ("prec-s-t15", "SELECT CAST(TIMETRUNCATE(ts, 1s) AS BIGINT) FROM {S}.pk_dto ORDER BY ts"),
+    ("prec-s-t16", "SELECT CAST(TIMETRUNCATE(ts, 1s) AS BIGINT) FROM {S}.pk_ts ORDER BY ts"),
+    ("prec-s-t17", "SELECT CAST(MIN(ts) AS BIGINT), CAST(MAX(ts) AS BIGINT) FROM {S}.pk_dt"),
+    ("prec-s-t18", "SELECT CAST(MIN(ts) AS BIGINT), CAST(MAX(ts) AS BIGINT) FROM {S}.pk_dto"),
+    ("prec-s-t19", "SELECT CAST(MIN(ts) AS BIGINT), CAST(MAX(ts) AS BIGINT) FROM {S}.pk_ts"),
+    ("prec-s-t20", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM {S}.pk_dt WHERE val > 2 ORDER BY ts)"),
+    ("prec-s-t21", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM {S}.pk_ts WHERE val > 2 ORDER BY ts)"),
+    ("prec-s-t22", "SELECT COUNT(*) FROM {S}.pk_dt WHERE ts < NOW()", {"expect": _E_COUNT5}),
+    ("prec-s-t23", "SELECT COUNT(*) FROM {S}.pk_ts WHERE ts < NOW()", {"expect": _E_COUNT5}),
+    ("prec-s-t24", "SELECT COUNT(*) FROM {S}.pk_dt WHERE ts < TODAY()", {"expect": _E_COUNT5}),
+    ("prec-s-t25", "SELECT TO_ISO8601(ts, '+00:00') FROM {S}.pk_dt ORDER BY ts"),
+    ("prec-s-t26", "SELECT TO_ISO8601(ts, '+00:00') FROM {S}.pk_dto ORDER BY ts"),
+    ("prec-s-t27", "SELECT TO_ISO8601(ts, '+00:00') FROM {S}.pk_ts ORDER BY ts"),
+    ("prec-s-t28", "SELECT val FROM {S}.pk_dt WHERE ts = 1704067320123"),
+    ("prec-s-t29", "SELECT val FROM {S}.pk_ts WHERE ts = 1704067320123456"),
+    ("prec-s-t30", "SELECT TIMEDIFF(ts, 1704067200000, 1a) FROM {S}.pk_dt ORDER BY ts"),
+    ("prec-s-t31", "SELECT TIMEDIFF(ts, 1704067200000000, 1u) FROM {S}.pk_ts ORDER BY ts"),
+    ("prec-s-t32", "SELECT NOW() > MAX(ts) FROM {S}.pk_dt", {"expect": _E_TRUE}),
+    ("prec-s-t33", "SELECT NOW() > MAX(ts) FROM {S}.pk_dto", {"expect": _E_TRUE}),
+    ("prec-s-t34", "SELECT NOW() > MAX(ts) FROM {S}.pk_ts", {"expect": _E_TRUE}),
+    ("prec-s-t35", "SELECT TODAY() > MAX(ts) FROM {S}.pk_dt", {"expect": _E_TRUE}),
+    ("prec-s-t36", "SELECT TODAY() > MAX(ts) FROM {S}.pk_ts", {"expect": _E_TRUE}),
+    ("prec-s-t37", "SELECT val FROM {S}.pk_dt WHERE ts < NOW() ORDER BY val", {"expect": _E_VALS}),
+    ("prec-s-t38", "SELECT val FROM {S}.pk_ts WHERE ts < TODAY() ORDER BY val", {"expect": _E_VALS}),
+    ("prec-s-t39", "SELECT NOW(), LENGTH(CAST(CAST(NOW() AS BIGINT) AS VARCHAR(30))) FROM {S}.pk_dt LIMIT 1",
+        {"non_deterministic": True, "expect": [[_ANY, 16]]}),
+    ("prec-s-t40", "SELECT NOW(), LENGTH(CAST(CAST(NOW() AS BIGINT) AS VARCHAR(30))) FROM {S}.pk_dto LIMIT 1",
+        {"non_deterministic": True, "expect": [[_ANY, 16]]}),
+    ("prec-s-t41", "SELECT NOW(), LENGTH(CAST(CAST(NOW() AS BIGINT) AS VARCHAR(30))) FROM {S}.pk_ts LIMIT 1",
+        {"non_deterministic": True, "expect": [[_ANY, 16]]}),
+    ("prec-s-t42", "SELECT TODAY(), LENGTH(CAST(CAST(TODAY() AS BIGINT) AS VARCHAR(30))) FROM {S}.pk_dt LIMIT 1",
+        {"non_deterministic": True, "expect": [[_ANY, 16]]}),
+    ("prec-s-t43", "SELECT TODAY(), LENGTH(CAST(CAST(TODAY() AS BIGINT) AS VARCHAR(30))) FROM {S}.pk_ts LIMIT 1",
+        {"non_deterministic": True, "expect": [[_ANY, 16]]}),
+    ("prec-s-t44", "SELECT COUNT(*) FROM {S}.pk_dt WHERE CAST(NOW() AS BIGINT) BETWEEN 1000000000000000 AND 9999999999999999",
+        {"expect": _E_COUNT5}),
+    ("prec-s-t45", "SELECT COUNT(*) FROM {S}.pk_ts WHERE CAST(NOW() AS BIGINT) BETWEEN 1000000000000000 AND 9999999999999999",
+        {"expect": _E_COUNT5}),
+    # Negative guard: NOW() epoch is µs, never ms (mirrors prec-t46/t47).
+    ("prec-s-t46", "SELECT COUNT(*) FROM {S}.pk_dt WHERE CAST(NOW() AS BIGINT) BETWEEN 1000000000000 AND 9999999999999",
+        {"expect": []}),
+    ("prec-s-t47", "SELECT COUNT(*) FROM {S}.pk_ts WHERE CAST(NOW() AS BIGINT) BETWEEN 1000000000000 AND 9999999999999",
         {"expect": []}),
 ]
 
@@ -888,6 +1109,16 @@ _XPREC_CASES = [
     ("xprec-130", "SELECT TO_ISO8601(ts, '+00:00'), val FROM {L_ms}.t UNION ALL SELECT TO_ISO8601(ts, '+00:00'), val FROM {L_us}.t ORDER BY 1"),
     ("xprec-131", "SELECT TO_ISO8601(ts, '+00:00'), val FROM {L_us}.t UNION ALL SELECT TO_ISO8601(ts, '+00:00'), val FROM {L_ns}.t ORDER BY 1"),
     ("xprec-132", "SELECT TO_ISO8601(ts, '+00:00'), val FROM {L_ms}.t UNION ALL SELECT TO_ISO8601(time, '+00:00'), val FROM {I}.sensor ORDER BY 1"),
+    # ── SQL Server counterparts (mirror the {M}/{P} cross-precision cases) ──
+    ("xprec-s07", "SELECT val FROM {L_ms}.t WHERE ts >= (SELECT MIN(ts) FROM {S}.pk_dt) ORDER BY ts"),
+    ("xprec-s09", "SELECT val FROM {L_ms}.t WHERE ts <> (SELECT MIN(ts) FROM {S}.pk_dt) ORDER BY ts"),
+    ("xprec-s20", "SELECT val FROM {S}.pk_dt WHERE ts IN (SELECT ts FROM {L_ms}.t) ORDER BY ts"),
+    ("xprec-s23", "SELECT val FROM {S}.pk_dt WHERE ts NOT IN (SELECT ts FROM {L_ms}.t WHERE val > 3) ORDER BY ts"),
+    ("xprec-s26", "SELECT val FROM {S}.pk_dt WHERE ts IN (1704067200000, 1704067260000) ORDER BY ts"),
+    ("xprec-s29", "SELECT val FROM {S}.pk_dt WHERE ts NOT IN (1704067200000, 1704067320123) ORDER BY ts"),
+    ("xprec-s81", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM (SELECT ts, val FROM {S}.pk_dt) WHERE val > 2)"),
+    ("xprec-s82", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM (SELECT ts, val FROM {S}.pk_ts) WHERE val > 2)"),
+    ("xprec-s83", "SELECT TO_ISO8601(ts) FROM (SELECT ts FROM (SELECT ts, val FROM {S}.pk_dt) WHERE val <= 3 ORDER BY ts)"),
 ]
 
 # ── XPREC-TZ group (TZ-sensitive cross-precision cases; tested in test_timezone) ──
@@ -934,6 +1165,51 @@ _XPREC_TZ_CASES = [
     # ── Local-only but TZ-dependent (raw TIMESTAMP output) ──
     ("xprec-34", "SELECT ts, val FROM {L_ms}.t UNION SELECT ts, val FROM {L_us}.t ORDER BY 1"),
     ("xprec-61", "SELECT CASE WHEN a.val > 3 THEN (SELECT MAX(time) FROM {I}.sensor) ELSE (SELECT MIN(ts) FROM {L_ms}.t) END FROM {L_ms}.t a ORDER BY a.ts"),
+    # ── SQL Server counterparts ──
+    # Same SQL as the MySQL/PG case with only the source (and, where needed,
+    # the time-type column) swapped: {M}.pk_dt → {S}.pk_dt (tz-naive),
+    # {M}.pk_ts / {P}.pk_tstz → {S}.pk_dto (tz-aware), {P}.pk_ts → {S}.pk_ts.
+    # For the two-external-source cases both legs get a SQL Server combination.
+    ("xprec-s01", "SELECT a.val FROM {L_ms}.t a, {S}.pk_dt b WHERE a.ts = b.ts ORDER BY a.val"),
+    ("xprec-s03a", "SELECT a.val FROM {S}.pk_dt a, {I}.sensor b WHERE a.ts = b.time ORDER BY a.val"),
+    ("xprec-s03b", "SELECT a.val FROM {M}.pk_dt a, {S}.pk_dto b WHERE a.ts = b.ts ORDER BY a.val"),
+    ("xprec-s04", "SELECT val FROM {S}.pk_dt WHERE ts > (SELECT MIN(ts) FROM {L_ms}.t) ORDER BY ts"),
+    ("xprec-s06a", "SELECT val FROM {S}.pk_dt WHERE ts < (SELECT MAX(time) FROM {I}.sensor) ORDER BY ts"),
+    ("xprec-s06b", "SELECT val FROM {M}.pk_dt WHERE ts < (SELECT MAX(ts) FROM {S}.pk_dto) ORDER BY ts"),
+    ("xprec-s10", "SELECT val FROM {S}.pk_dt WHERE ts BETWEEN (SELECT MIN(ts) FROM {L_ms}.t) AND (SELECT MAX(ts) FROM {L_ms}.t) ORDER BY ts"),
+    ("xprec-s12a", "SELECT val FROM {I}.sensor WHERE time BETWEEN (SELECT MIN(ts) FROM {S}.pk_dt) AND (SELECT MAX(ts) FROM {S}.pk_dt) ORDER BY time"),
+    ("xprec-s12b", "SELECT val FROM {S}.pk_dto WHERE ts BETWEEN (SELECT MIN(ts) FROM {M}.pk_dt) AND (SELECT MAX(ts) FROM {M}.pk_dt) ORDER BY ts"),
+    ("xprec-se30", "SELECT val FROM {S}.pk_dt WHERE ts IN ('2024-01-01 00:00:00', '2024-01-01 00:01:00') ORDER BY ts"),
+    ("xprec-s30", "SELECT ts, val FROM {L_ms}.t UNION ALL SELECT ts, val FROM {S}.pk_dt ORDER BY 1"),
+    ("xprec-s32a", "SELECT ts, val FROM {S}.pk_dt UNION ALL SELECT time, val FROM {I}.sensor ORDER BY 1"),
+    ("xprec-s32b", "SELECT ts, val FROM {M}.pk_dt UNION ALL SELECT ts, val FROM {S}.pk_dto ORDER BY 1"),
+    ("xprec-s33a", "SELECT ts, val FROM {L_ms}.t UNION ALL SELECT ts, val FROM {S}.pk_dt UNION ALL SELECT time, val FROM {I}.sensor ORDER BY 1"),
+    ("xprec-s33b", "SELECT ts, val FROM {L_ms}.t UNION ALL SELECT ts, val FROM {M}.pk_dt UNION ALL SELECT ts, val FROM {S}.pk_dto ORDER BY 1"),
+    ("xprec-s40", "SELECT a.val, b.val FROM {L_ms}.t a INNER JOIN {S}.pk_dt b ON a.ts = b.ts ORDER BY a.val"),
+    ("xprec-s42a", "SELECT a.val, b.val FROM {S}.pk_dt a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.val"),
+    ("xprec-s42b", "SELECT a.val, b.val FROM {M}.pk_dt a INNER JOIN {S}.pk_dto b ON a.ts = b.ts ORDER BY a.val"),
+    ("xprec-s43", "SELECT a.val, b.val FROM {L_ms}.t a LEFT JOIN {S}.pk_dt b ON a.ts = b.ts ORDER BY a.val"),
+    ("xprec-s45a", "SELECT a.val, b.val FROM {S}.pk_dt a LEFT JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.val"),
+    ("xprec-s45b", "SELECT a.val, b.val FROM {M}.pk_dt a LEFT JOIN {S}.pk_dto b ON a.ts = b.ts ORDER BY a.val"),
+    ("xprec-s46", "SELECT COALESCE(a.val, b.val) FROM {L_ms}.t a FULL JOIN {S}.pk_dt b ON a.ts = b.ts ORDER BY 1"),
+    ("xprec-s60", "SELECT CASE WHEN a.val > 3 THEN (SELECT MAX(ts) FROM {S}.pk_dt) ELSE (SELECT MIN(ts) FROM {L_ms}.t) END FROM {L_ms}.t a ORDER BY a.ts"),
+    ("xprec-s62a", "SELECT CASE WHEN a.val > 3 THEN (SELECT MAX(time) FROM {I}.sensor) ELSE (SELECT MIN(ts) FROM {S}.pk_dt) END FROM {S}.pk_dt a ORDER BY a.ts"),
+    ("xprec-s62b", "SELECT CASE WHEN a.val > 3 THEN (SELECT MAX(ts) FROM {S}.pk_dto) ELSE (SELECT MIN(ts) FROM {M}.pk_dt) END FROM {M}.pk_dt a ORDER BY a.ts"),
+    ("xprec-s70", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM {S}.pk_dt ORDER BY ts)"),
+    ("xprec-s71", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM {S}.pk_ts ORDER BY ts)"),
+    ("xprec-s74", "SELECT TO_ISO8601(ts) FROM (SELECT ts FROM {S}.pk_dt ORDER BY ts)"),
+    ("xprec-s75", "SELECT TO_ISO8601(ts) FROM (SELECT ts FROM {S}.pk_ts ORDER BY ts)"),
+    ("xprec-s76", "SELECT TIMETRUNCATE(ts, 1s) FROM (SELECT ts FROM {S}.pk_dt ORDER BY ts)"),
+    ("xprec-s77", "SELECT TIMETRUNCATE(ts, 1s) FROM (SELECT ts FROM {S}.pk_ts ORDER BY ts)"),
+    ("xprec-s78a", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM {M}.pk_dt UNION ALL SELECT ts FROM {S}.pk_ts) ORDER BY 1"),
+    ("xprec-s78b", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM {S}.pk_dt UNION ALL SELECT ts FROM {P}.pk_ts) ORDER BY 1"),
+    ("xprec-s79", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM {L_ms}.t UNION ALL SELECT ts FROM {S}.pk_dt) ORDER BY 1"),
+    ("xprec-s80a", "SELECT CAST(time AS BIGINT) FROM (SELECT time FROM {I}.sensor UNION ALL SELECT ts AS time FROM {S}.pk_ts) ORDER BY 1"),
+    ("xprec-s80b", "SELECT CAST(time AS BIGINT) FROM (SELECT ts AS time FROM {S}.pk_dto UNION ALL SELECT ts AS time FROM {P}.pk_ts) ORDER BY 1"),
+    ("xprec-st90", "SELECT TO_ISO8601(a.ts, '+00:00'), TO_ISO8601(b.ts, '+00:00') FROM {L_ms}.t a INNER JOIN {S}.pk_dt b ON a.ts = b.ts ORDER BY a.ts"),
+    ("xprec-st91", "SELECT TIMEDIFF(a.ts, b.ts, 1s) FROM {L_ms}.t a INNER JOIN {S}.pk_dt b ON a.ts = b.ts ORDER BY a.ts"),
+    ("xprec-st92", "SELECT a.val FROM {L_ms}.t a, {S}.pk_dt b WHERE a.ts = b.ts AND a.ts < NOW() ORDER BY a.val"),
+    ("xprec-st93", "SELECT TO_ISO8601(ts, '+00:00'), val FROM {L_ms}.t UNION ALL SELECT TO_ISO8601(ts, '+00:00'), val FROM {S}.pk_dt ORDER BY 1"),
 ]
 
 # ── XPCOND group (cross-precision conditional functions) ──
@@ -965,6 +1241,17 @@ _XPCOND_TZ_CASES = [
     # ── Local-only but TZ-dependent (raw TIMESTAMP output) ──
     ("xpcond-07", "SELECT COALESCE(NULL, b.time) FROM {L_ms}.t a LEFT JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.ts"),
     ("xpcond-08", "SELECT COALESCE(NULL, NULL, b.time) FROM {L_ms}.t a LEFT JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.ts"),
+    # ── SQL Server counterparts (same SQL, swapped source leg) ──
+    ("xpcond-s01", "SELECT IF(a.val>3, a.ts, b.ts) FROM {L_ms}.t a INNER JOIN {S}.pk_dt b ON a.ts = b.ts ORDER BY a.ts"),
+    ("xpcond-s03a", "SELECT IF(a.val>3, a.ts, b.time) FROM {S}.pk_dt a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.ts"),
+    ("xpcond-s03b", "SELECT IF(a.val>3, a.ts, b.ts) FROM {M}.pk_dt a INNER JOIN {S}.pk_dto b ON a.ts = b.ts ORDER BY a.ts"),
+    ("xpcond-s04", "SELECT IFNULL(NULL, b.ts), NVL(NULL, a.ts) FROM {L_ms}.t a INNER JOIN {S}.pk_dt b ON a.ts = b.ts ORDER BY a.ts"),
+    ("xpcond-s06", "SELECT NULLIF(a.ts, b.ts) FROM {L_ms}.t a INNER JOIN {S}.pk_dt b ON a.ts = b.ts ORDER BY a.ts"),
+    ("xpcond-s09", "SELECT GREATEST(a.ts, b.ts) FROM {L_ms}.t a INNER JOIN {S}.pk_dt b ON a.ts = b.ts ORDER BY a.ts"),
+    ("xpcond-s11a", "SELECT LEAST(a.ts, b.time) FROM {S}.pk_dt a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.ts"),
+    ("xpcond-s11b", "SELECT LEAST(a.ts, b.ts) FROM {M}.pk_dt a INNER JOIN {S}.pk_dto b ON a.ts = b.ts ORDER BY a.ts"),
+    ("xpcond-s12a", "SELECT LEAST(a.ts, b.ts, c.time) FROM {L_ms}.t a INNER JOIN {S}.pk_dt b ON a.ts = b.ts INNER JOIN {I}.sensor c ON a.ts = c.time ORDER BY a.ts"),
+    ("xpcond-s12b", "SELECT LEAST(a.ts, b.ts, c.ts) FROM {L_ms}.t a INNER JOIN {M}.pk_dt b ON a.ts = b.ts INNER JOIN {S}.pk_dto c ON a.ts = c.ts ORDER BY a.ts"),
 ]
 
 # ── TFUNC group (time functions, parity: local vs ext) ──
@@ -1072,6 +1359,49 @@ _TMULTI_TZ_CASES = [
     ("tmulti-18", "SELECT (SELECT ts FROM {L_ms}.t WHERE val = 3) AS ts_ms, (SELECT ts FROM {L_us}.t WHERE val = 3) AS ts_us, (SELECT ts FROM {L_ns}.t WHERE val = 3) AS ts_ns"),
     ("tmulti-19", "SELECT (SELECT CAST(ts AS BIGINT) FROM {L_ms}.t WHERE val = 3) AS ms_epoch, (SELECT CAST(ts AS BIGINT) FROM {L_us}.t WHERE val = 3) AS us_epoch, (SELECT CAST(ts AS BIGINT) FROM {L_ns}.t WHERE val = 3) AS ns_epoch",
         {"expect": [[1704067320123, 1704067320123456, 1704067320123456789]]}),
+    # ── SQL Server counterparts ──
+    # tmulti-s01..s10 mirror tmulti-01..tmulti-10; the cross-source cases get a
+    # SQL Server leg for both external positions ({M}×{S} and {S}×{P}).
+    ("tmulti-s01", "SELECT ts, ts_aware, ts_naive, ts_date FROM {S}.multi_ts ORDER BY ts"),
+    ("tmulti-s02", "SELECT CAST(ts AS BIGINT), CAST(ts_aware AS BIGINT), CAST(ts_naive AS BIGINT), CAST(ts_date AS BIGINT) FROM {S}.multi_ts ORDER BY ts"),
+    ("tmulti-s03", "SELECT ts, ts_aware, ts_naive, ts_date FROM {S}.multi_ts ORDER BY ts"),
+    ("tmulti-s04", "SELECT CAST(ts AS BIGINT), CAST(ts_aware AS BIGINT), CAST(ts_naive AS BIGINT), CAST(ts_date AS BIGINT) FROM {S}.multi_ts ORDER BY ts"),
+    ("tmulti-s05", "SELECT * FROM {S}.multi_ts WHERE ts_aware > ts ORDER BY ts"),
+    ("tmulti-s06", "SELECT * FROM {S}.multi_ts WHERE ts_aware > ts ORDER BY ts"),
+    ("tmulti-s07", "SELECT TIMEDIFF(ts_aware, ts, 1s) FROM {S}.multi_ts ORDER BY ts"),
+    ("tmulti-s08", "SELECT TIMEDIFF(ts_aware, ts, 1s) FROM {S}.multi_ts ORDER BY ts"),
+    ("tmulti-s09", "SELECT TO_ISO8601(ts), TO_ISO8601(ts_aware), TO_ISO8601(ts_naive) FROM {S}.multi_ts ORDER BY ts"),
+    ("tmulti-s10", "SELECT TO_ISO8601(ts), TO_ISO8601(ts_aware), TO_ISO8601(ts_naive) FROM {S}.multi_ts ORDER BY ts"),
+    ("tmulti-s11a", "SELECT a.ts, b.ts FROM {M}.pk_dt a INNER JOIN {S}.pk_ts b ON a.ts = b.ts ORDER BY a.ts"),
+    ("tmulti-s11b", "SELECT a.ts, b.ts FROM {S}.pk_dt a INNER JOIN {P}.pk_ts b ON a.ts = b.ts ORDER BY a.ts"),
+    ("tmulti-s12a", "SELECT a.ts, b.time FROM {S}.pk_dt a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.ts"),
+    ("tmulti-s12b", "SELECT a.ts, b.ts FROM {M}.pk_dt a INNER JOIN {S}.pk_dto b ON a.ts = b.ts ORDER BY a.ts"),
+    ("tmulti-s13a", "SELECT ts FROM {S}.pk_dt UNION ALL SELECT ts FROM {P}.pk_ts UNION ALL SELECT time FROM {I}.sensor ORDER BY 1"),
+    ("tmulti-s13b", "SELECT ts FROM {M}.pk_dt UNION ALL SELECT ts FROM {S}.pk_ts UNION ALL SELECT time FROM {I}.sensor ORDER BY 1"),
+    # TO_UNIXTIMESTAMP: the three pushed-down sources rewrite the function to
+    # milliseconds, but SQL Server step 1 is zero-pushdown and computes it
+    # locally with the source's inherent µs precision, so the same query
+    # returns µs (x1000) here.  Expected difference by design — DS §5.3.7
+    #「第一步（零下推）下的取值差异」: "同一查询在三源上返回毫秒、在 SQL Server 上
+    # 返回微秒（相差 1000 倍）…不是精度换算缺陷".
+    ("tmulti-s16", "SELECT TO_UNIXTIMESTAMP(ts), TO_UNIXTIMESTAMP(ts_aware), TO_UNIXTIMESTAMP(ts_naive), TO_UNIXTIMESTAMP(ts_date) FROM {S}.multi_ts ORDER BY ts",
+        {"expect_by_tz": {
+            "cst": [[1704038400000000, 1704096000000000, 1704038400000000, 1704038400000000],
+                    [1704038460000000, 1704096060000000, 1704038460000000, 1704038400000000],
+                    [1704038520000000, 1704096120000000, 1704038520000000, 1704038400000000]],
+            "utc": [[1704067200000000, 1704096000000000, 1704067200000000, 1704067200000000],
+                    [1704067260000000, 1704096060000000, 1704067260000000, 1704067200000000],
+                    [1704067320000000, 1704096120000000, 1704067320000000, 1704067200000000]],
+        }}),
+    ("tmulti-s17", "SELECT TO_UNIXTIMESTAMP(ts), TO_UNIXTIMESTAMP(ts_aware), TO_UNIXTIMESTAMP(ts_naive), TO_UNIXTIMESTAMP(ts_date) FROM {S}.multi_ts ORDER BY ts",
+        {"expect_by_tz": {
+            "cst": [[1704038400000000, 1704096000000000, 1704038400000000, 1704038400000000],
+                    [1704038460000000, 1704096060000000, 1704038460000000, 1704038400000000],
+                    [1704038520000000, 1704096120000000, 1704038520000000, 1704038400000000]],
+            "utc": [[1704067200000000, 1704096000000000, 1704067200000000, 1704067200000000],
+                    [1704067260000000, 1704096060000000, 1704067260000000, 1704067200000000],
+                    [1704067320000000, 1704096120000000, 1704067320000000, 1704067200000000]],
+        }}),
 ]
 
 # ── TMULTI group (multi-timestamp columns — TZ-insensitive only) ──
@@ -1115,6 +1445,18 @@ _INS_CASES = [
     ("ins-09", "INSERT INTO {L_ms}.ins_target SELECT ts, val FROM {P}.pk_ts",
      "SELECT CAST(ts AS BIGINT), val FROM {L_ms}.ins_target ORDER BY ts",
      "PG(µs) → Local(ms) truncate", {"cst": _E_INS_PG_MS_CST, "utc": _E_INS_MS}),
+    # ── SQL Server counterparts ──
+    # {S}.pk_dt mirrors MySQL pk_dt and {S}.pk_ts mirrors PG pk_ts, so the
+    # expected instants are the same as the ins-01/02/09 expectations.
+    ("ins-s01", "INSERT INTO {L_ms}.ins_target SELECT ts, val FROM {S}.pk_dt",
+     "SELECT CAST(ts AS BIGINT), val FROM {L_ms}.ins_target ORDER BY ts",
+     "SQLServer(µs) → Local(ms) truncate", {"cst": _E_INS_MYSQL_MS_CST, "utc": _E_INS_MS}),
+    ("ins-s02", "INSERT INTO {L_ns}.ins_target SELECT ts, val FROM {S}.pk_dt",
+     "SELECT CAST(ts AS BIGINT), val FROM {L_ns}.ins_target ORDER BY ts",
+     "SQLServer(µs) → Local(ns) expand", {"cst": _E_INS_MYSQL_NS_CST, "utc": _E_INS_MYSQL_NS_UTC}),
+    ("ins-s09", "INSERT INTO {L_ms}.ins_target SELECT ts, val FROM {S}.pk_ts",
+     "SELECT CAST(ts AS BIGINT), val FROM {L_ms}.ins_target ORDER BY ts",
+     "SQLServer(µs) → Local(ms) truncate", {"cst": _E_INS_PG_MS_CST, "utc": _E_INS_MS}),
 ]
 
 # ── NEG group (time-parsing negative cases) ──
@@ -1125,6 +1467,10 @@ _NEG_CASES = [
     # validateTimeUnitParam (builtins.c).  This is a designed boundary, not a bug.
     ("neg-05", "SELECT TIMETRUNCATE(ts, 1u) FROM {L_ms}.t ORDER BY ts",
      TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL),
+    # ── SQL Server counterpart of neg-01 (invalid time string must be rejected
+    # before any dialect-specific work) ──
+    ("neg-s01", "SELECT * FROM {S}.pk_dt WHERE ts > 'not-a-date'",
+     TSDB_CODE_INVALID_TIMESTAMP),
 ]
 
 # ── EDGE group (overflow/clamp/silent behaviors) ──
@@ -1134,6 +1480,10 @@ _EDGE_CASES = [
     ("edge-04", "SELECT * FROM {M}.pk_dt WHERE ts > 9999999999999999"),
     ("edge-05", "SELECT * FROM {L_ms}.t WHERE ts >= 0 ORDER BY ts"),
     ("edge-06", "SELECT * FROM {L_ms}.t WHERE ts > -1 ORDER BY ts"),
+    # ── SQL Server counterparts of edge-01/02/04 ──
+    ("edge-s01", "SELECT CAST(9999999999999 AS TIMESTAMP) FROM {S}.pk_dt LIMIT 1"),
+    ("edge-s02", "SELECT CAST('garbage' AS TIMESTAMP) FROM {S}.pk_dt LIMIT 1"),
+    ("edge-s04", "SELECT * FROM {S}.pk_dt WHERE ts > 9999999999999999"),
 ]
 
 
@@ -1176,7 +1526,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
     def _fmt(self, sql):
         """Replace placeholders in SQL template."""
         return sql.format(
-            M=_SRC_M, P=_SRC_P, I=_SRC_I,
+            M=_SRC_M, P=_SRC_P, I=_SRC_I, S=_SRC_S,
             L_ms=_LOCAL_DB_MS, L_us=_LOCAL_DB_US, L_ns=_LOCAL_DB_NS,
         )
 
@@ -1236,11 +1586,18 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         self._cleanup_src(_SRC_I)
         self._mk_influx_real(_SRC_I, database=_INFLUX_DB)
 
+        # SQL Server (mirrors the MySQL fixture 1:1 — see _SQLSERVER_SETUP)
+        s_cfg = self._sqlserver_cfg()
+        ExtSrcEnv.sqlserver_create_db_cfg(s_cfg, _SQLSERVER_DB)
+        ExtSrcEnv.sqlserver_exec_cfg(s_cfg, _SQLSERVER_DB, _SQLSERVER_SETUP)
+        self._cleanup_src(_SRC_S)
+        self._mk_sqlserver_real(_SRC_S, database=_SQLSERVER_DB, schema="dbo")
+
         tdLog.info("[fq04] Data setup complete.")
 
     def teardown_class(self):
         tmp = TestFq04TimezonePrecision()
-        tmp._cleanup_src(_SRC_M, _SRC_P, _SRC_I)
+        tmp._cleanup_src(_SRC_M, _SRC_P, _SRC_I, _SRC_S)
         for db in [_LOCAL_DB_MS, _LOCAL_DB_US, _LOCAL_DB_NS]:
             tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
         try:
@@ -1251,6 +1608,11 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         try:
             p_cfg = tmp._pg_cfg()
             ExtSrcEnv.pg_drop_db_cfg(p_cfg, _PG_DB)
+        except Exception:
+            pass
+        try:
+            s_cfg = tmp._sqlserver_cfg()
+            ExtSrcEnv.sqlserver_drop_db_cfg(s_cfg, _SQLSERVER_DB)
         except Exception:
             pass
         TestFq04TimezonePrecision._class_setup_done = False
@@ -1264,7 +1626,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         truthful to the real query result of each source.
         """
         blocks, failed = [], []
-        source_runs = [("LOCAL", local_tbl)] + list(ext_sources)
+        source_runs = ([("LOCAL", local_tbl)] if local_tbl else []) + list(ext_sources)
 
         for entry in cases:
             case_id   = entry[0]
@@ -1453,51 +1815,68 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         Each case ID is prefixed with 'cst-' or 'utc-' in the baseline output.
         This ensures every case is tested under two explicit client timezones,
         making results independent of the OS timezone.
+
+        Cases whose SQL references {S} (the SQL Server counterparts) are run in
+        a trailing pass over both timezones: the pre-existing blocks keep their
+        order and the new blocks follow them, so baseline extensions remain
+        append-only (git diff --numstat shows +N 0).
         """
         os.makedirs(self._ANS_DIR, exist_ok=True)
         baseline_file = self._baseline_path(baseline_name)
         blocks = []
         failed = []
 
+        base_cases = [entry for entry in cases if "{S}" not in entry[1]]
+        sqlserver_cases = [entry for entry in cases if "{S}" in entry[1]]
+
         for tz_label, tz_value in [("cst", "Asia/Shanghai"), ("utc", "UTC")]:
-            self._reset_td_session(tz_value)
-            tdLog.info(f"[{baseline_name}] timezone → {tz_value}")
-            _time.sleep(0.5)
-
-            for entry in cases:
-                case_id = entry[0]
-                sql_template = entry[1]
-                opts = entry[2] if len(entry) > 2 else {}
-                non_deterministic = opts.get("non_deterministic", False)
-                ordered = opts.get("ordered", True)
-                expect = opts.get("expect_by_tz", {}).get(tz_label, opts.get("expect"))
-                tagged_id = f"{tz_label}-{case_id}"
-
-                t0 = _time.monotonic()
-                sql = self._fmt(sql_template)
-                try:
-                    tdSql.query(sql, queryTimes=1)
-                    rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
-                    if not ordered:
-                        rows = sorted(
-                            rows,
-                            key=lambda row: tuple("" if v is None else str(v) for v in row),
-                        )
-                    self._check_expect(tagged_id, rows, expect)
-                    serialized = self._serialize_pos(tagged_id, sql_template, rows,
-                                                     non_deterministic=non_deterministic)
-                    blocks.append(serialized)
-                    elapsed = _time.monotonic() - t0
-                    tdLog.info(f"[{tagged_id:<20s} POS] PASS  {sql_template[:70]}  [{elapsed:.2f}s]")
-                except Exception as e:
-                    elapsed = _time.monotonic() - t0
-                    tdLog.info(f"[{tagged_id:<20s} POS] FAIL  {sql_template[:70]}  [{elapsed:.2f}s]  {e}")
-                    blocks.append(self._serialize_err(tagged_id, sql_template, str(e)))
-                    failed.append((tagged_id, sql_template, str(e)))
+            self._run_dual_tz_case_list(base_cases, tz_label, tz_value,
+                                        baseline_name, blocks, failed)
+        for tz_label, tz_value in [("cst", "Asia/Shanghai"), ("utc", "UTC")]:
+            self._run_dual_tz_case_list(sqlserver_cases, tz_label, tz_value,
+                                        f"{baseline_name} (SQL Server tail)",
+                                        blocks, failed)
 
         output = "\n".join(blocks) + "\n"
         self._compare_baseline(output, baseline_file, failed)
         return failed
+
+    def _run_dual_tz_case_list(self, cases, tz_label, tz_value, log_name, blocks, failed):
+        """Run *cases* under one client timezone, appending to blocks/failed."""
+        self._reset_td_session(tz_value)
+        tdLog.info(f"[{log_name}] timezone → {tz_value}")
+        _time.sleep(0.5)
+
+        for entry in cases:
+            case_id = entry[0]
+            sql_template = entry[1]
+            opts = entry[2] if len(entry) > 2 else {}
+            non_deterministic = opts.get("non_deterministic", False)
+            ordered = opts.get("ordered", True)
+            expect = opts.get("expect_by_tz", {}).get(tz_label, opts.get("expect"))
+            tagged_id = f"{tz_label}-{case_id}"
+
+            t0 = _time.monotonic()
+            sql = self._fmt(sql_template)
+            try:
+                tdSql.query(sql, queryTimes=1)
+                rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
+                if not ordered:
+                    rows = sorted(
+                        rows,
+                        key=lambda row: tuple("" if v is None else str(v) for v in row),
+                    )
+                self._check_expect(tagged_id, rows, expect)
+                serialized = self._serialize_pos(tagged_id, sql_template, rows,
+                                                 non_deterministic=non_deterministic)
+                blocks.append(serialized)
+                elapsed = _time.monotonic() - t0
+                tdLog.info(f"[{tagged_id:<20s} POS] PASS  {sql_template[:70]}  [{elapsed:.2f}s]")
+            except Exception as e:
+                elapsed = _time.monotonic() - t0
+                tdLog.info(f"[{tagged_id:<20s} POS] FAIL  {sql_template[:70]}  [{elapsed:.2f}s]  {e}")
+                blocks.append(self._serialize_err(tagged_id, sql_template, str(e)))
+                failed.append((tagged_id, sql_template, str(e)))
 
     @staticmethod
     def _check_expect(case_id, rows, expect):
@@ -1594,6 +1973,17 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
             f.write(output)
         tdLog.info(f"Temp result: {tmp_file}")
 
+        # Explicit, env-gated baseline update (same switch pattern as
+        # test_fq_13_explain.py's FQ13_WRITE_BASELINE).  FQ04_WRITE_BASELINE=1
+        # rewrites the baseline with the normalized output of THIS run; it is
+        # only used for reviewed, append-only baseline extensions and is never
+        # enabled in CI.
+        if os.environ.get("FQ04_WRITE_BASELINE") == "1":
+            with open(baseline_file, "w", encoding="utf-8") as f:
+                f.write(normalize(output))
+            tdLog.info(f"FQ04_WRITE_BASELINE: rewrote {baseline_file}")
+            return
+
         if not os.path.isfile(baseline_file):
             msg = (
                 f"Baseline file not found: {baseline_file}\n"
@@ -1671,6 +2061,42 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
     # ── Test methods ──
 
+    def _run_timezone_phase(self, tz_label, tz_value, tz_cases,
+                            parity_local_tbl, parity_ext_sources,
+                            blocks, failed):
+        """Run one timezone phase: tz cases + tfunc/tpc parity catalog."""
+        self._reset_td_session(tz_value)
+        tdLog.info(f"[tz] Switched to timezone: {tz_value}")
+        _time.sleep(0.5)
+
+        for case_id, sql_template in tz_cases:
+            tagged_id = f"{tz_label}-{case_id}"
+            sql = self._fmt(sql_template)
+            t0 = _time.monotonic()
+            try:
+                tdSql.query(sql, queryTimes=1)
+                rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
+                blocks.append(self._serialize_pos(tagged_id, sql_template, rows))
+                elapsed = _time.monotonic() - t0
+                tdLog.info(f"[{tagged_id:<16s} POS] PASS  [{elapsed:.2f}s]")
+            except Exception as e:
+                elapsed = _time.monotonic() - t0
+                tdLog.info(f"[{tagged_id:<16s} POS] FAIL  {e}  [{elapsed:.2f}s]")
+                failed.append((tagged_id, sql_template, str(e)))
+                blocks.append(self._serialize_err(tagged_id, sql_template, str(e)))
+
+        # ── Time-function parity (formerly test_time_functions) ──
+        tf_blocks, tf_failed = self._run_parity_phase(
+            _TFUNC_PARITY_CASES, tz_label, parity_local_tbl, parity_ext_sources)
+        blocks.extend(tf_blocks)
+        failed.extend(tf_failed)
+
+        # ── Pseudo-column parity (formerly test_time_pseudocols) ──
+        tpc_blocks, tpc_failed = self._run_parity_phase(
+            _TPC_PARITY_CASES, tz_label, parity_local_tbl, parity_ext_sources)
+        blocks.extend(tpc_blocks)
+        failed.extend(tpc_failed)
+
     def test_timezone(self):
         """Timezone behavior: CST vs UTC, tz-aware vs no-tz types.
 
@@ -1689,12 +2115,10 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         failed = []
 
         parity_local_tbl = f"{_LOCAL_DB_US}.t"
+        base_tz_cases = [(cid, sql) for cid, sql in _TZ_CASES if "{S}" not in sql]
+        sqlserver_tz_cases = [(cid, sql) for cid, sql in _TZ_CASES if "{S}" in sql]
 
         for tz_label, tz_value in [("cst", "Asia/Shanghai"), ("utc", "UTC")]:
-            self._reset_td_session(tz_value)
-            tdLog.info(f"[tz] Switched to timezone: {tz_value}")
-            _time.sleep(0.5)
-
             # Choose parity source whose calendar strings match the current session TZ:
             #   CST session: pk_ts_parity (CST strings) → mktime_z(CST, CST_str) = correct UTC epoch
             #   UTC session: pk_ts      (UTC strings) → mktime_z(UTC, UTC_str) = correct UTC epoch
@@ -1702,34 +2126,23 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
                 parity_ext_sources = [("PG", f"{_SRC_P}.pk_ts_parity")]
             else:
                 parity_ext_sources = [("PG", f"{_SRC_P}.pk_ts")]
+            self._run_timezone_phase(tz_label, tz_value, base_tz_cases,
+                                     parity_local_tbl, parity_ext_sources,
+                                     blocks, failed)
 
-            for case_id, sql_template in _TZ_CASES:
-                tagged_id = f"{tz_label}-{case_id}"
-                sql = self._fmt(sql_template)
-                t0 = _time.monotonic()
-                try:
-                    tdSql.query(sql, queryTimes=1)
-                    rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
-                    blocks.append(self._serialize_pos(tagged_id, sql_template, rows))
-                    elapsed = _time.monotonic() - t0
-                    tdLog.info(f"[{tagged_id:<16s} POS] PASS  [{elapsed:.2f}s]")
-                except Exception as e:
-                    elapsed = _time.monotonic() - t0
-                    tdLog.info(f"[{tagged_id:<16s} POS] FAIL  {e}  [{elapsed:.2f}s]")
-                    failed.append((tagged_id, sql_template, str(e)))
-                    blocks.append(self._serialize_err(tagged_id, sql_template, str(e)))
-
-            # ── Time-function parity (formerly test_time_functions) ──
-            tf_blocks, tf_failed = self._run_parity_phase(
-                _TFUNC_PARITY_CASES, tz_label, parity_local_tbl, parity_ext_sources)
-            blocks.extend(tf_blocks)
-            failed.extend(tf_failed)
-
-            # ── Pseudo-column parity (formerly test_time_pseudocols) ──
-            tpc_blocks, tpc_failed = self._run_parity_phase(
-                _TPC_PARITY_CASES, tz_label, parity_local_tbl, parity_ext_sources)
-            blocks.extend(tpc_blocks)
-            failed.extend(tpc_failed)
+        # SQL Server tail pass: appended after the pre-existing baselines so the
+        # baseline extension stays append-only. SQL Server mirrors the PG tables
+        # (datetimeoffset = tz-aware, datetime2 = tz-naive) so it joins the
+        # parity catalog with the same per-timezone table choice; the LOCAL tag
+        # is not re-run here (it was already covered in the base pass).
+        for tz_label, tz_value in [("cst", "Asia/Shanghai"), ("utc", "UTC")]:
+            if tz_label == "cst":
+                parity_ext_sources = [("SQLSERVER", f"{_SRC_S}.pk_ts_parity")]
+            else:
+                parity_ext_sources = [("SQLSERVER", f"{_SRC_S}.pk_ts")]
+            self._run_timezone_phase(tz_label, tz_value, sqlserver_tz_cases,
+                                     None, parity_ext_sources,
+                                     blocks, failed)
 
         output = "\n".join(blocks) + "\n"
         self._compare_baseline(output, baseline_file, failed)
@@ -1955,3 +2368,119 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
                 f"{len(failed)} edge case(s) failed:\n" +
                 "\n".join(f"  [{cid}] {det}" for cid, _, det in failed)
             )
+
+    # ------------------------------------------------------------------
+    # SQL Server timezone / precision (step 1, zero pushdown)
+    # ------------------------------------------------------------------
+
+    _SS_DB = "fq04_sdb"
+    _SS_SRC = "fq04_src_s"
+    _SS_REF_DB = "fq04_ss_ref"
+
+    def _setup_sqlserver_tz_data(self):
+        """Provision the SQL Server dialect tables used by the assertions below."""
+        ExtSrcEnv.sqlserver_create_db(self._SS_DB)
+        ExtSrcEnv.sqlserver_exec(self._SS_DB, [
+            "IF OBJECT_ID('dbo.ts_types') IS NOT NULL DROP TABLE dbo.ts_types",
+            "CREATE TABLE dbo.ts_types ("
+            " id int NOT NULL PRIMARY KEY, c_dt2_3 datetime2(3), c_dt2_7 datetime2(7),"
+            " c_dto datetimeoffset(3), c_dt datetime, c_sdt smalldatetime, c_date date)",
+            "INSERT INTO dbo.ts_types VALUES ("
+            " 1, '2024-01-01T08:00:00.123', '2024-01-01T08:00:00.1234567',"
+            " '2024-01-01T08:00:00.123+08:00', '2024-01-01T08:00:00.000',"
+            " '2024-01-01T08:00:00', '2024-01-01')",
+            "IF OBJECT_ID('dbo.pk_dt') IS NOT NULL DROP TABLE dbo.pk_dt",
+            "CREATE TABLE dbo.pk_dt ("
+            " ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+            "INSERT INTO dbo.pk_dt VALUES "
+            " ('2024-01-01T08:00:00.000', 1),"
+            " ('2024-01-02T08:00:00.000', 2)",
+        ])
+        self._cleanup_src(self._SS_SRC)
+        self._mk_sqlserver_real(self._SS_SRC, database=self._SS_DB, schema="dbo")
+
+    def test_sqlserver_timezone_precision(self):
+        """FQSS-TYPE-007/008/009/015: SQL Server timezone and precision contract.
+
+        SQL Server nullable datetime2 columns are interpreted in the client
+        timezone, datetimeoffset carries its own offset, and the epoch output
+        follows the external column's microsecond precision.  The assertions
+        compute the expected epochs from the same wall-clock values, so they do
+        not depend on a baseline file.
+
+        Catalog: - Query:FederatedTimezonePrecision
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        self._setup_sqlserver_tz_data()
+        try:
+            # Pin the session to Asia/Shanghai (UTC+8) so the naive columns are
+            # unambiguous: 2024-01-01 08:00:00 CST == 2024-01-01 00:00:00 UTC.
+            self._reset_td_session("Asia/Shanghai")
+            base_utc_ms = 1704067200000          # 2024-01-01T00:00:00Z
+            day_utc_ms = base_utc_ms - 8 * 3600 * 1000   # 2023-12-31T16:00:00Z
+            base_us = base_utc_ms * 1000
+
+            tdSql.query(
+                f"SELECT CAST(c_dt2_3 AS BIGINT) FROM {self._SS_SRC}.ts_types ORDER BY id")
+            tdSql.checkData(0, 0, base_us + 123000)      # .123 s -> +123000 us
+
+            tdSql.query(
+                f"SELECT CAST(c_dto AS BIGINT) FROM {self._SS_SRC}.ts_types ORDER BY id")
+            tdSql.checkData(0, 0, base_us + 123000)      # offset makes it the same instant
+
+            tdSql.query(
+                f"SELECT CAST(c_dt AS BIGINT) FROM {self._SS_SRC}.ts_types ORDER BY id")
+            tdSql.checkData(0, 0, base_us)
+
+            tdSql.query(
+                f"SELECT CAST(c_date AS BIGINT) FROM {self._SS_SRC}.ts_types ORDER BY id")
+            tdSql.checkData(0, 0, day_utc_ms * 1000)     # date has no time part
+
+            # datetime2(7) is read at microsecond resolution.
+            tdSql.query(
+                f"SELECT CAST(c_dt2_7 AS BIGINT) FROM {self._SS_SRC}.ts_types ORDER BY id")
+            tdSql.checkData(0, 0, base_us + 123456)      # .1234567 s -> us, sub-us dropped
+
+            # Precision alignment: a millisecond local reference matches the
+            # microsecond external value at second boundaries.
+            tdSql.execute(f"DROP DATABASE IF EXISTS {self._SS_REF_DB}")
+            tdSql.execute(f"CREATE DATABASE {self._SS_REF_DB} PRECISION 'us'")
+            tdSql.execute(
+                f"CREATE TABLE {self._SS_REF_DB}.ref_dt ("
+                "ts TIMESTAMP, val INT)")
+            # The external table holds 2024-01-01 08:00 and 2024-01-02 08:00 CST,
+            # i.e. one day apart in UTC microseconds.
+            day_us = 86400 * 1000 * 1000
+            tdSql.execute(
+                f"INSERT INTO {self._SS_REF_DB}.ref_dt VALUES "
+                f"({base_us}, 11), ({base_us + day_us}, 12)")
+            tdSql.query(
+                "SELECT r.val FROM {p}.ref_dt r ".format(p=self._SS_REF_DB) +
+                f"INNER JOIN {self._SS_SRC}.pk_dt e ON e.ts = r.ts ORDER BY r.val")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 11)
+            tdSql.checkData(1, 0, 12)
+
+            # Time-range predicates on the external primary timestamp stay local
+            # but must select the right rows under the same timezone.
+            tdSql.query(
+                f"SELECT val FROM {self._SS_SRC}.pk_dt "
+                "WHERE ts >= '2024-01-01' AND ts < '2024-01-02' ORDER BY ts")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.query(
+                f"SELECT val FROM {self._SS_SRC}.pk_dt "
+                f"WHERE ts >= {base_us} AND ts < {base_us + 86400000000} ORDER BY ts")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+        finally:
+            self._cleanup_src(self._SS_SRC)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(self._SS_DB)
+            except Exception:
+                pass
+            tdSql.execute(f"DROP DATABASE IF EXISTS {self._SS_REF_DB}")
