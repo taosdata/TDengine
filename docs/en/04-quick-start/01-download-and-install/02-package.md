@@ -44,7 +44,7 @@ You can install TDengine TSDB on Linux and Windows. To install TDengine TSDB in 
 </TabItem>
 </Tabs>
 
-For more package types and versions, visit the [TDengine Download Center](https://tdengine.com/downloads/?product=TDengine+TSDB-Enterprise).
+For more package types and versions, visit the [TDengine Download Center](https://tdengine.com/downloads?product=TDengine+TSDB-Enterprise).
 
 ## Start the Service
 

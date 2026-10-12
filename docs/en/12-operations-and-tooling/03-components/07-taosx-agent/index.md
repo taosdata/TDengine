@@ -34,7 +34,7 @@ Typical use cases:
 
 taosX-Agent must be downloaded separately; it is not included in the TDengine TSDB Enterprise installation package.
 
-Visit the [TDengine Download Center](https://tdengine.com/downloads/), select **TDengine taosX-Agent** from the product list, then choose the appropriate version, operating system, and architecture to download the installation package.
+Visit the [TDengine Download Center](https://tdengine.com/downloads), select **TDengine taosX-Agent** from the product list, then choose the appropriate version, operating system, and architecture to download the installation package.
 
 :::note
 taosX-Agent is only available in TDengine TSDB Enterprise. It is not included in the Community Edition.
@@ -76,7 +76,7 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 
 ## Installation
 
-After downloading the taosX-Agent installation package for your platform from the [TDengine Download Center](https://tdengine.com/downloads/), follow the installer instructions to complete the installation.
+After downloading the taosX-Agent installation package for your platform from the [TDengine Download Center](https://tdengine.com/downloads), follow the installer instructions to complete the installation.
 
 After installation, taosX-Agent files are located at:
 

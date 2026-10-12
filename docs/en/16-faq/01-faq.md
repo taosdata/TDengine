@@ -62,7 +62,7 @@ go env -w GOPROXY=https://goproxy.cn,direct
 If you cannot access the official Docker Hub registry (hub.docker.com), try the following:
 
 - Check that your network connection is working.
-- Download the image file from the [TDengine Download Center](https://www.taosdata.com/download-center), then load it with `docker load`. See the usage instructions on the download page.
+- Download the image file from the [TDengine Download Center](https://tdengine.com/downloads), then load it with `docker load`. See the usage instructions on the download page.
 - Try an alternative mirror registry, such as [CNIX Internal Container Registry Mirror](https://m.ixdev.cn/). This mirror is unaffiliated with Taos Data. If it is unavailable, try another mirror on the network and follow its usage instructions.
 
 ### 1.4 How can I obtain all JDBC driver dependency JARs for an air-gapped (offline) environment?

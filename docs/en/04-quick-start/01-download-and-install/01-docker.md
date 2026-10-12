@@ -39,7 +39,7 @@ You can also pull a specific version. For example:
 docker pull tdengine/tsdb-ee:{{VERSION}}
 ```
 
-If you cannot access Docker Hub directly, go to the [Docker image download page](https://tdengine.com/downloads/?product=TDengine+TSDB-Enterprise&platform=Docker) in the TDengine product download center, download the offline image, load it as described on that page, and update the image name and tag.
+If you cannot access Docker Hub directly, go to the [Docker image download page](https://tdengine.com/downloads?product=TDengine+TSDB-Enterprise&platform=Docker) in the TDengine product download center, download the offline image, load it as described on that page, and update the image name and tag.
 
 ### Start the Container
 

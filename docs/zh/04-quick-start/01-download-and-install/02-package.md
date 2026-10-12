@@ -47,7 +47,7 @@ import PkgList from "/src/components/PkgList";
 </TabItem>
 </Tabs>
 
-更多类型和版本的安装包，请前往 [TDengine 产品下载中心](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise) 下载。
+更多类型和版本的安装包，请前往 [TDengine 产品下载中心](https://taosdata.com/downloads?product=TDengine+TSDB-Enterprise) 下载。
 
 ## 启动服务
 

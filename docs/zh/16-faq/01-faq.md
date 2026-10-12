@@ -62,7 +62,7 @@ go env -w GOPROXY=https://goproxy.cn,direct
 如果无法正常访问 Docker Hub 官方仓库（hub.docker.com），可以尝试以下方法解决：
 
 - 检查网络连接是否正常。
-- 从 [TDengine 下载中心](https://www.taosdata.com/download-center) 下载镜像文件，然后使用 `docker load` 命令加载镜像，用法详见下载页面的使用说明。
+- 从 [TDengine 下载中心](https://taosdata.com/downloads) 下载镜像文件，然后使用 `docker load` 命令加载镜像，用法详见下载页面的使用说明。
 - 尝试使用其他镜像源，例如：[CNIX Internal Container Registry Mirror](https://m.ixdev.cn/)，该镜像源与涛思数据无关，如果失效，请尝试更换网络上的其它镜像源，用法详见镜像源的使用说明。
 
 ### 1.4 内网环境如何获取 JDBC 驱动的所有依赖 jar？
