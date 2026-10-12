@@ -17,7 +17,9 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstdint>
+#include <future>
 #include <vector>
 
 #include "stub.h"
@@ -29,6 +31,7 @@ extern "C" {
 #include "tencode.h"
 
 int32_t smAddTasksToStreamMap(SStmStreamDeploy *pDeploy, SStreamInfo *pStream);
+int32_t smUndeployTask(SStreamTaskUndeploy *pUndeploy, bool rmFromVg);
 int32_t stmHbAddStreamStatus(SStreamHbMsg *pMsg, SStreamInfo *pStream, int64_t streamId, bool reportPeriod);
 }
 
@@ -44,6 +47,31 @@ int32_t gUndeployCalls = 0;
 int32_t gDeployFailureCode = TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED;
 bool    gSecondDeploySucceeds = false;
 bool    gIncludeDiagnostic = true;
+
+Stub                *gOwnerInsertStub = nullptr;
+SStreamTriggerTask **gPendingUndeploy = nullptr;
+
+int32_t failStreamOwnerInsert(SHashObj *pHash, const void *key, size_t keyLen, const void *data, size_t size) {
+  if (pHash == gStreamMgmt.stmGrp[STREAM_GID(kStreamId)]) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  gOwnerInsertStub->reset(taosHashPut);
+  int32_t code = taosHashPut(pHash, key, keyLen, data, size);
+  gOwnerInsertStub->set(taosHashPut, failStreamOwnerInsert);
+  return code;
+}
+
+int32_t deployTriggerWithStatistics(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *) {
+  ++gDeployCalls;
+  pTask->task.status = STREAM_STATUS_INIT;
+  pTask->task.flags |= STREAM_FLAG_REF_EXT_SOURCE;
+  return streamTaskStatsInit(&pTask->task, &pTask->pStats);
+}
+
+int32_t deferTriggerUndeploy(SStreamTriggerTask **ppTask, bool) {
+  gPendingUndeploy = ppTask;
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t deployTriggerForLifecycleTest(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *) {
   ++gDeployCalls;
@@ -87,11 +115,13 @@ class StreamMgmtLifecycleTest : public ::testing::Test {
     gDeployFailureCode = TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED;
     gSecondDeploySucceeds = false;
     gIncludeDiagnostic = true;
+    gPendingUndeploy = nullptr;
     stub_.set(stTriggerTaskDeploy, deployTriggerForLifecycleTest);
     stub_.set(stTriggerTaskUndeploy, undeployTriggerForLifecycleTest);
   }
 
   void TearDown() override {
+    gPendingUndeploy = nullptr;
     taosHashCleanup(gStreamMgmt.taskMap);
     taosHashCleanup(gStreamMgmt.stmGrp[gid_]);
     gStreamMgmt.taskMap = savedTaskMap_;
@@ -99,7 +129,7 @@ class StreamMgmtLifecycleTest : public ::testing::Test {
     gStreamMgmt.snodeEnabled = savedSnodeEnabled_;
   }
 
-  void DeployTrigger() {
+  int32_t TryDeployTrigger() {
     SStmTaskDeploy trigger = {};
     trigger.task.type = STREAM_TRIGGER_TASK;
     trigger.task.streamId = kStreamId;
@@ -111,8 +141,10 @@ class StreamMgmtLifecycleTest : public ::testing::Test {
     SStmStreamDeploy deploy = {};
     deploy.streamId = kStreamId;
     deploy.triggerTask = &trigger;
-    ASSERT_EQ(smDeployTasks(&deploy), TSDB_CODE_SUCCESS);
+    return smDeployTasks(&deploy);
   }
+
+  void DeployTrigger() { ASSERT_EQ(TryDeployTrigger(), TSDB_CODE_SUCCESS); }
 
   SStreamInfo *AcquireStream() {
     return static_cast<SStreamInfo *>(taosHashAcquire(gStreamMgmt.stmGrp[gid_], &kStreamId, sizeof(kStreamId)));
@@ -291,6 +323,94 @@ TEST_F(StreamMgmtLifecycleTest, RedeployReplacesRetainedTimezoneFailure) {
 
   tCleanupStreamHbMsg(&heartbeat, true);
   ReleaseStream(pStream);
+}
+
+TEST_F(StreamMgmtLifecycleTest, FailedStreamRegistrationDoesNotPublishTasks) {
+  stub_.set(stTriggerTaskDeploy, deployTriggerWithStatistics);
+  {
+    Stub hashStub;
+    gOwnerInsertStub = &hashStub;
+    hashStub.set(taosHashPut, failStreamOwnerInsert);
+    EXPECT_EQ(TryDeployTrigger(), TSDB_CODE_OUT_OF_MEMORY);
+  }
+  gOwnerInsertStub = nullptr;
+
+  EXPECT_EQ(gDeployCalls, 0);
+  EXPECT_EQ(gUndeployCalls, 0);
+  EXPECT_EQ(taosHashGetSize(gStreamMgmt.taskMap), 0);
+  EXPECT_EQ(taosHashGetSize(gStreamMgmt.stmGrp[gid_]), 0);
+}
+
+TEST_F(StreamMgmtLifecycleTest, DeferredUndeployRetainsTaskUntilCallbackCompletes) {
+  stub_.set(stTriggerTaskDeploy, deployTriggerWithStatistics);
+  stub_.set(stTriggerTaskUndeploy, deferTriggerUndeploy);
+  DeployTrigger();
+
+  void               *taskAddr = nullptr;
+  SStreamTriggerTask *pTrigger = AcquireTrigger(&taskAddr);
+  ASSERT_NE(pTrigger, nullptr);
+  ASSERT_NE(pTrigger->pStats, nullptr);
+  SStreamTaskUndeploy undeploy = {};
+  undeploy.task = pTrigger->task;
+  streamReleaseTask(taskAddr);
+  ASSERT_EQ(smUndeployTask(&undeploy, false), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gPendingUndeploy, nullptr);
+
+  SStreamInfo *pStream = AcquireStream();
+  ASSERT_NE(pStream, nullptr);
+  SStreamHbMsg heartbeat = {};
+  heartbeat.streamGId = gid_;
+  EXPECT_EQ(stmHbAddStreamStatus(&heartbeat, pStream, kStreamId, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pStream->taskNum, 1);
+  EXPECT_EQ(TD_DLIST_NELES(pStream->triggerList), 1);
+  EXPECT_NE((*gPendingUndeploy)->pStats, nullptr);
+  tCleanupStreamHbMsg(&heartbeat, true);
+
+  (*gPendingUndeploy)->task.undeployCb(gPendingUndeploy);
+  gPendingUndeploy = nullptr;
+  heartbeat = {};
+  heartbeat.streamGId = gid_;
+  EXPECT_EQ(stmHbAddStreamStatus(&heartbeat, pStream, kStreamId, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pStream->taskNum, 0);
+  EXPECT_EQ(TD_DLIST_NELES(pStream->triggerList), 0);
+  EXPECT_EQ(taosArrayGetSize(heartbeat.pStreamStatus), 0);
+  tCleanupStreamHbMsg(&heartbeat, true);
+  ReleaseStream(pStream);
+  EXPECT_EQ(taosHashGetSize(gStreamMgmt.taskMap), 0);
+  EXPECT_EQ(taosHashGetSize(gStreamMgmt.stmGrp[gid_]), 0);
+}
+
+TEST_F(StreamMgmtLifecycleTest, HeartbeatSkipsDeployingOwnerAndReportsOtherGroup) {
+  DeployTrigger();
+  SStreamInfo *pReady = AcquireStream();
+  ASSERT_NE(pReady, nullptr);
+
+  // A newly registered owner stays read-locked while deployment opens its connections.
+  SStreamInfo deploying = {};
+  taosRLockLatch(&deploying.lock);
+  SStreamHbMsg blockedHeartbeat = {};
+  blockedHeartbeat.streamGId = STREAM_GID(kStreamId + 1);
+  SStreamHbMsg readyHeartbeat = {};
+  readyHeartbeat.streamGId = gid_;
+  std::promise<void> started;
+  auto               entered = started.get_future();
+  auto               heartbeat = std::async(std::launch::async, [&] {
+    started.set_value();
+    EXPECT_EQ(stmHbAddStreamStatus(&blockedHeartbeat, &deploying, kStreamId + 1, false), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(stmHbAddStreamStatus(&readyHeartbeat, pReady, kStreamId, false), TSDB_CODE_SUCCESS);
+  });
+  entered.wait();
+  const auto status = heartbeat.wait_for(std::chrono::seconds(5));
+  taosRUnLockLatch(&deploying.lock);
+  heartbeat.get();
+
+  EXPECT_EQ(status, std::future_status::ready);
+  EXPECT_EQ(taosArrayGetSize(blockedHeartbeat.pStreamStatus), 0);
+  EXPECT_EQ(taosArrayGetSize(readyHeartbeat.pStreamStatus), 1);
+  EXPECT_EQ(deploying.destroyed, 0);
+  tCleanupStreamHbMsg(&blockedHeartbeat, true);
+  tCleanupStreamHbMsg(&readyHeartbeat, true);
+  ReleaseStream(pReady);
 }
 
 }  // namespace
