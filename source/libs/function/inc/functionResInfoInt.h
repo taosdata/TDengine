@@ -46,7 +46,8 @@ typedef struct SSumRes {
   int16_t type;
   int64_t prevTs;
   bool    isPrevTsSet;
-  bool    overflow;  // if overflow is true, dsum to be used for any type;
+  bool    overflow;  // floating-point accumulation became inf/NaN and must be output as NULL;
+  bool    hasResult;  // at least one non-NULL value has been accumulated
 } SSumRes;
 
 typedef struct SDecimalSumRes {

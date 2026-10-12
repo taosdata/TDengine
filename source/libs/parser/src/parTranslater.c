@@ -5172,6 +5172,14 @@ static EDealRes haveVectorFunction(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes checkSqlWindowFuncExist(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && ((SFunctionNode*)pNode)->pOver != NULL) {
+    *((bool*)pContext) = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput) {
   SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t  nums = taosArrayGetSize(pTables);
@@ -5365,6 +5373,12 @@ _return:
 static bool hasInvalidFuncNesting(SFunctionNode* pFunc) {
   bool hasInvalidFunc = false;
   nodesWalkExprs(pFunc->pParameterList, haveVectorFunction, &hasInvalidFunc);
+  return hasInvalidFunc;
+}
+
+static bool hasInvalidSqlWindowFuncNesting(SFunctionNode* pFunc) {
+  bool hasInvalidFunc = false;
+  nodesWalkExprs(pFunc->pParameterList, checkSqlWindowFuncExist, &hasInvalidFunc);
   return hasInvalidFunc;
 }
 
@@ -5875,6 +5889,11 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
   if (!isSelectStmt(pCxt->pCurrStmt)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "Function '%s' must be used in select statements", pFunc->functionName);
+  }
+  if (pFunc->pOver != NULL && fmIsCumulativeSqlWindowFunc(pFunc->funcId)) {
+    // SQL window CSUM obtains its timeline from OVER; bare-function input alignment
+    // checks do not apply, but the select-statement requirement above still does.
+    return TSDB_CODE_SUCCESS;
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   bool         isTimelineAlignedQuery = false;
@@ -7022,7 +7041,11 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
       return code;
     }
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  // Bare indefinite-row functions use their normal validation path. Windowed
+  // LAG/LEAD retain that path for nesting checks; cumulative SQL windows skip
+  // only the bare-function restrictions.
+  bool isWindowedCumulativeSql = pFunc->pOver != NULL && fmIsCumulativeSqlWindowFunc(pFunc->funcId);
+  if (TSDB_CODE_SUCCESS == code && !isWindowedCumulativeSql) {
     code = translateIndefiniteRowsFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -8023,6 +8046,12 @@ static int32_t translateExprList(STranslateContext* pCxt, SNodeList* pList) {
   return pCxt->errCode;
 }
 
+typedef struct SSqlWindowFrameShape {
+  ESqlWindowFrameUnit unit;
+  ESqlWindowBoundType startType;
+  ESqlWindowBoundType endType;
+} SSqlWindowFrameShape;
+
 static int32_t makeSqlWindowFrame(ESqlWindowFrameUnit unit, ESqlWindowBoundType startType, ESqlWindowBoundType endType,
                                   SNode** ppFrame) {
   SWindowFrameNode* pFrame = NULL;
@@ -8036,6 +8065,17 @@ static int32_t makeSqlWindowFrame(ESqlWindowFrameUnit unit, ESqlWindowBoundType 
   pFrame->explicitFrame = false;
   *ppFrame = (SNode*)pFrame;
   return TSDB_CODE_SUCCESS;
+}
+
+static const SSqlWindowFrameShape CUMULATIVE_SQL_WINDOW_FRAME = {
+    .unit = WINDOW_FRAME_UNIT_ROWS,
+    .startType = WINDOW_BOUND_UNBOUNDED_PRECEDING,
+    .endType = WINDOW_BOUND_CURRENT_ROW,
+};
+
+static bool sqlWindowFrameMatches(const SWindowFrameNode* pFrame, const SSqlWindowFrameShape* pShape) {
+  return pFrame->frameUnit == pShape->unit && pFrame->start.boundType == pShape->startType &&
+         pFrame->end.boundType == pShape->endType;
 }
 
 static int32_t validateSqlWindowFrameBound(STranslateContext* pCxt, ESqlWindowFrameUnit unit, SSqlWindowBound* pBound) {
@@ -8164,6 +8204,10 @@ static int32_t applyDefaultSqlWindowFrame(const SFunctionNode* pFunc, SWindowSpe
     return makeSqlWindowFrame(WINDOW_FRAME_UNIT_ROWS, WINDOW_BOUND_UNBOUNDED_PRECEDING,
                               WINDOW_BOUND_UNBOUNDED_FOLLOWING, &pSpec->pFrame);
   }
+  if (fmIsCumulativeSqlWindowFunc(pFunc->funcId)) {
+    return makeSqlWindowFrame(CUMULATIVE_SQL_WINDOW_FRAME.unit, CUMULATIVE_SQL_WINDOW_FRAME.startType,
+                              CUMULATIVE_SQL_WINDOW_FRAME.endType, &pSpec->pFrame);
+  }
   if (fmCanUseAsSqlWindowAgg(pFunc->functionName)) {
     return makeSqlWindowFrame(WINDOW_FRAME_UNIT_RANGE, WINDOW_BOUND_UNBOUNDED_PRECEDING, WINDOW_BOUND_CURRENT_ROW,
                               &pSpec->pFrame);
@@ -8262,6 +8306,10 @@ static int32_t validateSqlWindowFunction(STranslateContext* pCxt, SFunctionNode*
   if (NULL == pFunc->pOver) {
     return TSDB_CODE_SUCCESS;
   }
+  if (fmIsCumulativeSqlWindowFunc(pFunc->funcId) &&
+      (hasInvalidFuncNesting(pFunc) || hasInvalidSqlWindowFuncNesting(pFunc))) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
+  }
   if (SQL_CLAUSE_SELECT != pCxt->currClause && SQL_CLAUSE_ORDER_BY != pCxt->currClause) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
   }
@@ -8276,8 +8324,47 @@ static int32_t validateSqlWindowFunction(STranslateContext* pCxt, SFunctionNode*
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_ORDER_REQUIRED);
   }
   PAR_ERR_RET(applyDefaultSqlWindowFrame(pFunc, pSpec));
+  if (fmIsCumulativeSqlWindowFunc(pFunc->funcId) &&
+      !sqlWindowFrameMatches((SWindowFrameNode*)pSpec->pFrame, &CUMULATIVE_SQL_WINDOW_FRAME)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_BOUND);
+  }
   PAR_ERR_RET(validateSqlWindowFrame(pCxt, pSpec));
   return validateSqlWindowFuncArgs(pCxt, pFunc);
+}
+
+typedef struct SIndefiniteWindowMixContext {
+  bool hasBareIndefinite;
+  bool hasWindowCumulative;
+} SIndefiniteWindowMixContext;
+
+static EDealRes collectIndefiniteWindowForm(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pNode;
+  SIndefiniteWindowMixContext* pMix = pContext;
+  if (pFunc->pOver != NULL) {
+    if (fmIsCumulativeSqlWindowFunc(pFunc->funcId)) {
+      pMix->hasWindowCumulative = true;
+    }
+  } else if (fmIsIndefiniteRowsFunc(pFunc->funcId)) {
+    pMix->hasBareIndefinite = true;
+  }
+  return pMix->hasBareIndefinite && pMix->hasWindowCumulative ? DEAL_RES_END : DEAL_RES_CONTINUE;
+}
+
+static int32_t validateIndefiniteWindowMix(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SIndefiniteWindowMixContext mix = {0};
+  nodesWalkExprs(pSelect->pProjectionList, collectIndefiniteWindowForm, &mix);
+  if (!(mix.hasBareIndefinite && mix.hasWindowCumulative)) {
+    nodesWalkExprs(pSelect->pOrderByList, collectIndefiniteWindowForm, &mix);
+  }
+  if (mix.hasBareIndefinite && mix.hasWindowCumulative) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "Bare indefinite-rows and cumulative SQL window functions cannot be used in the same query");
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static EDealRes checkIllegalSqlWindowSpecFunc(SNode* pNode, void* pContext) {
@@ -8289,17 +8376,9 @@ static EDealRes checkIllegalSqlWindowSpecFunc(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes checkIllegalSqlWindowFunc(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && NULL != ((SFunctionNode*)pNode)->pOver) {
-    *(bool*)pContext = true;
-    return DEAL_RES_END;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
 static int32_t validateNoSqlWindowFunc(STranslateContext* pCxt, SNode* pNode) {
   bool hasWindowFunc = false;
-  nodesWalkExpr(pNode, checkIllegalSqlWindowFunc, &hasWindowFunc);
+  nodesWalkExpr(pNode, checkSqlWindowFuncExist, &hasWindowFunc);
   if (hasWindowFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
   }
@@ -19318,6 +19397,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateOrderBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = validateIndefiniteWindowMix(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = checkIsEmptyResult(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -24523,7 +24605,7 @@ static int32_t checkTopicQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
   }
   bool hasWindowFunc = false;
-  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, checkIllegalSqlWindowFunc, &hasWindowFunc);
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, checkSqlWindowFuncExist, &hasWindowFunc);
   if (hasWindowFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
   }
