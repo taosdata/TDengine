@@ -4492,7 +4492,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_CSUM,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
                       FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC |
-                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
+                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .fqPushCap = 0x0,  // FQ_CAP_NONE
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,

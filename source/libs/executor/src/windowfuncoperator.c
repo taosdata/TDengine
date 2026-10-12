@@ -39,6 +39,7 @@ typedef struct SWindowFuncOperatorInfo {
   SWindowInputPool  *pInputPool;
   SWindowInputStore *pInputStore;
   SResultRow        *pAggRow;
+  SResultRow        *pCsumRow;
   int32_t           *pOutputSrcSlots;
   int32_t            numOfOutputSrcSlots;
   int32_t            nextRow;
@@ -48,7 +49,19 @@ typedef struct SWindowFuncOperatorInfo {
   int32_t            peerEnd;
   int64_t            denseRank;
   bool               inputBuilt;
+  bool               hasCsumAggs;
+  bool               hasNonCsumAggs;
+  bool               csumPrefixValid;
+  int32_t            csumPrefixPartitionStart;
+  int32_t            csumPrefixEnd;
+  SOperatorInfo     *pOperator;  // owner needed by the info-only row-state cleanup callback
 } SWindowFuncOperatorInfo;
+
+typedef enum EWinFuncAggSelection {
+  WIN_FUNC_AGGS_ALL,
+  WIN_FUNC_AGGS_CSUM,
+  WIN_FUNC_AGGS_NON_CSUM,
+} EWinFuncAggSelection;
 
 typedef struct SWindowInputPage {
   int32_t pageId;
@@ -683,8 +696,19 @@ static void destroyWindowFuncOperatorInfo(void *param) {
   cleanupExprSupp(&pInfo->funcSupp);
   nodesDestroyList(pInfo->pAggFuncs);
   taosMemoryFreeClear(pInfo->pAggRow);
+  taosMemoryFreeClear(pInfo->pCsumRow);
   taosMemoryFreeClear(pInfo->pOutputSrcSlots);
   taosMemoryFreeClear(param);
+}
+
+static void cleanupWindowFuncRowState(void *param) {
+  SWindowFuncOperatorInfo *pInfo = (SWindowFuncOperatorInfo *)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL) {
+    return;
+  }
+
+  cleanupResultRowFunctionState(&pInfo->pOperator->exprSupp, pInfo->pAggRow);
+  cleanupResultRowFunctionState(&pInfo->pOperator->exprSupp, pInfo->pCsumRow);
 }
 
 static bool winFuncIsResultSlot(const SWindowFuncOperatorInfo *pInfo, int32_t slotId) {
@@ -1606,15 +1630,90 @@ static void winFuncNormalizeAggResultRows(SOperatorInfo *pOperator, SResultRow *
   pRow->numOfRows = pRow->numOfRows > 0 ? 1 : 0;
 }
 
-static void winFuncCleanupAggRow(SOperatorInfo *pOperator, SResultRow *pRow) {
+static bool winFuncIsCsumAgg(const SqlFunctionCtx *pCtx) {
+  return fmGetFuncTypeFromId(pCtx->functionId) == FUNCTION_TYPE_CSUM;
+}
+
+static bool winFuncAggSelected(const SqlFunctionCtx *pCtx, EWinFuncAggSelection selection) {
+  return selection == WIN_FUNC_AGGS_ALL ||
+         (winFuncIsCsumAgg(pCtx) == (selection == WIN_FUNC_AGGS_CSUM));
+}
+
+static void winFuncCleanupSelectedAggs(SOperatorInfo *pOperator, SResultRow *pRow,
+                                       EWinFuncAggSelection selection, bool restoreResultInfo) {
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
     SqlFunctionCtx *pCtx = &pOperator->exprSupp.pCtx[i];
+    if (!winFuncAggSelected(pCtx, selection)) {
+      continue;
+    }
+    SResultRowEntryInfo *pSaved = pCtx->resultInfo;
     pCtx->resultInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
     if (pCtx->needCleanup && pCtx->fpSet.cleanup != NULL) {
       pCtx->fpSet.cleanup(pCtx);
       pCtx->needCleanup = false;
     }
+    if (restoreResultInfo) {
+      pCtx->resultInfo = pSaved;
+    }
   }
+}
+
+static void winFuncCleanupAggRow(SOperatorInfo *pOperator, SResultRow *pRow) {
+  winFuncCleanupSelectedAggs(pOperator, pRow, WIN_FUNC_AGGS_ALL, false);
+}
+
+static void winFuncCleanupCsumRow(SOperatorInfo *pOperator, SResultRow *pRow) {
+  // CSUM currently has no cleanup callback. Preserve resultInfo while switching rows
+  // so future stateful CSUM variants cannot clean the wrong result row.
+  winFuncCleanupSelectedAggs(pOperator, pRow, WIN_FUNC_AGGS_CSUM, true);
+}
+
+static void winFuncSelectAggs(SOperatorInfo *pOperator, SResultRow *pRow, EWinFuncAggSelection selection) {
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SqlFunctionCtx *pCtx = &pOperator->exprSupp.pCtx[i];
+    pCtx->resultInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
+    pCtx->resultInfo->complete = !winFuncAggSelected(pCtx, selection);
+  }
+}
+
+static int32_t winFuncInitCsumAggs(SOperatorInfo *pOperator, SResultRow *pRow) {
+  winFuncSelectAggs(pOperator, pRow, WIN_FUNC_AGGS_CSUM);
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SqlFunctionCtx *pCtx = &pOperator->exprSupp.pCtx[i];
+    pCtx->resultInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
+    if (!winFuncIsCsumAgg(pCtx)) {
+      continue;
+    }
+    if (!pCtx->resultInfo->initialized) {
+      int32_t code = pCtx->fpSet.init(pCtx, pCtx->resultInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t winFuncCopySelectedAggs(SOperatorInfo *pOperator, SResultRow *pRow, SSDataBlock *pRes,
+                                       EWinFuncAggSelection selection) {
+  pRow->numOfRows = 1;
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SqlFunctionCtx *pCtx = &pOperator->exprSupp.pCtx[i];
+    if (!winFuncAggSelected(pCtx, selection)) {
+      continue;
+    }
+
+    SResultRowEntryInfo *pEntryInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
+    if (pEntryInfo->numOfRes > 1) {
+      pEntryInfo->numOfRes = 1;
+    }
+    int32_t code = copyResultrowToDataBlock(&pOperator->exprSupp.pExprInfo[i], 1, pRow, pCtx, pRes,
+                                            &pOperator->exprSupp.rowEntryInfoOffset[i], pOperator->pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t winFuncApplyAggOnFramePages(SOperatorInfo *pOperator, SWindowFuncOperatorInfo *pInfo, int32_t start,
@@ -1672,7 +1771,7 @@ static int32_t winFuncApplyAggOnFramePages(SOperatorInfo *pOperator, SWindowFunc
 }
 
 static int32_t winFuncCalcOneFrame(SOperatorInfo *pOperator, SWindowFuncOperatorInfo *pInfo, SSDataBlock *pRes,
-                                   int32_t start, int32_t end) {
+                                   int32_t start, int32_t end, EWinFuncAggSelection selection) {
   if (pOperator->exprSupp.numOfExprs == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1688,6 +1787,9 @@ static int32_t winFuncCalcOneFrame(SOperatorInfo *pOperator, SWindowFuncOperator
   code = setResultRowInitCtx(pRow, pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs,
                              pOperator->exprSupp.rowEntryInfoOffset);
   QUERY_CHECK_CODE(code, lino, _end);
+  if (selection != WIN_FUNC_AGGS_ALL) {
+    winFuncSelectAggs(pOperator, pRow, selection);
+  }
 
   bool hasRepeatScanFunc = false;
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
@@ -1704,18 +1806,97 @@ static int32_t winFuncCalcOneFrame(SOperatorInfo *pOperator, SWindowFuncOperator
   code = winFuncApplyAggOnFramePages(pOperator, pInfo, start, end, MAIN_SCAN);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  doUpdateNumOfRows(pOperator->exprSupp.pCtx, pRow, pOperator->exprSupp.numOfExprs,
-                    pOperator->exprSupp.rowEntryInfoOffset);
-  winFuncNormalizeAggResultRows(pOperator, pRow);
-  code = copyResultrowToDataBlock(pOperator->exprSupp.pExprInfo, pOperator->exprSupp.numOfExprs, pRow,
-                                  pOperator->exprSupp.pCtx, pRes, pOperator->exprSupp.rowEntryInfoOffset,
-                                  pOperator->pTaskInfo);
+  if (selection != WIN_FUNC_AGGS_ALL) {
+    code = winFuncCopySelectedAggs(pOperator, pRow, pRes, selection);
+  } else {
+    doUpdateNumOfRows(pOperator->exprSupp.pCtx, pRow, pOperator->exprSupp.numOfExprs,
+                      pOperator->exprSupp.rowEntryInfoOffset);
+    winFuncNormalizeAggResultRows(pOperator, pRow);
+    code = copyResultrowToDataBlock(pOperator->exprSupp.pExprInfo, pOperator->exprSupp.numOfExprs, pRow,
+                                    pOperator->exprSupp.pCtx, pRes, pOperator->exprSupp.rowEntryInfoOffset,
+                                    pOperator->pTaskInfo);
+  }
   QUERY_CHECK_CODE(code, lino, _end);
-
-  pRes->info.rows += 1;
   clearResultRowInitFlag(pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs);
 
 _end:
+  return code;
+}
+
+static void winFuncClassifyAggs(const SOperatorInfo *pOperator, bool *pHasCsumAggs, bool *pHasNonCsumAggs) {
+  *pHasCsumAggs = false;
+  *pHasNonCsumAggs = false;
+  if (pOperator == NULL || pOperator->exprSupp.pCtx == NULL || pOperator->exprSupp.numOfExprs <= 0) {
+    return;
+  }
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    if (winFuncIsCsumAgg(&pOperator->exprSupp.pCtx[i])) {
+      *pHasCsumAggs = true;
+    } else {
+      *pHasNonCsumAggs = true;
+    }
+    if (*pHasCsumAggs && *pHasNonCsumAggs) {
+      break;
+    }
+  }
+}
+
+static void winFuncBindResultRow(SOperatorInfo *pOperator, SResultRow *pRow) {
+  if (pRow == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    pOperator->exprSupp.pCtx[i].resultInfo =
+        getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
+  }
+}
+
+static void winFuncInvalidateCsumPrefix(SOperatorInfo *pOperator, SWindowFuncOperatorInfo *pInfo,
+                                        int32_t partitionStart) {
+  pInfo->csumPrefixValid = false;
+  pInfo->csumPrefixPartitionStart = partitionStart;
+  pInfo->csumPrefixEnd = partitionStart - 1;
+  if (pInfo->pCsumRow != NULL) {
+    winFuncCleanupCsumRow(pOperator, pInfo->pCsumRow);
+    resetResultRow(pInfo->pCsumRow, pInfo->aggSup.resultRowSize - sizeof(SResultRow));
+  }
+}
+
+static int32_t winFuncCalcCsumPrefix(SOperatorInfo *pOperator, SWindowFuncOperatorInfo *pInfo, SSDataBlock *pRes,
+                                     int32_t partitionStart, int32_t end) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SResultRow *pRow = pInfo->pCsumRow;
+  QUERY_CHECK_NULL(pRow, code, lino, _end, terrno);
+
+  // The optimized CSUM frame is UNBOUNDED PRECEDING ... CURRENT ROW, and rows
+  // are emitted in window order, so end is monotonic within a partition. Keep
+  // the rollback check defensive in case traversal order changes in the future.
+  if (!pInfo->csumPrefixValid || pInfo->csumPrefixPartitionStart != partitionStart ||
+      end < pInfo->csumPrefixEnd) {
+    winFuncInvalidateCsumPrefix(pOperator, pInfo, partitionStart);
+    code = winFuncInitCsumAggs(pOperator, pRow);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pInfo->csumPrefixValid = true;
+  }
+
+  if (end > pInfo->csumPrefixEnd) {
+    winFuncSelectAggs(pOperator, pRow, WIN_FUNC_AGGS_CSUM);
+    code = winFuncApplyAggOnFramePages(pOperator, pInfo, pInfo->csumPrefixEnd + 1, end, MAIN_SCAN);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pInfo->csumPrefixEnd = end;
+  }
+
+  code = winFuncCopySelectedAggs(pOperator, pRow, pRes, WIN_FUNC_AGGS_CSUM);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    // The entry invalidation clears the old prefix. This rollback clears any
+    // state created by the current initialization or accumulation attempt.
+    winFuncInvalidateCsumPrefix(pOperator, pInfo, partitionStart);
+  }
+  winFuncBindResultRow(pOperator, pInfo->pAggRow);
   return code;
 }
 
@@ -2017,6 +2198,9 @@ static int32_t winFuncOpenPartition(SWindowFuncOperatorInfo *pInfo, SWindowFuncP
   pInfo->peerStart = row;
   pInfo->peerEnd = row;
   pInfo->denseRank = 0;
+  pInfo->csumPrefixValid = false;
+  pInfo->csumPrefixPartitionStart = 0;
+  pInfo->csumPrefixEnd = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2064,9 +2248,23 @@ static int32_t winFuncBuildResultBatch(SOperatorInfo *pOperator) {
     code = winFuncCalcFrame(pInfo, pWindowNode, pInfo->partitionStart, pInfo->partitionEnd, row, &range);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = winFuncCalcOneFrame(pOperator, pInfo, pRes, pInfo->partitionStart + range.start,
-                               pInfo->partitionStart + range.end);
+    int32_t frameStart = pInfo->partitionStart + range.start;
+    int32_t frameEnd = pInfo->partitionStart + range.end;
+    if (pInfo->hasCsumAggs && frameStart == pInfo->partitionStart) {
+      if (pInfo->hasNonCsumAggs) {
+        code = winFuncCalcOneFrame(pOperator, pInfo, pRes, frameStart, frameEnd, WIN_FUNC_AGGS_NON_CSUM);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      code = winFuncCalcCsumPrefix(pOperator, pInfo, pRes, pInfo->partitionStart, frameEnd);
+    } else {
+      // CSUM frames are parser-constrained to start at the partition boundary;
+      // this path therefore does not share the CSUM prefix cache.
+      code = winFuncCalcOneFrame(pOperator, pInfo, pRes, frameStart, frameEnd, WIN_FUNC_AGGS_ALL);
+    }
     QUERY_CHECK_CODE(code, lino, _end);
+    if (pOperator->exprSupp.numOfExprs > 0) {
+      pRes->info.rows += 1;
+    }
 
     code = winFuncCalcDedicated(pInfo, pWindowNode, pRes, pInfo->partitionStart, pInfo->partitionEnd, row, dstRow,
                                 &range, pInfo->peerStart - pInfo->partitionStart,
@@ -2197,6 +2395,11 @@ int32_t createWindowFuncOperatorInfo(SOperatorInfo *downstream, SWindowFuncPhysi
 
     pInfo->pAggRow = taosMemoryCalloc(1, pInfo->aggSup.resultRowSize);
     QUERY_CHECK_NULL(pInfo->pAggRow, code, lino, _error, terrno);
+    winFuncClassifyAggs(pOperator, &pInfo->hasCsumAggs, &pInfo->hasNonCsumAggs);
+    if (pInfo->hasCsumAggs) {
+      pInfo->pCsumRow = taosMemoryCalloc(1, pInfo->aggSup.resultRowSize);
+      QUERY_CHECK_NULL(pInfo->pCsumRow, code, lino, _error, terrno);
+    }
   }
 
   SPhysiNode *pChildNode = (SPhysiNode *)nodesListGetNode(pWindowNode->node.pChildren, 0);
@@ -2209,8 +2412,10 @@ int32_t createWindowFuncOperatorInfo(SOperatorInfo *downstream, SWindowFuncPhysi
 
   setOperatorInfo(pOperator, "WindowFuncOperator", QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
+  pInfo->pOperator = pOperator;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, winFuncNext, NULL, destroyWindowFuncOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorRowStateCleanupFn(pOperator, cleanupWindowFuncRowState);
 
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);

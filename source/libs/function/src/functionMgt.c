@@ -332,6 +332,10 @@ bool fmIsKeepOrderFunc(SFunctionNode* pFunc) {
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
 
+bool fmIsCumulativeSqlWindowFunc(int32_t funcId) {
+  return fmIsCumulativeFunc(funcId) && isSpecificClassifyFunc(funcId, FUNC_MGT_SQL_WINDOW_AGG_FUNC);
+}
+
 bool fmIsForbidSysTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_SYSTABLE_FUNC); }
 
 bool fmIsInterpFunc(int32_t funcId) {

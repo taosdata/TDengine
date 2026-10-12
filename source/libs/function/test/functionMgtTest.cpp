@@ -209,7 +209,7 @@ TEST(FunctionMgtTest, identifiesOrderRequiredSqlWindowFunctions) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
 
   const char* orderRequiredFuncs[] = {"row_number", "rank", "dense_rank",  "percent_rank", "cume_dist",
-                                      "lag",        "lead", "first_value", "last_value",   "nth_value"};
+                                      "lag",        "lead", "first_value", "last_value",   "nth_value", "csum"};
 
   for (const char* func : orderRequiredFuncs) {
     EXPECT_TRUE(fmIsSqlWindowOrderRequiredFunc(func)) << func;
@@ -221,13 +221,22 @@ TEST(FunctionMgtTest, identifiesOrderRequiredSqlWindowFunctions) {
 TEST(FunctionMgtTest, identifiesAggregatesUsableAsSqlWindowAggregates) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
 
-  const char* windowAggFuncs[] = {"count", "sum", "min", "max", "avg", "percentile", "first", "last", "last_row"};
+  const char* windowAggFuncs[] = {"count", "sum", "min", "max", "avg", "percentile", "first", "last",
+                                  "last_row", "csum"};
 
   for (const char* func : windowAggFuncs) {
     EXPECT_TRUE(fmCanUseAsSqlWindowAgg(func)) << func;
   }
   EXPECT_FALSE(fmCanUseAsSqlWindowAgg("row_number"));
   EXPECT_FALSE(fmCanUseAsSqlWindowAgg("not_a_function"));
+}
+
+TEST(FunctionMgtTest, identifiesCumulativeSqlWindowFunctions) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+
+  EXPECT_TRUE(fmIsCumulativeSqlWindowFunc(fmGetFuncId("csum")));
+  EXPECT_FALSE(fmIsCumulativeSqlWindowFunc(fmGetFuncId("sum")));
+  EXPECT_FALSE(fmIsCumulativeSqlWindowFunc(fmGetFuncId("mavg")));
 }
 
 TEST(FunctionMgtTest, rejectsUnexpectedArgumentsForZeroArgSqlWindowFunctions) {

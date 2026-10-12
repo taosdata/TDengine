@@ -19,6 +19,12 @@ from datetime import datetime
 from new_test_framework.utils import tdCom, tdLog, tdSql
 
 
+TSDB_CODE_PAR_AGG_FUNC_NESTING = 0x80002627
+TSDB_CODE_PAR_NOT_ALLOWED_FUNC = 0x8000264F
+TSDB_CODE_PAR_WINDOW_ORDER_REQUIRED = 0x800026B7
+TSDB_CODE_PAR_WINDOW_INVALID_BOUND = 0x800026BB
+
+
 class FunTsWindowCaseHelper:
     def setup_class(cls):
         cls.replicaVar = 1
@@ -158,6 +164,241 @@ class FunTsWindowCaseHelper:
                 ],
             ],
         )
+
+    def _check_csum_sql_window(self):
+        base = 1704067200000
+        tdSql.execute(
+            "create table t_csum_sql_window(ts timestamp, group_id int, seq int, val int)"
+        )
+        self.insert_rows(
+            "t_csum_sql_window",
+            [
+                (base + 1000, 1, 1, 10),
+                (base + 2000, 1, 2, None),
+                (base + 3000, 1, 3, 5),
+                (base + 4000, 2, 1, 7),
+                (base + 5000, 2, 2, 8),
+                (base + 6000, 2, 3, None),
+            ],
+            batch_size=10,
+        )
+
+        tdSql.queryAndCheckResult(
+            [
+                "select group_id, ts, val, "
+                "csum(val) over (partition by group_id order by ts) as running_val "
+                "from t_csum_sql_window order by group_id, ts",
+                "select group_id, ts, "
+                "csum(val) over (partition by group_id order by ts "
+                "rows between unbounded preceding and current row) as running_val "
+                "from t_csum_sql_window order by group_id, ts",
+                "select group_id, ts, csum(val) over w as running_val "
+                "from t_csum_sql_window "
+                "window w as (partition by group_id order by ts) "
+                "order by group_id, ts",
+            ],
+            [
+                [
+                    (1, self.format_ts(base + 1000), 10, 10),
+                    (1, self.format_ts(base + 2000), None, 10),
+                    (1, self.format_ts(base + 3000), 5, 15),
+                    (2, self.format_ts(base + 4000), 7, 7),
+                    (2, self.format_ts(base + 5000), 8, 15),
+                    (2, self.format_ts(base + 6000), None, 15),
+                ],
+                [
+                    (1, self.format_ts(base + 1000), 10),
+                    (1, self.format_ts(base + 2000), 10),
+                    (1, self.format_ts(base + 3000), 15),
+                    (2, self.format_ts(base + 4000), 7),
+                    (2, self.format_ts(base + 5000), 15),
+                    (2, self.format_ts(base + 6000), 15),
+                ],
+                [
+                    (1, self.format_ts(base + 1000), 10),
+                    (1, self.format_ts(base + 2000), 10),
+                    (1, self.format_ts(base + 3000), 15),
+                    (2, self.format_ts(base + 4000), 7),
+                    (2, self.format_ts(base + 5000), 15),
+                    (2, self.format_ts(base + 6000), 15),
+                ],
+            ],
+        )
+
+        tdSql.query(
+            "select csum(val) over w, avg(val) over w "
+            "from t_csum_sql_window "
+            "window w as (order by ts rows between unbounded preceding and current row) "
+            "order by ts"
+        )
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(2, 0, 15)
+        tdSql.checkData(2, 1, 7.5)
+        tdSql.checkData(5, 0, 30)
+        tdSql.checkData(5, 1, 7.5)
+
+        tdSql.query(
+            "select csum(val) over w, count(distinct val) over w "
+            "from t_csum_sql_window "
+            "window w as (order by ts rows between unbounded preceding and current row) "
+            "order by ts"
+        )
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 0, 10)
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(2, 0, 15)
+        tdSql.checkData(2, 1, 2)
+        tdSql.checkData(5, 0, 30)
+        tdSql.checkData(5, 1, 4)
+
+        tdSql.queryAndCheckResult(
+            [
+                "select group_id, seq, csum(val) over (partition by group_id order by ts desc) "
+                "from t_csum_sql_window order by group_id, ts desc",
+                "select group_id, seq, csum(val) over (order by group_id, ts) "
+                "from t_csum_sql_window order by group_id, ts limit 3 offset 1",
+            ],
+            [
+                [
+                    (1, 3, 5),
+                    (1, 2, 5),
+                    (1, 1, 15),
+                    (2, 3, None),
+                    (2, 2, 8),
+                    (2, 1, 15),
+                ],
+                [
+                    (1, 2, 10),
+                    (1, 3, 15),
+                    (2, 1, 22),
+                ],
+            ],
+        )
+
+        tdSql.query(
+            "select seq from t_csum_sql_window where group_id = 1 "
+            "order by csum(val) over (order by ts), seq"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 3)
+
+        tdSql.execute("create table t_csum_cross_page(ts timestamp, val int)")
+        cross_page_rows = [(base + 10000, 10)] + [
+            (base + 10000 + row, 5 if row == 1000 else 7 if row == 2000 else None)
+            for row in range(1, 2001)
+        ]
+        self.insert_rows("t_csum_cross_page", cross_page_rows, batch_size=200)
+        tdSql.query(
+            "select csum(val) over (order by ts) from t_csum_cross_page order by ts"
+        )
+        tdSql.checkRows(2001)
+        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(1000, 0, 15)
+        tdSql.checkData(2000, 0, 22)
+
+        tdSql.execute("create table t_csum_cross_page_overflow(ts timestamp, val double)")
+        overflow_rows = [(base + 30000, 1e308)] + [
+            (base + 30000 + row, 1e308 if row == 1000 else 1.0 if row == 2000 else None)
+            for row in range(1, 2001)
+        ]
+        self.insert_rows("t_csum_cross_page_overflow", overflow_rows, batch_size=200)
+        tdSql.query(
+            "select csum(val) over (order by ts) "
+            "from t_csum_cross_page_overflow order by ts"
+        )
+        tdSql.checkRows(2001)
+        tdSql.checkData(0, 0, 1e308)
+        tdSql.checkData(999, 0, 1e308)
+        tdSql.checkData(1000, 0, None)
+        tdSql.checkData(2000, 0, None)
+
+        tdSql.execute("create table t_csum_all_null(ts timestamp, group_id int, val int)")
+        self.insert_rows(
+            "t_csum_all_null",
+            [(base + 1000, 1, None), (base + 2000, 1, None)],
+            batch_size=10,
+        )
+        tdSql.query(
+            "select group_id, csum(val) over (partition by group_id order by ts) "
+            "from t_csum_all_null order by ts"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, None)
+
+        tdSql.error(
+            "select csum(val) over () from t_csum_sql_window",
+            expectedErrno=TSDB_CODE_PAR_WINDOW_ORDER_REQUIRED,
+        )
+        tdSql.error(
+            "select csum(val) over (order by ts rows between 1 preceding and current row) "
+            "from t_csum_sql_window",
+            expectedErrno=TSDB_CODE_PAR_WINDOW_INVALID_BOUND,
+        )
+        tdSql.error(
+            "select csum(sum(val)) over (order by group_id) "
+            "from t_csum_sql_window group by group_id",
+            expectedErrno=TSDB_CODE_PAR_AGG_FUNC_NESTING,
+        )
+        tdSql.error(
+            "select csum(csum(val) over (order by ts)) over (order by ts) "
+            "from t_csum_sql_window",
+            expectedErrno=TSDB_CODE_PAR_AGG_FUNC_NESTING,
+        )
+        tdSql.error(
+            "select csum(row_number() over (order by ts)) over (order by ts) "
+            "from t_csum_sql_window",
+            expectedErrno=TSDB_CODE_PAR_AGG_FUNC_NESTING,
+        )
+        tdSql.error(
+            "select csum(rank() over (order by ts)) over (order by ts) "
+            "from t_csum_sql_window",
+            expectedErrno=TSDB_CODE_PAR_AGG_FUNC_NESTING,
+        )
+        tdSql.error(
+            "select lag(sum(val) over (order by ts)) over (order by ts) "
+            "from t_csum_sql_window",
+            expectedErrno=TSDB_CODE_PAR_AGG_FUNC_NESTING,
+        )
+        tdSql.error(
+            "select lead(sum(val) over (order by ts)) over (order by ts) "
+            "from t_csum_sql_window",
+            expectedErrno=TSDB_CODE_PAR_AGG_FUNC_NESTING,
+        )
+        tdSql.error(
+            "select csum(val), csum(val) over (partition by group_id order by ts desc) "
+            "from t_csum_sql_window",
+            expectedErrno=TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+        )
+        tdSql.error(
+            "select csum(val) from t_csum_sql_window "
+            "order by csum(val) over (order by ts desc)",
+            expectedErrno=TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+        )
+        tdSql.error(
+            "select mavg(val, 1), csum(val) over (partition by group_id order by ts desc) "
+            "from t_csum_sql_window",
+            expectedErrno=TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+        )
+        tdSql.execute("create table t_csum_join(ts timestamp, val int)")
+        self.insert_rows(
+            "t_csum_join",
+            [(base + 1000, 1), (base + 3000, 2), (base + 7000, 3)],
+            batch_size=10,
+        )
+        tdSql.query(
+            "select csum(a.val) over (order by a.ts, b.ts) "
+            "from t_csum_sql_window a full join t_csum_join b on a.ts = b.ts"
+        )
+        tdSql.checkRows(7)
 
     def _check_csum_null_and_partition(self):
         base = 1704067200000
@@ -361,6 +602,31 @@ class FunTsWindowCaseHelper:
                 (self.format_ts(base + 10000), 11, 110, 1100, 11000, 11.0, 110.0, 11, 110, 1100, 11000),
             ]],
         )
+
+        tdSql.execute("create table t_csum_bigint_wrap(ts timestamp, val bigint)")
+        self.insert_rows(
+            "t_csum_bigint_wrap",
+            [(base + 1000, 9223372036854775807), (base + 2000, 1)],
+            batch_size=10,
+        )
+        tdSql.query(
+            "select csum(val) over (order by ts) from t_csum_bigint_wrap order by ts"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 9223372036854775807)
+        tdSql.checkData(1, 0, -9223372036854775808)
+
+        tdSql.execute("create table t_csum_double_overflow(ts timestamp, val double)")
+        self.insert_rows(
+            "t_csum_double_overflow",
+            [(base + 1000, 1e308), (base + 2000, 1e308), (base + 3000, 1.0)],
+            batch_size=10,
+        )
+        tdSql.query("select csum(val) from t_csum_double_overflow")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1e308)
+        tdSql.checkData(1, 0, None)
+        tdSql.checkData(2, 0, None)
 
     def _check_csum_interval_specific(self):
         base = 1704067200000
@@ -1634,6 +1900,7 @@ class FunTsWindowCaseHelper:
         tdLog.info("verify csum ordinary-window coverage")
         self.create_database("db_ts_csum_window", vgroups=4)
         self._check_csum_basic_execution()
+        self._check_csum_sql_window()
         self._check_csum_null_and_partition()
         self._check_csum_numeric_matrix()
         self._check_csum_interval_specific()
