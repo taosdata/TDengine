@@ -11264,11 +11264,15 @@ static int32_t translateVirtualNormalChildTableInStream(STranslateContext* pCxt,
                                                         SVirtualTableNode* pVTable) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SHashObj*       pTableVgHash = NULL;
+  SHashObj*       pTagRefTables = NULL;
   SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
   STableMeta*     pMeta = pRealTable->pMeta;
   int32_t         lino = 0;
   SRealTableNode* pInsCols = NULL;
+  SRealTableNode* pRefTable = NULL;
   SArray*         tmpVgroupList = NULL;
+  bool            savedAsync = pCxt->pParseCxt->async;
+  bool            savedRefTable = pCxt->refTable;
 
   PAR_ERR_JRET(getTargetMeta(pCxt, pName, &(pVTable->pMeta), true));
   PAR_ERR_JRET(setVirtualTableVgroupList(pCxt, pName, pVTable));
@@ -11278,7 +11282,6 @@ static int32_t translateVirtualNormalChildTableInStream(STranslateContext* pCxt,
   tmpVgroupList = taosArrayInit(1, sizeof(SVgroupInfo));
   QUERY_CHECK_NULL(tmpVgroupList, code, lino, _return, terrno);
 
-  bool tmpAsync = pCxt->pParseCxt->async;
   pCxt->pParseCxt->async = false;
   for (int32_t i = 0; i < pMeta->numOfColRefs; i++) {
     if (pMeta->colRef[i].hasRef) {
@@ -11296,7 +11299,7 @@ static int32_t translateVirtualNormalChildTableInStream(STranslateContext* pCxt,
       }
     }
   }
-  pCxt->pParseCxt->async = tmpAsync;
+  pCxt->pParseCxt->async = savedAsync;
 
   taosMemoryFreeClear(pRealTable->pVgroupList);
   PAR_ERR_JRET(toVgroupsInfo(tmpVgroupList, &pRealTable->pVgroupList));
@@ -11306,21 +11309,58 @@ static int32_t translateVirtualNormalChildTableInStream(STranslateContext* pCxt,
     PAR_ERR_JRET(cloneVgroups(&pRealTable->pVgroupList, pVTable->pVgroupList));
   }
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
+  *pTable = (SNode*)pVTable;
 
   PAR_ERR_JRET(makeVtableMetaScanTable(pCxt, &pInsCols));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
+  pInsCols = NULL;
 
-  *pTable = (SNode*)pVTable;
+  // Keep the two scan nodes first; the planner also needs metadata for TAG sources.
+  if (pVTable->pMeta->numOfTagRefs > 0) {
+    pTagRefTables = taosHashInit(pVTable->pMeta->numOfTagRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false,
+                                 HASH_NO_LOCK);
+    QUERY_CHECK_NULL(pTagRefTables, code, lino, _return, terrno);
+    pCxt->pParseCxt->async = false;
+    for (int32_t i = 0; i < pVTable->pMeta->numOfTagRefs; ++i) {
+      SColRef* pRef = &pVTable->pMeta->tagRef[i];
+      if (!pRef->hasRef) {
+        continue;
+      }
+      char   key[TSDB_TABLE_FNAME_LEN] = {0};
+      TSlice buf = {0};
+      sliceInit(&buf, key, sizeof(key));
+      PAR_ERR_JRET(sliceAppend(&buf, pRef->refDbName, strlen(pRef->refDbName)));
+      PAR_ERR_JRET(sliceAppend(&buf, ".", 1));
+      PAR_ERR_JRET(sliceAppend(&buf, pRef->refTableName, strlen(pRef->refTableName)));
+      if (taosHashGet(pTagRefTables, key, strlen(key)) != NULL) {
+        continue;
+      }
 
-  taosHashCleanup(pTableVgHash);
-  taosArrayDestroy(tmpVgroupList);
-  return code;
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRefTable));
+      setTableNameByColRef(pRefTable, pRef);
+      pCxt->refTable = true;
+      code = translateTable(pCxt, (SNode**)&pRefTable, false);
+      if (TSDB_CODE_SUCCESS != code) {
+        vtbRefSetSrcTableErrMsg(pCxt, code, pRef, pVTable->table.dbName, pVTable->table.tableName);
+        goto _return;
+      }
+      PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRefTable));
+      pRefTable = NULL;
+      PAR_ERR_JRET(taosHashPut(pTagRefTables, key, strlen(key), NULL, 0));
+    }
+  }
 
 _return:
-  qError("translateVirtualNormalChildTableInStream failed, lino:%d, code:%d, errmsg:%s", lino, code, tstrerror(code));
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("translateVirtualNormalChildTableInStream failed, lino:%d, code:%d, errmsg:%s", lino, code, tstrerror(code));
+  }
+  pCxt->pParseCxt->async = savedAsync;
+  pCxt->refTable = savedRefTable;
   taosHashCleanup(pTableVgHash);
+  taosHashCleanup(pTagRefTables);
   taosArrayDestroy(tmpVgroupList);
   nodesDestroyNode((SNode*)pInsCols);
+  nodesDestroyNode((SNode*)pRefTable);
   return code;
 }
 
@@ -11824,6 +11864,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   int32_t            code = TSDB_CODE_SUCCESS;
   STableMeta*        pMeta = pRealTable->pMeta;
   SVirtualTableNode* pVTable = NULL;
+  bool               savedRefTable = pCxt->refTable;
 
   if (!isSelectStmt(pCxt->pCurrStmt)) {
     // virtual table only support select operation
@@ -11861,9 +11902,13 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   }
 
   ((SVirtualTableNode*)*pTable)->table.singleTable = true;
-  PAR_ERR_JRET(addNamespace(pCxt, *pTable));
+  pCxt->refTable = savedRefTable;
+  if (!savedRefTable) {
+    PAR_ERR_JRET(addNamespace(pCxt, *pTable));
+  }
   return code;
 _return:
+  pCxt->refTable = savedRefTable;
   qError("translateVirtualTable failed, code:%d, errmsg:%s", code, tstrerror(code));
   if ((SNode*)pVTable == *pTable) {
     *pTable = NULL;

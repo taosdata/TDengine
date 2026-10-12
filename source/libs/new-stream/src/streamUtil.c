@@ -309,7 +309,10 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
   SListNode*   listNode = NULL;
   SStreamTask* pTask = NULL;
 
-  taosWLockLatch(&pStream->lock);
+  // Deployment may wait for external connections; keep heartbeats for other streams moving.
+  if (taosWTryLockLatch(&pStream->lock) != 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   stmHandleStreamRemovedTasks(pStream, streamId, pMsg->streamGId);
 
