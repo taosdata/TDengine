@@ -392,6 +392,7 @@ bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(SFunctionNode* pFunc);
 bool fmIsCumulativeFunc(int32_t funcId);
+bool fmIsCumulativeSqlWindowFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsAnalysisPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
