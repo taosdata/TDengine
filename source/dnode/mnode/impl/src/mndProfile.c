@@ -1193,7 +1193,11 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       }
 #ifdef TD_ENTERPRISE
       case HEARTBEAT_KEY_EXTSOURCE: {
-        if (!needCheck) { break; }
+        // The client reports its own ext-source global version, so the version
+        // comparison below already decides whether anything must be pushed.
+        // Gating this on the dynamic-view check would keep ext-source updates
+        // (including credential changes) from ever reaching clients whose view
+        // catalog happens to be up to date.
         if (kv->valueLen != sizeof(int64_t)) {
           mError("invalid HEARTBEAT_KEY_EXTSOURCE kv len:%d, expected 8", kv->valueLen);
           break;

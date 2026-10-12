@@ -7064,7 +7064,7 @@ int32_t ctgLaunchSubTask(SCtgTaskReq* pReq, CTG_TASK_TYPE type, ctgSubTaskCbFp f
     }
     pSubMsgCtx->pBatchs = pPrevSubBatchs;
     CTG_ERR_RET(ret);
-    pSub->status = CTG_TASK_LAUNCHED;
+    (void)atomic_val_compare_exchange_32((int32_t*)&pSub->status, 0, CTG_TASK_LAUNCHED);
   }
 
   return TSDB_CODE_SUCCESS;

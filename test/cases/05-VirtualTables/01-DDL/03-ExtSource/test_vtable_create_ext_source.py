@@ -803,13 +803,21 @@ class TestVtableCreateExtSource:
         tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.t_4seg.v")
         tdSql.execute("DROP VTABLE v_4seg")
 
-        # (h) 3-component source.table.col is ambiguous for vtable external
-        # column refs; query ext-source tests use source.db.table.col.
+        # (h) 3-component source.table.col resolves through the default
+        # database/schema of the source (DS section 6.1.3.1); the 4-component
+        # form stays available to name the remote database explicitly.
         create_pg_remote_table("t_3disamb", [("v", "INTEGER", "int")])
         tdSql.execute(f"REFRESH EXTERNAL SOURCE {_PG_SRC}")
-        tdSql.error(
-            f"CREATE VTABLE v_3disamb_bad (ts timestamp, "
+        tdSql.execute(
+            f"CREATE VTABLE v_3disamb_short (ts timestamp, "
             f"v int FROM {_PG_SRC}.t_3disamb.v)")
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_3disamb_short' "
+            f"AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.t_3disamb.v")
+        tdSql.execute("DROP VTABLE v_3disamb_short")
         tdSql.execute(
             f"CREATE VTABLE v_3disamb (ts timestamp, "
             f"v int FROM {_PG_SRC}.{_PG_DB}.t_3disamb.v)")

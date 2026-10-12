@@ -73,8 +73,16 @@ Environment requirements:
 import glob
 import os
 import time as _time
+import json
+from pathlib import Path
+import select
+import subprocess
+import sys
+import tempfile
 
-from new_test_framework.utils import tdLog, tdSql
+import taos
+
+from new_test_framework.utils import tdLog, tdSql, TDSql
 
 from federated_query_common import (
     FederatedQueryCaseHelper,
@@ -168,6 +176,206 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     def _row_text(self, row_idx):
         return "|".join(str(c) for c in tdSql.queryResult[row_idx])
 
+    def _normal_user_sql(self, user, config=None):
+        conn = taos.connect(host=self.host, port=self.port, user=user,
+                            password="Test1234", config=config or self.cfg_path)
+        sql = TDSql()
+        sql.init(conn.cursor())
+        return conn, sql
+
+    def do_normal_user_external_queries(self):
+        local_db = "sec028_local"
+        tdSql.execute(f"drop database if exists {local_db}")
+        tdSql.execute(f"create database {local_db}")
+        tdSql.execute(f"create table {local_db}.local_t(ts timestamp, val int)")
+        tdSql.execute(f"insert into {local_db}.local_t values(1704067200000, 99)")
+
+        def check_source(src):
+            user = f"{src}_user"
+            tdSql.execute(f"drop user if exists {user}")
+            tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
+            tdSql.query("show external sources")
+            source_row = next(row for row in tdSql.queryResult if row[0] == src)
+            namespace = "public" if str(source_row[1]).lower() == "postgresql" else source_row[6]
+            conn, sql = self._normal_user_sql(user)
+            try:
+                paths = [f"{src}.{namespace}.src_t", f"{src}.src_t"]
+                for path in paths:
+                    sql.query(f"select val,name from {path} order by val")
+                    sql.checkRows(5)
+                    for index, name in enumerate(("alpha", "beta", "gamma", "delta", "epsilon")):
+                        sql.checkData(index, 0, index + 1)
+                        sql.checkData(index, 1, name)
+                sql.execute(f"use {src}")
+                for path in ("src_t", f"{src}.src_t"):
+                    sql.query(f"select count(*),sum(val) from {path}")
+                    sql.checkRows(1)
+                    sql.checkData(0, 0, 5)
+                    sql.checkData(0, 1, 15)
+                sql.error(f"use {local_db}", expectedErrno=0x2644)
+                sql.error(f"select val from {local_db}.local_t", expectedErrno=0x26E3)
+                sql.error(f"explain select val from {local_db}.local_t", expectedErrno=0x26E3)
+                sql.error(f"select val from {src}.src_t union all select val from {local_db}.local_t",
+                          expectedErrno=0x26E3)
+                sql.query(f"explain select val from {src}.src_t")
+                assert len(sql.queryResult) > 0, "外部表 EXPLAIN 应返回执行计划"
+                tdSql.execute(f"grant use on database {local_db} to {user}")
+                sql.execute(f"use {local_db}")
+                # 已授权 USE 但未授权 SELECT 时，本地表查询按表级权限拒绝返回 0x2644。
+                sql.error(f"select val from {local_db}.local_t", expectedErrno=0x2644)
+                tdSql.execute(f"grant select on table {local_db}.local_t to {user}")
+                sql.query("select val from local_t")
+                sql.checkRows(1)
+                sql.checkData(0, 0, 99)
+                sql.query(f"select count(*) from {src}.src_t")
+                sql.checkData(0, 0, 5)
+                for statement in (
+                    f"create external source sec028_forbidden type='postgresql' host='127.0.0.1' "
+                    "port=15434 user='postgres' password='invalid' database='postgres'",
+                    f"alter external source {src} set password='invalid'",
+                    f"refresh external source {src}",
+                    f"drop external source {src}",
+                ):
+                    sql.error(statement, expectedErrno=0x0303)
+                sql.query(f"select count(*) from {src}.src_t")
+                sql.checkData(0, 0, 5)
+            finally:
+                sql.close()
+                conn.close()
+                tdSql.execute(f"drop user if exists {user}")
+
+        try:
+            # SQL Server coverage for these authorization cases is not part of this change.
+            self._with_std_sources("sec028", check_source, skip_sqlserver=True)
+        finally:
+            tdSql.execute(f"drop database if exists {local_db}")
+        print("普通用户外部查询与本地权限边界 [passed]")
+
+    def test_normal_user_external_queries(self):
+        """普通用户无需授权使用外部源，本地权限和源管理权限保持生效。
+
+        普通用户跨外部源查询、EXPLAIN，并确认本地库表权限与外部源管理权限仍然生效。
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan 补齐普通用户外部查询权限回归
+        """
+        self.do_normal_user_external_queries()
+
+    def do_normal_user_credential_delivery(self):
+        user = "sec029_user"
+        tdSql.execute(f"drop user if exists {user}")
+        tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
+
+        def check_source(src):
+            cfg = self._pg_cfg()
+            database = "sec029_pdb"
+            ExtSrcEnv.pg_exec_cfg(cfg, database, [
+                "create schema auth_changed",
+                "create table auth_changed.src_t (ts timestamp, val int)",
+                "insert into auth_changed.src_t values ('2024-01-01', 77)",
+            ])
+            with tempfile.TemporaryDirectory(prefix="fq-normal-credentials-") as temp_dir:
+                cfg_dir = Path(temp_dir) / "cfg"
+                log_dir = Path(temp_dir) / "log"
+                cfg_dir.mkdir()
+                log_dir.mkdir()
+                (cfg_dir / "taos.cfg").write_text(
+                    f"firstEp {self.host}:{self.port}\nfederatedQueryEnable 1\n"
+                    f"qDebugFlag 143\ncDebugFlag 143\nasyncLog 0\nlogDir {log_dir}\n", encoding="utf-8")
+                child = r'''
+import json, sys, time, pathlib, select, taos
+host, port, user, cfg, src, logs = json.loads(sys.argv[1])
+conn = taos.connect(host=host, port=port, user=user, password="Test1234", config=cfg)
+cursor = conn.cursor()
+def check(expected):
+    cursor.execute("select count(*),sum(val) from " + src + ".src_t")
+    assert cursor.fetchall() == [expected]
+def read_logs():
+    return "".join(path.read_text(errors="replace") for path in pathlib.Path(logs).glob("taoslog*"))
+try:
+    check((5, 15))
+    baseline = read_logs().count("hb received ext source push:")
+    print("GET_OK", flush=True)
+    sys.stdin.readline()
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        if read_logs().count("hb received ext source push:") > baseline:
+            cursor.execute("select count(*),sum(val) from " + src + ".src_t")
+            if cursor.fetchall() == [(1, 77)]:
+                print("HEARTBEAT_OK", flush=True)
+                break
+        select.select([], [], [], 0.1)
+    else:
+        details = "\n".join(read_logs().splitlines()[-200:])
+        raise AssertionError("普通用户未收到外部源心跳更新: " + details)
+finally:
+    cursor.close()
+    conn.close()
+'''
+                output = Path(temp_dir) / "client.out"
+                with output.open("w+") as stream:
+                    # The helper process is a plain python client: its own allocations are
+                    # reported by LeakSanitizer under the ASAN build and would turn the exit
+                    # code non-zero, so leak detection stays off for this child only.
+                    child_env = dict(os.environ)
+                    child_env["ASAN_OPTIONS"] = ":".join(
+                        opt for opt in (child_env.get("ASAN_OPTIONS", ""), "detect_leaks=0") if opt)
+                    proc = subprocess.Popen([sys.executable, "-u", "-c", child,
+                                             json.dumps([self.host, self.port, user, str(cfg_dir), src, str(log_dir)])],
+                                            stdin=subprocess.PIPE, stdout=stream, stderr=stream, text=True,
+                                            env=child_env)
+                    try:
+                        deadline = _time.monotonic() + 30
+                        while "GET_OK" not in output.read_text():
+                            assert proc.poll() is None, output.read_text()
+                            assert _time.monotonic() < deadline, output.read_text()
+                            select.select([], [], [], 0.1)
+                        client_logs = "".join(path.read_text(errors="replace") for path in log_dir.glob("taoslog*"))
+                        assert f"source:{src}, try to get ext source from mnode" in client_logs
+                        tdSql.execute(f"alter external source {src} set schema='auth_changed'")
+                        proc.communicate("updated\n", timeout=30)
+                        assert proc.returncode == 0, output.read_text()
+                        assert "HEARTBEAT_OK" in output.read_text()
+                    finally:
+                        if proc.poll() is None:
+                            proc.kill()
+                            proc.wait()
+
+        try:
+            self._with_std_sources("sec029", check_source, skip_mysql=True, skip_influx=True,
+                                   skip_sqlserver=True)
+        finally:
+            tdSql.execute(f"drop user if exists {user}")
+        print("普通用户 GET 与心跳外部源凭据下发 [passed]")
+
+    def test_normal_user_credential_delivery(self):
+        """普通用户获取外部源凭据并接收心跳更新，无需源使用授权。
+
+        普通用户首次查询时从 mnode 拉取外部源凭据，并在外部源变更后通过心跳收到新凭据。
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan 补齐普通用户凭据下发通道回归
+        """
+        self.do_normal_user_credential_delivery()
+
     # ------------------------------------------------------------------
     # SEC-001  Encrypted password storage
     # ------------------------------------------------------------------
@@ -180,7 +388,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         Multi-dimensional coverage:
         1. Create MySQL source with various password patterns:
            a. Simple ASCII password
-           b. Password with special chars (\!@#$%^&)
+           b. Password with special chars (\\!@#$%^&)
            c. Password with unicode-like patterns
         2. For each: SHOW EXTERNAL SOURCES → password column must be masked
         3. DESCRIBE EXTERNAL SOURCE → password field must be masked
