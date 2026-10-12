@@ -2238,6 +2238,8 @@ Starting from version **3.3.6.10**, the `adapter_c_interface` table has been add
 
 Starting from version **3.3.6.29**/**3.3.8.3**, the `adapter_request_limit` table has been added to record taosAdapter query request throttling metrics:
 
+Note: The `adapter_request_limit` table is created on demand. taosKeeper creates this table in the monitoring database and writes data to it only when the query request concurrency limit feature is enabled (`request.queryLimitEnable = true`, which is `false` by default) and taosAdapter has processed at least one limited query request since startup. Otherwise, this table does not exist.
+
 <details>
 <summary>Details</summary>
 
