@@ -2222,6 +2222,8 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 
 从 **3.3.6.29**/**3.3.8.3** 版本开始新增 `adapter_request_limit` 表记录 taosAdapter 查询请求限流数据：
 
+注意：`adapter_request_limit` 表为按需创建，仅在开启查询请求并发限制功能（`request.queryLimitEnable = true`，默认为 `false`）且 taosAdapter 启动后处理过至少一个受限查询请求后，taosKeeper 才会在监控数据库中创建该表并写入数据；未满足上述条件时该表不存在。
+
 <details>
 <summary>详细信息</summary>
 
