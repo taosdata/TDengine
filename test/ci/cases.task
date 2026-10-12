@@ -276,6 +276,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_alter_subtable.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_select.py
+100,,y,.,CASE_TIMEOUT=1300 ./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_create_batch.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_drop.py

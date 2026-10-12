@@ -38302,23 +38302,28 @@ static int32_t getExtSourceInfoFromCache(SParseMetaCache* pMetaCache, const char
   return code;
 }
 
-int32_t getExternalSourceInfo(STranslateContext* pCxt, const char* sourceName, SExtSourceInfo** pExtInfo) {
+int32_t getExternalSourceInfoImpl(SParseContext* pParseCxt, SParseMetaCache* pMetaCache,
+                                 const char* sourceName, SExtSourceInfo** pExtInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   *pExtInfo = NULL;
-  if (pCxt->pParseCxt->async) {
-    code = getExtSourceInfoFromCache(pCxt->pMetaCache, sourceName, pExtInfo);
+  if (pParseCxt->async) {
+    code = getExtSourceInfoFromCache(pMetaCache, sourceName, pExtInfo);
   } else {
-    SRequestConnInfo conn = {.pTrans = pCxt->pParseCxt->pTransporter,
-                             .requestId = pCxt->pParseCxt->requestId,
-                             .requestObjRefId = pCxt->pParseCxt->requestRid,
-                             .mgmtEps = pCxt->pParseCxt->mgmtEpSet};
-    code = catalogSyncGetExtSourceInfo(pCxt->pParseCxt->pCatalog, &conn, sourceName, pExtInfo);
+    SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter,
+                             .requestId = pParseCxt->requestId,
+                             .requestObjRefId = pParseCxt->requestRid,
+                             .mgmtEps = pParseCxt->mgmtEpSet};
+    code = catalogSyncGetExtSourceInfo(pParseCxt->pCatalog, &conn, sourceName, pExtInfo);
   }
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_EXT_SOURCE_NOT_FOUND != code) {
-    parserError("QID:0x%" PRIx64 ", getExternalSourceInfo error, code:%s, sourceName:%s", pCxt->pParseCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", getExternalSourceInfo error, code:%s, sourceName:%s", pParseCxt->requestId,
                 tstrerror(code), sourceName);
   }
   return code;
+}
+
+int32_t getExternalSourceInfo(STranslateContext* pCxt, const char* sourceName, SExtSourceInfo** pExtInfo) {
+  return getExternalSourceInfoImpl(pCxt->pParseCxt, pCxt->pMetaCache, sourceName, pExtInfo);
 }
 
 static int32_t rejectUnsupportedExternalFilter(STranslateContext* pCxt, const SNode* pFilterCond,
@@ -40406,10 +40411,11 @@ static bool isMissingExtSourceInfo(int32_t code, const SExtSourceInfo* pInfo, co
 
 // Three-segment disambiguation for SColumnOptions: if refDb (first segment) is a registered
 // external source, reinterpret the ref as source.table.col (DS section 6.1.3.1).
-// After disambiguation, refSourceName = source, refDb/refDbName is left empty,
-// and refTable/refColumn keep the original external table/column names.
+// After disambiguation, refSourceName = source, refDb/refDbName contains the
+// external source default database, and refTable/refColumn keep the original
+// external table/column names.
 // "Not found" is expected for internal refs  -  only propagate real errors.
-static int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOptions* pOpts) {
+int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOptions* pOpts) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pOpts->refType != 0 || pOpts->refSourceName[0] != '\0') {
     return code;  // already 4-seg external
@@ -40427,7 +40433,7 @@ static int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOp
     tstrncpy(sourceName, pOpts->refDb, sizeof(sourceName));
     pOpts->refType = 1;
     tstrncpy(pOpts->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
-    pOpts->refDb[0] = '\0';
+    tstrncpy(pOpts->refDb, pInfo->database, TSDB_DB_NAME_LEN);
   } else if (isMissingExtSourceInfo(code, pInfo, pOpts->refDb)) {
     // Not an external source  -  keep as internal db.table.col reference
     code = TSDB_CODE_SUCCESS;
@@ -40440,7 +40446,7 @@ static int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOp
 }
 
 // Three-segment disambiguation for SColumnRefNode: same logic as above.
-static int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pColRef) {
+int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pColRef) {
   if (pColRef->refType != 0 || pColRef->refSourceName[0] != '\0') {
     return TSDB_CODE_SUCCESS;  // already 4-seg external
   }
@@ -40457,7 +40463,7 @@ static int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNod
     tstrncpy(sourceName, pColRef->refDbName, sizeof(sourceName));
     pColRef->refType = 1;
     tstrncpy(pColRef->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
-    pColRef->refDbName[0] = '\0';
+    tstrncpy(pColRef->refDbName, pInfo->database, TSDB_DB_NAME_LEN);
   } else if (isMissingExtSourceInfo(code, pInfo, pColRef->refDbName)) {
     // Not an external source  -  keep as internal db.table.col reference
     code = TSDB_CODE_SUCCESS;

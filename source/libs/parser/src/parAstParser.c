@@ -721,6 +721,17 @@ static bool isSeriesAliasInCreateVTable(SNodeList* pSeriesList, const char* pRef
   return false;
 }
 
+static int32_t collectMetaKeyFromPossibleExtRef(SCollectMetaKeyCxt* pCxt, const char* dbName,
+                                               const char* tableName) {
+#ifdef TD_ENTERPRISE
+  if (tsFederatedQueryEnable && dbName[0] != '\0') {
+    PAR_ERR_RET(reserveExtSourceInCache(dbName, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveExtTableMetaInCache(dbName, "", "", tableName, pCxt->pMetaCache));
+  }
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateVTableStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache));
@@ -754,6 +765,7 @@ static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateV
       continue;
     }
 
+    PAR_ERR_RET(collectMetaKeyFromPossibleExtRef(pCxt, pOptions->refDb, pOptions->refTable));
     PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache));
     PAR_ERR_RET(
         reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache));
@@ -843,6 +855,7 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
         continue;
       }
 
+      PAR_ERR_RET(collectMetaKeyFromPossibleExtRef(pCxt, pColRef->refDbName, pColRef->refTableName));
       PAR_ERR_RET(
           reserveTableMetaInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName, pCxt->pMetaCache));
       PAR_ERR_RET(
@@ -860,7 +873,17 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
     FOREACH(pNode, pStmt->pColDefs) {
       SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
       SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
+      if (pOptions && pOptions->hasRef && pOptions->refSourceName[0] != '\0') {
+        PAR_ERR_RET(reserveExtSourceInCache(pOptions->refSourceName, pCxt->pMetaCache));
+        PAR_ERR_RET(reserveExtTableMetaInCache(pOptions->refSourceName, pOptions->refDb, "",
+                                             pOptions->refTable, pCxt->pMetaCache));
+        continue;
+      }
+      if (pOptions && isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable)) {
+        continue;
+      }
       if (pOptions && pOptions->hasRef && pOptions->refSourceName[0] == '\0') {
+        PAR_ERR_RET(collectMetaKeyFromPossibleExtRef(pCxt, pOptions->refDb, pOptions->refTable));
         PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable,
                                             pCxt->pMetaCache));
         PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable,
@@ -1191,6 +1214,18 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
       code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName,
                                     pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
     }
+#ifdef TD_ENTERPRISE
+    if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->refType == 1) {
+      // External column reference: the auth phase and checkExternalColRef both read the
+      // ext source info from the parse meta cache, so pre-fetch it like
+      // collectMetaKeyFromAlterVtable does for the ALTER VTABLE form.
+      code = reserveExtSourceInCache(pStmt->refSourceName, pCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = reserveExtTableMetaInCache(pStmt->refSourceName, pStmt->refDbName, "", pStmt->refTableName,
+                                          pCxt->pMetaCache);
+      }
+    }
+#endif
   }
   return code;
 }

@@ -24986,6 +24986,7 @@ int32_t tSerializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pR
   tEncoderInit(&encoder, buf, bufLen);
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t tlen = 0;
 
   TAOS_CHECK_GOTO(tStartEncode(&encoder), &lino, _OVER);
   TAOS_CHECK_GOTO(tEncodeI64(&encoder, pRsp->globalVer), &lino, _OVER);
@@ -25009,8 +25010,13 @@ int32_t tSerializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pR
 
   tEndEncode(&encoder);
 _OVER:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
   tEncoderClear(&encoder);
-  TAOS_RETURN(code);
+  return tlen;
 }
 
 int32_t tDeserializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pRsp) {
