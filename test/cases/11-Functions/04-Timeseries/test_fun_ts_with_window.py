@@ -22,7 +22,8 @@ class TestFunTsWithWindow(FunTsWindowCaseHelper):
         Verify csum in ordinary window queries.
 
         Cover interval/session/state_window/event_window/count_window semantics,
-        plus null, partition, numeric-type, and interval-specific cases.
+        SQL-window partition/order/frame behavior, plus null, numeric-type,
+        and interval-specific cases.
 
         Since: 3.0.0.0
 
@@ -34,6 +35,7 @@ class TestFunTsWithWindow(FunTsWindowCaseHelper):
 
         History:
         - 2026-04-10 Joey Sima migrated ordinary-window coverage into 04-Timeseries.
+        - 2026-09-29 Codex added CSUM SQL-window regression coverage.
         """
         self.run_csum_with_window_case()
 

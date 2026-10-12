@@ -7493,70 +7493,101 @@ bool getCsumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-int32_t csumFunction(SqlFunctionCtx* pCtx) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SSumRes*             pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
-
+static int32_t csumAccumulateInput(SqlFunctionCtx* pCtx, int32_t* pNumOfElems, bool* pOverflow) {
   SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  SColumnInfoData*      pOutput = (SColumnInfoData*)pCtx->pOutput;
+  SSumRes*              pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t               type = pInputCol->info.type;
+  STypeMod              typeMod = typeGetTypeModFromColInfo(&pInputCol->info);
 
-  SColumnInfoData* pInputCol = pInput->pData[0];
-  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
-
-  int32_t numOfElems = 0;
-  int32_t type = pInputCol->info.type;
-  int32_t startOffset = pCtx->offset;
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-    int32_t pos = startOffset + numOfElems;
+  *pNumOfElems = 0;
+  *pOverflow = pSumRes->overflow;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
     if (colDataIsNull_f(pInputCol, i)) {
-      // colDataSetNULL(pOutput, i);
       continue;
     }
 
-    char* data = colDataGetData(pInputCol, i);
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      int64_t v;
-      GET_TYPED_DATA(v, int64_t, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
-      pSumRes->isum += v;
-      code = colDataSetVal(pOutput, pos, (char*)&pSumRes->isum, false);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      uint64_t v;
-      GET_TYPED_DATA(v, uint64_t, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
-      pSumRes->usum += v;
-      code = colDataSetVal(pOutput, pos, (char*)&pSumRes->usum, false);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    } else if (IS_FLOAT_TYPE(type)) {
-      double v;
-      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
-      pSumRes->dsum += v;
-      // check for overflow
-      if (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)) {
-        colDataSetNULL(pOutput, pos);
+    char* pResult = NULL;
+    char* pData = colDataGetData(pInputCol, i);
+    if (!*pOverflow && IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t value;
+      GET_TYPED_DATA(value, int64_t, type, pData, typeMod);
+      // Preserve csum's historical two's-complement wraparound semantics for integers.
+      pSumRes->isum = (int64_t)((uint64_t)pSumRes->isum + (uint64_t)value);
+      pResult = (char*)&pSumRes->isum;
+    } else if (!*pOverflow && IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t value;
+      GET_TYPED_DATA(value, uint64_t, type, pData, typeMod);
+      pSumRes->usum += value;
+      pResult = (char*)&pSumRes->usum;
+    } else if (!*pOverflow && IS_FLOAT_TYPE(type)) {
+      double value;
+      GET_TYPED_DATA(value, double, type, pData, typeMod);
+      double newSum = pSumRes->dsum + value;
+      if (isinf(newSum) || isnan(newSum)) {
+        *pOverflow = true;
+        pSumRes->overflow = true;
       } else {
-        code = colDataSetVal(pOutput, pos, (char*)&pSumRes->dsum, false);
+        pSumRes->dsum = newSum;
+        pResult = (char*)&pSumRes->dsum;
+      }
+    }
+
+    if (pResult != NULL) {
+      pSumRes->hasResult = true;
+    }
+
+    if (pOutput != NULL) {
+      int32_t pos = pCtx->offset + *pNumOfElems;
+      if (*pOverflow) {
+        int32_t code = colDataSetVal(pOutput, pos, NULL, true);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+      } else if (pResult != NULL) {
+        int32_t code = colDataSetVal(pOutput, pos, pResult, false);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+      }
+
+      // Subsidiaries are row-wise outputs and only have a destination position
+      // in indefinite-row mode. Window output columns are copied by the operator.
+      if (pCtx->subsidiaries.num > 0) {
+        int32_t code = appendSelectivityValue(pCtx, i, pos);
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
       }
     }
 
-    // handle selectivity
-    if (pCtx->subsidiaries.num > 0) {
-      code = appendSelectivityValue(pCtx, i, pos);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    }
-
-    numOfElems++;
+    ++*pNumOfElems;
   }
 
-  pResInfo->numOfRes = numOfElems;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t csumFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSumRes* pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
+  int32_t numOfElems = 0;
+  bool    overflow = false;
+  int32_t code = csumAccumulateInput(pCtx, &numOfElems, &overflow);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (pCtx->pOutput == NULL) {
+    // In aggregate/window mode numOfRes is the number of result rows, not the
+    // number of consumed inputs. Like SUM via SET_VAL, CSUM produces at most one
+    // result row; hasResult separately persists non-NULL input across page calls.
+    pResInfo->numOfRes = overflow ? 0 : (pSumRes->hasResult ? 1 : 0);
+    pResInfo->isNullRes = overflow || !pSumRes->hasResult;
+  } else {
+    // Indefinite-row mode writes one output for each non-NULL input row.
+    pResInfo->numOfRes = numOfElems;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
