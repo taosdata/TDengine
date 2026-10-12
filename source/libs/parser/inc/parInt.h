@@ -64,6 +64,10 @@ void getExprSubQueryResCols(SNode* pNode, int32_t* cols);
 EPrivType getAlterUserPrivType(const char* pCurrentUser, const SAlterUserStmt* pStmt);
 
 #ifdef TD_ENTERPRISE
+int32_t getExternalSourceInfoImpl(SParseContext* pParseCxt, SParseMetaCache* pMetaCache,
+                                 const char* sourceName, SExtSourceInfo** pExtInfo);
+int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOptions* pOpts);
+int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pColRef);
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin);
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta);
 // srcNameFromUseContext: true when the external source name was NOT written in

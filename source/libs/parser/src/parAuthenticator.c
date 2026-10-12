@@ -26,6 +26,7 @@ typedef struct SAuthCxt {
   int32_t          errCode;
   bool             macNruGuaranteed;
   bool             macNwdGuaranteed;
+  bool             allowExternalQuery;
 } SAuthCxt;
 
 typedef struct SSelectAuthCxt {
@@ -410,12 +411,70 @@ _return:
 }
 #endif
 
+#ifdef TD_ENTERPRISE
+static int32_t authIsExtSource(SAuthCxt* pCxt, const char* sourceName, bool* pIsExternal) {
+  *pIsExternal = false;
+  if (!tsFederatedQueryEnable || sourceName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+  SExtSourceInfo* pInfo = NULL;
+  int32_t code = getExternalSourceInfoImpl(pCxt->pParseCxt, pCxt->pMetaCache, sourceName, &pInfo);
+  *pIsExternal = TSDB_CODE_SUCCESS == code && NULL != pInfo &&
+                 strcmp(pInfo->source_name, sourceName) == 0;
+  freeExtSourceInfo(pInfo);
+  return code == TSDB_CODE_EXT_SOURCE_NOT_FOUND ? TSDB_CODE_SUCCESS : code;
+}
+
+static int32_t authIsExternalTable(SAuthCxt* pCxt, SRealTableNode* pTable, bool* pIsExternal) {
+  *pIsExternal = false;
+  if (!tsFederatedQueryEnable || !pCxt->allowExternalQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTable->numPathSegments >= 3 || pTable->extSeg[0][0] != '\0') {
+    *pIsExternal = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTable->numPathSegments == 1 && pCxt->pParseCxt->currentExtSource[0] != '\0') {
+    *pIsExternal = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTable->numPathSegments == 2) {
+    return authIsExtSource(pCxt, pTable->table.dbName, pIsExternal);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool authIsExternalSeries(SNodeList* pSeriesList, const char* tableName) {
+  if (!tsFederatedQueryEnable) {
+    return false;
+  }
+  SNode* pNode = NULL;
+  FOREACH(pNode, pSeriesList) {
+    SSeriesDeclNode* pSeries = (SSeriesDeclNode*)pNode;
+    if (pSeries->sourceName[0] != '\0' && strcasecmp(pSeries->alias, tableName) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+#endif
+
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   SSelectAuthCxt* pCxt = pContext;
   SAuthCxt*       pAuthCxt = pCxt->pAuthCxt;
   bool            isView = false;
   bool            isAudit = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
+#ifdef TD_ENTERPRISE
+    bool isExternal = false;
+    pAuthCxt->errCode = authIsExternalTable(pAuthCxt, (SRealTableNode*)pNode, &isExternal);
+    if (TSDB_CODE_SUCCESS != pAuthCxt->errCode) {
+      return DEAL_RES_ERROR;
+    }
+    if (isExternal) {
+      return DEAL_RES_CONTINUE;
+    }
+#endif
     SNode*      pTagCond = NULL;
     // SArray*     pPrivCols = NULL;
     STableNode* pTable = (STableNode*)pNode;
@@ -615,7 +674,7 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
 }
 
 // Check SELECT privilege on the source table of every column/tag reference in a def list.
-static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs) {
+static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs, SNodeList* pSeriesList) {
   SNode* pCol = NULL;
   FOREACH(pCol, pDefs) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
@@ -624,6 +683,18 @@ static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs) {
     }
     SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
+#ifdef TD_ENTERPRISE
+      if (authIsExternalSeries(pSeriesList, pOptions->refTable)) {
+        continue;
+      }
+      STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
+      if (tsFederatedQueryEnable) {
+        PAR_ERR_RET(disambiguateThreeSegColOptions(&cxt, pOptions));
+        if (pOptions->refType == 1) {
+          continue;
+        }
+      }
+#endif
       PAR_ERR_RET(checkTableSelectAuth(pCxt, pOptions->refDb, pOptions->refTable));
     }
   }
@@ -633,8 +704,8 @@ static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs) {
 static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
-  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pCols));
-  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pTags));
+  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pCols, pStmt->pSeriesList));
+  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pTags, pStmt->pSeriesList));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -649,6 +720,18 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
       if (NULL == pColRef) {
         PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
+#ifdef TD_ENTERPRISE
+      if (authIsExternalSeries(pStmt->pSeriesList, pColRef->refTableName)) {
+        continue;
+      }
+      STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
+      if (tsFederatedQueryEnable) {
+        PAR_ERR_RET(disambiguateThreeSegColRef(&cxt, pColRef));
+        if (pColRef->refType == 1) {
+          continue;
+        }
+      }
+#endif
       PAR_ERR_RET(checkTableSelectAuth(pCxt, pColRef->refDbName, pColRef->refTableName));
     }
   }
@@ -659,6 +742,18 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
         continue;
       }
       SColumnRefNode* pTagRef = (SColumnRefNode*)pNode;
+#ifdef TD_ENTERPRISE
+      if (authIsExternalSeries(pStmt->pSeriesList, pTagRef->refTableName)) {
+        continue;
+      }
+      STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
+      if (tsFederatedQueryEnable) {
+        PAR_ERR_RET(disambiguateThreeSegColRef(&cxt, pTagRef));
+        if (pTagRef->refType == 1) {
+          continue;
+        }
+      }
+#endif
       PAR_ERR_RET(checkTableSelectAuth(pCxt, pTagRef->refDbName, pTagRef->refTableName));
     }
   }
@@ -845,7 +940,11 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
         (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
          pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF ||
          pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
-         pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)) {
+         pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)
+#ifdef TD_ENTERPRISE
+        && !(tsFederatedQueryEnable && pStmt->refType == 1)
+#endif
+    ) {
       PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));
       code = checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL, NULL);
     }
@@ -881,10 +980,14 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
 
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL));
-  if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
+  if ((pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
-      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF) {
+      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)
+#ifdef TD_ENTERPRISE
+      && !(tsFederatedQueryEnable && pStmt->refType == 1)
+#endif
+  ) {
     PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));
     if (checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL, NULL)) {
       return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
@@ -1100,6 +1203,22 @@ static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {
 }
 
 static int32_t authUseDatabase(SAuthCxt* pCxt, SUseDatabaseStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+  if (tsFederatedQueryEnable) {
+    SName name = {0};
+    char dbFName[TSDB_DB_FNAME_LEN] = {0};
+    SDbCfgInfo dbCfg = {0};
+    PAR_ERR_RET(tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName)));
+    PAR_ERR_RET(tNameGetFullDbName(&name, dbFName));
+    if (NULL == pCxt->pMetaCache || getDbCfgFromCache(pCxt->pMetaCache, dbFName, &dbCfg) != TSDB_CODE_SUCCESS) {
+      bool isExternal = false;
+      PAR_ERR_RET(authIsExtSource(pCxt, pStmt->dbName, &isExternal));
+      if (isExternal) {
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+#endif
   return authObjPrivileges(pCxt, ((SUseDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
 }
 
@@ -1151,6 +1270,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
 #ifdef TD_ENTERPRISE
   switch (nodeType(pStmt)) {
+    case QUERY_NODE_EXPLAIN_STMT:
+      return authQuery(pCxt, ((SExplainStmt*)pStmt)->pQuery);
     case QUERY_NODE_SET_OPERATOR:
       return authSetOperator(pCxt, (SSetOperator*)pStmt);
     case QUERY_NODE_SELECT_STMT:
@@ -1378,12 +1499,18 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
 }
 
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+  SNode* pAuthRoot = pQuery->pRoot;
+  if (QUERY_NODE_EXPLAIN_STMT == nodeType(pAuthRoot)) {
+    pAuthRoot = ((SExplainStmt*)pAuthRoot)->pQuery;
+  }
   SAuthCxt cxt = {
       .pParseCxt = pParseCxt,
       .pMetaCache = pMetaCache,
       .errCode = TSDB_CODE_SUCCESS,
       .macNruGuaranteed = (pParseCxt->maxSecLevel >= SECURITY_LEVEL_TOP_SECRET),
       .macNwdGuaranteed = (pParseCxt->minSecLevel == 0),
+      .allowExternalQuery = QUERY_NODE_SELECT_STMT == nodeType(pAuthRoot) ||
+                            QUERY_NODE_SET_OPERATOR == nodeType(pAuthRoot),
   };
 #ifdef TD_ENTERPRISE
   if (pParseCxt->sodInitial) {
