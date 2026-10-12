@@ -32,7 +32,7 @@ taosX-Agent 是 TDengine TSDB Enterprise 的一个组件，作为 taosX 的代�
 
 ## 获取 taosX-Agent
 
-请访问 [TDengine 下载中心](https://www.taosdata.com/download-center)，在产品列表中选择 **TDengine taosX-Agent**，然后选择对应的版本、操作系统和架构，下载安装包。
+请访问 [TDengine 下载中心](https://taosdata.com/downloads)，在产品列表中选择 **TDengine taosX-Agent**，然后选择对应的版本、操作系统和架构，下载安装包。
 
 :::note
 taosX-Agent 仅在 TDengine TSDB Enterprise（企业版）中提供，社区版不包含此组件。
@@ -74,7 +74,7 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 
 ## 安装
 
-从 [TDengine 下载中心](https://www.taosdata.com/download-center) 下载对应平台的 taosX-Agent 安装包后，按照安装包的引导完成安装。
+从 [TDengine 下载中心](https://taosdata.com/downloads) 下载对应平台的 taosX-Agent 安装包后，按照安装包的引导完成安装。
 
 安装完成后，taosX-Agent 的相关文件位于：
 

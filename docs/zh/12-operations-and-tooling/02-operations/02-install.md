@@ -16,7 +16,7 @@ TDengine 完整的软件包包括服务端（`taosd`）、应用驱动（`taosc`
 
 此外，TDengine 也提供 macOS x64/m1 平台的 pkg 安装包。
 
-下文安装步骤中的下载列表为**社区版（TDengine TSDB-OSS）**安装包。若需要企业版，请前往 [TDengine 产品下载中心](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise) 获取对应平台与版本的安装包。
+下文安装步骤中的下载列表为**社区版（TDengine TSDB-OSS）**安装包。若需要企业版，请前往 [TDengine 产品下载中心](https://taosdata.com/downloads?product=TDengine+TSDB-Enterprise) 获取对应平台与版本的安装包。
 
 ## 环境要求
 
@@ -264,7 +264,7 @@ override 文件仅需写入要改/新增的字段，其余沿用主服务文件�
 
 ## 获取历史版本
 
-历史版本可以前往 TDengine 产品下载中心的 [TDengine TSDB-Enterprise](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise&platform=Linux-Generic&type=Server) 页面。
+历史版本可以前往 TDengine 产品下载中心的 [TDengine TSDB-Enterprise](https://taosdata.com/downloads?product=TDengine+TSDB-Enterprise&platform=Linux-Generic&type=Server) 页面。
 
 ## 目录结构
 
