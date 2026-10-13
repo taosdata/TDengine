@@ -15,6 +15,18 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+# Publish the entrypoint exit time before Docker performs --rm teardown.
+_ci_entry_start_ms=$(date +%s%3N)
+_ci_entry_exit() {
+    local rc=$?
+    local end_ms=$(date +%s%3N)
+    echo "[ci-timing] stage=container-entrypoint elapsed_ms=$(( end_ms - _ci_entry_start_ms )) rc=${rc}"
+    if [[ -n "${CI_CONTAINER_EXIT_MARKER:-}" ]]; then
+        printf '%s %s\n' "${end_ms}" "${rc}" > "${CI_CONTAINER_EXIT_MARKER}"
+    fi
+}
+trap _ci_entry_exit EXIT
+
 function usage() {
     echo "$0"
     echo -e "\t -d execution dir"
@@ -147,8 +159,12 @@ if [[ ! -f "${_DEPS_MARKER}" ]] || [[ "${_REQ_FILE}" -nt "${_DEPS_MARKER}" ]]; t
     rm -f "${_PIP_LOG}"
 fi
 
+_ci_command_start_ms=$(date +%s%3N)
+echo "[ci-timing] stage=container-preparation elapsed_ms=$(( _ci_command_start_ms - _ci_entry_start_ms ))"
+echo "[ci-timing] stage=test-command event=start"
 $TIMEOUT_CMD $cmd
 RET=$?
+echo "[ci-timing] stage=test-command elapsed_ms=$(( $(date +%s%3N) - _ci_command_start_ms )) rc=${RET}"
 # pytest exit code 5 = no tests collected / all skipped → treat as pass
 [ $RET -eq 5 ] && RET=0
 echo "cmd exit code: $RET"

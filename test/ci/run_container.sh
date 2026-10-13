@@ -361,9 +361,14 @@ echo "docker run \
     -v \"$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}\" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
     --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
+_ci_exit_marker="${TMP_DIR}/thread_volume/${thread_no}/.ci-container-exit"
+rm -f "${_ci_exit_marker}"
+_ci_docker_start_ms=$(date +%s%3N)
+echo "[ci-timing] stage=docker-run event=start"
 docker run \
     ${name_param:+$name_param} --privileged=true \
     $asan_env \
+    -e CI_CONTAINER_EXIT_MARKER="$CONTAINER_TESTDIR/test/.ci-container-exit" \
     -e "CI_MIN_RESERVED_MEMORY_MB=${CI_MIN_RESERVED_MEMORY_MB:-2048}" \
     -v $REP_MOUNT_PARAM \
     ${REP_MOUNT_INTERNAL:+-v $REP_MOUNT_INTERNAL} \
@@ -376,4 +381,14 @@ docker run \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
     --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
+_ci_docker_end_ms=$(date +%s%3N)
+echo "[ci-timing] stage=docker-run elapsed_ms=$(( _ci_docker_end_ms - _ci_docker_start_ms )) rc=${ret}"
+if [[ -f "${_ci_exit_marker}" ]]; then
+    read -r _ci_entry_exit_ms _ci_entry_rc < "${_ci_exit_marker}"
+    if [[ "${_ci_entry_exit_ms}" =~ ^[0-9]+$ ]]; then
+        echo "[ci-timing] stage=container-removal elapsed_ms=$(( _ci_docker_end_ms - _ci_entry_exit_ms )) entrypoint_rc=${_ci_entry_rc}"
+    fi
+else
+    echo "[ci-timing] stage=container-removal unavailable (entrypoint exit not observed)"
+fi
 exit $ret
