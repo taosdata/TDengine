@@ -43,7 +43,7 @@ IF(NOT TD_DARWIN)
 ENDIF()
 
 IF(TD_DARWIN)
-    ADD_EXECUTABLE(nodesCorrelationTest "nodesCorrelationTest.cpp")
+    ADD_EXECUTABLE(nodesCorrelationTest "nodesCorrelationTest.cpp" "nodesPlanDecodeTest.cpp")
     DEP_ext_gtest(nodesCorrelationTest)
     TARGET_INCLUDE_DIRECTORIES(nodesCorrelationTest PRIVATE "${TD_SOURCE_DIR}/source/libs/nodes/inc"
                                                   "${TD_SOURCE_DIR}/include/libs/function")

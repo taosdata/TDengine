@@ -11939,11 +11939,18 @@ _return:
 }
 
 static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SName* pName) {
+  if (pCxt->virtualTableDepth >= TSDB_MAX_VTABLE_REF_DEPTH) {
+    return TSDB_CODE_PAR_INVALID_TABLE_TYPE;
+  }
+  ++pCxt->virtualTableDepth;
   SRealTableNode*    pRealTable = (SRealTableNode*)*pTable;
   int32_t            code = TSDB_CODE_SUCCESS;
   STableMeta*        pMeta = pRealTable->pMeta;
   SVirtualTableNode* pVTable = NULL;
   bool               savedRefTable = pCxt->refTable;
+  if (NULL == pMeta) {
+    PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
+  }
 
   if (!isSelectStmt(pCxt->pCurrStmt)) {
     // virtual table only support select operation
@@ -11954,7 +11961,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC);
   }
 
-  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_VIRTUAL_TABLE, (SNode**)&pVTable));
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VIRTUAL_TABLE, (SNode**)&pVTable));
   tstrncpy(pVTable->table.dbName, pRealTable->table.dbName, sizeof(pVTable->table.dbName));
   tstrncpy(pVTable->table.tableName, pRealTable->table.tableName, sizeof(pVTable->table.tableName));
   tstrncpy(pVTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pVTable->table.tableAlias));
@@ -11985,9 +11992,11 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   if (!savedRefTable) {
     PAR_ERR_JRET(addNamespace(pCxt, *pTable));
   }
+  --pCxt->virtualTableDepth;
   return code;
 _return:
   pCxt->refTable = savedRefTable;
+  --pCxt->virtualTableDepth;
   qError("translateVirtualTable failed, code:%d, errmsg:%s", code, tstrerror(code));
   if ((SNode*)pVTable == *pTable) {
     *pTable = NULL;
@@ -32264,7 +32273,13 @@ static int32_t buildCreateTSMAReqRewriteFuncs(STranslateContext* pCxt, SCreateTS
     SColumnNode* pCol = NULL;
     FOREACH(pNode, pOptions->pFuncs) {
       // rewrite all func parameters with tsma dest tb cols
+      if (i >= columnNum || nodeType(pNode) != QUERY_NODE_FUNCTION) {
+        PAR_ERR_JRET(TSDB_CODE_TSMA_INVALID_FUNC_PARAM);
+      }
       pFunc = (SFunctionNode*)pNode;
+      if (NULL == pFunc->pParameterList || NULL == pFunc->pParameterList->pHead) {
+        PAR_ERR_JRET(TSDB_CODE_TSMA_INVALID_FUNC_PARAM);
+      }
       const SSchema* pSchema = pCols + i;
       PAR_ERR_JRET(createColumnBySchema(pSchema, &pCol));
       (void)nodesListErase(pFunc->pParameterList, pFunc->pParameterList->pHead);
@@ -32368,8 +32383,17 @@ static int32_t buildCreateTSMAReqProcessRecursiveFuncs(STranslateContext* pCxt, 
   SNode*  pSelect = NULL;
   SNode*  pNew = NULL;
   bool    needFree = false;
+  if (NULL == pRecursiveTsma->ast) {
+    PAR_ERR_JRET(TSDB_CODE_TSMA_INVALID_FUNC_PARAM);
+  }
   PAR_ERR_JRET(nodesStringToNode(pRecursiveTsma->ast, &pSelect));
+  if (NULL == pSelect || nodeType(pSelect) != QUERY_NODE_SELECT_STMT) {
+    PAR_ERR_JRET(TSDB_CODE_TSMA_INVALID_FUNC_PARAM);
+  }
   FOREACH(pNode, ((SSelectStmt*)pSelect)->pProjectionList) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
+      PAR_ERR_JRET(TSDB_CODE_TSMA_INVALID_FUNC_PARAM);
+    }
     SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
     if (fmIsTSMASupportedFunc(pFuncNode->funcId)) {
       PAR_ERR_JRET(nodesCloneNode(pNode, &pNew));
@@ -32387,7 +32411,6 @@ _return:
     nodesDestroyNode(pNew);
   }
   nodesDestroyNode(pSelect);
-  nodesDestroyNode(pNode);
   return code;
 }
 
@@ -32428,6 +32451,10 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
   if (pStmt->pOptions->recursiveTsma) {
     // useTbName is base tsma name
     PAR_ERR_JRET(getTsma(pCxt, useTbName, &pRecursiveTsma));
+    if (NULL == pRecursiveTsma || NULL == pRecursiveTsma->pUsedCols ||
+        pRecursiveTsma->pUsedCols->size == 0 || NULL == pRecursiveTsma->pUsedCols->pData) {
+      PAR_ERR_JRET(TSDB_CODE_TSMA_INVALID_FUNC_PARAM);
+    }
     pReq->recursiveTsma = true;
     PAR_ERR_JRET(tNameExtractFullName(useTbName, pReq->baseTsmaName));
     SValueNode* pInterval = (SValueNode*)pStmt->pOptions->pInterval;
@@ -34323,6 +34350,13 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
 
 static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* numOfCols, SSchema** pSchema,
                                         SExtSchema** ppExtSchemas) {
+  SNode* pProjection = NULL;
+  FOREACH(pProjection, pProjections) {
+    if (!nodesIsExprNode(pProjection) || nodeType(pProjection) == QUERY_NODE_SELECT_STMT ||
+        nodeType(pProjection) == QUERY_NODE_SET_OPERATOR) {
+      return TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
+    }
+  }
   *numOfCols = LIST_LENGTH(pProjections);
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {

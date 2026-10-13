@@ -22,6 +22,18 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
+#include <stdarg.h>
+
+static int32_t nodesSqlAppend(char* buf, int32_t bufSize, int32_t* len, const char* fmt, ...) {
+  if (NULL == buf || NULL == len || *len < 0 || *len >= bufSize) return TSDB_CODE_OUT_OF_BUFFER;
+  va_list args;
+  va_start(args, fmt);
+  int32_t written = vsnprintf(buf + *len, bufSize - *len, fmt, args);
+  va_end(args);
+  if (written < 0 || written >= bufSize - *len) return TSDB_CODE_OUT_OF_BUFFER;
+  *len += written;
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *len, bool longFormat);
 
@@ -132,27 +144,27 @@ const char *logicConditionTypeStr(ELogicConditionType type) {
 static int32_t sqlWindowBoundToSQL(SSqlWindowBound *pBound, char *buf, int32_t bufSize, int32_t *len) {
   switch (pBound->boundType) {
     case WINDOW_BOUND_UNBOUNDED_PRECEDING:
-      *len += snprintf(buf + *len, bufSize - *len, "UNBOUNDED PRECEDING");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "UNBOUNDED PRECEDING"));
       return TSDB_CODE_SUCCESS;
     case WINDOW_BOUND_N_PRECEDING:
       if (NULL == pBound->pOffset) {
         return TSDB_CODE_FAILED;
       }
       NODES_ERR_RET(nodesNodeToSQLFormat(pBound->pOffset, buf, bufSize, len, true));
-      *len += snprintf(buf + *len, bufSize - *len, " PRECEDING");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " PRECEDING"));
       return TSDB_CODE_SUCCESS;
     case WINDOW_BOUND_CURRENT_ROW:
-      *len += snprintf(buf + *len, bufSize - *len, "CURRENT ROW");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "CURRENT ROW"));
       return TSDB_CODE_SUCCESS;
     case WINDOW_BOUND_N_FOLLOWING:
       if (NULL == pBound->pOffset) {
         return TSDB_CODE_FAILED;
       }
       NODES_ERR_RET(nodesNodeToSQLFormat(pBound->pOffset, buf, bufSize, len, true));
-      *len += snprintf(buf + *len, bufSize - *len, " FOLLOWING");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " FOLLOWING"));
       return TSDB_CODE_SUCCESS;
     case WINDOW_BOUND_UNBOUNDED_FOLLOWING:
-      *len += snprintf(buf + *len, bufSize - *len, "UNBOUNDED FOLLOWING");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "UNBOUNDED FOLLOWING"));
       return TSDB_CODE_SUCCESS;
     default:
       break;
@@ -165,6 +177,9 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
 }
 
 int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *len, bool longFormat) {
+  if (NULL == pNode || NULL == buf || NULL == len || *len < 0 || *len >= bufSize) {
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
   switch (pNode->type) {
     case QUERY_NODE_OUTER_REF: {
       SOuterRefNode *pRef = (SOuterRefNode *)pNode;
@@ -204,19 +219,19 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
     case QUERY_NODE_COLUMN: {
       SColumnNode *colNode = (SColumnNode *)pNode;
       if (colNode->dbName[0]) {
-        *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->dbName);
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "`%s`.", colNode->dbName));
       }
 
       if (colNode->tableAlias[0]) {
-        *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableAlias);
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "`%s`.", colNode->tableAlias));
       } else if (colNode->tableName[0]) {
-        *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableName);
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "`%s`.", colNode->tableName));
       }
 
       if (colNode->node.userAlias[0]) {
-        *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->node.userAlias);
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "`%s`", colNode->node.userAlias));
       } else {
-        *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->colName);
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "`%s`", colNode->colName));
       }
 
       return TSDB_CODE_SUCCESS;
@@ -226,39 +241,39 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       char       *t = nodesGetStrValueFromNode(colNode);
       if (NULL == t) {
         // NULL type value (e.g. ELSE NULL in CASE WHEN)
-        *len += tsnprintf(buf + *len, bufSize - *len, "NULL");
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "NULL"));
         return TSDB_CODE_SUCCESS;
       }
 
       int32_t tlen = strlen(t);
+      int32_t code = TSDB_CODE_SUCCESS;
       if (longFormat) {
-        *len += snprintf(buf + *len, bufSize - *len, "%s", t);
+        code = nodesSqlAppend(buf, bufSize, len, "%s", t);
       } else {
         if (tlen > 32) {
-          *len += snprintf(buf + *len, bufSize - *len, "%.*s...%s", 32, t, t + tlen - 1);
+          code = nodesSqlAppend(buf, bufSize, len, "%.*s...%s", 32, t, t + tlen - 1);
         } else {
-          *len += snprintf(buf + *len, bufSize - *len, "%s", t);
+          code = nodesSqlAppend(buf, bufSize, len, "%s", t);
         }
       }
 
       taosMemoryFree(t);
-
-      return TSDB_CODE_SUCCESS;
+      return code;
     }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode *pOpNode = (SOperatorNode *)pNode;
-      *len += snprintf(buf + *len, bufSize - *len, "(");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "("));
       if (pOpNode->pLeft) {
         NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pLeft, buf, bufSize, len, true));
       }
 
-      *len += tsnprintf(buf + *len, bufSize - *len, " %s ", operatorTypeStrEx(pOpNode->opType, pOpNode->flag & OPERATOR_FLAG_NEGATIVE_OP));
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " %s ", operatorTypeStrEx(pOpNode->opType, pOpNode->flag & OPERATOR_FLAG_NEGATIVE_OP)));
 
       if (pOpNode->pRight) {
         NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pRight, buf, bufSize, len, true));
       }
 
-      *len += snprintf(buf + *len, bufSize - *len, ")");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, ")"));
 
       return TSDB_CODE_SUCCESS;
     }
@@ -269,24 +284,24 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
 
       if (pWin->refWindowName[0] != '\0' && NULL == pWin->pPartitionByList && NULL == pWin->pOrderByList &&
           NULL == pWin->pFrame) {
-        *len += snprintf(buf + *len, bufSize - *len, "%s", pWin->refWindowName);
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "%s", pWin->refWindowName));
         return TSDB_CODE_SUCCESS;
       }
 
-      *len += snprintf(buf + *len, bufSize - *len, "(");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "("));
       if (pWin->refWindowName[0] != '\0') {
-        *len += snprintf(buf + *len, bufSize - *len, "%s", pWin->refWindowName);
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "%s", pWin->refWindowName));
         first = false;
       }
       if (NULL != pWin->pPartitionByList) {
         if (!first) {
-          *len += snprintf(buf + *len, bufSize - *len, " ");
+          NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " "));
         }
-        *len += snprintf(buf + *len, bufSize - *len, "PARTITION BY ");
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "PARTITION BY "));
         bool firstExpr = true;
         FOREACH(node, pWin->pPartitionByList) {
           if (!firstExpr) {
-            *len += snprintf(buf + *len, bufSize - *len, ", ");
+            NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, ", "));
           }
           NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
           firstExpr = false;
@@ -295,13 +310,13 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       }
       if (NULL != pWin->pOrderByList) {
         if (!first) {
-          *len += snprintf(buf + *len, bufSize - *len, " ");
+          NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " "));
         }
-        *len += snprintf(buf + *len, bufSize - *len, "ORDER BY ");
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "ORDER BY "));
         bool firstExpr = true;
         FOREACH(node, pWin->pOrderByList) {
           if (!firstExpr) {
-            *len += snprintf(buf + *len, bufSize - *len, ", ");
+            NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, ", "));
           }
           NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
           firstExpr = false;
@@ -310,25 +325,25 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       }
       if (NULL != pWin->pFrame) {
         if (!first) {
-          *len += snprintf(buf + *len, bufSize - *len, " ");
+          NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " "));
         }
         NODES_ERR_RET(nodesNodeToSQLFormat(pWin->pFrame, buf, bufSize, len, true));
       }
-      *len += snprintf(buf + *len, bufSize - *len, ")");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, ")"));
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_SQL_WINDOW_FRAME: {
       SWindowFrameNode *pFrame = (SWindowFrameNode *)pNode;
-      *len += snprintf(buf + *len, bufSize - *len, "%s BETWEEN ",
-                       WINDOW_FRAME_UNIT_RANGE == pFrame->frameUnit ? "RANGE" : "ROWS");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "%s BETWEEN ",
+                       WINDOW_FRAME_UNIT_RANGE == pFrame->frameUnit ? "RANGE" : "ROWS"));
       NODES_ERR_RET(sqlWindowBoundToSQL(&pFrame->start, buf, bufSize, len));
-      *len += snprintf(buf + *len, bufSize - *len, " AND ");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " AND "));
       NODES_ERR_RET(sqlWindowBoundToSQL(&pFrame->end, buf, bufSize, len));
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_SQL_NAMED_WINDOW: {
       SNamedWindowNode *pWin = (SNamedWindowNode *)pNode;
-      *len += snprintf(buf + *len, bufSize - *len, "%s AS ", pWin->windowName);
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "%s AS ", pWin->windowName));
       NODES_ERR_RET(nodesNodeToSQLFormat(pWin->pSpec, buf, bufSize, len, true));
       return TSDB_CODE_SUCCESS;
     }
@@ -337,21 +352,21 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       SNode               *node = NULL;
       bool                 first = true;
 
-      *len += snprintf(buf + *len, bufSize - *len, "(");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "("));
 
       if (pLogicNode->condType == LOGIC_COND_TYPE_NOT) {
-        *len += snprintf(buf + *len, bufSize - *len, "NOT ");
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "NOT "));
       }
 
       FOREACH(node, pLogicNode->pParameterList) {
         if (!first) {
-          *len += snprintf(buf + *len, bufSize - *len, " %s ", logicConditionTypeStr(pLogicNode->condType));
+          NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " %s ", logicConditionTypeStr(pLogicNode->condType)));
         }
         NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
         first = false;
       }
 
-      *len += snprintf(buf + *len, bufSize - *len, ")");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, ")"));
 
       return TSDB_CODE_SUCCESS;
     }
@@ -360,19 +375,19 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       SNode         *node = NULL;
       bool           first = true;
 
-      *len += snprintf(buf + *len, bufSize - *len, "%s(", pFuncNode->functionName);
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "%s(", pFuncNode->functionName));
 
       FOREACH(node, pFuncNode->pParameterList) {
         if (!first) {
-          *len += snprintf(buf + *len, bufSize - *len, ", ");
+          NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, ", "));
         }
         NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
         first = false;
       }
 
-      *len += snprintf(buf + *len, bufSize - *len, ")");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, ")"));
       if (NULL != pFuncNode->pOver) {
-        *len += snprintf(buf + *len, bufSize - *len, " OVER ");
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " OVER "));
         NODES_ERR_RET(nodesNodeToSQLFormat(pFuncNode->pOver, buf, bufSize, len, true));
       }
 
@@ -384,14 +399,14 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       bool           first = true;
       int32_t        num = 0;
 
-      *len += snprintf(buf + *len, bufSize - *len, "(");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "("));
 
       FOREACH(node, pListNode->pNodeList) {
         if (!first) {
-          *len += snprintf(buf + *len, bufSize - *len, ", ");
+          NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, ", "));
           if (!longFormat) {
             if (++num >= 10) {
-              *len += snprintf(buf + *len, bufSize - *len, "...");
+              NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "..."));
               break;
             }
           }
@@ -400,60 +415,60 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
         first = false;
       }
 
-      *len += snprintf(buf + *len, bufSize - *len, ")");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, ")"));
 
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_REMOTE_VALUE: {
       SRemoteValueNode* pRemote = (SRemoteValueNode*)pNode;
-      *len += snprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "$(InitPlan %d)", pRemote->subQIdx + 1));
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pNode;
-      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "$(InitPlan %d)", pRemote->subQIdx + 1));
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_REMOTE_ROW: {
       SRemoteRowNode* pRemote = (SRemoteRowNode*)pNode;
-      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "$(InitPlan %d)", pRemote->subQIdx + 1));
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_REMOTE_ZERO_ROWS: {
       SRemoteZeroRowsNode* pRemote = (SRemoteZeroRowsNode*)pNode;
-      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "$(InitPlan %d)", pRemote->subQIdx + 1));
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_REMOTE_TABLE: {
       SRemoteTableNode* pRemote = (SRemoteTableNode*)pNode;
-      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "$(InitPlan %d)", pRemote->subQIdx + 1));
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_WHEN_THEN: {
       SWhenThenNode *pWhenThen = (SWhenThenNode *)pNode;
-      *len += tsnprintf(buf + *len, bufSize - *len, "WHEN ");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "WHEN "));
       NODES_ERR_RET(nodesNodeToSQLFormat(pWhenThen->pWhen, buf, bufSize, len, true));
-      *len += tsnprintf(buf + *len, bufSize - *len, " THEN ");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " THEN "));
       NODES_ERR_RET(nodesNodeToSQLFormat(pWhenThen->pThen, buf, bufSize, len, true));
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_CASE_WHEN: {
       SCaseWhenNode *pCaseWhen = (SCaseWhenNode *)pNode;
-      *len += tsnprintf(buf + *len, bufSize - *len, "CASE");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, "CASE"));
       if (pCaseWhen->pCase) {
-        *len += tsnprintf(buf + *len, bufSize - *len, " ");
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " "));
         NODES_ERR_RET(nodesNodeToSQLFormat(pCaseWhen->pCase, buf, bufSize, len, true));
       }
       SNode *pWhenThen = NULL;
       FOREACH(pWhenThen, pCaseWhen->pWhenThenList) {
-        *len += tsnprintf(buf + *len, bufSize - *len, " ");
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " "));
         NODES_ERR_RET(nodesNodeToSQLFormat(pWhenThen, buf, bufSize, len, true));
       }
       if (pCaseWhen->pElse) {
-        *len += tsnprintf(buf + *len, bufSize - *len, " ELSE ");
+        NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " ELSE "));
         NODES_ERR_RET(nodesNodeToSQLFormat(pCaseWhen->pElse, buf, bufSize, len, true));
       }
-      *len += tsnprintf(buf + *len, bufSize - *len, " END");
+      NODES_ERR_RET(nodesSqlAppend(buf, bufSize, len, " END"));
       return TSDB_CODE_SUCCESS;
     }
     default:

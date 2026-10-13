@@ -85,6 +85,7 @@ typedef struct STranslateContext {
   // failed" message: an outer hop hitting the same failure must not overwrite the
   // inner (more precise) message.
   bool vtbRefErrMsgSet;
+  int32_t virtualTableDepth;  // Active nested virtual-table translations.
 } STranslateContext;
 
 int32_t normalizeCreateStreamSql(STranslateContext* pCxt, const SCreateStreamStmt* pStmt, char** ppSql);
