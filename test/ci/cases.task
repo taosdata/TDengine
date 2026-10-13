@@ -602,6 +602,7 @@
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_query_limit_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_query_limit_offset.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_group_limit_without_order.py
 ## 07-SLimit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit_basic.py
