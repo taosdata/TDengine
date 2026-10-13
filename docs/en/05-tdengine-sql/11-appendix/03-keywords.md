@@ -6,8 +6,8 @@ description: List of reserved keywords
 
 ## Reserved Keywords
 
-TDengine currently lists **585** reserved keywords, of which **499** are active
-in the lexical analysis of the current version. The remaining **86** are keywords
+TDengine currently lists **586** reserved keywords, of which **499** are active
+in the lexical analysis of the current version. The remaining **87** are keywords
 whose definitions are retained at the syntax level or in historical documentation.
 Although they are not currently active, they are included for reference and
 future use.
@@ -267,6 +267,7 @@ The reserved keywords are listed below:
 | `IMPORT`                | |
 | `IN`                    | |
 | `INACTIVE_ACCOUNT_TIME` | `v3.4.0.0`+ |
+| `INCREMENTAL`           | `v3.4.2.0`+ (reserved: the `CREATE INCREMENTAL BACKUP` grammar is retained but incremental backup is not yet supported) |
 | `INDEX`                 | |
 | `INDEXES`               | |
 | `INHERITS`              | `v3.4.2.0`+ |
