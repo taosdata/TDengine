@@ -363,6 +363,10 @@ static void freeBlock(void* pParam) {
 
 
 void destroySubJobCtx(STaskSubJobCtx* pCtx) {
+  if (pCtx == NULL) {
+    return;
+  }
+
   if (pCtx->transporterId > 0) {
     int32_t ret = asyncFreeConnById(pCtx->rpcHandle, pCtx->transporterId);
     if (ret != 0) {
