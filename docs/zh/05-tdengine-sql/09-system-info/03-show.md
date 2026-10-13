@@ -452,7 +452,7 @@ SHOW SUBSCRIPTIONS;
 SHOW TABLE DISTRIBUTED [db_name.]table_name;
 ```
 
-显示表的数据分布信息。更完整字段见 [`INS_TABLE_FIXED_DISTRIBUTED`](./01-meta.md#ins_table_fixed_distributed)。
+显示表的数据分布信息。指定超级表时，统计其所有子表在各个 vnode 上的数据并汇总为一个结果。更完整字段见 [`INS_TABLE_FIXED_DISTRIBUTED`](./01-meta.md#ins_table_fixed_distributed)。
 
 **示例说明**
 
@@ -464,13 +464,13 @@ SHOW TABLE DISTRIBUTED [db_name.]table_name;
 ```text
 *************************** 1.row ***************************
 
-_block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Compression_Ratio=[23.98 %]
+_block_dist: Total_Blocks=[5] Total_Size=[93.65 KiB] Average_size=[18.73 KiB] Compression_Ratio=[23.98 %]
 
 Total_Blocks：表 d0 占用的 block 个数为 5 个
 
-Total_Size：表 d0 所有 block 在文件中占用的大小为 93.65 KB
+Total_Size：表 d0 所有 block 在文件中占用的大小为 93.65 KiB。指定超级表时，表示其所有子表在各 vnode 上压缩后的数据块总大小。
 
-Average_size：平均每个 block 在文件中占用的空间大小为 18.73 KB
+Average_size：平均每个 block 在文件中占用的空间大小为 18.73 KiB
 
 Compression_Ratio: 数据压缩率 23.98%
 
@@ -527,7 +527,7 @@ Query OK, 24 row(s) in set (0.002444s)
 
 上例为块中包含数据行数的分布示意。其中 `0100`、`0299`、`0498` 等表示每个块中包含的数据行数区间。上例中，表有 5 个块：落在 `3483 ~ 3681` 行区间的块有 1 个（约 20%），落在 `3881 ~ 4096`（最大行数）区间的块有 4 个（约 80%），其它区间为 0。
 
-仅显示 data 文件中数据块的信息，不包含 stt 文件中的数据信息。
+数据块大小统计仅包含 data 文件中的数据块，不包含 STT 文件、WAL、表元数据或缓存。
 
 ## SHOW TABLE TAGS
 

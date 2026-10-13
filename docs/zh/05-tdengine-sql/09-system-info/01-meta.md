@@ -772,35 +772,37 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 
 ## INS_TABLE_FIXED_DISTRIBUTED
 
-提供表数据块分布与压缩等统计信息，可用于分析数据倾斜与存储特征。也可以使用 [`SHOW TABLE DISTRIBUTED`](./03-show.md#show-table-distributed) 查询。
+提供表数据块分布与压缩等统计信息，可用于分析数据倾斜与存储特征。`table_name` 为超级表时，统计其所有子表并汇总各 vnode 的结果。
+
+查询时必须同时指定 `db_name` 和 `table_name` 的等值条件。未指定 `GROUP BY` 时，查询自动按数据库名和表名汇总各 vnode 的统计信息，仅支持 `SELECT *` 或 `SELECT 表别名.*`。
+
+[`SHOW TABLE DISTRIBUTED`](./03-show.md#show-table-distributed) 以格式化文本展示相关统计信息，但直方图的分桶方式不同。本系统表按 8 个固定行数区间统计数据块数量，区间定义见下表的 `block_dist_*` 列；该命令则根据数据库的 `MINROWS` 和 `MAXROWS` 配置，将行数范围划分为 20 个区间。
 
 | #   | **列名** | **数据类型** | **说明** |
 | --- | ------------------- | ------------ | --- |
-| 1   | `db_name`           | VARCHAR(64)  | 数据库名 |
-| 2   | `table_name`        | VARCHAR(192) | 表名 |
-| 3   | `vgroup_id`         | INT          | `vgroup` ID |
-| 4   | `total_blocks`      | BIGINT       | total_blocks |
-| 5   | `total_size`        | BIGINT       | total_size |
-| 6   | `average_size`      | DOUBLE       | average_size |
-| 7   | `compression_ratio` | DOUBLE       | compression_ratio |
-| 8   | `block_rows`        | BIGINT       | block_rows |
-| 9   | `min_rows`          | INT          | min_rows |
-| 10  | `max_rows`          | INT          | max_rows |
-| 11  | `avg_rows`          | DOUBLE       | avg_rows |
-| 12  | `in_mem_rows`       | BIGINT       | in_mem_rows |
-| 13  | `stt_rows`          | BIGINT       | stt_rows |
-| 14  | `total_tables`      | BIGINT       | total_tables |
-| 15  | `total_filesets`    | BIGINT       | total_filesets |
-| 16  | `total_vgroups`     | BIGINT       | total_vgroups |
-| 17  | `row_size`          | INT          | row_size |
-| 18  | `block_dist_64`     | BIGINT       | block_dist_64 |
-| 19  | `block_dist_128`    | BIGINT       | block_dist_128 |
-| 20  | `block_dist_256`    | BIGINT       | block_dist_256 |
-| 21  | `block_dist_512`    | BIGINT       | block_dist_512 |
-| 22  | `block_dist_1024`   | BIGINT       | block_dist_1024 |
-| 23  | `block_dist_2048`   | BIGINT       | block_dist_2048 |
-| 24  | `block_dist_4096`   | BIGINT       | block_dist_4096 |
-| 25  | `block_dist_other`  | BIGINT       | block_dist_other |
+| 1   | `db_name`           | VARCHAR(64)  | 被统计表所属的数据库名称 |
+| 2   | `table_name`        | VARCHAR(192) | 被统计的表名称；指定超级表时统计其所有子表 |
+| 3   | `total_blocks`      | BIGINT       | data 文件中的数据块总数 |
+| 4   | `total_size`        | BIGINT       | data 文件中压缩后数据块占用的字节数；不包含 STT 文件、WAL、表元数据或缓存 |
+| 5   | `average_size`      | DOUBLE       | 每个数据块的平均大小，即 `total_size` 除以 `total_blocks`，单位为字节 |
+| 6   | `compression_ratio` | DOUBLE       | 压缩后数据块大小占按行数和行宽估算的未压缩数据大小的百分比；无数据时为 0 |
+| 7   | `block_rows`        | BIGINT       | 所有 data 文件数据块中的总行数 |
+| 8   | `min_rows`          | INT          | 单个数据块中的最小行数 |
+| 9   | `max_rows`          | INT          | 单个数据块中的最大行数 |
+| 10  | `avg_rows`          | DOUBLE       | 每个数据块的平均行数，即 `block_rows` 除以 `total_blocks` |
+| 11  | `in_mem_rows`       | BIGINT       | 当前仍在内存中的数据行数 |
+| 12  | `stt_rows`          | BIGINT       | STT 文件中统计到的数据行数 |
+| 13  | `total_tables`      | BIGINT       | 统计的表数量；查询超级表时为其子表数量 |
+| 14  | `total_filesets`    | BIGINT       | 数据文件组数量 |
+| 15  | `total_vgroups`     | BIGINT       | 数据分布所在的 vgroup 数量 |
+| 16  | `block_dist_64`     | BIGINT       | 行数不超过 64 的数据块数量 |
+| 17  | `block_dist_128`    | BIGINT       | 行数为 65 至 128 的数据块数量 |
+| 18  | `block_dist_256`    | BIGINT       | 行数为 129 至 256 的数据块数量 |
+| 19  | `block_dist_512`    | BIGINT       | 行数为 257 至 512 的数据块数量 |
+| 20  | `block_dist_1024`   | BIGINT       | 行数为 513 至 1024 的数据块数量 |
+| 21  | `block_dist_2048`   | BIGINT       | 行数为 1025 至 2048 的数据块数量 |
+| 22  | `block_dist_4096`   | BIGINT       | 行数为 2049 至 4096 的数据块数量 |
+| 23  | `block_dist_other`  | BIGINT       | 行数超过 4096 的数据块数量 |
 
 ## INS_TAGS
 
