@@ -510,6 +510,8 @@ priv_type: {
 | STOP                   |          |       |      |       |      |      |       |   ✓    |            |
 | RECALCULATE            |          |       |      |       |      |      |       |   ✓    |            |
 
+> `SSMIGRATE` 权限用于执行 [`SSMIGRATE DATABASE`](../08-cluster-management/04-recovery.md#共享存储迁移) 语句。
+
 **说明**
 
 - 使用 `GRANT` 授权时，需要通过 `ON [priv_obj]` 指定对象类型，系统会自动校验该权限是否适用于指定的对象类型。
