@@ -298,21 +298,7 @@ class TestVtableCreate:
         for i in range(total_double_cols):
             tdSql.checkData(0, 1 + i, i)
 
-    def test_virtual_table_max_column_exceed_ref_mapping(self):
-        """Virtual table max column exceed ref mapping
-
-        test create and query virtual tables mapping each column from distinct tables
-
-        Since: v3.3.8.0
-
-        Labels: create,virtual,integration,functional
-
-        Jira: None
-
-        History:
-            - 2026-01-27 Codex Created
-
-        """
+    def do_virtual_child_table_max_column_exceed_ref_mapping(self):
         tdLog.info("test create virtual tables with max columns and check every column.")
 
         tdSql.execute("use test_vtable_max_column;")
@@ -334,12 +320,6 @@ class TestVtableCreate:
         sql += ") USING vtb_virtual_stb_max_col_exceed_ref TAGS (1);"
         tdSql.execute(sql)
 
-        sql = "CREATE VTABLE `vtb_virtual_ntb_max_col_exceed_ref` (ts timestamp"
-        for i in range(32766):
-            sql += f", col_{i} double from d_{i%5000}.double_col"
-        sql += ")"
-        tdSql.execute(sql)
-
         tdLog.info("test query virtual child tables and check every column.")
         tdSql.query("SELECT * FROM vtb_virtual_child_exceed_ref;")
         tdSql.checkRows(2)
@@ -350,6 +330,14 @@ class TestVtableCreate:
             tdSql.checkData(0, 1 + i, i % 5000)
             tdSql.checkData(1, 1 + i, i % 5000 + 1)
 
+    def do_virtual_normal_table_max_column_exceed_ref_mapping(self):
+        tdSql.execute("use test_vtable_max_column;")
+        sql = "CREATE VTABLE `vtb_virtual_ntb_max_col_exceed_ref` (ts timestamp"
+        for i in range(32766):
+            sql += f", col_{i} double from d_{i%5000}.double_col"
+        sql += ")"
+        tdSql.execute(sql)
+
         tdLog.info("test query virtual normal table and check every column.")
         tdSql.query("SELECT * FROM vtb_virtual_ntb_max_col_exceed_ref;")
         tdSql.checkRows(2)
@@ -359,6 +347,49 @@ class TestVtableCreate:
         for i in range(32766):
             tdSql.checkData(0, 1 + i, i % 5000)
             tdSql.checkData(1, 1 + i, i % 5000 + 1)
+
+    def test_virtual_table_max_column_exceed_ref_mapping(self):
+        """Virtual child table max column ref mapping
+
+        1. Create a 30717-column virtual child table referencing 5000 source tables
+        2. Query all columns and verify both rows and every mapped value
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.8.0
+
+        Labels: common,ci,create,virtual,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-01-27 Codex Created
+            - 2026-10-12 Codex Split child and normal table scenarios
+
+        """
+        self.do_virtual_child_table_max_column_exceed_ref_mapping()
+
+    def test_virtual_normal_table_max_column_exceed_ref_mapping(self):
+        """Virtual normal table max column ref mapping
+
+        1. Create a 32767-column virtual normal table referencing 5000 source tables
+        2. Query all columns and verify both rows and every mapped value
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.8.0
+
+        Labels: common,ci,create,virtual,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Codex Created
+
+        """
+        self.do_virtual_normal_table_max_column_exceed_ref_mapping()
 
     def test_virtual_table_error_case(self):
         """Virtual table max column except
