@@ -514,6 +514,8 @@ Different object types support different permission types. The specific mapping 
 | STOP | | | | | | | | ✓ | |
 | RECALCULATE | | | | | | | | ✓ | |
 
+> The `SSMIGRATE` privilege is required to execute the [`SSMIGRATE DATABASE`](../08-cluster-management/04-recovery.md#shared-storage-migration) statement.
+
 **Notes:**
 
 - When using `GRANT` for authorization, you need to specify the object type through `ON [priv_obj]`, and the system will automatically verify whether the permission is applicable to the specified object type.

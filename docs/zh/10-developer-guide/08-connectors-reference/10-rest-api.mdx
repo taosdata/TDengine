@@ -488,7 +488,7 @@ curl http://<fqnd>:<port>/rest/login/<username>/<password>
 获取授权码示例：
 
 ```bash
-curl http://192.168.0.1:6041/rest/login/root/taosdata
+curl http://***********:6041/rest/login/root/taosdata
 ```
 
 返回值：
@@ -499,6 +499,18 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
   "desc": "/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"
 }
 ```
+
+:::warning
+用户名与密码会以明文形式出现在 URL 中，可能被访问日志、反向代理日志或浏览器历史记录留存。生产环境建议使用 HTTPS，并优先使用 [Basic 认证](#http-请求格式) 或 [token 认证](#token-认证)。
+:::
+
+除 `/rest/login` 外，taosAdapter 还提供了一个兼容 2.x 的 Basic 凭据生成辅助端点：
+
+```bash
+curl http://<fqdn>:<port>/genauth/<username>/<password>/<key>
+```
+
+该端点返回 `username:password` 形式的 Basic 认证字符串（`key` 参数当前未使用，仅为兼容历史 URL 格式保留）。它不校验用户名与密码的正确性，也不产生任何服务端状态；凭据同样以明文形式经过 URL 传输，相关安全注意事项与 `/rest/login` 相同。新代码不建议依赖该端点，推荐直接在客户端本地计算 Basic 凭据，或使用 [token 认证](#token-认证)。
 
 ## 使用示例
 
@@ -581,6 +593,39 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
       "rows": 1
   }
   ```
+
+## 批量查询表的 vgroup ID
+
+```text
+POST /rest/sql/:db/vgid
+```
+
+批量返回指定数据库中若干表所在 vgroup 的 ID，便于客户端按数据分片直连或做本地路由。请求的 BODY 为 JSON 字符串数组，每个元素为表名；HTTP 请求格式与鉴权方式与 [`/rest/sql`](#http-请求格式) 一致。该接口封装了 C 接口 `taos_get_tables_vgId`，各语言连接器也可直接使用对应封装。
+
+样例：
+
+```bash
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+  -H "Content-Type: application/json" \
+  -d '["d1001", "d1002"]' \
+  h1.taosdata.com:6041/rest/sql/demo/vgid
+```
+
+返回值：
+
+```json
+{
+  "code": 0,
+  "vgIDs": [2, 3]
+}
+```
+
+说明：
+
+- code：（`int`）0 代表成功。
+- vgIDs：（`int[]`）与请求中表名顺序一一对应的 vgroup ID，数组长度与请求表数量相同。vgroup ID 按表名的哈希范围计算，不校验表是否存在。
+
+若请求执行失败（如数据库不存在），整个请求按错误处理，返回非 0 的 `code` 与 `desc` 错误描述，不会返回部分成功的结果。
 
 ## TDengine 2.x 和 `v3.0` 之间 REST API 的差异
 
