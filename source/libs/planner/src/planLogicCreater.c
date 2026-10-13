@@ -19,6 +19,7 @@
 #include "filter.h"
 #include "functionMgt.h"
 #include "parser.h"
+#include "../../parser/inc/parUtil.h"
 #include "planInt.h"
 #include "planner.h"
 #include "plannodes.h"
@@ -48,6 +49,7 @@ typedef struct SRowsetSourceDesc {
 
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
+  SMsgBuf       msgBuf;
   SLogicNode*   pCurrRoot;
   SSHashObj*    pChildTables;
   int32_t       nextExtScanAliasId;
@@ -553,7 +555,17 @@ static SNode* createVtbFirstCol(SVirtualTableNode* pTable, const SSchema* pSchem
   return (SNode*)pCol;
 }
 
-static int32_t addVtbPrimaryTsCol(SVirtualTableNode* pTable, SNodeList** pCols) {
+static int32_t addVtbPrimaryTsCol(SLogicPlanContext* pCxt, SVirtualTableNode* pTable, SNodeList** pCols) {
+  if (NULL == pTable->pMeta) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "virtual table %s.%s has no metadata", pTable->table.dbName,
+                                   pTable->table.tableName);
+  }
+  if (pTable->pMeta->tableInfo.numOfColumns < 1) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "virtual table %s.%s has no primary timestamp column", pTable->table.dbName,
+                                   pTable->table.tableName);
+  }
   bool     found = false;
   SNode*   pCol = NULL;
   SSchema* pSchema = &pTable->pMeta->schema[0];
@@ -570,7 +582,17 @@ static int32_t addVtbPrimaryTsCol(SVirtualTableNode* pTable, SNodeList** pCols) 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t addInsColumnScanCol(SRealTableNode* pTable, SNodeList** pCols) {
+static int32_t addInsColumnScanCol(SLogicPlanContext* pCxt, SRealTableNode* pTable, SNodeList** pCols) {
+  if (NULL == pTable->pMeta) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "ins_columns table %s.%s has no metadata", pTable->table.dbName,
+                                   pTable->table.tableName);
+  }
+  if (pTable->pMeta->tableInfo.numOfColumns < 10) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "ins_columns table %s.%s requires at least 10 metadata columns, got %d",
+                                   pTable->table.dbName, pTable->table.tableName, pTable->pMeta->tableInfo.numOfColumns);
+  }
   for (int32_t i = 1; i <= 9; i++) {
     PLAN_ERR_RET(nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[i])));
   }
@@ -600,7 +622,16 @@ static int32_t addSystableFirstCol(SRealTableNode* pTable, SNodeList** pCols) {
   return nodesListMakeStrictAppend(pCols, createFirstCol(pTable, pTable->pMeta->schema));
 }
 
-static int32_t addPrimaryKeyCol(SRealTableNode* pTable, SNodeList** pCols) {
+static int32_t addPrimaryKeyCol(SLogicPlanContext* pCxt, SRealTableNode* pTable, SNodeList** pCols) {
+  if (NULL == pTable->pMeta) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "table %s.%s has no metadata", pTable->table.dbName, pTable->table.tableName);
+  }
+  if (pTable->pMeta->tableInfo.numOfColumns <= PRIMARY_COLUMN_SLOT) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "table %s.%s has no primary key schema at slot %d", pTable->table.dbName,
+                                   pTable->table.tableName, PRIMARY_COLUMN_SLOT);
+  }
   bool     found = false;
   SNode*   pCol = NULL;
   SSchema* pSchema = &pTable->pMeta->schema[PRIMARY_COLUMN_SLOT];
@@ -617,19 +648,33 @@ static int32_t addPrimaryKeyCol(SRealTableNode* pTable, SNodeList** pCols) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t addDefaultScanCol(SRealTableNode* pTable, SNodeList** pCols) {
+static int32_t addDefaultScanCol(SLogicPlanContext* pCxt, SRealTableNode* pTable, SNodeList** pCols) {
   if (TSDB_SYSTEM_TABLE == pTable->pMeta->tableType) {
     return addSystableFirstCol(pTable, pCols);
   }
   int32_t code = addPrimaryTsCol(pTable, pCols);
   if (code == TSDB_CODE_SUCCESS && hasPkInTable(pTable->pMeta)) {
-    code = addPrimaryKeyCol(pTable, pCols);
+    code = addPrimaryKeyCol(pCxt, pTable, pCols);
   }
   return code;
 }
 
 static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealTable, bool hasRepeatScanFuncs,
                                  SLogicNode** pLogicNode) {
+  if (NULL == pRealTable || nodeType(pRealTable) != QUERY_NODE_REAL_TABLE) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "scan requires a real table node");
+  }
+  if (NULL == pRealTable->pMeta) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "table %s.%s has no metadata", pRealTable->table.dbName,
+                                   pRealTable->table.tableName);
+  }
+  if (pRealTable->pMeta->tableInfo.numOfColumns < 1) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "table %s.%s has no scan columns", pRealTable->table.dbName,
+                                   pRealTable->table.tableName);
+  }
   SScanLogicNode* pScan = NULL;
   int32_t         code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan);
   if (NULL == pScan) {
@@ -909,6 +954,16 @@ static int32_t retainTemporalScanCandidates(SSelectStmt* pSelect,
 // ---------------------------------------------------------------------------
 static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                            SRealTableNode* pRealTable, SLogicNode** pLogicNode) {
+  if (NULL == pRealTable->pMeta) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "external table %s.%s has no metadata", pRealTable->table.dbName,
+                                   pRealTable->table.tableName);
+  }
+  if (pRealTable->pMeta->tableInfo.numOfColumns < 1) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "external table %s.%s has no columns", pRealTable->table.dbName,
+                                   pRealTable->table.tableName);
+  }
   SExtTableNode*  pExtNode = (SExtTableNode*)pRealTable->pExtTableNode;
   SScanLogicNode* pScan = NULL;
   int32_t code = fqEnsurePgExtSchemaNode(pExtNode);
@@ -982,7 +1037,7 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   if (TSDB_CODE_SUCCESS == code) {
     int32_t collectedCols = (NULL != pScan->pScanCols) ? LIST_LENGTH(pScan->pScanCols) : 0;
     if (0 == collectedCols) {
-      code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
+      code = addDefaultScanCol(pCxt, pRealTable, &pScan->pScanCols);
     }
 
     if (TSDB_CODE_SUCCESS == code &&
@@ -1171,6 +1226,10 @@ static int32_t collectTemporalJoinTimeColumns(SSelectStmt* pSelect,
 
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
+  if (NULL == pRealTable || nodeType(pRealTable) != QUERY_NODE_REAL_TABLE) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "scan requires a real table node");
+  }
   // External table: bypass the normal TDengine scan path entirely
   if (NULL != pRealTable->pExtTableNode) {
     return createExternalScanLogicNode(pCxt, pSelect, pRealTable, pLogicNode);
@@ -1178,6 +1237,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   SScanLogicNode* pScan = NULL;
   int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
 
   pScan->placeholderType = pRealTable->placeholderType;
   pScan->phTbnameScan = (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE && pRealTable->placeholderType == SP_PARTITION_TBNAME);
@@ -1270,7 +1330,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   if (TSDB_CODE_SUCCESS == code && needScanDefaultCol(pScan->scanType)) {
-    code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
+    code = addDefaultScanCol(pCxt, pRealTable, &pScan->pScanCols);
   }
 
   // set output
@@ -1311,11 +1371,10 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     pScan->smallDataTsSort = getSmallDataTsSortOptHint(pSelect->pHint);
     pScan->smallDataScanSort = getSmallDataScanSortOptHint(pSelect->pHint);
     // pCxt->hasScan = true;
+    pScan->virtualStableScan = false;
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
-
-  pScan->virtualStableScan = false;
   return code;
 }
 
@@ -1328,7 +1387,7 @@ static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
-  PLAN_ERR_RET(addDefaultScanCol(pRealTable, &pScan->pScanCols));
+  PLAN_ERR_RET(addDefaultScanCol(pCxt, pRealTable, &pScan->pScanCols));
 
   pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
 
@@ -2929,6 +2988,11 @@ int32_t planFinalizeTemporalJoins(SPlanContext* pCxt, SLogicNode* pRoot) {
 
 static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SJoinTableNode* pJoinTable,
                                    SLogicNode** pLogicNode) {
+  if ((uint32_t)pJoinTable->joinType >= JOIN_TYPE_MAX_VALUE ||
+      (uint32_t)pJoinTable->subType >= JOIN_STYPE_MAX_VALUE) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                   "invalid join type %d or subtype %d", pJoinTable->joinType, pJoinTable->subType);
+  }
   int32_t         code = TSDB_CODE_SUCCESS;
   SJoinLogicNode* pJoin = NULL;
   code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN, (SNode**)&pJoin);
@@ -5592,7 +5656,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     ((SScanLogicNode*)pRealTableScan)->scanType = SCAN_TYPE_TABLE;
   }
 
-  PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
+  PLAN_ERR_JRET(addVtbPrimaryTsCol(pCxt, pVirtualTable, &pVtableScan->pScanCols));
 
   FOREACH(pNode, pVtableScan->pScanCols) {
     SColumnNode *pCol = (SColumnNode*)pNode;
@@ -5826,7 +5890,8 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1), &pInsColumnsScan));
   nodesDestroyList(((SScanLogicNode*)pInsColumnsScan)->node.pTargets);
   ((SScanLogicNode*)pInsColumnsScan)->node.pTargets = NULL;  // Set to NULL after destroy to avoid use-after-free
-  PLAN_ERR_JRET(addInsColumnScanCol((SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1), &((SScanLogicNode*)pInsColumnsScan)->pScanCols));
+  PLAN_ERR_JRET(addInsColumnScanCol(pCxt, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1),
+                                   &((SScanLogicNode*)pInsColumnsScan)->pScanCols));
   PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pInsColumnsScan)->pScanCols, &((SScanLogicNode*)pInsColumnsScan)->node.pTargets));
   ((SScanLogicNode *)pInsColumnsScan)->node.dynamicOp = true;
   ((SScanLogicNode *)pInsColumnsScan)->virtualStableScan = true;
@@ -6179,7 +6244,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
 
   if (inStreamCalcClause(pCxt->pPlanCxt) && pSelect->pTimeRange != NULL) {
     // ts column might be extract from where to time range. So, ts column won't be collected into pVtableScan->pScanCols.
-    PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
+    PLAN_ERR_JRET(addVtbPrimaryTsCol(pCxt, pVirtualTable, &pVtableScan->pScanCols));
   }
 
   PLAN_ERR_JRET(eliminateDupScanCols(pVtableScan->pScanCols));
@@ -6433,14 +6498,14 @@ static int32_t retainTemporalVirtualCandidates(
 }
 
 static int32_t addTemporalJoinPrimaryTsToVirtualScan(
-    SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable,
+    SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable,
     SVirtualScanLogicNode* pScan) {
   SJoinTableNode* pJoin = getTemporalJoinTable(pSelect);
   if (NULL == pJoin || NULL == pJoin->addPrimCond) {
     return TSDB_CODE_SUCCESS;
   }
 
-  return addVtbPrimaryTsCol(pVirtualTable, &pScan->pScanCols);
+  return addVtbPrimaryTsCol(pCxt, pVirtualTable, &pScan->pScanCols);
 }
 
 static int32_t addVirtualScanPrimaryTsCol(SVirtualTableNode* pVirtualTable, SNodeList** pCols) {
@@ -6483,7 +6548,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_COL,
                                     &pVtableScan->pScanCols));
   PLAN_ERR_JRET(addTemporalJoinPrimaryTsToVirtualScan(
-      pSelect, pVirtualTable, pVtableScan));
+      pCxt, pSelect, pVirtualTable, pVtableScan));
   PLAN_ERR_JRET(collectTemporalJoinTimeColumns(
       pSelect, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_COL,
       &pVtableScan->pScanCols));
@@ -8028,6 +8093,10 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
 
 static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionWindowNode* pSession,
                                               SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (NULL == pSession->pGap || nodeType(pSession->pGap) != QUERY_NODE_VALUE || NULL == pSession->pCol) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_WINDOW_TYPE,
+                                   "session window requires a VALUE gap and timestamp column");
+  }
   SWindowLogicNode* pWindow = NULL;
   int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
   if (NULL == pWindow) {
@@ -8061,6 +8130,12 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
 
 static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SIntervalWindowNode* pInterval,
                                                SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (NULL == pInterval->pInterval || nodeType(pInterval->pInterval) != QUERY_NODE_VALUE ||
+      (NULL != pInterval->pOffset && nodeType(pInterval->pOffset) != QUERY_NODE_VALUE) ||
+      (NULL != pInterval->pSliding && nodeType(pInterval->pSliding) != QUERY_NODE_VALUE)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_WINDOW_TYPE,
+                                   "interval window requires a VALUE interval and VALUE offset/sliding expressions when present");
+  }
   SWindowLogicNode* pWindow = NULL;
   int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
   if (NULL == pWindow) {
@@ -9565,6 +9640,12 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
+  if (NULL == pInterval->pInterval || nodeType(pInterval->pInterval) != QUERY_NODE_VALUE ||
+      (NULL != pInterval->pOffset && nodeType(pInterval->pOffset) != QUERY_NODE_VALUE) ||
+      (NULL != pInterval->pSliding && nodeType(pInterval->pSliding) != QUERY_NODE_VALUE)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_WINDOW_TYPE,
+                                   "FILL requires a VALUE interval and VALUE offset/sliding expressions when present");
+  }
   SFillNode* pFillNode = (SFillNode*)(((SIntervalWindowNode*)pSelect->pWindow)->pFill);
   if (FILL_MODE_NONE == pFillNode->mode) {
     return TSDB_CODE_SUCCESS;
@@ -9652,6 +9733,13 @@ static bool isPrimaryKeySort(SNodeList* pOrderByList) {
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pOrderByList || pSelect->pOrderByList->length == 0) {
     return TSDB_CODE_SUCCESS;
+  }
+  SNode* pOrderBy = NULL;
+  FOREACH(pOrderBy, pSelect->pOrderByList) {
+    if (nodeType(pOrderBy) != QUERY_NODE_ORDER_BY_EXPR || NULL == ((SOrderByExprNode*)pOrderBy)->pExpr) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SELECTED_EXPR,
+                                     "ORDER BY item must be an ORDER_BY_EXPR node with an expression");
+    }
   }
 
   SSortLogicNode* pSort = NULL;
@@ -10351,7 +10439,7 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
 
   STableMeta* pMeta = ((SRealTableNode*)pDelete->pFromTable)->pMeta;
   if (TSDB_CODE_SUCCESS == code && hasPkInTable(pMeta)) {
-    code = addPrimaryKeyCol((SRealTableNode*)pDelete->pFromTable, &pScan->pScanCols);
+    code = addPrimaryKeyCol(pCxt, (SRealTableNode*)pDelete->pFromTable, &pScan->pScanCols);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagCond) {
@@ -10489,6 +10577,11 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
 }
 
 static int32_t createDeleteLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDelete, SLogicNode** pLogicNode) {
+  if (NULL == pDelete->pFromTable || nodeType(pDelete->pFromTable) != QUERY_NODE_REAL_TABLE ||
+      NULL == pDelete->pCountFunc || nodeType(pDelete->pCountFunc) != QUERY_NODE_FUNCTION) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "DELETE plan requires a real source table and COUNT function");
+  }
   SLogicNode* pRoot = NULL;
   int32_t     code = createDeleteScanLogicNode(pCxt, pDelete, &pRoot);
   // With a column filter the deleter consumes the scanned rows directly; aggregating them into a
@@ -10558,6 +10651,10 @@ static int32_t createInsertLogicNode(SLogicPlanContext* pCxt, SInsertStmt* pInse
 }
 
 static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogicNode** pLogicNode) {
+  if (NULL == pStmt) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "query plan root node is missing");
+  }
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
       return createSelectLogicNode(pCxt, (SSelectStmt*)pStmt, pLogicNode);
@@ -10885,7 +10982,10 @@ static int32_t streamEnableMultiGroupCalc(SPlanContext* pPlanCxt, SLogicNode* pR
 }
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
-  SLogicPlanContext cxt = {.pPlanCxt = pCxt, .pCurrRoot = NULL};
+  SLogicPlanContext cxt = {
+      .pPlanCxt = pCxt,
+      .msgBuf = {.buf = pCxt->pMsg, .len = pCxt->pMsg != NULL && pCxt->msgLen > 0 ? pCxt->msgLen : 0},
+      .pCurrRoot = NULL};
   int32_t code = planCreateJoinPropsStore(pCxt);
   if (TSDB_CODE_SUCCESS != code) {
     return code;

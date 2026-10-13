@@ -50,6 +50,14 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
+ADD_EXECUTABLE(mergeJoinValidationTests mergeJoinValidationTests.cpp)
+DEP_ext_gtest(mergeJoinValidationTests)
+TARGET_LINK_LIBRARIES(mergeJoinValidationTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode)
+TARGET_INCLUDE_DIRECTORIES(mergeJoinValidationTests
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+add_test(NAME mergeJoinValidationTests COMMAND mergeJoinValidationTests)
+
 ADD_EXECUTABLE(hashJoinMultiGroupTests hashJoinMultiGroupTests.cpp)
 DEP_ext_gtest(hashJoinMultiGroupTests)
 if(BUILD_TEST)

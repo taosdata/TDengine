@@ -277,6 +277,10 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     token.n = strdequote(token.z);
 
     if (boundColsType == BOUND_ALL_AND_TBNAME && token.n == strlen("tbname") && (strcasecmp(token.z, "tbname") == 0)) {
+      if (pUseCols[tbnameSchemaIndex] || pBoundInfo->numOfBound >= pBoundInfo->numOfCols) {
+        code = buildSyntaxErrMsg(&pCxt->msg, "duplicated column name", token.z);
+        break;
+      }
       pBoundInfo->pColIndex[pBoundInfo->numOfBound] = tbnameSchemaIndex;
       pUseCols[tbnameSchemaIndex] = true;
       ++pBoundInfo->numOfBound;
@@ -293,6 +297,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMN, token.z);
     } else if (pUseCols[index]) {
       code = buildSyntaxErrMsg(&pCxt->msg, "duplicated column name", token.z);
+    } else if (pBoundInfo->numOfBound >= pBoundInfo->numOfCols) {
+      code = TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
     } else {
       lastColIdx = index;
       pUseCols[index] = true;

@@ -59,6 +59,28 @@ static int32_t                     g_allocatorReqRefPool = -1;
 static threadlocal bool g_nodesTestStrictAppendFailOnce = false;
 #endif
 
+bool nodesIsValidPhysiJoin(ENodeType type, int32_t joinType, int32_t subType) {
+  if ((QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN != type && QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN != type &&
+       QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN != type) ||
+      joinType < JOIN_TYPE_INNER || joinType >= JOIN_TYPE_MAX_VALUE ||
+      subType < JOIN_STYPE_NONE || subType >= JOIN_STYPE_MAX_VALUE) {
+    return false;
+  }
+  switch (joinType) {
+    case JOIN_TYPE_INNER:
+      return JOIN_STYPE_NONE == subType;
+    case JOIN_TYPE_FULL:
+      return JOIN_STYPE_OUTER == subType;
+    case JOIN_TYPE_LEFT:
+    case JOIN_TYPE_RIGHT:
+      return JOIN_STYPE_OUTER == subType || JOIN_STYPE_SEMI == subType || JOIN_STYPE_ANTI == subType ||
+             (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type &&
+              (JOIN_STYPE_ASOF == subType || JOIN_STYPE_WIN == subType));
+    default:
+      return false;
+  }
+}
+
 int32_t nodesRestoreSubplanDag(SQueryPlan* pPlan, const SArray* pLinks) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;

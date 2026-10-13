@@ -3974,6 +3974,9 @@ static int32_t pdcRewriteTypeBasedOnJoinRes(SOptimizeContext* pCxt, SJoinLogicNo
 
 
 static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  if ((uint32_t)pJoin->joinType >= JOIN_TYPE_MAX_VALUE || (uint32_t)pJoin->subType >= JOIN_STYPE_MAX_VALUE) {
+    return TSDB_CODE_PAR_NOT_SUPPORT_JOIN;
+  }
   if (OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }

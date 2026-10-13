@@ -2077,6 +2077,9 @@ int32_t mJoinHandleConds(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJo
 }
 
 int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
+  if (!nodesIsValidPhysiJoin(QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN, pJoin->joinType, pJoin->subType)) {
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
   switch (pJoin->joinType) {
     case JOIN_TYPE_INNER:
       pJoin->joinFp = mInnerJoinDo;
@@ -2110,7 +2113,7 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
       break;
   }
 
-  return TSDB_CODE_SUCCESS;
+  return NULL != pJoin->joinFp ? TSDB_CODE_SUCCESS : TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
 static int32_t resetMergeJoinOperState(SOperatorInfo* pOper) {
@@ -2122,6 +2125,10 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
                                     SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
+  *pOptrInfo = NULL;
+  if (!nodesIsValidPhysiJoin(QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN, pJoinNode->joinType, pJoinNode->subType)) {
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
 
   int32_t             oldNum = numOfDownstream;
   bool                newDownstreams = false;

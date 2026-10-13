@@ -1589,6 +1589,10 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
           (*fields)[idx].precision = pMeta->tableInfo.precision;
         }
         if (TSDB_DATA_TYPE_DECIMAL64 == schema->type || TSDB_DATA_TYPE_DECIMAL == schema->type) {
+          if (NULL == pMeta->schemaExt) {
+            taosMemoryFreeClear(*fields);
+            return TSDB_CODE_INVALID_PARA;
+          }
           decimalFromTypeMod(pMeta->schemaExt[idxCol].typeMod, &(*fields)[idx].precision, &(*fields)[idx].scale);
         }
       }

@@ -711,7 +711,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId, char* dupQuoteChar) {
     case '!': {
       if (z[1] != '=') {
         *tokenId = TK_NK_ILLEGAL;
-        return 2;
+        return 1;
       } else {
         *tokenId = TK_NK_BANG_NE;
         return 2;
