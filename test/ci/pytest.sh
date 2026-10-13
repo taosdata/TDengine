@@ -148,21 +148,59 @@ else
   unset LD_PRELOAD
   AsanStdoutTmp=$(mktemp "${TMPDIR:-/tmp}/psim.stdout.XXXXXX") || exit 1
   AsanStderrTmp=$(mktemp "${TMPDIR:-/tmp}/psim.stderr.XXXXXX") || exit 1
+
+  # 用例的 stderr 里有 taosBenchmark/taosdump 等 C 工具的关键报错（"ERROR:"/"SUCC:"），
+  # 以及客户端进程的 ASAN 输出。以前只把它重定向进 AsanStderrTmp(→psim.info)，
+  # 于是 CI artifact / job log 只有 stdout，失败时看不到真正的失败原因。
+  # 现在改成 FIFO + 显式 tee：stderr 同时写 psim.info 和 console。
+  # 用 FIFO 是为了能在用例结束后精确 wait，避免 psim.info 被截断；
+  # mkfifo 不可用时退回原来的纯文件重定向。
+  AsanStderrFifo="${AsanStderrTmp}.fifo"
+  if ! mkfifo "${AsanStderrFifo}" 2>/dev/null; then
+    AsanStderrFifo=""
+  fi
+
+  run_case_pytest() {
+    if [[ -n "${AsanStderrFifo}" ]]; then
+      tee "${AsanStderrTmp}" <"${AsanStderrFifo}" >&2 &
+      local tee_pid=$!
+      "$@" 2>"${AsanStderrFifo}" | tee "${AsanStdoutTmp}"
+      # 等 stderr 全部落盘：正常情况 pytest 退出、写端全部关闭后 tee 立刻结束；
+      # 若仍有子进程持有写端，最多等 2s 就收掉 tee，避免给用例墙钟额外加时间
+      # （drain 阶段的收割窗口是按 CASE_TIMEOUT 预算算的，不能让这里拖长）。
+      for _ in $(seq 1 20); do
+        if ! kill -0 "${tee_pid}" 2>/dev/null; then
+          break
+        fi
+        sleep 0.1
+      done
+      if kill -0 "${tee_pid}" 2>/dev/null; then
+        echo "[pytest.sh] WARN: stderr writer still open after 2s, closing mirror tee" >&2
+      fi
+      kill "${tee_pid}" 2>/dev/null || true
+      wait "${tee_pid}" 2>/dev/null || true
+      rm -f "${AsanStderrFifo}"
+      AsanStderrFifo=""
+    else
+      "$@" 2>"${AsanStderrTmp}" | tee "${AsanStdoutTmp}"
+    fi
+  }
+
   if [[ "${CI_ASAN_BUILD}" == "1" ]]; then
     # ASAN 构建（others:latest GCC14, libasan.so.8 与测试容器匹配）
     LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
     export LD_PRELOAD
     echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD} (CI_ASAN_BUILD=1)"
-    "$@" -A 2>"${AsanStderrTmp}" | tee "${AsanStdoutTmp}"
+    run_case_pytest "$@" -A
   elif [[ "${CI_NO_ASAN}" == "1" ]]; then
     echo "Preload AsanSo: skipped (CI_NO_ASAN=1)"
-    "$@" 2>"${AsanStderrTmp}" | tee "${AsanStdoutTmp}"
+    run_case_pytest "$@"
   else
     # 兜底：legacy 路径（本地开发环境）
     LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
     export LD_PRELOAD
     echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD}"
-    "$@" -A 2>"${AsanStderrTmp}" | tee "${AsanStdoutTmp}"
+    run_case_pytest "$@" -A
   fi
   # pytest --clean may recreate SIM_DIR while tee is running, so stage output
   # outside SIM_DIR and publish it after pytest exits.
