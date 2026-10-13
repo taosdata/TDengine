@@ -17,6 +17,9 @@
 
 #include "version.h"
 #include "wrapper.h"
+/* uWarn: the entry-point report belongs in the client log, not on the caller's
+ * terminal (see taosDriverReportMissing()). */
+#include "tlog.h"
 
 
 /*
@@ -1235,9 +1238,13 @@ void taosDriverResetSlots(void) {
   }
 }
 
-/* Said once, after init, instead of on every call. */
+/* Said once, after init, instead of on every call.  Called from taos_init(),
+ * once the driver's own init has brought the log up: an entry point the driver
+ * does not provide is a diagnostic to record, not a line to push onto the
+ * caller's terminal (taos -Z 1 prints it on every start otherwise). */
 void taosDriverReportMissing(void) {
   const char *missing[8] = {0};
+  int32_t     maxMissing = (int32_t)(sizeof(missing) / sizeof(missing[0]));
   int32_t     missingCount = 0;
   int32_t     total = 0;
 
@@ -1246,7 +1253,7 @@ void taosDriverReportMissing(void) {
     if (*entry->slot != entry->def) {
       continue;
     }
-    if (missingCount < (int32_t)(sizeof(missing) / sizeof(missing[0]))) {
+    if (missingCount < maxMissing) {
       missing[missingCount] = entry->name;
     }
     ++missingCount;
@@ -1256,9 +1263,31 @@ void taosDriverReportMissing(void) {
     return;
   }
 
-  printf("taos: the loaded driver does not provide %d of %d entry points:", missingCount, total);
-  for (int32_t i = 0; i < missingCount && i < (int32_t)(sizeof(missing) / sizeof(missing[0])); ++i) {
-    printf("%s%s", i == 0 ? " " : ", ", missing[i]);
+  char    msg[512];
+  int32_t len = snprintf(msg, sizeof(msg), "taos: the loaded driver does not provide %d of %d entry points:",
+                         missingCount, total);
+  if (len < 0) {
+    return;
   }
-  printf("%s\n", missingCount > 8 ? ", ..." : "");
+  if (len > (int32_t)sizeof(msg) - 1) {
+    len = (int32_t)sizeof(msg) - 1;
+  }
+
+  for (int32_t i = 0; i < missingCount && i < maxMissing; ++i) {
+    int32_t n = snprintf(msg + len, sizeof(msg) - len, "%s%s", i == 0 ? " " : ", ", missing[i]);
+    if (n < 0) {
+      break;
+    }
+    if (n > (int32_t)sizeof(msg) - len - 1) {
+      len = (int32_t)sizeof(msg) - 1;
+      break;
+    }
+    len += n;
+  }
+
+  if (missingCount > maxMissing && len < (int32_t)sizeof(msg) - 1) {
+    (void)snprintf(msg + len, sizeof(msg) - len, ", ...");
+  }
+
+  uWarn("%s", msg);
 }

@@ -455,10 +455,11 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC_OPTIONAL(fp_taos_list_instances, "taos_list_instances");
   LOAD_FUNC_OPTIONAL(fp_taos_free_instances, "taos_free_instances");
 
-  /* The optional entry points the driver does not have are named once here.
-   * Their slots keep the fallback, which answers TSDB_CODE_DLL_FUNC_NOT_LOAD,
-   * and the wrappers no longer have to check for that on every call. */
-  taosDriverReportMissing();
+  /* The optional entry points the driver does not have keep the fallback here,
+   * which answers TSDB_CODE_DLL_FUNC_NOT_LOAD, so the wrappers no longer have to
+   * check for that on every call.  They are named once from taos_init(), after
+   * the driver's own init has brought the log up, so that the note lands in the
+   * log instead of on the caller's terminal. */
 
   code = 0;
 

@@ -25,6 +25,8 @@ volatile int32_t    tsDriverOnceRet = 0;
 static TdThreadOnce tsInitOnce = PTHREAD_ONCE_INIT;
 volatile int32_t    tsInitOnceRet = 0;
 
+static TdThreadOnce tsReportOnce = PTHREAD_ONCE_INIT;
+
 #define ERR_VOID(code) \
   terrno = code;       \
   return;
@@ -78,10 +80,21 @@ static void taos_init_wrapper(void) {
   tsInitOnceRet = (*fp_taos_init)();
 }
 
+/* "The driver does not provide N of M entry points" is a diagnostic for the
+ * log, not a line for the caller's terminal, and the log only exists once the
+ * driver's own taos_init() has run -- so report it here rather than from
+ * taosDriverInit(), which runs before the log is created. */
+static void taos_init_report_missing(void) {
+  if (tsDriverOnceRet == 0) {
+    taosDriverReportMissing();
+  }
+}
+
 int taos_init(void) {
   (void)taosThreadOnce(&tsDriverEnvOnce, taos_init_driver_env);
   (void)taosThreadOnce(&tsDriverOnce, taos_init_driver);
   (void)taosThreadOnce(&tsInitOnce, taos_init_wrapper);
+  (void)taosThreadOnce(&tsReportOnce, taos_init_report_missing);
   return tsInitOnceRet;
 }
 
