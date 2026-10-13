@@ -37,3 +37,17 @@ RESET QUERY CACHE;
 ```
 
 多客户端环境下若出现元数据不同步，可用本命令强制清空客户端缓存；之后客户端会从服务端拉取最新元数据。
+
+## 共享存储迁移
+
+```sql
+SSMIGRATE DATABASE db_name;
+```
+
+将指定数据库的数据迁移到共享存储。执行该语句需满足以下全部条件：
+
+- 配置项 [`ssEnabled`](../../12-operations-and-tooling/03-components/01-taosd.md#ssenabled) 已开启（默认关闭）；
+- 部署持有共享存储企业授权；
+- 执行用户具备数据库的 [`SSMIGRATE`](../07-user-and-privilege/02-grant.md#对象类型与权限类型对应关系) 权限（仅 `SYSDBA` 默认持有）。
+
+迁移任务的进度可通过 [`SHOW SSMIGRATES`](../09-system-info/03-show.md#show-ssmigrates) 查看，也可通过 `KILL SSMIGRATE` 终止。
