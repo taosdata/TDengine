@@ -11,7 +11,7 @@ torch==2.4.1 ; platform_machine == "aarch64"
 transformers==4.40.1
 accelerate==0.34.2
 huggingface-hub==0.36.2
-fsspec==2023.10.0
+fsspec==2026.6.0
 numpy==1.26.4
 pandas==2.1.4
 scipy==1.11.4
