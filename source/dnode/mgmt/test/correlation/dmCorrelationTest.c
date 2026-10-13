@@ -315,6 +315,10 @@ static int32_t testCorrelationFetchSequences(void) {
       }
       SValueNode* pResult = NULL;
       CHECK(cases[i].expectedCode == dmInvokeCorrelationScalar(&session, &request, &pResult));
+      // The release callback can wake the caller before dropping its final reference.
+      if (mockScheduler.releaseThreadStarted) {
+        CHECK(TSDB_CODE_SUCCESS == taosThreadJoin(mockScheduler.releaseThread, NULL));
+      }
       CHECK(cases[i].asyncExec || mockScheduler.callbackBeforePublication);
       CHECK(cases[i].count == mockScheduler.fetchCount && 1 == atomic_load_32(&mockScheduler.releaseCount));
       CHECK(!cases[i].delayedRelease || mockScheduler.releaseThreadStarted);
@@ -333,9 +337,6 @@ static int32_t testCorrelationFetchSequences(void) {
         CHECK(NULL == pResult);
       }
       nodesDestroyNode((SNode*)pResult);
-      if (mockScheduler.releaseThreadStarted) {
-        CHECK(TSDB_CODE_SUCCESS == taosThreadJoin(mockScheduler.releaseThread, NULL));
-      }
       if (cases[i].gatedExec) {
         CHECK(TSDB_CODE_SUCCESS == tsem_destroy(&mockScheduler.execGate));
       }
@@ -363,8 +364,6 @@ static int32_t testCorrelationMemoryQuota(void) {
   code = taosMemPoolOpen((char*)"dmCorrelationTest", &poolCfg, &pPool);
   QUERY_CHECK_CODE(code, lino, _return);
   gMemPoolHandle = pPool;
-  code = mpCreateMgmtThread();
-  QUERY_CHECK_CODE(code, lino, _return);
   code = taosMemPoolCallocJob(1, 1, &pJob);
   QUERY_CHECK_CODE(code, lino, _return);
 
@@ -385,16 +384,18 @@ static int32_t testCorrelationMemoryQuota(void) {
                         TSDB_CODE_FAILED);
 
 _return:
-  if (availableMemoryChanged) {
-    atomic_store_64(&tsCurrentAvailMemorySize, previousAvailableMemory);
-  }
   if (NULL != pJob) {
     int64_t allocated = atomic_load_64(&((SMemPoolJob*)pJob)->allocMemSize);
     taosMemPoolReleaseJobMemory(pPool, pJob, allocated);
     taosMemPoolReleaseJob(pJob);
   }
   if (NULL != pPool) {
+    // The manager refreshes available memory; start it only for pool cleanup.
+    CHECK(TSDB_CODE_SUCCESS == mpCreateMgmtThread());
     taosMemPoolClose(pPool);
+  }
+  if (availableMemoryChanged) {
+    atomic_store_64(&tsCurrentAvailMemorySize, previousAvailableMemory);
   }
   if (gMemPoolHandle == pPool) {
     gMemPoolHandle = NULL;
