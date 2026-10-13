@@ -452,7 +452,7 @@ Displays all subscription relationships in the current system. For the complete 
 SHOW TABLE DISTRIBUTED [db_name.]table_name;
 ```
 
-Displays table data distribution information. For the complete set of fields, see [`INS_TABLE_FIXED_DISTRIBUTED`](./01-meta.md#ins_table_fixed_distributed).
+Displays table data distribution information. When a supertable is specified, the command aggregates data from all its subtables across vnodes into one result. For the complete set of fields, see [`INS_TABLE_FIXED_DISTRIBUTED`](./01-meta.md#ins_table_fixed_distributed).
 
 **Example**
 
@@ -464,13 +464,13 @@ Statement: `SHOW TABLE DISTRIBUTED d0\G;` (vertically displays the BLOCK distrib
 ```text
 *************************** 1.row ***************************
 
-_block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Compression_Ratio=[23.98 %]
+_block_dist: Total_Blocks=[5] Total_Size=[93.65 KiB] Average_size=[18.73 KiB] Compression_Ratio=[23.98 %]
 
 Total_Blocks: Table d0 occupies 5 blocks
 
-Total_Size: All blocks of table d0 occupy 93.65 KB in the file
+Total_Size: All blocks of table d0 occupy 93.65 KiB in the file. For a supertable, this is the total compressed size of data blocks belonging to all its subtables across vnodes.
 
-Average_size: Each block occupies an average of 18.73 KB in the file
+Average_size: Each block occupies an average of 18.73 KiB in the file
 
 Compression_Ratio: Data compression ratio: 23.98%
 
@@ -527,7 +527,7 @@ Query OK, 24 row(s) in set (0.002444s)
 
 The preceding example illustrates the distribution of the number of data rows in blocks. `0100`, `0299`, `0498`, and so on represent ranges of data row counts in each block. In this example, the table has five blocks: one block (about 20%) falls in the range from `3483` to `3681` rows, and four blocks (about 80%) fall in the range from `3881` to `4096` rows (the maximum number of rows). The other ranges contain no blocks.
 
-Only data block information in data files is displayed. Data in stt files is not included.
+Data-block size statistics include only data blocks in data files. STT files, WAL, table metadata, and cache are excluded from these size statistics.
 
 ## SHOW TABLE TAGS
 

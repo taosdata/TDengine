@@ -772,35 +772,37 @@ Provides the structure and properties of regular tables and subtables, such as t
 
 ## INS_TABLE_FIXED_DISTRIBUTED
 
-Provides statistics about table data-block distribution and compression for analyzing data skew and storage characteristics. The same information can also be queried using [`SHOW TABLE DISTRIBUTED`](./03-show.md#show-table-distributed).
+Provides statistics about table data-block distribution and compression for analyzing data skew and storage characteristics. When `table_name` specifies a supertable, the statistics include all its subtables and aggregate results across vnodes.
+
+Queries must specify equality conditions for both `db_name` and `table_name`. Without an explicit `GROUP BY`, queries automatically aggregate vnode statistics by database and table name and support only `SELECT *` or `SELECT alias.*`.
+
+[`SHOW TABLE DISTRIBUTED`](./03-show.md#show-table-distributed) provides related statistics as formatted text, but uses different histogram buckets. This system table counts data blocks in eight fixed row-count ranges, as defined by the `block_dist_*` columns below. The command divides the row-count range determined by the database's `MINROWS` and `MAXROWS` settings into 20 buckets.
 
 | #   | **Column Name** | **Data Type** | **Description** |
 | --- | ------------------- | ------------ | --- |
-| 1   | `db_name`           | VARCHAR(64)  | Database name |
-| 2   | `table_name`        | VARCHAR(192) | Table name |
-| 3   | `vgroup_id`         | INT          | `vgroup` ID |
-| 4   | `total_blocks`      | BIGINT       | total_blocks |
-| 5   | `total_size`        | BIGINT       | total_size |
-| 6   | `average_size`      | DOUBLE       | average_size |
-| 7   | `compression_ratio` | DOUBLE       | compression_ratio |
-| 8   | `block_rows`        | BIGINT       | block_rows |
-| 9   | `min_rows`          | INT          | min_rows |
-| 10  | `max_rows`          | INT          | max_rows |
-| 11  | `avg_rows`          | DOUBLE       | avg_rows |
-| 12  | `in_mem_rows`       | BIGINT       | in_mem_rows |
-| 13  | `stt_rows`          | BIGINT       | stt_rows |
-| 14  | `total_tables`      | BIGINT       | total_tables |
-| 15  | `total_filesets`    | BIGINT       | total_filesets |
-| 16  | `total_vgroups`     | BIGINT       | total_vgroups |
-| 17  | `row_size`          | INT          | row_size |
-| 18  | `block_dist_64`     | BIGINT       | block_dist_64 |
-| 19  | `block_dist_128`    | BIGINT       | block_dist_128 |
-| 20  | `block_dist_256`    | BIGINT       | block_dist_256 |
-| 21  | `block_dist_512`    | BIGINT       | block_dist_512 |
-| 22  | `block_dist_1024`   | BIGINT       | block_dist_1024 |
-| 23  | `block_dist_2048`   | BIGINT       | block_dist_2048 |
-| 24  | `block_dist_4096`   | BIGINT       | block_dist_4096 |
-| 25  | `block_dist_other`  | BIGINT       | block_dist_other |
+| 1   | `db_name`           | VARCHAR(64)  | Name of the database containing the table |
+| 2   | `table_name`        | VARCHAR(192) | Name of the table being measured; all subtables are included for a supertable |
+| 3   | `total_blocks`      | BIGINT       | Total number of data blocks in data files |
+| 4   | `total_size`        | BIGINT       | Compressed size of data blocks in data files, in bytes; excludes STT files, WAL, table metadata, and cache |
+| 5   | `average_size`      | DOUBLE       | Average data-block size, calculated as `total_size` divided by `total_blocks`, in bytes |
+| 6   | `compression_ratio` | DOUBLE       | Compressed data-block size as a percentage of the uncompressed size estimated from row count and row size; 0 when there is no data |
+| 7   | `block_rows`        | BIGINT       | Total number of rows in data blocks in data files |
+| 8   | `min_rows`          | INT          | Smallest number of rows in a data block |
+| 9   | `max_rows`          | INT          | Largest number of rows in a data block |
+| 10  | `avg_rows`          | DOUBLE       | Average number of rows per data block, calculated as `block_rows` divided by `total_blocks` |
+| 11  | `in_mem_rows`       | BIGINT       | Number of data rows currently held in memory |
+| 12  | `stt_rows`          | BIGINT       | Number of data rows counted in STT files |
+| 13  | `total_tables`      | BIGINT       | Number of tables included; number of subtables when querying a supertable |
+| 14  | `total_filesets`    | BIGINT       | Number of data filesets |
+| 15  | `total_vgroups`     | BIGINT       | Number of vgroups containing the table data |
+| 16  | `block_dist_64`     | BIGINT       | Number of data blocks with up to 64 rows |
+| 17  | `block_dist_128`    | BIGINT       | Number of data blocks with 65 to 128 rows |
+| 18  | `block_dist_256`    | BIGINT       | Number of data blocks with 129 to 256 rows |
+| 19  | `block_dist_512`    | BIGINT       | Number of data blocks with 257 to 512 rows |
+| 20  | `block_dist_1024`   | BIGINT       | Number of data blocks with 513 to 1,024 rows |
+| 21  | `block_dist_2048`   | BIGINT       | Number of data blocks with 1,025 to 2,048 rows |
+| 22  | `block_dist_4096`   | BIGINT       | Number of data blocks with 2,049 to 4,096 rows |
+| 23  | `block_dist_other`  | BIGINT       | Number of data blocks with more than 4,096 rows |
 
 ## INS_TAGS
 
