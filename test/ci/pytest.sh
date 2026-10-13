@@ -139,8 +139,11 @@ ulimit -c unlimited
 # sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
 echo "ExcuteCmd:" "$@"
 
+_ci_pytest_start_ms=$(date +%s%3N)
+echo "[ci-timing] stage=pytest event=start (includes fixtures and external-service setup)"
 if [[ "$TD_OS" == "Alpine" ]]; then
   "$@"
+  echo "[ci-timing] stage=pytest elapsed_ms=$(( $(date +%s%3N) - _ci_pytest_start_ms ))"
 else
   AsanFile="${ASAN_DIR}/psim.info"
   echo "AsanFile:" "$AsanFile"
@@ -164,6 +167,7 @@ else
     echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD}"
     "$@" -A 2>"${AsanStderrTmp}" | tee "${AsanStdoutTmp}"
   fi
+  echo "[ci-timing] stage=pytest elapsed_ms=$(( $(date +%s%3N) - _ci_pytest_start_ms ))"
   # pytest --clean may recreate SIM_DIR while tee is running, so stage output
   # outside SIM_DIR and publish it after pytest exits.
   mkdir -p "${ASAN_DIR}"
