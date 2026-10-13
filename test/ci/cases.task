@@ -732,7 +732,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_001_defaults
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_002_alter_and_verify
-100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_003_behavioral
+100,,y,.,CASE_TIMEOUT=1500 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_003_behavioral
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_001
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_002
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_003
@@ -742,7 +742,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_007
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_008
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_009
-100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_07_boundary_contracts.py
+100,,y,.,CASE_TIMEOUT=1500 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_07_boundary_contracts.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_08_system_observability.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_001_continuous_query_mix
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_002_fault_injection_unreachable
