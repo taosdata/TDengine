@@ -1076,9 +1076,16 @@ class MndStreamTest : public ::testing::Test {
 
 int64_t gRecalcNowMs = 0;
 
-int32_t returnRecalcTimeOfDay(struct timeval *pTime) {
-  pTime->tv_sec = gRecalcNowMs / 1000;
-  pTime->tv_usec = gRecalcNowMs % 1000 * 1000;
+// Fakes only the wall clock; the monotonic clock stays real.
+int32_t returnRecalcClock(int clockId, struct timespec *pTime) {
+  int64_t nowNs = gRecalcNowMs * NANOSECOND_PER_MSEC;
+  if (clockId != CLOCK_REALTIME) {
+    nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count();
+  }
+  pTime->tv_sec = static_cast<time_t>(nowNs / NANOSECOND_PER_SEC);
+  pTime->tv_nsec = static_cast<long>(nowNs % NANOSECOND_PER_SEC);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1088,7 +1095,7 @@ class MndStreamRecalcTest : public ::testing::Test {
     savedStreamMap_ = mStreamMgmt.streamMap;
     mStreamMgmt.streamMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     ASSERT_NE(mStreamMgmt.streamMap, nullptr);
-    timeStub_.set(taosGetTimeOfDay, returnRecalcTimeOfDay);
+    timeStub_.set(taosClockGetTime, returnRecalcClock);
     gRecalcNowMs = 1000;
     create_.name = streamName_;
     create_.streamDB = streamDb_;
@@ -1118,7 +1125,7 @@ class MndStreamRecalcTest : public ::testing::Test {
     mstDestroySStmTaskStatus(&trigger_);
     taosArrayDestroy(stored_->recalcRecords);
     stored_->recalcRecords = nullptr;
-    timeStub_.reset(taosGetTimeOfDay);
+    timeStub_.reset(taosClockGetTime);
     taosHashCleanup(mStreamMgmt.streamMap);
     mStreamMgmt.streamMap = savedStreamMap_;
   }
@@ -4666,7 +4673,7 @@ class MndStreamRecalcDispatchTest : public ::testing::Test {
     tstrncpy(stream_.name, streamName_, sizeof(stream_.name));
     stream_.pCreate = &create_;
     status_.pCreate = &create_;
-    timeStub_.set(taosGetTimeOfDay, returnRecalcTimeOfDay);
+    timeStub_.set(taosClockGetTime, returnRecalcClock);
     gRecalcNowMs = 200000;
 
     trigger_.type = STREAM_TRIGGER_TASK;
@@ -4713,7 +4720,7 @@ class MndStreamRecalcDispatchTest : public ::testing::Test {
     taosHashCleanup(mStreamMgmt.streamMap);
     mStreamMgmt.taskMap = savedTaskMap_;
     mStreamMgmt.streamMap = savedStreamMap_;
-    timeStub_.reset(taosGetTimeOfDay);
+    timeStub_.reset(taosClockGetTime);
   }
 
   SStmRecalcRecord *AddRecord(int64_t recalcId = kRecalcId, TSKEY start = 100, TSKEY end = 200) {

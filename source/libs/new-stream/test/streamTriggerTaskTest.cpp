@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdarg>
@@ -38,6 +39,7 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_set>
@@ -2914,8 +2916,6 @@ static RealtimePipelineHarness* gRealtimePipelineHarness = nullptr;
 static SSTriggerNestedRecovery* const kRecoveryOwnerSentinel =
     reinterpret_cast<SSTriggerNestedRecovery*>(static_cast<uintptr_t>(0x925));
 static int64_t                  gRealtimePipelineClockNs = 0;
-static int64_t                  gRealtimePipelineClockStepNs = 0;
-static int32_t                  gRealtimePipelineClockCalls = 0;
 static int64_t                  gRealtimePipelineTurnWallClockNs = 0;
 static int64_t                  gRealtimePipelineTurnWallClockStepNs = 0;
 static int64_t                  gRealtimePipelineTurnMonoClockNs = 0;
@@ -2949,35 +2949,176 @@ static std::condition_variable  gNestedHistoryTimerAcquireCondition;
 static bool                     gNestedHistoryTimerAcquireEntered = false;
 static bool                     gNestedHistoryTimerAcquireReleased = false;
 
-class ScopedRealtimePipelineClockSequence {
+class ScopedRealtimePipelinePhaseClock {
  public:
-  ScopedRealtimePipelineClockSequence()
-      : originalClockNs_(gRealtimePipelineClockNs),
-        originalStepNs_(gRealtimePipelineClockStepNs),
-        originalCalls_(gRealtimePipelineClockCalls) {}
-
-  ~ScopedRealtimePipelineClockSequence() {
-    gRealtimePipelineClockNs = originalClockNs_;
-    gRealtimePipelineClockStepNs = originalStepNs_;
-    gRealtimePipelineClockCalls = originalCalls_;
+  ScopedRealtimePipelinePhaseClock(int64_t wallNs, int64_t monoNs) {
+    if (instance_ != nullptr) {
+      throw std::logic_error("Realtime pipeline phase clock is already active");
+    }
+    reset(wallNs, monoNs);
+    instance_ = this;
+    clockStub_.set(taosClockGetTime, readClock);
   }
 
-  void reset(int64_t clockNs, int64_t stepNs) {
-    gRealtimePipelineClockNs = clockNs;
-    gRealtimePipelineClockStepNs = stepNs;
-    gRealtimePipelineClockCalls = 0;
+  ~ScopedRealtimePipelinePhaseClock() {
+    disarmPhases();
+    clockStub_.reset(taosClockGetTime);
+    instance_ = nullptr;
   }
 
-  int32_t calls() const { return gRealtimePipelineClockCalls; }
+  void reset(int64_t wallNs, int64_t monoNs) {
+    disarmPhases();
+    wallNs_ = wallNs;
+    monoNs_ = monoNs;
+    advanced_ = false;
+  }
 
-  ScopedRealtimePipelineClockSequence(const ScopedRealtimePipelineClockSequence&) = delete;
-  ScopedRealtimePipelineClockSequence& operator=(const ScopedRealtimePipelineClockSequence&) = delete;
+  void advanceOnInputDecode(int64_t nextNs) {
+    nextNs_ = nextNs;
+    phaseStub_.set(blockDecode, decodeInput);
+  }
+
+  void advanceOnWalDecode(SArray* pSlices, int64_t nextNs) {
+    pSlices_ = pSlices;
+    nextNs_ = nextNs;
+    phaseStub_.set(tDeserializeSStreamWalDataResponse, decodeWal);
+  }
+
+  void advanceOnWalCheck(const SSHashObj* pProgress, int64_t nextNs) {
+    pProgress_ = pProgress;
+    nextNs_ = nextNs;
+    phaseStub_.set(tSimpleHashIterate, iterateWal);
+  }
+
+  void advanceOnRunningRequests(SStreamTriggerTask* pTask, int64_t nextNs) {
+    pTask_ = pTask;
+    nextNs_ = nextNs;
+    phaseStub_.set(stTriggerTaskGetRunningReq, getRunningRequests);
+  }
+
+  bool advanced() const { return advanced_; }
+
+  ScopedRealtimePipelinePhaseClock(
+      const ScopedRealtimePipelinePhaseClock&) = delete;
+  ScopedRealtimePipelinePhaseClock& operator=(
+      const ScopedRealtimePipelinePhaseClock&) = delete;
 
  private:
-  int64_t originalClockNs_;
-  int64_t originalStepNs_;
-  int32_t originalCalls_;
+  void disarmPhases() {
+    phaseStub_.reset(blockDecode);
+    phaseStub_.reset(tDeserializeSStreamWalDataResponse);
+    phaseStub_.reset(tSimpleHashIterate);
+    phaseStub_.reset(stTriggerTaskGetRunningReq);
+  }
+
+  // Reads never advance time, including logging and background clock reads.
+  static int32_t readClock(int clockId, struct timespec* pTime) {
+    if (pTime == nullptr) return TSDB_CODE_INVALID_PARA;
+    int64_t nowNs = clockId == CLOCK_REALTIME ? wallNs_.load() : monoNs_.load();
+    pTime->tv_sec = static_cast<time_t>(nowNs / NANOSECOND_PER_SEC);
+    pTime->tv_nsec = static_cast<long>(nowNs % NANOSECOND_PER_SEC);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void advance() {
+    wallNs_ = nextNs_;
+    advanced_ = true;
+  }
+
+  static int32_t decodeInput(SSDataBlock* pBlock, const char* pData,
+                             const char** pEndPos) {
+    instance_->advance();
+    instance_->phaseStub_.reset(blockDecode);
+    return blockDecode(pBlock, pData, pEndPos);
+  }
+
+  static int32_t decodeWal(void* buf, int32_t len, SSTriggerWalNewRsp* pRsp,
+                           SArray* pSlices) {
+    bool matched = pSlices == instance_->pSlices_;
+    if (matched) instance_->advance();
+    instance_->phaseStub_.reset(tDeserializeSStreamWalDataResponse);
+    int32_t code = tDeserializeSStreamWalDataResponse(buf, len, pRsp, pSlices);
+    if (!matched) {
+      instance_->phaseStub_.set(tDeserializeSStreamWalDataResponse, decodeWal);
+    }
+    return code;
+  }
+
+  static void* iterateWal(const SSHashObj* pHash, void* data, int32_t* iter) {
+    bool matched = pHash == instance_->pProgress_;
+    if (matched) instance_->advance();
+    instance_->phaseStub_.reset(tSimpleHashIterate);
+    void* result = tSimpleHashIterate(pHash, data, iter);
+    if (!matched) instance_->phaseStub_.set(tSimpleHashIterate, iterateWal);
+    return result;
+  }
+
+  static int32_t getRunningRequests(SStreamTriggerTask* pTask, int64_t session,
+                                    int64_t* pCount) {
+    bool matched = pTask == instance_->pTask_;
+    if (matched) instance_->advance();
+    instance_->phaseStub_.reset(stTriggerTaskGetRunningReq);
+    int32_t code = stTriggerTaskGetRunningReq(pTask, session, pCount);
+    if (!matched) {
+      instance_->phaseStub_.set(stTriggerTaskGetRunningReq, getRunningRequests);
+    }
+    return code;
+  }
+
+  static ScopedRealtimePipelinePhaseClock* instance_;
+  Stub                                    clockStub_;
+  Stub                                    phaseStub_;
+  static std::atomic<int64_t>              wallNs_;
+  static std::atomic<int64_t>              monoNs_;
+  int64_t                                 nextNs_ = 0;
+  bool                                    advanced_ = false;
+  SArray*                                 pSlices_ = nullptr;
+  const SSHashObj*                         pProgress_ = nullptr;
+  SStreamTriggerTask*                      pTask_ = nullptr;
 };
+
+ScopedRealtimePipelinePhaseClock*
+    ScopedRealtimePipelinePhaseClock::instance_ = nullptr;
+std::atomic<int64_t> ScopedRealtimePipelinePhaseClock::wallNs_{0};
+std::atomic<int64_t> ScopedRealtimePipelinePhaseClock::monoNs_{0};
+
+TEST(StreamRealtimePipelinePhaseClockTest, RejectsOverlappingInstances) {
+  {
+    ScopedRealtimePipelinePhaseClock clock(100 * NANOSECOND_PER_MSEC,
+                                           200 * NANOSECOND_PER_MSEC);
+    EXPECT_THROW(ScopedRealtimePipelinePhaseClock(300 * NANOSECOND_PER_MSEC,
+                                                  400 * NANOSECOND_PER_MSEC),
+                 std::logic_error);
+    EXPECT_EQ(100, taosGetTimestampMs());
+    EXPECT_EQ(200, taosGetMonoTimestampMs());
+  }
+  ScopedRealtimePipelinePhaseClock clock(500 * NANOSECOND_PER_MSEC,
+                                         600 * NANOSECOND_PER_MSEC);
+  EXPECT_EQ(500, taosGetTimestampMs());
+  EXPECT_EQ(600, taosGetMonoTimestampMs());
+}
+
+TEST(StreamRealtimePipelinePhaseClockTest, ResetDisarmsPreviousPhase) {
+  SStreamTriggerTask task = {};
+  ScopedRealtimePipelinePhaseClock clock(100 * NANOSECOND_PER_MSEC,
+                                         200 * NANOSECOND_PER_MSEC);
+  clock.advanceOnWalCheck(nullptr, 300 * NANOSECOND_PER_MSEC);
+  clock.reset(400 * NANOSECOND_PER_MSEC, 500 * NANOSECOND_PER_MSEC);
+  clock.advanceOnRunningRequests(&task, 600 * NANOSECOND_PER_MSEC);
+
+  int32_t iter = 0;
+  EXPECT_EQ(nullptr, tSimpleHashIterate(nullptr, nullptr, &iter));
+  EXPECT_FALSE(clock.advanced());
+  EXPECT_EQ(400, taosGetTimestampMs());
+  EXPECT_EQ(500, taosGetMonoTimestampMs());
+
+  int64_t count = -1;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskGetRunningReq(&task, 0, &count));
+  EXPECT_EQ(0, count);
+  EXPECT_TRUE(clock.advanced());
+  EXPECT_EQ(600, taosGetTimestampMs());
+  EXPECT_EQ(500, taosGetMonoTimestampMs());
+}
 
 class ScopedStreamBatchRequestWait {
  public:
@@ -2994,12 +3135,9 @@ class ScopedStreamBatchRequestWait {
   int32_t originalWaitMs_;
 };
 
-static int32_t captureRealtimePipelineClock(int clockId, struct timespec* pTime) {
+static int32_t captureRealtimePipelineClock(int, struct timespec* pTime) {
   if (pTime == nullptr) return TSDB_CODE_INVALID_PARA;
   int64_t nowNs = gRealtimePipelineClockNs;
-  if (clockId == CLOCK_REALTIME) {
-    nowNs += static_cast<int64_t>(gRealtimePipelineClockCalls++) * gRealtimePipelineClockStepNs;
-  }
   pTime->tv_sec = static_cast<time_t>(nowNs / NANOSECOND_PER_SEC);
   pTime->tv_nsec = static_cast<long>(nowNs % NANOSECOND_PER_SEC);
   return TSDB_CODE_SUCCESS;
@@ -11865,14 +12003,13 @@ TEST_F(StreamNestedRealtimeTest, NestedInputResponseTurnSamplesOneFrozenNow) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondBlock(*pSourceA, NestedRouteRuntimeFixture::kEventTs, 101));
   ASSERT_EQ(0, harness.calcSendCount());
 
-  Stub                                clockStub;
-  ScopedRealtimePipelineClockSequence clockSequence;
-  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
   const int64_t responseNow = 700 * NANOSECOND_PER_MSEC;
-  clockSequence.reset(responseNow, NANOSECOND_PER_MSEC);
+  ScopedRealtimePipelinePhaseClock clock(responseNow, responseNow);
+  // Decoding occurs after the response entry has frozen its business time.
+  clock.advanceOnInputDecode(responseNow + NANOSECOND_PER_MSEC);
 
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondBlock(*pSourceB, NestedRouteRuntimeFixture::kEventTs, 202));
-  EXPECT_EQ(1, clockSequence.calls());
+  EXPECT_TRUE(clock.advanced());
   ASSERT_EQ(1, harness.calcSendCount());
   const SSTriggerCalcRequest* pCalc = harness.latestCalc();
   ASSERT_NE(nullptr, pCalc);
@@ -19979,22 +20116,24 @@ TEST_F(StreamNestedRealtimeTest, LegacyLowLatencyCalcDispatchesFromCreatingWalTu
   ASSERT_TRUE(harness.start());
   ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
 
-  Stub clockStub;
-  clockStub.set(taosClockGetTime, captureRealtimePipelineTurnClock);
-  const int64_t turnNow = 100000000;
-  const int64_t calcParamNow = 102000000;
-  resetRealtimePipelineTurnClock(turnNow, 1000000, turnNow);
+  const int64_t turnNow = 100 * NANOSECOND_PER_MSEC;
+  const int64_t calcParamNow = turnNow + NANOSECOND_PER_MSEC;
+  ScopedRealtimePipelinePhaseClock clock(turnNow, turnNow);
+  // Legacy calculation parameters sample time after WAL response decoding.
+  clock.advanceOnWalDecode(harness.context()->pTempSlices, calcParamNow);
 
   ASSERT_TRUE(harness.feedRows({1000, 2000}, {1, 2}));
+  EXPECT_TRUE(clock.advanced());
   SSTriggerRealtimeGroup* pGroup = harness.group();
   ASSERT_NE(nullptr, pGroup);
   ASSERT_NE(nullptr, harness.context());
   ASSERT_NE(nullptr, harness.context()->pMaxDelayHeap);
-  ASSERT_EQ(1, harness.calcSendCount()) << "pending=" << pGroup->pPendingCalcParams.neles << " heapMinIsGroup="
-                                        << (heapMin(harness.context()->pMaxDelayHeap) == &pGroup->heapNode)
-                                        << " nextExecTime=" << pGroup->nextExecTime << " turnNow=" << turnNow
-                                        << " calcParamNow=" << calcParamNow
-                                        << " wallClockCalls=" << gRealtimePipelineTurnWallClockCalls;
+  ASSERT_EQ(1, harness.calcSendCount())
+      << "pending=" << pGroup->pPendingCalcParams.neles
+      << " heapMinIsGroup="
+      << (heapMin(harness.context()->pMaxDelayHeap) == &pGroup->heapNode)
+      << " nextExecTime=" << pGroup->nextExecTime << " turnNow=" << turnNow
+      << " calcParamNow=" << calcParamNow;
 
   const SSTriggerCalcRequest* pRequest = harness.capturedCalc();
   ASSERT_NE(nullptr, pRequest);
@@ -20003,7 +20142,6 @@ TEST_F(StreamNestedRealtimeTest, LegacyLowLatencyCalcDispatchesFromCreatingWalTu
   const auto* pParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pRequest->params, 0));
   ASSERT_NE(nullptr, pParam);
   EXPECT_EQ(calcParamNow, pParam->triggerTime);
-  EXPECT_GT(pParam->triggerTime, turnNow);
   EXPECT_EQ(1000, pParam->wstart);
   EXPECT_EQ(1000, pParam->wend);
   EXPECT_EQ(1, pParam->wrownum);
@@ -20207,10 +20345,8 @@ TEST_F(StreamNestedRealtimeTest, NestedIdleAndResumePullResponseTurnsSampleOneFr
   RealtimePipelineHarness      harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false,
                            STRIGGER_EVENT_IDLE | STRIGGER_EVENT_RESUME, STRIGGER_EVENT_WINDOW_NONE, 0, 1, false, 50));
-  Stub clockStub;
-  clockStub.set(taosClockGetTime, captureRealtimePipelineTurnClock);
-
-  resetRealtimePipelineTurnClock(NANOSECOND_PER_MSEC, 0, NANOSECOND_PER_MSEC);
+  ScopedRealtimePipelinePhaseClock clock(NANOSECOND_PER_MSEC,
+                                         NANOSECOND_PER_MSEC);
   ASSERT_TRUE(harness.start());
   ASSERT_TRUE(harness.feedRows({1000}, {1}));
   SSTriggerRealtimeGroup* pGroup = harness.group();
@@ -20219,9 +20355,12 @@ TEST_F(StreamNestedRealtimeTest, NestedIdleAndResumePullResponseTurnsSampleOneFr
   ASSERT_NE(nullptr, harness.context()->pMaxDelayHeap);
 
   const int64_t idleNow = 51 * NANOSECOND_PER_MSEC;
-  resetRealtimePipelineTurnClock(idleNow, NANOSECOND_PER_MSEC, idleNow);
+  clock.reset(idleNow, idleNow);
+  // Ignore the harness's round-trip decode; advance on the actual response.
+  clock.advanceOnWalDecode(harness.context()->pTempSlices,
+                           idleNow + NANOSECOND_PER_MSEC);
   ASSERT_TRUE(harness.feedZeroRowWal());
-  EXPECT_EQ(1, gRealtimePipelineTurnWallClockCalls);
+  EXPECT_TRUE(clock.advanced());
   EXPECT_EQ(1, pGroup->idleState);
   ASSERT_EQ(1, listNEles(&pGroup->pendingNestedEvents));
   const SListNode* pIdleNode = listHead(&pGroup->pendingNestedEvents);
@@ -20235,9 +20374,11 @@ TEST_F(StreamNestedRealtimeTest, NestedIdleAndResumePullResponseTurnsSampleOneFr
   ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
 
   const int64_t resumeNow = 101 * NANOSECOND_PER_MSEC;
-  resetRealtimePipelineTurnClock(resumeNow, NANOSECOND_PER_MSEC, 61 * NANOSECOND_PER_MSEC);
+  clock.reset(resumeNow, 61 * NANOSECOND_PER_MSEC);
+  clock.advanceOnWalDecode(harness.context()->pTempSlices,
+                           resumeNow + NANOSECOND_PER_MSEC);
   ASSERT_TRUE(harness.feedRows({1005}, {2}));
-  EXPECT_EQ(1, gRealtimePipelineTurnWallClockCalls);
+  EXPECT_TRUE(clock.advanced());
   EXPECT_EQ(0, pGroup->idleState);
   EXPECT_EQ(resumeNow, pGroup->lastRecvTimeWall);
   ASSERT_EQ(2, listNEles(&pGroup->pendingNestedEvents));
@@ -22901,11 +23042,9 @@ TEST_F(StreamNestedRealtimeTest, ZeroCandidateDelayRefreshesOneGroupHeapNode) {
 }
 
 TEST_F(StreamNestedRealtimeTest, NestedTimeoutTurnSamplesOneFrozenNow) {
-  RealtimePipelineHarness             harness;
-  Stub                                clockStub;
-  ScopedRealtimePipelineClockSequence clockSequence;
-  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
-  clockSequence.reset(100 * NANOSECOND_PER_MSEC, 0);
+  RealtimePipelineHarness harness;
+  ScopedRealtimePipelinePhaseClock clock(100 * NANOSECOND_PER_MSEC,
+                                         100 * NANOSECOND_PER_MSEC);
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedIntervalOverlap, false, STRIGGER_EVENT_WINDOW_CLOSE,
                            STRIGGER_EVENT_WINDOW_NONE, 1000));
   ASSERT_TRUE(harness.start());
@@ -22917,10 +23056,13 @@ TEST_F(StreamNestedRealtimeTest, NestedTimeoutTurnSamplesOneFrozenNow) {
   HeapNode*     pHeapNode = &pGroup->heapNode;
   const int64_t timeoutNow = 1100 * NANOSECOND_PER_MSEC;
   ASSERT_EQ(timeoutNow, pGroup->nextExecTime);
-  clockSequence.reset(timeoutNow, NANOSECOND_PER_MSEC);
+  clock.reset(timeoutNow, timeoutNow);
+  // The timeout entry has sampled now before checking pending WAL pulls.
+  clock.advanceOnWalCheck(harness.context()->pReaderWalProgress,
+                          timeoutNow + NANOSECOND_PER_MSEC);
 
   ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
-  EXPECT_EQ(1, clockSequence.calls());
+  EXPECT_TRUE(clock.advanced());
   ASSERT_EQ(1, harness.calcSendCount());
   const SSTriggerCalcRequest* pCalc = harness.capturedCalc();
   ASSERT_NE(nullptr, pCalc);
@@ -23781,13 +23923,13 @@ TEST_F(StreamNestedRealtimeTest, LegacyCatchUpWaitDeadlineSamplesAtSchedulingPoi
   ASSERT_NE(nullptr, harness.context());
   ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
 
-  Stub clockStub;
   Stub waitListStub;
-  clockStub.set(taosClockGetTime, captureRealtimePipelineTurnClock);
   waitListStub.set(tdListAppend, captureRealtimePipelineWaitAppend);
   const int64_t checkEntryNow = 200 * NANOSECOND_PER_MSEC;
   const int64_t schedulingNow = 201 * NANOSECOND_PER_MSEC;
-  resetRealtimePipelineTurnClock(checkEntryNow, NANOSECOND_PER_MSEC, checkEntryNow);
+  ScopedRealtimePipelinePhaseClock clock(checkEntryNow, checkEntryNow);
+  // Running requests are checked after entry, before scheduling the wait.
+  clock.advanceOnRunningRequests(harness.task(), schedulingNow);
   gRealtimePipelineWaitStreamId = harness.task()->task.streamId;
   gRealtimePipelineWaitTaskId = harness.task()->task.taskId;
   gRealtimePipelineWaitSessionId = harness.context()->sessionId;
@@ -23797,7 +23939,7 @@ TEST_F(StreamNestedRealtimeTest, LegacyCatchUpWaitDeadlineSamplesAtSchedulingPoi
   ASSERT_TRUE(harness.feedZeroRowWal());
   EXPECT_TRUE(harness.context()->catchUp);
   EXPECT_EQ(STRIGGER_CONTEXT_IDLE, harness.context()->status);
-  EXPECT_EQ(2, gRealtimePipelineTurnWallClockCalls);
+  EXPECT_TRUE(clock.advanced());
   ASSERT_TRUE(gRealtimePipelineWaitCaptured);
   EXPECT_EQ(harness.task()->task.streamId, gRealtimePipelineWaitInfo.streamId);
   EXPECT_EQ(harness.task()->task.taskId, gRealtimePipelineWaitInfo.taskId);
@@ -32655,23 +32797,22 @@ static int32_t publishTriggerWorkerOwnership(void*, EQueueType queueType, SRpcMs
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t maximumReaderTimeOfDay(struct timeval* pTime) {
-  const int64_t nowMs = INT64_MAX / 1000;
-  pTime->tv_sec = nowMs / 1000;
-  pTime->tv_usec = nowMs % 1000 * 1000;
-  return TSDB_CODE_SUCCESS;
-}
+static int64_t gReaderWallNowMs = 0;
 
-static int32_t maximumReaderTimeOfDayNextMs(struct timeval* pTime) {
-  const int64_t nowMs = INT64_MAX / 1000 + 1;
-  pTime->tv_sec = nowMs / 1000;
-  pTime->tv_usec = nowMs % 1000 * 1000;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t readerTimeOfDayAtNineSeconds(struct timeval* pTime) {
-  pTime->tv_sec = 9;
-  pTime->tv_usec = 0;
+// Fakes only the wall clock; the monotonic clock stays real.
+static int32_t readerWallClock(int clockId, struct timespec* pTime) {
+  if (clockId != CLOCK_REALTIME) {
+    int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch())
+                        .count();
+    pTime->tv_sec = static_cast<time_t>(nowNs / NANOSECOND_PER_SEC);
+    pTime->tv_nsec = static_cast<long>(nowNs % NANOSECOND_PER_SEC);
+    return TSDB_CODE_SUCCESS;
+  }
+  // Split milliseconds directly; INT64_MAX / 1000 ms overflows in ns.
+  pTime->tv_sec = static_cast<time_t>(gReaderWallNowMs / 1000);
+  pTime->tv_nsec =
+      static_cast<long>(gReaderWallNowMs % 1000 * NANOSECOND_PER_MSEC);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -33086,7 +33227,8 @@ TEST_F(StreamTriggerDebugTest, ReaderVersionTimeIsLoggedInUnixMilliseconds) {
 TEST_F(StreamTriggerDebugTest, MaximumReaderVersionTimeThatIsFutureWithinMillisecondIsInvalid) {
   ScopedTriggerDebugLogCapture capture;
   Stub                         timeStub;
-  timeStub.set(taosGetTimeOfDay, maximumReaderTimeOfDay);
+  gReaderWallNowMs = INT64_MAX / 1000;
+  timeStub.set(taosClockGetTime, readerWallClock);
   AddReader(11, 1, INT64_MAX);
   ASSERT_EQ(EmitPeriod(), TSDB_CODE_SUCCESS);
   const auto& reader = FindRecord("record=reader_progress");
@@ -33099,7 +33241,8 @@ TEST_F(StreamTriggerDebugTest, MaximumReaderVersionTimeThatIsFutureWithinMillise
 TEST_F(StreamTriggerDebugTest, MaximumValidReaderVersionTimeConvertsWithoutOverflow) {
   ScopedTriggerDebugLogCapture capture;
   Stub                         timeStub;
-  timeStub.set(taosGetTimeOfDay, maximumReaderTimeOfDayNextMs);
+  gReaderWallNowMs = INT64_MAX / 1000 + 1;
+  timeStub.set(taosClockGetTime, readerWallClock);
   AddReader(11, 1, INT64_MAX);
   ASSERT_EQ(EmitPeriod(), TSDB_CODE_SUCCESS);
   const auto& reader = FindRecord("record=reader_progress");
@@ -33112,7 +33255,8 @@ TEST_F(StreamTriggerDebugTest, MaximumValidReaderVersionTimeConvertsWithoutOverf
 TEST_F(StreamTriggerDebugTest, SubMillisecondFutureReaderTimesAreInvalid) {
   ScopedTriggerDebugLogCapture capture;
   Stub                         timeStub;
-  timeStub.set(taosGetTimeOfDay, readerTimeOfDayAtNineSeconds);
+  gReaderWallNowMs = 9000;
+  timeStub.set(taosClockGetTime, readerWallClock);
   AddReader(11, 1, 9000001);
   AddReader(12, 2, 9000999);
   ASSERT_EQ(EmitPeriod(), TSDB_CODE_SUCCESS);
