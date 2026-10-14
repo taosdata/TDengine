@@ -458,7 +458,7 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
   OS_PARAM_CHECK(dirname);
 
 #ifndef TD_ASTRA
-  char tmp[PATH_MAX + 1] = {0};
+  char tmp[TD_PATH_MAX + 1] = {0};
 #ifdef WINDOWS
   if (_fullpath(tmp, dirname, maxlen) != NULL) {
 #else
