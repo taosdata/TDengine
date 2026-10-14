@@ -750,8 +750,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   if (pOperator->exprSupp.pFilterInfo != NULL) {
     int64_t st = taosGetTimestampUs();
-    code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo,
-                                       &pTableScanInfo->matchInfo, NULL, pTaskInfo);
+    code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, &pTableScanInfo->matchInfo, NULL,
+                                       pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     double  el = (taosGetTimestampUs() - st) / 1000.0;
     pTableScanInfo->readRecorder.filterTime += el;
@@ -2891,6 +2891,9 @@ int32_t qEnableReaderGroupOutput(qTaskInfo_t task, bool requested, bool* pEnable
   }
   code = createDataBlock(&pInfo->pGroupEndBlock);
   if (code != TSDB_CODE_SUCCESS) goto _error;
+  // A reusable legacy Reader has no group-range contract. Start this batch with a group Reader.
+  code = closeTableScanReader(&pInfo->base);
+  if (code != TSDB_CODE_SUCCESS) goto _error;
   pTask->readerGroupOutput = true;
   *pEnabled = true;
   return TSDB_CODE_SUCCESS;
@@ -2939,8 +2942,19 @@ static int32_t readerGroupTableScan(SOperatorInfo* pOperator, SSDataBlock** ppRe
     taosRLockLatch(&pTask->lock);
     code = initNextGroupScan(pInfo, &pList, &num);
     if (code == TSDB_CODE_SUCCESS) {
-      code = openOrRebindTableReader(&pInfo->base, pList, num, pInfo->pResBlock, GET_TASKID(pTask),
-                                     &pInfo->pIgnoreTables, &opened);
+      const STableScanRange* ranges = NULL;
+      code = qGetReaderTableRangeView(pTask, pInfo->tableStartIndex, num, &ranges);
+      if (code == TSDB_CODE_SUCCESS && pInfo->base.dataReader == NULL) {
+        code = pInfo->base.readerAPI.tsdReaderOpenGroup(pInfo->base.readHandle.vnode, &pInfo->base.cond, ranges, num,
+                                                        pInfo->pResBlock, (void**)&pInfo->base.dataReader,
+                                                        GET_TASKID(pTask), &pInfo->pIgnoreTables);
+        if (code == TSDB_CODE_SUCCESS) {
+          opened = true;
+          bindFreshReaderStats(&pInfo->base);
+        }
+      } else if (code == TSDB_CODE_SUCCESS) {
+        code = pInfo->base.readerAPI.tsdReaderActivateGroup(pInfo->base.dataReader, ranges, num);
+      }
     }
     taosRUnLockLatch(&pTask->lock);
     if (code != TSDB_CODE_SUCCESS) return code;
@@ -3700,6 +3714,23 @@ static void forceCloseTableScanReader(STableScanBase* pBase) {
   }
 }
 
+
+void qFinishReaderGroupRead(qTaskInfo_t task) {
+  SExecTaskInfo* pTask = task;
+  if (pTask == NULL || (pTask->pReaderTableRanges == NULL && !pTask->readerGroupOutput) || pTask->pRoot == NULL ||
+      pTask->pRoot->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN)
+    return;
+  STableScanInfo* pInfo = pTask->pRoot->info;
+  int32_t code = closeTableScanReader(&pInfo->base);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to flush group Reader before terminal close since %s", tstrerror(code));
+    forceCloseTableScanReader(&pInfo->base);
+  }
+  clearReaderGroupOutput(pInfo);
+  pTask->readerGroupOutput = false;
+  qClearReaderTableRanges(task);
+}
+
 #if defined(BUILD_TEST)
 void scanTestBindFreshReaderStats(STableScanBase* pBase) { bindFreshReaderStats(pBase); }
 
@@ -3781,6 +3812,7 @@ static void cleanReaderForVTable(STableScanInfo* pInfo){
 static void destroyTableScanOperatorInfo(void* param) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
   clearReaderGroupOutput(pTableScanInfo);
+  streamTagLookupDestroy(pTableScanInfo->pTagLookupPlan);
   clearVstbBatchDynamicTableScanInfo(pTableScanInfo);
   blockDataDestroy(pTableScanInfo->pResBlock);
   blockDataDestroy(pTableScanInfo->pOrgBlock);
@@ -3826,6 +3858,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   int32_t         code = TSDB_CODE_SUCCESS;
   STableScanInfo* pInfo = pOper->info;
   SExecTaskInfo*  pTaskInfo = pOper->pTaskInfo;
+  qFinishReaderGroupRead(pTaskInfo);
   pOper->status = OP_NOT_OPENED;
   pTaskInfo->readerGroupOutput = false;
   clearReaderGroupOutput(pInfo);
@@ -3845,18 +3878,38 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  tableListDestroy(pInfo->base.pTableListInfo);
-  pInfo->base.pTableListInfo = tableListCreate();
-  if (!pInfo->base.pTableListInfo) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    return terrno;
+  STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
+  bool preparedReset = pTaskInfo->dimensionScanReset && pInfo->base.cond.type == TIMEWINDOW_RANGE_CONTAINED &&
+                       !pTableScanNode->scan.node.dynamicOp && !pTableScanNode->scan.virtualStableScan &&
+                       pTableScanNode->pExtScanRange == NULL && pTableScanNode->pPrimaryCond == NULL &&
+                       !pInfo->base.readHandle.extWinRangeValid && pTaskInfo->pStreamRuntimeInfo != NULL &&
+                       !GET_STM_RTINFO(pTaskInfo)->isMultiGroupCalc;
+  if (preparedReset && !pInfo->tagLookupPreparationAttempted) {
+    if (tsStableTagFilterCache) {
+      code = streamTagLookupPrepare(pTaskInfo->pSubplan->pTagCond, &pInfo->pTagLookupPlan);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    pInfo->tagLookupPreparationAttempted = true;
+  }
+  if (preparedReset && pInfo->base.pTableListInfo != NULL) {
+    tableListClear(pInfo->base.pTableListInfo);
+    taosHashCleanup(pInfo->base.pTableListInfo->remainGroups);
+    pInfo->base.pTableListInfo->remainGroups = NULL;
+    memset(&pInfo->base.pTableListInfo->idInfo, 0, sizeof(pInfo->base.pTableListInfo->idInfo));
+  } else {
+    tableListDestroy(pInfo->base.pTableListInfo);
+    pInfo->base.pTableListInfo = tableListCreate();
+    if (!pInfo->base.pTableListInfo) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
+    }
   }
 
-  STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
   if (!pTableScanNode->scan.node.dynamicOp) {
-    code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                   &pInfo->base.readHandle, pInfo->base.pTableListInfo, pTaskInfo->pSubplan->pTagCond,
-                                   pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+    code = createPreparedScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                           &pInfo->base.readHandle, pInfo->base.pTableListInfo,
+                                           pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo,
+                                           NULL, preparedReset ? pInfo->pTagLookupPlan : NULL);
     if (code) {
       qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
       return code;
@@ -3864,8 +3917,12 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   }
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->base.limitInfo);
-  cleanupQueryTableDataCond(&pInfo->base.cond);
-  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle, true);
+  if (preparedReset) {
+    code = resetQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle, true);
+  } else {
+    cleanupQueryTableDataCond(&pInfo->base.cond);
+    code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle, true);
+  }
   if (code) {
     qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
     return code;
@@ -7177,8 +7234,7 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
   cleanupQueryTableDataCond(&pInfo->base.cond);
-  bool phased =
-      interpModeUsesPhasedProtocol(pTableScanNode->interpMode);
+  bool phased = interpModeUsesPhasedProtocol(pTableScanNode->interpMode);
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode,
                                 &pInfo->base.readHandle, phased);
   if (code) {

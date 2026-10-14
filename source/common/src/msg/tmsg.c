@@ -18199,6 +18199,16 @@ static int32_t tEncodeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq
     TAOS_CHECK_EXIT(tEncodeBool(&encoder, true));
     tEndEncodeStreamTailFrame(&encoder);
   }
+  if (pReq->readerDimensionBatch) {
+    if (!pReq->readerGroupMode || pReq->readerFetchId == 0 || pReq->dynTbname || pReq->pOpParam != NULL ||
+        pReq->pStRtFuncInfo == NULL || !pReq->pStRtFuncInfo->isMultiGroupCalc) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+    }
+    TAOS_CHECK_EXIT(tStartEncodeStreamTailFrame(&encoder, STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC,
+                                                STREAM_READER_DIMENSION_BATCH_FRAME_VERSION, 0));
+    TAOS_CHECK_EXIT(tEncodeU8(&encoder, 1));
+    tEndEncodeStreamTailFrame(&encoder);
+  }
   if (pReq->runnerEogBatch) {
     TAOS_CHECK_EXIT(tStartEncodeStreamTailFrame(&encoder, STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC,
                                                 STREAM_RUNNER_EOG_BATCH_FRAME_VERSION, 0));
@@ -18332,8 +18342,10 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
   bool resetModeSeen = false;
   bool twoPassSeen = false;
   bool readerGroupModeSeen = false;
+  bool readerDimensionBatchSeen = false;
   bool runnerEogBatchSeen = false;
   pReq->readerGroupMode = false;
+  pReq->readerDimensionBatch = false;
   pReq->runnerEogBatch = false;
   bool followerReadSeen = false;
   while (!tDecodeIsEnd(&decoder)) {
@@ -18465,6 +18477,26 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
       TAOS_CHECK_EXIT(code);
       continue;
     }
+    if (frame.magic == STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC) {
+      if (readerDimensionBatchSeen || frame.version != STREAM_READER_DIMENSION_BATCH_FRAME_VERSION ||
+          frame.flags != 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      readerDimensionBatchSeen = true;
+      uint8_t enabled = 0;
+      code = tDecodeU8(&frame.payloadDecoder, &enabled);
+      if (code == TSDB_CODE_SUCCESS && enabled == 1) {
+        pReq->readerDimensionBatch = true;
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      } else {
+        if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+      }
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
     if (frame.magic == STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC) {
       if (runnerEogBatchSeen || frame.version != STREAM_RUNNER_EOG_BATCH_FRAME_VERSION || frame.flags != 0) {
         code = TSDB_CODE_INVALID_MSG;
@@ -18490,14 +18522,31 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
+  if (pReq->readerDimensionBatch &&
+      (!pReq->readerGroupMode || pReq->readerFetchId == 0 || pReq->dynTbname || pReq->pOpParam != NULL ||
+       pReq->pStRtFuncInfo == NULL || !pReq->pStRtFuncInfo->isMultiGroupCalc ||
+       (pReq->reset && pReq->pStRtFuncInfo->pGroupCalcInfos == NULL) ||
+       (!pReq->reset &&
+        (pContextPolicy != NULL || pAncestorContext != NULL || pReq->pStRtFuncInfo->pGroupCalcInfos != NULL ||
+         pReq->pStRtFuncInfo->pGroupReadInfos != NULL || pReq->pStRtFuncInfo->curGrpRead != NULL)))) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
   if ((pContextPolicy != NULL || pAncestorContext != NULL) && pReq->pStRtFuncInfo == NULL) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
-  if (pContextPolicy != NULL || pAncestorContext != NULL) {
+  if (pReq->readerDimensionBatch && pReq->reset) {
+    SStreamRuntimeFuncInfo dimension = *pReq->pStRtFuncInfo;
+    dimension.pContextPolicy = pContextPolicy;
+    dimension.pAncestorContext = pAncestorContext;
+    code = tValidateStreamDimensionReaderContext(&dimension, pContextPolicy != NULL);
+    if (code != TSDB_CODE_SUCCESS) code = TSDB_CODE_INVALID_MSG;
+  } else if (pContextPolicy != NULL || pAncestorContext != NULL) {
     code = tValidateFetchContextProjection(pReq->pStRtFuncInfo, pContextPolicy, pAncestorContext);
     if (code != TSDB_CODE_SUCCESS) goto _exit;
   }
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
   if (pReq->pStRtFuncInfo != NULL) {
     pReq->pStRtFuncInfo->pContextPolicy = pContextPolicy;
     pContextPolicy = NULL;
@@ -18570,13 +18619,30 @@ int32_t tBuildStreamReaderFetchReq(SResFetchReq *pReq, void **ppBuf, int32_t *pL
       pReq->pStRtFuncInfo == NULL || !pReq->pStRtFuncInfo->isMultiGroupCalc) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (pReq->readerDimensionBatch && (!pReq->readerGroupMode || pReq->dynTbname)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   int32_t                       code = TSDB_CODE_SUCCESS;
   SStreamReaderFetchView view = {0};
   void                         *pBuf = NULL;
   const SStreamRuntimeFuncInfo *pSource = pReq->pStRtFuncInfo;
   if (pReq->reset) {
-    code = tPrepareStreamReaderFetchView(pSource, pReq->header.vgId, &view);
+    if (pReq->readerDimensionBatch) {
+      if (BIT_FLAG_TEST_MASK(pSource->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      view.runtime = *pSource;
+      view.runtime.pGroupReadInfos = NULL;
+      view.runtime.pGroupCalcOrder = NULL;
+      view.runtime.curGrpRead = NULL;
+      view.runtime.curGrpReadOwnership = STREAM_GRP_READ_BORROWED;
+      view.runtime.curGrpCalc = NULL;
+      view.borrowedDimensionBatch = true;
+      code = tValidateStreamDimensionReaderContext(&view.runtime, false);
+    } else {
+      code = tPrepareStreamReaderFetchView(pSource, pReq->header.vgId, &view);
+    }
     if (code != TSDB_CODE_SUCCESS) goto _exit;
   } else {
     view.runtime.isMultiGroupCalc = pSource->isMultiGroupCalc;
@@ -18593,8 +18659,8 @@ int32_t tBuildStreamReaderFetchReq(SResFetchReq *pReq, void **ppBuf, int32_t *pL
   SResFetchReq request = *pReq;
   request.pStRtFuncInfo = &view.runtime;
   request.pContextFrames = NULL;
-  int32_t len = tEncodeSResFetchReq(NULL, 0, &request, request.reset, request.reset, view.runtime.pContextPolicy,
-                                    view.runtime.pAncestorContext, NULL, NULL);
+  int32_t len = tEncodeSResFetchReq(NULL, 0, &request, request.reset, request.reset && !request.readerDimensionBatch,
+                                    view.runtime.pContextPolicy, view.runtime.pAncestorContext, NULL, NULL);
   if (len < 0) {
     code = len;
     goto _exit;
@@ -18604,8 +18670,8 @@ int32_t tBuildStreamReaderFetchReq(SResFetchReq *pReq, void **ppBuf, int32_t *pL
     code = terrno;
     goto _exit;
   }
-  code = tEncodeSResFetchReq(pBuf, len, &request, request.reset, request.reset, view.runtime.pContextPolicy,
-                             view.runtime.pAncestorContext, NULL, NULL);
+  code = tEncodeSResFetchReq(pBuf, len, &request, request.reset, request.reset && !request.readerDimensionBatch,
+                             view.runtime.pContextPolicy, view.runtime.pAncestorContext, NULL, NULL);
   if (code < 0) goto _exit;
   *ppBuf = pBuf;
   *pLen = code;
@@ -18628,7 +18694,9 @@ int32_t tBuildStreamPreparedFetchReq(SResFetchReq *pReq, const SStreamRuntimeFun
     return TSDB_CODE_INVALID_PARA;
   }
   const bool nodeRequest = pReq->pStRtFuncInfo == pBatch;
-  if ((nodeRequest && (pReq->readerFetchId == 0 || pReq->header.vgId != pBatch->curNodeId)) ||
+  if ((pReq->readerDimensionBatch && (!pReq->readerGroupMode || pReq->dynTbname || pReq->readerFetchId == 0)) ||
+      (nodeRequest && !pReq->readerDimensionBatch &&
+       (pReq->readerFetchId == 0 || pReq->header.vgId != pBatch->curNodeId)) ||
       (!nodeRequest && (pReq->pStRtFuncInfo->isMultiGroupCalc || pReq->readerFetchId != 0))) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -18651,11 +18719,20 @@ int32_t tBuildStreamPreparedFetchReq(SResFetchReq *pReq, const SStreamRuntimeFun
   SStreamReaderFetchView view = {0};
   code = tPrepareStreamFetchRuntimeView(pSelection, pBatch, pReq->pStRtFuncInfo, &view);
   if (code != TSDB_CODE_SUCCESS) goto _exit;
+  if (pReq->readerDimensionBatch != view.borrowedDimensionBatch) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+  if (view.borrowedDimensionBatch) {
+    code = tValidateStreamDimensionReaderContext(&view.runtime, true);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+  }
 
   SResFetchReq request = *pReq;
   request.pStRtFuncInfo = &view.runtime;
   request.pContextFrames = NULL;
-  int32_t len = tEncodeSResFetchReq(NULL, 0, &request, true, true, NULL, NULL, NULL, pSelection);
+  int32_t len =
+      tEncodeSResFetchReq(NULL, 0, &request, true, !view.borrowedDimensionBatch, NULL, NULL, NULL, pSelection);
   if (len < 0) {
     code = len;
     goto _exit;
@@ -18665,7 +18742,7 @@ int32_t tBuildStreamPreparedFetchReq(SResFetchReq *pReq, const SStreamRuntimeFun
     code = terrno;
     goto _exit;
   }
-  code = tEncodeSResFetchReq(pBuf, len, &request, true, true, NULL, NULL, NULL, pSelection);
+  code = tEncodeSResFetchReq(pBuf, len, &request, true, !view.borrowedDimensionBatch, NULL, NULL, NULL, pSelection);
   if (code < 0) goto _exit;
   *ppBuf = pBuf;
   *pLen = code;
@@ -22327,7 +22404,6 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   uint8_t version;
 
   int8_t   hasBlob = 0;
-  uint8_t *dataAfterCreate = NULL;
   uint8_t *dataStart = pCoder->data + pCoder->pos;
   uint32_t posAfterCreate = 0;
 
@@ -22349,7 +22425,6 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     }
 
     TAOS_CHECK_EXIT(tDecodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq));
-    dataAfterCreate = pCoder->data + pCoder->pos;
     posAfterCreate = pCoder->pos;
   }
 
@@ -22402,16 +22477,13 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   }
 
   if (rawData != NULL) {
-    if (dataAfterCreate != NULL) {
-      // GCC -O2 loses the relation between flagsLen and the buffer after tStartDecode rebases
-      // pCoder->data, and reports a false -Wstringop-overflow on this in-frame header rewrite.
-      // Call memcpy directly so the diagnostic location is this line, not the TAOS_MEMCPY macro.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstringop-overflow"
-      memcpy(dataAfterCreate - INT_BYTES - flagsLen, dataStart, INT_BYTES + flagsLen);
-#pragma GCC diagnostic pop
-      *(int32_t *)(dataAfterCreate - INT_BYTES - flagsLen) = pCoder->pos - posAfterCreate + flagsLen;
-      *(void **)rawData = dataAfterCreate - INT_BYTES - flagsLen;
+    if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+      // tStartDecode rebases data past the length prefix. Use the saved frame
+      // start so the relocated header is expressed as a forward offset.
+      uint8_t *raw = dataStart + (posAfterCreate - flagsLen);
+      TAOS_MEMCPY(raw, dataStart, INT_BYTES + flagsLen);
+      *(int32_t *)raw = pCoder->pos - posAfterCreate + flagsLen;
+      *(void **)rawData = raw;
     } else {
       *(void **)rawData = dataStart;
     }

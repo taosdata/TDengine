@@ -19,6 +19,7 @@
 #define TDENGINE_OPERATOR_H
 
 #include <stddef.h>
+#include "streamjoinfilter.h"
 #include "tcommon.h"
 #ifdef __cplusplus
 extern "C" {
@@ -103,6 +104,15 @@ typedef struct SOperatorInfo {
   SOperatorFpSet         fpSet;
   const void*            pPhyNode;
 } SOperatorInfo;
+
+// Root resolve initializes mapping from probeBlockId/probeSlot; module resolvers continue that mapping.
+// Resolve may remove ineligible descriptors without reading data. Only successful install transfers ownership.
+int32_t optrResolveStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilterSpec* pSpec, bool* pEligible);
+int32_t optrInstallStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilter** ppFilter);
+int32_t projectResolveStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilterSpec* pSpec, bool* pEligible);
+int32_t projectInstallStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilter** ppFilter);
+int32_t extWinResolveStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilterSpec* pSpec, bool* pEligible);
+int32_t extWinInstallStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilter** ppFilter);
 
 // operator creater functions
 // clang-format off

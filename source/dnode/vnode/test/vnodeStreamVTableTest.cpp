@@ -161,7 +161,7 @@ void appendNodeGroupRangeContext(SStreamRuntimeFuncInfo *runtime, int64_t gid, i
   }
   SStreamContextPolicyEntry policy = {};
   policy.gid = gid;
-  policy.paramIndex = 0;
+  policy.paramIndex = readInfoIndex;
   policy.contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR;
   ASSERT_NE(nullptr, taosArrayPush(runtime->pContextPolicy->pEntries, &policy));
 
@@ -175,7 +175,7 @@ void appendNodeGroupRangeContext(SStreamRuntimeFuncInfo *runtime, int64_t gid, i
     ASSERT_NE(nullptr, runtime->pAncestorContext->pReadScopeBindings);
   }
   SStreamAncestorParamContext context = {};
-  context.paramIndex = 0;
+  context.paramIndex = readInfoIndex;
   context.leafIdentity.gid = gid;
   context.leafIdentity.triggerType = WINDOW_TYPE_COUNT;
   context.leafIdentity.lineage.pScopes = taosArrayInit(1, sizeof(SScopeInstanceId));
@@ -368,6 +368,126 @@ TEST(VnodeStreamGroupReadTest, NodeBatchUnionsRawAndCalculatedReadRanges) {
   tDestroyStRtFuncInfo(&temporary);
   tDestroyStreamContextPolicy(&runtime.pContextPolicy);
   tDestroyStreamAncestorContext(&runtime.pAncestorContext);
+  taosArrayDestroy(runtime.curGrpRead);
+}
+
+TEST(VnodeStreamGroupReadTest, PreservesReadBindings) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 3);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  setNodeGroupReadRange(&runtime, 0, 101, 1000, 1080);
+  setNodeGroupReadRange(&runtime, 1, 101, 3000, 3050);
+  setNodeGroupReadRange(&runtime, 2, 101, 4000, 4050);
+  appendNodeGroupRangeContext(&runtime, 101, 0, 10, 20);
+  appendNodeGroupRangeContext(&runtime, 101, 1, 100, 110);
+  appendNodeGroupRangeContext(&runtime, 101, 2, 30, 40);
+  STimeRangeNode node = {};
+  node.type = QUERY_NODE_TIME_RANGE;
+  node.needCalc = true;
+  node.pStart = makeStreamRangeBound(OP_TYPE_GREATER_EQUAL, "_twstart", 0);
+  node.pEnd = makeStreamRangeBound(OP_TYPE_LOWER_THAN, "_twend", 0);
+  SStreamRuntimeFuncInfo temporary = {};
+  temporary.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  STimeWindow combined = {};
+  bool        valid = false;
+  SArray     *ranges = nullptr;
+  ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+  EXPECT_TRUE(valid);
+  EXPECT_EQ(10, combined.skey);
+  EXPECT_EQ(109, combined.ekey);
+  ASSERT_EQ(3, taosArrayGetSize(ranges));
+  const int64_t starts[] = {10, 100, 30};
+  const int64_t ends[] = {19, 109, 39};
+  for (int i = 0; i < 3; ++i) {
+    const auto *range = static_cast<const SReaderReadRange *>(taosArrayGet(ranges, i));
+    EXPECT_EQ(i, range->readInfoIndex);
+    EXPECT_TRUE(range->valid);
+    EXPECT_EQ(starts[i], range->window.skey);
+    EXPECT_EQ(ends[i], range->window.ekey);
+  }
+  taosArrayDestroy(ranges);
+  nodesDestroyNode(node.pStart);
+  nodesDestroyNode(node.pEnd);
+  tDestroyStRtFuncInfo(&temporary);
+  tDestroyStreamContextPolicy(&runtime.pContextPolicy);
+  tDestroyStreamAncestorContext(&runtime.pAncestorContext);
+  taosArrayDestroy(runtime.curGrpRead);
+}
+
+TEST(VnodeStreamGroupReadTest, EmptyAndEndpointRanges) {
+  for (int8_t precision = TSDB_TIME_PRECISION_MILLI; precision <= TSDB_TIME_PRECISION_NANO; ++precision) {
+    for (bool calculated : {false, true}) {
+      SStreamRuntimeFuncInfo runtime = {};
+      runtime.isMultiGroupCalc = true;
+      runtime.triggerType = STREAM_TRIGGER_SLIDING;
+      runtime.precision = precision;
+      runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 2);
+      setNodeGroupReadRange(&runtime, 0, 101, 10, calculated ? 10 : 20);
+      setNodeGroupReadRange(&runtime, 1, 101, 10, 20);
+      STimeRangeNode node = {};
+      node.type = QUERY_NODE_TIME_RANGE;
+      node.needCalc = calculated;
+      node.pStart = makeStreamRangeBound(OP_TYPE_GREATER_EQUAL, "_twstart");
+      node.pEnd = makeStreamRangeBound(OP_TYPE_LOWER_THAN, "_twend");
+      SStreamRuntimeFuncInfo temporary = {};
+      temporary.precision = precision;
+      temporary.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+      STimeWindow combined = {};
+      bool        valid = false;
+      SArray     *ranges = nullptr;
+      ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+      ASSERT_EQ(2, taosArrayGetSize(ranges));
+      const auto &emptyRange = *static_cast<const SReaderReadRange *>(taosArrayGet(ranges, 0));
+      const auto &range = *static_cast<const SReaderReadRange *>(taosArrayGet(ranges, 1));
+      EXPECT_EQ(!calculated, emptyRange.valid);
+      EXPECT_EQ(0, emptyRange.readInfoIndex);
+      EXPECT_TRUE(range.valid);
+      EXPECT_EQ(10, range.window.skey);
+      EXPECT_EQ(19, range.window.ekey);
+      EXPECT_TRUE(valid);
+      EXPECT_EQ(10, combined.skey);
+      EXPECT_EQ(19, combined.ekey);
+      taosArrayDestroy(ranges);
+      ranges = nullptr;
+      setNodeGroupReadRange(&runtime, 1, 101, INT64_MIN, INT64_MIN);
+      EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+                vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+      EXPECT_EQ(nullptr, ranges);
+      EXPECT_FALSE(valid);
+      nodesDestroyNode(node.pStart);
+      nodesDestroyNode(node.pEnd);
+      tDestroyStRtFuncInfo(&temporary);
+      taosArrayDestroy(runtime.curGrpRead);
+    }
+  }
+}
+
+TEST(VnodeStreamGroupReadTest, RejectsRawSlidingEqualAndReversedRanges) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.triggerType = STREAM_TRIGGER_SLIDING;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 2);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  STimeRangeNode         node = {};
+  SStreamRuntimeFuncInfo temporary = {};
+  for (int8_t precision = TSDB_TIME_PRECISION_MILLI; precision <= TSDB_TIME_PRECISION_NANO; ++precision) {
+    runtime.precision = precision;
+    for (int64_t end : {10, 9}) {
+      setNodeGroupReadRange(&runtime, 0, 101, 1, 2);
+      setNodeGroupReadRange(&runtime, 1, 101, 10, end);
+      STimeWindow combined = {};
+      bool        valid = true;
+      SArray     *ranges = nullptr;
+      EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+                vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+      EXPECT_FALSE(valid);
+      taosArrayDestroy(ranges);
+      valid = true;
+      EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+                vnodeCalculateNodeGroupReadRange(&node, &runtime, &temporary, 7, &combined, &valid));
+      EXPECT_FALSE(valid);
+    }
+  }
   taosArrayDestroy(runtime.curGrpRead);
 }
 

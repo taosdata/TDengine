@@ -69,6 +69,24 @@ TARGET_INCLUDE_DIRECTORIES(
 
 add_test(NAME hashJoinMultiGroupTests COMMAND hashJoinMultiGroupTests)
 
+ADD_EXECUTABLE(streamJoinFilterTests streamJoinFilterTests.cpp)
+DEP_ext_gtest(streamJoinFilterTests)
+DEP_ext_cppstub(streamJoinFilterTests)
+if(BUILD_TEST)
+        target_compile_definitions(streamJoinFilterTests PRIVATE BUILD_TEST)
+endif()
+TARGET_LINK_LIBRARIES(
+        streamJoinFilterTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+TARGET_INCLUDE_DIRECTORIES(
+        streamJoinFilterTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+add_test(NAME streamJoinFilterTests COMMAND streamJoinFilterTests)
+
 ADD_EXECUTABLE(hashJoinTests hashJoinTests.cpp)
 DEP_ext_gtest(hashJoinTests)
 DEP_ext_cppstub(hashJoinTests)

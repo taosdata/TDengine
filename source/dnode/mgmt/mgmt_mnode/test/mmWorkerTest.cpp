@@ -94,6 +94,7 @@ struct ReaderSideEffectCounts {
   int32_t destroyTask;
   int32_t createTask;
   int32_t resetScan;
+  int32_t                  finishGroupRead;
   EQueryTableScanResetMode resetMode = QUERY_TABLE_SCAN_RESET_FRESH;
   int32_t setTaskId;
   int32_t                  configureGroupOutput;
@@ -425,6 +426,7 @@ TEST_F(MgmtMnodeWorkerTest, VnodeFetchMatchesMnodeAdmissionBeforeReaderSideEffec
   EXPECT_EQ(0, gReaderSideEffects.destroyTask);
   EXPECT_EQ(0, gReaderSideEffects.createTask);
   EXPECT_EQ(0, gReaderSideEffects.resetScan);
+  EXPECT_EQ(0, gReaderSideEffects.finishGroupRead);
   EXPECT_EQ(0, gReaderSideEffects.setTaskId);
   EXPECT_EQ(0, gReaderSideEffects.configureGroupOutput);
   EXPECT_EQ(0, gReaderSideEffects.updateOperator);
@@ -476,9 +478,11 @@ TEST_F(MgmtMnodeWorkerTest, VnodeReuseFetchPassesReaderReuseResetMode) {
   EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeProcessStreamReaderMsg(&vnode, &msg, &queueInfo));
   rpcFreeCont(msg.pCont);
   msg.pCont = nullptr;
+  tDestroyStRtFuncInfo(&calcInfo.rtInfo.funcInfo);
 
   std::lock_guard<std::mutex> lock(gMutex);
   EXPECT_EQ(1, gReaderSideEffects.resetScan);
+  EXPECT_EQ(2, gReaderSideEffects.finishGroupRead);
   EXPECT_EQ(QUERY_TABLE_SCAN_RESET_REUSE_READER, gReaderSideEffects.resetMode);
   EXPECT_EQ(1, gReaderSideEffects.configureGroupOutput);
   EXPECT_EQ(0, gReaderSideEffects.destroyTask);
@@ -529,6 +533,7 @@ TEST_F(MgmtMnodeWorkerTest, VnodeReuseFetchFallsBackToFreshResetForUnsupportedSc
   EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeProcessStreamReaderMsg(&vnode, &msg, &queueInfo));
   rpcFreeCont(msg.pCont);
   msg.pCont = nullptr;
+  tDestroyStRtFuncInfo(&calcInfo.rtInfo.funcInfo);
 
   std::lock_guard<std::mutex> lock(gMutex);
   EXPECT_EQ(1, gReaderSideEffects.resetScan);
@@ -671,6 +676,11 @@ int32_t __wrap_qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void*, SReadHan
 }
 
 bool __wrap_qNeedReset(qTaskInfo_t pTaskInfo) { return pTaskInfo != nullptr; }
+
+void __wrap_qFinishReaderGroupRead(qTaskInfo_t) {
+  std::lock_guard<std::mutex> lock(gMutex);
+  ++gReaderSideEffects.finishGroupRead;
+}
 
 int32_t __wrap_qResetTableScan(qTaskInfo_t, SReadHandle*, EQueryTableScanResetMode mode) {
   std::lock_guard<std::mutex> lock(gMutex);

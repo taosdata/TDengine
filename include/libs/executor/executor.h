@@ -32,6 +32,10 @@ extern "C" {
 #include "functionMgt.h"
 #include "plannodes.h"
 
+#define QUERY_EXEC_FETCH_MAX_ROWS   4096
+#define QUERY_EXEC_FETCH_MAX_BYTES  (INT64_C(64) * 1024 * 1024)
+#define QUERY_EXEC_FETCH_MAX_EVENTS 4096
+
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
 
@@ -118,6 +122,7 @@ typedef void (*FStreamBlockingStats)(void* param, bool blocking);
 typedef struct {
   SStreamRuntimeFuncInfo funcInfo;  // shallow borrowed view; never destroy its fields
   const SStreamFetchContextSelection* pContextSelection;  // borrowed from this batch's prepared owner
+  bool                                readerDimensionBatch;
   bool                   reuseReader;
   bool                   active;
 } SStreamFetchRuntimeInfo;
@@ -177,6 +182,9 @@ typedef enum {
 } EQueryTableScanResetMode;
 
 int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle, EQueryTableScanResetMode mode);
+int32_t qResetStreamDimensionScan(qTaskInfo_t task, SReadHandle* handle, EQueryTableScanResetMode mode);
+// End a retained task's dimension preparation before retiring its batch runtime.
+int32_t qClearStreamDimensionPreparation(qTaskInfo_t task);
 bool    qNeedReset(qTaskInfo_t pInfo);
 
 /**
@@ -278,6 +286,15 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
  */
 int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal,
                      bool processOneBlock);
+
+/** Copy evaluated ranges into finalized table order; NULL uses the existing scan condition. */
+int32_t qInstallReaderTableRanges(qTaskInfo_t task, const SArray* readRanges);
+/** Borrow a contiguous slice until the ranges are cleared or replaced. */
+int32_t qGetReaderTableRangeView(qTaskInfo_t task, int32_t tableStart, int32_t numTables,
+                                 const STableScanRange** ranges);
+void    qClearReaderTableRanges(qTaskInfo_t task);
+/** Finish this group-read batch, preserving task-owned response result blocks. Idempotent. */
+void qFinishReaderGroupRead(qTaskInfo_t task);
 
 /** Enable completed trigger-group events for a qualified Reader scan before execution. */
 int32_t qEnableReaderGroupOutput(qTaskInfo_t task, bool requested, bool* pEnabled);

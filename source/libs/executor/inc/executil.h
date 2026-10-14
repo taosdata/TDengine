@@ -33,6 +33,22 @@ extern "C" {
 #include "tsimplehash.h"
 #include "tjson.h"
 
+typedef struct SStreamTagLookupPlan SStreamTagLookupPlan;
+
+typedef struct {
+  const char*   pTagCondKey;
+  int32_t       tagCondKeyLen;
+  const SArray* pTagColIds;
+  uint8_t       digest[16];
+} SStreamTagLookupKey;
+
+/** SUCCESS with a NULL plan means the condition structure is unsupported. */
+int32_t streamTagLookupPrepare(const SNode* pTagCond, SStreamTagLookupPlan** ppPlan);
+/** Key views are borrowed until the next bind or destroy; unsupported values are not errors. */
+int32_t streamTagLookupBind(SStreamTagLookupPlan* pPlan, SStreamRuntimeFuncInfo* pRuntime, SStreamTagLookupKey* pKey,
+                            bool* pSupported);
+void    streamTagLookupDestroy(SStreamTagLookupPlan* pPlan);
+
 struct SOperatorInfo;
 
 typedef struct STaskSubJobCtx {
@@ -178,6 +194,10 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 STableListInfo* tableListCreate();
 void            tableListDestroy(STableListInfo* pTableListInfo);
 void            tableListClear(STableListInfo* pTableListInfo);
+int32_t         createPreparedScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort,
+                                                SReadHandle* pHandle, STableListInfo* pTableListInfo, SNode* pTagCond,
+                                                SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap,
+                                                SStreamTagLookupPlan* pTagLookupPlan);
 int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
 int32_t         tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid, uint64_t* gid,
@@ -259,6 +279,8 @@ SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
                                const SReadHandle* readHandle, bool applyExtWin);
+int32_t resetQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
+                                const SReadHandle* readHandle, bool applyExtWin);
 // Build the MAIN, PREV, and NEXT windows and apply mode-aware side pruning.
 int32_t initInterpPhaseWindows(SQueryTableDataCond* pCond,
                                const STimeWindow* pRange,
@@ -329,6 +351,7 @@ int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 bool    isStaticMultiGroupJoinQualified(const struct SOperatorInfo* pOperator);
 /** Request after each execution reset, before the first fetch. Mode resolves before its first return. */
 int32_t qExchangeRequestReaderGroupOutput(struct SOperatorInfo* pOperator);
+int32_t qExchangeRequestDimensionReaderOutput(struct SOperatorInfo* pOperator);
 /** 0 unknown, 1 legacy, 2 grouped. */
 int32_t qExchangeReaderGroupOutputMode(const struct SOperatorInfo* pOperator);
 
