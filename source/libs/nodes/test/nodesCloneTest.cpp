@@ -52,6 +52,142 @@ static void eraseJsonField(std::string* pJson, const char* pField) {
 
 static void freeTestBuffer(char* pBuffer) { taosMemoryFreeClear(pBuffer); }
 
+TEST(NodesCodeTest, legacyStreamTimeRangeKeepsBoundsAfterReload) {
+  // The pre-3.4.2 JSON format used NodeType 50 for TimeRange. The physical
+  // operator's ID did not change, so its nested range must be resolved separately.
+  const char* legacy = R"({"NodeType":"1164","Name":"PhysiExternalWindow","PhysiExternalWindow":{
+    "TimeRangeExpr":{"NodeType":"50","Name":"TimeRange","TimeRange":{
+      "start":{"NodeType":"3","Name":"Operator","Operator":{
+        "OpType":"41","Left":{"NodeType":"1","Name":"Column","Column":{"ColName":"ts"}},
+        "Right":{"NodeType":"5","Name":"Function","Function":{"Name":"_twstart","Id":"178","Type":"3524"}}}},
+      "end":{"NodeType":"3","Name":"Operator","Operator":{
+        "OpType":"42","Left":{"NodeType":"1","Name":"Column","Column":{"ColName":"ts"}},
+        "Right":{"NodeType":"5","Name":"Function","Function":{"Name":"_twend","Id":"179","Type":"3525"}}}},
+      "NeedCalc":false}}}})";
+  SNode*      decoded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacy, &decoded));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> plan(decoded, nodesDestroyNode);
+  ASSERT_NE(nullptr, decoded);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL, nodeType(decoded));
+  auto* rangeNode = reinterpret_cast<SExternalWindowPhysiNode*>(decoded)->pTimeRange;
+  ASSERT_NE(nullptr, rangeNode);
+  ASSERT_EQ(QUERY_NODE_TIME_RANGE, nodeType(rangeNode));
+  auto* range = reinterpret_cast<STimeRangeNode*>(rangeNode);
+  ASSERT_NE(nullptr, range->pStart);
+  ASSERT_NE(nullptr, range->pEnd);
+  ASSERT_EQ(QUERY_NODE_OPERATOR, nodeType(range->pStart));
+  ASSERT_EQ(QUERY_NODE_OPERATOR, nodeType(range->pEnd));
+  auto* start = reinterpret_cast<SOperatorNode*>(range->pStart);
+  auto* end = reinterpret_cast<SOperatorNode*>(range->pEnd);
+  EXPECT_EQ(OP_TYPE_GREATER_EQUAL, start->opType);
+  EXPECT_EQ(OP_TYPE_LOWER_THAN, end->opType);
+  ASSERT_NE(nullptr, start->pRight);
+  ASSERT_NE(nullptr, end->pRight);
+  ASSERT_EQ(QUERY_NODE_FUNCTION, nodeType(start->pRight));
+  ASSERT_EQ(QUERY_NODE_FUNCTION, nodeType(end->pRight));
+  EXPECT_STREQ("_twstart", reinterpret_cast<SFunctionNode*>(start->pRight)->functionName);
+  EXPECT_STREQ("_twend", reinterpret_cast<SFunctionNode*>(end->pRight)->functionName);
+  EXPECT_FALSE(range->needCalc);
+
+  char* encoded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(decoded, false, &encoded, nullptr));
+  std::unique_ptr<char, decltype(&freeTestBuffer)> json(encoded, freeTestBuffer);
+  SNode*                                           reloaded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(encoded, &reloaded));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> restored(reloaded, nodesDestroyNode);
+  ASSERT_NE(nullptr, reloaded);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL, nodeType(reloaded));
+  auto* restoredRangeNode = reinterpret_cast<SExternalWindowPhysiNode*>(reloaded)->pTimeRange;
+  ASSERT_NE(nullptr, restoredRangeNode);
+  ASSERT_EQ(QUERY_NODE_TIME_RANGE, nodeType(restoredRangeNode));
+  auto* restoredRange = reinterpret_cast<STimeRangeNode*>(restoredRangeNode);
+  EXPECT_TRUE(nodesEqualNode(range->pStart, restoredRange->pStart));
+  EXPECT_TRUE(nodesEqualNode(range->pEnd, restoredRange->pEnd));
+}
+
+TEST(NodesCodeTest, legacyAndCurrentNodesCanShareOneList) {
+  const char* json = R"([
+    {"NodeType":"49","Name":"PlaceHolderTable","PlaceHolderTable":{}},
+    {"NodeType":"50","Name":"TimeRange","TimeRange":{"NeedCalc":true}},
+    {"NodeType":"50","Name":"ExternalWindow","ExternalWindow":{}},
+    {"NodeType":"53","Name":"TimeRange","TimeRange":{"NeedCalc":false}},
+    {"NodeType":"58","Name":"RemoteValue","RemoteValue":{"subQIdx":"7"}},
+    {"NodeType":"34","Name":"OldWindowOffset","WindowOffset":{}},
+    {"NodeType":"35","Name":"CountWindow","CountWindow":{}},
+    {"NodeType":"70","Name":"TagRefColumn","TagRefColumn":{}},
+    {"NodeType":"71","Name":"OldFileTable","FileTable":{}}
+  ])";
+  SNodeList*  decoded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToList(json, &decoded));
+  std::unique_ptr<SNodeList, decltype(&nodesDestroyList)> list(decoded, nodesDestroyList);
+  ASSERT_EQ(9, LIST_LENGTH(decoded));
+  EXPECT_EQ(QUERY_NODE_PLACE_HOLDER_TABLE, nodeType(nodesListGetNode(decoded, 0)));
+  ASSERT_EQ(QUERY_NODE_TIME_RANGE, nodeType(nodesListGetNode(decoded, 1)));
+  EXPECT_TRUE(reinterpret_cast<STimeRangeNode*>(nodesListGetNode(decoded, 1))->needCalc);
+  EXPECT_EQ(QUERY_NODE_EXTERNAL_WINDOW, nodeType(nodesListGetNode(decoded, 2)));
+  ASSERT_EQ(QUERY_NODE_TIME_RANGE, nodeType(nodesListGetNode(decoded, 3)));
+  EXPECT_FALSE(reinterpret_cast<STimeRangeNode*>(nodesListGetNode(decoded, 3))->needCalc);
+  EXPECT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(nodesListGetNode(decoded, 4)));
+  EXPECT_EQ(QUERY_NODE_WINDOW_OFFSET, nodeType(nodesListGetNode(decoded, 5)));
+  EXPECT_EQ(QUERY_NODE_COUNT_WINDOW, nodeType(nodesListGetNode(decoded, 6)));
+  EXPECT_EQ(QUERY_NODE_TAG_REF_COLUMN, nodeType(nodesListGetNode(decoded, 7)));
+  EXPECT_EQ(QUERY_NODE_FILE_TABLE, nodeType(nodesListGetNode(decoded, 8)));
+}
+
+TEST(NodesCodeTest, currentSharedNamesPreserveNodeIdentity) {
+  for (ENodeType type : {QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL,
+                         QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC, QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC}) {
+    SCOPED_TRACE(type);
+    const std::string name = nodesNodeName(type);
+    const std::string json =
+        "{\"NodeType\":\"" + std::to_string(type) + "\",\"Name\":\"" + name + "\",\"" + name + "\":{}}";
+    SNode* decoded = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.c_str(), &decoded));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> node(decoded, nodesDestroyNode);
+    ASSERT_NE(nullptr, decoded);
+    EXPECT_EQ(type, nodeType(decoded));
+  }
+}
+
+TEST(NodesCodeTest, nonLegacyNodeNamesDoNotOverrideType) {
+  const char* inputs[] = {
+      R"({"NodeType":"1","Name":"OldColumn","Column":{"ColName":"ts"}})",
+      R"({"NodeType":"1164","Name":"PhysiMergeAlignedExternalWindow","PhysiExternalWindow":{"StartTime":"1000"}})",
+  };
+  const ENodeType types[] = {QUERY_NODE_COLUMN, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL};
+  for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); ++i) {
+    SCOPED_TRACE(inputs[i]);
+    SNode* decoded = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(inputs[i], &decoded));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> node(decoded, nodesDestroyNode);
+    ASSERT_NE(nullptr, decoded);
+    EXPECT_EQ(types[i], nodeType(decoded));
+    if (QUERY_NODE_COLUMN == types[i]) {
+      EXPECT_STREQ("ts", reinterpret_cast<SColumnNode*>(decoded)->colName);
+    } else {
+      EXPECT_EQ(1000, reinterpret_cast<SExternalWindowPhysiNode*>(decoded)->timeRange.skey);
+    }
+  }
+}
+
+TEST(NodesCodeTest, legacyNodeIdentityRejectsUnrecognizedOrMissingPayload) {
+  const char* invalid[] = {
+      R"({"NodeType":"49","Name":"TimeRange","TimeRange":{}})",
+      R"({"NodeType":"50","Name":"TimeRange"})",
+      R"({"NodeType":"50","Name":"TimeRange","TimeRange":null})",
+      R"({"NodeType":"50","Name":"TimeRange","TimeRange":[]})",
+      R"({"NodeType":"50","Name":"TimeRange","ExternalWindow":{}})",
+  };
+  for (const char* json : invalid) {
+    SCOPED_TRACE(json);
+    SNode*                                              decoded = nullptr;
+    const int32_t                                       code = nodesStringToNode(json, &decoded);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> node(decoded, nodesDestroyNode);
+    EXPECT_EQ(TSDB_CODE_INVALID_JSON_FORMAT, code);
+    EXPECT_EQ(nullptr, decoded);
+  }
+}
+
 constexpr int32_t kLastRowScanTestFuncType = 1234;
 
 enum {
