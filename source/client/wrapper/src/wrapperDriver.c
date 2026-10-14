@@ -161,30 +161,71 @@ static int32_t taosResolveDriverPath(char *driverPath, int32_t pathLen, const ch
   return -1;
 }
 
-#ifndef WINDOWS
 static int32_t taosGetCoLocatedPath(char *driverPath, const char *driverName) {
+#ifdef WINDOWS
+  HMODULE module = NULL;
+  char    modulePath[TD_PATH_MAX] = {0};
+  DWORD   flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                  GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+  if (!GetModuleHandleExA(flags, (LPCSTR)&taosDriverInit, &module)) {
+    return -1;
+  }
+
+  DWORD pathLen = GetModuleFileNameA(module, modulePath, sizeof(modulePath));
+  if (pathLen == 0 || pathLen >= sizeof(modulePath)) {
+    return -1;
+  }
+
+  const char *full = modulePath;
+#else
   Dl_info info = {0};
   if (dladdr((void*)taosDriverInit, &info) == 0 || info.dli_fname == NULL) {
     return -1;
   }
 
   const char *full = info.dli_fname;
+#endif
   const char *sep = strrchr(full, TD_DIRSEP[0]);
   if (sep == NULL) {
     return -1;
   }
 
   size_t dirLen = (size_t)(sep - full);
-  if (dirLen == 0 || dirLen >= PATH_MAX) {
+  if (dirLen == 0 || dirLen >= TD_PATH_MAX) {
     return -1;
   }
 
-  int32_t n = snprintf(driverPath, PATH_MAX, "%.*s%s%s", (int)dirLen, full, TD_DIRSEP, driverName);
-  if (n <= 0 || n >= PATH_MAX) {
+  int32_t n = snprintf(driverPath, TD_PATH_MAX, "%.*s%s%s", (int)dirLen, full, TD_DIRSEP, driverName);
+  if (n <= 0 || n >= TD_PATH_MAX) {
     return -1;
   }
 
-  return taosRealPath(driverPath, NULL, PATH_MAX);
+  /* Windows _fullpath() only normalizes the string and succeeds even when the
+   * file does not exist, unlike POSIX realpath(); check existence explicitly
+   * so a missing co-located driver is skipped here instead of after a doomed
+   * load attempt that leaves terrno set. */
+  if (!taosCheckExistFile(driverPath)) {
+    return -1;
+  }
+
+  return taosRealPath(driverPath, NULL, TD_PATH_MAX);
+}
+
+#ifdef WINDOWS
+/* Resolve imports beside the co-located driver. DLL_LOAD_DIR cannot be used
+ * with LOAD_WITH_ALTERED_SEARCH_PATH. */
+static void *taosLoadCoLocatedDll(const char *driverPath) {
+  DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
+                LOAD_LIBRARY_SEARCH_DEFAULT_DIRS;
+  void *handle = LoadLibraryExA(driverPath, NULL, flags);
+  if (handle == NULL) {
+    /* The Windows loader reports failures only via GetLastError() and never
+     * sets errno, so reading errno here could only pick up a stale value left
+     * behind by an unrelated CRT call. */
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  }
+
+  return handle;
 }
 #endif
 
@@ -211,12 +252,15 @@ int32_t taosDriverInit(EDriverType driverType) {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
 
-  // Prefer the driver colocated with loaded libtaos wrapper.
-#ifndef WINDOWS
+  /* Prefer the driver beside this wrapper. Only this step changes dependency
+   * search; the later fallback steps keep taosLoadDll's existing behavior. */
   if (tsDriver == NULL && taosGetCoLocatedPath(driverPath, driverName) == 0) {
+#ifdef WINDOWS
+    tsDriver = taosLoadCoLocatedDll(driverPath);
+#else
     tsDriver = taosLoadDll(driverPath);
-  }
 #endif
+  }
 
   // load from develop build path
   if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {
