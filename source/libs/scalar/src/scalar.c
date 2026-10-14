@@ -1918,6 +1918,11 @@ _exit:
   return code;
 }
 
+static bool sclIsValidStreamRangeOpType(int32_t opType) {
+  return opType == OP_TYPE_GREATER_EQUAL || opType == OP_TYPE_GREATER_THAN || opType == OP_TYPE_LOWER_EQUAL ||
+         opType == OP_TYPE_LOWER_THAN;
+}
+
 static int32_t sclCalcStreamCurrWinTimeRange(SScalarCtx *ctx, SStreamTSRangeParas *streamTsRange,
                                                 SOperatorNode *node, SScalarParam *params) {
   int32_t code = 0;
@@ -1934,11 +1939,40 @@ static int32_t sclCalcStreamCurrWinTimeRange(SScalarCtx *ctx, SStreamTSRangePara
     return TSDB_CODE_STREAM_INTERNAL_ERROR;         
   }
 
-  streamTsRange->opType = node->opType;
-  if (streamTsRange->opType == OP_TYPE_GREATER_EQUAL || streamTsRange->opType == OP_TYPE_GREATER_THAN) {
-    streamTsRange->timeValue = (streamTsRange->timeValue > timeValue) ? streamTsRange->timeValue : timeValue;
+  /*
+   * One bound (start or end) may be constrained by more than one condition, e.g.
+   * "ts >= _twstart and ts > now - 30d" for the start, or
+   * "ts <= _twend and ts < cast(_tlocaltime/1000 + 1h as timestamp)" for the end.
+   * The effective bound is the most restrictive one, and the inclusive/exclusive
+   * semantics MUST come from the condition that owns that bound: the caller turns
+   * opType into the final scan key (skey = value + 1 for '>', ekey = value + 1 for
+   * '<=', then 'ekey--'), so letting the *last evaluated* condition overwrite opType
+   * applies the +/-1 adjustment of an unrelated condition to the value of the binding
+   * one.  For a window trigger whose windows satisfy _twstart == _twend that silently
+   * turns the scan range into an empty interval (skey > ekey) and the stream never
+   * emits any row.
+   * Hence: keep the most restrictive value and take its operator; on a tie prefer the
+   * strict operator, because "ts > M" is stronger than "ts >= M" (same for '<' vs '<=').
+   * Exception: when opType has not been claimed by any condition yet (it starts at the
+   * zero-initialized value and the caller's sentinel bounds are INT64_MIN/INT64_MAX), a
+   * non-strict tie against the sentinel (e.g. "ts >= INT64_MIN") must still take
+   * ownership, otherwise the caller sees an unknown operator and fails with
+   * TSDB_CODE_STREAM_INTERNAL_ERROR.
+   */
+  if (node->opType == OP_TYPE_GREATER_EQUAL || node->opType == OP_TYPE_GREATER_THAN) {
+    bool isStrict = (node->opType == OP_TYPE_GREATER_THAN);
+    bool canTakeOver = isStrict || !sclIsValidStreamRangeOpType(streamTsRange->opType);
+    if (timeValue > streamTsRange->timeValue || (timeValue == streamTsRange->timeValue && canTakeOver)) {
+      streamTsRange->timeValue = timeValue;
+      streamTsRange->opType = node->opType;
+    }
   } else {
-    streamTsRange->timeValue = (streamTsRange->timeValue < timeValue) ? streamTsRange->timeValue : timeValue;
+    bool isStrict = (node->opType == OP_TYPE_LOWER_THAN);
+    bool canTakeOver = isStrict || !sclIsValidStreamRangeOpType(streamTsRange->opType);
+    if (timeValue < streamTsRange->timeValue || (timeValue == streamTsRange->timeValue && canTakeOver)) {
+      streamTsRange->timeValue = timeValue;
+      streamTsRange->opType = node->opType;
+    }
   }
   if (code != TSDB_CODE_SUCCESS) {
     sclError("get ts value for stream timerange failed, code:%d", code);
