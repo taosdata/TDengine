@@ -52,7 +52,7 @@ MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在�
 
 **禁止存储引擎替换**（`no_engine_substitution`）控制是否在当前连接的 SQL 模式中追加 `NO_ENGINE_SUBSTITUTION`，以禁止 MySQL 在指定存储引擎不可用时自动替换存储引擎。关闭时不会移除服务器会话中已有的同名模式。默认开启。
 
-例如，通过 MySQL 协议连接 Apache Doris 同步数据时，将上述两个选项都设置为 **关闭**（`false`），然后点击 **检查连通性**。其他兼容 MySQL 协议的数据库应根据其兼容性要求设置，不建议修改已有任务的配置。
+Apache Doris 提供兼容 MySQL 协议的端口，taosX 使用 MySQL 驱动连接该端口。驱动默认在连接初始化时向会话 SQL 模式追加 `PIPES_AS_CONCAT` 和 `NO_ENGINE_SUBSTITUTION`，但 Doris 不支持这两种模式，因此连接会在执行同步查询前失败。同步 Doris 数据时，将上述两个选项均设置为 **关闭**（`false`），使驱动不再追加这两种模式，然后点击 **检查连通性**。其他兼容 MySQL 协议的数据库应根据其兼容性要求设置，不建议修改已有任务的配置。
 
 **SSL 模式** 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。默认值是 PREFERRED。可选项有 DISABLED、PREFERRED、REQUIRED。
 
