@@ -35,6 +35,84 @@
 #include "tlog.h"
 #include "ttime.h"
 
+// Compare every realtime entry point with an independent system clock.
+TEST(osTimeTests, realtimeReturnsUnixTime) {
+  auto systemTimeNs = []() -> int64_t {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+  };
+  int64_t         before = systemTimeNs();
+  struct timespec ts = {0};
+  ASSERT_EQ(taosClockGetTime(CLOCK_REALTIME, &ts), 0);
+  struct timeval tv = {0};
+  ASSERT_EQ(taosGetTimeOfDay(&tv), 0);
+  time_t t = 0;
+  ASSERT_EQ(taosTime(&t), 0);
+  const struct {
+    const char *name;
+    int64_t     value;
+    int64_t     nsPerUnit;
+  } actual[] = {
+      {"taosGetTimestampSec", taosGetTimestampSec(), NANOSECOND_PER_SEC},
+      {"taosTime", (int64_t)t, NANOSECOND_PER_SEC},
+      {"taosGetTimestampMs", taosGetTimestampMs(), NANOSECOND_PER_MSEC},
+      {"taosGetTimestampUs", taosGetTimestampUs(), NANOSECOND_PER_USEC},
+      {"taosGetTimeOfDay",
+       (int64_t)tv.tv_sec * MICROSECOND_PER_SECOND + tv.tv_usec,
+       NANOSECOND_PER_USEC},
+      {"taosGetTimestampNs", taosGetTimestampNs(), 1},
+      {"taosClockGetTime(CLOCK_REALTIME)",
+       (int64_t)ts.tv_sec * NANOSECOND_PER_SEC + ts.tv_nsec, 1},
+  };
+  int64_t after = systemTimeNs();
+
+  EXPECT_GE(ts.tv_nsec, 0);
+  EXPECT_LT(ts.tv_nsec, NANOSECOND_PER_SEC);
+  EXPECT_GE(tv.tv_usec, 0);
+  EXPECT_LT(tv.tv_usec, MICROSECOND_PER_SECOND);
+#ifdef WINDOWS
+  // GetSystemTimeAsFileTime can lag the reference by a 10-16 ms tick.
+  const int64_t realtimeMargin = 20 * NANOSECOND_PER_MSEC;
+#else
+  const int64_t realtimeMargin = NANOSECOND_PER_MSEC;
+#endif
+  for (size_t i = 0; i < sizeof(actual) / sizeof(actual[0]); ++i) {
+    SCOPED_TRACE(actual[i].name);
+    // time()-based second entries may lag by a coarse tick across a second
+    // boundary.
+    const int64_t margin = actual[i].nsPerUnit == NANOSECOND_PER_SEC
+                               ? NANOSECOND_PER_SEC
+                               : realtimeMargin;
+    EXPECT_GE(actual[i].value, (before - margin) / actual[i].nsPerUnit);
+    EXPECT_LE(actual[i].value, (after + margin) / actual[i].nsPerUnit);
+  }
+}
+
+#ifdef WINDOWS
+TEST(osTimeTests, monotonicUsesPerformanceCounter) {
+  LARGE_INTEGER frequency, before, after;
+  ASSERT_TRUE(QueryPerformanceFrequency(&frequency));
+  ASSERT_GT(frequency.QuadPart, 0);
+  ASSERT_TRUE(QueryPerformanceCounter(&before));
+  struct timespec actual = {0};
+  ASSERT_EQ(taosClockGetTime(CLOCK_MONOTONIC, &actual), 0);
+  ASSERT_TRUE(QueryPerformanceCounter(&after));
+
+  auto toMicroseconds = [&frequency](LARGE_INTEGER ticks) -> int64_t {
+    return ticks.QuadPart / frequency.QuadPart * MICROSECOND_PER_SECOND +
+           ticks.QuadPart % frequency.QuadPart * MICROSECOND_PER_SECOND /
+               frequency.QuadPart;
+  };
+  EXPECT_GE(actual.tv_nsec, 0);
+  EXPECT_LT(actual.tv_nsec, NANOSECOND_PER_SEC);
+  int64_t actualUs = (int64_t)actual.tv_sec * MICROSECOND_PER_SECOND +
+                     actual.tv_nsec / NANOSECOND_PER_USEC;
+  EXPECT_GE(actualUs, toMicroseconds(before));
+  EXPECT_LE(actualUs, toMicroseconds(after));
+}
+#endif
+
 TEST(osTimeTests, taosLocalTime) {
   // Test 1: Test when both timep and result are not NULL
   time_t     timep = 1617531000;  // 2021-04-04 18:10:00

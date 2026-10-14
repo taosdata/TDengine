@@ -704,10 +704,16 @@ struct NotifyRetryState {
 
 NotifyRetryState* gNotifyRetryState = nullptr;
 
-int32_t NotifyRetryTimeOfDay(struct timeval* time) {
-  int64_t now = gNotifyRetryState->nowMs.load();
-  time->tv_sec = now / 1000;
-  time->tv_usec = (now % 1000) * 1000;
+// Fakes only the wall clock; the monotonic clock stays real.
+int32_t NotifyRetryClock(int clockId, struct timespec* time) {
+  int64_t nowNs = gNotifyRetryState->nowMs.load() * NANOSECOND_PER_MSEC;
+  if (clockId != CLOCK_REALTIME) {
+    nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count();
+  }
+  time->tv_sec = static_cast<time_t>(nowNs / NANOSECOND_PER_SEC);
+  time->tv_nsec = static_cast<long>(nowNs % NANOSECOND_PER_SEC);
   return 0;
 }
 
@@ -772,7 +778,7 @@ class StreamNotifyRetryTest : public StreamNotifyTest {
     for (SCURL& connection : state_.connections) {
       connection.pConn = reinterpret_cast<CURL*>(&connection);
     }
-    stub_.set(taosGetTimeOfDay, NotifyRetryTimeOfDay);
+    stub_.set(taosClockGetTime, NotifyRetryClock);
     stub_.set(taosMsleep, NotifyRetrySleep);
     stub_.set(tcurlUrlRetryAfterMs, NotifyRetryAfterMs);
     stub_.set(tcurlGetConnection, NotifyRetryGetConnection);
