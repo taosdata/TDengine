@@ -41,7 +41,7 @@ Options include utf8, utf8mb4, utf16, utf32, gbk, big5, latin1, ascii.
 
 **No Engine Substitution** (`no_engine_substitution`) controls whether `NO_ENGINE_SUBSTITUTION` is added to the SQL mode for this connection, preventing MySQL from substituting a storage engine when the requested engine is unavailable. Disabling this option does not remove the mode if it is already present in the server session. This option is enabled by default.
 
-For example, when synchronizing data from Apache Doris through its MySQL protocol endpoint, turn **both options off** (`false`), then click **Check Connectivity**. Set these options for other MySQL-compatible databases according to their compatibility requirements, and avoid changing them on existing tasks without checking their queries.
+Apache Doris provides a MySQL-compatible endpoint, which taosX connects to using the MySQL driver. By default, the driver adds `PIPES_AS_CONCAT` and `NO_ENGINE_SUBSTITUTION` to the session SQL mode during connection initialization. Doris does not support these modes, so the connection fails before any synchronization query runs. To synchronize Doris data, turn **both options off** (`false`) so the driver does not add these modes, then click **Check Connectivity**. Set these options for other MySQL-compatible databases according to their compatibility requirements, and avoid changing them on existing tasks without checking their queries.
 
 **SSL Mode** Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority of negotiation. The default value is PREFERRED. Options include DISABLED, PREFERRED, REQUIRED.
 
