@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import datetime
 import time
 
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
@@ -155,6 +156,74 @@ class TestExternalWindowMultiGroup:
             self._wait_customer_soc_publications(
                 result_sql, expected, expected_tables
             )
+        finally:
+            tdStream.dropAllStreamsAndDbs()
+
+    def test_customer_soc_runtime_filter_results(self):
+        """Customer five-leaf SOC JOIN preserves results with sparse dimension matches.
+
+        1. Replay four groups against 2737 brand/rule rows and a duplicate brand.
+        2. Keep p2's valid trigger group unmatched while other groups publish.
+        3. Change p1's brand/station keys between completed request batches.
+        4. Compare every ordered output column and the newly loaded rule values.
+
+        Catalog:
+            - Streams:SubQuery:ExternalWindow
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+        Feishu: None
+
+        History:
+            - 2026-10-10 OpenAI Added runtime JOIN filter result regression
+        """
+        tdStream.dropAllStreamsAndDbs()
+        try:
+            self._prepare_customer_soc_fixture(group_count=4, fragmented=True)
+            db = self.SOC_DB
+            # This group has valid source data and a pile row, but no matching brand.
+            tdSql.execute(
+                f"insert into {db}.p2 values "
+                "('2025-01-01 00:00:00','p2',99999,2,'INSERT')"
+            )
+            tdSql.execute(self._customer_soc_stream_sql())
+            tdStream.checkStreamStatus("s_soc")
+            result_sql = (
+                "select tbname,ts,trade_no,charged_time,pile_kw,percent_threshold,"
+                f"curr_soc,prev_soc,diff_soc,flag from {db}.result order by tbname,ts"
+            )
+            tables = [(f"soc_m{group}",) for group in range(4)]
+            expected = [
+                (f"soc_m{group}", datetime.datetime(2025, 1, 1, 0, 0, second),
+                 f"order{group}", second, 10.0, 5.0 if group < 2 else 0.25,
+                 20 + second, 19 + second, 1, 0 if group < 2 else 1)
+                for group in range(3) for second in (1, 2)
+            ]
+            self._write_customer_soc_rows(0, 3, 4)
+            self._wait_customer_soc_publications(result_sql, expected, tables)
+
+            tdSql.executes([
+                f"insert into {db}.p1 values "
+                "('2025-01-01 00:00:00','p1',3,3,'INSERT')",
+                f"insert into {db}.r0 values "
+                "('2025-01-01 00:00:00',0,0.5,20,'INSERT')",
+                f"insert into {db}.r3 values "
+                "('2025-01-01 00:00:00',3,9,20,'INSERT')",
+            ])
+            self._write_customer_soc_rows(3, 2, 4)
+            expected += [
+                (f"soc_m{group}", datetime.datetime(2025, 1, 1, 0, 0, second),
+                 f"order{group}", second, 10.0, 0.5 if group < 2 else 9.0,
+                 20 + second, 19 + second, 1, 1 if group < 2 else 0)
+                for group in range(3) for second in (3, 4)
+            ]
+            expected.sort(key=lambda row: (row[0], row[1]))
+            self._wait_customer_soc_publications(result_sql, expected, tables)
+            tdSql.query(f"select count(*) from {db}.m3")
+            tdSql.checkData(0, 0, 5)
+            tdSql.query(f"select count(*) from {db}.soc_m3")
+            tdSql.checkData(0, 0, 0)
         finally:
             tdStream.dropAllStreamsAndDbs()
 
@@ -557,13 +626,111 @@ class TestExternalWindowMultiGroup:
         finally:
             tdStream.dropAllStreamsAndDbs()
 
+    def test_customer_soc_reader_group_switch(self):
+        """Compare sequential SOC groups with the same offline window SQL.
+
+        1. Stagger four groups' ranges and use distinct orders per group.
+        2. Write three equal batches, flushing after the first publication.
+        3. Keep one group empty and start another group's new order at zero.
+        4. Expand the stream SELECT for every valid adjacent-frame window.
+        5. Compare each group's exact rows, including the persisted prefix.
+
+        Catalog:
+            - Streams:SubQuery:ExternalWindow
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+        Feishu: None
+
+        History:
+            - 2026-10-08 OpenAI Added Reader group-switch integration regression
+        """
+        tdStream.dropAllStreamsAndDbs()
+        try:
+            self._prepare_customer_soc_fixture(
+                group_count=4, vgroups=3, pile_code_is_tag=True
+            )
+            stream_sql = self._customer_soc_stream_sql()
+            tdSql.execute(stream_sql)
+            tdStream.checkStreamStatus("s_soc")
+            # Reuse the original calculation SQL, changing only its bound
+            # parameters to the concrete child, order and frame window.
+            calculation_sql = stream_sql[stream_sql.index("            select t1.ts"):]
+            columns = (
+                "ts,trade_no,charged_time,pile_kw,percent_threshold,"
+                "curr_soc,prev_soc,diff_soc,flag"
+            )
+            result_sql = (
+                f"select tbname,{columns} from {self.SOC_DB}.result order by tbname,ts"
+            )
+            tables = [(f"soc_m{group}",) for group in range(4)]
+            rows_by_group = [
+                [
+                    (
+                        index + group * 3,
+                        f"next{group}" if group == 3 and index >= 4 else f"order{group}",
+                        0 if group == 2 or (group == 1 and index < 3)
+                        or (group == 3 and 4 <= index < 8) else 20 + index,
+                    )
+                    for index in range(12)
+                ]
+                for group in range(4)
+            ]
+            for start, counts in zip((0, 4, 8), ((3, 0, 0, 3), (7, 4, 0, 3), (11, 8, 0, 6))):
+                parts = []
+                for group, rows in enumerate(rows_by_group):
+                    values = " ".join(
+                        f"('2025-01-01 00:00:{second:02d}','{order}',3,{soc},{second},10)"
+                        for second, order, soc in rows[start:start + 4]
+                    )
+                    parts.append(f"{self.SOC_DB}.m{group} values {values}")
+                tdSql.execute("insert into " + " ".join(parts))
+                expected = []
+                for group, rows in enumerate(rows_by_group):
+                    offline = []
+                    order_start = rows[0][0]
+                    for index in range(1, start + 4):
+                        previous, current = rows[index - 1], rows[index]
+                        if current[1] != previous[1]:
+                            # EXTEND(1) closes the previous order before this
+                            # row; no count-window pair crosses that boundary.
+                            order_start = current[0]
+                            continue
+                        sql = calculation_sql.replace("%%tbname", f"{self.SOC_DB}.m{group}")
+                        sql = sql.replace("%%2", "'p0'")
+                        for parameter, second in (
+                            ("w_order._twstart", order_start),
+                            ("_twstart", previous[0]), ("_twend", current[0]),
+                        ):
+                            sql = sql.replace(
+                                parameter,
+                                f"cast('2025-01-01 00:00:{second:02d}' as timestamp)",
+                            )
+                        offline.extend(self._query_rows(sql.replace("_twduration", "1000")))
+                    assert len(offline) == counts[group], (group, offline)
+                    expected.extend((f"soc_m{group}",) + row for row in offline)
+                self._wait_customer_soc_publications(result_sql, sorted(expected), tables)
+                for group in range(4):
+                    actual = self._query_rows(
+                        f"select {columns} from {self.SOC_DB}.soc_m{group} order by ts"
+                    )
+                    baseline = [row[1:] for row in expected if row[0] == f"soc_m{group}"]
+                    assert actual == baseline, (group, actual, baseline)
+                if start == 0:
+                    tdSql.execute(f"flush database {self.SOC_DB}")
+        finally:
+            tdStream.dropAllStreamsAndDbs()
+
     def test_customer_soc_reader_fetch_tag_dimension(self):
         """Verify Reader fetch results with a TAG-filtered SOC dimension table.
 
         1. Create twelve monitor groups across three vgroups.
         2. Store pile_code as a TAG on the pile dimension stable.
         3. Keep two groups empty and write continuous four-row batches.
-        4. Verify exact first-batch and continuation results and table identities.
+        4. Give two dimension rows distinct sink timestamps and verify every row.
+        5. Change TAG membership, create/drop a matching child between batches.
+        6. Verify another batch after restoring the original TAG membership.
 
         Catalog:
             - Streams:SubQuery:ExternalWindow
@@ -581,11 +748,31 @@ class TestExternalWindowMultiGroup:
         groups = 12
         zero_groups = {0, 7}
         tdStream.dropAllStreamsAndDbs()
+        tdSql.query("show dnodes")
+        dnodes = [row[0] for row in tdSql.queryResult]
+        original = []
         try:
+            for dnode in dnodes:
+                for option in ("stableTagFilterCache", "tagFilterCache"):
+                    tdSql.query(f"show dnode {dnode} variables like '{option}'")
+                    original.append((dnode, option, tdSql.queryResult[0][2]))
+                    value = 1 if option == "stableTagFilterCache" else 0
+                    tdSql.execute(f"alter dnode {dnode} '{option}' '{value}'")
             self._prepare_customer_soc_fixture(
                 group_count=groups, vgroups=3, pile_code_is_tag=True
             )
-            tdSql.execute(self._customer_soc_stream_sql())
+            tdSql.executes([
+                f"insert into {self.SOC_DB}.p1 using {self.SOC_DB}.pile "
+                "tags(1,'p0') values ('2025-01-01 00:00:00',0,1,'INSERT')",
+                f"insert into {self.SOC_DB}.r1 using {self.SOC_DB}.rule "
+                "tags(1) values ('2025-01-01 00:00:00',1,7,20,'INSERT')",
+            ])
+            # A distinct timestamp retains both rows through the result sink.
+            stream_sql = self._customer_soc_stream_sql().replace(
+                "select t1.ts,t1.trade_no",
+                "select t1.ts+t2.station_id ts,t1.trade_no",
+            )
+            tdSql.execute(stream_sql)
             tdStream.checkStreamStatus("s_soc")
             result_sql = (
                 "select tbname,trade_no,prev_soc,curr_soc,diff_soc,"
@@ -594,7 +781,7 @@ class TestExternalWindowMultiGroup:
             )
             tables = [(f"soc_m{group}",) for group in range(groups)]
             start = 0
-            for stop in (8, 32):
+            for stop in (8, 16, 32, 36):
                 for offset in range(start, stop, 4):
                     self._write_customer_soc_rows(
                         offset, 4, groups, zero_groups
@@ -606,19 +793,37 @@ class TestExternalWindowMultiGroup:
                         20 + offset,
                         21 + offset,
                         1,
-                        5.0,
+                        threshold,
                         0,
                     )
                     for group in range(groups)
                     if group not in zero_groups
                     for offset in range(stop - 1)
+                    for threshold in ((5.0, 9.0) if 7 <= offset < 15 else (5.0, 7.0))
                 )
                 self._wait_customer_soc_publications(
                     result_sql, expected, sorted(tables)
                 )
+                if stop == 8:
+                    tdSql.executes([
+                        f"alter table {self.SOC_DB}.p1 set tag pile_code='other'",
+                        f"insert into {self.SOC_DB}.p2 using {self.SOC_DB}.pile "
+                        "tags(2,'p0') values ('2025-01-01 00:00:00',0,2,'INSERT')",
+                        f"insert into {self.SOC_DB}.r2 using {self.SOC_DB}.rule "
+                        "tags(2) values ('2025-01-01 00:00:00',2,9,20,'INSERT')",
+                    ])
+                elif stop == 16:
+                    tdSql.executes([
+                        f"drop table {self.SOC_DB}.p2",
+                        f"alter table {self.SOC_DB}.p1 set tag pile_code='p0'",
+                    ])
                 start = stop
         finally:
-            tdStream.dropAllStreamsAndDbs()
+            try:
+                tdStream.dropAllStreamsAndDbs()
+            finally:
+                for dnode, option, value in reversed(original):
+                    tdSql.execute(f"alter dnode {dnode} '{option}' '{value}'")
 
     def _prepare_customer_soc_fixture(
         self,

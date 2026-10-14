@@ -72,6 +72,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_READER_FETCH_ID_FRAME_VERSION   1
 #define STREAM_READER_FETCH_ID_FRAME_MAGIC     UINT32_C(0x4e575246)
 #define STREAM_READER_GROUP_MODE_FRAME_VERSION 1
+#define STREAM_READER_DIMENSION_BATCH_FRAME_VERSION 1
 #define STREAM_RUNNER_EOG_BATCH_FRAME_VERSION  1
 #define STREAM_RUNNER_FETCH_BATCH_VERSION      1
 #define STREAM_RUNNER_EOG_BATCH_MAX            64
@@ -85,6 +86,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_FETCH_RESET_MODE_FRAME_MAGIC   UINT32_C(0x4e574652)
 #define STREAM_TWO_PASS_RESCAN_FRAME_MAGIC    UINT32_C(0x4e575052)
 #define STREAM_READER_GROUP_MODE_FRAME_MAGIC   UINT32_C(0x4e57474d)
+#define STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC   UINT32_C(0x4e574442)
 #define STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC    UINT32_C(0x4e575242)
 #define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
@@ -1874,6 +1876,7 @@ typedef struct SStreamReaderFetchView {
   SStreamRuntimeFuncInfo runtime;
   SStreamContextPolicy   policy;
   SStreamAncestorContext ancestor;
+  bool                   borrowedDimensionBatch;
 } SStreamReaderFetchView;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);
@@ -1898,6 +1901,7 @@ int32_t tProjectStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, b
                                           SStreamAncestorContext** ppContext);
 int32_t tValidateStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
                                            bool effectiveNeedStreamGrpInfo);
+int32_t tValidateStreamDimensionReaderContext(const SStreamRuntimeFuncInfo* pInfo, bool requiresContextPolicy);
 int32_t tPrepareStreamReaderFetchView(const SStreamRuntimeFuncInfo* pSource, int32_t nodeId,
                                       SStreamReaderFetchView* pView);
 void    tClearStreamReaderFetchView(SStreamReaderFetchView* pView);
@@ -1910,6 +1914,9 @@ int32_t tSelectStreamFetchContextForNode(const SStreamPreparedFetchContext* pPre
 int32_t tSelectStreamFetchContextForGroup(const SStreamPreparedFetchContext* pPrepared,
                                           const SStreamRuntimeFuncInfo* pSource, int64_t gid,
                                           const SStreamFetchContextSelection** ppSelection);
+int32_t tSelectStreamFetchContextForDimensionBatch(const SStreamPreparedFetchContext*   pPrepared,
+                                                   const SStreamRuntimeFuncInfo*        pSource,
+                                                   const SStreamFetchContextSelection** ppSelection);
 bool    tStreamFetchSelectionBelongsToPrepared(const SStreamPreparedFetchContext*  pPrepared,
                                                const SStreamFetchContextSelection* pSelection);
 int32_t tPrepareStreamFetchRuntimeView(const SStreamFetchContextSelection* pSelection,

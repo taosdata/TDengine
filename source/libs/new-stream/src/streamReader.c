@@ -41,7 +41,8 @@ void stReaderCaptureFetchState(SStreamReaderFetchState* pState, const SResFetchR
                                       .streamGen = pReq->pStRtFuncInfo->streamGen,
                                       .sessionId = pReq->pStRtFuncInfo->sessionId,
                                       .dynTbname = pReq->dynTbname,
-                                      .readerGroupMode = pReq->readerGroupMode};
+                                      .readerGroupMode = pReq->readerGroupMode,
+                                      .readerDimensionBatch = pReq->readerDimensionBatch};
 }
 
 int32_t stReaderCheckFetchContinuation(const SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq,
@@ -53,9 +54,11 @@ int32_t stReaderCheckFetchContinuation(const SStreamTriggerReaderCalcInfo* pCalc
       pState->taskId != pReq->taskId || pState->execId != pReq->execId || pState->nodeId != actualNodeId ||
       pState->streamGen != pRt->streamGen || pState->sessionId != pRt->sessionId ||
       pState->dynTbname != pReq->dynTbname || pState->readerGroupMode != pReq->readerGroupMode ||
-      !pRt->isMultiGroupCalc || pReq->reset || pReq->reuseReader || pReq->pOpParam != NULL ||
-      pRt->pGroupCalcInfos != NULL || pRt->pGroupReadInfos != NULL || pRt->curGrpRead != NULL ||
-      pRt->pContextPolicy != NULL || pRt->pAncestorContext != NULL || pReq->pContextFrames != NULL) {
+      pState->readerDimensionBatch != pReq->readerDimensionBatch ||
+      (pReq->readerDimensionBatch && (!pReq->readerGroupMode || pReq->dynTbname)) || !pRt->isMultiGroupCalc ||
+      pReq->reset || pReq->reuseReader || pReq->pOpParam != NULL || pRt->pGroupCalcInfos != NULL ||
+      pRt->pGroupReadInfos != NULL || pRt->curGrpRead != NULL || pRt->pContextPolicy != NULL ||
+      pRt->pAncestorContext != NULL || pReq->pContextFrames != NULL) {
     return TSDB_CODE_INVALID_MSG;
   }
   return TSDB_CODE_SUCCESS;
@@ -63,6 +66,58 @@ int32_t stReaderCheckFetchContinuation(const SStreamTriggerReaderCalcInfo* pCalc
 
 void stReaderInvalidateFetchState(SStreamTriggerReaderCalcInfo* pCalc) {
   if (pCalc != NULL) pCalc->fetchState.id = 0;
+}
+
+int32_t stReaderBindDimensionGroup(SStreamTriggerReaderCalcInfo* pCalc, uint64_t gid) {
+  if (pCalc == NULL || !pCalc->dimensionBatch.installed) return TSDB_CODE_INVALID_PARA;
+  SStreamReaderDimensionBatch* pBatch = &pCalc->dimensionBatch;
+  SSTriggerGroupCalcInfo*      pGroup = tSimpleHashGet(pBatch->runtime.pGroupCalcInfos, &gid, sizeof(gid));
+  if (pGroup == NULL || taosArrayGetSize(pGroup->pParams) == 0) return TSDB_CODE_INVALID_PARA;
+  SStreamRuntimeFuncInfo view = pBatch->runtime;
+  view.isMultiGroupCalc = false;
+  view.pGroupCalcInfos = NULL;
+  view.pGroupCalcOrder = NULL;
+  view.groupId = gid;
+  view.curIdx = 0;
+  view.curGrpCalc = pGroup;
+  view.pStreamPesudoFuncVals = pGroup->pParams;
+  view.pStreamPartColVals = pGroup->pGroupColVals;
+  view.createTable = &pGroup->createTable;
+  view.rollupTbCount = pGroup->rollupTbCount;
+  view.hasPlaceHolder = pCalc->hasPlaceHolder;
+  view.pContextPolicy = NULL;
+  view.pAncestorContext = NULL;
+  int32_t lo = 0, hi = taosArrayGetSize(pBatch->pContextViews);
+  while (lo < hi) {
+    int32_t                      mid = lo + (hi - lo) / 2;
+    SStreamCalcContextGroupView* pView = taosArrayGet(pBatch->pContextViews, mid);
+    if ((uint64_t)pView->gid < gid)
+      lo = mid + 1;
+    else
+      hi = mid;
+  }
+  if (lo < taosArrayGetSize(pBatch->pContextViews)) {
+    SStreamCalcContextGroupView* pView = taosArrayGet(pBatch->pContextViews, lo);
+    if ((uint64_t)pView->gid == gid) {
+      view.pContextPolicy = pView->pContextPolicy;
+      view.pAncestorContext = pView->pAncestorContext;
+    }
+  }
+  if (pCalc->requiresContextPolicy && view.pContextPolicy == NULL) return TSDB_CODE_INVALID_PARA;
+  pCalc->rtInfo.funcInfo = view;
+  return TSDB_CODE_SUCCESS;
+}
+
+void stReaderClearDimensionBatch(SStreamTriggerReaderCalcInfo* pCalc) {
+  if (pCalc == NULL || !pCalc->dimensionBatch.installed) return;
+  // A scan can retain pointers into the current group until reset or destruction.
+  qDestroyTask(pCalc->pTaskInfo);
+  pCalc->pTaskInfo = NULL;
+  memset(&pCalc->rtInfo.funcInfo, 0, sizeof(pCalc->rtInfo.funcInfo));
+  tDestroyStreamCalcContextGroupViews(&pCalc->dimensionBatch.pContextViews);
+  taosArrayDestroy(pCalc->dimensionBatch.pGroupOrder);
+  tDestroyStRtFuncInfo(&pCalc->dimensionBatch.runtime);
+  memset(&pCalc->dimensionBatch, 0, sizeof(pCalc->dimensionBatch));
 }
 
 int32_t stReaderSetGroupOutputMode(SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq) {
@@ -1443,6 +1498,7 @@ static void releaseStreamReaderCalcInfo(void* p) {
   nodesDestroyNode((SNode*)pInfo->tsConditions);
   filterFreeInfo(pInfo->pFilterInfo);
 
+  stReaderClearDimensionBatch(pInfo);
   tDestroyStRtFuncInfo(&pInfo->rtInfo.funcInfo);
   tDestroyStreamContextPolicy(&pInfo->tmpRtFuncInfo.pContextPolicy);
   tDestroyStreamAncestorContext(&pInfo->tmpRtFuncInfo.pAncestorContext);

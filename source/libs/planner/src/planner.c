@@ -16,6 +16,7 @@
  */
 
 #include "planner.h"
+#include "functionMgt.h"
 #include "planInt.h"
 #include "tutil.h"
 
@@ -1942,22 +1943,36 @@ SQueryPlan* qStringToQueryPlan(const char* pStr) {
 
 void qDestroyQueryPlan(SQueryPlan* pPlan) { nodesDestroyNode((SNode*)pPlan); }
 
-static bool streamReuseFixedExpr(const SNode* pNode, const SScanPhysiNode* pScan);
+static bool streamReuseReaderExpr(const SNode* pNode, const SScanPhysiNode* pScan, bool allowPartitionPlaceholder);
 
-static bool streamReuseFixedExprs(const SNodeList* pList, const SScanPhysiNode* pScan) {
+static bool streamReuseReaderExprs(const SNodeList* pList, const SScanPhysiNode* pScan,
+                                   bool allowPartitionPlaceholder) {
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
-    if (!streamReuseFixedExpr(pNode, pScan)) return false;
+    if (!streamReuseReaderExpr(pNode, pScan, allowPartitionPlaceholder)) return false;
   }
   return true;
 }
 
-static bool streamReuseFixedExpr(const SNode* pNode, const SScanPhysiNode* pScan) {
+static bool streamReusePartitionPlaceholder(const SNode* pNode) {
+  if (pNode == NULL || nodeType(pNode) != QUERY_NODE_FUNCTION) return false;
+  const SFunctionNode* pFunc = (const SFunctionNode*)pNode;
+  if (pFunc->funcType != FUNCTION_TYPE_PLACEHOLDER_COLUMN || pFunc->node.relatedTo != 0 || pFunc->pOver != NULL ||
+      LIST_LENGTH(pFunc->pParameterList) != 2)
+    return false;
+  const SNode* pValue = nodesListGetNode(pFunc->pParameterList, 0);
+  const SNode* pIndex = nodesListGetNode(pFunc->pParameterList, 1);
+  return pValue != NULL && nodeType(pValue) == QUERY_NODE_VALUE && ((const SValueNode*)pValue)->isNull &&
+         pIndex != NULL && nodeType(pIndex) == QUERY_NODE_VALUE && ((const SValueNode*)pIndex)->translate &&
+         !((const SValueNode*)pIndex)->isNull && ((const SValueNode*)pIndex)->datum.i > 0;
+}
+
+static bool streamReuseReaderExpr(const SNode* pNode, const SScanPhysiNode* pScan, bool allowPartitionPlaceholder) {
   if (pNode == NULL) return true;
   switch (nodeType(pNode)) {
     case QUERY_NODE_TARGET: {
       const STargetNode* pTarget = (const STargetNode*)pNode;
-      return pTarget->pExpr != NULL && streamReuseFixedExpr(pTarget->pExpr, pScan);
+      return pTarget->pExpr != NULL && streamReuseReaderExpr(pTarget->pExpr, pScan, allowPartitionPlaceholder);
     }
     case QUERY_NODE_COLUMN: {
       const SColumnNode* pCol = (const SColumnNode*)pNode;
@@ -1975,6 +1990,11 @@ static bool streamReuseFixedExpr(const SNode* pNode, const SScanPhysiNode* pScan
     case QUERY_NODE_OPERATOR: {
       const SOperatorNode* pOp = (const SOperatorNode*)pNode;
       if (pOp->node.relatedTo != 0 || pOp->pLeft == NULL) return false;
+      if (allowPartitionPlaceholder && pOp->opType == OP_TYPE_EQUAL && pOp->pRight != NULL &&
+          (streamReusePartitionPlaceholder(pOp->pLeft) || streamReusePartitionPlaceholder(pOp->pRight))) {
+        const SNode* pOther = streamReusePartitionPlaceholder(pOp->pLeft) ? pOp->pRight : pOp->pLeft;
+        return pOther != NULL && nodeType(pOther) == QUERY_NODE_COLUMN && streamReuseReaderExpr(pOther, pScan, false);
+      }
       switch (pOp->opType) {
         case OP_TYPE_ADD:
         case OP_TYPE_SUB:
@@ -1991,12 +2011,12 @@ static bool streamReuseFixedExpr(const SNode* pNode, const SScanPhysiNode* pScan
         case OP_TYPE_NOT_EQUAL:
         case OP_TYPE_LIKE:
         case OP_TYPE_NOT_LIKE:
-          return pOp->pRight != NULL && streamReuseFixedExpr(pOp->pLeft, pScan) &&
-                 streamReuseFixedExpr(pOp->pRight, pScan);
+          return pOp->pRight != NULL && streamReuseReaderExpr(pOp->pLeft, pScan, allowPartitionPlaceholder) &&
+                 streamReuseReaderExpr(pOp->pRight, pScan, allowPartitionPlaceholder);
         case OP_TYPE_MINUS:
         case OP_TYPE_IS_NULL:
         case OP_TYPE_IS_NOT_NULL:
-          return pOp->pRight == NULL && streamReuseFixedExpr(pOp->pLeft, pScan);
+          return pOp->pRight == NULL && streamReuseReaderExpr(pOp->pLeft, pScan, allowPartitionPlaceholder);
         default:
           return false;
       }
@@ -2006,7 +2026,8 @@ static bool streamReuseFixedExpr(const SNode* pNode, const SScanPhysiNode* pScan
       return pCond->node.relatedTo == 0 &&
              (pCond->condType == LOGIC_COND_TYPE_AND || pCond->condType == LOGIC_COND_TYPE_OR ||
               pCond->condType == LOGIC_COND_TYPE_NOT) &&
-             LIST_LENGTH(pCond->pParameterList) > 0 && streamReuseFixedExprs(pCond->pParameterList, pScan);
+             LIST_LENGTH(pCond->pParameterList) > 0 &&
+             streamReuseReaderExprs(pCond->pParameterList, pScan, allowPartitionPlaceholder);
     }
     default:
       // Functions (including context placeholders), subqueries and unknown expressions are unproven.
@@ -2014,7 +2035,7 @@ static bool streamReuseFixedExpr(const SNode* pNode, const SScanPhysiNode* pScan
   }
 }
 
-static bool streamReuseFixedReader(const SSubplan* pReader) {
+static bool streamReuseReader(const SSubplan* pReader, bool allowPartitionPlaceholder) {
   if (pReader->subplanType != SUBPLAN_TYPE_SCAN || pReader->dynTbname || pReader->pVTables != NULL ||
       LIST_LENGTH(pReader->pSubQ) != 0 || LIST_LENGTH(pReader->pChildren) != 0 || pReader->pNode == NULL ||
       nodeType(pReader->pNode) != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
@@ -2030,21 +2051,26 @@ static bool streamReuseFixedReader(const SSubplan* pReader) {
       LIST_LENGTH(pNode->pChildren) != 0 || pNode->pLimit != NULL || pNode->pSlimit != NULL ||
       LIST_LENGTH(pScan->pScanCols) == 0 || pTable->scanSeq[0] != 1 || pTable->scanSeq[1] != 0 || pTable->ratio != 1 ||
       pTable->scanRange.skey > pTable->scanRange.ekey || pTable->pExtScanRange != NULL || pTable->interval != 0 ||
-      pTable->sliding != 0) {
+      pTable->sliding != 0 || (allowPartitionPlaceholder && pTable->pDynamicScanFuncs != NULL)) {
     return false;
   }
   // requiresAncestorContext is a transport requirement, not an expression dependency.
-  return streamReuseFixedExpr(pReader->pTagCond, pScan) && streamReuseFixedExpr(pReader->pTagIndexCond, pScan) &&
-         streamReuseFixedExpr(pNode->pConditions, pScan) && streamReuseFixedExpr(pTable->pPrimaryCond, pScan) &&
-         streamReuseFixedExpr(pTable->pTimeRange, pScan) && streamReuseFixedExpr(pTable->pExtTimeRange, pScan) &&
-         streamReuseFixedExpr(pTable->pSubtable, pScan) && streamReuseFixedExprs(pScan->pScanCols, pScan) &&
-         streamReuseFixedExprs(pScan->pScanPseudoCols, pScan) &&
-         streamReuseFixedExprs(pTable->pDynamicScanFuncs, pScan) && streamReuseFixedExprs(pTable->pGroupTags, pScan) &&
-         streamReuseFixedExprs(pTable->pTags, pScan);
+  return streamReuseReaderExpr(pReader->pTagCond, pScan, allowPartitionPlaceholder) &&
+         streamReuseReaderExpr(pReader->pTagIndexCond, pScan, allowPartitionPlaceholder) &&
+         streamReuseReaderExpr(pNode->pConditions, pScan, allowPartitionPlaceholder) &&
+         streamReuseReaderExpr(pTable->pPrimaryCond, pScan, false) &&
+         streamReuseReaderExpr(pTable->pTimeRange, pScan, false) &&
+         streamReuseReaderExpr(pTable->pExtTimeRange, pScan, false) &&
+         streamReuseReaderExpr(pTable->pSubtable, pScan, false) &&
+         streamReuseReaderExprs(pScan->pScanCols, pScan, false) &&
+         streamReuseReaderExprs(pScan->pScanPseudoCols, pScan, false) &&
+         streamReuseReaderExprs(pTable->pDynamicScanFuncs, pScan, false) &&
+         streamReuseReaderExprs(pTable->pGroupTags, pScan, false) &&
+         streamReuseReaderExprs(pTable->pTags, pScan, false);
 }
 
-static bool streamReuseExchange(const SExchangePhysiNode* pExchange, const SSubplan* pRunner,
-                                const SNodeList* pReaders) {
+static bool streamReuseExchange(const SExchangePhysiNode* pExchange, const SSubplan* pRunner, const SNodeList* pReaders,
+                                bool allowPartitionPlaceholder) {
   // A direct table input has one execution group, potentially many vgroup Readers.
   if (pExchange->srcStartGroupId != pExchange->srcEndGroupId || pExchange->dynTbname || pExchange->node.dynamicOp ||
       pExchange->node.pConditions != NULL || pExchange->node.pLimit != NULL || pExchange->node.pSlimit != NULL ||
@@ -2081,33 +2107,43 @@ static bool streamReuseExchange(const SExchangePhysiNode* pExchange, const SSubp
         pMatch = pReader;
       }
     }
-    if (pMatch == NULL || !streamReuseFixedReader(pMatch)) return false;
+    if (pMatch == NULL || !streamReuseReader(pMatch, allowPartitionPlaceholder)) return false;
     ++references;
   }
   return references > 0;
 }
 
-static void streamSetBroadcastReuse(SPhysiNode* pNode, const SSubplan* pRunner, const SNodeList* pReaders) {
+static void streamSetBroadcastReuse(SPhysiNode* pNode, const SSubplan* pRunner, const SNodeList* pReaders,
+                                    bool multiGroupJoinQualified) {
   if (pNode == NULL) return;
+  if (nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN && ((SHashJoinPhysiNode*)pNode)->multiGroupJoin) {
+    multiGroupJoinQualified = true;
+  }
   if (nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW ||
       nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL ||
       nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL) {
     SExternalWindowPhysiNode* pWindow = (SExternalWindowPhysiNode*)pNode;
     pWindow->broadcastInputReusable = false;
+    pWindow->broadcastReaderBatch = false;
     SNode* pChild = nodesListGetNode(pNode->pChildren, 0);
     if (nodeType(pNode) != QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL &&
         pWindow->extWinInputMode == EXT_WIN_INPUT_BROADCAST && !pWindow->calcWithPartition &&
         pWindow->pSubquery == NULL && !pWindow->window.indefRowsFunc && pWindow->window.pFuncs == NULL &&
         LIST_LENGTH(pNode->pChildren) == 1 && pChild != NULL && nodeType(pChild) == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
-      pWindow->broadcastInputReusable = streamReuseExchange((SExchangePhysiNode*)pChild, pRunner, pReaders);
+      pWindow->broadcastInputReusable = streamReuseExchange((SExchangePhysiNode*)pChild, pRunner, pReaders, false);
+      if (multiGroupJoinQualified && pWindow->pWindowConditions == NULL) {
+        pWindow->broadcastReaderBatch = streamReuseExchange((SExchangePhysiNode*)pChild, pRunner, pReaders, true);
+      }
     }
   }
   SNode* pChild = NULL;
-  FOREACH(pChild, pNode->pChildren) { streamSetBroadcastReuse((SPhysiNode*)pChild, pRunner, pReaders); }
+  FOREACH(pChild, pNode->pChildren) {
+    streamSetBroadcastReuse((SPhysiNode*)pChild, pRunner, pReaders, multiGroupJoinQualified);
+  }
 }
 
 int32_t qSetStreamBroadcastReuse(SSubplan* pRunner, const SNodeList* pReaderSubplans) {
   if (pRunner == NULL || nodeType(pRunner) != QUERY_NODE_PHYSICAL_SUBPLAN) return TSDB_CODE_INVALID_PARA;
-  streamSetBroadcastReuse(pRunner->pNode, pRunner, pReaderSubplans);
+  streamSetBroadcastReuse(pRunner->pNode, pRunner, pReaderSubplans, pRunner->inheritedMultiGroupJoin);
   return TSDB_CODE_SUCCESS;
 }

@@ -3957,6 +3957,81 @@ TEST_F(StreamReaderFetchBuildTest, ThinContinuationHasNoContext) {
   EXPECT_EQ(decoded.pContextFrames, nullptr);
 }
 
+TEST_F(StreamReaderFetchBuildTest, NonNestedDimensionBatchUsesWholeMapWithoutContext) {
+  auto source = makeReaderFetchScaleRuntime(65, 33, ReaderFetchLayout::Even, 1);
+  tDestroyStreamContextPolicy(&source.pContextPolicy);
+  tDestroyStreamAncestorContext(&source.pAncestorContext);
+  source.addOptions = 0;
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerGroupMode = true;
+  request.readerDimensionBatch = true;
+  request.readerFetchId = 207;
+  request.header.vgId = 8;
+  request.pStRtFuncInfo = &source;
+  void*   wire = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &wire, &length));
+  ASSERT_NE(nullptr, wire);
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, length, &decoded));
+  ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+  EXPECT_TRUE(decoded.readerDimensionBatch);
+  EXPECT_TRUE(decoded.readerGroupMode);
+  EXPECT_EQ(65, tSimpleHashGetSize(decoded.pStRtFuncInfo->pGroupCalcInfos));
+  EXPECT_EQ(0, tSimpleHashGetSize(decoded.pStRtFuncInfo->pGroupReadInfos));
+  EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->curGrpRead);
+  EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pContextPolicy);
+  EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pAncestorContext);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateStreamDimensionReaderContext(decoded.pStRtFuncInfo, false));
+  EXPECT_NE(TSDB_CODE_SUCCESS, tValidateStreamDimensionReaderContext(decoded.pStRtFuncInfo, true));
+  SResFetchReq retained = {};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReqWithContextFrames(wire, length, &retained));
+  EXPECT_EQ(nullptr, retained.pContextFrames);
+  tDestroySResFetchReq(&retained);
+  const auto malformedReadMap = serializeFetchRequest(request, true, false);
+  expectFetchDecodeFailure(malformedReadMap);
+  for (int64_t gid = 1000; gid < 1065; ++gid) {
+    const auto* original =
+        static_cast<const SSTriggerGroupCalcInfo*>(tSimpleHashGet(source.pGroupCalcInfos, &gid, sizeof(gid)));
+    const auto* actual = static_cast<const SSTriggerGroupCalcInfo*>(
+        tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, original);
+    ASSERT_NE(nullptr, actual);
+    ASSERT_EQ(taosArrayGetSize(original->pParams), taosArrayGetSize(actual->pParams));
+    const auto* expectedParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(original->pParams, 0));
+    const auto* actualParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(actual->pParams, 0));
+    ASSERT_NE(nullptr, expectedParam);
+    ASSERT_NE(nullptr, actualParam);
+    EXPECT_EQ(expectedParam->wstart, actualParam->wstart);
+    EXPECT_EQ(expectedParam->wend, actualParam->wend);
+  }
+  tDestroySResFetchReq(&decoded);
+  taosMemoryFree(wire);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST_F(StreamReaderFetchBuildTest, NestedDimensionBatchRejectsMissingPolicy) {
+  auto source = makeReaderFetchScaleRuntime(12, 3, ReaderFetchLayout::Even, 1);
+  tDestroyStreamContextPolicy(&source.pContextPolicy);
+  tDestroyStreamAncestorContext(&source.pAncestorContext);
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerGroupMode = true;
+  request.readerDimensionBatch = true;
+  request.readerFetchId = 208;
+  request.pStRtFuncInfo = &source;
+  void*   wire = nullptr;
+  int32_t length = 0;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &wire, &length));
+  EXPECT_EQ(nullptr, wire);
+  EXPECT_EQ(0, length);
+  SStreamRuntimeFuncInfo unbound = source;
+  unbound.pGroupReadInfos = nullptr;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tValidateStreamDimensionReaderContext(&unbound, true));
+  tDestroyStRtFuncInfo(&source);
+}
+
 TEST(StreamReaderFetchBuildTestProtocol, RejectsMalformedReaderFetchIdFrame) {
   SResFetchReq source = {};
   source.readerFetchId = 200;
@@ -4197,6 +4272,218 @@ TEST(StreamPreparedFetchContextTest, MissingNodeDoesNotPublishSelection) {
   tDestroyStRtFuncInfo(&source);
 }
 
+TEST(StreamPreparedFetchContextTest, DimensionBatchKeepsAllGroupsAndParameters) {
+  auto                         source = makeReaderFetchScaleRuntime(65, 33, ReaderFetchLayout::Even, 3);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForDimensionBatch(prepared, &source, &selected));
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerGroupMode = true;
+  request.readerDimensionBatch = true;
+  request.readerFetchId = 200;
+  request.header.vgId = 8;
+  request.pStRtFuncInfo = &source;
+  void*   wire = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamPreparedFetchReq(&request, &source, selected, &wire, &length));
+  RecordProperty("wireBytes", length);
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, length, &decoded));
+  ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+  EXPECT_TRUE(decoded.readerDimensionBatch);
+  EXPECT_EQ(65, tSimpleHashGetSize(decoded.pStRtFuncInfo->pGroupCalcInfos));
+  EXPECT_EQ(65, taosArrayGetSize(decoded.pStRtFuncInfo->pContextPolicy->pEntries));
+  EXPECT_EQ(65, taosArrayGetSize(decoded.pStRtFuncInfo->pAncestorContext->pParamContexts));
+  EXPECT_EQ(0, taosArrayGetSize(decoded.pStRtFuncInfo->pAncestorContext->pReadScopeBindings));
+  EXPECT_EQ(0, tSimpleHashGetSize(decoded.pStRtFuncInfo->pGroupReadInfos));
+  for (int32_t i = 0; i < 65; ++i) {
+    const int64_t gid = 1000 + i;
+    const auto*   original =
+        static_cast<const SSTriggerGroupCalcInfo*>(tSimpleHashGet(source.pGroupCalcInfos, &gid, sizeof(gid)));
+    const auto* actual = static_cast<const SSTriggerGroupCalcInfo*>(
+        tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, original);
+    ASSERT_NE(nullptr, actual);
+    ASSERT_EQ(taosArrayGetSize(original->pParams), taosArrayGetSize(actual->pParams));
+    const auto* expectedParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(original->pParams, 0));
+    const auto* decodedParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(actual->pParams, 0));
+    ASSERT_NE(nullptr, expectedParam);
+    ASSERT_NE(nullptr, decodedParam);
+    EXPECT_EQ(expectedParam->wstart, decodedParam->wstart);
+    EXPECT_EQ(expectedParam->wend, decodedParam->wend);
+    const auto* policy =
+        static_cast<const SStreamContextPolicyEntry*>(taosArrayGet(decoded.pStRtFuncInfo->pContextPolicy->pEntries, i));
+    ASSERT_NE(nullptr, policy);
+    EXPECT_EQ(gid, policy->gid);
+    EXPECT_EQ(0, policy->paramIndex);
+    const auto* ancestor = static_cast<const SStreamAncestorParamContext*>(
+        taosArrayGet(decoded.pStRtFuncInfo->pAncestorContext->pParamContexts, i));
+    const auto* expectedAncestor =
+        static_cast<const SStreamAncestorParamContext*>(taosArrayGet(source.pAncestorContext->pParamContexts, i));
+    ASSERT_NE(nullptr, ancestor);
+    ASSERT_NE(nullptr, expectedAncestor);
+    EXPECT_EQ(expectedAncestor->leafIdentity.gid, ancestor->leafIdentity.gid);
+    EXPECT_EQ(expectedAncestor->leafIdentity.openingTs, ancestor->leafIdentity.openingTs);
+    EXPECT_EQ(expectedAncestor->paramIndex, ancestor->paramIndex);
+  }
+  tDestroySResFetchReq(&decoded);
+  taosMemoryFree(wire);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, DimensionBatchLargerThanOneMiBStaysWhole) {
+  auto source = makeReaderFetchScaleRuntime(40960, 3, ReaderFetchLayout::Even, 3);
+  for (int64_t gid = 1000; gid < 1006; ++gid) {
+    auto* group = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(source.pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, group);
+    group->pGroupColVals = taosArrayInit(1, sizeof(SStreamGroupValue));
+    ASSERT_NE(nullptr, group->pGroupColVals);
+    SStreamGroupValue value = {};
+    value.data.type = TSDB_DATA_TYPE_BINARY;
+    value.data.nData = 4096;
+    value.data.pData = static_cast<uint8_t*>(taosMemoryMalloc(value.data.nData));
+    ASSERT_NE(nullptr, value.data.pData);
+    memset(value.data.pData, static_cast<int>(gid & 0xff), value.data.nData);
+    ASSERT_NE(nullptr, taosArrayPush(group->pGroupColVals, &value));
+  }
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForDimensionBatch(prepared, &source, &selected));
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerGroupMode = true;
+  request.readerDimensionBatch = true;
+  request.readerFetchId = 201;
+  request.header.vgId = 8;
+  request.pStRtFuncInfo = &source;
+  void*   wire = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamPreparedFetchReq(&request, &source, selected, &wire, &length));
+  RecordProperty("wireBytes", length);
+  EXPECT_GT(length, 1024 * 1024);
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, length, &decoded));
+  ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+  EXPECT_EQ(40960, taosArrayGetSize(decoded.pStRtFuncInfo->pContextPolicy->pEntries));
+  EXPECT_EQ(40960, taosArrayGetSize(decoded.pStRtFuncInfo->pAncestorContext->pParamContexts));
+  EXPECT_EQ(0, tSimpleHashGetSize(decoded.pStRtFuncInfo->pGroupReadInfos));
+  for (int64_t gid = 1000; gid < 1006; ++gid) {
+    const auto* group = static_cast<const SSTriggerGroupCalcInfo*>(
+        tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, group);
+    const auto* value = static_cast<const SStreamGroupValue*>(taosArrayGet(group->pGroupColVals, 0));
+    ASSERT_NE(nullptr, value);
+    EXPECT_EQ(4096, value->data.nData);
+    EXPECT_EQ(static_cast<uint8_t>(gid & 0xff), value->data.pData[0]);
+  }
+  tDestroySResFetchReq(&decoded);
+  taosMemoryFree(wire);
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, DimensionBatchCopiesFramesButEncodesMutableValues) {
+  auto                         source = makeReaderFetchScaleRuntime(12, 3, ReaderFetchLayout::Even, 3);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  const SStreamFetchContextSelection* selected = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForDimensionBatch(prepared, &source, &selected));
+  const int64_t gid = 1000;
+  auto*         calc = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(source.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, calc);
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerGroupMode = true;
+  request.readerDimensionBatch = true;
+  request.readerFetchId = 202;
+  request.header.vgId = 8;
+  request.pStRtFuncInfo = &source;
+  for (int8_t value : {int8_t{0}, int8_t{1}}) {
+    calc->createTable = value;
+    void*                    wire = nullptr;
+    int32_t                  length = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamPreparedFetchReq(&request, &source, selected, &wire, &length));
+    SResFetchReq decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire, length, &decoded));
+    const auto* actual = static_cast<const SSTriggerGroupCalcInfo*>(
+        tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, actual);
+    EXPECT_EQ(value, actual->createTable);
+    ASSERT_EQ(taosArrayGetSize(source.pContextPolicy->pEntries),
+              taosArrayGetSize(decoded.pStRtFuncInfo->pContextPolicy->pEntries));
+    for (int32_t i = 0; i < 12; ++i) {
+      const auto* expectedPolicy =
+          static_cast<const SStreamContextPolicyEntry*>(taosArrayGet(source.pContextPolicy->pEntries, i));
+      const auto* actualPolicy = static_cast<const SStreamContextPolicyEntry*>(
+          taosArrayGet(decoded.pStRtFuncInfo->pContextPolicy->pEntries, i));
+      ASSERT_NE(nullptr, expectedPolicy);
+      ASSERT_NE(nullptr, actualPolicy);
+      EXPECT_EQ(expectedPolicy->gid, actualPolicy->gid);
+      EXPECT_EQ(expectedPolicy->paramIndex, actualPolicy->paramIndex);
+    }
+    EXPECT_EQ(0, taosArrayGetSize(decoded.pStRtFuncInfo->pAncestorContext->pReadScopeBindings));
+    tDestroySResFetchReq(&decoded);
+    taosMemoryFree(wire);
+  }
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamPreparedFetchContextTest, DimensionBatchRejectsWrongOwnerAndMalformedContext) {
+  auto                         source = makeReaderFetchScaleRuntime(12, 3, ReaderFetchLayout::Even, 3);
+  auto                         other = makeReaderFetchScaleRuntime(12, 3, ReaderFetchLayout::Even, 3);
+  SStreamPreparedFetchContext* prepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &prepared));
+  const SStreamFetchContextSelection* selected = nullptr;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tSelectStreamFetchContextForDimensionBatch(prepared, &other, &selected));
+  EXPECT_EQ(nullptr, selected);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForDimensionBatch(prepared, &source, &selected));
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerGroupMode = true;
+  request.readerDimensionBatch = true;
+  request.readerFetchId = 203;
+  request.header.vgId = 8;
+  request.pStRtFuncInfo = &other;
+  void*   wire = nullptr;
+  int32_t length = 0;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tBuildStreamPreparedFetchReq(&request, &other, selected, &wire, &length));
+  EXPECT_EQ(nullptr, wire);
+  request.pStRtFuncInfo = &source;
+  auto* policy = static_cast<SStreamContextPolicyEntry*>(taosArrayGet(source.pContextPolicy->pEntries, 0));
+  ASSERT_NE(nullptr, policy);
+  const int32_t originalIndex = policy->paramIndex;
+  policy->paramIndex = 99;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tBuildStreamPreparedFetchReq(&request, &source, selected, &wire, &length));
+  EXPECT_EQ(nullptr, wire);
+  policy->paramIndex = originalIndex;
+  SStreamRuntimeFuncInfo invalid = source;
+  SStreamAncestorContext ancestor = *source.pAncestorContext;
+  ancestor.pReadScopeBindings = nullptr;
+  invalid.pAncestorContext = &ancestor;
+  invalid.pGroupReadInfos = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tValidateStreamDimensionReaderContext(&invalid, true));
+  EXPECT_NE(TSDB_CODE_SUCCESS, tValidateStreamDimensionReaderContext(&invalid, false));
+  invalid.pContextPolicy = nullptr;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tValidateStreamDimensionReaderContext(&invalid, true));
+  invalid.pContextPolicy = source.pContextPolicy;
+  invalid.pAncestorContext = nullptr;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tValidateStreamDimensionReaderContext(&invalid, true));
+  invalid.pAncestorContext = &ancestor;
+  invalid.pGroupReadInfos = source.pGroupReadInfos;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tValidateStreamDimensionReaderContext(&invalid, true));
+  invalid.pGroupReadInfos = nullptr;
+  invalid.pAncestorContext = source.pAncestorContext;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tValidateStreamDimensionReaderContext(&invalid, true));
+  tDestroyStreamFetchContext(&prepared);
+  tDestroyStRtFuncInfo(&other);
+  tDestroyStRtFuncInfo(&source);
+}
+
 std::vector<uint8_t> encodePreparedFetchContext(const SStreamFetchContextSelection* selected) {
   SEncoder sizer = {};
   tEncoderInit(&sizer, nullptr, 0);
@@ -4314,6 +4601,63 @@ void expectPreparedAncestorsEqual(const SStreamAncestorContext* expected, const 
     EXPECT_EQ(left->scope.gid, right->scope.gid);
     EXPECT_TRUE(lineagesEqual(&left->scope.lineage, &right->scope.lineage));
   }
+}
+
+TEST(StreamPreparedFetchContextTest, DimensionBatchWithoutRetainedFramesUsesPreparation) {
+  auto         source = makeReaderFetchScaleRuntime(12, 3, ReaderFetchLayout::Even, 3);
+  SResFetchReq runner = {};
+  runner.reset = true;
+  runner.pStRtFuncInfo = &source;
+  const auto   runnerBytes = serializeFetchRequest(runner, true, false);
+  SResFetchReq retained = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReqWithContextFrames(const_cast<uint8_t*>(runnerBytes.data()),
+                                                                         runnerBytes.size(), &retained));
+  ASSERT_NE(nullptr, retained.pContextFrames);
+  retained.pStRtFuncInfo->addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+
+  SStreamPreparedFetchContext* generatedPrepared = nullptr;
+  SStreamPreparedFetchContext* retainedPrepared = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tPrepareStreamFetchContext(&source, nullptr, &generatedPrepared));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tPrepareStreamFetchContext(retained.pStRtFuncInfo, retained.pContextFrames, &retainedPrepared));
+  const SStreamFetchContextSelection* generated = nullptr;
+  const SStreamFetchContextSelection* selectedRetained = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSelectStreamFetchContextForDimensionBatch(generatedPrepared, &source, &generated));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSelectStreamFetchContextForDimensionBatch(retainedPrepared, retained.pStRtFuncInfo, &selectedRetained));
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerGroupMode = true;
+  request.readerDimensionBatch = true;
+  request.readerFetchId = 206;
+  request.header.vgId = 8;
+  request.pStRtFuncInfo = &source;
+  void*   generatedWire = nullptr;
+  int32_t generatedLength = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tBuildStreamPreparedFetchReq(&request, &source, generated, &generatedWire, &generatedLength));
+  request.pStRtFuncInfo = retained.pStRtFuncInfo;
+  void*   retainedWire = nullptr;
+  int32_t retainedLength = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamPreparedFetchReq(&request, retained.pStRtFuncInfo, selectedRetained,
+                                                            &retainedWire, &retainedLength));
+  tDestroyStreamFetchContext(&generatedPrepared);
+  tDestroyStreamFetchContext(&retainedPrepared);
+  tDestroyStRtFuncInfo(&source);
+  tDestroySResFetchReq(&retained);
+
+  SResFetchReq decodedGenerated = {};
+  SResFetchReq decodedRetained = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(generatedWire, generatedLength, &decodedGenerated));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(retainedWire, retainedLength, &decodedRetained));
+  expectPreparedPoliciesEqual(decodedGenerated.pStRtFuncInfo->pContextPolicy,
+                              decodedRetained.pStRtFuncInfo->pContextPolicy);
+  expectPreparedAncestorsEqual(decodedGenerated.pStRtFuncInfo->pAncestorContext,
+                               decodedRetained.pStRtFuncInfo->pAncestorContext);
+  tDestroySResFetchReq(&decodedGenerated);
+  tDestroySResFetchReq(&decodedRetained);
+  taosMemoryFree(generatedWire);
+  taosMemoryFree(retainedWire);
 }
 
 void expectPreparedNodeWireMatchesLegacy(SStreamRuntimeFuncInfo* source, int32_t nodeId) {
@@ -5589,6 +5933,47 @@ TEST(StreamReaderGroupModeTest, RejectsDuplicateVersionFlagsAndInvalidBoolean) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(unknown.data(), unknown.size(), &decoded));
   EXPECT_FALSE(decoded.readerGroupMode);
   tDestroySResFetchReq(&decoded);
+}
+
+TEST(StreamReaderFetchBuildTestProtocol, DimensionBatchTailRejectsMalformedMode) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  SResFetchReq source = {};
+  source.readerGroupMode = true;
+  source.readerDimensionBatch = true;
+  source.readerFetchId = 204;
+  source.pStRtFuncInfo = &runtime;
+  const auto   original = serializeFetchRequest(source, false, false);
+  const size_t offset = frameOffset(original, STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC);
+  ASSERT_LT(offset, original.size());
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tDeserializeSResFetchReq(const_cast<uint8_t*>(original.data()), original.size(), &decoded));
+  EXPECT_TRUE(decoded.readerDimensionBatch);
+  tDestroySResFetchReq(&decoded);
+
+  auto duplicate = original;
+  duplicate.insert(duplicate.end(), original.begin() + offset, original.begin() + offset + 13);
+  rewriteFetchRequestLengths(&duplicate);
+  expectFetchDecodeFailure(duplicate);
+  auto badVersion = original;
+  writeU16(&badVersion, offset + sizeof(uint32_t), STREAM_READER_DIMENSION_BATCH_FRAME_VERSION + 1);
+  expectFetchDecodeFailure(badVersion);
+  auto badFlags = original;
+  writeU16(&badFlags, offset + sizeof(uint32_t) + sizeof(uint16_t), 1);
+  expectFetchDecodeFailure(badFlags);
+  auto disabled = original;
+  disabled.at(offset + 12) = 0;
+  expectFetchDecodeFailure(disabled);
+  auto truncated = original;
+  truncated.erase(truncated.begin() + offset + 12);
+  rewriteFetchRequestLengths(&truncated);
+  expectFetchDecodeFailure(truncated);
+  auto         missingGroupMode = original;
+  const size_t groupOffset = frameOffset(missingGroupMode, STREAM_READER_GROUP_MODE_FRAME_MAGIC);
+  ASSERT_LT(groupOffset, missingGroupMode.size());
+  writeU32(&missingGroupMode, groupOffset, UINT32_C(0x4e575858));
+  expectFetchDecodeFailure(missingGroupMode);
 }
 
 TEST(StreamRunnerEogBatchModeTest, RejectsInvalidCapabilityBoolean) {

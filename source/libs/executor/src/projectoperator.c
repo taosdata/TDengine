@@ -2439,3 +2439,84 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams,
                                          false, true, pTaskInfo);
 }
+
+int32_t projectResolveStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilterSpec* pSpec, bool* pEligible) {
+  if (pOperator == NULL || pSpec == NULL || pEligible == NULL || pSpec->pColumns == NULL ||
+      pSpec->pColumns->elemSize != sizeof(SStreamJoinFilterColumn))
+    return TSDB_CODE_INVALID_PARA;
+  *pEligible = false;
+  const SProjectPhysiNode* pNode = pOperator->pPhyNode;
+  if (pNode == NULL || pNode->node.pConditions != NULL || pOperator->exprSupp.pFilterInfo != NULL ||
+      pNode->node.pLimit != NULL || pNode->node.pSlimit != NULL || pNode->isUnionDedup ||
+      !projectUsesStrictMultiGroupProtocol(pOperator) || pOperator->numOfDownstream != 1 ||
+      pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL)
+    return TSDB_CODE_SUCCESS;
+  const SPhysiNode* pChild = pOperator->pDownstream[0]->pPhyNode;
+  if (pChild == NULL || pChild->pOutputDataBlockDesc == NULL || pNode->node.pOutputDataBlockDesc == NULL)
+    return TSDB_CODE_SUCCESS;
+  if (pSpec->inputBlockId != pNode->node.pOutputDataBlockDesc->dataBlockId)
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  SNode* pProj = NULL;
+  FOREACH(pProj, pNode->pProjections) {
+    if (nodeType(pProj) != QUERY_NODE_TARGET || ((STargetNode*)pProj)->pExpr == NULL ||
+        nodeType(((STargetNode*)pProj)->pExpr) != QUERY_NODE_COLUMN)
+      return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pSpec->pColumns);) {
+    SStreamJoinFilterColumn* pCol = taosArrayGet(pSpec->pColumns, i);
+    const SColumnNode*       pSource = NULL;
+    FOREACH(pProj, pNode->pProjections) {
+      const STargetNode* pTarget = (const STargetNode*)pProj;
+      if (pTarget->slotId == pCol->inputSlot) {
+        if (pTarget->dataBlockId != pSpec->inputBlockId || pSource != NULL)
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        pSource = (const SColumnNode*)pTarget->pExpr;
+      }
+    }
+    if (pSource == NULL || pSource->dataBlockId != pChild->pOutputDataBlockDesc->dataBlockId)
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    const SSlotDescNode* pInputSlot = NULL;
+    const SSlotDescNode* pOutputSlot = NULL;
+    SNode*               pEntry = NULL;
+    FOREACH(pEntry, pChild->pOutputDataBlockDesc->pSlots) {
+      if (((SSlotDescNode*)pEntry)->slotId == pSource->slotId) pInputSlot = (const SSlotDescNode*)pEntry;
+    }
+    FOREACH(pEntry, pNode->node.pOutputDataBlockDesc->pSlots) {
+      if (((SSlotDescNode*)pEntry)->slotId == pCol->inputSlot) pOutputSlot = (const SSlotDescNode*)pEntry;
+    }
+    if (pInputSlot == NULL || pOutputSlot == NULL || pSource->slotId < 0 || pCol->inputSlot < 0)
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    const SDataType* pTypes[] = {&pSource->node.resType, &pInputSlot->dataType, &pOutputSlot->dataType};
+    bool             compatible = true;
+    for (int32_t j = 0; j < 3; ++j) {
+      const SDataType* pType = pTypes[j];
+      if (pType->type != pCol->probeType.type || pType->bytes != pCol->probeType.bytes ||
+          pType->scale != pCol->probeType.scale ||
+          (pType->type == TSDB_DATA_TYPE_TIMESTAMP && pType->precision != pCol->probeType.precision))
+        compatible = false;
+    }
+    if (!compatible) {
+      taosArrayRemove(pSpec->pColumns, i);
+      continue;
+    }
+    pCol->inputSlot = pSource->slotId;
+    ++i;
+  }
+  if (taosArrayGetSize(pSpec->pColumns) == 0) return TSDB_CODE_SUCCESS;
+  pSpec->inputBlockId = pChild->pOutputDataBlockDesc->dataBlockId;
+  SOperatorInfo* pDownstream = pOperator->pDownstream[0];
+  switch (pDownstream->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return projectResolveStreamJoinFilter(pDownstream, pSpec, pEligible);
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      return extWinResolveStreamJoinFilter(pDownstream, pSpec, pEligible);
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+}
+
+int32_t projectInstallStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilter** ppFilter) {
+  if (pOperator == NULL || ppFilter == NULL || *ppFilter == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pOperator->numOfDownstream != 1 || pOperator->pDownstream == NULL) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  return optrInstallStreamJoinFilter(pOperator->pDownstream[0], ppFilter);
+}

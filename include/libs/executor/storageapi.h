@@ -250,6 +250,10 @@ typedef enum {
 struct SFileSetReader;
 
 typedef struct TsdReader {
+  int32_t (*tsdReaderOpenGroup)(void* vnode, SQueryTableDataCond* cond, const STableScanRange* ranges,
+                              int32_t numTables, SSDataBlock* output, void** reader, const char* id,
+                              SHashObj** ignoreTables);
+  int32_t (*tsdReaderActivateGroup)(void* reader, const STableScanRange* ranges, int32_t numTables);
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
   void         (*tsdReaderClose)(void* pReader);
