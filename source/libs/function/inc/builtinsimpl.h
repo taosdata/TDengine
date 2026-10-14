@@ -85,6 +85,7 @@ bool    gconcatGetFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t gconcatFunction(SqlFunctionCtx* pCtx);
 int32_t gconcatFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+void    gconcatFunctionCleanupExt(SqlFunctionCtx* pCtx);
 
 bool    getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
