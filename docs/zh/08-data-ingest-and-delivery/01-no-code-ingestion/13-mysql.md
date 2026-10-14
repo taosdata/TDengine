@@ -48,9 +48,15 @@ MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在�
 **字符集** 设置连接的字符集。默认字符集为 utf8mb4。MySQL 5.5.3 支持此功能。如果需要连接到旧版本，建议改为 utf8。
 可选项有 utf8、utf8mb4、utf16、utf32、gbk、big5、latin1、ascii。
 
+**双竖线字符串连接**（`pipes_as_concat`）控制是否在当前连接的 SQL 模式中追加 `PIPES_AS_CONCAT`。开启时，`||` 表示字符串连接；关闭时，不额外启用该模式，也不会移除服务器会话中已有的模式，因此 `||` 的实际含义取决于最终的会话 SQL 模式。默认开启，以保持现有 MySQL 数据同步任务的行为。修改此选项可能改变已有 SQL 查询的结果。
+
+**禁止存储引擎替换**（`no_engine_substitution`）控制是否在当前连接的 SQL 模式中追加 `NO_ENGINE_SUBSTITUTION`，以禁止 MySQL 在指定存储引擎不可用时自动替换存储引擎。关闭时不会移除服务器会话中已有的同名模式。默认开启。
+
+例如，通过 MySQL 协议连接 Apache Doris 同步数据时，将上述两个选项都设置为 **关闭**（`false`），然后点击 **检查连通性**。其他兼容 MySQL 协议的数据库应根据其兼容性要求设置，不建议修改已有任务的配置。
+
 **SSL 模式** 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。默认值是 PREFERRED。可选项有 DISABLED、PREFERRED、REQUIRED。
 
-![ mysql-04.webp](../../assets/mysql-04.webp "配置连接选项")
+![配置 MySQL 连接选项](../../assets/mysql-04.webp "配置连接选项")
   
 然后点击 **检查连通性** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 MySQL 数据库的数据。
 
