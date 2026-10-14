@@ -15443,6 +15443,67 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
 static const char* jkNodeType = "NodeType";
 static const char* jkNodeName = "Name";
 
+static int32_t jsonToNodeType(const SJson* pJson, int32_t* pType) {
+  int32_t code = tjsonGetIntValue(pJson, jkNodeType, pType);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  // d4151e9da94 inserted three syntax nodes before COUNT_WINDOW. Persisted
+  // pre-3.4.2 plans retain the old IDs; require their names and payloads too.
+  static const struct {
+    int32_t   oldType;
+    ENodeType type;
+  } legacyTypes[] = {
+      {35, QUERY_NODE_COUNT_WINDOW},
+      {36, QUERY_NODE_COLUMN_OPTIONS},
+      {37, QUERY_NODE_TSMA_OPTIONS},
+      {38, QUERY_NODE_ANOMALY_WINDOW},
+      {39, QUERY_NODE_RANGE_AROUND},
+      {40, QUERY_NODE_STREAM_NOTIFY_OPTIONS},
+      {41, QUERY_NODE_VIRTUAL_TABLE},
+      {42, QUERY_NODE_SLIDING_WINDOW},
+      {43, QUERY_NODE_PERIOD_WINDOW},
+      {44, QUERY_NODE_STREAM_TRIGGER},
+      {45, QUERY_NODE_STREAM},
+      {46, QUERY_NODE_STREAM_TAG_DEF},
+      {47, QUERY_NODE_EXTERNAL_WINDOW},
+      {48, QUERY_NODE_STREAM_TRIGGER_OPTIONS},
+      {49, QUERY_NODE_PLACE_HOLDER_TABLE},
+      {50, QUERY_NODE_TIME_RANGE},
+      {51, QUERY_NODE_STREAM_OUT_TABLE},
+      {52, QUERY_NODE_STREAM_CALC_RANGE},
+      {53, QUERY_NODE_COUNT_WINDOW_ARGS},
+      {54, QUERY_NODE_BNODE_OPTIONS},
+      {55, QUERY_NODE_DATE_TIME_RANGE},
+      {56, QUERY_NODE_IP_RANGE},
+      {57, QUERY_NODE_USER_OPTIONS},
+      {58, QUERY_NODE_REMOTE_VALUE},
+      {59, QUERY_NODE_TOKEN_OPTIONS},
+      {60, QUERY_NODE_TRUE_FOR},
+      {61, QUERY_NODE_REMOTE_VALUE_LIST},
+      {62, QUERY_NODE_SURROUND},
+      {63, QUERY_NODE_REMOTE_ROW},
+      {64, QUERY_NODE_REMOTE_ZERO_ROWS},
+      {65, QUERY_NODE_UPDATE_TAG_VALUE},
+      {66, QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE},
+      {67, QUERY_NODE_REMOTE_TABLE},
+      {68, QUERY_NODE_FILE_TABLE},
+      {69, QUERY_NODE_TEXT_TABLE},
+      {70, QUERY_NODE_TAG_REF_COLUMN},
+  };
+  // Historical IDs are contiguous; check bounds before using the ID as an offset.
+  if (*pType < legacyTypes[0].oldType || *pType > legacyTypes[ARRAY_SIZE(legacyTypes) - 1].oldType) {
+    return TSDB_CODE_SUCCESS;
+  }
+  const int32_t i = *pType - legacyTypes[0].oldType;
+  const char*   pName = tjsonGetStringPointer(pJson, jkNodeName);
+  if (NULL == pName || 0 == strcmp(pName, nodesNodeName(*pType))) return TSDB_CODE_SUCCESS;
+  if (0 != strcmp(pName, nodesNodeName(legacyTypes[i].type)) || !cJSON_IsObject(tjsonGetObjectItem(pJson, pName))) {
+    return TSDB_CODE_INVALID_JSON_FORMAT;
+  }
+  *pType = legacyTypes[i].type;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t nodeToJson(const void* pObj, SJson* pJson) {
   const SNode* pNode = (const SNode*)pObj;
 
@@ -15473,13 +15534,10 @@ static int32_t jsonToNode(const SJson* pJson, void* pObj) {
     return jsonToCorrelationNode(tjsonGetObjectItem(pJson, nodesNodeName(pNode->type)), pNode);
   }
 
-  int32_t code;
-  tjsonGetNumberValue(pJson, jkNodeType, pNode->type, code);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonToObject(pJson, nodesNodeName(pNode->type), jsonToSpecificNode, pNode);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesError("%s toNode error", nodesNodeName(pNode->type));
-    }
+  // makeNodeByJson has already resolved the wire ID and allocated this type.
+  int32_t code = tjsonToObject(pJson, nodesNodeName(pNode->type), jsonToSpecificNode, pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("%s toNode error", nodesNodeName(pNode->type));
   }
 
   return code;
@@ -15487,7 +15545,7 @@ static int32_t jsonToNode(const SJson* pJson, void* pObj) {
 
 static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode) {
   int32_t val = 0;
-  int32_t code = tjsonGetIntValue(pJson, jkNodeType, &val);
+  int32_t code = jsonToNodeType(pJson, &val);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesMakeNode(val, pNode);
     if (NULL == *pNode) {
