@@ -465,6 +465,63 @@ int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle, EQueryTableScanR
   return code;
 }
 
+int32_t qResetStreamDimensionScan(qTaskInfo_t task, SReadHandle* handle, EQueryTableScanResetMode mode) {
+  if (task == NULL) return TSDB_CODE_INVALID_PARA;
+  SExecTaskInfo* pTask = task;
+  int64_t        owner = taosGetSelfPthreadId();
+  // qExecTask reserves its owner under this latch; qExecTaskOpt uses the same CAS.
+  taosWLockLatch(&pTask->lock);
+  int64_t previousOwner = atomic_val_compare_exchange_64(&pTask->owner, 0, owner);
+  taosWUnLockLatch(&pTask->lock);
+  if (previousOwner != 0) return TSDB_CODE_QRY_IN_EXEC;
+  int32_t previous = atomic_load_32(&pTask->code);
+  pTask->dimensionScanReset = true;
+  int32_t code = qResetTableScan(task, handle, mode);
+  pTask->dimensionScanReset = false;
+  if (code == TSDB_CODE_SUCCESS) {
+    if (previous == TSDB_CODE_PAR_TABLE_NOT_EXIST || previous == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+      (void)atomic_val_compare_exchange_32(&pTask->code, previous, TSDB_CODE_SUCCESS);
+    }
+    code = atomic_load_32(&pTask->code);
+  } else if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+    // Missing groups may become EOG only if no other task error was published.
+    int32_t taskCode = atomic_load_32(&pTask->code);
+    if (taskCode != TSDB_CODE_SUCCESS && taskCode != TSDB_CODE_PAR_TABLE_NOT_EXIST &&
+        taskCode != TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+      code = taskCode;
+    }
+  }
+  atomic_store_64(&pTask->owner, 0);
+  return code;
+}
+
+int32_t qClearStreamDimensionPreparation(qTaskInfo_t task) {
+  if (task == NULL) return TSDB_CODE_SUCCESS;
+  SExecTaskInfo* pTask = task;
+  int64_t        owner = taosGetSelfPthreadId();
+  taosWLockLatch(&pTask->lock);
+  int64_t previousOwner = atomic_val_compare_exchange_64(&pTask->owner, 0, owner);
+  taosWUnLockLatch(&pTask->lock);
+  if (previousOwner != 0) return TSDB_CODE_QRY_IN_EXEC;
+  qFinishReaderGroupRead(task);
+  SOperatorInfo* pRoot = pTask->pRoot;
+  if (pRoot != NULL && pRoot->pPhyNode != NULL && pRoot->info != NULL &&
+      nodeType(pRoot->pPhyNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pInfo = pRoot->info;
+    streamTagLookupDestroy(pInfo->pTagLookupPlan);
+    pInfo->pTagLookupPlan = NULL;
+    if (pInfo->tagLookupPreparationAttempted) {
+      // Release this batch's retained peak capacity while preserving the Reader.
+      tableListDestroy(pInfo->base.pTableListInfo);
+      pInfo->base.pTableListInfo = NULL;
+      cleanupQueryTableDataCond(&pInfo->base.cond);
+    }
+    pInfo->tagLookupPreparationAttempted = false;
+  }
+  atomic_store_64(&pTask->owner, 0);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,
                                   SStreamInserterParam* pInserterParams, int32_t vgId, int32_t taskId) {
   if (msg == NULL) {
@@ -1071,15 +1128,15 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   }
 
   int32_t rowsThreshold = pTaskInfo->pSubplan->rowsThreshold;
-  if (!pTaskInfo->pSubplan->dynamicRowThreshold || 4096 <= pTaskInfo->pSubplan->rowsThreshold) {
-    rowsThreshold = 4096;
+  if (!pTaskInfo->pSubplan->dynamicRowThreshold || QUERY_EXEC_FETCH_MAX_ROWS <= pTaskInfo->pSubplan->rowsThreshold) {
+    rowsThreshold = QUERY_EXEC_FETCH_MAX_ROWS;
   }
 
   // Bound the round by bytes as well as rows.  The row threshold alone allows an unbounded
   // amount of data to be materialized into pResultBlockList when values are large (4096 rows
   // of a 16MB BLOB is 64GB), which is what made a select * over many large BLOBs consume
   // tens of GB.  A round always returns at least one block, so the overshoot is one block.
-  int64_t bytesThreshold = 64 * 1024 * 1024;
+  int64_t bytesThreshold = QUERY_EXEC_FETCH_MAX_BYTES;
   int64_t currentBytes = 0;
 
   int32_t blockIndex = 0;
@@ -1156,9 +1213,8 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
     // Bound control-only responses independently of DATA row thresholds.
     if (processOneBlock ||
-        (!streamLocalBlock &&
-         (current >= rowsThreshold || currentBytes >= bytesThreshold ||
-          (pTaskInfo->readerGroupOutput && blockIndex >= 4096)))) {
+        (!streamLocalBlock && (current >= rowsThreshold || currentBytes >= bytesThreshold ||
+                               (pTaskInfo->readerGroupOutput && blockIndex >= QUERY_EXEC_FETCH_MAX_EVENTS)))) {
       break;
     }
 
@@ -1962,6 +2018,120 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   (void)pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
+}
+
+static int32_t mergeReaderReadRange(SHashObj* index, const uint64_t* key, size_t keySize,
+                                    const SReaderReadRange* range) {
+  SReaderReadRange* previous = taosHashGet(index, key, keySize);
+  if (previous == NULL) return taosHashPut(index, key, keySize, range, sizeof(*range));
+  if (range->valid) {
+    if (previous->valid) {
+      previous->window.skey = TMIN(previous->window.skey, range->window.skey);
+      previous->window.ekey = TMAX(previous->window.ekey, range->window.ekey);
+    } else {
+      previous->window = range->window;
+      previous->valid = true;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qInstallReaderTableRanges(qTaskInfo_t task, const SArray* readRanges) {
+  SExecTaskInfo* pTask = task;
+  if (pTask == NULL || pTask->pStreamRuntimeInfo == NULL || pTask->pSubplan == NULL || pTask->pSubplan->pNode == NULL ||
+      pTask->pRoot == NULL || pTask->pRoot->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+      pTask->pRoot->info == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  const SStreamRuntimeFuncInfo* pRuntime = &pTask->pStreamRuntimeInfo->funcInfo;
+  const STableScanInfo*         pScan = pTask->pRoot->info;
+  const STableScanPhysiNode*    pNode = (const STableScanPhysiNode*)pTask->pSubplan->pNode;
+  const STableListInfo*         pTables = pScan->base.pTableListInfo;
+  const int32_t                 readCount = taosArrayGetSize(pRuntime->curGrpRead);
+  if (pTables == NULL || pTables->pTableList == NULL || readCount <= 0 ||
+      (readRanges != NULL &&
+       (taosArrayGetSize(readRanges) != readCount || readRanges->elemSize != sizeof(SReaderReadRange)))) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  const bool triggerTables = pNode->scan.useTriggerTableList;
+  int32_t    code = TSDB_CODE_SUCCESS, lino = 0;
+  SArray*    pRanges = NULL;
+  SHashObj*  pIndex = taosHashInit(readCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  TSDB_CHECK_NULL(pIndex, code, lino, _exit, terrno);
+  // Only this preparation index holds entry bindings. The published array has
+  // exactly the final scan-table order, including empty ranges.
+  for (int32_t i = 0; i < readCount; ++i) {
+    SReaderReadRange              defaultRange = {.readInfoIndex = i,
+                                                  .window = pScan->base.cond.twindows,
+                                                  .valid = pScan->base.cond.twindows.skey <= pScan->base.cond.twindows.ekey};
+    const SReaderReadRange*       pRange = readRanges == NULL ? &defaultRange : taosArrayGet(readRanges, i);
+    const SSTriggerGroupReadInfo* pRead = taosArrayGet(pRuntime->curGrpRead, i);
+    if (pRead == NULL || pRange == NULL || pRange->readInfoIndex != i ||
+        (pRange->valid && pRange->window.skey > pRange->window.ekey)) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    uint64_t key[2] = {(uint64_t)pRead->gid, (uint64_t)pRead->gid};
+    if (!triggerTables) {
+      // FromCond binds all finalized tables in the gid. Trigger pTables can
+      // refer to a different source table and are not a condition-table filter.
+      TAOS_CHECK_EXIT(mergeReaderReadRange(pIndex, key, sizeof(key[0]), pRange));
+    } else if (pRuntime->stbPartByTbname) {
+      TAOS_CHECK_EXIT(mergeReaderReadRange(pIndex, key, sizeof(key), pRange));
+    } else {
+      for (int32_t j = 0; j < taosArrayGetSize(pRead->pTables); ++j) {
+        const uint64_t* pUid = taosArrayGet(pRead->pTables, j);
+        if (pUid == NULL) {
+          code = TSDB_CODE_INVALID_PARA;
+          goto _exit;
+        }
+        key[1] = *pUid;
+        TAOS_CHECK_EXIT(mergeReaderReadRange(pIndex, key, sizeof(key), pRange));
+      }
+    }
+  }
+  pRanges = taosArrayInit(taosArrayGetSize(pTables->pTableList), sizeof(STableScanRange));
+  TSDB_CHECK_NULL(pRanges, code, lino, _exit, terrno);
+  for (int32_t i = 0; i < taosArrayGetSize(pTables->pTableList); ++i) {
+    const STableKeyInfo*    pTable = taosArrayGet(pTables->pTableList, i);
+    uint64_t                key[2] = {pTable->baseGId, pTable->uid};
+    const SReaderReadRange* pRange = taosHashGet(pIndex, key, triggerTables ? sizeof(key) : sizeof(key[0]));
+    if (pRange == NULL) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    STableScanRange range = {.table = *pTable, .window = pRange->window, .valid = pRange->valid};
+    TSDB_CHECK_NULL(taosArrayPush(pRanges, &range), code, lino, _exit, terrno);
+  }
+  qClearReaderTableRanges(pTask);
+  pTask->pReaderTableRanges = pRanges;
+  pRanges = NULL;
+
+_exit:
+  taosHashCleanup(pIndex);
+  taosArrayDestroy(pRanges);
+  return code;
+}
+
+int32_t qGetReaderTableRangeView(qTaskInfo_t task, int32_t tableStart, int32_t numTables,
+                                 const STableScanRange** ranges) {
+  if (ranges == NULL) return TSDB_CODE_INVALID_PARA;
+  *ranges = NULL;
+  const SExecTaskInfo* pTask = task;
+  if (pTask == NULL || pTask->pReaderTableRanges == NULL || tableStart < 0 || numTables < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  size_t size = taosArrayGetSize(pTask->pReaderTableRanges);
+  if ((size_t)tableStart > size || (size_t)numTables > size - tableStart) return TSDB_CODE_INVALID_PARA;
+  if (numTables > 0) *ranges = taosArrayGet(pTask->pReaderTableRanges, tableStart);
+  return TSDB_CODE_SUCCESS;
+}
+
+void qClearReaderTableRanges(qTaskInfo_t task) {
+  SExecTaskInfo* pTask = task;
+  if (pTask == NULL) return;
+  taosArrayDestroy(pTask->pReaderTableRanges);
+  pTask->pReaderTableRanges = NULL;
 }
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {

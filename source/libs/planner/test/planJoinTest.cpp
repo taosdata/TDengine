@@ -2049,6 +2049,7 @@ class PlanBroadcastReuseTest : public testing::Test {
     window = make<SExternalWindowPhysiNode>(QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW);
     exchange = make<SExchangePhysiNode>(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE);
     runner->pNode = &window->window.node;
+    runner->inheritedMultiGroupJoin = true;
     window->extWinInputMode = EXT_WIN_INPUT_BROADCAST;
     exchange->srcStartGroupId = exchange->srcEndGroupId = 4;
     ASSERT_EQ(0, nodesListMakeAppend(&window->window.node.pChildren, reinterpret_cast<SNode*>(exchange)));
@@ -2100,6 +2101,33 @@ class PlanBroadcastReuseTest : public testing::Test {
 
   STableScanPhysiNode* scan() {
     return reinterpret_cast<STableScanPhysiNode*>(reinterpret_cast<SSubplan*>(nodesListGetNode(readers, 0))->pNode);
+  }
+
+  void usePartitionPlaceholder(SSubplan* reader) {
+    auto* table = reinterpret_cast<STableScanPhysiNode*>(reader->pNode);
+    auto* op = reinterpret_cast<SOperatorNode*>(table->scan.node.pConditions);
+    nodesDestroyNode(op->pRight);
+    auto* fn = make<SFunctionNode>(QUERY_NODE_FUNCTION);
+    fn->funcType = FUNCTION_TYPE_PLACEHOLDER_COLUMN;
+    tstrncpy(fn->functionName, "_placeholder_column", sizeof(fn->functionName));
+    auto* value = make<SValueNode>(QUERY_NODE_VALUE);
+    value->isNull = true;
+    value->node.resType.type = TSDB_DATA_TYPE_INT;
+    EXPECT_EQ(0, nodesListMakeAppend(&fn->pParameterList, reinterpret_cast<SNode*>(value)));
+    auto* index = make<SValueNode>(QUERY_NODE_VALUE);
+    index->translate = true;
+    index->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    index->datum.i = 2;
+    EXPECT_EQ(0, nodesListMakeAppend(&fn->pParameterList, reinterpret_cast<SNode*>(index)));
+    op->pRight = reinterpret_cast<SNode*>(fn);
+  }
+
+  void checkBatch(bool expected) {
+    for (bool initial : {false, true}) {
+      window->broadcastReaderBatch = initial;
+      ASSERT_EQ(0, qSetStreamBroadcastReuse(runner, readers));
+      EXPECT_EQ(expected, window->broadcastReaderBatch);
+    }
   }
 
   void check(bool expected) {
@@ -2316,6 +2344,123 @@ TEST_F(PlanBroadcastReuseTest, HashExternalUsesSameScalarProof) {
   // A distinct merge-aligned executor does not consume this qualification.
   window->window.node.type = QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL;
   check(false);
+}
+
+TEST_F(PlanBroadcastReuseTest, DimensionBatchRequiresAllStaticReaders) {
+  auto* second = addReader(15);
+  usePartitionPlaceholder(reinterpret_cast<SSubplan*>(nodesListGetNode(readers, 0)));
+  usePartitionPlaceholder(second);
+  checkBatch(true);
+  EXPECT_FALSE(window->broadcastInputReusable);
+
+  scan()->scan.node.dynamicOp = true;
+  checkBatch(false);
+  scan()->scan.node.dynamicOp = false;
+  reinterpret_cast<STableScanPhysiNode*>(second->pNode)->scan.node.dynamicOp = true;
+  checkBatch(false);
+}
+
+TEST_F(PlanBroadcastReuseTest, DimensionBatchRequiresStaticMultiGroupQualification) {
+  runner->inheritedMultiGroupJoin = false;
+  check(true);
+  EXPECT_FALSE(window->broadcastReaderBatch);
+  usePartitionPlaceholder(reinterpret_cast<SSubplan*>(nodesListGetNode(readers, 0)));
+  checkBatch(false);
+  runner->inheritedMultiGroupJoin = true;
+  checkBatch(true);
+
+  runner->inheritedMultiGroupJoin = false;
+  auto* join = make<SHashJoinPhysiNode>(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN);
+  join->multiGroupJoin = true;
+  runner->pNode = &join->node;
+  ASSERT_EQ(0, nodesListMakeAppend(&join->node.pChildren, reinterpret_cast<SNode*>(window)));
+  checkBatch(true);
+  join->multiGroupJoin = false;
+  checkBatch(false);
+}
+
+TEST_F(PlanBroadcastReuseTest, DimensionBatchRejectsUnsupportedShapes) {
+  auto* second = addReader(15);
+  usePartitionPlaceholder(reinterpret_cast<SSubplan*>(nodesListGetNode(readers, 0)));
+  usePartitionPlaceholder(second);
+  auto* table = reinterpret_cast<STableScanPhysiNode*>(second->pNode);
+  second->dynTbname = true;
+  checkBatch(false);
+  second->dynTbname = false;
+  table->scan.virtualStableScan = true;
+  checkBatch(false);
+  table->scan.virtualStableScan = false;
+  STimeWindow extRange = {0, 1};
+  table->pExtScanRange = &extRange;
+  checkBatch(false);
+  table->pExtScanRange = nullptr;
+  table->scan.node.pLimit = reinterpret_cast<SNode*>(make<SLimitNode>(QUERY_NODE_LIMIT));
+  checkBatch(false);
+  nodesDestroyNode(reinterpret_cast<SNode*>(table->scan.node.pLimit));
+  table->scan.node.pLimit = nullptr;
+  table->scan.node.pSlimit = reinterpret_cast<SNode*>(make<SLimitNode>(QUERY_NODE_LIMIT));
+  checkBatch(false);
+  nodesDestroyNode(reinterpret_cast<SNode*>(table->scan.node.pSlimit));
+  table->scan.node.pSlimit = nullptr;
+  window->window.indefRowsFunc = true;
+  checkBatch(false);
+  window->window.indefRowsFunc = false;
+  window->pSubquery = reinterpret_cast<SNode*>(make<SValueNode>(QUERY_NODE_VALUE));
+  checkBatch(false);
+  nodesDestroyNode(window->pSubquery);
+  window->pSubquery = nullptr;
+  exchange->node.type = QUERY_NODE_PHYSICAL_PLAN_MERGE;
+  checkBatch(false);
+  exchange->node.type = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  exchange->dynTbname = true;
+  checkBatch(false);
+  exchange->dynTbname = false;
+  second->id.subplanId = 16;
+  checkBatch(false);
+  second->id.subplanId = 15;
+  SNode* duplicate = nullptr;
+  ASSERT_EQ(0, nodesCloneNode(reinterpret_cast<SNode*>(second), &duplicate));
+  ASSERT_EQ(0, nodesListMakeAppend(&readers, duplicate));
+  checkBatch(false);
+}
+
+TEST_F(PlanBroadcastReuseTest, DimensionBatchAllowsPartitionPlaceholderOnly) {
+  auto* reader = reinterpret_cast<SSubplan*>(nodesListGetNode(readers, 0));
+  usePartitionPlaceholder(reader);
+  checkBatch(true);
+  EXPECT_FALSE(window->broadcastInputReusable);
+  auto* op = reinterpret_cast<SOperatorNode*>(scan()->scan.node.pConditions);
+  auto* fn = reinterpret_cast<SFunctionNode*>(op->pRight);
+  fn->funcType = FUNCTION_TYPE_NOW;
+  checkBatch(false);
+  fn->funcType = FUNCTION_TYPE_PLACEHOLDER_COLUMN;
+  scan()->scan.node.dynamicOp = true;
+  checkBatch(false);
+  scan()->scan.node.dynamicOp = false;
+  ASSERT_EQ(
+      0, nodesListMakeAppend(&scan()->pDynamicScanFuncs, reinterpret_cast<SNode*>(make<SValueNode>(QUERY_NODE_VALUE))));
+  checkBatch(false);
+  nodesDestroyList(scan()->pDynamicScanFuncs);
+  scan()->pDynamicScanFuncs = nullptr;
+  auto* index = reinterpret_cast<SValueNode*>(nodesListGetNode(fn->pParameterList, 1));
+  index->datum.i = 0;
+  checkBatch(false);
+  index->datum.i = 2;
+  ASSERT_EQ(0, nodesCloneNode(scan()->scan.node.pConditions, &scan()->pPrimaryCond));
+  checkBatch(false);
+  nodesDestroyNode(scan()->pPrimaryCond);
+  scan()->pPrimaryCond = nullptr;
+  window->pWindowConditions = reinterpret_cast<SNode*>(make<SFunctionNode>(QUERY_NODE_FUNCTION));
+  checkBatch(false);
+}
+
+TEST_F(PlanBroadcastReuseTest, FixedReuseRemainsIndependent) {
+  addReader(15);
+  check(true);
+  EXPECT_TRUE(window->broadcastReaderBatch);
+  usePartitionPlaceholder(reinterpret_cast<SSubplan*>(nodesListGetNode(readers, 0)));
+  check(false);
+  EXPECT_TRUE(window->broadcastReaderBatch);
 }
 
 TEST_F(PlanJoinTest, BroadcastScalarPlaceholderFamilies) {

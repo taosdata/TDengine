@@ -134,6 +134,9 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SRead
   ctx->subEndPoints = *subEndPoints;
   ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
   ctx->isStream = pTaskInfo && IS_STREAM_MODE(pTaskInfo);
+  if (readHandle != NULL && readHandle->streamRtInfo != NULL) {
+    ctx->streamGen = ((SStreamRuntimeInfo*)readHandle->streamRtInfo)->funcInfo.streamGen;
+  }
 
   *subEndPoints = NULL;
   
@@ -408,8 +411,10 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
+  qFinishReaderGroupRead(pTaskInfo);
   destroyOperator(pTaskInfo->pRoot);
   pTaskInfo->pRoot = NULL;
+  qClearReaderTableRanges(pTaskInfo);
 
   if (pTaskInfo->pSubJobCtx) {
     int32_t  code = taosRemoveRef(fetchObjRefPool, pTaskInfo->pSubJobCtx->subJobRefId);

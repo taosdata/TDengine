@@ -5827,6 +5827,7 @@ typedef struct {
   bool                           phase2Rescan;  // vtable two-pass: remote origin reuses reader and rescans
   bool                           reuseReader;
   bool                           readerGroupMode;
+  bool                           readerDimensionBatch;
   bool                           runnerEogBatch;
   uint64_t                       readerFetchId;
   SStreamContextFrames*          pContextFrames;  // optional owned validated frame copy

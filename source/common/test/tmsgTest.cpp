@@ -1555,6 +1555,111 @@ TEST(td_msg_test, check_col_ref_req_codec_rejects_col_name_exactly_at_capacity) 
   ASSERT_NE(decodeForgedCheckColRefReq(buf), 0);
 }
 
+class SubmitRawDecodeTest : public testing::Test {
+ protected:
+  SDecoder    decoder_ = {};
+  SSubmitReq2 decoded_ = {};
+  SArray*     raw_ = nullptr;
+
+  void TearDown() override {
+    tDestroySubmitReq(&decoded_, TSDB_MSG_FLG_DECODE);
+    tDecoderClear(&decoder_);
+    taosArrayDestroy(raw_);
+  }
+
+  void encode(std::vector<uint8_t>& bytes, int32_t flags, bool create) {
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, bytes.data(), bytes.size());
+    ASSERT_EQ(0, tStartEncode(&encoder));
+    ASSERT_EQ(0, tEncodeU64v(&encoder, 2));
+    for (int i = 0; i < 2; ++i) {
+      ASSERT_EQ(0, tStartEncode(&encoder));
+      ASSERT_EQ(0, tEncodeI32v(&encoder, i == 0 ? flags : 0));
+      if (i == 0 && create) {
+        SSchema schema = {};
+        schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+        schema.bytes = sizeof(int64_t);
+        SVCreateTbReq req = {};
+        req.name = (char*)"submit_raw";
+        req.type = TSDB_NORMAL_TABLE;
+        req.ntb.schemaRow.nCols = 1;
+        req.ntb.schemaRow.pSchema = &schema;
+        ASSERT_EQ(0, tEncodeSVCreateTbReq(&encoder, &req));
+      }
+      ASSERT_EQ(0, tEncodeI64(&encoder, 123 + i));
+      ASSERT_EQ(0, tEncodeI64(&encoder, 456 + i));
+      ASSERT_EQ(0, tEncodeI32v(&encoder, 7));
+      ASSERT_EQ(0, tEncodeU64v(&encoder, 0));  // Empty row/column array.
+      ASSERT_EQ(0, tEncodeI64(&encoder, 987654321));
+      tEndEncode(&encoder);
+    }
+    tEndEncode(&encoder);
+    bytes.resize(encoder.pos);
+    tEncoderClear(&encoder);
+  }
+};
+
+TEST_F(SubmitRawDecodeTest, HeaderRewritePreservesFlagsPayloadAndFollowingTable) {
+  // Each entry exercises a different valid I32 varint width, including reserved
+  // high bits that must survive the raw copy even though flags stores only 8 bits.
+  const int32_t flags[] = {1, 0x201, 0x4001, 0x200001, 0x10000001};
+  for (bool create : {false, true}) {
+    for (bool column : {false, true}) {
+      for (int width = 1; width <= 5; ++width) {
+        SCOPED_TRACE(testing::Message() << "create=" << create << " column=" << column << " width=" << width);
+        int32_t encodedFlags = flags[width - 1];
+        if (!create) encodedFlags &= ~SUBMIT_REQ_AUTO_CREATE_TABLE;
+        if (column) encodedFlags |= SUBMIT_REQ_COLUMN_DATA_FORMAT;
+        std::vector<uint8_t> bytes(1024);
+        encode(bytes, encodedFlags, create);
+        ASSERT_FALSE(HasFatalFailure());
+        const auto original = bytes;
+        raw_ = taosArrayInit(2, sizeof(void*));
+        ASSERT_NE(nullptr, raw_);
+        tDecoderInit(&decoder_, bytes.data(), bytes.size());
+        ASSERT_EQ(0, tDecodeSubmitReq(&decoder_, &decoded_, raw_));
+        ASSERT_EQ(2u, taosArrayGetSize(raw_));
+        ASSERT_EQ(2u, taosArrayGetSize(decoded_.aSubmitTbData));
+        auto*    first = static_cast<uint8_t*>(taosArrayGetP(raw_, 0));
+        auto*    second = static_cast<uint8_t*>(taosArrayGetP(raw_, 1));
+        uint32_t length = 0;
+        memcpy(&length, first, sizeof(length));
+        EXPECT_EQ(26u + width, length);  // suid + uid + sver + count + ctime + flags.
+        EXPECT_EQ(second, first + sizeof(length) + length);
+        EXPECT_EQ(0, memcmp(second, original.data() + (second - bytes.data()), 31));
+        // Compare the untouched payload, not the removed CREATE TABLE bytes.
+        EXPECT_EQ(0, memcmp(first + sizeof(length) + width, original.data() + (second - bytes.data()) - 26, 26));
+        SDecoder rawDecoder = {};
+        tDecoderInit(&rawDecoder, first + sizeof(length), length);
+        int32_t rawFlags = 0;
+        EXPECT_EQ(0, tDecodeI32v(&rawDecoder, &rawFlags));
+        EXPECT_EQ(encodedFlags, rawFlags);
+        tDecoderClear(&rawDecoder);
+        if (!create) EXPECT_EQ(original, bytes);
+        auto* tb = static_cast<SSubmitTbData*>(taosArrayGet(decoded_.aSubmitTbData, 0));
+        EXPECT_EQ(123, tb->suid);
+        EXPECT_EQ(456, tb->uid);
+        EXPECT_EQ(create, tb->pCreateTbReq != nullptr);
+        tDestroySubmitReq(&decoded_, TSDB_MSG_FLG_DECODE);
+        tDecoderClear(&decoder_);
+        taosArrayDestroy(raw_);
+        raw_ = nullptr;
+      }
+    }
+  }
+}
+
+TEST_F(SubmitRawDecodeTest, DecodeWithoutRawListLeavesInputUnchanged) {
+  std::vector<uint8_t> bytes(1024);
+  encode(bytes, SUBMIT_REQ_AUTO_CREATE_TABLE | (SUBMIT_REQUEST_VERSION << 8), true);
+  ASSERT_FALSE(HasFatalFailure());
+  const auto original = bytes;
+  tDecoderInit(&decoder_, bytes.data(), bytes.size());
+  ASSERT_EQ(0, tDecodeSubmitReq(&decoder_, &decoded_, nullptr));
+  ASSERT_EQ(2u, taosArrayGetSize(decoded_.aSubmitTbData));
+  EXPECT_EQ(original, bytes);
+}
+
 void processCommandArgs(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     if (string(argv[i]) == "--output-config") {

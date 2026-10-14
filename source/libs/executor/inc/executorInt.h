@@ -281,6 +281,7 @@ typedef struct SExchangeInfo {
   int32_t                 eogSourceCount;    // strict Runner sources at current group barrier
   bool                    strictSourcesValidated;
   bool                    readerGroupRequested;
+  bool                    readerDimensionBatch;
   bool                    readerGroupsInitialized;
   int32_t                 readerGroupMode;  // 0 unknown, 1 legacy, 2 grouped
   int32_t                 readerNextGroupIdx;
@@ -457,6 +458,8 @@ int32_t closeTableScanReader(STableScanBase* pBase);
 typedef struct STableScanInfo {
   STableScanBase  base;
   SScanInfo       scanInfo;
+  SStreamTagLookupPlan* pTagLookupPlan;  // owned by this scan for one dimension batch
+  bool                  tagLookupPreparationAttempted;
   int32_t         scanTimes;
   SSDataBlock*    pResBlock;
   SHashObj*       pIgnoreTables;

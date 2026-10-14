@@ -108,7 +108,9 @@ struct SExecTaskInfo {
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SMsgCb*                  pMsgCb;            // RPC callback (from client or qnode), safe for pure computation operators
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
+  SArray*                       pReaderTableRanges;  // Owned STableScanRange array in final table order.
   bool                     reuseReaderOnReset;
+  bool                          dimensionScanReset;  // scoped to the owned dimension reset callback
   bool                     ownStreamRtInfo;
   STaskSubJobCtx*          pSubJobCtx;
   bool                     enableExplain;     // enable explain flag

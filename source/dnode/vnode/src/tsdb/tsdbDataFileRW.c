@@ -324,9 +324,9 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 
   // load data
   tBufferClear(buffer);
-  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, brinBlk->dp->size, buffer, 0,
-                                       pEncryptData),
-                  &lino, _exit);
+  code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, brinBlk->dp->size, buffer, 0,
+                              pEncryptData);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   // decode brin block
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer);

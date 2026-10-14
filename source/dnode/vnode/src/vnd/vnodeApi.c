@@ -46,6 +46,8 @@ void initStorageAPI(SStorageAPI* pAPI) {
 
 void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderOpen = tsdbReaderOpen2;
+  pReader->tsdReaderOpenGroup = tsdbReaderOpenGroup2;
+  pReader->tsdReaderActivateGroup = tsdbReaderActivateGroup2;
   pReader->tsdReaderClose = tsdbReaderClose2;
 
   pReader->tsdNextDataBlock = tsdbNextDataBlock2;

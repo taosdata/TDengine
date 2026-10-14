@@ -1712,6 +1712,103 @@ TEST(StreamReaderFetchStateTest, StaleContinuationPreservesReplacement) {
   EXPECT_EQ(stReaderCheckFetchContinuation(&calc, &request, 8), TSDB_CODE_INVALID_MSG);
 }
 
+TEST(StreamReaderFetchStateTest, DimensionBatchIdentityAndThinContinuation) {
+  SStreamTriggerReaderCalcInfo calc = {};
+  SStreamRuntimeFuncInfo       runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.streamGen = 12;
+  runtime.sessionId = 3;
+  SResFetchReq request = {};
+  request.reset = true;
+  request.readerFetchId = 205;
+  request.queryId = 11;
+  request.taskId = 22;
+  request.execId = 4;
+  request.readerGroupMode = true;
+  request.readerDimensionBatch = true;
+  request.pStRtFuncInfo = &runtime;
+  stReaderCaptureFetchState(&calc.fetchState, &request, 8);
+  request.reset = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stReaderCheckFetchContinuation(&calc, &request, 8));
+  const SStreamReaderFetchState snapshot = calc.fetchState;
+  for (int field = 0; field < 9; ++field) {
+    SCOPED_TRACE(field);
+    SResFetchReq           changed = request;
+    SStreamRuntimeFuncInfo changedRuntime = runtime;
+    changed.pStRtFuncInfo = &changedRuntime;
+    int node = 8;
+    switch (field) {
+      case 0:
+        ++changed.queryId;
+        break;
+      case 1:
+        ++changed.taskId;
+        break;
+      case 2:
+        ++changed.execId;
+        break;
+      case 3:
+        ++node;
+        break;
+      case 4:
+        ++changedRuntime.streamGen;
+        break;
+      case 5:
+        ++changedRuntime.sessionId;
+        break;
+      case 6:
+        ++changed.readerFetchId;
+        break;
+      case 7:
+        changed.readerGroupMode = false;
+        break;
+      case 8:
+        changed.readerDimensionBatch = false;
+        break;
+    }
+    EXPECT_EQ(TSDB_CODE_INVALID_MSG, stReaderCheckFetchContinuation(&calc, &changed, node));
+    EXPECT_EQ(0, memcmp(&snapshot, &calc.fetchState, sizeof(snapshot)));
+  }
+  SStreamContextPolicy unexpected = {};
+  runtime.pContextPolicy = &unexpected;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, stReaderCheckFetchContinuation(&calc, &request, 8));
+  EXPECT_EQ(0, memcmp(&snapshot, &calc.fetchState, sizeof(snapshot)));
+  runtime.pContextPolicy = nullptr;
+  SArray *params = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  ASSERT_NE(nullptr, params);
+  SSTriggerGroupCalcInfo group = {};
+  group.pParams = params;
+  SSHashObj *groups = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, groups);
+  const int64_t gid = 1000;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(groups, &gid, sizeof(gid), &group, sizeof(group)));
+  runtime.pGroupCalcInfos = groups;
+  void   *smallWire = nullptr;
+  int32_t smallBytes = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &smallWire, &smallBytes));
+  SArray *largeParams = taosArrayInit_s(sizeof(SSTriggerCalcParam), 40960);
+  ASSERT_NE(nullptr, largeParams);
+  auto *storedGroup = static_cast<SSTriggerGroupCalcInfo *>(tSimpleHashGet(groups, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, storedGroup);
+  storedGroup->pParams = largeParams;
+  void   *largeWire = nullptr;
+  int32_t largeBytes = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tBuildStreamReaderFetchReq(&request, &largeWire, &largeBytes));
+  EXPECT_EQ(smallBytes, largeBytes);
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(largeWire, largeBytes, &decoded));
+  EXPECT_TRUE(decoded.readerDimensionBatch);
+  EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pGroupCalcInfos);
+  EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pContextPolicy);
+  EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pAncestorContext);
+  tDestroySResFetchReq(&decoded);
+  taosMemoryFree(smallWire);
+  taosMemoryFree(largeWire);
+  tSimpleHashCleanup(groups);
+  taosArrayDestroy(params);
+  taosArrayDestroy(largeParams);
+}
+
 class StreamReaderFetchIdentityTest : public testing::TestWithParam<int> {};
 TEST_P(StreamReaderFetchIdentityTest, MismatchDoesNotChangeState) {
   SStreamTriggerReaderCalcInfo calc = {};
@@ -1798,4 +1895,65 @@ TEST(StreamReaderFetchStateTest, ContinuationRejectsAttachedContext) {
     EXPECT_EQ(calc.fetchState.id, 200);
   }
   tSimpleHashCleanup(hash);
+}
+
+namespace {
+int  dimensionOwnerDestroyCalls = 0;
+void destroyDimensionBorrower(qTaskInfo_t task) {
+  if (task == nullptr) return;
+  auto *calc = static_cast<SStreamTriggerReaderCalcInfo *>(task);
+  EXPECT_TRUE(calc->dimensionBatch.installed);
+  EXPECT_NE(nullptr, calc->dimensionBatch.runtime.pGroupCalcInfos);
+  EXPECT_NE(nullptr, calc->rtInfo.funcInfo.pStreamPesudoFuncVals);
+  EXPECT_EQ(2, taosArrayGetSize(calc->rtInfo.funcInfo.pStreamPesudoFuncVals));
+  ++dimensionOwnerDestroyCalls;
+}
+}  // namespace
+
+TEST(StreamReaderDimensionBatchTest, BindsAllWindowsAndClearsBorrowerBeforeOwner) {
+  Stub probe;
+  probe.set(qDestroyTask, destroyDimensionBorrower);
+  dimensionOwnerDestroyCalls = 0;
+  SStreamTriggerReaderCalcInfo calc = {};
+  auto                        &batch = calc.dimensionBatch;
+  batch.installed = true;
+  batch.runtime.isMultiGroupCalc = true;
+  batch.runtime.pGroupCalcInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, batch.runtime.pGroupCalcInfos);
+  tSimpleHashSetFreeFp(batch.runtime.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  SSTriggerGroupCalcInfo group = {};
+  group.pParams = taosArrayInit(2, sizeof(SSTriggerCalcParam));
+  group.pGroupColVals = taosArrayInit(1, sizeof(SStreamGroupValue));
+  group.createTable = 1;
+  for (int64_t start : {100, 300}) {
+    SSTriggerCalcParam param = {};
+    param.wstart = start;
+    ASSERT_NE(nullptr, taosArrayPush(group.pParams, &param));
+  }
+  const uint64_t gid = UINT64_C(0x8000000000000001);
+  ASSERT_EQ(0, tSimpleHashPut(batch.runtime.pGroupCalcInfos, &gid, sizeof(gid), &group, sizeof(group)));
+  batch.pGroupOrder = taosArrayInit(1, sizeof(uint64_t));
+  ASSERT_NE(nullptr, taosArrayPush(batch.pGroupOrder, &gid));
+  ASSERT_EQ(0, tProjectStreamCalcContextForAllGroups(nullptr, nullptr, &batch.pContextViews));
+  ASSERT_EQ(0, stReaderBindDimensionGroup(&calc, gid));
+  EXPECT_FALSE(calc.rtInfo.funcInfo.isMultiGroupCalc);
+  EXPECT_EQ(gid, static_cast<uint64_t>(calc.rtInfo.funcInfo.groupId));
+  EXPECT_EQ(group.pParams, calc.rtInfo.funcInfo.pStreamPesudoFuncVals);
+  EXPECT_EQ(group.pGroupColVals, calc.rtInfo.funcInfo.pStreamPartColVals);
+  EXPECT_EQ(nullptr, calc.rtInfo.funcInfo.pGroupCalcInfos);
+  EXPECT_EQ(nullptr, calc.rtInfo.funcInfo.curGrpRead);
+  EXPECT_EQ(1, *calc.rtInfo.funcInfo.createTable);
+  EXPECT_NE(0, stReaderBindDimensionGroup(&calc, 7));
+  EXPECT_EQ(group.pParams, calc.rtInfo.funcInfo.pStreamPesudoFuncVals);
+  calc.pTaskInfo = &calc;
+  stReaderClearDimensionBatch(&calc);
+  EXPECT_EQ(1, dimensionOwnerDestroyCalls);
+  EXPECT_EQ(nullptr, calc.pTaskInfo);
+  EXPECT_EQ(nullptr, calc.rtInfo.funcInfo.pStreamPesudoFuncVals);
+  EXPECT_EQ(nullptr, batch.runtime.pGroupCalcInfos);
+  EXPECT_EQ(nullptr, batch.pContextViews);
+  EXPECT_EQ(nullptr, batch.pGroupOrder);
+  EXPECT_FALSE(batch.installed);
+  stReaderClearDimensionBatch(&calc);
+  EXPECT_EQ(1, dimensionOwnerDestroyCalls);
 }

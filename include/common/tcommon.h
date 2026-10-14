@@ -48,6 +48,20 @@ typedef struct STableKeyInfo {
   uint64_t baseGId;
 } STableKeyInfo;
 
+/** Evaluated entry range, indexed by the original Reader read-info number. */
+typedef struct SReaderReadRange {
+  int32_t     readInfoIndex;
+  STimeWindow window;
+  bool        valid;
+} SReaderReadRange;
+
+/** Task-owned range in finalized scan-table order; valid=false means empty. */
+typedef struct STableScanRange {
+  STableKeyInfo table;
+  STimeWindow   window;
+  bool          valid;
+} STableScanRange;
+
 typedef struct SWinKey {
   uint64_t groupId;
   TSKEY    ts;

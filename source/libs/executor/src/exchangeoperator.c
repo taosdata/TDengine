@@ -201,6 +201,7 @@ static void copySourceExtErrMsg(SExecTaskInfo* pTaskInfo, const SSourceDataInfo*
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex);
 static int32_t restoreRecycledLocalBlocks(SExchangeInfo* pExchangeInfo);
 static int32_t sendLocalBlockFetchDataRequest(SOperatorInfo* pOperator, int32_t sourceIndex);
+
 static int32_t getCompletedSources(const SArray* pArray, int32_t* pRes);
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator);
 int32_t        storeExchangeNotifyInfo(SOperatorInfo* pOperator);
@@ -527,6 +528,7 @@ static void clearReaderSourceState(SSourceDataInfo* pSource) {
   pSource->readerConsumedIdx = 0;
   pSource->readerMode = 0;
   pSource->readerEof = false;
+  pSource->readerFetchId = 0;
 }
 
 static void clearRunnerSourceState(SSourceDataInfo* pSource) {
@@ -542,6 +544,7 @@ static void clearExchangeResultState(SOperatorInfo* pOperator, SExchangeInfo* pE
     clearReaderSourceState(pSource);
     clearRunnerSourceState(pSource);
   }
+  pExchangeInfo->readerDimensionBatch = false;
   pExchangeInfo->readerGroupsInitialized = false;
   pExchangeInfo->readerGroupMode = pExchangeInfo->readerGroupRequested ? 0 : 1;
   pExchangeInfo->readerNextGroupIdx = 0;
@@ -2422,8 +2425,9 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   QUERY_CHECK_NULL(pSource, code, lino, _end, terrno);
 
   SStreamRuntimeFuncInfo* pStream = GET_STM_RTINFO(pTaskInfo);
-  if (pStream != NULL && pStream->isMultiGroupCalc && pStream->pGroupReadInfos != NULL &&
-      DOWNSTREAM_SOURCE_FETCH_TYPE(pSource->fetchMsgType) == TDMT_STREAM_FETCH && pDataInfo->readerFetchId == 0) {
+  if (!pExchangeInfo->readerDimensionBatch && pStream != NULL && pStream->isMultiGroupCalc &&
+      pStream->pGroupReadInfos != NULL && DOWNSTREAM_SOURCE_FETCH_TYPE(pSource->fetchMsgType) == TDMT_STREAM_FETCH &&
+      pDataInfo->readerFetchId == 0) {
     code = projectNodeGroupReadView(pStream, pSource->addr.nodeId);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pStream->curGrpRead == NULL) {
@@ -2486,6 +2490,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     SStreamRuntimeFuncInfo cacheRtInfo = {0};
     // The declaration is fixed for the Reader execution, including overall legacy fallback.
     req.readerGroupMode = pExchangeInfo->readerGroupRequested && pSource->fetchMsgType == TDMT_STREAM_FETCH;
+    req.readerDimensionBatch = pExchangeInfo->readerDimensionBatch;
     req.runnerEogBatch = pDataInfo->runnerEogBatch;
     req.header.vgId = pSource->addr.nodeId;
     req.sId = pSource->sId;
@@ -2686,17 +2691,33 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     int32_t msgSize = 0;
     void*   msg = NULL;
     if (pSource->fetchMsgType == TDMT_STREAM_FETCH && req.pStRtFuncInfo != NULL &&
-        req.pStRtFuncInfo->isMultiGroupCalc && req.pStRtFuncInfo->pGroupReadInfos != NULL && req.pOpParam == NULL &&
+        req.pStRtFuncInfo->isMultiGroupCalc &&
+        (req.readerDimensionBatch || req.pStRtFuncInfo->pGroupReadInfos != NULL) && req.pOpParam == NULL &&
         (req.reset || pDataInfo->readerFetchId != 0)) {
       if (req.reset) pDataInfo->readerFetchId = (uint64_t)tGenIdPI64();
       req.readerFetchId = pDataInfo->readerFetchId;
       SStreamRuntimeInfo* pRuntime = pTaskInfo->pStreamRuntimeInfo;
       if (req.reset && pRuntime != NULL && pRuntime->pPreparedFetchContext != NULL &&
-          req.pStRtFuncInfo == &pRuntime->funcInfo) {
+          (req.readerDimensionBatch || req.pStRtFuncInfo == &pRuntime->funcInfo)) {
         const SStreamFetchContextSelection* pSelection = NULL;
-        code = tSelectStreamFetchContextForNode(pRuntime->pPreparedFetchContext, &pRuntime->funcInfo, req.header.vgId,
-                                                &pSelection);
+        if (req.readerDimensionBatch) {
+          if (pRuntime->fetchInfo.active && pRuntime->fetchInfo.readerDimensionBatch &&
+              pRuntime->fetchInfo.pContextSelection != NULL) {
+            pSelection = pRuntime->fetchInfo.pContextSelection;
+            code = tStreamFetchSelectionBelongsToPrepared(pRuntime->pPreparedFetchContext, pSelection)
+                       ? TSDB_CODE_SUCCESS
+                       : TSDB_CODE_INVALID_PARA;
+          } else {
+            code = tSelectStreamFetchContextForDimensionBatch(pRuntime->pPreparedFetchContext, &pRuntime->funcInfo,
+                                                              &pSelection);
+          }
+        } else {
+          code = tSelectStreamFetchContextForNode(pRuntime->pPreparedFetchContext, &pRuntime->funcInfo, req.header.vgId,
+                                                  &pSelection);
+        }
         if (code == TSDB_CODE_SUCCESS) {
+          // The dimension request owns the full batch; the active Broadcast view is only a copy of it.
+          if (req.readerDimensionBatch) req.pStRtFuncInfo = &pRuntime->funcInfo;
           code = tBuildStreamPreparedFetchReq(&req, &pRuntime->funcInfo, pSelection, &msg, &msgSize);
         }
       } else {
@@ -3346,31 +3367,40 @@ _end:
   return code;
 }
 
-int32_t qExchangeRequestReaderGroupOutput(SOperatorInfo* pOperator) {
+static int32_t requestReaderGroupOutput(SOperatorInfo* pOperator, bool dimension) {
   if (pOperator == NULL || pOperator->info == NULL || pOperator->pPhyNode == NULL ||
       nodeType(pOperator->pPhyNode) != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
     return TSDB_CODE_INVALID_PARA;
   }
   SExchangeInfo* pInfo = pOperator->info;
-  if (pInfo->readerGroupRequested) return TSDB_CODE_SUCCESS;
+  if (pInfo->readerGroupRequested && pInfo->readerDimensionBatch == dimension) return TSDB_CODE_SUCCESS;
   pInfo->readerGroupMode = 1;
   SExecTaskInfo* pTask = pOperator->pTaskInfo;
   if (pTask == NULL || pTask->execModel != OPTR_EXEC_MODEL_STREAM || pTask->pStreamRuntimeInfo == NULL ||
-      !GET_STM_RTINFO(pTask)->isMultiGroupCalc || GET_STM_RTINFO(pTask)->pGroupReadInfos == NULL || pInfo->dynamicOp ||
-      pOperator->pOperatorGetParam != NULL || hasLimitOffsetInfo(&pInfo->limitInfo)) {
-    return TSDB_CODE_SUCCESS;
+      !GET_STM_RTINFO(pTask)->isMultiGroupCalc || (!dimension && GET_STM_RTINFO(pTask)->pGroupReadInfos == NULL) ||
+      pInfo->dynamicOp || pOperator->pOperatorGetParam != NULL || hasLimitOffsetInfo(&pInfo->limitInfo)) {
+    return dimension ? TSDB_CODE_INVALID_PARA : TSDB_CODE_SUCCESS;
   }
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSources); ++i) {
     const SDownstreamSourceNode* pSource = taosArrayGet(pInfo->pSources, i);
     const SSourceDataInfo*       pData = taosArrayGet(pInfo->pSourceDataInfo, i);
     if (pSource == NULL || pData == NULL || pSource->fetchMsgType != TDMT_STREAM_FETCH || pSource->localExec ||
         pData->fetchSent) {
-      return TSDB_CODE_SUCCESS;
+      return dimension ? TSDB_CODE_INVALID_PARA : TSDB_CODE_SUCCESS;
     }
   }
+  pInfo->readerDimensionBatch = dimension;
   pInfo->readerGroupRequested = true;
   pInfo->readerGroupMode = 0;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t qExchangeRequestReaderGroupOutput(SOperatorInfo* pOperator) {
+  return requestReaderGroupOutput(pOperator, false);
+}
+
+int32_t qExchangeRequestDimensionReaderOutput(SOperatorInfo* pOperator) {
+  return requestReaderGroupOutput(pOperator, true);
 }
 
 int32_t qExchangeReaderGroupOutputMode(const SOperatorInfo* pOperator) {
@@ -3390,7 +3420,7 @@ static int32_t initReaderGroupSources(SOperatorInfo* pOperator) {
   if (pInfo->readerGroupsInitialized) return TSDB_CODE_SUCCESS;
   SStreamRuntimeFuncInfo* pStream = GET_STM_RTINFO(pOperator->pTaskInfo);
   const SArray*           pOrder = pStream->pGroupCalcOrder;
-  if (taosArrayGetSize(pOrder) == 0 || pStream->pGroupReadInfos == NULL ||
+  if (taosArrayGetSize(pOrder) == 0 || (!pInfo->readerDimensionBatch && pStream->pGroupReadInfos == NULL) ||
       taosArrayGetSize(pInfo->pSources) != taosArrayGetSize(pInfo->pSourceDataInfo))
     return TSDB_CODE_INVALID_MSG;
   uint64_t previous = 0;
@@ -3402,6 +3432,11 @@ static int32_t initReaderGroupSources(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSources); ++i) {
     const SDownstreamSourceNode* pSource = taosArrayGet(pInfo->pSources, i);
     SSourceDataInfo*             pData = taosArrayGet(pInfo->pSourceDataInfo, i);
+    if (pInfo->readerDimensionBatch) {
+      pData->pReaderGroups = taosArrayDup(pOrder, NULL);
+      if (pData->pReaderGroups == NULL) return terrno;
+      continue;
+    }
     SArray** ppReads = tSimpleHashGet(pStream->pGroupReadInfos, &pSource->addr.nodeId, sizeof(pSource->addr.nodeId));
     pData->pReaderGroups = taosArrayInit(1, sizeof(uint64_t));
     if (pData->pReaderGroups == NULL) return terrno;
@@ -3451,6 +3486,8 @@ static int32_t adoptReaderBlockDescriptor(SSDataBlock* pBlock, const SSDataBlock
          (pColumn->info.precision != pExpected->info.precision || pColumn->info.scale != pExpected->info.scale))) {
       return TSDB_CODE_INVALID_MSG;
     }
+    // Internal block encoding omits timestamp precision; the plan owns this metadata.
+    if (pColumn->info.type == TSDB_DATA_TYPE_TIMESTAMP) pColumn->info.precision = pExpected->info.precision;
   }
   // Remote output omits trailing slots reserved for expressions evaluated locally.
   // Legacy decoding retains these slots in its template-created destination block.
@@ -3479,6 +3516,7 @@ static int32_t acceptReaderFetchResponse(SOperatorInfo* pOperator, SSourceDataIn
   if (pData->readerEof || pData->pReaderItems != NULL || pRsp == NULL) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   bool    grouped = pRsp->streamBlockType == STREAM_READER_FETCH_BATCH;
   int32_t mode = grouped ? 2 : 1;
+  if (pInfo->readerDimensionBatch && !grouped) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   if ((pData->readerMode != 0 && pData->readerMode != mode) ||
       (!grouped && pRsp->streamBlockType != STREAM_RUNNER_FETCH_LEGACY))
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
@@ -3933,6 +3971,11 @@ int32_t exchangeTestRequestReaderGroups(void* pParam) {
   SColumnInfoData* pColumn = taosArrayGet(pOwner->exchange.pDummyBlock->pDataBlock, 0);
   pColumn->info.colId = 42;
   return qExchangeRequestReaderGroupOutput(&pOwner->operatorInfo);
+}
+
+int32_t exchangeTestRequestDimensionReader(void* pParam) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  return qExchangeRequestDimensionReaderOutput(&pOwner->operatorInfo);
 }
 
 int32_t exchangeTestReaderMode(void* pParam) {
