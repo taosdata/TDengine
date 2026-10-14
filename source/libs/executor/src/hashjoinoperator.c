@@ -584,6 +584,8 @@ static int32_t hJoinInitTableInfo(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode*
   pTable->blkId = pDownstream[idx]->resultDataBlockId;
   pTable->taskInfo = pTaskInfo;
   pTable->multiGroupJoin = pJoin->multiGroupJoin;
+  const SPhysiNode* pInputNode = (const SPhysiNode*)nodesListGetNode(pJoinNode->node.pChildren, idx);
+  pTable->pInputDesc = pInputNode != NULL ? pInputNode->pOutputDataBlockDesc : NULL;
   if (0 == idx) {
     pKeyList = pJoinNode->pOnLeft;
     pTable->hasTimeRange = pJoinNode->timeRangeTarget & 0x1;
@@ -2010,6 +2012,132 @@ static int32_t hJoinBindMultiGroupBlock(SHJoinTableCtx* pTable, const SSDataBloc
   return TSDB_CODE_SUCCESS;
 }
 
+static const SSlotDescNode* hJoinStreamFilterSlot(const SHJoinTableCtx* pTable, int32_t slot) {
+  if (pTable->pInputDesc == NULL) return NULL;
+  SNode* pEntry = NULL;
+  FOREACH(pEntry, pTable->pInputDesc->pSlots) {
+    const SSlotDescNode* pSlot = (const SSlotDescNode*)pEntry;
+    if (pSlot->slotId == slot) return pSlot;
+  }
+  return NULL;
+}
+
+static bool hJoinStreamFilterKeyCompatible(const SHJoinTableCtx* pTable, int32_t index, const SDataType* pType) {
+  const SHJoinColInfo* pKey = &pTable->keyCols[index];
+  if (pKey->isExpr || pKey->type != pType->type || pKey->bytes != pType->bytes || pType->type == TSDB_DATA_TYPE_NULL ||
+      !isValidDataType(pType->type))
+    return false;
+  // The primary expression can overwrite this input slot before ordinary key binding.
+  if (pTable->primExpr != NULL && pKey->srcSlot == pTable->primCtx.targetSlotId) return false;
+  if (pType->type == TSDB_DATA_TYPE_TIMESTAMP) {
+    if (pType->precision > TSDB_TIME_PRECISION_NANO || pKey->precision > TSDB_TIME_PRECISION_NANO) return false;
+    if (pTable->primExpr == NULL && pTable->primCol != NULL) {
+      const SSlotDescNode* pPrimary = hJoinStreamFilterSlot(pTable, pTable->primCol->srcSlot);
+      // hJoinSetKeyColsData uses primary precision even for another timestamp key.
+      if (pPrimary == NULL ||
+          (pPrimary->dataType.type == TSDB_DATA_TYPE_TIMESTAMP && pPrimary->dataType.precision != pType->precision))
+        return false;
+    }
+  }
+  return true;
+}
+
+static int32_t hJoinInitStreamFilterSpec(SOperatorInfo* pOperator) {
+  SHJoinOperatorInfo* pJoin = pOperator->info;
+  if (pJoin->streamFilterResolved) return TSDB_CODE_SUCCESS;
+  if (!pJoin->multiGroupJoin || !IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) ||
+      pOperator->pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {
+    pJoin->streamFilterResolved = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  SHJoinTableCtx* pBuild = pJoin->pBuild;
+  SHJoinTableCtx* pProbe = pJoin->pProbe;
+  if (pBuild->pInputDesc == NULL || pProbe->pInputDesc == NULL) {
+    pJoin->streamFilterResolved = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pBuild->pInputDesc->dataBlockId != pBuild->blkId || pProbe->pInputDesc->dataBlockId != pProbe->blkId ||
+      pBuild->keyNum != pProbe->keyNum)
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  int32_t                code = TSDB_CODE_SUCCESS, lino = 0;
+  SStreamJoinFilterSpec* pSpec = &pJoin->streamFilterSpec;
+  pSpec->probeBlockId = pProbe->blkId;
+  pSpec->pColumns = taosArrayInit(pBuild->keyNum, sizeof(SStreamJoinFilterColumn));
+  if (pSpec->pColumns == NULL) return terrno;
+  for (int32_t i = 0; i < pBuild->keyNum; ++i) {
+    const SHJoinColInfo* pBuildKey = &pBuild->keyCols[i];
+    const SHJoinColInfo* pProbeKey = &pProbe->keyCols[i];
+    if (pBuildKey->isExpr || pProbeKey->isExpr) continue;
+    const SSlotDescNode* pBuildSlot = hJoinStreamFilterSlot(pBuild, pBuildKey->srcSlot);
+    const SSlotDescNode* pProbeSlot = hJoinStreamFilterSlot(pProbe, pProbeKey->srcSlot);
+    if (pBuildSlot == NULL || pProbeSlot == NULL) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _exit;
+    }
+    if (!hJoinStreamFilterKeyCompatible(pBuild, i, &pBuildSlot->dataType) ||
+        !hJoinStreamFilterKeyCompatible(pProbe, i, &pProbeSlot->dataType) ||
+        pBuildSlot->dataType.type != pProbeSlot->dataType.type ||
+        pBuildSlot->dataType.scale != pProbeSlot->dataType.scale || pBuildKey->precision != pProbeKey->precision)
+      continue;
+    SStreamJoinFilterColumn column = {.joinKeyIndex = i,
+                                      .buildSlot = pBuildKey->srcSlot,
+                                      .probeSlot = pProbeKey->srcSlot,
+                                      .buildType = pBuildSlot->dataType,
+                                      .probeType = pProbeSlot->dataType,
+                                      .keyPrecision = pBuildKey->precision};
+    if (taosArrayPush(pSpec->pColumns, &column) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+  if (taosArrayGetSize(pSpec->pColumns) > 0) {
+    TAOS_CHECK_EXIT(optrResolveStreamJoinFilter(pProbe->downStream, pSpec, &pJoin->streamFilterEligible));
+  }
+  pJoin->streamFilterResolved = true;
+_exit:
+  if (code != TSDB_CODE_SUCCESS || !pJoin->streamFilterEligible) streamJoinFilterSpecClear(pSpec);
+  return code;
+}
+
+static int32_t hJoinBeginStreamFilterGroup(SOperatorInfo* pOperator) {
+  SHJoinOperatorInfo* pJoin = pOperator->info;
+  HJ_ERR_RET(hJoinInitStreamFilterSpec(pOperator));
+  if (!pJoin->streamFilterEligible) return TSDB_CODE_SUCCESS;
+  if (pJoin->pStreamFilter != NULL || pJoin->streamFilterFallback != STREAM_JOIN_FILTER_NO_FALLBACK)
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  HJ_ERR_RET(streamJoinFilterCreate(&pJoin->streamFilterSpec, pOperator->pTaskInfo->pStreamRuntimeInfo->execId,
+                                    pJoin->currentBaseGId, &pJoin->pStreamFilter));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hJoinCollectStreamFilterRow(SHJoinOperatorInfo* pJoin, const SSDataBlock* pBlock, int32_t row) {
+  SStreamJoinFilter* pFilter = pJoin->pStreamFilter;
+  if (pFilter == NULL) return TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < taosArrayGetSize(pFilter->spec.pColumns); ++i) {
+    const SStreamJoinFilterColumn* pDesc = taosArrayGet(pFilter->spec.pColumns, i);
+    const SHJoinColInfo*           pKey = &pJoin->pBuild->keyCols[pDesc->joinKeyIndex];
+    const SColumnInfoData*         pRaw = taosArrayGet(pBlock->pDataBlock, pDesc->buildSlot);
+    // hJoinStreamFilterKeyCompatible admits only matching physical/key types, so
+    // hJoinSetKeyColsData must bind the raw column without a converted replacement.
+    if (pRaw == NULL || pKey->colData != pRaw ||
+        (pKey->type == TSDB_DATA_TYPE_TIMESTAMP &&
+         (pKey->sourcePrecision != pRaw->info.precision || pRaw->info.precision != pDesc->buildType.precision)))
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  HJ_ERR_RET(streamJoinFilterAddRow(pFilter, pBlock, row, &pJoin->streamFilterFallback));
+  pJoin->execInfo.streamFilterKeyPeak = TMAX(pJoin->execInfo.streamFilterKeyPeak, pFilter->keyCount);
+  pJoin->execInfo.streamFilterBytePeak = TMAX(pJoin->execInfo.streamFilterBytePeak, pFilter->keyBytes);
+  if (pJoin->streamFilterFallback != STREAM_JOIN_FILTER_NO_FALLBACK) streamJoinFilterDestroy(&pJoin->pStreamFilter);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hJoinInstallStreamFilter(SOperatorInfo* pOperator) {
+  SHJoinOperatorInfo* pJoin = pOperator->info;
+  if (pJoin->pStreamFilter == NULL) return TSDB_CODE_SUCCESS;
+  HJ_ERR_RET(optrInstallStreamJoinFilter(pJoin->pProbe->downStream, &pJoin->pStreamFilter));
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t hJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* pJoin) {
   if (pBlock->info.rows <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -2040,6 +2168,7 @@ static int32_t hJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* 
       }
       continue;
     }
+    HJ_ERR_RET(hJoinCollectStreamFilterRow(pJoin, pBlock, i));
     code = hJoinAddRowToHash(pJoin, pBlock, bufLen, i);
     if (code) {
       return code;
@@ -2365,6 +2494,8 @@ static int32_t hJoinValidateChildrenExhausted(SOperatorInfo* pOperator) {
 
 static void hJoinReleaseCurrentGroup(SHJoinOperatorInfo* pJoin) {
   int64_t limit = pJoin->ctx.limit;
+  streamJoinFilterDestroy(&pJoin->pStreamFilter);
+  pJoin->streamFilterFallback = STREAM_JOIN_FILTER_NO_FALLBACK;
   hJoinReleaseHashMemory(pJoin);
   hJoinFreeRowList(&pJoin->ctx.pBuildNullRows);
   blockDataDestroy(pJoin->pPendingProbe);
@@ -2444,6 +2575,8 @@ static int32_t hJoinMultiGroupMainProcess(SOperatorInfo* pOperator, SSDataBlock*
         if (pJoin->currentBaseGId == 0) {
           code = hJoinResolveCurrentGroup(pOperator);
           QUERY_CHECK_CODE(code, lino, _end);
+          code = hJoinBeginStreamFilterGroup(pOperator);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
         bool buildComplete = false;
         code = hJoinBuildCurrentGroup(pOperator, &buildComplete);
@@ -2452,6 +2585,8 @@ static int32_t hJoinMultiGroupMainProcess(SOperatorInfo* pOperator, SSDataBlock*
           code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
           QUERY_CHECK_CODE(code, lino, _end);
         }
+        code = hJoinInstallStreamFilter(pOperator);
+        QUERY_CHECK_CODE(code, lino, _end);
         pJoin->multiGroupPhase = HJOIN_MULTI_GROUP_PROBE;
         continue;
       }
@@ -2730,6 +2865,8 @@ static void destroyHashJoinOperator(void* param) {
          pJoinOperator->execInfo.probeBlkRows, pJoinOperator->execInfo.resRows,
          pJoinOperator->execInfo.hashMemPeakBytes);
 
+  streamJoinFilterDestroy(&pJoinOperator->pStreamFilter);
+  streamJoinFilterSpecClear(&pJoinOperator->streamFilterSpec);
   hJoinReleaseHashMemory(pJoinOperator);
 
   hJoinFreeTableInfo(&pJoinOperator->tbs[0]);
@@ -2835,6 +2972,11 @@ static int32_t resetHashJoinOperState(SOperatorInfo* pOper) {
   SHJoinOperatorInfo* pHjOper = pOper->info;
   SStreamRuntimeFuncInfo* pRuntime = GET_STM_RTINFO(pOper->pTaskInfo);
   int64_t                 limit = pHjOper->ctx.limit;
+  streamJoinFilterDestroy(&pHjOper->pStreamFilter);
+  streamJoinFilterSpecClear(&pHjOper->streamFilterSpec);
+  pHjOper->streamFilterResolved = false;
+  pHjOper->streamFilterEligible = false;
+  pHjOper->streamFilterFallback = STREAM_JOIN_FILTER_NO_FALLBACK;
   hJoinFreeRowList(&pHjOper->ctx.pBuildNullRows);
   pHjOper->ctx = (SHJoinCtx){0};
   pHjOper->ctx.limit = limit;

@@ -925,6 +925,8 @@ typedef struct SSttBlockLoadInfo {
   bool                  checkRemainingRow;  // todo: no assign value?
   bool                  isLast;
   bool                  sttBlockLoaded;
+  bool                  statisLoaded;  // complete table statistics, including a valid empty result
+  bool                  tombLoaded;  // deletion records installed for the current group
   SSttTableRowsInfo     info;
   SSttBlockLoadCostInfo cost;
 } SSttBlockLoadInfo;
@@ -1007,6 +1009,7 @@ typedef struct SMergeTreeConf {
   STimeWindow   timewindow;
   SVersionRange verRange;
   bool          strictTimeRange;
+  bool          skipByTableStats;  // group Reader may reject data using complete table statistics
   bool          cacheStatis;    // cache the stt statis file info in cache
   SArray       *pSttFileBlockIterArray;
   void         *pCurrentFileset;
@@ -1038,6 +1041,7 @@ void    tMergeTreeClose(SMergeTree *pMTree);
 int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, SSttBlockLoadInfo **pInfo);
 void    destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void    destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
+int32_t resetSttBlockReaderForGroup(SArray *pLDataIterArray);
 void    tSttBlockLoadCostAdd(SSttBlockLoadCostInfo *pDst, const SSttBlockLoadCostInfo *pSrc);
 
 // tsdbCache ==============================================================================================

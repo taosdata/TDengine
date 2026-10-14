@@ -159,6 +159,8 @@ typedef struct SHJoinTableCtx {
   bool           multiGroupJoin;
   uint64_t       baseGId;
 
+  const SDataBlockDescNode* pInputDesc;  // Borrowed from the task-owned physical plan; survives operator resets.
+
   SHJoinColMap*      primCol;
   SNode*             primExpr;
   SHJoinPrimExprCtx  primCtx;
@@ -186,6 +188,8 @@ typedef struct SHJoinExecInfo {
   int64_t  resRows;
   int64_t  expectRows;
   uint64_t hashMemPeakBytes;
+  int32_t  streamFilterKeyPeak;
+  int32_t  streamFilterBytePeak;
 } SHJoinExecInfo;
 
 typedef struct SHJoinOperatorInfo {
@@ -218,6 +222,11 @@ typedef struct SHJoinOperatorInfo {
   bool                  probeEogSeen;
   SArray*               pProbeWinIdx;
   SArray*               pOutputWinIdx;
+  SStreamJoinFilterSpec     streamFilterSpec;  // Owns pColumns; released by streamJoinFilterSpecClear.
+  bool                      streamFilterResolved;
+  bool                      streamFilterEligible;
+  SStreamJoinFilter*        pStreamFilter;  // Owned only until successful delivery.
+  EStreamJoinFilterFallback streamFilterFallback;
   SHJoinCtx        ctx;
   SHJoinExecInfo   execInfo;
   int32_t          blkThreshold;

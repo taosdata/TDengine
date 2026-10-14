@@ -212,6 +212,11 @@ typedef struct STsdbReader STsdbReader;
 
 int32_t  tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
                          SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
+/** Open/activate one group; ranges are copied. Release the previous block before activation. */
+int32_t  tsdbReaderOpenGroup2(void *vnode, SQueryTableDataCond *cond, const STableScanRange *ranges, int32_t numTables,
+                              SSDataBlock *output, void **reader, const char *id, SHashObj **ignoreTables);
+// Atomic per-field sampling; safe during suspend or a held clean block, not after close.
+int32_t  tsdbReaderActivateGroup2(void *reader, const STableScanRange *ranges, int32_t numTables);
 int32_t  tsdbSetTableList2(void *pReader, const void *pTableList, int32_t num);
 int32_t  tsdbReaderSetId(void *pReader, const char *idstr);
 void     tsdbReaderClose2(void *pReader);

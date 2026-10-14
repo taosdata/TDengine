@@ -1312,3 +1312,21 @@ TEST(HashJoinMultiGroupTest, LegacyHashJoinIgnoresEogProtocolFields) {
   EXPECT_EQ(rows[0].leftPayload, 1);
   EXPECT_EQ(rows[0].rightPayload, 2);
 }
+
+TEST(HashJoinMultiGroupTest, RuntimeFilterIneligibleProbePreservesProtocolAndReset) {
+  std::vector<InputBlockSpec> left, right;
+  appendGroup(&left, blockId(1, 101, 101, 101), {{10, 1, 11, false}});
+  appendGroup(&right, blockId(2, 102, 101, 101), {{10, 1, 21, false}}, {{7, 0}});
+  HashJoinHarness harness;
+  ASSERT_EQ(harness.Create(left, right, {101}), 0);
+  for (int32_t pass = 0; pass < 2; ++pass) {
+    std::vector<ProtocolEvent> protocol;
+    std::vector<OutputRow>     rows;
+    ASSERT_EQ(fetchProtocol(harness.join(), &protocol, &rows), 0);
+    expectProtocol(protocol, {{101, 1, false}, {101, 0, true}});
+    ASSERT_EQ(rows.size(), 1);
+    EXPECT_EQ(rows[0].key, 1);
+    EXPECT_EQ(protocol[0].lineage, (std::vector<std::pair<int32_t, int32_t>>{{7, 0}}));
+    ASSERT_EQ(harness.ResetTree(), 0);
+  }
+}

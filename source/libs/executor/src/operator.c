@@ -1499,3 +1499,35 @@ void resetOperatorCostInfo(SOperatorInfo* pOperator) {
   pOperator->cost.outputWaitElapsed = 0;
   pOperator->cost.inputRows = 0;
 }
+
+int32_t optrResolveStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilterSpec* pSpec, bool* pEligible) {
+  if (pProbe == NULL || pSpec == NULL || pEligible == NULL || pSpec->pColumns == NULL ||
+      pSpec->pColumns->elemSize != sizeof(SStreamJoinFilterColumn))
+    return TSDB_CODE_INVALID_PARA;
+  *pEligible = false;
+  pSpec->inputBlockId = pSpec->probeBlockId;
+  for (int32_t i = 0; i < taosArrayGetSize(pSpec->pColumns); ++i) {
+    SStreamJoinFilterColumn* pCol = taosArrayGet(pSpec->pColumns, i);
+    pCol->inputSlot = pCol->probeSlot;
+  }
+  switch (pProbe->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return projectResolveStreamJoinFilter(pProbe, pSpec, pEligible);
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      return extWinResolveStreamJoinFilter(pProbe, pSpec, pEligible);
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+}
+
+int32_t optrInstallStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilter** ppFilter) {
+  if (pProbe == NULL || ppFilter == NULL || *ppFilter == NULL) return TSDB_CODE_INVALID_PARA;
+  switch (pProbe->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return projectInstallStreamJoinFilter(pProbe, ppFilter);
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      return extWinInstallStreamJoinFilter(pProbe, ppFilter);
+    default:
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+}

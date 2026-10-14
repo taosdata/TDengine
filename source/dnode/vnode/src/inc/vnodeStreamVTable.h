@@ -42,6 +42,11 @@ int32_t vnodeCalculateNodeGroupReadRange(STimeRangeNode *node, SStreamRuntimeFun
                                          SStreamRuntimeFuncInfo *pTmpRuntime, int32_t actualNodeId, STimeWindow *pRange,
                                          bool *pRangeValid);
 
+// On success the caller owns *readRanges; errors leave it NULL.
+int32_t vnodeCalculateNodeGroupReadRanges(STimeRangeNode *node, SStreamRuntimeFuncInfo *runtime,
+                                          SStreamRuntimeFuncInfo *tmpRuntime, int32_t actualNodeId,
+                                          STimeWindow *combined, bool *combinedValid, SArray **readRanges);
+
 // vnodeStreamVTable.c
 int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
                                       int64_t walVer, SSTriggerWalNewRsp *pRsp);

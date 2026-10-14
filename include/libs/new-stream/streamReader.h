@@ -184,9 +184,22 @@ typedef struct SStreamReaderFetchState {
   int64_t  sessionId;
   bool     dynTbname;
   bool     readerGroupMode;
+  bool     readerDimensionBatch;
 } SStreamReaderFetchState;
 
+/** Owns the full batch; rtInfo.funcInfo only borrows the active group. */
+typedef struct SStreamReaderDimensionBatch {
+  SStreamRuntimeFuncInfo runtime;
+  SArray*                pGroupOrder;
+  SArray*                pContextViews;
+  int32_t                groupIndex;
+  bool                   groupStarted;
+  bool                   installed;
+  bool                   reuseReader;
+} SStreamReaderDimensionBatch;
+
 typedef struct SStreamTriggerReaderCalcInfo {
+  SStreamReaderDimensionBatch dimensionBatch;
   SStreamReaderFetchState fetchState;
   void*       pTask;
   void*       pFilterInfo;
@@ -208,6 +221,9 @@ void    stReaderCaptureFetchState(SStreamReaderFetchState* pState, const SResFet
 int32_t stReaderCheckFetchContinuation(const SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq,
                                        int32_t actualNodeId);
 void    stReaderInvalidateFetchState(SStreamTriggerReaderCalcInfo* pCalc);
+
+int32_t stReaderBindDimensionGroup(SStreamTriggerReaderCalcInfo* pCalc, uint64_t gid);
+void    stReaderClearDimensionBatch(SStreamTriggerReaderCalcInfo* pCalc);
 
 int32_t stReaderSetGroupOutputMode(SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq);
 

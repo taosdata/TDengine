@@ -5240,6 +5240,7 @@ static const char* jkExternalPhysiPlanFillMode = "FillMode";
 static const char* jkExternalPhysiPlanFillExprs = "FillExprs";
 static const char* jkExternalPhysiPlanFillValues = "FillValues";
 static const char* jkExternalPhysiPlanBroadcastInputReusable = "BroadcastInputReusable";
+static const char* jkExternalPhysiPlanBroadcastReaderBatch = "BroadcastReaderBatch";
 
 static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -5292,6 +5293,9 @@ static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanBroadcastInputReusable, pNode->broadcastInputReusable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanBroadcastReaderBatch, pNode->broadcastReaderBatch);
   }
   return code;
 }
@@ -5348,6 +5352,9 @@ static int32_t jsonToPhysiExternalNode(const SJson* pJson, void* pObj) {
 
   if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkExternalPhysiPlanBroadcastInputReusable) != NULL) {
     code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanBroadcastInputReusable, &pNode->broadcastInputReusable);
+  }
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkExternalPhysiPlanBroadcastReaderBatch) != NULL) {
+    code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanBroadcastReaderBatch, &pNode->broadcastReaderBatch);
   }
   return code;
 }

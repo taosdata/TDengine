@@ -68,6 +68,43 @@ typedef struct SExtWindowStat {
 #endif
 } SExtWindowStat;
 
+#define EXT_WIN_BROADCAST_KEY_INDEX_BYTES (16 * 1024 * 1024)
+// The owner, attempt flag and retained error are resident per operator.
+#define EXT_WIN_BROADCAST_KEY_INDEX_FIXED_BYTES (sizeof(void*) + sizeof(uint64_t))
+
+typedef struct SExtWinKeyPosition {
+  int32_t page;
+  int32_t row;
+  int32_t next;
+} SExtWinKeyPosition;
+
+typedef struct SExtWinKeyEntry {
+  struct SExtWinKeyEntry* pNext;
+  int32_t                 head;
+  int32_t                 tail;
+  int32_t                 length;
+  uint32_t                hash;
+  char                    key[];
+} SExtWinKeyEntry;
+
+typedef struct SExtWinKeyCursor {
+  int32_t head;
+  int32_t current;
+} SExtWinKeyCursor;
+
+typedef struct SExtWinBroadcastKeyIndex {
+  SStreamJoinFilterSpec spec;
+  SExtWinKeyEntry**     pBuckets;
+  SExtWinKeyPosition*   pPositions;
+  char*                 pScratch;
+  int32_t               bucketCount;
+  int32_t               positionCount;
+  int32_t               cursorCount;
+  bool                  groupPrepared;
+  int64_t               bytes;
+  SExtWinKeyCursor      cursors[STREAM_JOIN_FILTER_MAX_KEYS];
+} SExtWinBroadcastKeyIndex;
+
 typedef struct SExtWinBroadcastInput {
   SWindowInputStore* pStore;
   bool               inputLoaded;
@@ -182,6 +219,10 @@ typedef struct SExternalWindowOperator {
   SExtWinTrigGrpCtx* pTGrpCtx;
   SSHashObj*          pGroupRegistry;  // trigger group id => operator-owned SExtWinTrigGrpCtx*
   SExtWinBroadcastInput broadcastInput;  // operator-owned raw input for one qualified calc request
+  SExtWinBroadcastKeyIndex*   pBroadcastKeyIndex;
+  bool                        broadcastKeyIndexAttempted;
+  int32_t                     broadcastKeyIndexError;
+  SStreamJoinFilter*    pJoinFilter;     // uniquely owned until this group completes or resets
   SWindowInputPool*   pBroadcastPool;
   SArray*             pBroadcastContextViews;  // SArray<SStreamCalcContextGroupView>
   SDiskbasedBufStatis broadcastCollectedStatis;
@@ -472,6 +513,24 @@ static void extWinAccountBroadcastPayloadAppend(SExtWinBroadcastInput* pState, i
   }
 }
 
+static void extWinDestroyBroadcastKeyIndex(SExternalWindowOperator* pExtW) {
+  SExtWinBroadcastKeyIndex* pIndex = pExtW->pBroadcastKeyIndex;
+  if (pIndex == NULL) return;
+  for (int32_t i = 0; i < pIndex->bucketCount; ++i) {
+    SExtWinKeyEntry* pEntry = pIndex->pBuckets == NULL ? NULL : pIndex->pBuckets[i];
+    while (pEntry != NULL) {
+      SExtWinKeyEntry* pNext = pEntry->pNext;
+      taosMemoryFree(pEntry);
+      pEntry = pNext;
+    }
+  }
+  streamJoinFilterSpecClear(&pIndex->spec);
+  taosMemoryFree(pIndex->pScratch);
+  taosMemoryFree(pIndex->pPositions);
+  taosMemoryFree(pIndex->pBuckets);
+  taosMemoryFreeClear(pExtW->pBroadcastKeyIndex);
+}
+
 static void extWinDestroyBroadcastInput(SExtWinBroadcastInput* pState) {
   if (pState == NULL) {
     return;
@@ -484,6 +543,13 @@ static void extWinDestroyBroadcastInput(SExtWinBroadcastInput* pState) {
   winInputStoreDestroy(pState->pStore);
   taosArrayDestroy(pState->pPageMeta);
   memset(pState, 0, sizeof(*pState));
+}
+
+static void extWinDestroySharedBroadcastInput(SExternalWindowOperator* pExtW) {
+  extWinDestroyBroadcastKeyIndex(pExtW);
+  pExtW->broadcastKeyIndexAttempted = false;
+  pExtW->broadcastKeyIndexError = TSDB_CODE_SUCCESS;
+  extWinDestroyBroadcastInput(&pExtW->broadcastInput);
 }
 
 static void extWinDestroyBroadcastState(SExtWinBroadcastState* pState) {
@@ -551,7 +617,7 @@ static void extWinClearGroupRegistry(SExternalWindowOperator* pExtW) {
     ppTCtx = tSimpleHashIterate(pExtW->pGroupRegistry, ppTCtx, &iter);
   }
   tSimpleHashCleanup(pExtW->pGroupRegistry);
-  extWinDestroyBroadcastInput(&pExtW->broadcastInput);
+  extWinDestroySharedBroadcastInput(pExtW);
   winInputPoolDestroy(pExtW->pBroadcastPool);
   tDestroyStreamCalcContextGroupViews(&pExtW->pBroadcastContextViews);
   pExtW->pBroadcastPool = NULL;
@@ -707,6 +773,12 @@ static bool extWinReusesBroadcastInput(const SOperatorInfo* pOperator, const SEx
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pOperator->pPhyNode;
   return pNode != NULL && pNode->broadcastInputReusable && pExtW->mode == EEXT_MODE_SCALAR &&
          !pExtW->isMergeAlignedExtW && extWinUsesStreamingBroadcast(pOperator, pExtW);
+}
+
+static bool extWinBatchesDimensionReader(const SOperatorInfo* pOperator, const SExternalWindowOperator* pExtW) {
+  const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pOperator->pPhyNode;
+  return pNode != NULL && pNode->broadcastReaderBatch && !extWinReusesBroadcastInput(pOperator, pExtW) &&
+         pExtW->mode == EEXT_MODE_SCALAR && extWinUsesStreamingBroadcast(pOperator, pExtW);
 }
 
 static SExtWinBroadcastInput* extWinGetBroadcastInput(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
@@ -1147,6 +1219,7 @@ static void destroyExternalWindowOperatorInfo(void* param) {
     return;
   }
   SExternalWindowOperator* pInfo = (SExternalWindowOperator*)param;
+  streamJoinFilterDestroy(&pInfo->pJoinFilter);
   cleanupBasicInfo(&pInfo->binfo);
 
   taosArrayDestroyEx(pInfo->pOutputBlocks, extWinDestroyBlockList);
@@ -3165,6 +3238,7 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
   SExternalWindowPhysiNode* pPhynode = (SExternalWindowPhysiNode*)pOperator->pPhyNode;
   pOperator->status = OP_NOT_OPENED;
+  streamJoinFilterDestroy(&pExtW->pJoinFilter);
   qClearStreamFetchRuntime(pTaskInfo->pStreamRuntimeInfo);
 
   extWinDetachPublishedRuntimeAliases(pTaskInfo, pExtW);
@@ -6619,6 +6693,219 @@ static int32_t extWinTestObserveBroadcastReplay(SExternalWindowOperator* pExtW, 
 }
 #endif
 
+static SExtWinKeyEntry* extWinBroadcastFindKey(SExtWinBroadcastKeyIndex* pIndex, const char* key, int32_t length,
+                                               uint32_t hash) {
+  for (SExtWinKeyEntry* pEntry = pIndex->pBuckets[hash & (pIndex->bucketCount - 1)]; pEntry != NULL;
+       pEntry = pEntry->pNext) {
+    if (pEntry->hash == hash && pEntry->length == length && memcmp(pEntry->key, key, length) == 0) return pEntry;
+  }
+  return NULL;
+}
+
+static bool extWinBroadcastKeyLayoutMatches(const SStreamJoinFilterSpec* a, const SStreamJoinFilterSpec* b) {
+  if (a->inputBlockId != b->inputBlockId || a->receiverBlockId != b->receiverBlockId ||
+      taosArrayGetSize(a->pColumns) != taosArrayGetSize(b->pColumns))
+    return false;
+  for (int32_t i = 0; i < taosArrayGetSize(a->pColumns); ++i) {
+    const SStreamJoinFilterColumn* x = taosArrayGet(a->pColumns, i);
+    const SStreamJoinFilterColumn* y = taosArrayGet(b->pColumns, i);
+    if (x->inputSlot != y->inputSlot || x->keyPrecision != y->keyPrecision || x->buildType.type != y->buildType.type ||
+        x->buildType.scale != y->buildType.scale || x->probeType.bytes != y->probeType.bytes)
+      return false;
+  }
+  return true;
+}
+
+static int32_t extWinBroadcastPrepareKeyIndex(SExternalWindowOperator* pExtW, SExtWinBroadcastInput* pInput,
+                                              SStreamJoinFilter* pFilter) {
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  if (pExtW->broadcastKeyIndexError != TSDB_CODE_SUCCESS) return pExtW->broadcastKeyIndexError;
+  if (!pExtW->broadcastKeyIndexAttempted) {
+    pExtW->broadcastKeyIndexAttempted = true;
+    int32_t rows = winInputStoreGetRows(pInput->pStore);
+    int32_t buckets = 1;
+    while (buckets < rows / 4 && buckets < EXT_WIN_BROADCAST_KEY_INDEX_BYTES / sizeof(void*)) buckets *= 2;
+    int64_t baseBytes =
+        sizeof(SExtWinBroadcastKeyIndex) + EXT_WIN_BROADCAST_KEY_INDEX_FIXED_BYTES + sizeof(SArray) +
+        TMAX(TARRAY_MIN_SIZE, taosArrayGetSize(pFilter->spec.pColumns)) * sizeof(SStreamJoinFilterColumn) +
+        STREAM_JOIN_FILTER_MAX_KEY_BYTES + (int64_t)buckets * sizeof(SExtWinKeyEntry*) +
+        (int64_t)rows * sizeof(SExtWinKeyPosition);
+    if (baseBytes > EXT_WIN_BROADCAST_KEY_INDEX_BYTES) {
+      return TSDB_CODE_SUCCESS;
+    }
+    SExtWinBroadcastKeyIndex* pIndex = taosMemoryCalloc(1, sizeof(*pIndex));
+    if (pIndex == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    pExtW->pBroadcastKeyIndex = pIndex;
+    pIndex->bytes += sizeof(*pIndex) + EXT_WIN_BROADCAST_KEY_INDEX_FIXED_BYTES;
+    pIndex->bucketCount = buckets;
+    pIndex->spec = pFilter->spec;
+    pIndex->spec.pColumns = taosArrayDup(pFilter->spec.pColumns, NULL);
+    if (pIndex->spec.pColumns == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    pIndex->bytes += sizeof(SArray) + pIndex->spec.pColumns->capacity * sizeof(SStreamJoinFilterColumn);
+    pIndex->pBuckets = taosMemoryCalloc(buckets, sizeof(SExtWinKeyEntry*));
+    if (pIndex->pBuckets == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    pIndex->bytes += (int64_t)buckets * sizeof(SExtWinKeyEntry*);
+    pIndex->pPositions = taosMemoryMalloc((int64_t)rows * sizeof(SExtWinKeyPosition));
+    if (rows > 0 && pIndex->pPositions == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    pIndex->bytes += (int64_t)rows * sizeof(SExtWinKeyPosition);
+    pIndex->pScratch = taosMemoryMalloc(STREAM_JOIN_FILTER_MAX_KEY_BYTES);
+    if (pIndex->pScratch == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    pIndex->bytes += STREAM_JOIN_FILTER_MAX_KEY_BYTES;
+    int32_t scratchCapacity = STREAM_JOIN_FILTER_MAX_KEY_BYTES;
+    for (int32_t page = 0; page < winInputStoreGetPageCount(pInput->pStore); ++page) {
+      SSDataBlock* pBlock = NULL;
+      TAOS_CHECK_EXIT(winInputStoreGetBlock(pInput->pStore, page, &pBlock));
+      if (pBlock == NULL) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _exit;
+      }
+      for (int32_t row = 0; row < pBlock->info.rows; ++row) {
+        int32_t length = 0;
+        bool    nullKey = false;
+        TAOS_CHECK_EXIT(streamJoinFilterEncodeKey(&pIndex->spec, pBlock, row, false, &pIndex->pScratch,
+                                                  &scratchCapacity, &length, &nullKey));
+        if (nullKey || length > STREAM_JOIN_FILTER_MAX_KEY_BYTES) continue;
+        uint32_t         hash = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)(pIndex->pScratch, length);
+        SExtWinKeyEntry* pEntry = extWinBroadcastFindKey(pIndex, pIndex->pScratch, length, hash);
+        if (pEntry == NULL) {
+          int64_t allocation = sizeof(SExtWinKeyEntry) + length;
+          if (allocation > EXT_WIN_BROADCAST_KEY_INDEX_BYTES - pIndex->bytes) {
+            extWinDestroyBroadcastKeyIndex(pExtW);
+            return TSDB_CODE_SUCCESS;
+          }
+          pEntry = taosMemoryMalloc(allocation);
+          if (pEntry == NULL) {
+            code = terrno;
+            goto _exit;
+          }
+          pIndex->bytes += allocation;
+          pEntry->hash = hash;
+          pEntry->length = length;
+          pEntry->head = pEntry->tail = -1;
+          memcpy(pEntry->key, pIndex->pScratch, length);
+          int32_t bucket = hash & (buckets - 1);
+          pEntry->pNext = pIndex->pBuckets[bucket];
+          pIndex->pBuckets[bucket] = pEntry;
+        }
+        if (pIndex->positionCount >= rows) {
+          code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          goto _exit;
+        }
+        int32_t pos = pIndex->positionCount++;
+        pIndex->pPositions[pos] = (SExtWinKeyPosition){.page = page, .row = row, .next = -1};
+        if (pEntry->tail >= 0)
+          pIndex->pPositions[pEntry->tail].next = pos;
+        else
+          pEntry->head = pos;
+        pEntry->tail = pos;
+      }
+    }
+    taosMemoryFreeClear(pIndex->pScratch);
+    pIndex->bytes -= STREAM_JOIN_FILTER_MAX_KEY_BYTES;
+  }
+  SExtWinBroadcastKeyIndex* pIndex = pExtW->pBroadcastKeyIndex;
+  if (pIndex == NULL) return TSDB_CODE_SUCCESS;
+  if (!extWinBroadcastKeyLayoutMatches(&pIndex->spec, &pFilter->spec)) {
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto _exit;
+  }
+  if (!pIndex->groupPrepared) {
+    pIndex->cursorCount = 0;
+    int32_t iter = 0;
+    void*   keyData = NULL;
+    while ((keyData = tSimpleHashIterate(pFilter->pKeys, keyData, &iter)) != NULL) {
+      size_t           length = 0;
+      const char*      key = tSimpleHashGetKey(keyData, &length);
+      SExtWinKeyEntry* pEntry =
+          extWinBroadcastFindKey(pIndex, key, length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)(key, length));
+      if (pEntry == NULL) continue;
+      if (pIndex->cursorCount >= STREAM_JOIN_FILTER_MAX_KEYS) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _exit;
+      }
+      pIndex->cursors[pIndex->cursorCount++] = (SExtWinKeyCursor){.head = pEntry->head, .current = pEntry->head};
+    }
+    pIndex->groupPrepared = true;
+  }
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    extWinDestroyBroadcastKeyIndex(pExtW);
+    pExtW->broadcastKeyIndexError = code;
+  }
+  return code;
+}
+
+static int32_t extWinBroadcastNextKeyPosition(SExtWinBroadcastKeyIndex* pIndex) {
+  int32_t cursor = -1;
+  for (int32_t i = 0; i < pIndex->cursorCount; ++i) {
+    int32_t pos = pIndex->cursors[i].current;
+    // Position indices were assigned in physical order during the sole construction pass.
+    if (pos >= 0 && (cursor < 0 || pos < pIndex->cursors[cursor].current)) cursor = i;
+  }
+  return cursor;
+}
+
+static int32_t extWinBroadcastReplayIndexedPage(SExtWinBroadcastKeyIndex* pIndex, SSDataBlock* pStored,
+                                                SSDataBlock* pReplay, int32_t page) {
+  blockDataCleanup(pReplay);
+  int32_t code = blockDataEnsureCapacity(pReplay, pStored->info.rows);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  int32_t cursor = extWinBroadcastNextKeyPosition(pIndex);
+  while (cursor >= 0) {
+    SExtWinKeyPosition* pPos = &pIndex->pPositions[pIndex->cursors[cursor].current];
+    if (pPos->page != page) break;
+    if (pPos->row < 0 || pPos->row >= pStored->info.rows) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    for (int32_t col = 0; col < taosArrayGetSize(pStored->pDataBlock); ++col) {
+      const SColumnInfoData* pSrc = taosArrayGet(pStored->pDataBlock, col);
+      SColumnInfoData*       pDst = taosArrayGet(pReplay->pDataBlock, col);
+      bool                   nullValue =
+          IS_VAR_DATA_TYPE(pSrc->info.type) ? colDataIsNull_var(pSrc, pPos->row) : colDataIsNull_f(pSrc, pPos->row);
+      code = colDataSetVal(pDst, pReplay->info.rows, nullValue ? NULL : colDataGetData(pSrc, pPos->row), nullValue);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    ++pReplay->info.rows;
+    pIndex->cursors[cursor].current = pPos->next;
+    cursor = extWinBroadcastNextKeyPosition(pIndex);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t extWinFilterBroadcastPage(SStreamJoinFilter* pFilter, SSDataBlock* pStored, SSDataBlock* pReplay) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  blockDataCleanup(pReplay);
+  code = blockDataEnsureCapacity(pReplay, pStored->info.rows);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  for (int32_t row = 0; row < pStored->info.rows; ++row) {
+    bool match = false;
+    code = streamJoinFilterMatchRow(pFilter, pStored, row, &match);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (!match) continue;
+    for (int32_t col = 0; col < taosArrayGetSize(pStored->pDataBlock); ++col) {
+      const SColumnInfoData* pSrc = taosArrayGet(pStored->pDataBlock, col);
+      SColumnInfoData*       pDst = taosArrayGet(pReplay->pDataBlock, col);
+      bool isNull = IS_VAR_DATA_TYPE(pSrc->info.type) ? colDataIsNull_var(pSrc, row) : colDataIsNull_f(pSrc, row);
+      code = colDataSetVal(pDst, pReplay->info.rows, isNull ? NULL : colDataGetData(pSrc, row), isNull);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    ++pReplay->info.rows;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t extWinBroadcastReplayPage(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
                                          SExtWinCalcGrpCtx* pCCtx, int32_t winIdx) {
   if (pOperator == NULL || pExtW == NULL || pCCtx == NULL || pCCtx->pWins == NULL || winIdx < 0 ||
@@ -6634,6 +6921,28 @@ static int32_t extWinBroadcastReplayPage(SOperatorInfo* pOperator, SExternalWind
   int32_t                pageCount = winInputStoreGetPageCount(pState->pStore);
   if (pCCtx->broadcast.replayPage < 0 || pCCtx->broadcast.replayPage >= pageCount) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SExtWinBroadcastKeyIndex* pIndex = NULL;
+  if (pExtW->pJoinFilter != NULL) {
+    SStreamJoinFilter*              pFilter = pExtW->pJoinFilter;
+    SStreamRuntimeInfo*             pRuntime = pOperator->pTaskInfo->pStreamRuntimeInfo;
+    const SExternalWindowPhysiNode* pNode = pOperator->pPhyNode;
+    if (pRuntime == NULL || pFilter->execId != pRuntime->execId || pFilter->baseGId != pExtW->activeBaseGId ||
+        pFilter->spec.receiverBlockId != pNode->window.node.pOutputDataBlockDesc->dataBlockId)
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    int32_t prepareCode =
+        pState == &pExtW->broadcastInput ? extWinBroadcastPrepareKeyIndex(pExtW, pState, pFilter) : TSDB_CODE_SUCCESS;
+    if (prepareCode != TSDB_CODE_SUCCESS) return prepareCode;
+    if (pState == &pExtW->broadcastInput && pExtW->pBroadcastKeyIndex != NULL) {
+      pIndex = pExtW->pBroadcastKeyIndex;
+      if (pCCtx->broadcast.replayPage == 0) {
+        for (int32_t i = 0; i < pIndex->cursorCount; ++i) pIndex->cursors[i].current = pIndex->cursors[i].head;
+      }
+      int32_t cursor = extWinBroadcastNextKeyPosition(pIndex);
+      pCCtx->broadcast.replayPage = cursor < 0 ? pageCount : pIndex->pPositions[pIndex->cursors[cursor].current].page;
+      if (cursor < 0) return TSDB_CODE_SUCCESS;
+    }
   }
 
   SSDataBlock* pStored = NULL;
@@ -6652,9 +6961,26 @@ static int32_t extWinBroadcastReplayPage(SOperatorInfo* pOperator, SExternalWind
       code = createOneDataBlock(pStored, false, &pExtW->pTmpBlock);
       if (code != TSDB_CODE_SUCCESS) return code;
     }
-    // Whole-column copying is safe before the decoded page's NULL summaries are restored.
-    code = copyDataBlock(pExtW->pTmpBlock, pStored);
     pReplay = pExtW->pTmpBlock;
+    if (pExtW->pJoinFilter == NULL) {
+      // Whole-column copying is safe before the decoded page's NULL summaries are restored.
+      code = copyDataBlock(pReplay, pStored);
+    } else {
+      SStreamJoinFilter*              pFilter = pExtW->pJoinFilter;
+      SStreamRuntimeInfo*             pRuntime = pOperator->pTaskInfo->pStreamRuntimeInfo;
+      const SExternalWindowPhysiNode* pNode = pOperator->pPhyNode;
+      if (pRuntime == NULL || pFilter->execId != pRuntime->execId || pFilter->baseGId != pExtW->activeBaseGId ||
+          pFilter->spec.receiverBlockId != pNode->window.node.pOutputDataBlockDesc->dataBlockId)
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      code = pIndex == NULL ? extWinFilterBroadcastPage(pFilter, pStored, pReplay)
+                            : extWinBroadcastReplayIndexedPage(pIndex, pStored, pReplay, pCCtx->broadcast.replayPage);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      if (pReplay->info.rows == 0) {
+        ++pCCtx->broadcast.replayPage;
+        ++pExtW->stat.broadcastReplayBlocks;
+        return TSDB_CODE_SUCCESS;
+      }
+    }
   } else {
     code = createOneDataBlock(pStored, true, &pReplay);
   }
@@ -6692,7 +7018,12 @@ static int32_t extWinBroadcastReplayPage(SOperatorInfo* pOperator, SExternalWind
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  ++pCCtx->broadcast.replayPage;
+  if (pIndex != NULL) {
+    int32_t cursor = extWinBroadcastNextKeyPosition(pIndex);
+    pCCtx->broadcast.replayPage = cursor < 0 ? pageCount : pIndex->pPositions[pIndex->cursors[cursor].current].page;
+  } else {
+    ++pCCtx->broadcast.replayPage;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6905,16 +7236,18 @@ static int32_t extWinBroadcastLoadActiveGroup(SOperatorInfo* pOperator, SExterna
 
   SExtWinBroadcastInput* pInput = extWinGetBroadcastInput(pOperator, pExtW, pExtW->pTGrpCtx->pCCtx);
   pInput->compact = extWinCanCompactBroadcast(pOperator, pExtW);
+  bool                    dimension = extWinBatchesDimensionReader(pOperator, pExtW);
   int32_t                 code = TSDB_CODE_SUCCESS;
   SStreamRuntimeInfo*     pRuntime = pOperator->pTaskInfo->pStreamRuntimeInfo;
   SStreamRuntimeFuncInfo* pStream = pRuntime == NULL ? NULL : &pRuntime->funcInfo;
   if (pRuntime != NULL) {
     pRuntime->fetchInfo.funcInfo = pRuntime->funcInfo;
-    pRuntime->fetchInfo.reuseReader = resetDownstream;
+    pRuntime->fetchInfo.readerDimensionBatch = dimension;
+    pRuntime->fetchInfo.reuseReader = dimension ? pRuntime->reuseReaderOnFetchReset : resetDownstream;
     pRuntime->fetchInfo.active = true;
   }
 
-  if (resetDownstream) {
+  if (resetDownstream && !dimension) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[0];
     if (pDownstream == NULL || pDownstream->fpSet.resetStateFn == NULL) {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -6926,7 +7259,17 @@ static int32_t extWinBroadcastLoadActiveGroup(SOperatorInfo* pOperator, SExterna
     }
   }
 
-  if (pStream != NULL && pStream->isMultiGroupCalc) {
+  if (dimension) {
+    if (!resetDownstream) {
+      code = qExchangeRequestDimensionReaderOutput(pOperator->pDownstream[0]);
+      if (code != TSDB_CODE_SUCCESS) goto _exit;
+    }
+    if (pRuntime->pPreparedFetchContext != NULL) {
+      code = tSelectStreamFetchContextForDimensionBatch(pRuntime->pPreparedFetchContext, pStream,
+                                                        &pRuntime->fetchInfo.pContextSelection);
+      if (code != TSDB_CODE_SUCCESS) goto _exit;
+    }
+  } else if (pStream != NULL && pStream->isMultiGroupCalc) {
     const SStreamCalcContextGroupView* pView = NULL;
     if (pStream->pContextPolicy != NULL || pStream->pAncestorContext != NULL) {
       if (pExtW->pBroadcastContextViews == NULL) {
@@ -6958,7 +7301,25 @@ static int32_t extWinBroadcastLoadActiveGroup(SOperatorInfo* pOperator, SExterna
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
-    if (pBlock == NULL) {
+    if (dimension) {
+      if (qExchangeReaderGroupOutputMode(pOperator->pDownstream[0]) != 2 || pBlock == NULL ||
+          pBlock->info.id.baseGId != (uint64_t)pStream->groupId) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+      if (qIsMultiGroupEogBlock(pBlock)) {
+        if (pExtW->groupOrderIdx + 1 == taosArrayGetSize(pStream->pGroupCalcOrder)) {
+          // All final events must be drained before releasing the batch. EOF sources never fetch again.
+          code = extWinGetBroadcastInputBlock(pOperator, &pBlock);
+          if (code != TSDB_CODE_SUCCESS) goto _exit;
+          if (pBlock != NULL) {
+            code = TSDB_CODE_INVALID_MSG;
+            goto _exit;
+          }
+        }
+        break;
+      }
+    } else if (pBlock == NULL) {
       break;
     }
     if (pExtW->isDynWindow && pBlock->info.rows > 0) {
@@ -7068,10 +7429,15 @@ static void extWinBroadcastReleaseGroupInput(SExternalWindowOperator* pExtW, SEx
     return;
   }
 
+  if (pExtW->pBroadcastKeyIndex != NULL) {
+    pExtW->pBroadcastKeyIndex->groupPrepared = false;
+    pExtW->pBroadcastKeyIndex->cursorCount = 0;
+  }
+  streamJoinFilterDestroy(&pExtW->pJoinFilter);
   extWinDestroyBroadcastState(&pCCtx->broadcast);
   pCCtx->broadcast.input.pStat = &pExtW->stat;
   if (pExtW->groupScanDone) {
-    extWinDestroyBroadcastInput(&pExtW->broadcastInput);
+    extWinDestroySharedBroadcastInput(pExtW);
   }
 }
 
@@ -7090,8 +7456,11 @@ static int32_t extWinBroadcastLoadStreamingGroup(SOperatorInfo* pOperator, SExte
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+  if (pExtW->pJoinFilter != NULL && (pExtW->pJoinFilter->execId != pOperator->pTaskInfo->pStreamRuntimeInfo->execId ||
+                                     pExtW->pJoinFilter->baseGId != groupId))
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   if (pGroup == NULL) {
-    extWinDestroyBroadcastInput(&pExtW->broadcastInput);
+    extWinDestroySharedBroadcastInput(pExtW);
     pExtW->groupScanDone = true;
     pStream->curGrpCalc = NULL;
     return TSDB_CODE_SUCCESS;
@@ -7656,6 +8025,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 _exit:
 
   if (code) {
+    streamJoinFilterDestroy(&pExtW->pJoinFilter);
     qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
@@ -7695,6 +8065,16 @@ int32_t extWinTestGetBroadcastWork(SOperatorInfo* pOperator, int64_t* pCopies, c
   if (pExtW == NULL || pCopies == NULL || ppWork == NULL) return TSDB_CODE_INVALID_PARA;
   *pCopies = pExtW->stat.broadcastPreparationCopies;
   *ppWork = pExtW->pTmpBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t extWinTestGetBroadcastKeyIndex(SOperatorInfo* pOperator, bool* pAttempted, int64_t* pBytes,
+                                       int32_t* pPositions) {
+  SExternalWindowOperator* pExtW = extWinGetCoreInfo(pOperator);
+  if (pExtW == NULL || pAttempted == NULL || pBytes == NULL || pPositions == NULL) return TSDB_CODE_INVALID_PARA;
+  *pAttempted = pExtW->broadcastKeyIndexAttempted;
+  *pBytes = pExtW->pBroadcastKeyIndex == NULL ? 0 : pExtW->pBroadcastKeyIndex->bytes;
+  *pPositions = pExtW->pBroadcastKeyIndex == NULL ? 0 : pExtW->pBroadcastKeyIndex->positionCount;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8998,3 +9378,113 @@ _exit:
   return NULL;
 }
 #endif
+
+int32_t extWinResolveStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilterSpec* pSpec, bool* pEligible) {
+  if (pOperator == NULL || pSpec == NULL || pEligible == NULL || pSpec->pColumns == NULL ||
+      pSpec->pColumns->elemSize != sizeof(SStreamJoinFilterColumn))
+    return TSDB_CODE_INVALID_PARA;
+  *pEligible = false;
+  SExternalWindowOperator*        pExtW = extWinGetCoreInfo(pOperator);
+  const SExternalWindowPhysiNode* pNode = pOperator->pPhyNode;
+  if (pExtW == NULL || pNode == NULL || !extWinReusesBroadcastInput(pOperator, pExtW) ||
+      !extWinCanCompactBroadcast(pOperator, pExtW) || pNode->window.node.pConditions != NULL ||
+      pNode->window.node.pLimit != NULL || pNode->window.node.pSlimit != NULL || pOperator->numOfDownstream != 1 ||
+      pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL)
+    return TSDB_CODE_SUCCESS;
+  const SPhysiNode* pInput = pOperator->pDownstream[0]->pPhyNode;
+  if (pInput == NULL || pInput->pOutputDataBlockDesc == NULL || pNode->window.node.pOutputDataBlockDesc == NULL)
+    return TSDB_CODE_SUCCESS;
+  if (pSpec->inputBlockId != pNode->window.node.pOutputDataBlockDesc->dataBlockId)
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  for (int32_t i = 0; i < taosArrayGetSize(pSpec->pColumns);) {
+    SStreamJoinFilterColumn* pCol = taosArrayGet(pSpec->pColumns, i);
+    const SNode*             pExpr = NULL;
+    SNode*                   pProj = NULL;
+    FOREACH(pProj, pNode->window.pProjs) {
+      if (nodeType(pProj) != QUERY_NODE_TARGET) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      const STargetNode* pTarget = (const STargetNode*)pProj;
+      if (pTarget->slotId == pCol->inputSlot) {
+        if (pTarget->dataBlockId != pSpec->inputBlockId || pExpr != NULL) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        pExpr = pTarget->pExpr;
+      }
+    }
+    if (pExpr == NULL) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    if (nodeType(pExpr) != QUERY_NODE_COLUMN) {
+      taosArrayRemove(pSpec->pColumns, i);
+      continue;
+    }
+    const SColumnNode* pSource = (const SColumnNode*)pExpr;
+    if (pSource->dataBlockId != pInput->pOutputDataBlockDesc->dataBlockId) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    const SSlotDescNode* pSlot = NULL;
+    SNode*               pEntry = NULL;
+    FOREACH(pEntry, pInput->pOutputDataBlockDesc->pSlots) {
+      if (((SSlotDescNode*)pEntry)->slotId == pSource->slotId) pSlot = (const SSlotDescNode*)pEntry;
+    }
+    const SSlotDescNode* pOutputSlot = NULL;
+    FOREACH(pEntry, pNode->window.node.pOutputDataBlockDesc->pSlots) {
+      if (((SSlotDescNode*)pEntry)->slotId == pCol->inputSlot) pOutputSlot = (const SSlotDescNode*)pEntry;
+    }
+    if (pSlot == NULL || pOutputSlot == NULL || pSource->slotId < 0 || pCol->inputSlot < 0)
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    const SDataType* pTypes[] = {&pSource->node.resType, &pSlot->dataType, &pOutputSlot->dataType};
+    bool             compatible = true;
+    for (int32_t j = 0; j < 3; ++j) {
+      const SDataType* pType = pTypes[j];
+      if (pType->type != pCol->probeType.type || pType->bytes != pCol->probeType.bytes ||
+          pType->scale != pCol->probeType.scale ||
+          (pType->type == TSDB_DATA_TYPE_TIMESTAMP && pType->precision != pCol->probeType.precision))
+        compatible = false;
+    }
+    if (!compatible) {
+      taosArrayRemove(pSpec->pColumns, i);
+      continue;
+    }
+    pCol->inputSlot = pSource->slotId;
+    ++i;
+  }
+  pSpec->receiverBlockId = pNode->window.node.pOutputDataBlockDesc->dataBlockId;
+  pSpec->inputBlockId = pInput->pOutputDataBlockDesc->dataBlockId;
+  *pEligible = taosArrayGetSize(pSpec->pColumns) > 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t extWinInstallStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilter** ppFilter) {
+  if (pOperator == NULL || ppFilter == NULL || *ppFilter == NULL) return TSDB_CODE_INVALID_PARA;
+  SExternalWindowOperator*        pExtW = extWinGetCoreInfo(pOperator);
+  SStreamJoinFilter*              pFilter = *ppFilter;
+  const SExternalWindowPhysiNode* pNode = pOperator->pPhyNode;
+  SStreamRuntimeInfo*             pRuntime = pOperator->pTaskInfo->pStreamRuntimeInfo;
+  if (pExtW == NULL || pRuntime == NULL || pNode == NULL || !extWinReusesBroadcastInput(pOperator, pExtW) ||
+      !extWinCanCompactBroadcast(pOperator, pExtW) || pExtW->pJoinFilter != NULL || pExtW->activeBaseGId != 0 ||
+      pExtW->groupEogPending || pExtW->groupScanDone || pFilter->execId != pRuntime->execId ||
+      pNode->window.node.pOutputDataBlockDesc == NULL || pOperator->pDownstream == NULL ||
+      pOperator->pDownstream[0] == NULL ||
+      pFilter->spec.receiverBlockId != pNode->window.node.pOutputDataBlockDesc->dataBlockId ||
+      pOperator->numOfDownstream != 1)
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  const SPhysiNode* pInput = pOperator->pDownstream[0]->pPhyNode;
+  if (pInput == NULL || pInput->pOutputDataBlockDesc == NULL ||
+      pFilter->spec.inputBlockId != pInput->pOutputDataBlockDesc->dataBlockId || pFilter->spec.pColumns == NULL ||
+      taosArrayGetSize(pFilter->spec.pColumns) == 0)
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  for (int32_t i = 0; i < taosArrayGetSize(pFilter->spec.pColumns); ++i) {
+    const SStreamJoinFilterColumn* pCol = taosArrayGet(pFilter->spec.pColumns, i);
+    const SSlotDescNode*           pSlot = NULL;
+    SNode*                         pEntry = NULL;
+    FOREACH(pEntry, pInput->pOutputDataBlockDesc->pSlots) {
+      if (((SSlotDescNode*)pEntry)->slotId == pCol->inputSlot) pSlot = (const SSlotDescNode*)pEntry;
+    }
+    if (pSlot == NULL || pSlot->dataType.type != pCol->probeType.type ||
+        pSlot->dataType.bytes != pCol->probeType.bytes || pSlot->dataType.scale != pCol->probeType.scale ||
+        (pSlot->dataType.type == TSDB_DATA_TYPE_TIMESTAMP && pSlot->dataType.precision != pCol->probeType.precision))
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  uint64_t                gid = 0;
+  SSTriggerGroupCalcInfo* pGroup = NULL;
+  int32_t                 code = extWinGetExpectedGroup(&pRuntime->funcInfo, pExtW->groupOrderIdx, &gid, &pGroup);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (pGroup == NULL || gid == 0 || gid != pFilter->baseGId) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  pExtW->pJoinFilter = pFilter;
+  *ppFilter = NULL;
+  return TSDB_CODE_SUCCESS;
+}

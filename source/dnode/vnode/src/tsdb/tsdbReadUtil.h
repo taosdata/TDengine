@@ -103,6 +103,7 @@ typedef struct {
   STbDataIter* iter;
   int32_t      index;
   bool         hasVal;
+  STimeWindow  window;  // effective range captured when the iterator is opened
 } SIterInfo;
 
 typedef struct STableDataBlockIdx {
@@ -132,6 +133,8 @@ typedef struct SSttKeyRange {
 // 4. not overlap with data file blocks
 typedef struct STableBlockScanInfo {
   uint64_t     uid;
+  bool         hasTableRange;
+  STimeWindow  window;  // current group range, owned by this table
   SRowKey      lastProcKey;
   SSttKeyInfo  sttKeyInfo;
   SArray*      pBlockList;        // block data index list, SArray<SBrinRecord>
@@ -316,6 +319,19 @@ typedef struct SReaderStatus {
   STableBlockScanInfo** pProcMemTableIter;
 } SReaderStatus;
 
+typedef struct SBrinTimeSummaryEntry {
+  int64_t     offset;
+  STimeWindow window;  // skey > ekey denotes an unknown complete-block range
+} SBrinTimeSummaryEntry;
+
+typedef struct SBrinTimeSummary {
+  STsdbReadSnap*         pSnapshot;
+  STFileSet*             pFileset;
+  STFileObj*             pHead;
+  SBrinTimeSummaryEntry* pEntries;
+  int32_t                numEntries;
+} SBrinTimeSummary;
+
 struct STsdbReader {
   STsdb*              pTsdb;
   STsdbReaderInfo     info;
@@ -336,10 +352,14 @@ struct STsdbReader {
   SBlockInfoBuf       blockInfoBuf;
   EContentData        step;
   bool                currentStepDone;
+  SBrinTimeSummary    brinTimeSummary;  // owned across ordinary group file-reader reopen
+  bool                groupReader;
+  int16_t             groupOrder;  // initial direction, restored on group activation
   STsdbReader*        innerReader[2];
   bool                bFilesetDelimited;  // duration by duration output
   /* per-fileset STT iterator cache (fid -> SArray*) */
   SHashObj*           pFilesetSttCache;
+  STFileSet*          pGroupSttFileset;  // non-owning identity for status.pLDataIterArray in ordinary groups
   /* #fileset retains skipped because the query memory pool was exhausted */
   int64_t             sttCacheSkipCnt;
   TsdReaderNotifyCbFn notifyFn;
@@ -347,6 +367,11 @@ struct STsdbReader {
   bool                mainFirst;  // MAIN/NEXT/PREV external-reader order
   STsdbReader*        pLastActiveReader;  // owns live external scan state
 };
+
+// External readers share table progress but retain their own phase windows.
+static FORCE_INLINE const STimeWindow* tableScanWindow(const STsdbReader* reader, const STableBlockScanInfo* table) {
+  return table->hasTableRange ? &table->window : &reader->info.window;
+}
 
 // Return the reader whose live resources suspend must release.
 STsdbReader* tsdbReaderGetExternalSuspendReader(STsdbReader* pReader);
@@ -357,6 +382,7 @@ typedef struct SBrinRecordIter {
   int32_t          blockIndex;
   int32_t          recordIndex;
   SDataFileReader* pReader;
+  STsdbReader*     pOwner;  // borrows the Reader-owned summary
   SBrinBlock       block;
   SBrinRecord      record;
 } SBrinRecordIter;
@@ -372,9 +398,10 @@ int32_t uidComparFunc(const void* p1, const void* p2);
 int32_t getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, STableBlockScanInfo** pInfo, const char* id);
 
 int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
-                                STableUidList* pUidList, int32_t numOfTables, SSHashObj** pHashObj);
-int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
-                               STsdbReader* pReader);
+                                STableUidList* pUidList, int32_t numOfTables, SSHashObj** pHashObj,
+                                const STableScanRange* ranges);
+int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap, STsdbReader* pReader,
+                               const STableScanRange* range);
 void    clearBlockScanInfo(STableBlockScanInfo* p);
 void    clearBlockScanInfoLoadInfo(STableBlockScanInfo* p);
 void    destroyAllBlockScanInfo(SSHashObj** pTableMap);
@@ -387,7 +414,9 @@ void    clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);
 int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScanInfo** pRes);
 
 // brin records iterator
-void    initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList);
+void    prepareBrinTimeSummary(STsdbReader* pReader, const TBrinBlkArray* pDirectory);
+void    clearBrinTimeSummary(STsdbReader* pReader);
+void    initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList, STsdbReader* pOwner);
 int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord);
 void    clearBrinBlockIter(SBrinRecordIter* pIter);
 
@@ -408,7 +437,8 @@ void    destroyLDataIter(SLDataIter* pIter);
 int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet, SSttBlockLoadCostInfo* pLoadCost);
 int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
                               const char* pstr);
-bool isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order);
+bool    isCleanSttBlock(SArray* pTimewindowList, const STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo,
+                        int32_t order);
 bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
 int32_t pkCompEx(SRowKey* p1, SRowKey* p2);
 int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc);
