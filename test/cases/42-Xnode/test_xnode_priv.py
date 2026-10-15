@@ -22,8 +22,10 @@ and SHOW/ALTER/DROP ON XNODE TASK privileges.
 """
 
 import http.server
+import json
 import os
 import random
+import socket
 import socketserver
 import threading
 import time
@@ -32,16 +34,24 @@ import uuid
 from new_test_framework.utils import tdDnodes, tdLog, tdSql
 
 TSDB_CODE_MND_NO_RIGHTS = 0x0303
+TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER = 0x8028
+XNODED_CI_MOCK_MODE = "priv"
 
 
 class XnodedMockHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    last_lost_id = None
+    last_lost_active = False
+    lost_delete_count = 0
+    force_delete_count = 0
+    cancel_fail_pending = False
 
-    def _send_json(self, payload: bytes):
-        content_length = int(self.headers.get("Content-Length", 0))
-        if content_length:
-            self.rfile.read(content_length)
-        self.send_response(200)
+    def _send_json(self, payload: bytes, status: int = 200, read_body: bool = True):
+        if read_body:
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length:
+                self.rfile.read(content_length)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Connection", "close")
@@ -49,12 +59,43 @@ class XnodedMockHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
+        if self.path == "/mock/state":
+            self._send_json(
+                json.dumps({
+                    "active": type(self).last_lost_active,
+                    "delete_count": type(self).lost_delete_count,
+                    "force_delete_count": type(self).force_delete_count,
+                }).encode()
+            )
+            return
         self._send_json(b'{"status":"online"}')
 
     def do_POST(self):
-        self._send_json(b"{}")
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length) if content_length else b""
+        if self.path == "/xnode" and (
+            b"mock-response-lost" in body or b"mock-cancel-unavailable" in body
+        ):
+            type(self).last_lost_id = json.loads(body)["id"]
+            type(self).last_lost_active = True
+            type(self).cancel_fail_pending = b"mock-cancel-unavailable" in body
+            self.close_connection = True
+            return
+        if self.path == "/xnode" and b"mock-owner-conflict" in body:
+            self._send_json(b"Xnode is already owned by another cluster", 409, False)
+        else:
+            self._send_json(b"{}", read_body=False)
 
     def do_DELETE(self):
+        if self.path.startswith("/xnode/") and "force=true" in self.path:
+            type(self).force_delete_count += 1
+        if self.path == f"/xnode/{type(self).last_lost_id}?force=true":
+            if type(self).cancel_fail_pending:
+                type(self).cancel_fail_pending = False
+                self.close_connection = True
+                return
+            type(self).last_lost_active = False
+            type(self).lost_delete_count += 1
         self._send_json(b"{}")
 
     def log_message(self, format, *args):
@@ -89,8 +130,13 @@ class TestXnodePriv:
             replica=self.replicaVar,
         )
         self.xnoded_socket = self._get_xnoded_socket_path()
+        mock_priv = os.environ.get("XNODED_TEST_MOCK_MODE") == "priv"
+        if mock_priv:
+            self._cleanup_xnode_resources()
         credentials_created = False
-        if self.xnoded_socket and not type(self).xnoded_credentials_ready:
+        if self.xnoded_socket and (
+            mock_priv or not type(self).xnoded_credentials_ready
+        ):
             # The first CREATE starts xnoded and unlinks its socket, so persist
             # credentials before binding the mock.
             tdSql.execute(
@@ -102,7 +148,8 @@ class TestXnodePriv:
         self._start_xnoded_mock()
         if credentials_created:
             self._stabilize_xnoded_mock()
-        self._cleanup_xnode_resources()
+        if not mock_priv:
+            self._cleanup_xnode_resources()
 
     def _get_xnoded_socket_path(self):
         if os.name == "nt":
@@ -113,7 +160,26 @@ class TestXnodePriv:
             data_dir = data_dir[0].split()[0]
         return os.path.join(data_dir, ".taosxnoded.sock")
 
+    def _mock_xnoded_state(self):
+        if os.name == "nt":
+            connection = socket.create_connection(("localhost", 6051), timeout=5)
+        else:
+            connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            connection.settimeout(5)
+            connection.connect(self.xnoded_socket)
+        with connection:
+            connection.sendall(
+                b"GET /mock/state HTTP/1.1\r\n"
+                b"Host: localhost\r\nConnection: close\r\n\r\n"
+            )
+            response = bytearray()
+            while chunk := connection.recv(4096):
+                response.extend(chunk)
+        return json.loads(response.split(b"\r\n\r\n", 1)[1])
+
     def _start_xnoded_mock(self):
+        if os.environ.get("XNODED_TEST_MOCK_MODE") == "priv":
+            return
         if os.name == "nt":
             self.xnoded_mock = http.server.ThreadingHTTPServer(
                 ("", 6051), XnodedMockHandler
@@ -132,6 +198,8 @@ class TestXnodePriv:
         self.xnoded_thread.start()
 
     def _stabilize_xnoded_mock(self):
+        if os.environ.get("XNODED_TEST_MOCK_MODE") == "priv":
+            return
         deadline = time.monotonic() + 5
         stable_since = None
         while time.monotonic() < deadline:
@@ -148,6 +216,8 @@ class TestXnodePriv:
         raise RuntimeError(f"Xnoded mock socket did not stabilize: {self.xnoded_socket}")
 
     def _stop_xnoded_mock(self):
+        if os.environ.get("XNODED_TEST_MOCK_MODE") == "priv":
+            return
         self.xnoded_mock.shutdown()
         self.xnoded_mock.server_close()
         self.xnoded_thread.join(timeout=5)
@@ -155,6 +225,8 @@ class TestXnodePriv:
             os.unlink(self.xnoded_socket)
 
     def _restart_xnoded_mock(self):
+        if os.environ.get("XNODED_TEST_MOCK_MODE") == "priv":
+            return
         self._stop_xnoded_mock()
         self._start_xnoded_mock()
         if self.xnoded_socket:
@@ -329,6 +401,90 @@ class TestXnodePriv:
     # =============================================================================
     # Section 1: System-level Privileges - XNode Management
     # =============================================================================
+
+    def test_create_xnode_owner_conflict_rolls_back(self):
+        """Reject a conflicting registration without leaving xnode metadata.
+
+        1. Register an initial xnode and record its metadata
+        2. Make the mock reject a second xnode with HTTP 409
+        3. Check the conflict code and unchanged xnode metadata
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        before = {(row[0], row[1]) for row in tdSql.query("SHOW XNODES", row_tag=True)}
+        force_deletes = self._mock_xnoded_state()["force_delete_count"]
+        conflict_url = f"mock-owner-conflict-{self.suffix}:6055"
+        tdSql.error(
+            f"CREATE XNODE '{conflict_url}'",
+            expectedErrno=TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER,
+        )
+        stable_since = None
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            after = {(row[0], row[1]) for row in tdSql.query("SHOW XNODES", row_tag=True)}
+            if after == before:
+                if stable_since is None:
+                    stable_since = time.monotonic()
+                elif time.monotonic() - stable_since >= 1:
+                    break
+            else:
+                stable_since = None
+            time.sleep(0.1)
+        assert after == before, f"Conflicting xnode left metadata: {after}"
+        assert self._mock_xnoded_state()["force_delete_count"] == force_deletes
+
+    def test_create_xnode_lost_response_cancels_connection(self):
+        """Cancel an accepted registration when its HTTP response is lost.
+
+        1. Register a second xnode and drop its success response
+        2. Check that mnode sends a force delete for that id
+        3. Check that the initial xnode remains and the new row is removed
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        before = {(row[0], row[1]) for row in tdSql.query("SHOW XNODES", row_tag=True)}
+
+        previous_deletes = self._mock_xnoded_state()["delete_count"]
+        tdSql.error(f"CREATE XNODE 'mock-response-lost-{self.suffix}:6055'")
+        state = self._mock_xnoded_state()
+        assert state["delete_count"] == previous_deletes + 1, state
+        assert not state["active"], state
+
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            after = {(row[0], row[1]) for row in tdSql.query("SHOW XNODES", row_tag=True)}
+            if after == before:
+                break
+            time.sleep(0.1)
+        assert after == before, f"Failed xnode left metadata: {after}"
+
+    def test_create_xnode_unconfirmed_cancel_keeps_metadata(self):
+        """Keep the xnode row if both the create response and cancel reply are lost.
+
+        1. Register a second xnode and drop its success response
+        2. Drop the first force-delete reply while leaving that connection active
+        3. Check that mnode retains the row for later force-drop or recovery
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        failed_url = f"mock-cancel-unavailable-{self.suffix}:6055"
+        tdSql.error(f"CREATE XNODE '{failed_url}'")
+        state = self._mock_xnoded_state()
+        assert state["active"], state
+        rows = tdSql.query("SHOW XNODES", row_tag=True)
+        assert any(row[1] == failed_url for row in rows), rows
 
     def test_create_xnode_no_privilege(self):
         """Test case 1.1: Non-superuser cannot create xnode without privilege
