@@ -53,6 +53,7 @@ target_include_directories(
   PUBLIC "${TD_SOURCE_DIR}/source/libs/totp/inc"
   "${TD_SOURCE_DIR}/include/libs/txnode/inc"
   PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/privilege/inc"
+  PRIVATE "${TD_SOURCE_DIR}/source/libs/extconnector/inc"
 )
 
 if(TD_ENTERPRISE)
@@ -60,11 +61,9 @@ if(TD_ENTERPRISE)
     mnode
     PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/taosk/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
-    PRIVATE "${TD_SOURCE_DIR}/source/libs/extconnector/inc"
   )
-  # extconnector is only referenced by mndExtSource.c (added to MNODE_SRC
-  # above, TD_ENTERPRISE-only), so keep the link guarded the same way as its
-  # include directories just above.
+  # Community mndStreamMgmt.c needs extconnector private declarations, while
+  # the extconnector implementation is only linked by Enterprise mndExtSource.c.
   target_link_libraries(mnode PUBLIC extconnector)
 endif()
 target_link_libraries(
