@@ -15,6 +15,7 @@
 
 import glob
 import os
+import platform
 import re
 import sys
 import subprocess
@@ -529,7 +530,8 @@ class ExtSrcEnv:
         env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
         env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
         env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
-        env["FQ_SQLSERVER_VERSIONS"] = ",".join(cls.SQLSERVER_VERSIONS)
+        env["FQ_SQLSERVER_VERSIONS"] = (
+            ",".join(cls.SQLSERVER_VERSIONS) if cls._sqlserver_arch_runnable() else "")
         env["FQ_SQLSERVER_PASS"]  = cls.SQLSERVER_PASS
         env["FQ_SQLSERVER_USER"]  = cls.SQLSERVER_USER
         cls._sqlserver_lib_env(env)
@@ -619,30 +621,40 @@ class ExtSrcEnv:
                     f"  InfluxDB {cfg.version} @ {cfg.host}:{cfg.port} — {e}")
 
         # --- SQL Server (all configured versions; native engine process) ---
-        for cfg in cls.sqlserver_version_configs():
-            if not cls._tcp_probe(cfg.host, cfg.port):
-                # The script's readiness probe can pass and the engine still be
-                # gone moments later (CI observation); capture the engine log
-                # and the process state so the case log alone explains why.
-                log_path = os.path.join(cls.sqlserver_base_dir(cfg.version),
-                                        "sqlservr.log")
-                detail = ""
-                try:
-                    with open(log_path, encoding="utf-8", errors="replace") as fh:
-                        tail = [ln.rstrip() for ln in fh.readlines()[-12:]]
-                    detail = "".join(f"\n      {ln}" for ln in tail)
-                except OSError as e:
-                    detail = f"\n      <cannot read log: {e}>"
-                try:
-                    pg = subprocess.run(["pgrep", "-af", "sqlservr"],
-                                        capture_output=True, text=True, timeout=5)
-                    procs = pg.stdout.strip() or "<no sqlservr process>"
-                except Exception as e:
-                    procs = f"<pgrep failed: {e}>"
-                errors.append(
-                    f"  SQL Server {cfg.version} @ {cfg.host}:{cfg.port} — "
-                    f"engine not reachable (run ensure_ext_env.sh; log: {log_path})"
-                    f"\n      processes: {procs}{detail}")
+        # SQL Server for Linux ships x86-64 binaries only; without the x86-64
+        # ELF interpreter and an emulation layer (rosetta/qemu) the engine
+        # cannot start at all on other architectures.  Degrade to a warning in
+        # that case so non-SQL-Server scenarios stay runnable.
+        if not cls._sqlserver_arch_runnable():
+            tdLog.info(
+                f"SQL Server {','.join(cls.SQLSERVER_VERSIONS)}: x86-64 engine "
+                f"cannot run on {platform.machine()} (missing x86-64 interpreter/"
+                f"emulator); skipping SQL Server probes")
+        else:
+            for cfg in cls.sqlserver_version_configs():
+                if not cls._tcp_probe(cfg.host, cfg.port):
+                    # The script's readiness probe can pass and the engine still
+                    # be gone moments later (CI observation); capture the engine
+                    # log and the process state so the case log alone explains why.
+                    log_path = os.path.join(cls.sqlserver_base_dir(cfg.version),
+                                            "sqlservr.log")
+                    detail = ""
+                    try:
+                        with open(log_path, encoding="utf-8", errors="replace") as fh:
+                            tail = [ln.rstrip() for ln in fh.readlines()[-12:]]
+                        detail = "".join(f"\n      {ln}" for ln in tail)
+                    except OSError as e:
+                        detail = f"\n      <cannot read log: {e}>"
+                    try:
+                        pg = subprocess.run(["pgrep", "-af", "sqlservr"],
+                                            capture_output=True, text=True, timeout=5)
+                        procs = pg.stdout.strip() or "<no sqlservr process>"
+                    except Exception as e:
+                        procs = f"<pgrep failed: {e}>"
+                    errors.append(
+                        f"  SQL Server {cfg.version} @ {cfg.host}:{cfg.port} — "
+                        f"engine not reachable (run ensure_ext_env.sh; log: {log_path})"
+                        f"\n      processes: {procs}{detail}")
 
         if errors:
             raise RuntimeError(
@@ -908,6 +920,21 @@ class ExtSrcEnv:
             port = cls._INFLUX_VERSION_PORTS.get(ver, cls.INFLUX_PORT)
             yield _InfluxVerCfg(ver, cls.INFLUX_HOST, port,
                                 cls._get_influx_token(ver), cls.INFLUX_ORG)
+
+    @classmethod
+    def _sqlserver_arch_runnable(cls):
+        """Whether this host can execute the x86-64 SQL Server engine.
+
+        SQL Server for Linux ships x86-64 binaries only.  Non-x86-64 hosts
+        additionally need the x86-64 ELF interpreter (from an amd64 libc) and
+        an emulation layer (rosetta/qemu); without them sqlservr fails with
+        "rosetta error: failed to open elf at /lib64/ld-linux-x86-64.so.2".
+        """
+        if platform.machine().lower() in ("x86_64", "amd64"):
+            return True
+        if shutil.which("qemu-x86_64") or shutil.which("qemu-x86_64-static"):
+            return True
+        return os.path.exists("/lib64/ld-linux-x86-64.so.2")
 
     @classmethod
     def sqlserver_version_configs(cls):
