@@ -121,6 +121,16 @@ The following existing functions can be used as window aggregates when given an 
 
 None of these functions require `ORDER BY`: when omitted, the window covers the entire partition; when `ORDER BY` is given but no frame is specified, the window defaults to covering from the partition start to the current row (including peer rows).
 
+### Cumulative Window Functions
+
+Cumulative functions depend on the ordering result and **require** `ORDER BY`. Accumulation starts from the first row independently in each `PARTITION BY` partition.
+
+| Function | Description |
+| --- | --- |
+| `csum(expr)` | Running sum from the first row in the partition through the current row, in window order |
+
+`CSUM` supports only the `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` frame; this frame is applied automatically when omitted. For more information, see [CSUM](./03-function.md#csum).
+
 ### Ranking Window Functions
 
 Ranking functions depend on the ordering result, **require** `ORDER BY`, and ignore the window frame.
