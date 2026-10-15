@@ -26,17 +26,7 @@
 
 // clang-format on
 
-#ifdef WINDOWS
-#define XNODED_DEFAULT_PATH_1    "C:\\TDengine"
-#define XNODED_DEFAULT_PATH_2    "C:\\TDengine"
 #define XNODED_DEFAULT_EXEC_NAME "xnoded"
-#define XNODED_DEFAULT_EXEC      "\\xnoded.exe"
-#else
-#define XNODED_DEFAULT_PATH_1    "/usr/bin"
-#define XNODED_DEFAULT_PATH_2    "/usr/local/taos/bin"
-#define XNODED_DEFAULT_EXEC_NAME "xnoded"
-#define XNODED_DEFAULT_EXEC      "/xnoded"
-#endif
 
 #define XNODED_XNODED_PID_NAME ".xnoded.pid"
 
@@ -272,27 +262,135 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     uv_sleep(500);
   }
 }
-void killPreXnoded() {
-  char buf[PATH_MAX] = {0};
-  getXnodedPidPath(buf, sizeof(buf));
-
-  TdFilePtr pFile = NULL;
-  pFile = taosOpenFile(buf, TD_FILE_READ);
-  if (pFile == NULL) {
-    xndWarn("xnode failed to open xnoded pid file:%s, the file may not exist", buf);
-    return;
+int32_t txnodeParseXnodedPid(const char *buf, int64_t len, int32_t *pid) {
+  if (buf == NULL || pid == NULL || len <= 0) {
+    return TSDB_CODE_INVALID_PARA;
   }
-  int64_t readSize = taosReadFile(pFile, buf, sizeof(buf));
-  if (readSize <= 0) {
-    if (readSize < 0) {
-      xndError("xnode failed to read len from file:%p since %s", pFile, terrstr());
+  int64_t value = 0;
+  int64_t index = 0;
+  for (; index < len && buf[index] >= '0' && buf[index] <= '9'; ++index) {
+    value = value * 10 + (buf[index] - '0');
+    if (value > INT32_MAX) {
+      return TSDB_CODE_INVALID_DATA_FMT;
     }
-    (void)taosCloseFile(&pFile);
-    return;
+  }
+  if (index == 0) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  for (; index < len; ++index) {
+    if (buf[index] != '\n' && buf[index] != '\r' && buf[index] != ' ') {
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
+  }
+  // 0 and negative values address process groups (or every process) in kill(2); 1 is init.
+  if (value <= 1) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  *pid = (int32_t)value;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t txnodeReadXnodedPidFile(const char *path, int32_t *pid) {
+  if (path == NULL || pid == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  TdFilePtr pFile = taosOpenPrivateFile(path, TD_FILE_READ);
+  if (pFile == NULL) {
+    return terrno;
+  }
+  char    buf[32] = {0};
+  int64_t readSize = taosReadFile(pFile, buf, sizeof(buf));
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (readSize < 0) {
+    code = terrno;
+  } else if (readSize >= (int64_t)sizeof(buf)) {
+    code = TSDB_CODE_INVALID_DATA_FMT;
+  } else {
+    code = txnodeParseXnodedPid(buf, readSize, pid);
   }
   (void)taosCloseFile(&pFile);
+  return code;
+}
 
-  int32_t pid = taosStr2Int32(buf, NULL, 10);
+int32_t txnodeWriteXnodedPidFile(const char *path, int32_t pid) {
+  if (path == NULL || pid <= 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (taosRemoveFile(path) != 0 && !lastErrorIsFileNotExist()) {
+    return terrno;
+  }
+  TdFilePtr pFile = taosOpenPrivateFile(path, TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+  if (pFile == NULL) {
+    return terrno;
+  }
+  char    buf[32] = {0};
+  int32_t len = snprintf(buf, sizeof(buf), "%d", pid);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (taosWriteFile(pFile, buf, len) != len) {
+    code = terrno != 0 ? terrno : TSDB_CODE_FAILED;
+  }
+  (void)taosCloseFile(&pFile);
+  if (code != TSDB_CODE_SUCCESS) {
+    (void)taosRemoveFile(path);
+  }
+  return code;
+}
+
+bool txnodeIsXnodedProcess(int32_t pid) {
+  if (pid <= 1) {
+    return false;
+  }
+#ifdef __linux__
+  char    procPath[64] = {0};
+  uv_fs_t req = {0};
+  (void)snprintf(procPath, sizeof(procPath), "/proc/%d", pid);
+  bool owned = uv_fs_stat(NULL, &req, procPath, NULL) == 0 && req.statbuf.st_uid == geteuid();
+  uv_fs_req_cleanup(&req);
+  if (!owned) {
+    return false;
+  }
+
+  (void)snprintf(procPath, sizeof(procPath), "/proc/%d/exe", pid);
+  bool matched = false;
+  if (uv_fs_readlink(NULL, &req, procPath, NULL) == 0 && req.ptr != NULL) {
+    const char *exe = (const char *)req.ptr;
+    const char *name = strrchr(exe, '/');
+    name = (name == NULL) ? exe : name + 1;
+    size_t       nameLen = strlen(name);
+    const char   deletedSuffix[] = " (deleted)";
+    const size_t deletedLen = sizeof(deletedSuffix) - 1;
+    if (nameLen > deletedLen && strcmp(name + nameLen - deletedLen, deletedSuffix) == 0) {
+      nameLen -= deletedLen;
+    }
+    matched = nameLen == strlen(XNODED_DEFAULT_EXEC_NAME) && strncmp(name, XNODED_DEFAULT_EXEC_NAME, nameLen) == 0;
+  }
+  uv_fs_req_cleanup(&req);
+  return matched;
+#else
+  return true;
+#endif
+}
+
+void killPreXnoded() {
+  char path[PATH_MAX] = {0};
+  getXnodedPidPath(path, sizeof(path));
+
+  int32_t pid = 0;
+  int32_t code = txnodeReadXnodedPidFile(path, &pid);
+  if (code != TSDB_CODE_SUCCESS) {
+    if (errorIsFileNotExist(code)) {
+      xndDebug("xnode no previous xnoded pid file:%s", path);
+    } else {
+      xndWarn("xnode ignore untrusted xnoded pid file:%s since %s", path, tstrerror(code));
+    }
+    return;
+  }
+
+  if (!txnodeIsXnodedProcess(pid)) {
+    xndWarn("xnode skip killing pid %d from %s, it is not an xnoded process owned by current user", pid, path);
+    return;
+  }
+
   int result = uv_kill((uv_pid_t)pid, SIGTERM);
   if (result != 0) {
     if (result != UV_ESRCH) {
@@ -303,73 +401,12 @@ void killPreXnoded() {
 }
 
 void saveXnodedPid(int32_t pid) {
-  char buf[PATH_MAX] = {0};
-  getXnodedPidPath(buf, sizeof(buf));
-  TdFilePtr testFilePtr = taosCreateFile(buf, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
-  snprintf(buf, PATH_MAX, "%d", pid);
-  (void)taosWriteFile(testFilePtr, buf, strlen(buf));
-  (void)taosCloseFile(&testFilePtr);
-}
-
-static void locateXnodedExecFile(char *path) {
-#ifdef WINDOWS
-  if (taosAppPath(path, PATH_MAX) != 0) {
-    path[0] = '\0';
+  char path[PATH_MAX] = {0};
+  getXnodedPidPath(path, sizeof(path));
+  int32_t code = txnodeWriteXnodedPidFile(path, pid);
+  if (code != TSDB_CODE_SUCCESS) {
+    xndError("xnode failed to save xnoded pid %d to %s since %s", pid, path, tstrerror(code));
   }
-#else
-  if (tsProcPath == NULL) {
-    path[0] = '.';
-#if defined(_TD_DARWIN_64)
-    uint32_t pathSize = sizeof(path);
-    _NSGetExecutablePath(path, &pathSize);
-#endif
-  } else {
-    TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
-  }
-
-  TAOS_DIRNAME(path);
-#endif
-  if (strlen(path) != 0) {
-    TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
-    if (taosCheckExistFile(path)) {
-      goto _ok;
-    }
-    xndDebug("cannot find xnoded exec file:%s", path);
-    path[0] = '\0';
-  }
-
-  TAOS_STRCAT(path, XNODED_DEFAULT_PATH_1);
-  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
-  if (taosCheckExistFile(path)) {
-    goto _ok;
-  }
-  xndDebug("cannot find xnoded exec file:%s", path);
-  path[0] = '\0';
-
-  TAOS_STRCAT(path, XNODED_DEFAULT_PATH_2);
-  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
-  if (taosCheckExistFile(path)) {
-    goto _ok;
-  }
-  xndDebug("cannot find xnoded exec file:%s", path);
-  path[0] = '\0';
-
-  path[0] = '.';
-  path[1] = '\0';
-  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
-  if (taosCheckExistFile(path)) {
-    goto _ok;
-  }
-  xndDebug("cannot find xnoded exec file:%s", path);
-  path[0] = '\0';
-
-  TAOS_STRNCPY(path, XNODED_DEFAULT_EXEC_NAME, PATH_MAX);
-  xndInfo("cannot find xnoded exec file, use default: %s", path);
-  return;
-
-_ok:
-  xndInfo("find xnoded exec file:%s", path);
-  return;
 }
 
 static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
@@ -380,7 +417,10 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   uv_process_options_t options = {0};
 
   char path[PATH_MAX] = {0};
-  locateXnodedExecFile(path);
+  if (taosLocateCompanionExec(XNODED_DEFAULT_EXEC_NAME, path, sizeof(path)) != 0) {
+    xndError("cannot find xnoded exec file in taosd directory or install directories");
+    return UV_ENOENT;
+  }
 
   xndInfo("xnode mgmt spawn xnoded path: %s", path);
   // char *argsXnoded[] = {path, "-c", configDir, "-d", dnodeId, NULL};

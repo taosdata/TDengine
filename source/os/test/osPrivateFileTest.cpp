@@ -25,7 +25,9 @@
 #include <aclapi.h>
 #else
 #include <fcntl.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
 #endif
 
@@ -280,6 +282,114 @@ TEST_F(PrivateFileTest, RejectsForeignOwnerWithoutChangingPermissions) {
   FileHandle reader(taosOpenPrivateFile(path("data").c_str(), TD_FILE_READ));
   EXPECT_EQ(reader.get(), nullptr);
   ASSERT_EQ(chown(path("data").c_str(), geteuid(), static_cast<gid_t>(-1)), 0);
+}
+
+void writeMarker(const std::string& name) {
+  const int fd = open(name.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0644);
+  ASSERT_GE(fd, 0);
+  ASSERT_EQ(write(fd, "keep", 4), 4);
+  close(fd);
+}
+
+bool exists(const std::string& name) {
+  struct stat info = {};
+  return lstat(name.c_str(), &info) == 0;
+}
+
+TEST_F(PrivateFileTest, RemovePrivateDirDoesNotFollowNestedLinks) {
+  const auto victim = path("victim");
+  ASSERT_EQ(mkdir(victim.c_str(), 0755), 0);
+  writeMarker(victim + "/keep");
+  const auto dir = path("private");
+  ASSERT_EQ(taosEnsurePrivateDir(dir.c_str()), 0);
+  ASSERT_EQ(mkdir((dir + "/sub").c_str(), 0700), 0);
+  writeMarker(dir + "/sub/data");
+  writeMarker(dir + "/data");
+  ASSERT_EQ(symlink(victim.c_str(), (dir + "/escape").c_str()), 0);
+  ASSERT_EQ(symlink((victim + "/keep").c_str(), (dir + "/sub/escape-file").c_str()), 0);
+
+  EXPECT_EQ(taosRemovePrivateDir(dir.c_str()), 0);
+  EXPECT_FALSE(exists(dir));
+  EXPECT_TRUE(exists(victim + "/keep"));
+}
+
+TEST_F(PrivateFileTest, RemovePrivateDirRejectsTopLevelLink) {
+  const auto victim = path("victim");
+  ASSERT_EQ(mkdir(victim.c_str(), 0700), 0);
+  writeMarker(victim + "/keep");
+  ASSERT_EQ(symlink(victim.c_str(), path("link").c_str()), 0);
+
+  EXPECT_NE(taosRemovePrivateDir(path("link").c_str()), 0);
+  EXPECT_NE(taosRemovePrivateDir((path("link") + "/").c_str()), 0);
+  EXPECT_TRUE(exists(victim + "/keep"));
+  EXPECT_TRUE(exists(path("link")));
+}
+
+TEST_F(PrivateFileTest, RemovePrivateDirRejectsForeignOwner) {
+  if (geteuid() != 0) GTEST_SKIP() << "Changing ownership of an isolated fixture requires an already-root test process";
+  const auto dir = path("foreign");
+  ASSERT_EQ(mkdir(dir.c_str(), 0700), 0);
+  writeMarker(dir + "/keep");
+  ASSERT_EQ(chown(dir.c_str(), 1, static_cast<gid_t>(-1)), 0);
+  EXPECT_NE(taosRemovePrivateDir(dir.c_str()), 0);
+  EXPECT_TRUE(exists(dir + "/keep"));
+  ASSERT_EQ(chown(dir.c_str(), geteuid(), static_cast<gid_t>(-1)), 0);
+}
+
+TEST_F(PrivateFileTest, CheckPrivateSocketAcceptsOnlyOwnedSocket) {
+  const auto sockPath = path("s.sock");
+  EXPECT_NE(taosCheckPrivateSocket(sockPath.c_str()), 0);
+
+  const int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  ASSERT_GE(fd, 0);
+  struct sockaddr_un addr = {};
+  addr.sun_family = AF_UNIX;
+  ASSERT_LT(sockPath.size(), sizeof(addr.sun_path));
+  memcpy(addr.sun_path, sockPath.c_str(), sockPath.size() + 1);
+  ASSERT_EQ(bind(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)), 0);
+  EXPECT_EQ(taosCheckPrivateSocket(sockPath.c_str()), 0);
+
+  ASSERT_EQ(symlink(sockPath.c_str(), path("file-link").c_str()), 0);
+  EXPECT_NE(taosCheckPrivateSocket(path("file-link").c_str()), 0);
+  writeMarker(path("regular"));
+  EXPECT_NE(taosCheckPrivateSocket(path("regular").c_str()), 0);
+
+  if (geteuid() == 0) {
+    ASSERT_EQ(lchown(sockPath.c_str(), 1, static_cast<gid_t>(-1)), 0);
+    EXPECT_NE(taosCheckPrivateSocket(sockPath.c_str()), 0);
+  }
+  close(fd);
+}
+
+TEST_F(PrivateFileTest, LocateCompanionExecIgnoresCwdAndPath) {
+  char appDir[PATH_MAX] = {0};
+  ASSERT_EQ(taosAppPath(appDir, sizeof(appDir)), 0);
+  const std::string name = "tdengine-companion-" + std::to_string(getpid());
+  char              found[PATH_MAX] = {0};
+
+  EXPECT_NE(taosLocateCompanionExec("../evil", found, sizeof(found)), 0);
+
+  writeMarker(path(name.c_str()));
+  char savedCwd[PATH_MAX] = {0};
+  ASSERT_NE(getcwd(savedCwd, sizeof(savedCwd)), nullptr);
+  const char*       oldPath = getenv("PATH");
+  const std::string savedPath = oldPath == nullptr ? "" : oldPath;
+  ASSERT_EQ(chdir(root.c_str()), 0);
+  ASSERT_EQ(setenv("PATH", root.c_str(), 1), 0);
+  EXPECT_NE(taosLocateCompanionExec(name.c_str(), found, sizeof(found)), 0);
+  EXPECT_EQ(found[0], 0);
+  ASSERT_EQ(chdir(savedCwd), 0);
+  ASSERT_EQ(setenv("PATH", savedPath.c_str(), 1), 0);
+
+  const std::string companion = std::string(appDir) + "/" + name;
+  ASSERT_EQ(symlink("/bin/true", companion.c_str()), 0);
+  EXPECT_NE(taosLocateCompanionExec(name.c_str(), found, sizeof(found)), 0);
+  ASSERT_EQ(unlink(companion.c_str()), 0);
+
+  writeMarker(companion);
+  EXPECT_EQ(taosLocateCompanionExec(name.c_str(), found, sizeof(found)), 0);
+  EXPECT_EQ(std::string(found), companion);
+  unlink(companion.c_str());
 }
 #endif
 }  // namespace

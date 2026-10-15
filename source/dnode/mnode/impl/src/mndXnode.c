@@ -6706,8 +6706,10 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
 
   getXnodedPipeName(socketPath, sizeof(socketPath));
   #ifndef WINDOWS
-  if (!taosCheckExistFile(socketPath)) {
-    uError("xnode failed to send request, socket path:%s does not exist", socketPath);
+  int32_t sockCode = taosCheckPrivateSocket(socketPath);
+  if (sockCode != TSDB_CODE_SUCCESS) {
+    uError("xnode failed to send request, socket path:%s is unavailable or untrusted since %s", socketPath,
+           tstrerror(sockCode));
     terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _EXIT;
   }

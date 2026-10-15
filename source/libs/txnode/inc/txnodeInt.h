@@ -50,6 +50,10 @@ int32_t txnodeBuildXnodedEnvironment(const char *const *inherited, int32_t inher
                                      const char *const *overrides, int32_t override_count, char ***environment);
 void    txnodeFreeEnvironment(char **environment);
 bool    txnodeShouldRestartXnoded(int64_t exitStatus, int32_t termSignal, bool isStopped);
+int32_t txnodeParseXnodedPid(const char *buf, int64_t len, int32_t *pid);
+int32_t txnodeReadXnodedPidFile(const char *path, int32_t *pid);
+int32_t txnodeWriteXnodedPidFile(const char *path, int32_t pid);
+bool    txnodeIsXnodedProcess(int32_t pid);
 
 #ifdef __cplusplus
 }

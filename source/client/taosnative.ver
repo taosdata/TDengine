@@ -979,6 +979,7 @@ VER_1.0 {
     taosDirExist;
     taosEOFCmd;
     taosEOFFile;
+    taosEnsurePrivateDir;
     taosExpandDir;
     taosFStatFile;
     taosFprintfFile;
@@ -1058,6 +1059,7 @@ VER_1.0 {
     taosRealPath;
     taosRemoveDir;
     taosRemoveFile;
+    taosRemovePrivateDir;
     taosRenameFile;
     taosResetTerminalMode;
     taosSeedRand;

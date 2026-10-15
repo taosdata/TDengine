@@ -86,6 +86,8 @@ typedef struct TdFile *TdFilePtr;
 // token's user (Windows). New files use mode 0600 (POSIX) or a private DACL (Windows).
 // Only the final component is checked for links; callers are responsible for the parent path.
 TdFilePtr taosOpenPrivateFile(const char *path, int32_t flags);
+// Succeed only if path is a unix socket (not a link) owned by the effective UID; always succeeds on Windows.
+int32_t   taosCheckPrivateSocket(const char *path);
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions);
 TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 

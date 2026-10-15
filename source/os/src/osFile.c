@@ -1349,6 +1349,18 @@ _exit:
   return NULL;
 }
 
+int32_t taosCheckPrivateSocket(const char *path) {
+  if (path == NULL || path[0] == 0) return terrno = TSDB_CODE_INVALID_PARA;
+#ifdef WINDOWS
+  return 0;
+#else
+  struct stat info = {0};
+  if (lstat(path, &info) != 0) return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  if (!S_ISSOCK(info.st_mode) || info.st_uid != geteuid()) return terrno = TAOS_SYSTEM_ERROR(EACCES);
+  return 0;
+#endif
+}
+
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   if (path == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
