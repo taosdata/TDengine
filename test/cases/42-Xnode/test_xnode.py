@@ -19,6 +19,8 @@ import time
 
 from new_test_framework.utils import tdLog, tdSql
 
+XNODED_CI_MOCK_MODE = "syntax"
+
 
 class TestXnode:
     """
@@ -52,6 +54,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -76,6 +79,7 @@ class TestXnode:
         Since: v3.4.0.5
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -113,6 +117,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -139,6 +144,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -167,6 +173,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -257,6 +264,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -384,6 +392,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -433,6 +442,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -508,6 +518,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -546,6 +557,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -725,6 +737,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -811,6 +824,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -954,6 +968,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -988,6 +1003,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1158,6 +1174,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1349,6 +1366,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1415,6 +1433,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1438,6 +1457,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1477,6 +1497,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1521,6 +1542,7 @@ class TestXnode:
         Since: v3.4.0.3
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1554,6 +1576,7 @@ class TestXnode:
         Since: v3.4.0.10
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1662,6 +1685,7 @@ class TestXnode:
         Since: v3.4.0.12
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
