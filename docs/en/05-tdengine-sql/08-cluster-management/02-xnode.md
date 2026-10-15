@@ -29,6 +29,8 @@ CREATE XNODE 'url' TOKEN 'token'
 - **name** and **password**: For initial creation, it is recommended to specify a token or username and password for daemon xnoded to connect to taosd. If neither a token nor username and password is specified, a default token will be created.
 - **token**: For authenticating when connecting to taosd
 
+While the control connection is active, a taosX instance accepts xnoded connections from only one TDengine cluster. If another cluster tries to register it, `CREATE XNODE` returns an ownership conflict without interrupting the existing control connection. To migrate the taosX instance, first execute `DROP XNODE` in the original cluster and then execute `CREATE XNODE` in the new cluster. The current xnoded identity uses a compile-time static JWT secret and a client-declared `cluster_id`. This mechanism prevents accidental registration; it does not protect against forged identities or malicious takeover.
+
 **Example**
 
 ```sql
@@ -152,6 +154,8 @@ Drop OK, 0 row(s) affected (0.038173s)
 taos> DROP XNODE 'localhost:6055';
 Drop OK, 0 row(s) affected (0.038593s)
 ```
+
+To register the taosX instance with a different TDengine cluster, you must first execute `DROP XNODE` in the original cluster to release ownership.
 
 ## Task Management
 

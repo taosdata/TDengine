@@ -885,6 +885,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80008025 | No privilege to access xnode task                     | 没有权限操作 xnode 的任务                             | 检查当前用户是否有权限操作 xnode 任务            |
 | 0x80008026 | Xnode DSN protection failed                           | Xnode DSN 保护校验失败                                | 检查 DSN 配置及数据源保护策略后重试              |
 | 0x80008027 | Connection info changed, please re-enter the password and other sensitive values | 连接信息已变更，请重新输入密码等敏感信息 | 修改连接地址等字段后重新输入密码等敏感信息再保存 |
+| 0x80008028 | Xnode is already owned by another cluster             | taosx 已被其他 TDengine 集群纳管                        | 在原集群执行 DROP XNODE 后再注册              |
 
 #### 备份/恢复
 

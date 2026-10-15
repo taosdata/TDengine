@@ -29,6 +29,8 @@ CREATE XNODE 'url' TOKEN 'token'
 - **name** / **password**：首次创建建议指定 `TOKEN`，或用户名与密码，供守护进程 `xnoded` 连接 `taosd`。未指定时将创建默认 token
 - **token**：用于连接 `taosd` 的认证凭据
 
+正常连接状态下，一个 taosX 实例只接受同一 TDengine 集群的 xnoded 控制连接。若该实例已被其他集群纳管，`CREATE XNODE` 会返回归属冲突错误；误注册不会中断原集群的控制连接。如需将 taosX 迁移到新集群，请先在原集群执行 `DROP XNODE`，再在新集群执行 `CREATE XNODE`。当前 xnoded 身份使用编译期静态 JWT 密钥，`cluster_id` 由客户端声明，因此该机制仅防误操作，不提供抵抗伪造身份或恶意抢占的安全保证。
+
 **示例**
 
 ```sql
@@ -138,6 +140,8 @@ DROP XNODE FORCE {id | 'url'}
 DROP XNODE 1;
 DROP XNODE 'localhost:6055';
 ```
+
+如需将 taosX 实例注册到其他 TDengine 集群，必须先通过原集群执行 `DROP XNODE` 解除归属。
 
 ## 任务管理
 
