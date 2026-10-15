@@ -118,6 +118,8 @@ jobs:
             **/*.mdx
           files_ignore: |
             .claude/**
+            contrib/**
+            tools/**
           separator: ","
       - name: Check with Markdownlint
         uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e # v20
