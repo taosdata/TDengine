@@ -3436,6 +3436,17 @@ CSUM(expr)
 
 **功能说明**：累加和（Cumulative sum），忽略 NULL 值。
 
+与 `PARTITION BY` 一起使用时，`CSUM` 在每个分区中独立累加，累加状态不会跨分区延续。分区内按照有效时间线顺序累加；如果输入中不存在 `TIMESTAMP` 类型列，则按照上游输入行序累加。需要稳定行序时，应在子查询中显式使用 `ORDER BY`。
+
+例如，以下查询分别计算每个子表的电流累加值。查询允许时，分区表达式也可以是标签或普通列。
+
+```sql
+SELECT tbname, ts, CSUM(current) AS cumulative_current
+FROM meters
+PARTITION BY tbname
+ORDER BY tbname, ts;
+```
+
 **返回结果类型**：输入列如果是整数类型返回值为长整型（bigint），浮点数返回值为双精度浮点数（double）。无符号整数类型返回值为无符号长整型（unsigned bigint）。
 
 **适用数据类型**：数值类型。
