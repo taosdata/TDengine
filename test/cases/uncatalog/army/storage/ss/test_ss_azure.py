@@ -20,17 +20,17 @@ from new_test_framework.utils import tdLog, tdSql, epath, sc
 
 
 #
-# 192.168.1.52 MINIO S3
+# s3.tdengine.net (192.168.0.216) MINIO S3
 #
 
 '''
-s3EndPoint     http://192.168.1.52:9000
-s3AccessKey    'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX'
+s3EndPoint     http://s3.tdengine.net:9000
+s3AccessKey    'mkJO481qGlWR9hpkRweR:2KBJOZ2DXrvjAhIB1Qr64IGzUPxUl566GKWv4Sak'
 s3BucketName   ci-bucket
 ssUploadDelaySec 60
 
 for test:
-"s3AccessKey" : "fGPPyYjzytw05nw44ViA:vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ"
+"s3AccessKey" : "mkJO481qGlWR9hpkRweR:2KBJOZ2DXrvjAhIB1Qr64IGzUPxUl566GKWv4Sak"
 "s3BucketName": "test-bucket"
 '''
 
@@ -316,21 +316,25 @@ class TestSSAzure:
 
     # run
     def test_ss_azure(self):
-        """summary: xxx
+        """Shared storage (S3 endpoint, Azure backend via Flexify) basic scenario
 
-        description: xxx
-
-        Since: xxx
-
-        Labels: common,ci,integration,functional
-        Jira: xxx
+        1. Insert data with ssEnabled=2, ssmigrate, verify local .data files are uploaded
+        2. Create and drop a stream on the shared-storage database
+        3. History and disorder data with aggregate snapshot checks
+        4. Verify blobs exist in Azure after migration and are removed after dropping the database
 
         Catalog:
-            - xxx:xxx
+            - Storage
+
+        Since: v3.3.5.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2026-10-15 Alex Duan Update S3 endpoint and access key
+
         """
         tdLog.debug(f"start to excute {__file__}")
         self.sname = "stream1"

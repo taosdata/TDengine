@@ -52,13 +52,13 @@ int32_t cosInitEnv() {
   const char *bucketName = "<bucket/container-name>";
   */
 
-  // const char *hostname = "http://192.168.1.52:9000";
-  // const char *accessKeyId = "zOgllR6bSnw2Ah3mCNel";
-  // const char *accessKeySecret = "cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX";
+  // const char *hostname = "http://s3.tdengine.net:9000";
+  // const char *accessKeyId = "mkJO481qGlWR9hpkRweR";
+  // const char *accessKeySecret = "2KBJOZ2DXrvjAhIB1Qr64IGzUPxUl566GKWv4Sak";
   // const char *bucketName = "test-bucket";
-  const char *hostname = "192.168.1.52:9000";
-  const char *accessKeyId = "zOgllR6bSnw2Ah3mCNel";
-  const char *accessKeySecret = "cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX";
+  const char *hostname = "s3.tdengine.net:9000";
+  const char *accessKeyId = "mkJO481qGlWR9hpkRweR";
+  const char *accessKeySecret = "2KBJOZ2DXrvjAhIB1Qr64IGzUPxUl566GKWv4Sak";
   const char *bucketName = "ci-bucket19";
 
   tstrncpy(&tsS3Hostname[0][0], hostname, TSDB_FQDN_LEN);
