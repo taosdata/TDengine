@@ -3402,6 +3402,17 @@ CSUM(expr)
 
 **Function Description**: Cumulative sum, ignoring NULL values.
 
+When used with `PARTITION BY`, `CSUM` starts an independent cumulative sum for each partition. State is not carried between partitions. Within each partition, values are accumulated in effective timeline order. If the input has no `TIMESTAMP` column, accumulation follows the upstream input row order; use `ORDER BY` in a subquery when that order must be stable.
+
+For example, the following query calculates an independent cumulative current for each subtable. The partition expression can also be a tag or ordinary column when valid in the query.
+
+```sql
+SELECT tbname, ts, CSUM(current) AS cumulative_current
+FROM meters
+PARTITION BY tbname
+ORDER BY tbname, ts;
+```
+
 **Return Result Type**: If the input column is an integer type, the return value is long integer (int64_t), for floating-point numbers, the return value is double precision floating point (Double). For unsigned integer types, the return value is unsigned long integer (uint64_t).
 
 **Applicable Data Types**: Numeric types.
