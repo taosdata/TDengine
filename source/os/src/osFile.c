@@ -25,6 +25,7 @@
 #ifdef WINDOWS
 #include <WinBase.h>
 #include <aclapi.h>
+#include <authz.h>
 #include <io.h>
 #include <ktmw32.h>
 #include <winioctl.h>
@@ -1192,16 +1193,61 @@ int32_t taosInitPrivateFileSecurity(SPrivateFileSecurity *security) {
     code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     goto _exit;
   }
-  size = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) - sizeof(DWORD) + GetLengthSid(security->user->User.Sid);
+  BYTE systemSid[SECURITY_MAX_SID_SIZE];
+  BYTE adminsSid[SECURITY_MAX_SID_SIZE];
+  DWORD systemSize = sizeof(systemSid);
+  DWORD adminsSize = sizeof(adminsSid);
+  BOOL isAdmin = FALSE;
+  if (!CreateWellKnownSid(WinLocalSystemSid, NULL, systemSid, &systemSize) ||
+      !CreateWellKnownSid(WinBuiltinAdministratorsSid, NULL, adminsSid, &adminsSize) ||
+      !CheckTokenMembership(NULL, adminsSid, &isAdmin)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  PSID sids[] = {security->user->User.Sid, systemSid, adminsSid};
+  size = sizeof(ACL);
+  for (size_t i = 0; i < tListLen(sids); ++i) {
+    size += sizeof(ACCESS_ALLOWED_ACE) - sizeof(DWORD) + GetLengthSid(sids[i]);
+  }
   security->acl = taosMemoryMalloc(size);
   if (security->acl == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  if (!InitializeAcl(security->acl, size, ACL_REVISION) ||
-      !AddAccessAllowedAceEx(security->acl, ACL_REVISION, 0, FILE_ALL_ACCESS, security->user->User.Sid) ||
-      !InitializeSecurityDescriptor(&security->descriptor, SECURITY_DESCRIPTOR_REVISION) ||
-      !SetSecurityDescriptorOwner(&security->descriptor, security->user->User.Sid, FALSE) ||
+  if (!InitializeAcl(security->acl, size, ACL_REVISION)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  // Services and elevated foreground processes share temporary files; other
+  // users receive no access and cannot inherit a permissive parent ACL.
+  for (size_t i = 0; i < tListLen(sids); ++i) {
+    if (i > 0 && EqualSid(sids[i], sids[0])) continue;
+    if (!AddAccessAllowedAceEx(security->acl, ACL_REVISION, 0, FILE_ALL_ACCESS, sids[i])) {
+      code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+      goto _exit;
+    }
+  }
+  // Use a stable privileged owner when elevated, including for ordinary files.
+  // Store the SID in the ACL allocation, whose lifetime matches the descriptor.
+  void *ownerAce = NULL;
+  PSID ownerSid = isAdmin ? (PSID)adminsSid : security->user->User.Sid;
+  for (DWORD i = 0; i < security->acl->AceCount; ++i) {
+    void *ace = NULL;
+    if (!GetAce(security->acl, i, &ace)) {
+      code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+      goto _exit;
+    }
+    if (EqualSid(&((ACCESS_ALLOWED_ACE *)ace)->SidStart, ownerSid)) {
+      ownerAce = ace;
+      break;
+    }
+  }
+  if (ownerAce == NULL) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(ERROR_INVALID_ACL);
+    goto _exit;
+  }
+  if (!InitializeSecurityDescriptor(&security->descriptor, SECURITY_DESCRIPTOR_REVISION) ||
+      !SetSecurityDescriptorOwner(&security->descriptor, &((ACCESS_ALLOWED_ACE *)ownerAce)->SidStart, FALSE) ||
       !SetSecurityDescriptorDacl(&security->descriptor, TRUE, security->acl, FALSE) ||
       !SetSecurityDescriptorControl(&security->descriptor, SE_DACL_PROTECTED, SE_DACL_PROTECTED)) {
     code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
@@ -1244,6 +1290,58 @@ static int32_t taosCheckDefaultDirectoryOwner(PSID owner) {
   return code;
 }
 
+static int32_t taosCheckTrustedFileOwner(PSID owner) {
+  if (IsWellKnownSid(owner, WinLocalSystemSid) ||
+      IsWellKnownSid(owner, WinBuiltinAdministratorsSid)) return 0;
+
+  // Older foreground processes used an individual administrator SID as owner.
+  // Resolve its group membership, rather than trusting any foreign account.
+  AUTHZ_RESOURCE_MANAGER_HANDLE manager = NULL;
+  AUTHZ_CLIENT_CONTEXT_HANDLE context = NULL;
+  TOKEN_GROUPS *groups = NULL;
+  LUID identifier = {0};
+  DWORD size = 0;
+  int32_t code = TAOS_SYSTEM_WINAPI_ERROR(ERROR_ACCESS_DENIED);
+  if (!AuthzInitializeResourceManager(AUTHZ_RM_FLAG_NO_AUDIT, NULL, NULL, NULL, NULL, &manager) ||
+      !AuthzInitializeContextFromSid(0, owner, manager, NULL, identifier, NULL, &context)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  if (!AuthzGetInformationFromContext(context, AuthzContextInfoGroupsSids, 0, &size, NULL)) {
+    DWORD error = GetLastError();
+    if (error != ERROR_INSUFFICIENT_BUFFER) {
+      code = TAOS_SYSTEM_WINAPI_ERROR(error);
+      goto _exit;
+    }
+  }
+  if (size == 0) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(ERROR_INVALID_DATA);
+    goto _exit;
+  }
+  groups = taosMemoryMalloc(size);
+  if (groups == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  if (!AuthzGetInformationFromContext(context, AuthzContextInfoGroupsSids, size, &size, groups)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  for (DWORD i = 0; i < groups->GroupCount; ++i) {
+    if (IsWellKnownSid(groups->Groups[i].Sid, WinBuiltinAdministratorsSid) &&
+        (groups->Groups[i].Attributes & SE_GROUP_ENABLED) &&
+        !(groups->Groups[i].Attributes & SE_GROUP_USE_FOR_DENY_ONLY)) {
+      code = 0;
+      break;
+    }
+  }
+_exit:
+  taosMemoryFree(groups);
+  if (context != NULL) AuthzFreeContext(context);
+  if (manager != NULL) AuthzFreeResourceManager(manager);
+  return code;
+}
+
 int32_t taosCheckPrivateFileHandle(HANDLE handle, bool directory, PSID owner) {
   BY_HANDLE_FILE_INFORMATION info = {0};
   if (!GetFileInformationByHandle(handle, &info)) return terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
@@ -1260,6 +1358,7 @@ int32_t taosCheckPrivateFileHandle(HANDLE handle, bool directory, PSID owner) {
     // Existing Windows directories may use the token's default group owner.
     code = directory && actualOwner != NULL ? taosCheckDefaultDirectoryOwner(actualOwner)
                                             : TAOS_SYSTEM_WINAPI_ERROR(ERROR_ACCESS_DENIED);
+    if (code != 0 && actualOwner != NULL) code = taosCheckTrustedFileOwner(actualOwner);
   }
   if (descriptor != NULL) LocalFree(descriptor);
   if (code != 0) terrno = code;
