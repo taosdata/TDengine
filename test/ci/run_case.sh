@@ -100,6 +100,19 @@ fi
 
 export PATH=$PATH:${_DEBUG_BASE}/build/bin
 export LD_LIBRARY_PATH=${_DEBUG_BASE}/build/lib
+if [[ -n "${XNODED_TEST_MOCK_MODE:-}" ]]; then
+    _mock_source="${_SOURCE_BASE}/test/ci/mock_xnoded.c"
+    _mock_dir="$(mktemp -d "${TMPDIR:-/tmp}/xnoded-mock.XXXXXX")" || exit 1
+    _mock_binary="${_mock_dir}/xnoded"
+    if ! gcc -std=c11 -O2 -Wall -Wextra -Werror "${_mock_source}" -o "${_mock_binary}"; then
+        rm -rf "${_mock_dir}"
+        echo "ERROR: failed to build mock xnoded: ${_mock_source}"
+        exit 1
+    fi
+    ln -sf "${_mock_binary}" /usr/bin/xnoded || exit 1
+    test -x /usr/bin/xnoded || exit 1
+    echo "[xnode-ci] mock xnoded: ${_mock_binary}, mode=${XNODED_TEST_MOCK_MODE}"
+fi
 ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
 ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
 # 兼容测试（如 test_new_stream_compatibility.py）硬编码 /usr/bin/taos，
