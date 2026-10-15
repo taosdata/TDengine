@@ -1339,6 +1339,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,                    "Xnode nod found
 TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,              "Xnode xnoded exec failure")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_CANT_ACCESS,          "Xnode xnoded URL is not accessible")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_IS_NULL,         "Xnode xnoded response is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER,  "Xnode is already owned by another cluster")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR,          "Xnode request action response not success code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NEED_USER_PASS,           "Xnode first-time setup requires username and password")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_USER_PASS_NOT_EXIST,      "Xnode username or password error when setup")

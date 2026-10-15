@@ -149,6 +149,10 @@ int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->writeWorker, pMsg);
 }
 
+int32_t mmPutMsgToXnodeCreateQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->xnodeCreateWorker, pMsg);
+}
+
 int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->arbWorker, pMsg);
 }
@@ -551,6 +555,19 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   }
   taosQueueSetFreeFp(pMgmt->writeWorker.queue, mmFreeRpcQitem);
 
+  SSingleWorkerCfg xnodeCreateCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-xnode-create",
+      .fp = (FItem)mmProcessRpcMsg,
+      .param = pMgmt,
+  };
+  if ((code = tSingleWorkerInit(&pMgmt->xnodeCreateWorker, &xnodeCreateCfg)) != 0) {
+    dError("failed to start mnode-xnode-create worker since %s", tstrerror(code));
+    return code;
+  }
+  taosQueueSetFreeFp(pMgmt->xnodeCreateWorker.queue, mmFreeRpcQitem);
+
   SSingleWorkerCfg sCfg = {
       .min = 1,
       .max = 1,
@@ -635,6 +652,7 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->statusWorker);
+  tSingleWorkerCleanup(&pMgmt->xnodeCreateWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
   tSingleWorkerCleanup(&pMgmt->arbWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);

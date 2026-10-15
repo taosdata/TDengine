@@ -347,9 +347,21 @@ if [[ "${buildSan}" == "y" ]]; then
   asan_env="-e CI_NO_ASAN=1 -e CI_ASAN_BUILD=1"
 fi
 
+mock_env=""
+if [[ "${CHILD_PIPELINE_NAME:-}" == "tsdb-ci-linux" && "${cmd}" =~ (cases/[^[:space:]]+\.py) ]]; then
+  case_file="${REPDIR}/test/${BASH_REMATCH[1]}"
+  if [[ -f "${case_file}" ]]; then
+    mock_mode=$(sed -n 's/^XNODED_CI_MOCK_MODE = "\(syntax\|priv\)"$/\1/p' "${case_file}")
+    case "${mock_mode}" in
+      syntax|priv) mock_env="-e XNODED_TEST_MOCK_MODE=${mock_mode}" ;;
+    esac
+  fi
+fi
+
 echo "docker run \
     ${name_param:+$name_param }--privileged=true \
     $asan_env \
+    $mock_env \
     -e CI_MIN_RESERVED_MEMORY_MB=${CI_MIN_RESERVED_MEMORY_MB:-2048} \
     -v $REP_MOUNT_PARAM \
     ${REP_MOUNT_INTERNAL:+-v $REP_MOUNT_INTERNAL} \
@@ -368,6 +380,7 @@ echo "[ci-timing] stage=docker-run event=start"
 docker run \
     ${name_param:+$name_param} --privileged=true \
     $asan_env \
+    $mock_env \
     -e CI_CONTAINER_EXIT_MARKER="$CONTAINER_TESTDIR/test/.ci-container-exit" \
     -e "CI_MIN_RESERVED_MEMORY_MB=${CI_MIN_RESERVED_MEMORY_MB:-2048}" \
     -v $REP_MOUNT_PARAM \

@@ -35,6 +35,7 @@
 #include "mndDnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
+#include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndXnode.h"
@@ -96,6 +97,7 @@ typedef struct {
 
 const int32_t defaultTimeout = 1000;
 const int32_t migrationTimeout = 60000;
+const int32_t createXnodeHttpTimeout = 7000;
 static const char xnodeDrainStatus[] = "drain";
 
 /** xnodes systable actions */
@@ -110,6 +112,9 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq);
+static int32_t mndDropXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj);
+static int32_t mndDropXnodeUserPass(SMnode *pMnode, SRpcMsg *pReq);
+static int32_t mndCheckXnodedResponse(SRpcMsg *pReq, SJson *pJson);
 static int32_t mndProcessRestartXnodeReq(SRpcMsg *pReq);
 static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextXnode(SMnode *pMnode, void *pIter);
@@ -538,6 +543,18 @@ static int32_t mndSetCreateXnodeUserPassRedoLogs(STrans *pTrans, SXnodeUserPassO
   TAOS_RETURN(code);
 }
 
+static int32_t mndSetCreateXnodeUserPassUndoLogs(STrans *pTrans, SXnodeUserPassObj *pObj) {
+  int32_t  code = 0;
+  SSdbRaw *pUndoRaw = mndXnodeUserPassActionEncode(pObj);
+  if (pUndoRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendUndolog(pTrans, pUndoRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED));
+  TAOS_RETURN(code);
+}
+
 static int32_t mndSetCreateXnodeUserPassCommitLogs(STrans *pTrans, SXnodeUserPassObj *pObj) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndXnodeUserPassActionEncode(pObj);
@@ -590,11 +607,13 @@ static int32_t mndSetCreateXnodeCommitLogs(STrans *pTrans, SXnodeObj *pObj) {
   TAOS_RETURN(code);
 }
 
-static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *pCreate) {
+static int32_t mndCreateXnode(SMnode *pMnode, SMCreateXnodeReq *pCreate, bool createUserPass,
+                              int32_t *pTransId) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
 
   SXnodeObj xnodeObj = {0};
+  SXnodeUserPassObj upObj = {0};
   xnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE);
 
   xnodeObj.urlLen = pCreate->urlLen;
@@ -609,10 +628,34 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *p
 
   xnodeObj.createTime = taosGetTimestampMs();
   xnodeObj.updateTime = xnodeObj.createTime;
+  if (createUserPass) {
+    upObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_USER_PASS);
+    upObj.user = pCreate->user;
+    upObj.userLen = pCreate->userLen;
+    upObj.pass = pCreate->pass;
+    upObj.passLen = pCreate->passLen;
+    upObj.tokenLen = pCreate->token.ptr == NULL ? 0 : pCreate->token.len + 1;
+    if (upObj.tokenLen > 0) {
+      upObj.token = taosMemoryCalloc(1, upObj.tokenLen);
+      if (upObj.token == NULL) {
+        code = terrno;
+        lino = __LINE__;
+        goto _OVER;
+      }
+      (void)memcpy(upObj.token, pCreate->token.ptr, pCreate->token.len);
+    }
+    upObj.createTime = xnodeObj.createTime;
+    upObj.updateTime = xnodeObj.updateTime;
+    if (upObj.userLen > TSDB_USER_LEN || upObj.passLen > TSDB_USER_PASSWORD_LONGLEN) {
+      code = upObj.userLen > TSDB_USER_LEN ? TSDB_CODE_MND_USER_NOT_AVAILABLE : TSDB_CODE_MND_INVALID_PASS_FORMAT;
+      lino = __LINE__;
+      goto _OVER;
+    }
+  }
   mInfo("create xnode, xnode.id:%d, xnode.url: %s, xnode.time:%" PRId64, xnodeObj.id, xnodeObj.url,
         xnodeObj.createTime);
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "create-xnode");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -627,7 +670,13 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *p
   TAOS_CHECK_GOTO(mndSetCreateXnodeRedoLogs(pTrans, &xnodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateXnodeUndoLogs(pTrans, &xnodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateXnodeCommitLogs(pTrans, &xnodeObj), NULL, _OVER);
+  if (createUserPass) {
+    TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassRedoLogs(pTrans, &upObj), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassUndoLogs(pTrans, &upObj), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassCommitLogs(pTrans, &upObj), NULL, _OVER);
+  }
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+  *pTransId = pTrans->id;
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -635,11 +684,12 @@ _OVER:
     mError("xnode:failed create xnode since %s, line:%d", tstrerror(code), lino);
   }
   mndFreeXnode(&xnodeObj);
+  taosMemoryFreeClear(upObj.token);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
 
-static SXnodeObj *mndAcquireXnodeByURL(SMnode *pMnode, char *url) {
+static SXnodeObj *mndAcquireXnodeByURL(SMnode *pMnode, const char *url) {
   SSdb *pSdb = pMnode->pSdb;
 
   void *pIter = NULL;
@@ -656,74 +706,9 @@ static SXnodeObj *mndAcquireXnodeByURL(SMnode *pMnode, char *url) {
     sdbRelease(pSdb, pXnode);
   }
 
-  mError("xnode:%s, not found", url);
+  mDebug("xnode:%s, not found", url);
   terrno = TSDB_CODE_MND_XNODE_NOT_EXIST;
   return NULL;
-}
-
-static int32_t mndStoreXnodeUserPassToken(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *pCreate) {
-  int32_t code = 0, lino = 0;
-  STrans *pTrans = NULL;
-
-  SXnodeUserPassObj upObj = {0};
-  upObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_USER_PASS);
-
-  if (pCreate->user) {
-    upObj.userLen = pCreate->userLen;
-    if (upObj.userLen > TSDB_USER_LEN) {
-      code = TSDB_CODE_MND_USER_NOT_AVAILABLE;
-      lino = __LINE__;
-      goto _OVER;
-    }
-    upObj.user = taosMemoryCalloc(1, pCreate->userLen);
-    if (upObj.user == NULL) goto _OVER;
-    (void)memcpy(upObj.user, pCreate->user, pCreate->userLen);
-  }
-  if (pCreate->pass) {
-    upObj.passLen = pCreate->passLen;
-    if (upObj.passLen > TSDB_USER_PASSWORD_LONGLEN) {
-      code = TSDB_CODE_MND_INVALID_PASS_FORMAT;
-      lino = __LINE__;
-      goto _OVER;
-    }
-    upObj.pass = taosMemoryCalloc(1, pCreate->passLen);
-    if (upObj.pass == NULL) goto _OVER;
-    (void)memcpy(upObj.pass, pCreate->pass, pCreate->passLen);
-  }
-
-  if (pCreate->token.ptr) {
-    upObj.tokenLen = pCreate->token.len + 1;
-    upObj.token = taosMemoryCalloc(1, upObj.tokenLen);
-    if (upObj.token == NULL) goto _OVER;
-    (void)memcpy(upObj.token, pCreate->token.ptr, pCreate->token.len);
-  }
-
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-userpass");
-  if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    mInfo("failed to create transaction for xnode:%s, code:0x%x:%s", pCreate->url, code, tstrerror(code));
-    lino = __LINE__;
-    goto _OVER;
-  }
-  mndTransSetSerial(pTrans);
-
-  mInfo("trans:%d, used to create xnode:%s as xnode:%d", pTrans->id, pCreate->url, upObj.id);
-
-  TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassRedoLogs(pTrans, &upObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassCommitLogs(pTrans, &upObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
-  code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-_OVER:
-  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("xnode failed to store userpass since %s, line:%d", tstrerror(code), lino);
-  }
-  taosMemoryFreeClear(upObj.user);
-  taosMemoryFreeClear(upObj.pass);
-  taosMemoryFreeClear(upObj.token);
-  mndTransDrop(pTrans);
-  TAOS_RETURN(code);
 }
 
 #ifndef TD_ENTERPRISE
@@ -735,7 +720,7 @@ int32_t mndXnodeCreateDefaultToken(SRpcMsg* pReq, char** ppToken) {
 
 #endif
 
-static int32_t httpCreateXnode(SXnodeObj *pObj) {
+static int32_t httpCreateXnode(SRpcMsg *pReq, SXnodeObj *pObj, int64_t deadlineMs) {
   int32_t code = 0;
   SJson  *pJson = NULL;
   SJson  *postContent = NULL;
@@ -750,12 +735,14 @@ static int32_t httpCreateXnode(SXnodeObj *pObj) {
   }
   TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "id", (double)pObj->id), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "url", pObj->url), NULL, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "deadline_ms", (double)deadlineMs), NULL, _OVER);
   pContStr = tjsonToUnformattedString(postContent);
   if (pContStr == NULL) {
     code = terrno;
     goto _OVER;
   }
-  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, pContStr, strlen(pContStr));
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, createXnodeHttpTimeout, pContStr, strlen(pContStr));
+  code = mndCheckXnodedResponse(pReq, pJson);
 
 _OVER:
   if (postContent != NULL) {
@@ -770,14 +757,77 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndWaitCreatedXnode(SMnode *pMnode, const char *url, bool waitUserPass, int32_t transId,
+                                   SXnodeObj **ppObj) {
+  STrans *pTrans = NULL;
+  while ((pTrans = mndAcquireTrans(pMnode, transId)) != NULL) {
+    mndReleaseTrans(pMnode, pTrans);
+    if (mndGetStop(pMnode)) return TSDB_CODE_MNODE_STOPPED;
+    if (!mndIsLeader(pMnode)) return TSDB_CODE_SYN_NOT_LEADER;
+    taosMsleep(100);
+  }
+  if (mndGetStop(pMnode)) return TSDB_CODE_MNODE_STOPPED;
+  if (!mndIsLeader(pMnode)) return TSDB_CODE_SYN_NOT_LEADER;
+  *ppObj = mndAcquireXnodeByURL(pMnode, url);
+  if (*ppObj == NULL) return TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
+  if (waitUserPass) {
+    SXnodeUserPassObj *pUserPass = mndAcquireFirstXnodeUserPass(pMnode);
+    if (pUserPass == NULL) return TSDB_CODE_MND_XNODE_USER_PASS_NOT_EXIST;
+    mndReleaseXnodeUserPass(pMnode, pUserPass);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool mndCancelCreatedXnode(int32_t id, int64_t deadlineMs) {
+  int64_t remainingMs = deadlineMs - taosGetTimestampMs();
+  if (remainingMs > 0) taosMsleep((int32_t)remainingMs);
+
+  char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
+  snprintf(xnodeUrl, sizeof(xnodeUrl), "%s/xnode/%d?force=true", XNODED_PIPE_SOCKET_URL, id);
+  SJson *pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_DELETE, createXnodeHttpTimeout, NULL, 0);
+  int32_t code = mndCheckXnodedResponse(NULL, pJson);
+  if (pJson != NULL) tjsonDelete(pJson);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("xnode:%d, failed to confirm xnoded cancellation since %s", id, tstrerror(code));
+  }
+  return code == TSDB_CODE_SUCCESS;
+}
+
+static void mndCleanupCreatedXnode(SMnode *pMnode, const char *url, SXnodeObj *pObj, bool createUserPass,
+                                   bool xnodedStarted, bool requiresXnodedCancel, int64_t deadlineMs) {
+  if (requiresXnodedCancel && pObj != NULL && !mndCancelCreatedXnode(pObj->id, deadlineMs)) {
+    mError("xnode:%s, retaining metadata because xnoded cancellation is unconfirmed", url);
+    return;
+  }
+  if (xnodedStarted) {
+    mndCloseXnd();
+  }
+  if (pObj != NULL) {
+    int32_t dropCode = mndDropXnode(pMnode, NULL, pObj);
+    if (dropCode != 0 && dropCode != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("xnode:%s, failed to drop after xnoded create error since %s", url, tstrerror(dropCode));
+    }
+  }
+  if (createUserPass) {
+    int32_t dropUserPassCode = mndDropXnodeUserPass(pMnode, NULL);
+    if (dropUserPassCode != 0 && dropUserPassCode != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("xnode:%s, failed to drop xnode user pass after create error since %s", url,
+             tstrerror(dropUserPassCode));
+    }
+  }
+}
+
 static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = 0, lino = 0;
-  int32_t          startCode = 0;
   SXnodeObj       *pObj = NULL;
   SMCreateXnodeReq createReq = {0};
   char            *pToken = NULL;
-  bool             isSuperUser = false;
+  bool             createUserPass = false;
+  bool             xnodedStarted = false;
+  int32_t          createTransId = 0;
+  bool             requiresXnodedCancel = false;
+  int64_t          httpDeadlineMs = 0;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
@@ -793,32 +843,11 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  int32_t numOfRows = sdbGetSize(pMnode->pSdb, SDB_XNODE_USER_PASS);
-  if (numOfRows <= 0) {
-    if (createReq.token.ptr != NULL) {
-      (void)mndCreateXnode(pMnode, NULL, &createReq);
-      code = mndStoreXnodeUserPassToken(pMnode, pReq, &createReq);
-      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-        lino = __LINE__;
-        goto _OVER;
-      }
-      startCode = mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
-      if (startCode != TSDB_CODE_SUCCESS) {
-        mError("xnode:%s, failed to start xnoded after create since %s", createReq.url, tstrerror(startCode));
-      }
-    } else if (createReq.user != NULL) {
+  createUserPass = sdbGetSize(pMnode->pSdb, SDB_XNODE_USER_PASS) <= 0;
+  if (createUserPass) {
+    if (createReq.user != NULL) {
       TAOS_CHECK_GOTO(xnodeCheckPasswordFmt(createReq.pass), &lino, _OVER);
-      (void)mndCreateXnode(pMnode, NULL, &createReq);
-      code = mndStoreXnodeUserPassToken(pMnode, pReq, &createReq);
-      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-        lino = __LINE__;
-        goto _OVER;
-      }
-      startCode = mndStartXnoded(pMnode, createReq.user, createReq.pass, NULL);
-      if (startCode != TSDB_CODE_SUCCESS) {
-        mError("xnode:%s, failed to start xnoded after create since %s", createReq.url, tstrerror(startCode));
-      }
-    } else {
+    } else if (createReq.token.ptr == NULL) {
       code = mndXnodeCreateDefaultToken(pReq, &pToken);
       if (code == TSDB_CODE_MND_TOKEN_ALREADY_EXIST) {
         code = 0;
@@ -827,30 +856,47 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
         lino = __LINE__;
         goto _OVER;
       }
-      (void)mndCreateXnode(pMnode, NULL, &createReq);
       createReq.token = xCreateCowStr(strlen(pToken), pToken, false);
-      (void)mndStoreXnodeUserPassToken(pMnode, NULL, &createReq);
-      startCode = mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
-      if (startCode != TSDB_CODE_SUCCESS) {
-        mError("xnode:%s, failed to start xnoded after create since %s", createReq.url, tstrerror(startCode));
-      }
-    }
-  } else {
-    code = mndCreateXnode(pMnode, pReq, &createReq);
-    if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-      lino = __LINE__;
-      goto _OVER;
     }
   }
-
-  taosMsleep(defaultTimeout);
-  pObj = mndAcquireXnodeByURL(pMnode, createReq.url);
-  if (pObj == NULL) {
-    code = TSDB_CODE_MND_XNODE_NOT_EXIST;
+  code = mndCreateXnode(pMnode, &createReq, createUserPass, &createTransId);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    lino = __LINE__;
     goto _OVER;
   }
+  code = mndWaitCreatedXnode(pMnode, createReq.url, createUserPass, createTransId, &pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    lino = __LINE__;
+    if (code == TSDB_CODE_MNODE_STOPPED || code == TSDB_CODE_SYN_NOT_LEADER) goto _OVER;
+    goto _CLEANUP;
+  }
+  if (createUserPass) {
+    code = mndStartXnoded(pMnode, createReq.user, createReq.pass, createReq.token.ptr);
+    if (code != TSDB_CODE_SUCCESS) {
+      lino = __LINE__;
+      goto _CLEANUP;
+    }
+    xnodedStarted = true;
+  }
+
   // send request
-  (void)httpCreateXnode(pObj);
+  httpDeadlineMs = taosGetTimestampMs() + createXnodeHttpTimeout;
+  requiresXnodedCancel = true;
+  int32_t httpCode = httpCreateXnode(pReq, pObj, httpDeadlineMs);
+  if (httpCode != TSDB_CODE_SUCCESS) {
+    code = httpCode;
+    if (code == TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER) requiresXnodedCancel = false;
+    lino = __LINE__;
+    goto _CLEANUP;
+  } else {
+    code = TSDB_CODE_SUCCESS;
+    goto _OVER;
+  }
+
+_CLEANUP:
+  mndCleanupCreatedXnode(pMnode, createReq.url, pObj, createUserPass, xnodedStarted, requiresXnodedCancel,
+                         httpDeadlineMs);
+  goto _OVER;
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1046,17 +1092,26 @@ static int32_t mndCheckXnodedResponse(SRpcMsg *pReq, SJson *pJson) {
   const char *error = ((cJSON *)errorJson)->valuestring;
   if (error != NULL) {
     mError("xnoded request failed, reason:%s", error);
+    int32_t code = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
+    if (strstr(error, "owned by another cluster") != NULL) {
+      code = TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER;
+    }
     if (pReq != NULL) {
-      int32_t contLen = strlen(error) + strlen(tstrerror(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR)) + 32;
+      bool     isOwnerConflict = (code == TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER);
+      int32_t  contLen = isOwnerConflict ? strlen(error) + 1 : strlen(error) + strlen(tstrerror(code)) + 32;
       void   *pRsp = rpcMallocCont(contLen);
       if (pRsp == NULL) {
         return terrno;
       }
       pReq->info.rspLen = contLen;
       pReq->info.rsp = pRsp;
-      snprintf(pReq->info.rsp, contLen, "%s, since: %s", tstrerror(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR),
-               error);
+      if (isOwnerConflict) {
+        snprintf(pReq->info.rsp, contLen, "%s", error);
+      } else {
+        snprintf(pReq->info.rsp, contLen, "%s, since: %s", tstrerror(code), error);
+      }
     }
+    return code;
   }
   return TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
 }
@@ -1078,6 +1133,60 @@ static int32_t mndDropXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
 
 _OVER:
   mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSetDropXnodeUserPassRedoLogs(STrans *pTrans, SXnodeUserPassObj *pObj) {
+  int32_t  code = 0;
+  SSdbRaw *pRedoRaw = mndXnodeUserPassActionEncode(pObj);
+  if (pRedoRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSetDropXnodeUserPassCommitLogs(STrans *pTrans, SXnodeUserPassObj *pObj) {
+  int32_t  code = 0;
+  SSdbRaw *pCommitRaw = mndXnodeUserPassActionEncode(pObj);
+  if (pCommitRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
+  TAOS_RETURN(code);
+}
+
+static int32_t mndDropXnodeUserPass(SMnode *pMnode, SRpcMsg *pReq) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SXnodeUserPassObj *pObj = mndAcquireFirstXnodeUserPass(pMnode);
+  if (pObj == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-xnode-userpass");
+  TSDB_CHECK_NULL(pTrans, code, lino, _OVER, terrno);
+
+  mndTransSetSerial(pTrans);
+  mDebug("trans:%d, to drop xnode user pass:%d", pTrans->id, pObj->id);
+
+  code = mndSetDropXnodeUserPassRedoLogs(pTrans, pObj);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  code = mndSetDropXnodeUserPassCommitLogs(pTrans, pObj);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  code = mndTransPrepare(pMnode, pTrans);
+
+_OVER:
+  mndTransDrop(pTrans);
+  mndReleaseXnodeUserPass(pMnode, pObj);
   TAOS_RETURN(code);
 }
 
