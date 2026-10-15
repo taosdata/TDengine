@@ -35,12 +35,12 @@ IF(NOT TD_DARWIN)
     IF (TD_GRANT)
         TARGET_LINK_LIBRARIES(
                 plannerTest
-                PUBLIC os util common nodes planner parser catalog transport function qcom extconnector grant
+                PUBLIC os util common nodes planner parser catalog transport function qcom scalar executor extconnector grant
         )
     ELSE ()
         TARGET_LINK_LIBRARIES(
                 plannerTest
-                PUBLIC os util common nodes planner parser catalog transport function qcom extconnector
+                PUBLIC os util common nodes planner parser catalog transport function qcom scalar executor extconnector
         )
     ENDIF()
 
