@@ -2578,6 +2578,19 @@ ensure_sqlserver() {
 
     info "SQL Server ${ver}: port=$(sqlserver_port "${ver}"), base=${base}"
 
+    # SQL Server for Linux ships x86-64 binaries only.  On other architectures
+    # the engine can only run under emulation, which needs the x86-64 ELF
+    # interpreter plus a translation layer (rosetta/qemu).  Fail fast without
+    # them instead of burning the probe timeout on an engine that can never
+    # start ("rosetta error: failed to open elf at /lib64/ld-linux-x86-64.so.2").
+    if [[ "$(uname -m)" != "x86_64" ]] \
+       && [[ ! -e /lib64/ld-linux-x86-64.so.2 ]] \
+       && ! command -v qemu-x86_64 >/dev/null 2>&1 \
+       && ! command -v qemu-x86_64-static >/dev/null 2>&1; then
+        err "SQL Server ${ver}: engine cannot run on $(uname -m) without an x86-64 interpreter/emulator; skipping."
+        return 1
+    fi
+
     if [[ ! -x "${base}/server/opt/mssql/bin/sqlservr" ]]; then
         _sqlserver_install "${ver}" "${base}" \
             || { err "SQL Server ${ver}: package install failed"; return 1; }
