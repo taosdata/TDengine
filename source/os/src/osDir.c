@@ -168,26 +168,38 @@ static int32_t taosCopyDirPathWithoutTrailingSep(const char *path, char *name) {
 }
 
 int32_t taosEnsurePrivateDir(const char *path) {
+  const char *stage = NULL;
+  return taosEnsurePrivateDirWithStage(path, &stage);
+}
+
+int32_t taosEnsurePrivateDirWithStage(const char *path, const char **stage) {
+  if (stage == NULL) return terrno = TSDB_CODE_INVALID_PARA;
+  *stage = "validate path";
   char    name[PATH_MAX];
   int32_t code = taosCopyDirPathWithoutTrailingSep(path, name);
   if (code != 0) return code;
 #ifdef WINDOWS
   SPrivateFileSecurity security = {0};
+  *stage = "initialize security descriptor";
   code = taosInitPrivateFileSecurity(&security);
   if (code != 0) return code;
   HANDLE handle = INVALID_HANDLE_VALUE;
+  *stage = "create directory";
   if (!CreateDirectoryA(name, &security.attributes) && GetLastError() != ERROR_ALREADY_EXISTS) {
     code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     goto _exit;
   }
+  *stage = "open directory for security update";
   handle = CreateFileA(name, READ_CONTROL | WRITE_DAC, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
                        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
   if (handle == INVALID_HANDLE_VALUE) {
     code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     goto _exit;
   }
+  *stage = "validate directory type and owner";
   code = taosCheckPrivateFileHandle(handle, true, security.user->User.Sid);
   if (code != 0) goto _exit;
+  *stage = "set protected directory ACL";
   DWORD error = SetSecurityInfo(handle, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
                                 NULL, NULL, security.acl, NULL);
   if (error != ERROR_SUCCESS) code = TAOS_SYSTEM_WINAPI_ERROR(error);
@@ -195,10 +207,13 @@ _exit:
   if (handle != INVALID_HANDLE_VALUE) CloseHandle(handle);
   taosFreePrivateFileSecurity(&security);
 #else
+  *stage = "create directory";
   if (mkdir(name, 0700) != 0 && ERRNO != EEXIST) return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  *stage = "open directory without following links";
   int fd = open(name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
   if (fd < 0) return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   struct stat info = {0};
+  *stage = "validate directory type and owner or set mode";
   if (fstat(fd, &info) != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   } else if (!S_ISDIR(info.st_mode) || info.st_uid != geteuid()) {

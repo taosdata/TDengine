@@ -35,6 +35,16 @@
 char      gDataSinkFilePath[PATH_MAX] = {0};
 const int gFileGroupBlockMaxSize = 64 * 1024;  // 64K
 
+static int32_t ensureDataSinkFileDir() {
+  const char *stage = NULL;
+  int32_t code = taosEnsurePrivateDirWithStage(gDataSinkFilePath, &stage);
+  if (code != 0) {
+    stError("failed to prepare stream data sink directory, path:%s, step:%s, code:0x%08x, reason:%s",
+            gDataSinkFilePath, stage, (unsigned int)code, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t initDataSinkFileDir() {
   int32_t code = 0;
   int     ret = snprintf(gDataSinkFilePath, sizeof(gDataSinkFilePath), "%s/tdengine_stream_data/", tsTempDir);
@@ -43,7 +53,7 @@ int32_t initDataSinkFileDir() {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
-  code = taosEnsurePrivateDir(gDataSinkFilePath);
+  code = ensureDataSinkFileDir();
   if (code != 0) {
     return code;
   }
@@ -54,7 +64,7 @@ int32_t initDataSinkFileDir() {
 int32_t createStreamDataSinkFile(char* fileName, size_t fileNameSize, TdFilePtr* ppFile) {
   if (fileName == NULL || fileNameSize == 0 || ppFile == NULL || *ppFile != NULL) return TSDB_CODE_INVALID_PARA;
   fileName[0] = '\0';
-  int32_t code = taosEnsurePrivateDir(gDataSinkFilePath);
+  int32_t code = ensureDataSinkFileDir();
   if (code != 0) return code;
   char uuid[37] = {0};
   code = taosGetSystemUUIDLimit36(uuid, sizeof(uuid));

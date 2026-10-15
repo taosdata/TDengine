@@ -99,11 +99,16 @@ void    taosRemoveDir(const char *dirname);
 void    taosClearDir(const char *dirname);
 bool    taosDirExist(const char *dirname);
 // Create or reuse a dedicated directory, resetting existing permissions to private.
-// POSIX requires effective-UID ownership and sets mode 0700. Windows requires the
-// process token's user as owner with a private DACL; existing directories may also
-// belong to the token's default owner. Only the final component is checked for links;
+// POSIX requires effective-UID ownership and sets mode 0700. Windows accepts the
+// current user, SYSTEM, Administrators, or an Authz-verified administrator as owner;
+// existing directories may also belong to the token's default owner. The protected
+// DACL grants full control only to the current user, SYSTEM, and Administrators.
+// New Windows directories use Administrators as owner when elevated, otherwise the
+// current user. Only the final component is checked for links;
 // callers are responsible for the parent path.
 int32_t taosEnsurePrivateDir(const char *path);
+// stage points to a static description of the last attempted operation.
+int32_t taosEnsurePrivateDirWithStage(const char *path, const char **stage);
 // Recursively remove a directory created by taosEnsurePrivateDir. The top-level path must be a
 // real directory (not a link) owned by the effective UID; nested links are removed, never followed.
 int32_t taosRemovePrivateDir(const char *path);

@@ -82,8 +82,12 @@ typedef struct TdFile *TdFilePtr;
 
 // Create with TD_FILE_CREATE | TD_FILE_EXCL and TD_FILE_READ and/or TD_FILE_WRITE,
 // or open an existing file with flags == TD_FILE_READ; all other flags are rejected.
-// The target must be a regular file owned by the effective UID (POSIX) or process
-// token's user (Windows). New files use mode 0600 (POSIX) or a private DACL (Windows).
+// The target must be a regular file. POSIX requires effective-UID ownership and
+// creates files with mode 0600. Windows accepts the current user, SYSTEM,
+// Administrators, or an Authz-verified administrator as owner. New Windows files
+// have a protected DACL granting full control only to the current user, SYSTEM,
+// and Administrators, with Administrators as owner when elevated, otherwise the
+// current user. Opening existing files does not reset their DACL.
 // Only the final component is checked for links; callers are responsible for the parent path.
 TdFilePtr taosOpenPrivateFile(const char *path, int32_t flags);
 // Succeed only if path is a unix socket (not a link) owned by the effective UID; always succeeds on Windows.

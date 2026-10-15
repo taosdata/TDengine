@@ -138,16 +138,40 @@ static void expectPrivateAcl(const std::string& name, PSID expectedOwner = nullp
   // Keep the system-allocated descriptor alive through all owner and ACE checks.
   const auto cleanup = std::unique_ptr<void, decltype(&LocalFree)>(descriptor, &LocalFree);
   const auto userSid = reinterpret_cast<TOKEN_USER*>(user.data())->User.Sid;
-  EXPECT_TRUE(EqualSid(owner, expectedOwner != nullptr ? expectedOwner : userSid));
+  BYTE systemSid[SECURITY_MAX_SID_SIZE];
+  BYTE adminsSid[SECURITY_MAX_SID_SIZE];
+  DWORD systemSize = sizeof(systemSid);
+  DWORD adminsSize = sizeof(adminsSid);
+  BOOL isAdmin = FALSE;
+  ASSERT_TRUE(CreateWellKnownSid(WinLocalSystemSid, nullptr, systemSid, &systemSize));
+  ASSERT_TRUE(CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, adminsSid, &adminsSize));
+  ASSERT_TRUE(CheckTokenMembership(nullptr, adminsSid, &isAdmin));
+  EXPECT_TRUE(EqualSid(owner, expectedOwner != nullptr ? expectedOwner : (isAdmin ? adminsSid : userSid)));
   ASSERT_NE(acl, nullptr);
-  EXPECT_EQ(acl->AceCount, 1);
-  void* rawAce = nullptr;
-  ASSERT_TRUE(GetAce(acl, 0, &rawAce));
-  const auto ace = static_cast<ACCESS_ALLOWED_ACE*>(rawAce);
-  EXPECT_EQ(ace->Header.AceType, ACCESS_ALLOWED_ACE_TYPE);
-  EXPECT_EQ(ace->Header.AceFlags, 0);
-  EXPECT_TRUE(EqualSid(&ace->SidStart, userSid));
-  EXPECT_EQ(ace->Mask & FILE_ALL_ACCESS, FILE_ALL_ACCESS);
+  std::vector<PSID> expectedSids = {userSid};
+  if (!EqualSid(userSid, systemSid)) expectedSids.push_back(systemSid);
+  if (!EqualSid(userSid, adminsSid)) expectedSids.push_back(adminsSid);
+  ASSERT_EQ(static_cast<size_t>(acl->AceCount), expectedSids.size());
+  std::vector<bool> matched(expectedSids.size(), false);
+  for (DWORD i = 0; i < acl->AceCount; ++i) {
+    void* rawAce = nullptr;
+    ASSERT_TRUE(GetAce(acl, i, &rawAce));
+    const auto ace = static_cast<ACCESS_ALLOWED_ACE*>(rawAce);
+    ASSERT_EQ(ace->Header.AceType, ACCESS_ALLOWED_ACE_TYPE);
+    EXPECT_EQ(ace->Header.AceFlags, 0);
+    size_t match = expectedSids.size();
+    for (size_t j = 0; j < expectedSids.size(); ++j) {
+      if (EqualSid(&ace->SidStart, expectedSids[j])) {
+        match = j;
+        break;
+      }
+    }
+    ASSERT_LT(match, expectedSids.size()) << "Unexpected SID in private ACL";
+    EXPECT_FALSE(matched[match]) << "Duplicate SID in private ACL";
+    matched[match] = true;
+    EXPECT_EQ(ace->Mask & FILE_ALL_ACCESS, FILE_ALL_ACCESS);
+  }
+  for (bool found : matched) EXPECT_TRUE(found);
   SECURITY_DESCRIPTOR_CONTROL control = 0;
   DWORD                       revision = 0;
   ASSERT_TRUE(GetSecurityDescriptorControl(descriptor, &control, &revision));
@@ -197,6 +221,25 @@ TEST_F(PrivateFileTest, ReusesDirectoryWithDefaultTokenOwner) {
   EXPECT_EQ(std::string(data, sizeof(data)), "data");
 }
 
+TEST_F(PrivateFileTest, ReopensFileWithDefaultTokenOwner) {
+  const auto name = path("default-owner");
+  // An elevated Windows process normally defaults to Administrators as owner.
+  // Older files and directories with that owner must remain usable.
+  HANDLE handle = CreateFileA(name.c_str(), GENERIC_WRITE, 0, nullptr,
+                              CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+  ASSERT_NE(handle, INVALID_HANDLE_VALUE);
+  DWORD written = 0;
+  const BOOL wrote = WriteFile(handle, "data", 4, &written, nullptr);
+  CloseHandle(handle);
+  ASSERT_TRUE(wrote);
+  ASSERT_EQ(written, 4);
+  FileHandle reader(taosOpenPrivateFile(name.c_str(), TD_FILE_READ));
+  ASSERT_NE(reader.get(), nullptr);
+  char data[4] = {0};
+  ASSERT_EQ(taosReadFile(reader.get(), data, sizeof(data)), sizeof(data));
+  EXPECT_EQ(std::string(data, sizeof(data)), "data");
+}
+
 TEST_F(PrivateFileTest, RejectsReparsePointsIncludingTrailingSeparator) {
   const auto target = path("target");
   ASSERT_TRUE(CreateDirectoryA(target.c_str(), nullptr));
@@ -213,7 +256,50 @@ TEST_F(PrivateFileTest, RejectsReparsePointsIncludingTrailingSeparator) {
 }
 
 TEST_F(PrivateFileTest, RejectsForeignOwnerWithoutChangingPermissions) {
-  GTEST_SKIP() << "No isolated foreign-owner Windows fixture is available";
+  struct RestorePrivilege {
+    HANDLE token = nullptr;
+    TOKEN_PRIVILEGES previous = {};
+    ~RestorePrivilege() {
+      if (token != nullptr) {
+        AdjustTokenPrivileges(token, FALSE, &previous, 0, nullptr, nullptr);
+        CloseHandle(token);
+      }
+    }
+  } privilege;
+  ASSERT_TRUE(OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &privilege.token));
+  TOKEN_PRIVILEGES requested = {};
+  requested.PrivilegeCount = 1;
+  ASSERT_TRUE(LookupPrivilegeValueA(nullptr, "SeRestorePrivilege", &requested.Privileges[0].Luid));
+  requested.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+  DWORD previousSize = sizeof(privilege.previous);
+  SetLastError(ERROR_SUCCESS);
+  ASSERT_TRUE(AdjustTokenPrivileges(privilege.token, FALSE, &requested, previousSize,
+                                    &privilege.previous, &previousSize));
+  if (GetLastError() == ERROR_NOT_ALL_ASSIGNED) {
+    GTEST_SKIP() << "Foreign owner fixtures require SeRestorePrivilege";
+  }
+  BYTE foreignSid[SECURITY_MAX_SID_SIZE];
+  DWORD sidSize = sizeof(foreignSid);
+  ASSERT_TRUE(CreateWellKnownSid(WinWorldSid, nullptr, foreignSid, &sidSize));
+  const auto dir = path("foreign-owner");
+  ASSERT_EQ(taosEnsurePrivateDir(dir.c_str()), 0);
+  ASSERT_EQ(SetNamedSecurityInfoA(const_cast<char*>(dir.c_str()), SE_FILE_OBJECT,
+                                  OWNER_SECURITY_INFORMATION, foreignSid, nullptr, nullptr, nullptr), ERROR_SUCCESS);
+  const char *stage = nullptr;
+  EXPECT_NE(taosEnsurePrivateDirWithStage(dir.c_str(), &stage), 0);
+  EXPECT_STREQ(stage, "validate directory type and owner");
+  expectPrivateAcl(dir, foreignSid);
+
+  const auto name = path("foreign-file");
+  {
+    FileHandle file(taosOpenPrivateFile(name.c_str(), TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE));
+    ASSERT_NE(file.get(), nullptr);
+  }
+  ASSERT_EQ(SetNamedSecurityInfoA(const_cast<char*>(name.c_str()), SE_FILE_OBJECT,
+                                  OWNER_SECURITY_INFORMATION, foreignSid, nullptr, nullptr, nullptr), ERROR_SUCCESS);
+  FileHandle reader(taosOpenPrivateFile(name.c_str(), TD_FILE_READ));
+  EXPECT_EQ(reader.get(), nullptr);
+  expectPrivateAcl(name, foreignSid);
 }
 #else
 TEST_F(PrivateFileTest, DirectoryAndFileModes) {
