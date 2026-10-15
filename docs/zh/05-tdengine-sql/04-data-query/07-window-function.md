@@ -122,6 +122,16 @@ ORDER BY ts;
 
 这些函数都不要求指定 `ORDER BY`：未指定时窗口覆盖整个分区；指定 `ORDER BY` 但未指定帧时，默认覆盖从分区起点到当前行（含 peer rows）。
 
+### 累积类窗口函数
+
+累积类函数依赖排序结果，**必须** 指定 `ORDER BY`。每个 `PARTITION BY` 分区分别从第一行开始累积。
+
+| 函数 | 说明 |
+| --- | --- |
+| `CSUM(expr)` | 按窗口排序，在分区内从第一行到当前行计算累加和 |
+
+`CSUM` 仅支持 `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` 帧；省略帧时自动使用该帧。更多说明见 [CSUM](./03-function.md#csum)。
+
 ### 序号类窗口函数
 
 序号类函数依赖排序结果，**必须** 指定 `ORDER BY`，且忽略窗口帧。
