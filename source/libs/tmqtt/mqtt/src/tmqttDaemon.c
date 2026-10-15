@@ -687,10 +687,10 @@ static void mqttdRun() {
 
 int32_t mqttdCreateMqttSourceDir() {
   snprintf(global.mqttDataDir, PATH_MAX, "%s/.mqttd", tsDataDir);
-  int32_t code = taosMkDir(global.mqttDataDir);
+  int32_t code = taosEnsurePrivateDir(global.mqttDataDir);
   if (code != TSDB_CODE_SUCCESS) {
     snprintf(global.mqttDataDir, PATH_MAX, "%s/.mqttd", tsTempDir);
-    code = taosMkDir(global.mqttDataDir);
+    code = taosEnsurePrivateDir(global.mqttDataDir);
   }
   bndInfo("mqttd create mqtt source directory %s. result: %s", global.mqttDataDir, tstrerror(code));
 
@@ -699,7 +699,10 @@ int32_t mqttdCreateMqttSourceDir() {
 
 void mqttdDestroyMqttSourceDir() {
   bndInfo("destroy mqtt source directory %s", global.mqttDataDir);
-  taosRemoveDir(global.mqttDataDir);
+  int32_t code = taosRemovePrivateDir(global.mqttDataDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    bndWarn("mqttd failed to remove mqtt source directory %s since %s", global.mqttDataDir, tstrerror(code));
+  }
 }
 
 extern int ttq_main(int argc, char *argv[]);

@@ -1352,27 +1352,39 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
     return terrno;
   }
 
+  int32_t code = taosEnsurePrivateDir(global.udfDataDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    fnError("udfd udf source directory %s is not private since %s", global.udfDataDir, tstrerror(code));
+    return code;
+  }
+
   char path[PATH_MAX] = {0};
   udfdGetFuncBodyPath(udf, path);
-  bool fileExist = !(taosStatFile(path, NULL, NULL, NULL) < 0);
-  if (fileExist) {
+  TdFilePtr existing = taosOpenPrivateFile(path, TD_FILE_READ);
+  if (existing != NULL) {
+    (void)taosCloseFile(&existing);
     tstrncpy(udf->path, path, PATH_MAX);
     fnInfo("udfd func body file. reuse existing file %s", path);
     return TSDB_CODE_SUCCESS;
   }
 
-  TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  char tmpPath[PATH_MAX] = {0};
+  taosGetTmpfilePath(global.udfDataDir, "udf-body", tmpPath);
+  TdFilePtr file = taosOpenPrivateFile(tmpPath, TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
   if (file == NULL) {
-    fnError("udfd write udf shared library: %s failed, error: %d %s", path, ERRNO, strerror(ERRNO));
+    fnError("udfd write udf shared library: %s failed since %s", tmpPath, terrstr());
     return TSDB_CODE_FILE_CORRUPTED;
   }
   int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
-  if (count != pFuncInfo->codeSize) {
-    fnError("udfd write udf shared library failed");
+  int32_t closeCode = taosCloseFile(&file);
+  if (count != pFuncInfo->codeSize || closeCode != 0) {
+    fnError("udfd write udf shared library %s failed", tmpPath);
+    (void)taosRemoveFile(tmpPath);
     return TSDB_CODE_FILE_CORRUPTED;
   }
-  if(taosCloseFile(&file) != 0) {
-    fnError("udfdSaveFuncBodyToFile, udfd close file failed");
+  if (taosRenameFile(tmpPath, path) != 0) {
+    fnError("udfd rename udf shared library %s to %s failed since %s", tmpPath, path, terrstr());
+    (void)taosRemoveFile(tmpPath);
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
@@ -1921,6 +1933,16 @@ static int32_t udfdUvInit() {
     removeListeningPipe();
     return -2;
   }
+#ifndef WINDOWS
+  uv_fs_t chmodReq;
+  r = uv_fs_chmod(global.loop, &chmodReq, global.listenPipeName, 0600, NULL);
+  uv_fs_req_cleanup(&chmodReq);
+  if (r != 0) {
+    fnError("chmod pipe %s error %s", global.listenPipeName, uv_err_name(r));
+    removeListeningPipe();
+    return -2;
+  }
+#endif
   if ((r = uv_listen((uv_stream_t *)&global.listeningPipe, 128, udfdOnNewConnection))) {
     fnError("Listen error %s", uv_err_name(r));
     removeListeningPipe();
@@ -2034,10 +2056,11 @@ void udfdDeinitResidentFuncs() {
 
 int32_t udfdCreateUdfSourceDir() {
   snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsDataDir);
-  int32_t code = taosMkDir(global.udfDataDir);
+  int32_t code = taosEnsurePrivateDir(global.udfDataDir);
   if (code != TSDB_CODE_SUCCESS) {
+    fnWarn("udfd cannot use udf source directory %s since %s", global.udfDataDir, tstrerror(code));
     snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsTempDir);
-    code = taosMkDir(global.udfDataDir);
+    code = taosEnsurePrivateDir(global.udfDataDir);
   }
   fnInfo("udfd create udf source directory %s. result: %s", global.udfDataDir, tstrerror(code));
 
@@ -2046,7 +2069,10 @@ int32_t udfdCreateUdfSourceDir() {
 
 void udfdDestroyUdfSourceDir() {
   fnInfo("destroy udf source directory %s", global.udfDataDir);
-  taosRemoveDir(global.udfDataDir);
+  int32_t code = taosRemovePrivateDir(global.udfDataDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    fnWarn("udfd failed to remove udf source directory %s since %s", global.udfDataDir, tstrerror(code));
+  }
 }
 
 int main(int argc, char *argv[]) {

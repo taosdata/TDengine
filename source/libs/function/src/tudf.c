@@ -107,42 +107,8 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   char               **envUdfdWithPEnv = NULL;
 
   char path[PATH_MAX] = {0};
-  if (tsProcPath != NULL && tsProcPath[0] != '\0') {
-    TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
-    TAOS_DIRNAME(path);
-#ifdef WINDOWS
-    // If tsProcPath is a bare filename (e.g. "taosd") without directory,
-    // TAOS_DIRNAME yields empty string.  Fall back to GetModuleFileName.
-    if (strlen(path) == 0) {
-      GetModuleFileName(NULL, path, PATH_MAX);
-      TAOS_DIRNAME(path);
-    }
-#endif
-  }
-
-  // argv[0] may be only a basename when launched via wrappers (e.g. screen),
-  // which makes dirname("taosd") empty and incorrectly falls back to /usr/bin.
-  // Use executable path probing as a second chance before default fallback.
-  if (strlen(path) == 0) {
-    path[0] = '\0';
-    if (taosAppPath(path, PATH_MAX) != 0) {
-      path[0] = '\0';
-    }
-  }
-
-#ifdef WINDOWS
-  if (strlen(path) == 0) {
-    TAOS_STRCAT(path, "C:\\TDengine");
-  }
-  TAOS_STRCAT(path, "\\" CUS_PROMPT "udf.exe");
-#else
-  if (strlen(path) == 0) {
-    TAOS_STRCAT(path, "/usr/bin");
-  }
-  TAOS_STRCAT(path, "/" CUS_PROMPT "udf");
-#endif
-  if (taosStatFile(path, NULL, NULL, NULL) != 0) {
-    fnError("udfd binary does not exist: %s", path);
+  if (taosLocateCompanionExec(CUS_PROMPT "udf", path, sizeof(path)) != 0) {
+    fnError("udfd binary %s does not exist in taosd directory or install directories", CUS_PROMPT "udf");
     err = TSDB_CODE_UDF_UV_EXEC_FAILURE;
     goto _OVER;
   }
@@ -1982,6 +1948,11 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
 
   switch (uvTask->type) {
     case UV_TASK_CONNECT: {
+      int32_t sockCode = taosCheckPrivateSocket(uvTask->udfc->udfdPipeName);
+      if (sockCode != 0) {
+        fnError("udfc refuse to connect udfd pipe %s since %s", uvTask->udfc->udfdPipeName, tstrerror(sockCode));
+        return TSDB_CODE_UDF_PIPE_CONNECT_ERR;
+      }
       uv_pipe_t *pipe = taosMemoryMalloc(sizeof(uv_pipe_t));
       if (pipe == NULL) {
         fnError("udfc event loop start connect task malloc pipe failed.");

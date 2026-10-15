@@ -45,13 +45,7 @@ SMqttdData mqttdGlobal = {0};
 
 extern char **environ;
 
-#ifdef WINDOWS
-#define TAOSMQTT_DEFAULT_PATH "C:\\TDengine"
-#define TAOSMQTT_DEFAULT_EXEC "\\taosmqtt.exe"
-#else
-#define TAOSMQTT_DEFAULT_PATH "/usr/bin"
-#define TAOSMQTT_DEFAULT_EXEC "/taosmqtt"
-#endif
+#define TAOSMQTT_DEFAULT_EXEC_NAME "taosmqtt"
 
 static void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal);
 
@@ -63,28 +57,10 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   uv_process_options_t options = {0};
 
   char path[PATH_MAX] = {0};
-#ifdef WINDOWS
-  if (taosAppPath(path, PATH_MAX) != 0) {
-    path[0] = '\0';
+  if (taosLocateCompanionExec(TAOSMQTT_DEFAULT_EXEC_NAME, path, sizeof(path)) != 0) {
+    bndError("cannot find %s in taosd directory or install directories", TAOSMQTT_DEFAULT_EXEC_NAME);
+    return TSDB_CODE_BNODE_UV_EXEC_FAILURE;
   }
-#else
-  if (tsProcPath == NULL) {
-    path[0] = '.';
-#if defined(_TD_DARWIN_64)
-    uint32_t pathSize = sizeof(path);
-    _NSGetExecutablePath(path, &pathSize);
-#endif
-  } else {
-    TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
-  }
-
-  TAOS_DIRNAME(path);
-#endif
-
-  if (strlen(path) == 0) {
-    TAOS_STRCAT(path, TAOSMQTT_DEFAULT_PATH);
-  }
-  TAOS_STRCAT(path, TAOSMQTT_DEFAULT_EXEC);
 
   char dnodeId[8] = "1";
   snprintf(dnodeId, sizeof(dnodeId), "%d", pData->dnodeId);

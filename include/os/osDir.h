@@ -104,6 +104,9 @@ bool    taosDirExist(const char *dirname);
 // belong to the token's default owner. Only the final component is checked for links;
 // callers are responsible for the parent path.
 int32_t taosEnsurePrivateDir(const char *path);
+// Recursively remove a directory created by taosEnsurePrivateDir. The top-level path must be a
+// real directory (not a link) owned by the effective UID; nested links are removed, never followed.
+int32_t taosRemovePrivateDir(const char *path);
 int32_t taosMkDir(const char *dirname);
 int32_t taosMulMkDir(const char *dirname);
 int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess);
@@ -143,6 +146,10 @@ bool           taosDirExistW(const char *dirname);
 #endif
 
 int32_t taosAppPath(char *path, int32_t maxLen);
+// Resolve a daemon shipped next to taosd (name without extension; ".exe" is appended on Windows).
+// Only the running executable's directory and fixed install directories are searched, never the
+// working directory or PATH. The match must be a regular file; directories and links are skipped.
+int32_t taosLocateCompanionExec(const char *name, char *path, int32_t size);
 int32_t taosGetDirSize(const char *path, int64_t *size);
 
 #if defined(TAOS_OS_WIDE_PATH) && defined(WINDOWS)
