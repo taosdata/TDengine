@@ -500,6 +500,22 @@ void appendStreamGroupCalc(SStreamRuntimeFuncInfo *runtime, int64_t gid) {
   EXPECT_EQ(tSimpleHashPut(runtime->pGroupCalcInfos, &gid, sizeof(gid), &calc, sizeof(calc)), TSDB_CODE_SUCCESS);
 }
 
+TEST(execUtilTest, destroySubJobCtxNullPreservesAllocationError) {
+  int32_t savedError = terrno;
+  for (int32_t errorCode : {TSDB_CODE_OUT_OF_MEMORY, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED}) {
+    terrno = errorCode;
+    destroySubJobCtx(nullptr);
+    EXPECT_EQ(terrno, errorCode);
+  }
+  terrno = savedError;
+}
+
+TEST(execUtilTest, destroySubJobCtxReleasesEmptyContext) {
+  auto *context = static_cast<STaskSubJobCtx *>(taosMemoryCalloc(1, sizeof(STaskSubJobCtx)));
+  ASSERT_NE(context, nullptr);
+  destroySubJobCtx(context);
+}
+
 SStreamAncestorContext *makeFetchProjectionContext(int64_t gid, int32_t paramIndex) {
   auto *context = static_cast<SStreamAncestorContext *>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
   EXPECT_NE(context, nullptr);
