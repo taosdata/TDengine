@@ -1025,6 +1025,25 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int64_t *mtime) {
   return 0;
 }
 
+#ifndef WINDOWS
+int32_t taosFchmodFile(TdFilePtr pFile, int32_t mode) {
+  if (pFile == NULL || pFile->fd < 0 || (mode & ~07777) != 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  struct stat info = {0};
+  if (fstat(pFile->fd, &info) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  if ((info.st_mode & 07777) != mode && fchmod(pFile->fd, mode) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  return 0;
+}
+#endif
+
 int32_t taosLockFile(TdFilePtr pFile) {
   if (NULL == pFile || pFile->fd < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
@@ -1898,7 +1917,8 @@ bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
 
 bool taosCheckExistFile(const char *pathname) { return taosCheckAccessFile(pathname, TD_FILE_ACCESS_EXIST_OK); };
 
-int32_t taosCompressFile(TdFilePtr pSrcFile, char *destFileName) {
+static int32_t taosCompressFileImpl(TdFilePtr pSrcFile, char *destFileName,
+                                  int32_t mode) {
   OS_PARAM_CHECK(pSrcFile);
   OS_PARAM_CHECK(destFileName);
   int32_t compressSize = 163840;
@@ -1917,11 +1937,11 @@ int32_t taosCompressFile(TdFilePtr pSrcFile, char *destFileName) {
 #else
   // The destination normally sits next to the source in a directory that other users may be able to write to,
   // so an entry planted at this name must not make us truncate whatever it points to. O_EXCL refuses to reuse
-  // an existing entry and O_NOFOLLOW refuses to follow a symbolic link; the mode keeps the archive out of
-  // reach of other users. pmode is only applied when the entry is created, since neither flag lets an
-  // existing file through.
+  // an existing entry and O_NOFOLLOW refuses to follow a symbolic link.
+  // Without an explicit mode, archives retain the owner-only creation default.
   access |= O_EXCL | O_NOFOLLOW;
   int32_t pmode = S_IRUSR | S_IWUSR;
+  if (mode >= 0) pmode = mode;
 #endif
   fd = open(destFileName, access, pmode);
 #ifndef WINDOWS
@@ -1939,6 +1959,13 @@ int32_t taosCompressFile(TdFilePtr pSrcFile, char *destFileName) {
     ret = terrno;
     goto cmp_end;
   }
+#ifndef WINDOWS
+  if (mode >= 0 && fchmod(fd, mode) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    ret = terrno;
+    goto cmp_end;
+  }
+#endif
 
   // Both gzclose() and close() will close the associated fd, so they need to have different fds.
   FileFd gzFd = dup(fd);
@@ -1980,6 +2007,21 @@ cmp_end:
   taosMemoryFree(data);
   return ret;
 }
+
+int32_t taosCompressFile(TdFilePtr pSrcFile, char *destFileName) {
+  return taosCompressFileImpl(pSrcFile, destFileName, -1);
+}
+
+#ifndef WINDOWS
+int32_t taosCompressFileWithMode(TdFilePtr pSrcFile, char *destFileName,
+                               int32_t mode) {
+  if ((mode & ~07777) != 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  return taosCompressFileImpl(pSrcFile, destFileName, mode);
+}
+#endif
 
 int32_t taosSetFileHandlesLimit() {
 #ifdef WINDOWS
