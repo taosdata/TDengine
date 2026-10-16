@@ -567,7 +567,9 @@ class TestVtableSeriesExtSource:
         Since: v3.4.2.0
 
         """
-        self._ensure_evolve_baseline_vtable()    # original source caches {device}
+        # Create both baselines before InfluxDB adds the zone tag.
+        self._ensure_evolve_baseline_vtable()
+        self._ensure_evolve_baseline_vstb()
         self._grow_evolve_tags_once()            # InfluxDB tags -> {device, zone}
         self._ensure_growth_source()             # fresh source sees current tags
         tdSql.execute("DROP VTABLE IF EXISTS v_f1")
@@ -575,9 +577,6 @@ class TestVtableSeriesExtSource:
             "CREATE VTABLE v_f1 (ts timestamp, value double FROM s1.value) "
             f"SERIES s1 AS {_INF_SRC_GROWTH}.{_INF_DB}.m_evolve (device='d1')")
 
-        self._ensure_evolve_baseline_vtable()   # original source caches {device}
-        self._grow_evolve_tags_once()
-        self._ensure_growth_source()
         tdSql.execute("DROP VTABLE IF EXISTS v_f2")
         tdSql.execute(
             "CREATE VTABLE v_f2 (ts timestamp, value double FROM s1.value) "
@@ -591,14 +590,10 @@ class TestVtableSeriesExtSource:
         _check_count("SELECT count(*) FROM v_f2", 1)
         tdSql.execute("DROP VTABLE v_f2")
 
-        self._ensure_evolve_baseline_vtable()
-        self._grow_evolve_tags_once()
         tdSql.query("SELECT count(*) FROM v_f_base")
         tdSql.checkData(0, 0, 2)
         tdSql.execute("DROP VTABLE IF EXISTS v_f_base")
 
-        self._ensure_evolve_baseline_vstb()
-        self._grow_evolve_tags_once()
         tdSql.query("SELECT count(*) FROM vc_f_base")
         tdSql.checkData(0, 0, 2)
         tdSql.query("SELECT count(*) FROM stb_f_base")
