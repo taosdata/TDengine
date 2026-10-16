@@ -666,7 +666,7 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
 注：以下 abstract 类型接口会被具体实现类实现，因此建立连接后得到连接对象可以直接调用。仅 WebSocket 连接支持，原生连接和 REST 连接调用会抛出 `SQLFeatureNotSupportedException` 异常。
 
 - `abstract void setTimezone(String timezone) throws SQLException`
-  - **接口说明**：在运行时设置当前连接的时区。新时区从下一次执行的 SQL 开始生效，已经打开的结果集不受影响；`PreparedStatement` 绑定参数中的时间戳按绑定（bind）时刻的时区进行转换。`setTimezone` 应在 `PreparedStatement` 开始绑定参数之前调用，绑定过程中修改时区属于使用错误，驱动不保证已绑定数据的时区解释。
+  - **接口说明**：在运行时设置当前连接的时区。新时区从下一次执行的 SQL 开始生效，已经打开的结果集不受影响；`PreparedStatement` 中的 `LocalDateTime` 参数按绑定（bind）时刻的时区进行转换，`java.sql.Timestamp` 参数保留自身表示的绝对时刻。`setTimezone` 应在 `PreparedStatement` 开始绑定参数之前调用，绑定过程中修改时区属于使用错误，驱动不保证已绑定数据的时区解释。
   - **参数说明**：
     - `timezone`：IANA 时区名，例如 `Asia/Shanghai`；传入 `null` 或空串表示清除时区设置，回退到 JVM 默认时区。
   - **异常**：时区名非法或设置失败抛出 `SQLException` 异常。
@@ -891,6 +891,27 @@ JDBC 驱动支持标准的 ResultSet 接口，以及对应的结果集元数据 
 #### 结果集
 
 JDBC 驱动支持标准的 ResultSet 接口，提供了用于读取结果集中元数据和数据的方法。
+
+:::note WebSocket 时间戳与时区
+
+对于 WebSocket 查询和 TMQ 消费结果中的 `TIMESTAMP` 列，绝对时间值与字符串显示使用不同的时区规则：
+
+- `getTimestamp()` 和不指定返回类型的 `getObject()` 返回的 `java.sql.Timestamp` 保留数据库中存储的绝对时刻，连接或消费时区不会改变其 `getTime()` 或 `toInstant()` 的值。
+- `getString()` 和 `getNString()` 按连接或消费时区格式化时间戳；未配置时区时，使用 JVM 默认时区。上述规则适用于按列编号和列名读取。
+- WebSocket 查询的 `getObject(..., String.class)` 与 `getString()` 使用相同的格式化规则。
+- `java.sql.Timestamp` 本身不保存时区，其 `toString()` 使用 JVM 默认时区。因此，`rs.getString("ts")` 与 `rs.getTimestamp("ts").toString()` 的结果可能不同。
+
+例如，数据库中存储的时刻为 `2024-01-01T00:00:00Z`，JVM 默认时区为 `UTC`，连接或消费时区为 `Asia/Tokyo` 时：
+
+| 调用 | 返回值 |
+| --- | --- |
+| `rs.getTimestamp("ts").getTime()` | `1704067200000` |
+| `rs.getTimestamp("ts").toString()` | `2024-01-01 00:00:00.0` |
+| `rs.getString("ts")` | `2024-01-01 09:00:00.0` |
+
+当 `getTimestamp()` 将 `VARCHAR` 或 `NCHAR` 列中的无时区日期时间字符串转换为时间戳时，WebSocket 查询和 TMQ 消费均按配置的连接或消费时区解析；未配置时区时，使用 JVM 默认时区。该解析规则不改变 `TIMESTAMP` 列返回的绝对时间值。
+
+:::
 
 - `ResultSetMetaData getMetaData() throws SQLException`
   - **接口说明**：获取此 ResultSet 对象的列的数量、类型和属性。
