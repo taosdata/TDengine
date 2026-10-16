@@ -518,7 +518,13 @@ TEST(clientCase, tmq_close_retries_creator_ref_removal_after_failure) {
   EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
 }
 
-TEST(clientCase, sessControl) { testSessionCtrl(); }
+TEST(clientCase, sessControl) {
+#ifdef TD_ENTERPRISE
+  testSessionCtrl();
+#else
+  GTEST_SKIP() << "Session limits and GRANT privileges require TDengine Enterprise edition";
+#endif
+}
 
 TEST(clientMetaRefresh, refreshScopeByError) {
   EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_SUCCESS), CLIENT_META_REFRESH_NONE);
@@ -705,6 +711,15 @@ TEST(clientCase, connect_totp_Test) {
     (void)printf("failed to create totp secret, reason:%s\n", taos_errstr(NULL));
   }
   ASSERT_NE(pRes, nullptr);
+#ifndef TD_ENTERPRISE
+  EXPECT_EQ(taos_errno(pRes), TSDB_CODE_OSS_NOT_SUPPORT);
+  taos_free_result(pRes);
+  pRes = taos_query(pConn, "drop user totp_u");
+  EXPECT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+  taos_close(pConn);
+  return;
+#endif
   ASSERT_EQ(taos_errno(pRes), 0);
 
   char secretStr[64] = {0};
@@ -762,6 +777,12 @@ TEST(clientCase, connect_token_Test) {
     (void)printf("failed to create token, reason:%s\n", taos_errstr(NULL));
   }
   ASSERT_NE(pRes, nullptr);
+#ifndef TD_ENTERPRISE
+  EXPECT_EQ(taos_errno(pRes), TSDB_CODE_OSS_NOT_SUPPORT);
+  taos_free_result(pRes);
+  taos_close(pConn);
+  return;
+#endif
   ASSERT_EQ(taos_errno(pRes), 0);
 
   TAOS_ROW row = taos_fetch_row(pRes);

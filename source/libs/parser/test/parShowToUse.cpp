@@ -302,6 +302,9 @@ TEST_F(ParserShowToUseTest, showXnodeBlobLikePatternSupportsBlobLimits) {
 TEST_F(ParserShowToUseTest, splitVgroup) {
   useDb("root", "test");
 
+#ifndef TD_ENTERPRISE
+  run("SPLIT VGROUP 15", TSDB_CODE_OSS_NOT_SUPPORT);
+#else
   SSplitVgroupReq expect = {0};
 
   auto setSplitVgroupReqFunc = [&](int32_t vgId) { expect.vgId = vgId; };
@@ -316,6 +319,7 @@ TEST_F(ParserShowToUseTest, splitVgroup) {
 
   setSplitVgroupReqFunc(15);
   run("SPLIT VGROUP 15");
+#endif
 }
 
 TEST_F(ParserShowToUseTest, trimDatabase) {

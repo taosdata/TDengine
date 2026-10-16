@@ -426,6 +426,9 @@ TEST_F(ParserSelectDdlTest, nonCorrelatedAggregateKeepsRemoteValue) {
 }
 
 TEST_F(ParserSelectDdlTest, externalColumnFilterValidation) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
   FederatedFlagGuard guard;
   login("root");
   g_mockCatalogService->createDatabase("vfilter", false, 0, TSDB_TIME_PRECISION_MICRO);
@@ -547,6 +550,7 @@ TEST_F(ParserSelectDdlTest, externalColumnFilterValidation) {
   runAsyncOnly("create vtable v_filter_two_ts (ts timestamp, value double from "
                "ext_filter_two_ts.fake_db.metrics.value)",
                TSDB_CODE_EXT_NO_TS_PRIMARY_KEY);
+#endif
 }
 
 namespace {
