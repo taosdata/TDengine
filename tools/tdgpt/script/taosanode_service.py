@@ -1490,6 +1490,9 @@ class TaosanodeService:
                     )
             else:
                 # Linux: daemon mode handled by gunicorn
+                # Gunicorn owns the daemon PID file. Clear stale state before
+                # launch and never overwrite it with the short-lived launcher PID.
+                self.process_mgr.remove_pid("taosanode")
                 proc = subprocess.Popen(
                     cmd,
                     env=env,
@@ -1499,8 +1502,15 @@ class TaosanodeService:
                     start_new_session=True,
                 )
 
-            # Write PID immediately so is_running() can find the process
-            self.process_mgr.write_pid(proc.pid, "taosanode")
+            if IS_WINDOWS:
+                self.process_mgr.write_pid(proc.pid, "taosanode")
+            else:
+                # The launcher may exit successfully before the daemon writes
+                # its PID; the polling below then waits for the actual master.
+                exit_code = proc.wait(timeout=self.config.timeouts["service_startup"])
+                if exit_code != 0:
+                    self.logger.error(f"Gunicorn launcher exited with code {exit_code}")
+                    return False
 
             # Wait for service to start using polling (process existence check)
             if self.process_mgr.wait_for_service(
