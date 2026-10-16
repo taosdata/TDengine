@@ -906,11 +906,13 @@ For more information on JOIN operations, see the page [TDengine Join Queries](./
 
 Starting with `v3.4.3.0`, ordinary JOINs do not require a primary timestamp column in the join condition, and the optimizer selects an applicable algorithm based on the condition and input order. This broader JOIN support does not remove the timeline requirements of subsequent timeline functions or window operators. See [Primary Key Timeline for JOIN](./05-join.md#primary-key-timeline).
 
-TDengine timeline functions (such as `diff`, `derivative`, `twa`, and `elapsed`) and window operators (such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`) require a valid timeline to run.
+Functions that need a time value or a time difference (such as `DERIVATIVE`, `TWA`, and `ELAPSED`) and window operators (such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`) require a valid timeline. Functions that depend only on row order can run in no-timeline mode, as described below.
 
 When you query a physical or virtual table directly, the system time column (the primary key `ts` / `_rowts`, and derived window pseudocolumns such as `_wstart`) is used automatically as the effective timeline. No extra action is required.
 
-When the outer query reads from a subquery and the subquery result has no system time column, or that column is unordered, TDengine automatically selects the first `TIMESTAMP` column in the output as a **degraded timeline**. If there is no `TIMESTAMP` column at all, only `first`, `last`, and `last_row` can return results by input-row order; other timeline functions and window operators report an error.
+When the outer query reads from a subquery and the subquery result has no system time column, or that column is unordered, TDengine automatically selects the first `TIMESTAMP` column in the output as a **degraded timeline**.
+
+If the input contains no `TIMESTAMP` column, the query enters no-timeline mode. `FIRST`, `LAST`, `LAST_ROW`, `DIFF`, `CSUM`, `MAVG`, `STATECOUNT`, `LAG`, `LEAD`, `FILL_FORWARD`, and `UNIQUE` run in input-row order. Functions and window operators that need a time value, a time difference, time weighting, or a window boundary still report an error, including `DERIVATIVE`, `TWA`, `ELAPSED`, `STATEDURATION`, `INTERP`, and `INTERVAL`. Use an explicit `ORDER BY` in the subquery when the row order must be stable. See [Sequential Analysis Functions](./03-function.md#sequential-analysis-functions) for each function, and [UNIQUE](./03-function.md#unique) for `UNIQUE`.
 
 ```sql
 -- Subquery does not output the system time column ts; event_time becomes the degraded timeline
@@ -922,7 +924,18 @@ FROM (
 );
 ```
 
-**Note:** You are responsible for the quality of a degraded timeline. If it is out of order, results from time-difference–dependent functions (`derivative`, `twa`, `elapsed`, `stateduration`, `interp`) may have no physical meaning. Use `ORDER BY` in the subquery to keep the degraded timeline ordered.
+```sql
+-- With no TIMESTAMP column in the result, adjacent differences follow the subquery ORDER BY
+SELECT DIFF(avg_v)
+FROM (
+  SELECT groupId, AVG(voltage) AS avg_v
+  FROM meters
+  GROUP BY groupId
+  ORDER BY groupId
+);
+```
+
+**Note:** You are responsible for the quality of a degraded timeline. If it is out of order, results from time-difference-dependent functions (`DERIVATIVE`, `TWA`, `ELAPSED`, `STATEDURATION`, `INTERP`) may have no physical meaning. Use `ORDER BY` in the subquery to keep the degraded timeline ordered. In no-timeline mode, the input row order is not stable across executions unless the subquery specifies `ORDER BY`.
 
 ## Nested Queries
 
@@ -976,7 +989,7 @@ FROM readings r;
 
 The inner query must return one column. Zero rows produce a typed `NULL`; one row produces its value; multiple rows cause an error. Use `LIMIT 1` when the result must contain at most one row. A correlated reference can target the immediate outer query block or another ancestor query block.
 
-Correlated scalar subqueries are supported in queries and in the query part of `INSERT INTO ... SELECT`. Non-correlated subqueries in the same statement retain their independent execution and result reuse. Correlated `IN`, `EXISTS`, `ANY`, `ALL`, row subqueries, and references to outer columns from derived tables in `FROM` are not supported. This does not restrict existing non-correlated subqueries. Stream processing, subscriptions, DDL, and other DML statements do not support correlated scalar subqueries.
+Correlated scalar subqueries are supported in queries and in the query part of `INSERT INTO ... SELECT`. Non-correlated subqueries in the same statement retain their independent execution and result reuse. Correlated `IN`, `EXISTS`, `ANY`, `ALL`, row subqueries, and references to outer columns from derived tables in `FROM` are not supported. This does not restrict existing non-correlated subqueries. Stream processing, subscriptions, DDL, and other DML statements do not support correlated scalar subqueries. `queryPolicy` `4` (client-side aggregation) does not support them either; the query fails with `Client query policy does not support correlated scalar subqueries`. `queryPolicy` `1`, `2`, and `3` are supported.
 
 ## Subquery expression
 

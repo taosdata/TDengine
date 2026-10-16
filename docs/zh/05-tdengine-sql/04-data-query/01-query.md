@@ -907,11 +907,13 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 自 `v3.4.3.0` 起，普通 JOIN 不强制要求主键时间戳列作为连接条件，优化器会根据条件与输入顺序自动选择适用算法。这个放宽仅涉及 JOIN 的执行，不取消后续时间线函数和窗口算子的时间线要求，详见 [JOIN 的主键时间线](./05-join.md#主键时间线)。
 
-TDengine 的时间线函数（如 `diff`、`derivative`、`twa`、`elapsed` 等）和窗口算子（如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）需要一条有效时间线才能执行。
+依赖时间值或时间差的函数（如 `DERIVATIVE`、`TWA`、`ELAPSED`）和窗口算子（如 `INTERVAL`、`SESSION`、`STATE_WINDOW`）需要一条有效时间线才能执行。只依赖行序的函数可以在无时间列模式下计算，见下文。
 
 直接查询物理表或虚拟表时，系统时间列（主键列 `ts`/`_rowts`，以及窗口伪列 `_wstart` 等派生列）自动作为有效时间线，用户无需额外操作。
 
-当外层查询的输入来自子查询，且子查询结果中不存在系统时间列、或系统时间列不有序时，系统会自动选择输出列中第一个 `TIMESTAMP` 类型列作为退化时间线。如果不存在任何 `TIMESTAMP` 列，仅 `first`、`last`、`last_row` 可按输入行顺序返回结果，其他时间线函数和窗口算子报错。
+当外层查询的输入来自子查询，且子查询结果中不存在系统时间列、或系统时间列不有序时，系统会自动选择输出列中第一个 `TIMESTAMP` 类型列作为退化时间线。
+
+如果不存在任何 `TIMESTAMP` 列，查询进入无时间列模式。`FIRST`、`LAST`、`LAST_ROW`、`DIFF`、`CSUM`、`MAVG`、`STATECOUNT`、`LAG`、`LEAD`、`FILL_FORWARD` 和 `UNIQUE` 按输入行顺序计算。需要时间值、时间差、时间加权或窗口边界的函数和窗口算子仍然报错，例如 `DERIVATIVE`、`TWA`、`ELAPSED`、`STATEDURATION`、`INTERP` 和 `INTERVAL`。需要稳定行序时，在子查询中显式使用 `ORDER BY`。各函数的具体行为见 [序列分析函数](./03-function.md#序列分析函数)，`UNIQUE` 见 [UNIQUE](./03-function.md#unique)。
 
 ```sql
 -- 子查询未输出系统时间列 ts，event_time 成为退化时间线
@@ -923,7 +925,18 @@ FROM (
 );
 ```
 
-**注意**：退化时间线的数据质量由用户负责。如果退化时间线乱序，依赖时间差的函数（`derivative`、`twa`、`elapsed`、`stateduration`、`interp`）结果可能无物理意义。用户应在子查询中通过 `ORDER BY` 保证退化时间线有序。
+```sql
+-- 结果中没有 TIMESTAMP 列时，按子查询的 ORDER BY 计算相邻差值
+SELECT DIFF(avg_v)
+FROM (
+  SELECT groupId, AVG(voltage) AS avg_v
+  FROM meters
+  GROUP BY groupId
+  ORDER BY groupId
+);
+```
+
+**注意**：退化时间线的数据质量由用户负责。如果退化时间线乱序，依赖时间差的函数（`DERIVATIVE`、`TWA`、`ELAPSED`、`STATEDURATION`、`INTERP`）结果可能无物理意义。用户应在子查询中通过 `ORDER BY` 保证退化时间线有序。无时间列模式下，不写 `ORDER BY` 时输入行顺序不保证每次相同。
 
 ## 子查询
 
@@ -979,7 +992,7 @@ FROM readings r;
 
 内层查询必须只返回一列。返回零行时，表达式结果为该列类型的 `NULL`；返回一行时，使用该行的值；返回多行时报错。`LIMIT 1` 可以明确限制结果基数。相关引用可以来自当前外层查询块或更外层的祖先查询块，内层每次执行都使用对应调用位置的值。
 
-相关标量子查询可用于普通查询和 `INSERT INTO ... SELECT` 的查询部分。查询中的非相关子查询仍按原有方式独立计算和复用。当前不支持相关 `IN`、`EXISTS`、`ANY`、`ALL`、行子查询，以及在 `FROM` 派生表中引用外层列；这些限制不影响查询中已有的非相关子查询。流计算、订阅、DDL 及其他 DML 语句不支持相关标量子查询。
+相关标量子查询可用于普通查询和 `INSERT INTO ... SELECT` 的查询部分。查询中的非相关子查询仍按原有方式独立计算和复用。当前不支持相关 `IN`、`EXISTS`、`ANY`、`ALL`、行子查询，以及在 `FROM` 派生表中引用外层列；这些限制不影响查询中已有的非相关子查询。流计算、订阅、DDL 及其他 DML 语句不支持相关标量子查询。`queryPolicy` 为 `4`（客户端聚合）时也不支持，查询报错 `Client query policy does not support correlated scalar subqueries`；`queryPolicy` 为 `1`、`2`、`3` 时支持。
 
 ### 子查询表达式
 
