@@ -664,7 +664,7 @@ The JDBC driver supports creating connections, returning objects that support th
 Note: The abstract type interfaces below will be implemented by specific implementation classes, so the connection object obtained after establishing a connection can be called directly. These interfaces are only supported on WebSocket connections; calling them on a native or REST connection throws `SQLFeatureNotSupportedException`.
 
 - `abstract void setTimezone(String timezone) throws SQLException`
-  - **Interface Description**: Sets the time zone of the current connection at runtime. The new time zone takes effect from the next executed SQL statement; result sets that are already open are not affected. For `PreparedStatement`, timestamp values in bound parameters are converted using the time zone in effect at bind time. `setTimezone` should be called before binding parameters on a `PreparedStatement`; changing the time zone in the middle of binding is a usage error, and the driver does not guarantee how already-bound data is interpreted.
+  - **Interface Description**: Sets the time zone of the current connection at runtime. The new time zone takes effect from the next executed SQL statement; result sets that are already open are not affected. For `PreparedStatement`, `LocalDateTime` parameters are converted using the time zone in effect at bind time, while `java.sql.Timestamp` parameters retain the instant they represent. `setTimezone` should be called before binding parameters on a `PreparedStatement`; changing the time zone in the middle of binding is a usage error, and the driver does not guarantee how already-bound data is interpreted.
   - **Parameter Description**:
     - `timezone`: An IANA time zone name, e.g. `Asia/Shanghai`. Passing `null` or an empty string clears the time zone setting and falls back to the JVM default time zone.
   - **Exception**: Throws `SQLException` if the time zone name is invalid or the operation fails.
@@ -889,6 +889,27 @@ The JDBC driver supports the standard ResultSet interface and the corresponding 
 #### Result Set
 
 The JDBC driver supports the standard ResultSet interface, providing methods for reading metadata and data from the result set.
+
+:::note WebSocket Timestamps and Time Zones
+
+For `TIMESTAMP` columns in WebSocket query and TMQ consumer results, absolute values and string representations follow different time zone rules:
+
+- `getTimestamp()` and `getObject()` without an explicit return type return a `java.sql.Timestamp` that retains the instant stored in the database. The connection or consumer time zone does not change its `getTime()` or `toInstant()` value.
+- `getString()` and `getNString()` format timestamps in the connection or consumer time zone. If no time zone is configured, they use the JVM default time zone. These rules apply to retrieval by both column index and column label.
+- For WebSocket queries, `getObject(..., String.class)` uses the same formatting rules as `getString()`.
+- `java.sql.Timestamp` does not store a time zone, and its `toString()` method uses the JVM default time zone. Therefore, `rs.getString("ts")` and `rs.getTimestamp("ts").toString()` can return different strings.
+
+For example, if the stored instant is `2024-01-01T00:00:00Z`, the JVM default time zone is `UTC`, and the connection or consumer time zone is `Asia/Tokyo`:
+
+| Call                               | Return Value            |
+| ---------------------------------- | ----------------------- |
+| `rs.getTimestamp("ts").getTime()`  | `1704067200000`         |
+| `rs.getTimestamp("ts").toString()` | `2024-01-01 00:00:00.0` |
+| `rs.getString("ts")`               | `2024-01-01 09:00:00.0` |
+
+When `getTimestamp()` converts a date-time string without a time zone from a `VARCHAR` or `NCHAR` column, WebSocket queries and TMQ consumers interpret it in the configured connection or consumer time zone. If no time zone is configured, they use the JVM default time zone. This parsing rule does not change the absolute values returned for `TIMESTAMP` columns.
+
+:::
 
 - `ResultSetMetaData getMetaData() throws SQLException`
   - **Interface Description**: Gets the number, types, and properties of this ResultSet object's columns.
