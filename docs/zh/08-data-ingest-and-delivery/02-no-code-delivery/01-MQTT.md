@@ -61,7 +61,7 @@ MQTT DSN 参数：
 
 - `ip`: MQTT broker 的 IP 地址。
 - `port`: MQTT broker 的 端口。
-- `version`: MQTT 协议版本，必填项，可选值 3.1/3.1.1/5.0。
+- `version`: MQTT 协议版本，必填项，可选值 `3.1.1`/`5.0`。不支持 MQTT 3.1（legacy，MQIsdp）；填 `3.1` 会按 `3.1.1` 处理。
 - `qos`: MQTT QoS 服务质量，默认值 0。
 - `client_id`: MQTT 客户端 ID，必填项，不同客户端的客户端 ID 必须不同。
 - `topic`: 数据发布的 MQTT 目标 Topic，必填项。
