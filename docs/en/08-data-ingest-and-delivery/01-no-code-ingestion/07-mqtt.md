@@ -46,7 +46,7 @@ In **TLS Verification**, select one of the following modes:
 
 Fill in the collection task related configuration parameters in the **Collection Configuration** area.
 
-Select the MQTT protocol version from the **MQTT Protocol** dropdown list. There are three options: `3.1`, `3.1.1`, `5.0`. The default value is 3.1.
+Select the MQTT protocol version from the **MQTT Protocol** dropdown list. There are two options: `3.1.1` and `5.0`. The default value is `3.1.1`. MQTT 3.1 (legacy, MQIsdp) is not supported.
 
 Enter the client identifier in **Client ID**, after which a client id with the prefix `taosx` will be generated (for example, if the identifier entered is `foo`, the generated client id will be `taosxfoo`). If the switch at the end is turned on, the current task's task id will be concatenated after `taosx` and before the entered identifier (the generated client id will look like `taosx100foo`). All client ids connecting to the same MQTT address must be unique.
 
