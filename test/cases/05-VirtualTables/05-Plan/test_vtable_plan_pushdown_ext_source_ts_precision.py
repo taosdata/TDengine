@@ -614,7 +614,10 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         answer_file = os.path.join(
             os.path.dirname(__file__), "ans", f"{test_case}.ans"
         )
-        tdCom.compare_testcase_result(input_file, answer_file, test_case)
+        tdCom.compare_testcase_result(
+            input_file, answer_file, test_case,
+            result_transform=ExtSrcEnv.baseline_environment,
+        )
 
     @staticmethod
     def do_compare_vstable_timestamp_filter_plans():
@@ -625,7 +628,10 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         answer_file = os.path.join(
             os.path.dirname(__file__), "ans", f"{test_case}.ans"
         )
-        tdCom.compare_testcase_result(input_file, answer_file, test_case)
+        tdCom.compare_testcase_result(
+            input_file, answer_file, test_case,
+            result_transform=ExtSrcEnv.baseline_environment,
+        )
 
     def test_timestamp_precision_matrix(self):
         """Validate timestamp pushdown for single and mixed sources.
