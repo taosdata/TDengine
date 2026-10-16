@@ -24,6 +24,7 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import subprocess
 import tempfile
 import zipfile
@@ -101,6 +102,33 @@ def package_venv(venv_dir: Path, output_path: Path) -> None:
         temp_path.unlink(missing_ok=True)
 
 
+def prune_runtime(venv_dir: Path) -> None:
+    """Remove non-runtime files while retaining pip for offline repair."""
+    for path in list(venv_dir.rglob("__pycache__")):
+        shutil.rmtree(path, ignore_errors=True)
+    # Test directories are pruned only with package/runtime regression coverage.
+    for name in ("test", "tests"):
+        for path in list(venv_dir.rglob(name)):
+            if (path.is_dir() and not path.is_symlink()
+                    and not any(part.casefold() == "include"
+                                for part in path.relative_to(venv_dir).parts)):
+                shutil.rmtree(path)
+    # Keep .a libraries (e.g. NumPy libnpymath.a) for user C/Cython linking.
+    # Import checks cannot prove they are unused; removal requires a
+    # package-specific audit and a compilation/linking regression test.
+    # Keep .pyi stubs for type checking and user model development.
+    # Drop documentation but retain legal notices at their original paths.
+    docs = venv_dir / "share" / "doc"
+    legal_names = ("license", "licence", "copyright", "copying", "notice")
+    if docs.is_dir():
+        for path in docs.rglob("*"):
+            if (path.is_file() or path.is_symlink()) and not any(
+                name in str(path.relative_to(docs)).lower() for name in legal_names
+            ):
+                path.unlink()
+    shutil.rmtree(venv_dir / "share" / "man", ignore_errors=True)
+
+
 def pip_options(args: argparse.Namespace) -> list[str]:
     options: list[str] = []
     if args.index_url:
@@ -118,7 +146,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--runtime-dir", required=True, type=Path)
     parser.add_argument("--work-dir", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--version", default="1.0.1")
+    parser.add_argument("--version", default="1.0.2")
     parser.add_argument(
         "--requirements",
         type=Path,
@@ -177,12 +205,15 @@ def main() -> int:
             *options,
         ]
     )
-    run([str(python), "-m", "pip", "check"])
+    prune_runtime(venv_dir)
+    run([str(python), "-B", "-m", "pip", "check"])
     run(
         [
             str(python),
+            "-B",
             "-c",
-            "import flask, pyarrow, requests, statsforecast, waitress",
+            "import flask, pyarrow, requests, statsforecast, waitress; "
+            "import numpy, pandas, scipy, statsmodels, sklearn, Cython, setuptools, wheel",
         ]
     )
 
@@ -213,6 +244,8 @@ def main() -> int:
     output_path = output_dir / (
         f"tdengine-tdgpt-lite-venv-{args.version}-windows-x64.zip"
     )
+    # Validation and pip metadata commands can regenerate bytecode.
+    prune_runtime(venv_dir)
     package_venv(venv_dir, output_path)
     print(f"built {output_path}")
     print(f"sha256 {sha256_file(output_path)}")
