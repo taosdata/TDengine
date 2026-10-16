@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import importlib.util
+import os
 import shutil
 import subprocess
 import sys
@@ -46,13 +47,14 @@ def test_windows_package_version_with_copyright_header(tmp_path, monkeypatch):
     ctl = bin_dir / "taosanodectl.py"
     shutil.copyfile(MODULE_PATH.parents[1] / "script" / ctl.name, ctl)
     for flag in ("-V", "--version"):
+        env = dict(os.environ, PYTHONIOENCODING="gbk:strict")
         result = subprocess.run(
             [sys.executable, "-S", str(ctl), flag],
-            capture_output=True, text=True, encoding="utf-8",
+            capture_output=True, text=True, encoding="gbk", env=env,
         )
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip() == (
-            "TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 9.8.7)"
+            "TDgpt - TDengine TSDB(c) Time-Series Data Analytics Platform (ver 9.8.7)"
         )
 
 

@@ -14,6 +14,9 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
+import io
+import sys
+
 import pytest
 from taosanodectl import build_parser, get_version_banner, translate_args
 
@@ -25,7 +28,7 @@ def test_version_banner_uses_packaged_tdgpt_version(tmp_path):
 
     script_path = tmp_path / "bin" / "taosanodectl.py"
     assert get_version_banner(script_path) == (
-        "TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 9.8.7)"
+        "TDgpt - TDengine TSDB(c) Time-Series Data Analytics Platform (ver 9.8.7)"
     )
 
 
@@ -36,6 +39,19 @@ def test_version_flag(flag, capsys):
 
     assert exc_info.value.code == 0
     assert capsys.readouterr().out == get_version_banner() + "\n"
+
+
+@pytest.mark.parametrize("flag", ["-V", "--version"])
+def test_version_flag_redirected_to_gbk(flag, monkeypatch):
+    # capsys captures Unicode and misses Windows redirected-output encoding errors.
+    output = io.BytesIO()
+    stream = io.TextIOWrapper(output, encoding="gbk", errors="strict")
+    monkeypatch.setattr(sys, "stdout", stream)
+    with pytest.raises(SystemExit) as exc_info:
+        build_parser().parse_args([flag])
+    stream.flush()
+    assert exc_info.value.code == 0
+    assert output.getvalue().decode("gbk") == get_version_banner() + "\n"
 
 
 def test_model_start_translation():

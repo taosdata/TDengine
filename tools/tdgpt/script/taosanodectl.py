@@ -41,7 +41,7 @@ COMMANDS = {
     ("resource", "delete"): "resource-delete",
 }
 
-VERSION_BANNER = "TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver {version})"
+VERSION_BANNER = "TDgpt - TDengine TSDB(c) Time-Series Data Analytics Platform (ver {version})"
 
 
 def get_version_banner(script_path: Path | None = None) -> str:
