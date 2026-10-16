@@ -49,7 +49,7 @@ Under broker / connection settings, use the public MQTT broker:
 
 Under connection / protocol settings:
 
-- **MQTT Protocol Version**: `3.1` (page default; `3.1.1` or `5.0` are also available).
+- **MQTT Protocol Version**: `3.1.1` (page default; `5.0` is also available).
 - **Client ID**: Use the auto-generated value such as `taosx_client_<8 random chars>`, or set a custom unique ID on that broker.
 - **Keep Alive** / **Clean Session**: Keep the defaults (keep-alive often `60` seconds; clean session on).
 
