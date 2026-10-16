@@ -75,7 +75,7 @@ max_files = 3
 1. 启动完成后，在浏览器中打开 CLS 管理端并登录。
 2. 登录后，可在 **本机信息** 页面查看 **公钥令牌** 等信息：
 
-![本机信息](../../../assets/license-center-01.png)
+![本机信息](../../../assets/license-center-01.webp)
 
 ## 离线授权
 
@@ -91,7 +91,7 @@ max_files = 3
 
 进入左侧 **配额** 页面，可查看该许可证拆分后的配额与授权项明细，包括许可证 ID、配额 ID、授权项、类别、类型、值和过期时间。
 
-![配额明细](../../../assets/license-center-02.png)
+![配额明细](../../../assets/license-center-02.webp)
 
 槽位数量与各槽位配额的调整方式见 [配额与槽位](./02-quota-and-slots.md)。
 
@@ -111,11 +111,11 @@ TSDB / IDMP 集群可通过配置与 CLS 通信；配置成功后，可在 CLS �
 
 在 taosExplorer 的 **系统管理 / 许可证** 页面，点击 **激活许可证**，进入如下配置页：
 
-![激活许可证](../../../assets/license-center-03.png)
+![激活许可证](../../../assets/license-center-03.webp)
 
 各字段含义与下文 SQL 参数一致。确定后，许可证页面即可看到 CLS 配置信息：
 
-![CLS 配置](../../../assets/license-center-04.png)
+![CLS 配置](../../../assets/license-center-04.webp)
 
 #### SQL
 
@@ -147,8 +147,8 @@ ALTER ALL DNODES 'clsQuotaSlotId' 'tsdb-1';
 
 TSDB / IDMP 完成 CLS 配置后，可在 CLS 的 **集群** 页面看到对应集群：
 
-![CLS 集群](../../../assets/license-center-05.png)
+![CLS 集群](../../../assets/license-center-05.webp)
 
 在 **集群用量** 页面可查看授权项用量：
 
-![CLS 集群用量](../../../assets/license-center-06.png)
+![CLS 集群用量](../../../assets/license-center-06.webp)

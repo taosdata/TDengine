@@ -96,9 +96,13 @@ class TestLastSmaPrefilter:
     def test_last_sma_prefilter(self):
         """Last SMA hidden not-null prefilter full matrix and regressions.
 
+        Exercise applicable and inapplicable last SMA prefilters, nested queries,
+        root OR predicates, last_row scans, and block SMA regressions.
+
         Since: v3.4.1.13
 
         Labels: ci,integration,functional,tsma,last
+
         Jira: None
 
         History:
@@ -545,10 +549,9 @@ class TestLastSmaPrefilter:
                 f"and s.ts >= {TIME_RANGE_START} and s.ts <= {TIME_RANGE_END} "
                 "and s.grp_num = d.grp_num and d.note = 'join_hit'"
             )
-            expect_err = "Not supported join since"
-            tdSql.error(join_sql, expectErrInfo=expect_err, fullMatched=False)
-            tdSql.error(f"explain verbose true {join_sql}", expectErrInfo=expect_err, fullMatched=False)
-            tdSql.error(f"explain analyze verbose true {join_sql}", expectErrInfo=expect_err, fullMatched=False)
+            self._assert_expected_row(join_case_id, join_sql, (20,))
+            self._assert_hidden_not_null_plan(join_case_id, join_sql, ("c_big",), applicable=False)
+            self._assert_explain_analyze(join_case_id, join_sql, ("c_big",), applicable=False)
 
         sql = f"select last(c_big) from {DB_NAME}.{tb_name}"
         self._assert_expected_row("inapp__simple_no_filter", sql, (20,))

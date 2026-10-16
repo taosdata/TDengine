@@ -1,7 +1,26 @@
+/*
+ * Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include <stdlib.h>
 #include <time.h>
 #include <random>
+#include <os.h>
+#include <taoserror.h>
 #include <tdef.h>
 #include <tlog.h> 
 #include <tlogInt.h> 
@@ -11,13 +30,15 @@ using namespace std;
 
 
 TEST(log, check_log_refactor) {
-  const char   *logDir = "/tmp";
+  char logDir[PATH_MAX] = {0};
+  taosGetTmpfilePath(TD_TMP_DIR_PATH, "logTest", logDir);
+  ASSERT_EQ(taosMkDir(logDir), 0) << terrstr();
   const char   *defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 10000;
   tsAsyncLog = 0;
   // idxDebugFlag = 143;
-  strcpy(tsLogDir, (char *)logDir);
-  taosInitLog(tsLogDir, 10, false);
+  tstrncpy(tsLogDir, logDir, PATH_MAX);
+  ASSERT_EQ(taosInitLog("taoslog", 10, false), 0) << terrstr();
   tsAsyncLog = 0;
   uDebugFlag = 143;
 
@@ -45,6 +66,7 @@ TEST(log, check_log_refactor) {
     uTrace("write to file %s", str.c_str());
   }
   taosCloseLog();
+  taosRemoveDir(logDir);
 }
 
 extern char *tsLogOutput;
@@ -65,11 +87,11 @@ static void *taosLogCrashReportFunc(void *param) {
 }
 TEST(log, misc) {
   // taosInitLog
-  const char *path = TD_TMP_DIR_PATH "td";
-  taosRemoveDir(path);
-  taosMkDir(path);
+  char path[PATH_MAX] = {0};
+  taosGetTmpfilePath(TD_TMP_DIR_PATH, "logTest", path);
+  ASSERT_EQ(taosMkDir(path), 0) << terrstr();
   tstrncpy(tsLogDir, path, PATH_MAX);
-  EXPECT_EQ(taosInitLog("taoslog", 1, true), 0);
+  ASSERT_EQ(taosInitLog("taoslog", 1, true), 0) << terrstr();
 
   taosOpenNewSlowLogFile();
   taosLogObjSetToday(0);
@@ -111,7 +133,7 @@ TEST(log, misc) {
   // test taosLogCrashInfo, taosReadCrashInfo and taosReleaseCrashLogFile
   char  nodeType[16] = "nodeType";
   char *pCrashMsg = (char *)taosMemoryCalloc(1, 16);
-  EXPECT_NE(pCrashMsg, nullptr);
+  ASSERT_NE(pCrashMsg, nullptr);
   tstrncpy(pCrashMsg, "crashMsg", 16);
 
 #if !defined(_TD_DARWIN_64) && !defined(WINDOWS)
@@ -131,8 +153,9 @@ TEST(log, misc) {
   int64_t   readMsgLen = 0;
   TdFilePtr pFile = NULL;
   taosReadCrashInfo(crashInfo, &pReadMsg, &readMsgLen, &pFile);
-  EXPECT_NE(pReadMsg, nullptr);
-  EXPECT_NE(pFile, nullptr);
+  ASSERT_NE(pReadMsg, nullptr) << "failed to read " << crashInfo;
+  ASSERT_NE(pFile, nullptr) << "failed to open " << crashInfo;
+  EXPECT_EQ(readMsgLen, strlen("crashMsg"));
   EXPECT_EQ(strncasecmp(pReadMsg, "crashMsg", strlen("crashMsg")), 0);
   EXPECT_EQ(taosCloseFile(&pFile), 0);
   taosMemoryFreeClear(pReadMsg);
@@ -164,9 +187,8 @@ TEST(log, misc) {
   EXPECT_EQ(taosThreadAttrDestroy(&threadAttr), 0);
 #endif
   // clean up
-  taosRemoveDir(path);
-
   taosCloseLog();
+  taosRemoveDir(path);
 }
 
 TEST(log, test_u64toa) {

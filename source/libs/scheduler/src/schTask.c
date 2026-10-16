@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,6 +25,11 @@
 #include "tmisce.h"
 
 static int32_t schUpdateCurrentEpset(SSchTask *pTask, SSchJob* pJob);
+
+bool schTaskAllowFollowerRead(const SSchJob *pJob, const SSchTask *pTask) {
+  return tsEnableFollowerRead && NULL != pJob && NULL != pTask && NULL != pTask->plan &&
+         pJob->attr.type == JOB_TYPE_QUERY;
+}
 
 void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   schDeregisterTaskHb(pJob, pTask);
@@ -56,10 +63,10 @@ void schInitTaskRetryInfo(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel) {
 
   if (SCH_IS_DATA_BIND_TASK(pTask) || (!SCH_IS_QUERY_JOB(pJob)) || (SCH_ALL != schMgmt.cfg.schPolicy)) {
     int32_t retryNum = ceil((tsMaxRetryWaitTime * 1.0) / pTask->redirectCtx.redirectDelayMs);
-    pTask->maxRetryTimes = TMAX(retryNum, SCH_DEFAULT_MAX_RETRY_NUM * REPLICA_FACTOR);
+    pTask->maxRetryTimes = TMAX(retryNum, tsMaxRetryTimes * REPLICA_FACTOR);
   } else {
     int32_t nodeNum = taosArrayGetSize(pJob->nodeList);
-    pTask->maxRetryTimes = TMAX(nodeNum, SCH_DEFAULT_MAX_RETRY_NUM * REPLICA_FACTOR);
+    pTask->maxRetryTimes = TMAX(nodeNum, tsMaxRetryTimes * REPLICA_FACTOR);
   }
 
   pTask->maxExecTimes = pTask->maxRetryTimes * (pLevel->level + 1);
@@ -128,6 +135,35 @@ int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t schBindParentToChildNode(SSchJob* pJob, SSchTask* pParent, const SQueryNodeAddr* pChildAddr) {
+  SSchTask* pTask = pParent;
+
+  if (NULL == pParent || NULL == pChildAddr) {
+    return TSDB_CODE_SCH_INTERNAL_ERROR;
+  }
+
+  if (pParent->plan->execNode.epSet.numOfEps > 0 &&
+      (pParent->plan->execNode.nodeId != pChildAddr->nodeId ||
+       !isEpsetEqual(&pParent->plan->execNode.epSet, &pChildAddr->epSet))) {
+    SCH_TASK_ELOG("parent task has conflicting child execution nodes, parent:0x%" PRIx64 ", child node:%d",
+                  pParent->taskId, pChildAddr->nodeId);
+    return TSDB_CODE_SCH_INTERNAL_ERROR;
+  }
+
+  pParent->plan->execNode = *pChildAddr;
+  if (NULL != pParent->candidateAddrs) {
+    taosArrayClear(pParent->candidateAddrs);
+    if (NULL == taosArrayPush(pParent->candidateAddrs, pChildAddr)) {
+      SCH_TASK_ELOG("set parent task child execution node failed, parent:0x%" PRIx64 ", node:%d, code:%x - %s",
+                    pParent->taskId, pChildAddr->nodeId, terrno, tstrerror(terrno));
+      return terrno;
+    }
+    pParent->candidateIdx = 0;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t schAppendTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t execId) {
   SSchNodeInfo nodeInfo = {.addr = *addr, .handle = SCH_GET_TASK_HANDLE(pTask)};
 
@@ -168,7 +204,7 @@ int32_t schUpdateTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int3
 
   SSchNodeInfo *nodeInfo = taosHashGet(pTask->execNodes, &execId, sizeof(execId));
   if (NULL == nodeInfo) {  // ignore it
-    SCH_TASK_DLOG("handle not updated since execId %d already not exist, current execId %d, waitRetry %d", execId,
+    SCH_TASK_DLOG("handle not updated since execId %d no longer exists, current execId %d, waitRetry %d", execId,
                   pTask->execId, pTask->waitRetry);
     return TSDB_CODE_SUCCESS;
   }
@@ -181,17 +217,21 @@ int32_t schUpdateTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int3
 }
 
 int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, uint64_t seriesId, int32_t execId) {
+  if (seriesId != pTask->seriesId || seriesId <= pTask->failedSeriesId) {
+    SCH_TASK_DLOG("handle not updated since seriesId:0x%" PRIx64 " is not current seriesId:0x%" PRIx64,
+                  seriesId, pTask->seriesId);
+    SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
+  }
+
   if (dropExecNode) {
     SCH_RET(schDropTaskExecNode(pJob, pTask, handle, execId));
   }
 
   SCH_ERR_RET(schUpdateTaskExecNode(pJob, pTask, handle, execId));
 
-  if ((seriesId != pTask->seriesId || seriesId <= pTask->failedSeriesId) || 
-      (execId != pTask->execId || execId <= pTask->failedExecId) || pTask->waitRetry) {  // ignore it
-    SCH_TASK_DLOG("handle not updated since seriesId:0x%" PRIx64 " or execId:%d is not lastest,"
-                  "current seriesId:0x%" PRIx64 " execId %d, failedSeriesId:0x%" PRIx64 " failedExecId:%d, waitRetry %d", 
-                  seriesId, execId, pTask->seriesId, pTask->execId, pTask->failedSeriesId, pTask->failedExecId, pTask->waitRetry);
+  if (execId != pTask->execId || execId <= pTask->failedExecId || pTask->waitRetry) {  // ignore it
+    SCH_TASK_DLOG("handle not updated since execId:%d is not latest, current execId:%d, failedExecId:%d, waitRetry:%d",
+                  execId, pTask->execId, pTask->failedExecId, pTask->waitRetry);
     SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
@@ -336,6 +376,13 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     }
 
     SCH_LOCK(SCH_WRITE, &pParent->planLock);
+    if (pParent->plan->execOnChildNode) {
+      code = schBindParentToChildNode(pJob, pParent, &pTask->succeedAddr);
+      if (TSDB_CODE_SUCCESS != code) {
+        SCH_TASK_ELOG("bind parent task to child execution node failed, child:0x%" PRIx64 ", parent:0x%" PRIx64,
+                      pTask->taskId, pParent->taskId);
+      }
+    }
     SDownstreamSourceNode source = {
         .type = QUERY_NODE_DOWNSTREAM_SOURCE,
         .clientId = pTask->clientId,
@@ -345,9 +392,13 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         .addr = pTask->succeedAddr,
         .fetchMsgType = SCH_FETCH_TYPE(pTask),
         .localExec = SCH_IS_LOCAL_EXEC_TASK(pJob, pTask),
+        .producerQueryId = pJob->queryId,
+        .allowFollowerRead = schTaskAllowFollowerRead(pJob, pTask),
     };
 
-    code = qSetSubplanExecutionNode(pParent->plan, pTask->plan->id.groupId, &source);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = qSetSubplanExecutionNode(pParent->plan, pTask->plan->id.groupId, &source);
+    }
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("qSetSubplanExecutionNode failed, groupId: %d", pTask->plan->id.groupId);
     }
@@ -789,9 +840,22 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
         SCH_ERR_RET(terrno);
       }
 
-      SCH_TASK_TLOG("set %dth candidate addr, id %d, inUse:%d/%d, fqdn:%s, port:%d", i, naddr->nodeId,
-                    naddr->epSet.inUse, naddr->epSet.numOfEps, SCH_GET_CUR_EP(naddr)->fqdn,
-                    SCH_GET_CUR_EP(naddr)->port);
+      SQueryNodeAddr *pAddr = taosArrayGet(pTask->candidateAddrs, addNum);
+      if (NULL == pAddr) {
+        SCH_TASK_ELOG("failed to get copied execNode for follower read selection, candidateAddrs:%p, addNum:%d",
+                      pTask->candidateAddrs, addNum);
+        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      }
+
+      if (schTaskAllowFollowerRead(pJob, pTask) && pAddr->epSet.numOfEps > 1) {
+        pAddr->epSet.inUse = taosRand() % pAddr->epSet.numOfEps;
+        SCH_TASK_DLOG("randomly selected replica endpoint:%d/%d for follower read", pAddr->epSet.inUse,
+                      pAddr->epSet.numOfEps);
+      }
+
+      SCH_TASK_TLOG("set %dth candidate addr, id %d, inUse:%d/%d, fqdn:%s, port:%d", i, pAddr->nodeId,
+                    pAddr->epSet.inUse, pAddr->epSet.numOfEps, SCH_GET_CUR_EP(pAddr)->fqdn,
+                    SCH_GET_CUR_EP(pAddr)->port);
 
       ++addNum;
     }
@@ -812,7 +876,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
 
   pTask->candidateAddrs = taosArrayInit(SCHEDULE_DEFAULT_MAX_NODE_NUM, sizeof(SQueryNodeAddr));
   if (NULL == pTask->candidateAddrs) {
-    SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCHEDULE_DEFAULT_MAX_NODE_NUM);
+    SCH_TASK_ELOG("taosArrayInit %d candidate addrs failed", SCHEDULE_DEFAULT_MAX_NODE_NUM);
     SCH_ERR_RET(terrno);
   }
 
@@ -824,11 +888,22 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
 
     SCH_TASK_TLOG("use execNode in plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
 
+    SQueryNodeAddr *pAddr = taosArrayGet(pTask->candidateAddrs, 0);
+    if (NULL == pAddr) {
+      SCH_TASK_ELOG("failed to get copied execNode for follower read selection, candidateAddrs:%p", pTask->candidateAddrs);
+      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    }
+    if (schTaskAllowFollowerRead(pJob, pTask) && pAddr->epSet.numOfEps > 1) {
+      pAddr->epSet.inUse = taosRand() % pAddr->epSet.numOfEps;
+      SCH_TASK_DLOG("randomly selected replica endpoint:%d/%d for follower read", pAddr->epSet.inUse,
+                    pAddr->epSet.numOfEps);
+    }
+
     return TSDB_CODE_SUCCESS;
   }
 
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
-    SCH_TASK_ELOG("no execNode specifed for data src task, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
+    SCH_TASK_ELOG("no execNode specified for data src task, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
@@ -999,7 +1074,7 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
 
     if (pStatus->execId != pTask->execId) {
       // TODO
-      SCH_TASK_DLOG("execId %d mis-match current execId %d", pStatus->execId, pTask->execId);
+      SCH_TASK_DLOG("execId %d mismatch current execId %d", pStatus->execId, pTask->execId);
       schProcessOnCbEnd(pJob, pTask, 0);
       continue;
     }
@@ -1161,6 +1236,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
     }
   }
 
+  atomic_store_8(&pJob->execDispatched, 1);
   SCH_ERR_JRET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, pJob->seriesId, pJob->queryId, pTask->clientId, pTask->taskId,
                                         pJob->refId, pTask->execId, &qwMsg, explainRes));
 
@@ -1184,7 +1260,7 @@ int32_t schLaunchTaskImpl(void *param) {
 
   (void)schAcquireJob(pCtx->jobRid, &pParent);
   if (NULL == pParent) {
-    qDebug("job refId 0x%" PRIx64 " already not exist", pCtx->jobRid);
+    qDebug("job refId 0x%" PRIx64 " no longer exists", pCtx->jobRid);
     taosMemoryFree(param);
     SCH_RET(TSDB_CODE_SCH_JOB_IS_DROPPING);
   }
@@ -1286,7 +1362,7 @@ int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   param->subJobId = pJob->subJobId;
   param->pTask = pTask;
 
-  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM && !pJob->attr.inlineTaskLaunch) {
     param->asyncLaunch = true;
     SCH_ERR_RET(taosAsyncExec(schLaunchTaskImpl, param, NULL));
   } else {

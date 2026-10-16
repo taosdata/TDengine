@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -32,24 +34,24 @@ static void vnodeTxnSubmitVacuumAsync(SVnode *pVnode);
 // ============================================================================
 //
 // Lock ordering (MUST NOT be violated):
-//   txnMutex → metaWLock/metaRLock
+//   txnMutex  ->  metaWLock/metaRLock
 //   (never acquire txnMutex while holding metaWLock or metaRLock)
 //
 // pTxnTableLock is a HASH_NO_LOCK hash map; it MUST only be accessed while
 // holding txnMutex.  All call sites in vnodeSvr.c invoke vnodeTxnLockTable()
-// before calling into meta, preserving the txnMutex → metaWLock order.
+// before calling into meta, preserving the txnMutex  ->  metaWLock order.
 //
 
 //
 // DDL Isolation Semantics (shadow-in-B+tree model):
 //   - DDL within a transaction IS applied to real meta immediately, but with
 //     txnId/txnStatus set in the SMetaEntry (encoded via type bit 6).
-//   - COMMIT:   promotes shadow entries (clear txnId→0; physically delete PRE_DROP).
+//   - COMMIT:   promotes shadow entries (clear txnId -> 0; physically delete PRE_DROP).
 //   - ROLLBACK: undoes shadow entries (delete PRE_CREATE; restore PRE_DROP/ALTER to NORMAL).
 //   - Visibility filtering: queries skip PRE_CREATE; INSERT fails on PRE_DROP.
 //
 // Note: Super table (STB) DDL goes through MNode Trans framework (broadcast to VNodes),
-// NOT through the client→VNode direct path. Therefore STB operations are NOT tracked
+// NOT through the client -> VNode direct path. Therefore STB operations are NOT tracked
 // here. Only child table and normal table DDL need txn tracking.
 //
 // Domain model:
@@ -62,12 +64,12 @@ typedef struct SVnodeTxnEntry {
   int64_t    term;            // Raft term when registered
   int64_t    startTime;       // Transaction start time
   int8_t     stage;           // EVtxnStage
-  SSHashObj *pTouchedUids;    // SSHashObj: key=tb_uid_t, value=int8_t(dummy) — O(1) dedup
-  SSHashObj *pAlterPrevVers;  // SSHashObj: key=tb_uid_t, value=int64_t(prevVersion) — O(1) lookup
+  SSHashObj *pTouchedUids;    // SSHashObj: key=tb_uid_t, value=int8_t(dummy)  -  O(1) dedup
+  SSHashObj *pAlterPrevVers;  // SSHashObj: key=tb_uid_t, value=int64_t(prevVersion)  -  O(1) lookup
   SArray    *pLockedTables;   // Array of char* (table names locked by this txn)
   // TMQ notification: UIDs tracked at DDL time, sent to TMQ at COMMIT
-  SSHashObj *pCreatedUids;  // SSHashObj: key=tb_uid_t, value=int8_t(dummy) — O(1) same-txn undo
-  SArray    *pDroppedUids;  // Array of tb_uid_t — tables dropped in this txn (pre-existing tables only)
+  SSHashObj *pCreatedUids;  // SSHashObj: key=tb_uid_t, value=int8_t(dummy)  -  O(1) same-txn undo
+  SArray    *pDroppedUids;  // Array of tb_uid_t  -  tables dropped in this txn (pre-existing tables only)
   // Lazy vacuum fields (populated at finalization, consumed by vacuum)
   int8_t    status;         // ETxnMetaStatus: TXN_META_COMMITTED / TXN_META_ROLLEDBACK
   tb_uid_t *pVacuumUids;    // Array of UIDs to vacuum (converted from pTouchedUids)
@@ -354,11 +356,11 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
 
     // Always populate the in-memory cache so visibility filters work immediately.
     // Skip TXN_META_NONE entries: these are "begin" records written at first DDL to
-    // persist beginWalIndex — they represent in-progress txns, not finalized ones.
+    // persist beginWalIndex  -  they represent in-progress txns, not finalized ones.
     // On failure (OOM during recovery), persistent txn.meta remains authoritative;
     // log a warning so the rare condition is visible.
     if (pFinalVal->status == TXN_META_NONE) {
-      // In-progress begin record — skip visibility cache; beginWalIndex is read via metaTxnMetaGet in Phase 1.
+      // In-progress begin record  -  skip visibility cache; beginWalIndex is read via metaTxnMetaGet in Phase 1.
       continue;
     }
     int32_t putCode =
@@ -373,14 +375,14 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     // Check if there are corresponding txn.idx entries (UIDs still needing vacuum)
     SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
     if (pEntry != NULL) {
-      // This txn has un-vacuumed UIDs — prepare for vacuum resumption.
+      // This txn has un-vacuumed UIDs  -  prepare for vacuum resumption.
       // Set finalStatus/stage ONLY after vacuum array is ready, so that the
       // vacuum thread never sees a finalized entry with numVacuumUids=0 (which
       // would be misinterpreted as "fully vacuumed" via the 0>=0 guard).
       int32_t vacCode = vnodeTxnPrepareVacuumArray(pEntry);
       if (vacCode != 0) {
         vError("vgId:%d, txn rebuild: failed to prepare vacuum for txnId:%" PRId64
-               " — entry left un-finalized, will retry on next restart",
+               " - entry left un-finalized, will retry on next restart",
                TD_VID(pVnode), txnId);
       } else {
         pEntry->status = pFinalVal->status;
@@ -390,7 +392,7 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
               pFinalVal->status, pEntry->numVacuumUids);
       }
     } else {
-      // No txn.idx entries remain — vacuum was complete, but txn.meta entry is stale.
+      // No txn.idx entries remain  -  vacuum was complete, but txn.meta entry is stale.
       // Clean it up (delete from persistent idx; cache entry is harmless and will be ignored).
       (void)metaTxnMetaDelete(pVnode->pMeta, txnId);
       if (taosHashRemove(pVnode->pTxnMetaCache, &txnId, sizeof(int64_t)) != 0) {
@@ -666,7 +668,7 @@ int32_t vnodeTxnTrackDrop(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
     // Same-txn undo: if this UID was created in the same txn, remove from created hash
-    // (net zero change — TMQ never knew about it). Otherwise add to dropped list.
+    // (net zero change  -  TMQ never knew about it). Otherwise add to dropped list.
     bool sameUndone = false;
     if (pEntry->pCreatedUids && tSimpleHashGet(pEntry->pCreatedUids, &uid, sizeof(tb_uid_t)) != NULL) {
       int32_t rc = tSimpleHashRemove(pEntry->pCreatedUids, &uid, sizeof(tb_uid_t));
@@ -745,15 +747,15 @@ static void vnodeTxnNotifyTmq(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
 }
 
 // ============================================================================
-// Shadow-in-B+tree: COMMIT — promote shadow entries
+// Shadow-in-B+tree: COMMIT  -  promote shadow entries
 // ============================================================================
 
 /**
  * Promote shadow entries on COMMIT.
  * For each UID touched by this txn, read the current entry from B+ tree:
- *   PRE_CREATE → clear txnId/txnStatus to NORMAL (table becomes visible)
- *   PRE_ALTER  → clear txnId/txnStatus to NORMAL (new schema becomes official)
- *   PRE_DROP   → physically delete the entry (call metaDropTable2 with txnId=0)
+ *   PRE_CREATE  ->  clear txnId/txnStatus to NORMAL (table becomes visible)
+ *   PRE_ALTER   ->  clear txnId/txnStatus to NORMAL (new schema becomes official)
+ *   PRE_DROP    ->  physically delete the entry (call metaDropTable2 with txnId=0)
  *
  * Caller must NOT hold txnMutex.
  */
@@ -772,7 +774,7 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
 
   // tSimpleHashIterate semantics: pass NULL for `data` to start, pass the previous
   // returned data to advance.  Passing NULL repeatedly with a stable `iter` just
-  // re-returns the same bucket's first node → infinite loop.  Use the same
+  // re-returns the same bucket's first node  ->  infinite loop.  Use the same
   // "advance-at-end-of-body" pattern as vnodeTxnUndoShadowEntries below.
   int32_t iter = 0;
   void   *pData = NULL;
@@ -810,10 +812,10 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
     switch (pME->txnStatus) {
       case META_TXN_PRE_CREATE:
       case META_TXN_PRE_ALTER:
-        // Promote: clear txnId/txnStatus → NORMAL
+        // Promote: clear txnId/txnStatus  ->  NORMAL
         code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
         if (code == 0) {
-          vInfo("vgId:%d, commit: promoted uid %" PRId64 " (status %d → NORMAL)", TD_VID(pVnode), uid, pME->txnStatus);
+          vInfo("vgId:%d, commit: promoted uid %" PRId64 " (status %d -> NORMAL)", TD_VID(pVnode), uid, pME->txnStatus);
         } else {
           vError("vgId:%d, commit: failed to promote uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid, code);
         }
@@ -824,9 +826,9 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
         // Both metaDropSuperTable and metaDropTable2 accept PRE_DROP entries when called
         // with version=-1 (internal) and txnId=0 (non-txn physical delete path).
         // metaCheckDropSuperTableReq does NOT check txnStatus, so no pre-mark is needed.
-        // Removing the former two-step (mark→NORMAL then drop) eliminates a split-brain:
+        // Removing the former two-step (mark -> NORMAL then drop) eliminates a split-brain:
         // if mark succeeded but drop failed, the entry became permanently visible (NORMAL,
-        // txnId=0), and WAL replay would skip it (txnId mismatch) — a silent DROP failure.
+        // txnId=0), and WAL replay would skip it (txnId mismatch)  -  a silent DROP failure.
         if (pME->type == TSDB_SUPER_TABLE) {
           SVDropStbReq stbDropReq = {.name = pME->name, .suid = uid, .txnId = 0};
           code = metaDropSuperTable(pVnode->pMeta, -1, &stbDropReq);
@@ -880,15 +882,15 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
 }
 
 // ============================================================================
-// Shadow-in-B+tree: ROLLBACK — undo shadow entries
+// Shadow-in-B+tree: ROLLBACK  -  undo shadow entries
 // ============================================================================
 
 /**
  * Undo shadow entries on ROLLBACK.
  * For each UID touched by this txn, read the current entry from B+ tree:
- *   PRE_CREATE → physically delete (table was never committed)
- *   PRE_DROP   → clear txnId/txnStatus back to NORMAL (restore table)
- *   PRE_ALTER  → delete new version entry, restore pUidIdx to old version
+ *   PRE_CREATE  ->  physically delete (table was never committed)
+ *   PRE_DROP    ->  clear txnId/txnStatus back to NORMAL (restore table)
+ *   PRE_ALTER   ->  delete new version entry, restore pUidIdx to old version
  *
  * Caller must NOT hold txnMutex.
  */
@@ -933,6 +935,111 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
 }
 
 /**
+ * Undo one PRE_ALTER entry: restore the pre-ALTER version and, if that restores a
+ * PRE_CREATE entry belonging to the same txn (CREATE->ALTER in one txn), delete it too.
+ *
+ * Shared by the inline rollback path and the async vacuum rollback path so the two cannot
+ * diverge: both must prefer pME->txnOrigVer (persisted in the B+ tree, so it survives a
+ * snapshot/WAL replay that leaves pAlterPrevVers empty) and both must perform the chained
+ * delete, or a large-txn rollback would leave the CREATE behind.
+ *
+ * pME may be NULL (vacuum passes what it already fetched; NULL means "look it up here").
+ */
+static int32_t vnodeTxnUndoPreAlter(SVnode *pVnode, SVnodeTxnEntry *pEntry, tb_uid_t uid, const SMetaEntry *pME) {
+  int64_t prevVersion = (pME != NULL) ? pME->txnOrigVer : -1;
+  if (prevVersion < 0 && pEntry->pAlterPrevVers) {
+    int64_t *pPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
+    if (pPrevVer != NULL) {
+      prevVersion = *pPrevVer;
+    }
+  }
+
+  if (prevVersion < 0) {
+    // Old version not available (e.g. TMQ snapshot targets replicate only the latest
+    // pTbDb entry). Clear txnStatus so the table is accessible again; it keeps the
+    // post-ALTER schema - acceptable degraded behavior for this rare sequence.
+    int32_t code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+    if (code != 0) {
+      vError("vgId:%d, rollback: failed to clear ALTER status for uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid,
+             code);
+      return code;
+    }
+    vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status (snapshot degraded)",
+          TD_VID(pVnode), uid);
+    return 0;
+  }
+
+  int32_t code = metaRollbackAlterTable(pVnode->pMeta, uid, prevVersion);
+  if (code != 0) {
+    vError("vgId:%d, rollback: metaRollbackAlterTable failed for uid %" PRId64 ", since %s", TD_VID(pVnode), uid,
+           tstrerror(code));
+    return code;
+  }
+  vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid, prevVersion);
+
+  // Chained undo: If the restored entry is a PRE_CREATE from this same txn, the CREATE
+  // must be undone as well (CREATE->ALTER->ROLLBACK).
+  //
+  // metaFetchEntryByUid (metaEntry2.c) only does tdbTbGet and takes no lock of its own.
+  // This helper runs both on the vnode write thread (inline rollback) and on the async
+  // vacuum thread (vnodeTxnVacuumOneTxn), where it races the vnode-write thread mutating
+  // pUidIdx/pTbDb under metaWLock - the same reason vnodeTxnVacuumOneTxn wraps its fetch
+  // in metaRLock/metaULock. Hold the read lock here too; the mutating helpers that follow
+  // (metaHandleEntry2 / metaDropTable2) take their own wlocks, so we drop it before calling.
+  SMetaEntry *pRestored = NULL;
+  metaRLock(pVnode->pMeta);
+  int32_t fetchCode = metaFetchEntryByUid(pVnode->pMeta, uid, &pRestored);
+  metaULock(pVnode->pMeta);
+  if (fetchCode != 0 || pRestored == NULL) {
+    // Fetch failure and "no chained delete needed" differ semantically: log the former so
+    // a leftover PRE_CREATE is diagnosable, but treat both as "nothing more to undo".
+    if (fetchCode != 0) {
+      vWarn("vgId:%d, rollback: fetch restored entry for uid %" PRId64 " failed, code:0x%x; skip chained delete",
+            TD_VID(pVnode), uid, fetchCode);
+    }
+    return 0;
+  }
+  if (pRestored->txnId == pEntry->txnId && pRestored->txnStatus == META_TXN_PRE_CREATE) {
+    int32_t dropCode;
+    if (pRestored->type == TSDB_SUPER_TABLE) {
+      SMetaEntry delEntry = {.version = -1, .type = -TSDB_SUPER_TABLE, .uid = uid};
+      dropCode = metaHandleEntry2(pVnode->pMeta, &delEntry);
+    } else {
+      SVDropTbReq dropReq = {0};
+      dropReq.name = pRestored->name;
+      dropReq.uid = uid;
+      dropReq.suid = (pRestored->type == TSDB_CHILD_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE)
+                         ? pRestored->ctbEntry.suid
+                         : 0;
+      dropReq.isVirtual =
+          (pRestored->type == TSDB_VIRTUAL_NORMAL_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE) ? 1 : 0;
+      dropReq.txnId = 0;
+      dropCode = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+    }
+    if (dropCode == 0) {
+      vInfo("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64, TD_VID(pVnode), uid);
+    } else if (dropCode == TSDB_CODE_TDB_TABLE_NOT_EXIST || dropCode == TSDB_CODE_TDB_STB_NOT_EXIST ||
+               dropCode == TSDB_CODE_NOT_FOUND) {
+      // The entry is already gone: either cascade-deleted along with its STB, or its name
+      // was reclaimed by a new CREATE while this helper ran on the async vacuum thread.
+      // Either way there is nothing left to undo, so this is not a failure - returning
+      // non-zero here would make the vacuum retry the txn forever. Unlike the vacuum's own
+      // PRE_CREATE branch we do not call metaDropOrphanedEntry: that branch reaches the
+      // PRE_CREATE entry directly and owns its cleanup, whereas here metaRollbackAlterTable
+      // has already succeeded and the caller still deletes txn.idx for this uid.
+      vInfo("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64 " already gone (code:0x%x), skip",
+            TD_VID(pVnode), uid, dropCode);
+    } else {
+      vError("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64 " failed, since %s", TD_VID(pVnode), uid,
+             tstrerror(dropCode));
+      code = dropCode;
+    }
+  }
+  metaFetchEntryFree(&pRestored);
+  return code;
+}
+
+/**
  * Undo a single shadow entry during ROLLBACK.
  * If stbOnly==false, skip STB entries (process CTB/NTB).
  * If stbOnly==true, only process STB entries.
@@ -962,7 +1069,7 @@ static int32_t vnodeTxnUndoOneShadowEntry(SVnode *pVnode, SVnodeTxnEntry *pEntry
 
   switch (pME->txnStatus) {
     case META_TXN_PRE_CREATE: {
-      // Table was created by this txn — physically delete it
+      // Table was created by this txn  -  physically delete it
       if (pME->type == TSDB_SUPER_TABLE) {
         // STB: use STB-specific delete path
         SMetaEntry delEntry = {.version = -1, .type = -TSDB_SUPER_TABLE, .uid = uid};
@@ -991,7 +1098,7 @@ static int32_t vnodeTxnUndoOneShadowEntry(SVnode *pVnode, SVnodeTxnEntry *pEntry
     }
 
     case META_TXN_PRE_DROP:
-      // Table was marked for drop — restore to NORMAL
+      // Table was marked for drop  -  restore to NORMAL
       code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
       if (code == 0) {
         vInfo("vgId:%d, rollback: restored PRE_DROP uid %" PRId64 " to NORMAL", TD_VID(pVnode), uid);
@@ -1001,72 +1108,10 @@ static int32_t vnodeTxnUndoOneShadowEntry(SVnode *pVnode, SVnodeTxnEntry *pEntry
       break;
 
     case META_TXN_PRE_ALTER: {
-      // ALTER created a new version — need to delete it and restore old version.
-      // Primary source: txnOrigVer persisted in B+ tree entry (survives snapshot).
-      // Fallback: in-memory pAlterPrevVers hash (O(1) lookup by uid).
-      int64_t prevVersion = pME->txnOrigVer;
-      if (prevVersion < 0 && pEntry->pAlterPrevVers) {
-        int64_t *pPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
-        if (pPrevVer != NULL) {
-          prevVersion = *pPrevVer;
-        }
-      }
-
-      if (prevVersion >= 0) {
-        code = metaRollbackAlterTable(pVnode->pMeta, uid, prevVersion);
-        if (code == 0) {
-          vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid,
-                prevVersion);
-          // Chained undo: if restored entry is PRE_CREATE from same txn, also delete it
-          // (handles CREATE→ALTER→ROLLBACK: after ALTER undo, PRE_CREATE must also be undone)
-          SMetaEntry *pRestored = NULL;
-          if (metaFetchEntryByUid(pVnode->pMeta, uid, &pRestored) == 0 && pRestored != NULL) {
-            if (pRestored->txnId == pEntry->txnId && pRestored->txnStatus == META_TXN_PRE_CREATE) {
-              int32_t dropCode;
-              if (pRestored->type == TSDB_SUPER_TABLE) {
-                SMetaEntry delEntry = {.version = -1, .type = -TSDB_SUPER_TABLE, .uid = uid};
-                dropCode = metaHandleEntry2(pVnode->pMeta, &delEntry);
-              } else {
-                SVDropTbReq dropReq = {0};
-                dropReq.name = pRestored->name;
-                dropReq.uid = uid;
-                dropReq.suid = (pRestored->type == TSDB_CHILD_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE)
-                                   ? pRestored->ctbEntry.suid
-                                   : 0;
-                dropReq.isVirtual =
-                    (pRestored->type == TSDB_VIRTUAL_NORMAL_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE) ? 1
-                                                                                                                  : 0;
-                dropReq.txnId = 0;
-                dropCode = metaDropTable2(pVnode->pMeta, -1, &dropReq);
-              }
-              if (dropCode == 0) {
-                vInfo("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64, TD_VID(pVnode), uid);
-              } else {
-                vError("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64 " failed, since %s", TD_VID(pVnode),
-                       uid, tstrerror(dropCode));
-                code = dropCode;
-              }
-            }
-            metaFetchEntryFree(&pRestored);
-          }
-        } else {
-          vError("vgId:%d, rollback: metaRollbackAlterTable failed for uid %" PRId64 ", since %s", TD_VID(pVnode), uid,
-                 tstrerror(code));
-        }
-      } else {
-        // Fallback: old version not available (common for TMQ snapshot targets where
-        // only the latest pTbDb entry is replicated). Clear txnStatus to restore normal
-        // accessibility. The table retains the post-ALTER schema — acceptable degraded
-        // behavior for the extremely rare PRE_ALTER + Snapshot + ROLLBACK sequence.
-        // Phase 2 fix: extend TMQ snapshot to also send old-version pTbDb entry.
-        code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
-        if (code != 0) {
-          vError("vgId:%d, rollback: failed to clear ALTER status for uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid,
-                 code);
-        }
-        vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status (snapshot degraded)",
-              TD_VID(pVnode), uid);
-      }
+      // ALTER created a new version - restore the old one. Shared with the async vacuum
+      // rollback path so both prefer the persisted txnOrigVer and both do the chained
+      // CREATE->ALTER delete.
+      code = vnodeTxnUndoPreAlter(pVnode, pEntry, uid, pME);
       break;
     }
 
@@ -1153,7 +1198,7 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
   }
 
   // 2. Update in-memory cache (thread-safe, visible to query threads immediately).
-  // On failure (OOM), persistent txn.meta is still authoritative — visibility
+  // On failure (OOM), persistent txn.meta is still authoritative  -  visibility
   // queries will fall back to disk lookup, but log a warning so the issue is visible.
   int32_t cacheCode =
       taosHashPut(pVnode->pTxnMetaCache, &pEntry->txnId, sizeof(int64_t), &finalStatus, sizeof(int8_t));
@@ -1173,7 +1218,7 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
     if (cacheCode == 0) {
       int32_t removeCode = taosHashRemove(pVnode->pTxnMetaCache, &pEntry->txnId, sizeof(int64_t));
       if(removeCode != 0) {
-        vWarn("vgId:%d, failed to remove from finilize hash for txnId:%" PRId64 " since %s", TD_VID(pVnode),
+        vWarn("vgId:%d, failed to remove from finalize hash for txnId:%" PRId64 " since %s", TD_VID(pVnode),
               pEntry->txnId, tstrerror(code));
       }
       atomic_fetch_sub_32(&pVnode->txnPendingCount, 1);
@@ -1197,22 +1242,22 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
  * Uses a three-pass approach to match the throughput of the non-transactional
  * metaHandleSuperTableDrop path:
  *
- *   Pass 1 – collect UIDs: scan CTB cursor, collect up to maxChildren UIDs.
- *   Pass 2 – batch tsdb pre-clear: call tsdbCacheDropSubTables ONCE for the batch
+ *   Pass 1 - collect UIDs: scan CTB cursor, collect up to maxChildren UIDs.
+ *   Pass 2 - batch tsdb pre-clear: call tsdbCacheDropSubTables ONCE for the batch
  *             (one lruMutex acquisition, bulk RocksDB deletes). This mirrors what
  *             metaHandleSuperTableDrop does before its per-child tdb loop, so the
  *             per-child tsdbCacheDropTable calls inside metaDropTable2 (Pass 3) find
  *             nothing to delete and become cheap no-ops. Without this step the vacuum
  *             path would do N individual lruMutex+RocksDB-write cycles vs the non-txn
- *             path's single batch — the main cause of the 3–4× throughput gap.
- *   Pass 3 – tdb deletes: call metaDropTable2 for each UID in the batch.
+ *             path's single batch  -  the main cause of the 3-4x throughput gap.
+ *   Pass 3 - tdb deletes: call metaDropTable2 for each UID in the batch.
  *
  * Dropped entries disappear from pCtbIdx, so re-opening the cursor from the suid
  * range head each call always starts at the first *remaining* child.
  *
  * Callers compare *pDropped against maxChildren:
- *   *pDropped >= maxChildren  →  quota hit, more children may remain
- *   *pDropped <  maxChildren  →  exhausted (all remaining children dropped)
+ *   *pDropped >= maxChildren   ->   quota hit, more children may remain
+ *   *pDropped <  maxChildren   ->   exhausted (all remaining children dropped)
  */
 static void vnodeTxnBulkDropChildren(SVnode *pVnode, tb_uid_t suid, int32_t maxChildren, int32_t *pDropped) {
   *pDropped = 0;
@@ -1371,7 +1416,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
         case META_TXN_PRE_ALTER:
           code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
           if (code == 0) {
-            vDebug("vgId:%d, vacuum-commit: promoted uid %" PRId64 " (status %d → NORMAL)", TD_VID(pVnode), uid,
+            vDebug("vgId:%d, vacuum-commit: promoted uid %" PRId64 " (status %d -> NORMAL)", TD_VID(pVnode), uid,
                    pME->txnStatus);
           }
           break;
@@ -1386,12 +1431,12 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
 
             if (childDropped >= quota) {
               // Quota hit; more children may remain. Mark bulk drop in progress
-              // and yield — vacuumIdx stays at this STB uid so the next tick
+              // and yield  -  vacuumIdx stays at this STB uid so the next tick
               // enters the bulk-continuation block at the top of this loop.
               pEntry->bulkDropUid = uid;
               bulkYield = true;
             } else {
-              // All children dropped. Drop STB itself — no children remain, so
+              // All children dropped. Drop STB itself  -  no children remain, so
               // metaHandleSuperTableDrop is O(1) (empty child list).
               SVDropStbReq stbDropReq = {.name = pME->name, .suid = uid, .txnId = 0};
               code = metaDropSuperTable(pVnode->pMeta, -1, &stbDropReq);
@@ -1433,7 +1478,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
                     TD_VID(pVnode), uid, pME->name);
               code = metaDropOrphanedEntry(pVnode->pMeta, uid, pME);
               if (code != 0) {
-                // Cleanup failed — preserve pTxnIdx for visibility safety, retry next cycle
+                // Cleanup failed  -  preserve pTxnIdx for visibility safety, retry next cycle
                 vWarn("vgId:%d, vacuum-rollback: failed to clean orphan stb uid %" PRId64 " code:0x%x, will retry",
                       TD_VID(pVnode), uid, code);
                 skipTxnIdxDel = true;
@@ -1450,7 +1495,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
                     TD_VID(pVnode), uid, pME->name);
               code = metaDropOrphanedEntry(pVnode->pMeta, uid, pME);
               if (code != 0) {
-                // Cleanup failed — preserve pTxnIdx for visibility safety, retry next cycle
+                // Cleanup failed  -  preserve pTxnIdx for visibility safety, retry next cycle
                 vWarn("vgId:%d, vacuum-rollback: failed to clean orphan uid %" PRId64 " code:0x%x, will retry",
                       TD_VID(pVnode), uid, code);
                 skipTxnIdxDel = true;
@@ -1458,26 +1503,21 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
               }
             }
           }
-          // Handle chained undo (CREATE→ALTER in same txn)
-          if (pEntry->pAlterPrevVers) {
-            int64_t *pChainedPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
-            if (pChainedPrevVer != NULL && *pChainedPrevVer >= 0) {
-              vDebug("vgId:%d, vacuum-rollback: chained CREATE→ALTER undo for uid %" PRId64, TD_VID(pVnode), uid);
-            }
-          }
+          // CREATE->ALTER in one txn needs no chained undo here: the entry this branch
+          // reaches is PRE_CREATE, and the drop above removes it outright, ALTER included.
+          // The reverse order (undoing the ALTER first, then the CREATE it restores) is
+          // handled by vnodeTxnUndoPreAlter in the PRE_ALTER branch below.
           break;
         }
         case META_TXN_PRE_DROP:
           code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
           break;
         case META_TXN_PRE_ALTER: {
-          int64_t *pPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
-          int64_t  prevVer = (pPrevVer != NULL) ? *pPrevVer : -1;
-          if (prevVer >= 0) {
-            code = metaRollbackAlterTable(pVnode->pMeta, uid, prevVer);
-          } else {
-            code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
-          }
+          // Same helper as the inline path: prefer pME->txnOrigVer (persisted, so it
+          // survives snapshot/WAL replay where pAlterPrevVers is empty) and perform the
+          // chained CREATE->ALTER delete. Reading only pAlterPrevVers here used to make a
+          // large-txn ALTER rollback silently degrade to clearing txnStatus.
+          code = vnodeTxnUndoPreAlter(pVnode, pEntry, uid, pME);
           break;
         }
         default:
@@ -1493,7 +1533,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
     }
 
     if (code != 0) {
-      // Meta operation failed — do NOT delete txn.idx or advance vacuumIdx.
+      // Meta operation failed  -  do NOT delete txn.idx or advance vacuumIdx.
       // The entry stays so the next vacuum cycle can retry.
       vWarn("vgId:%d, vacuum: meta op failed for uid %" PRId64 ", code:0x%x, will retry next cycle", TD_VID(pVnode),
             uid, code);
@@ -1501,7 +1541,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
       break;
     }
 
-    // Meta op succeeded — safe to remove from txn.idx now
+    // Meta op succeeded  -  safe to remove from txn.idx now
     if (!skipTxnIdxDel) {
       int32_t vacIdxCode = metaTxnIdxDelete(pVnode->pMeta, uid);
       if (vacIdxCode != 0) {
@@ -1639,7 +1679,7 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
   taosArrayDestroy(pCompletedTxns);
 
   // If any txns were fully vacuumed this round, the minimum beginIndex in the
-  // txn WAL cache may have advanced — refresh the WAL keep-version so trim can proceed.
+  // txn WAL cache may have advanced  -  refresh the WAL keep-version so trim can proceed.
   if (numCompleted > 0 && pVnode->pTxnWalMgr != NULL) {
     txnMgrRefreshWalKeepVersion(pVnode->pTxnWalMgr, pVnode->pWal, pVnode);
   }
@@ -1660,7 +1700,7 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
 /**
  * Async vacuum task executed on the vnode-scan thread pool.
  * Processes vacuum work in batches.  Between batches, checks whether other
- * scan tasks are queued — if so, re-submits itself (yielding the thread so
+ * scan tasks are queued  -  if so, re-submits itself (yielding the thread so
  * higher-priority scan tasks can run); otherwise continues in a tight loop
  * to avoid unnecessary re-enqueue overhead.
  */
@@ -1676,7 +1716,7 @@ static int32_t vnodeTxnVacuumExecute(void *arg) {
 
     int32_t processed = vnodeTxnVacuumBatch(pVnode, TSDB_TXN_VACUUM_BATCH_SIZE);
     totalProcessed += processed;
-    if (processed == 0) break;  // No progress — all done
+    if (processed == 0) break;  // No progress  -  all done
 
     // If other scan tasks are queued, yield the thread by re-submitting ourselves.
     // Skip re-submit if vnode is closing to prevent use-after-free race:
@@ -1774,13 +1814,13 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, req.txnId);
   if (pEntry == NULL) {
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
-    // Shadow missing — empty txn on this VGroup (no DDL was routed here)
+    // Shadow missing  -  empty txn on this VGroup (no DDL was routed here)
     vDebug("vgId:%d, txn entry not found on commit (no-op), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
     return TSDB_CODE_SUCCESS;
   }
 
   // Idempotency: if already finalized (finalStatus set on successful vnodeTxnFinalizeLazy or
-  // inline promote+remove), return success. Do NOT check stage==FINISHING here — that only
+  // inline promote+remove), return success. Do NOT check stage==FINISHING here  -  that only
   // means we started finalization, not that it completed. A failed finalize must allow retries.
   if (pEntry->status != TXN_META_NONE) {
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -1802,8 +1842,8 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
   bool forceVacuum = pEntry->hasBulkDrop;
 
   if (numUids <= TSDB_TXN_INLINE_THRESHOLD && !forceVacuum) {
-    // ── Small txn: synchronous inline promote ──
-    // O(k) B+ tree ops where k ≤ 128, typically < 1ms.
+    // -- Small txn: synchronous inline promote --
+    // O(k) B+ tree ops where k  <=  128, typically < 1ms.
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     code = vnodeTxnPromoteShadowEntries(pVnode, pEntry);
@@ -1839,7 +1879,7 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
 
     vInfo("vgId:%d, txn commit done (inline), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
   } else {
-    // ── Large txn: lazy finalize O(1) + async vacuum ──
+    // -- Large txn: lazy finalize O(1) + async vacuum --
     code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_META_COMMITTED);
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
@@ -1850,7 +1890,7 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
 
     vInfo("vgId:%d, txn commit finalized (lazy), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
 
-    // Notify TMQ now — commit decision is final, even though vacuum hasn't run yet.
+    // Notify TMQ now  -  commit decision is final, even though vacuum hasn't run yet.
     // TMQ needs UIDs ASAP so consumers can discover the new/dropped tables.
     vnodeTxnNotifyTmq(pVnode, pEntry);
 
@@ -1896,7 +1936,7 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   }
 
   // Idempotency: if already finalized, return success (WAL replay / MNode retry).
-  // Do NOT check stage==FINISHING — a failed finalize must allow retries.
+  // Do NOT check stage==FINISHING  -  a failed finalize must allow retries.
   if (pEntry->status != TXN_META_NONE) {
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     vInfo("vgId:%d, txn rollback idempotent (already finalized), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
@@ -1910,15 +1950,19 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   pEntry->stage = VTXN_STAGE_FINISHING;
 
   int32_t numUids = pEntry->pTouchedUids ? tSimpleHashGetSize(pEntry->pTouchedUids) : 0;
-  bool    hasAlterRollback = pEntry->pAlterPrevVers && tSimpleHashGetSize(pEntry->pAlterPrevVers) > 0;
   bool    forceVacuum = pEntry->hasBulkDrop;
 
-  if ((numUids <= TSDB_TXN_INLINE_THRESHOLD && !forceVacuum) || hasAlterRollback) {
-    // ── Small txn: synchronous inline undo ──
+  // Dispatch on size only, exactly as COMMIT does. An earlier version forced the inline
+  // path whenever the txn contained any PRE_ALTER, on the belief that
+  // metaRollbackAlterTable could not run on the async vacuum thread. That is not the
+  // case: the vacuum rollback branch calls metaRollbackAlterTable itself, and that
+  // function takes its own r/w locks and is written to serialize against async vacuum.
+  // Forcing inline made a bulk tag update over N children undo all N of them on the
+  // vnode write thread, blocking every other write to this vnode for the duration.
+  if (numUids <= TSDB_TXN_INLINE_THRESHOLD && !forceVacuum) {
+    // -- Small txn: synchronous inline undo --
     // Note: hasBulkDrop means children were NOT marked PRE_DROP (no per-child
     // undo needed), but we still use the lazy path for consistency with COMMIT.
-    // PRE_ALTER rollback is kept on the write thread because metaRollbackAlterTable
-    // is not safe to run from async vacuum today.
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     code = vnodeTxnUndoShadowEntries(pVnode, pEntry);
@@ -1926,15 +1970,9 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
       vWarn("vgId:%d, inline rollback partial failure for txnId:%" PRId64 ", code:0x%x (continuing)", TD_VID(pVnode),
             req.txnId, code);
 
-      if (hasAlterRollback) {
-        (void)taosThreadMutexLock(&pVnode->txnMutex);
-        if (pEntry->status == TXN_META_NONE) {
-          pEntry->stage = VTXN_STAGE_ACTIVE;
-        }
-        (void)taosThreadMutexUnlock(&pVnode->txnMutex);
-        return code;
-      }
-
+      // Fall back to lazy finalize so async vacuum retries whatever is left. Previously a
+      // txn containing PRE_ALTER returned here with stage reset to ACTIVE, which retried
+      // the same failing inline path indefinitely instead of handing off to vacuum.
       (void)taosThreadMutexLock(&pVnode->txnMutex);
       int32_t finalizeCode = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_META_ROLLEDBACK);
       (void)taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -1956,7 +1994,7 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 
     vInfo("vgId:%d, txn rollback done (inline), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
   } else {
-    // ── Large txn: lazy finalize O(1) + async vacuum ──
+    // -- Large txn: lazy finalize O(1) + async vacuum --
     code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_META_ROLLEDBACK);
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
@@ -1981,7 +2019,7 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 /**
  * Preempt locks held by lower-term transactions.
  * Called from Raft-replicated COMMIT/ROLLBACK handlers, so all replicas
- * execute identical fencing deterministically — no Raft bypass issue.
+ * execute identical fencing deterministically  -  no Raft bypass issue.
  */
 int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1994,7 +2032,7 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
   }
 
   if (newTerm == pVnode->maxSeenTerm) {
-    // Same term — no fencing needed (common case: same MNode leader)
+    // Same term  -  no fencing needed (common case: same MNode leader)
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_SUCCESS;
   }
@@ -2012,7 +2050,7 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
   while (pIter) {
     SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
 
-    // Skip entries with term=0 (unknown term — created before any COMMIT/ROLLBACK arrived,
+    // Skip entries with term=0 (unknown term  -  created before any COMMIT/ROLLBACK arrived,
     // or rebuilt after restart). They'll be cleaned up by their own explicit COMMIT/ROLLBACK.
     // Also skip entries already in FINISHING state or finalized (being vacuum'd or already done).
     if (pEntry->term > 0 && pEntry->term < newTerm && pEntry->txnId != newTxnId &&
@@ -2072,7 +2110,7 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
  * so querying MNode about them would be wasted work.
  * MNode checks mndTxnIsAlive for each entry; orphaned txns get a Raft-safe
  * ROLLBACK via mndRollbackOrphanTxnOnVnode.  Replicated (taosX) txns are
- * excluded — their lifecycle is governed by MNode's lifetime check.
+ * excluded  -  their lifecycle is governed by MNode's lifetime check.
  */
 int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray **ppQueries) {
   if (pVnode->pTxnHash == NULL || taosHashGetSize(pVnode->pTxnHash) == 0) {
@@ -2138,11 +2176,11 @@ int32_t vnodeTxnLockTable(SVnode *pVnode, const char *tableName, int64_t txnId) 
   int64_t *pExistingTxnId = (int64_t *)taosHashGet(pVnode->pTxnTableLock, tableName, nameLen);
   if (pExistingTxnId != NULL) {
     if (*pExistingTxnId == txnId) {
-      // Same transaction already holds the lock — idempotent
+      // Same transaction already holds the lock  -  idempotent
       (void)taosThreadMutexUnlock(&pVnode->txnMutex);
       return TSDB_CODE_SUCCESS;
     }
-    // Different transaction holds the lock — conflict
+    // Different transaction holds the lock  -  conflict
     vWarn("vgId:%d, table lock conflict, table:%s, existingTxn:%" PRId64 ", requestTxn:%" PRId64, TD_VID(pVnode),
           tableName, *pExistingTxnId, txnId);
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -2157,7 +2195,7 @@ int32_t vnodeTxnLockTable(SVnode *pVnode, const char *tableName, int64_t txnId) 
     return TSDB_CODE_TXN_NOT_EXIST;
   }
 
-  // Acquire the lock: add tableName → txnId mapping
+  // Acquire the lock: add tableName  ->  txnId mapping
   int32_t putCode = taosHashPut(pVnode->pTxnTableLock, tableName, nameLen, &txnId, sizeof(int64_t));
   if (putCode != 0) {
     vError("vgId:%d, failed to put table lock, table:%s, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), tableName,
@@ -2222,14 +2260,14 @@ void vnodeTxnUnlockTables(SVnode *pVnode, int64_t txnId) {
  * Check if a non-transaction DDL/DML operation conflicts with any active txn shadow
  * in the B+ tree. Reads the table's txnStatus directly from meta.
  *
- * Conflict matrix (from design doc §16):
- *   PRE_CREATE + non-txn CREATE → CONFLICT
- *   PRE_CREATE + non-txn SELECT/INSERT/DELETE/ALTER/DROP → TABLE_NOT_EXIST (shadow invisible)
- *   PRE_DROP   + non-txn DROP/ALTER/DELETE → CONFLICT (resource busy)
- *   PRE_DROP   + non-txn CREATE → TABLE_ALREADY_EXISTS
- *   PRE_DROP   + non-txn SELECT/INSERT → OK (read old data)
- *   PRE_ALTER  + non-txn ALTER/DROP → CONFLICT
- *   PRE_ALTER  + non-txn SELECT/INSERT/DELETE → OK (use old schema)
+ * Conflict matrix (from design doc section 16):
+ *   PRE_CREATE + non-txn CREATE  ->  CONFLICT
+ *   PRE_CREATE + non-txn SELECT/INSERT/DELETE/ALTER/DROP  ->  TABLE_NOT_EXIST (shadow invisible)
+ *   PRE_DROP   + non-txn DROP/ALTER/DELETE  ->  CONFLICT (resource busy)
+ *   PRE_DROP   + non-txn CREATE  ->  TABLE_ALREADY_EXISTS
+ *   PRE_DROP   + non-txn SELECT/INSERT  ->  OK (read old data)
+ *   PRE_ALTER  + non-txn ALTER/DROP  ->  CONFLICT
+ *   PRE_ALTER  + non-txn SELECT/INSERT/DELETE  ->  OK (use old schema)
  *
  * @param pVnode      The vnode
  * @param tableName   The target table name
@@ -2241,26 +2279,26 @@ int32_t vnodeTxnCheckConflict(SVnode *pVnode, const char *tableName, int8_t inco
     return TSDB_CODE_SUCCESS;
   }
 
-  // Fast path: no active or finalized txns → no conflict possible
+  // Fast path: no active or finalized txns  ->  no conflict possible
   if (!metaHasPendingTxnEntries(pVnode->pMeta)) {
     return TSDB_CODE_SUCCESS;
   }
 
   // Read the table entry from B+ tree to check txnStatus.
   // metaRLock: async vacuum thread may concurrently hold metaWLock and mutate
-  // pNameIdx/pTbDb pages — unlocked tdb reads here race the B+ tree.
+  // pNameIdx/pTbDb pages  -  unlocked tdb reads here race the B+ tree.
   SMetaEntry *pME = NULL;
   metaRLock(pVnode->pMeta);
   int32_t code = metaFetchEntryByName(pVnode->pMeta, tableName, &pME);
   metaULock(pVnode->pMeta);
   if (code != 0 || pME == NULL) {
-    // Table not found in meta — no conflict possible
+    // Table not found in meta  -  no conflict possible
     return TSDB_CODE_SUCCESS;
   }
 
   int32_t ret = TSDB_CODE_SUCCESS;
   if (pME->txnId != 0) {
-    // Check if the owning txn is finalized → no conflict (vacuum will clean up)
+    // Check if the owning txn is finalized  ->  no conflict (vacuum will clean up)
     int8_t finalStatus = metaGetTxnMetaStatus(pVnode->pMeta, pME->txnId);
     if (finalStatus == TXN_META_COMMITTED || finalStatus == TXN_META_ROLLEDBACK) {
       // For COMMITTED PRE_CREATE: table exists, CREATE should fail (TABLE_ALREADY_EXIST)
@@ -2279,7 +2317,7 @@ int32_t vnodeTxnCheckConflict(SVnode *pVnode, const char *tableName, int8_t inco
         if (incomingOp == 1) {  // CREATE vs PRE_CREATE
           ret = TSDB_CODE_TXN_RESOURCE_BUSY;
         }
-        // Other ops: table is invisible to non-txn → will naturally fail as "not exist"
+        // Other ops: table is invisible to non-txn  ->  will naturally fail as "not exist"
         break;
 
       case META_TXN_PRE_DROP:
@@ -2324,14 +2362,14 @@ int32_t vnodeTxnCheckDeleteConflict(SVnode *pVnode, tb_uid_t uid) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Fast path: no active or finalized txns → no conflict possible
+  // Fast path: no active or finalized txns  ->  no conflict possible
   if (!metaHasPendingTxnEntries(pVnode->pMeta)) {
     return TSDB_CODE_SUCCESS;
   }
 
   SMetaEntry *pME = NULL;
   // metaRLock: async vacuum thread may concurrently hold metaWLock and mutate
-  // pUidIdx/pTbDb pages — unlocked tdb reads here race the B+ tree.
+  // pUidIdx/pTbDb pages  -  unlocked tdb reads here race the B+ tree.
   metaRLock(pVnode->pMeta);
   int32_t code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
   metaULock(pVnode->pMeta);
@@ -2341,15 +2379,15 @@ int32_t vnodeTxnCheckDeleteConflict(SVnode *pVnode, tb_uid_t uid) {
 
   int32_t ret = TSDB_CODE_SUCCESS;
   if (pME->txnId != 0 && pME->txnStatus == META_TXN_PRE_DROP) {
-    // Check if finalized → no conflict
+    // Check if finalized  ->  no conflict
     int8_t finalStatus = metaGetTxnMetaStatus(pVnode->pMeta, pME->txnId);
     if (finalStatus == TXN_META_NONE) {
       ret = TSDB_CODE_TXN_RESOURCE_BUSY;
       vWarn("vgId:%d, DELETE conflict: uid=%" PRId64 " is in PRE_DROP, txnId:%" PRId64, TD_VID(pVnode), uid,
             pME->txnId);
     }
-    // COMMITTED PRE_DROP: table is logically gone → DELETE on non-existent is harmless
-    // ROLLEDBACK PRE_DROP: table is restored → DELETE is allowed
+    // COMMITTED PRE_DROP: table is logically gone  ->  DELETE on non-existent is harmless
+    // ROLLEDBACK PRE_DROP: table is restored  ->  DELETE is allowed
   }
 
   metaFetchEntryFree(&pME);

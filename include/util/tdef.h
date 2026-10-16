@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -139,6 +141,12 @@ extern const int32_t TYPE_BYTES[22];
 #define TSDB_INDEX_TYPE_NORMAL   "NORMAL"
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
+
+// Key column ids of the xnode system tables, used to recognize pushdown-able equality filters.
+// Must stay in sync with [xnodeTasksSchema] and [xnodeTaskJobSchema] in common/src/systable.c:
+// inserting a column ahead of these shifts the ids and would silently filter the wrong column.
+#define TSDB_INS_XNODE_TASKS_ID_COLID    1
+#define TSDB_INS_XNODE_JOBS_TASKID_COLID 2
 
 static const int64_t TICK_PER_SECOND[] = {
     1000LL,        // MILLISECOND
@@ -281,6 +289,12 @@ typedef enum {
 #define TSDB_MAX_COLUMNS_NON_VIRTUAL 4096
 #define TSDB_MIN_COLUMNS             2  // PRIMARY COLUMN(timestamp) + other columns
 
+// Lower bound of colIds allocated to a virtual child table's own (extension) columns/tags
+// (ALTER VTABLE <vchild> ADD COLUMN/TAG, independent of the vstb schema). Own colIds are
+// allocated from this base upwards; the mnode side hard-caps a virtual super table's
+// nextColId below this base, so vstb-assigned colIds can never collide with own colIds.
+#define TSDB_VCHILD_OWN_COL_ID_BASE 0x7800  // 30720
+
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
@@ -356,7 +370,17 @@ typedef enum {
 
 #define TSDB_MAX_BYTES_PER_ROW         65531  // 49151:65531
 #define TSDB_MAX_BYTES_PER_ROW_VIRTUAL 524283
+// vtable tag-ref chain depth bound -- AUTHORITATIVE SEMANTICS (the three walkers
+// reference this): counts REFERENCE EDGES; with the value 32 a legal chain has at most
+// 33 edges (34 tables incl. the source), the 34th edge is rejected. All three walkers
+//  -  the parser pre-check (checkRefChainDepthAndCircular), the vnode backstop
+// (metaCheckTagRefChainLocal) and the executor resolver (resolveTagRefChain)  -  walk
+// the same hops and must land on this exact boundary; they differ only in how the
+// visited set is seeded for cycle detection (parser/backstop pre-seed the source table
+// into visited, the resolver starts from it directly) -- see their per-site counting
+// notes; pinned by test_vtable_tag_ref_depth_boundary.py.
 #define TSDB_MAX_VTABLE_REF_DEPTH      32
+#define TSDB_MAX_OPERATOR_PARAM_DEPTH  64
 #define TSDB_MAX_TAGS_LEN              16384
 #define TSDB_MAX_TAGS                  128
 #define TSDB_MAX_VST_PARENTS           10
@@ -452,7 +476,8 @@ typedef enum {
 #define TSDB_XNODE_TASK_SINK_LEN        2048
 #define TSDB_XNODE_TASK_REASON_LEN      1024
 #define TSDB_XNODE_TASK_OPTIONS_MAX_NUM 64
-#define TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN (1024 * 1024)
+#define TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN      (1024 * 1024)
+#define TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN (2 * 1024 * 1024)
 #define TSDB_XNODE_TASK_LABELS_LEN      4096
 #define TSDB_XNODE_AGENT_NAME_LEN       TSDB_XNODE_TASK_NAME_LEN
 #define TSDB_XNODE_AGENT_STATUS_LEN     TSDB_XNODE_STATUS_LEN
@@ -487,6 +512,7 @@ typedef enum {
 #define TSDB_GRANT_CLS_ID_LEN 64
 #define TSDB_GRANT_CLS_TIME_LEN 48
 #define TSDB_GRANT_CLS_REASON_LEN 1024
+#define TSDB_REGISTER_EMAIL_LEN 256
 
 #define TSDB_ACTIVE_KEY_LEN      109
 #define TSDB_CONN_ACTIVE_KEY_LEN 255
@@ -711,7 +737,24 @@ typedef enum {
 #define TSDB_MAX_GEOMETRY_LEN  TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_VARBINARY_LEN TSDB_MAX_FIELD_LEN  // 16384-8:65519
 
-#define TSDB_MAX_BLOB_LEN (4 << 20)
+// Maximum on-disk size of a single BLOB value, INCLUDING the 4-byte
+// BLOBSTR_HEADER_SIZE, so the maximum payload is (TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE).
+// Checks that compare a payload length must therefore use
+// `payload + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN` (see tcompare.c,
+// tdataformat.c, tsdbRead2.c).  Raised from 4MB to 16MB; keep in sync with
+// TSDB_MAX_MSG_SIZE below, since one submit message may inline a whole BLOB value.
+#define TSDB_MAX_BLOB_LEN (16 << 20)
+
+// Maximum amount of BLOB payload a single result block may hold.
+// A result block is serialized into ONE RPC message and rpcMallocCont() rejects any message
+// above TRANS_PACKET_LIMIT (512MB), so a block larger than that cannot be sent at all: the
+// query fails with an out-of-memory error before the client sees a single row.  The int32_t
+// per-row offsets of a var-length column only rule out blocks above 2GB, which is far too
+// lax.  Half of TRANS_PACKET_LIMIT leaves room for the other columns, the offset array and
+// the message envelope.  Only BLOB needs this: every other var-length type is bounded by
+// TSDB_MAX_FIELD_LEN * TSDB_DEFAULT_MAXROWS_FBLOCK (~268MB) because such a block is sized in
+// rows, so for those the row-based limits are already tighter.
+#define TSDB_MAX_BLOB_BYTES_PER_BLOCK (256 * 1024 * 1024)
 
 #define TSDB_MAX_SUBROLE   32
 #define TSDB_MAX_PRIV_OBJS 512
@@ -761,7 +804,17 @@ typedef enum {
 #define TSDB_DEFAULT_STABLES_HASH_SIZE  100
 #define TSDB_DEFAULT_CTABLES_HASH_SIZE  20000
 
-#define TSDB_MAX_MSG_SIZE (1024 * 1024 * 10)
+// Upper bound of a single RPC message.  A submit request inlines the whole BLOB
+// value, so this must stay comfortably above TSDB_MAX_BLOB_LEN to leave room for
+// row headers, tags, batch padding and RPC framing.
+#define TSDB_MAX_MSG_SIZE (32 * 1024 * 1024)
+
+// Baseline message size used by tglobal.c to derive the RPC/WAL queue memory
+// defaults and the documented lower bounds of rpcQueueMemoryAllowed /
+// syncLogBufferMemoryAllowed.  Deliberately NOT tied to TSDB_MAX_MSG_SIZE: raising
+// the single-message limit must not silently raise those configuration minimums
+// (that would reject configs which are valid today).
+#define TSDB_MSG_MEMORY_BASELINE (10 * 1024 * 1024)
 
 #define TSDB_BLOB_MEMORY_LIMIT (1024 * 1024 * 1024 * 1)  // 1GB
 
@@ -840,6 +893,7 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define TSDB_CONFIG_PATH_LEN     4096
 #define TSDB_CONFIG_INFO_LEN     64
 #define TSDB_CONFIG_CATEGORY_LEN 8
+#define TSDB_CONFIG_REBOOT_LEN   8
 
 #define QUERY_ID_SIZE      20
 #define QUERY_OBJ_ID_SIZE  18
@@ -908,13 +962,15 @@ typedef enum {
 //   PRE_ALTER       - shadow alter: queries see old schema (snapshot isolation);
 //                     writes use old schema
 //   PRE_DROP        - shadow drop: queries still see old data (snapshot isolation);
-//                     INSERT returns TSDB_CODE_PREPARED_DROP
+//                     INSERT is still allowed - the entry stays visible until COMMIT,
+//                     so rows written during the txn are dropped with the table on
+//                     COMMIT and retained together with it on ROLLBACK
 typedef enum {
   META_TXN_NORMAL = 0,      // normal state; no associated transaction
   META_TXN_PRE_CREATE,      // shadow create: written to B+ tree but invisible externally; awaiting COMMIT
   META_TXN_PRE_CREATE_DROP, // shadow create immediately marked for drop: CREATE then DROP in the same txn
   META_TXN_PRE_ALTER,       // shadow alter: new schema written; old schema still visible externally (snapshot isolation)
-  META_TXN_PRE_DROP,        // shadow drop: table marked for deletion; queries still visible; INSERT fails fast
+  META_TXN_PRE_DROP,        // shadow drop: table marked for deletion; queries and INSERT both still see it
 } EMetaTxnStatus;
 
 // EUtxnStage: lifecycle stages of a user batch transaction (shared by the client and MNode).
@@ -922,16 +978,16 @@ typedef enum {
 // The MNode uses all stages except UTXN_STAGE_BEGIN_PENDING in STxnObj.stage, persisted via Raft WAL.
 // UTXN_STAGE_BEGIN_PENDING (1) is client-side only and never persisted.
 // State transitions:
-//   IDLE           → BEGIN_PENDING  (taos_txn_begin() sends BEGIN; waiting for MNode response)
-//   BEGIN_PENDING  → ACTIVE         (BEGIN succeeded; txnId allocated by MNode)
-//   BEGIN_PENDING  → IDLE           (BEGIN failed; reset by processBeginTxnRsp)
-//   ACTIVE         → ABORTED        (any DDL failed; client-side flag; user must ROLLBACK)
-//   ACTIVE         → PREPARING      (COMMIT received; broadcasting PREPARE to VNodes)
-//   ACTIVE/ABORTED → ROLLINGBACK    (ROLLBACK received)
-//   PREPARING      → COMMITTING     (all VNode PREPARE ACKs received; COMMITTING written to WAL)
-//   PREPARING      → ROLLINGBACK    (any VNode PREPARE failed)
-//   COMMITTING     → COMMITTED      (all VNode COMMIT ACKs received)
-//   ROLLINGBACK    → ROLLEDBACK     (all VNode ROLLBACK ACKs received; normal clean rollback)
+//   IDLE            ->  BEGIN_PENDING  (taos_txn_begin() sends BEGIN; waiting for MNode response)
+//   BEGIN_PENDING   ->  ACTIVE         (BEGIN succeeded; txnId allocated by MNode)
+//   BEGIN_PENDING   ->  IDLE           (BEGIN failed; reset by processBeginTxnRsp)
+//   ACTIVE          ->  ABORTED        (any DDL failed; client-side flag; user must ROLLBACK)
+//   ACTIVE          ->  PREPARING      (COMMIT received; broadcasting PREPARE to VNodes)
+//   ACTIVE/ABORTED  ->  ROLLINGBACK    (ROLLBACK received)
+//   PREPARING       ->  COMMITTING     (all VNode PREPARE ACKs received; COMMITTING written to WAL)
+//   PREPARING       ->  ROLLINGBACK    (any VNode PREPARE failed)
+//   COMMITTING      ->  COMMITTED      (all VNode COMMIT ACKs received)
+//   ROLLINGBACK     ->  ROLLEDBACK     (all VNode ROLLBACK ACKs received; normal clean rollback)
 typedef enum {
   UTXN_STAGE_IDLE = 0,           // initial / destroyed state (object does not exist in memory)
   UTXN_STAGE_BEGIN_PENDING = 1,  // client-side only: BEGIN sent to MNode; awaiting response

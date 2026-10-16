@@ -1,5 +1,20 @@
 #!/bin/bash
-# set -x
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 function usage() {
     echo "$0"
     echo -e "\t -m vm config file"
@@ -329,7 +344,7 @@ function run_thread() {
         local exec_dir
         exec_dir=$(echo "$line" | cut -d, -f4)
         local case_cmd
-        case_cmd=$(echo "$line" | cut -d, -f5)
+        case_cmd=$(echo "$line" | cut -d, -f5-)
         local case_file=""
         # get the docs-examples test case from cases.task file
         if echo "$case_cmd" | grep -q "\.sh"; then
@@ -337,7 +352,7 @@ function run_thread() {
         fi
 
         # get python cases from cases.task file with asan
-        if echo "$case_cmd" | grep -q "^./ci/pytest.sh"; then
+        if echo "$case_cmd" | grep -qE '(^|[[:space:]])\./ci/pytest\.sh([[:space:]]|$)'; then
             case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         fi
 

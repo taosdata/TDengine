@@ -1,0 +1,28 @@
+set max_binary_display_width 280;
+
+# not optimized: one external source would be scanned twice
+explain verbose true select _wstart, _wend, state_col, sum(source_v) from vt_window_federated_batch.vst_single_source state_window(state_col, 0) order by _wstart;
+
+# not optimized: one external sourceName is still one execution unit
+explain verbose true select _wstart, _wend, state_col, sum(primary_v), sum(aux_v) from vt_window_federated_batch.vst_same_source state_window(state_col, 0) order by _wstart;
+
+# optimized: references mixed across multiple external sourceNames
+explain verbose true select _wstart, _wend, state_col, sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v) from vt_window_federated_batch.vst_mixed_sources state_window(state_col, 0) order by _wstart;
+
+# optimized: AVG is calculated as partial state per source and merged after window alignment
+explain verbose true select _wstart, _wend, state_col, avg(mysql_a_v), avg(mysql_b_v), avg(postgres_v) from vt_window_federated_batch.vst_mixed_sources state_window(state_col, 0) order by _wstart;
+
+# optimized: references mixed across local and external sources
+explain verbose true select _wstart, _wend, state_col, sum(local_v), sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v) from vt_window_federated_batch.vst_local_external state_window(state_col, 0) order by _wstart;
+
+# not optimized: virtual-scan row filters are not supported
+explain verbose true select _wstart, _wend, state_col, sum(mysql_a_v) from vt_window_federated_batch.vst_mixed_sources where mysql_a_v + postgres_v > 0 state_window(state_col, 0) order by _wstart;
+
+# not optimized: aggregate functions must not reference tags
+explain verbose true select _wstart, _wend, sum(scenario) from vt_window_federated_batch.vst_single_source state_window(state_col, 0) order by _wstart;
+
+# not optimized: aggregate functions must not reference the primary timestamp
+explain verbose true select _wstart, _wend, count(ts) from vt_window_federated_batch.vst_single_source state_window(state_col, 0) order by _wstart;
+
+# not optimized: a multi-unit window needs a calculation function
+explain verbose true select _wstart, _wend from vt_window_federated_batch.vst_mixed_sources state_window(state_col, 0) order by _wstart;

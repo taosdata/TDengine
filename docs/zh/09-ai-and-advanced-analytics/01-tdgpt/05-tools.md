@@ -4,8 +4,8 @@ sidebar_label: 模型评估工具
 description: 模型评估工具
 ---
 
-import fc_result from '../../assets/fc-result.png';
-import ad_result from '../../assets/ad-result.png';
+import fc_result from '../../assets/fc-result.webp';
+import ad_result from '../../assets/ad-result.webp';
 
 TDgpt 在企业版中提供预测分析模型和异常检测模型有效性评估工具 `analytics_compare`，该工具能够使用 TDengine 中的时序数据作为
 回测依据，评估不同预测模型或训练模型的有效性。
@@ -48,11 +48,7 @@ column_name = val, _c0
 
 1. 准备数据
 
-在 TDgpt 安装目录下的 `resource` 文件夹中准备了样例数据 `sample-fc.sql`, 执行以下命令即可将示例数据写入数据库，用于执行评估
-
-```shell
-taos -f sample-fc.sql
-```
+准备需要评估的时序数据，并在 `analytics.ini` 中配置对应的数据库、表、列和时间范围。
 
 2. 设置参数
 
@@ -113,11 +109,7 @@ python3 ./analytics_compare.py forecast
 
 1. 准备数据
 
-在 TDgpt 安装目录下的 `resource` 文件夹中准备了样例数据 `sample-ad.sql`, 执行以下命令即可将示例数据写入数据库
-
-```shell
-taos -f sample-ad.sql
-```
+准备需要评估的时序数据，并在 `analytics.ini` 中配置对应的数据库、表、列和时间范围。
 
 2. 设置参数
 

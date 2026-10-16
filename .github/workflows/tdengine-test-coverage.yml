@@ -1,5 +1,19 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 name: TDengine Coverage
-description: Coverage test for taosd & taosc
 
 on:
   workflow_dispatch:
@@ -28,9 +42,12 @@ env:
   WK: '/var/lib/jenkins/workspace/TDinternal/'
   WKC: '/var/lib/jenkins/workspace/TDinternal/community'
 
+permissions:
+  contents: read
+
 jobs:
   run-tests-on-linux:
-    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@test_coverage
+    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@3d3ef6fe5c1694cb476969bb962c811a02d2c186 # test_coverage, pinned 2026-09-17
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
     with:
       specified_tdinternal_test_branch: ${{ github.event_name == 'schedule' && '3.0' || github.event.inputs.specified_tdinternal_test_branch || '3.0' }}

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -26,16 +28,26 @@
 #include "curl/curl.h"
 
 typedef struct SCurl {
-  CURL* pConn;
-  char* url;
+  CURL*   pConn;
+  char*   url;
+  int64_t lastActiveMs;  // last successful send or ping-pong (epoch ms)
 } SCURL;
 
 int32_t tcurlConnect(CURL** ppConn, const char* url);
 void    tcurlClose(void* pConn);
 int32_t tcurlGetConnection(const char* url, SCURL** pConn);
-int32_t tcurlSend(SCURL* curl, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
-                   unsigned int flags);
+void    tcurlRemoveConnection(const char* url);
+int32_t tcurlSend(SCURL* curl, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize, 
+                  unsigned int flags, int64_t sendStartMonoMs);
+int32_t tcurlSendMessage(SCURL* curl, const void* buffer, size_t buflen, size_t frameSize);
+int32_t tcurlEnsureAlive(SCURL* scurl);
 
+// Per-URL WS congestion control (circuit breaker + connect rate limit).
+bool    tcurlUrlCongested(const char* url);
+int64_t tcurlUrlRetryAfterMs(const char* url);
+void    tcurlReportUrlFailure(const char* url);
+
+void tcurlGlobalPoolShutdown(void);
 void closeThreadNotificationConn();
 
 #endif

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -151,10 +153,10 @@ int32_t tssDeleteFileByPrefix(SSharedStorage* ss, const char* prefix) {
     for (int i = 0; i < taosArrayGetSize(paths); i++) {
         char* p = *(char**)taosArrayGet(paths, i);
         code = tssDeleteFile(ss, p);
-        taosMemoryFree(p);
         if (code != TSDB_CODE_SUCCESS) {
             tssWarn("failed to delete file %s, code: %d", p, code);
         }
+        taosMemoryFree(p);
     }
 
     taosArrayDestroy(paths);

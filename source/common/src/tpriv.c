@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -240,6 +242,10 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW VIEWS"},
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW CREATE VIEW"},
     {PRIV_VIEW_SELECT, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, 0, 1, "", "SELECT VIEW"},
+
+    // Backup Privileges
+    {PRIV_BACKUP_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "CREATE BACKUP"},
+    {PRIV_SHOW_BACKUPS, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW BACKUPS"},
 
     // Topic Privileges
     {PRIV_TOPIC_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "CREATE TOPIC"},

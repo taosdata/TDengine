@@ -1,6 +1,20 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Generate tar.gz package for linux client in all os system
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set -e
 set -x
 
@@ -26,7 +40,6 @@ clientName="taos"
 benchmarkName="taosBenchmark"
 dumpName="taosdump"
 configFile="taos.cfg"
-tarName="package.tar.gz"
 
 benchmarkName2="${clientName2}Benchmark"
 dumpName2="${clientName2}dump"
@@ -146,17 +159,6 @@ if [ -f ${build_dir}/bin/jemalloc-config ]; then
   fi
 fi
 
-cd ${install_dir}
-
-if [ "$osType" != "Darwin" ]; then
-  tar -zcv -f ${tarName} * --remove-files || :
-else
-  tar -zcv -f ${tarName} * || :
-  mv ${tarName} ..
-  rm -rf ./*
-  mv ../${tarName} .
-fi
-
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
 cp ${install_dir}/install_client.sh install_client_temp.sh
@@ -246,7 +248,7 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
     cp -r ${connector_dir}/go ${install_dir}/connector
   else
-    echo "WARNING: go connector not found, please check if want to use it!"
+    echo "WARNING: go connector not found, skipping it!"
   fi
   cp -r ${connector_dir}/python ${install_dir}/connector || :
   cp -r ${connector_dir}/nodejs ${install_dir}/connector || :
@@ -284,10 +286,10 @@ if [ "$pagMode" == "lite" ]; then
 fi
 
 if [ "$osType" != "Darwin" ]; then
-  tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
+  tar -Jcv -f "$(basename ${pkg_name}).tar.xz" $(basename ${install_dir}) --remove-files || :
 else
-  tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) || :
-#  mv "$(basename ${pkg_name}).tar.gz" ..
+  tar -Jcv -f "$(basename ${pkg_name}).tar.xz" $(basename ${install_dir}) || :
+#  mv "$(basename ${pkg_name}).tar.xz" ..
   rm -rf ${install_dir} ||:
-#  mv ../"$(basename ${pkg_name}).tar.gz" .
+#  mv ../"$(basename ${pkg_name}).tar.xz" .
 fi

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_DYNQUERYCTRL_H
 #define TDENGINE_DYNQUERYCTRL_H
 
@@ -85,7 +88,20 @@ typedef struct {
   int8_t   extRefType;    // 0: internal reference, 1: external reference
   char*    tagCondJson;   // heap, owned; external ref series filter (may be NULL)
   int32_t  tagCondLen;
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // heap, owned; MySQL/PostgreSQL column filter
 } SColRefInfo;
+
+typedef struct SVtbAggDispatchScope {
+  bool      allChildren;
+  bool      hasGroup;
+  uint64_t  groupId;
+  bool      hasUid;
+  tb_uid_t  uid;
+  SArray*   pTagList;  // borrowed from the DynCtrl UID/tag maps
+} SVtbAggDispatchScope;
+
+typedef struct SDynVtbRefResolveCtx SDynVtbRefResolveCtx;
 
 typedef struct SVtbScanDynCtrlInfo {
   bool             batchProcessChild;
@@ -96,23 +112,27 @@ typedef struct SVtbScanDynCtrlInfo {
   bool             needRedeploy;
   bool             hasPartition;
   bool             genNewParam;
+  bool                 activeScopeValid;
+  SVtbAggDispatchScope activeAggScope;
   char*            dbName;
   char*            tbName;
   tsem_t           ready;
   SEpSet           epSet;
   SUseDbRsp*       pRsp;
-  SVTagCondRsp*    pTagCondRsp;  // scratch: decoded VTB_TAG_COND rsp, freed after fetch
+  SVTagCondRsp*    pTagCondRsp;  // scratch: decoded VTB column conditions, freed after fetch
   uint64_t         suid;
   uint64_t         uid;
   uint64_t         dynTbUid;
   int32_t          rversion;
   int32_t          acctId;
+  int8_t           dstPrecision;
   int32_t          curTableIdx;
   int32_t          lastTableIdx;
   uint64_t         clientId; // current DynQueryCtrl task id, used as clientId when wiring a runtime-added org-vg agg reader into the merge exchange
   STimeWindow      window;
   SArray*          readColList;
   SHashObj*        readColSet; // key: col_id_t, value: NULL
+  SArray*          aggTagColIds; // runtime-only logical Tag/TBNAME col_id_t list for VTB_AGG payloads
   SArray*          refColGroups; // Array of <SRefColIdGroup> (slotId groups)
   SArray*          childTableList; // Array of <Array<SColRefInfo>> used for virtual super table
   SArray*          colRefInfo; // Array of <SColRefInfo> used for single virtual normal/child table
@@ -120,11 +140,14 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        childTableMap;
   SHashObj*        dbVgInfoMap;
   SHashObj*        resolvedColRefMap; // key: root db.table.col ref, value: SDynResolvedColRef*
+  // Owns transient ref-resolution state if a downstream scan longjmps.
+  SDynVtbRefResolveCtx* pRefResolveCtx;
   SHashObj*        existOrgTbVg; // key: vgId, value: NULL
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
   SMsgCb*          pMsgCb;
   SHashObj*        otbNameToOtbInfoMap; // key: orgTbFName, value: SOrgTbInfo
-  SHashObj*        foreignSourceMap; // key: "source.db.table", value: SForeignSourceInfo
+  SHashObj*        foreignSourceMap; // binary external scan-group key, value: SForeignSourceInfo
+  SHashObj*        extTableMetaCache; // query-local raw schemas, keyed by source/db/table
   SHashObj*        otbVgIdToOtbInfoArrayMap; // key: vgId, value: SArray<SOrgTbInfo>
   SHashObj*        vtbUidToVgIdMapMap; // key: vtbUid, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>
   SHashObj*        vtbGroupIdToVgIdMapMap; // key: vtbGroupId, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>
@@ -139,7 +162,7 @@ typedef struct SVtbScanDynCtrlInfo {
   char             tagRefTerminalColName[TSDB_COL_NAME_LEN]; // terminal physical tag column name (resolved by planner)
   // General tag-ref filter pushdown (Layer 2): evaluate pTagFilterCond per-child after tag resolution
   SNode*           pTagRefFilterCond;       // cloned & slotId-rewritten filter condition for scalar evaluation
-  SArray*          pTagRefFilterColInfos;   // SArray<SColumnInfo> — columns needed by the filter (defines data block schema)
+  SArray*          pTagRefFilterColInfos;   // SArray<SColumnInfo>  -  columns needed by the filter (defines data block schema)
 } SVtbScanDynCtrlInfo;
 
 typedef struct SVtbWindowDynCtrlInfo {

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,6 +25,7 @@
 #include "mndUser.h"
 #include "mndXnode.h"
 #include "mndToken.h"
+#include "tlogKeyOp.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -486,11 +489,13 @@ static void mndBecomeLearner(const SSyncFSM *pFsm) {
 }
 
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
-  mInfo("vgId:1, becomeleader callback");
+  mInfo(KEYOP("mnode-leader-elect", "START") "vgId:1, becomeleader callback");
   SMnode *pMnode = pFsm->data;
 
   msmHandleBecomeLeader(pMnode);
   mndXnodeHandleBecomeLeader(pMnode);
+
+  mInfo(KEYOP("mnode-leader-elect", "END") "vgId:1, this node is now leader");
 }
 
 static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {
@@ -660,7 +665,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   pMgmt->errCode = 0;
 
   if (pMgmt->transId != 0) {
-    mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
+    mError("trans:%d, cannot be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     (void)taosThreadMutexUnlock(&pMgmt->lock);
     rpcFreeCont(req.pCont);
     TAOS_RETURN(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED);

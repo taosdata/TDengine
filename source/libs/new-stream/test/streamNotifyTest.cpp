@@ -1,24 +1,54 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #define ALLOW_FORBID_FUNC
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <gtest/gtest.h>
 #include <netinet/in.h>
 #include <openssl/evp.h>
+#include <openssl/pem.h>
 #include <openssl/sha.h>
+#include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 #include <poll.h>
+#include <signal.h>
+#include <sys/resource.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <cstdarg>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "cJSON.h"
+#include "cmdnodes.h"
 #include "streamInt.h"
 #include "stub.h"
 #include "tglobal.h"
@@ -55,6 +85,17 @@ struct TcurlSendState {
 
 TcurlSendState gTcurlSendState;
 int32_t        gCurlWsSendCalls = 0;
+curl_socket_t  gCurlActiveSocket = CURL_SOCKET_BAD;
+
+struct BlockingTcurlState {
+  std::mutex              mutex;
+  std::condition_variable entered;
+  std::condition_variable released;
+  bool                    workerEntered = false;
+  bool                    workerReleased = false;
+};
+
+BlockingTcurlState gBlockingTcurlState;
 
 CURLcode FailCurlWsSend(CURL*, const void*, size_t, size_t* sent, curl_off_t, unsigned int) {
   ++gCurlWsSendCalls;
@@ -62,10 +103,51 @@ CURLcode FailCurlWsSend(CURL*, const void*, size_t, size_t* sent, curl_off_t, un
   return CURLE_SEND_ERROR;
 }
 
+CURLcode RetryCurlWsSend(CURL*, const void*, size_t buflen, size_t* sent, curl_off_t, unsigned int) {
+  ++gCurlWsSendCalls;
+  if (gCurlWsSendCalls == 1) {
+    *sent = 0;
+    return CURLE_AGAIN;
+  }
+
+  *sent = buflen;
+  return CURLE_OK;
+}
+
+CURLcode PartiallySendBeforeAgain(CURL*, const void*, size_t buflen, size_t* sent, curl_off_t, unsigned int) {
+  ++gCurlWsSendCalls;
+  *sent = buflen - 1;
+  return CURLE_AGAIN;
+}
+
+CURLcode MockCurlEasyGetinfo(CURL*, int info, ...) {
+  if (info != CURLINFO_ACTIVESOCKET) {
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+  }
+
+  va_list args;
+  va_start(args, info);
+  curl_socket_t* socket = va_arg(args, curl_socket_t*);
+  va_end(args);
+  *socket = gCurlActiveSocket;
+  return CURLE_OK;
+}
+
 int32_t MockTcurlConnect(CURL** ppConn, const char*) {
   ++gTcurlSendState.connectCalls;
   *ppConn = nullptr;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t RejectDirectTcurlConnect(CURL**, const char*) { return TSDB_CODE_FAILED; }
+
+int32_t BlockTcurlGetConnection(const char*, SCURL** ppConn) {
+  *ppConn = nullptr;
+  std::unique_lock<std::mutex> lock(gBlockingTcurlState.mutex);
+  gBlockingTcurlState.workerEntered = true;
+  gBlockingTcurlState.entered.notify_one();
+  gBlockingTcurlState.released.wait(lock, [] { return gBlockingTcurlState.workerReleased; });
+  return TSDB_CODE_RPC_NETWORK_BUSY;
 }
 
 int32_t MockTcurlSend(SCURL*, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
@@ -98,7 +180,8 @@ class LoopbackWebSocketServer {
     }
   }
 
-  bool Start() {
+  bool Start(SSL_CTX* tlsContext = nullptr) {
+    tlsContext_ = tlsContext;
     listenFd_ = socket(AF_INET, SOCK_STREAM, 0);
     if (listenFd_ < 0) {
       error_ = std::string("socket failed: ") + strerror(errno);
@@ -140,21 +223,23 @@ class LoopbackWebSocketServer {
     }
   }
 
-  std::string Url() const { return "ws://127.0.0.1:" + std::to_string(port_) + "/notify"; }
+  std::string Url() const {
+    return std::string(tlsContext_ == nullptr ? "ws://" : "wss://") + "127.0.0.1:" + std::to_string(port_) + "/notify";
+  }
 
   const std::string&                 Error() const { return error_; }
   const std::vector<WebSocketFrame>& Frames() const { return frames_; }
 
  private:
-  static bool SendAll(int fd, const void* data, size_t len, std::string* error) {
+  bool SendAll(int fd, const void* data, size_t len, std::string* error) {
     const char* pos = static_cast<const char*>(data);
     while (len > 0) {
 #ifdef MSG_NOSIGNAL
-      ssize_t n = send(fd, pos, len, MSG_NOSIGNAL);
+      ssize_t n = tls_ ? SSL_write(tls_.get(), pos, static_cast<int>(len)) : send(fd, pos, len, MSG_NOSIGNAL);
 #else
-      ssize_t n = send(fd, pos, len, 0);
+      ssize_t n = tls_ ? SSL_write(tls_.get(), pos, static_cast<int>(len)) : send(fd, pos, len, 0);
 #endif
-      if (n < 0 && errno == EINTR) {
+      if (!tls_ && n < 0 && errno == EINTR) {
         continue;
       }
       if (n <= 0) {
@@ -170,8 +255,8 @@ class LoopbackWebSocketServer {
   bool ReadExact(int fd, void* data, size_t len) {
     char* pos = static_cast<char*>(data);
     while (len > 0) {
-      ssize_t n = recv(fd, pos, len, 0);
-      if (n < 0 && errno == EINTR) {
+      ssize_t n = tls_ ? SSL_read(tls_.get(), pos, static_cast<int>(len)) : recv(fd, pos, len, 0);
+      if (!tls_ && n < 0 && errno == EINTR) {
         continue;
       }
       if (n <= 0) {
@@ -189,8 +274,8 @@ class LoopbackWebSocketServer {
   bool ReadHttpRequest(int fd, std::string* request) {
     char buffer[1024];
     while (request->find("\r\n\r\n") == std::string::npos) {
-      ssize_t n = recv(fd, buffer, sizeof(buffer), 0);
-      if (n < 0 && errno == EINTR) {
+      ssize_t n = tls_ ? SSL_read(tls_.get(), buffer, sizeof(buffer)) : recv(fd, buffer, sizeof(buffer), 0);
+      if (!tls_ && n < 0 && errno == EINTR) {
         continue;
       }
       if (n <= 0) {
@@ -308,9 +393,32 @@ class LoopbackWebSocketServer {
       return;
     }
 
+#ifdef SO_NOSIGPIPE
+    int noSigPipe = 1;
+    if (setsockopt(clientFd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, sizeof(noSigPipe)) != 0) {
+      error_ = std::string("failed to disable SIGPIPE: ") + strerror(errno);
+      close(clientFd);
+      return;
+    }
+#endif
+
     timeval timeout = {kSocketTimeoutSec, 0};
     setsockopt(clientFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     setsockopt(clientFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+    if (tlsContext_ != nullptr) {
+      // A client rejecting the certificate can close while OpenSSL is still writing handshake data.
+      sigset_t signals;
+      sigemptyset(&signals);
+      sigaddset(&signals, SIGPIPE);
+      pthread_sigmask(SIG_BLOCK, &signals, nullptr);
+      tls_.reset(SSL_new(tlsContext_));
+      if (!tls_ || SSL_set_fd(tls_.get(), clientFd) != 1 || SSL_accept(tls_.get()) != 1) {
+        error_ = "TLS handshake failed";
+        close(clientFd);
+        return;
+      }
+    }
 
     std::string request;
     if (!ReadHttpRequest(clientFd, &request) || !SendHandshakeResponse(clientFd, request)) {
@@ -336,6 +444,9 @@ class LoopbackWebSocketServer {
       if (frame.opcode == 0x1 || frame.opcode == 0x0) {
         frames_.push_back(std::move(frame));
         messageComplete = frames_.back().fin;
+        if (messageComplete) {
+          break;
+        }
       }
     }
     close(clientFd);
@@ -346,7 +457,130 @@ class LoopbackWebSocketServer {
   std::thread                 thread_;
   std::string                 error_;
   std::vector<WebSocketFrame> frames_;
+  SSL_CTX*                                  tlsContext_ = nullptr;
+  std::unique_ptr<SSL, decltype(&SSL_free)> tls_{nullptr, SSL_free};
 };
+
+CURL* gTlsConnectionTemplate = nullptr;
+
+CURL* InitCurlWithTestTrust() { return curl_easy_duphandle(gTlsConnectionTemplate); }
+
+class TcurlTlsTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)> keyContext(EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr),
+                                                                           EVP_PKEY_CTX_free);
+    ASSERT_NE(keyContext, nullptr);
+    ASSERT_EQ(EVP_PKEY_keygen_init(keyContext.get()), 1);
+    ASSERT_EQ(EVP_PKEY_CTX_set_rsa_keygen_bits(keyContext.get(), 2048), 1);
+    EVP_PKEY* key = nullptr;
+    ASSERT_EQ(EVP_PKEY_keygen(keyContext.get(), &key), 1);
+    key_.reset(key);
+    certificate_.reset(X509_new());
+    ASSERT_NE(certificate_, nullptr);
+    ASSERT_EQ(X509_set_version(certificate_.get(), 2), 1);
+    ASSERT_EQ(ASN1_INTEGER_set(X509_get_serialNumber(certificate_.get()), 1), 1);
+    ASSERT_NE(X509_gmtime_adj(X509_getm_notBefore(certificate_.get()), -7200), nullptr);
+    ASSERT_EQ(X509_set_pubkey(certificate_.get(), key_.get()), 1);
+    X509_NAME* name = X509_get_subject_name(certificate_.get());
+    ASSERT_EQ(X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+                                         reinterpret_cast<const unsigned char*>("notification test"), -1, -1, 0),
+              1);
+    ASSERT_EQ(X509_set_issuer_name(certificate_.get(), name), 1);
+    context_.reset(SSL_CTX_new(TLS_server_method()));
+    ASSERT_NE(context_, nullptr);
+    connectionTemplate_.reset(curl_easy_init());
+    ASSERT_NE(connectionTemplate_, nullptr);
+    ASSERT_EQ(curl_easy_setopt(connectionTemplate_.get(), CURLOPT_NOPROXY, "*"), CURLE_OK);
+  }
+
+  void TearDown() override {
+    stub_.reset(curl_easy_init);
+    gTlsConnectionTemplate = nullptr;
+  }
+
+  void StartServer(const char* subjectAltName, bool trustCertificate, long expiresInSeconds = 3600) {
+    ASSERT_NE(X509_gmtime_adj(X509_getm_notAfter(certificate_.get()), expiresInSeconds), nullptr);
+    std::unique_ptr<X509_EXTENSION, decltype(&X509_EXTENSION_free)> extension(
+        X509V3_EXT_conf_nid(nullptr, nullptr, NID_subject_alt_name, const_cast<char*>(subjectAltName)),
+        X509_EXTENSION_free);
+    ASSERT_NE(extension, nullptr);
+    ASSERT_EQ(X509_add_ext(certificate_.get(), extension.get(), -1), 1);
+    ASSERT_GT(X509_sign(certificate_.get(), key_.get(), EVP_sha256()), 0);
+    ASSERT_EQ(SSL_CTX_use_certificate(context_.get(), certificate_.get()), 1);
+    ASSERT_EQ(SSL_CTX_use_PrivateKey(context_.get(), key_.get()), 1);
+
+    if (trustCertificate) {
+      std::unique_ptr<BIO, decltype(&BIO_free)> pem(BIO_new(BIO_s_mem()), BIO_free);
+      ASSERT_NE(pem, nullptr);
+      ASSERT_EQ(PEM_write_bio_X509(pem.get(), certificate_.get()), 1);
+      char* data = nullptr;
+      long  size = BIO_get_mem_data(pem.get(), &data);
+      ASSERT_GT(size, 0);
+      curl_blob ca = {data, static_cast<size_t>(size), CURL_BLOB_COPY};
+      ASSERT_EQ(curl_easy_setopt(connectionTemplate_.get(), CURLOPT_CAINFO_BLOB, &ca), CURLE_OK);
+    }
+    // Inject only a test-local trust anchor; tcurlConnect and the TLS/WebSocket handshake remain real.
+    gTlsConnectionTemplate = connectionTemplate_.get();
+    stub_.set(curl_easy_init, InitCurlWithTestTrust);
+    ASSERT_TRUE(server_.Start(context_.get())) << server_.Error();
+  }
+
+  void CheckConnection(bool expectedSuccess) {
+    const std::string url = server_.Url();
+    SCURL             connection = {};
+    connection.url = taosStrdup(url.c_str());
+    ASSERT_NE(connection.url, nullptr);
+    int32_t code = tcurlConnect(&connection.pConn, url.c_str());
+    EXPECT_EQ(code == TSDB_CODE_SUCCESS, expectedSuccess);
+    EXPECT_EQ(connection.pConn != nullptr, expectedSuccess);
+    if (code == TSDB_CODE_SUCCESS && connection.pConn != nullptr) {
+      const char payload[] = "notification";
+      size_t     sent = 0;
+      EXPECT_EQ(tcurlSend(&connection, payload, sizeof(payload) - 1, &sent, 0, CURLWS_TEXT, taosGetMonoTimestampMs()),
+                TSDB_CODE_SUCCESS);
+      EXPECT_EQ(sent, sizeof(payload) - 1);
+    }
+    tcurlClose(&connection);
+    server_.Wait();
+    if (expectedSuccess) {
+      EXPECT_TRUE(server_.Error().empty()) << server_.Error();
+      ASSERT_EQ(server_.Frames().size(), 1U);
+      EXPECT_EQ(server_.Frames()[0].payload, "notification");
+    } else {
+      EXPECT_TRUE(server_.Frames().empty());
+    }
+  }
+
+ private:
+  std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> key_{nullptr, EVP_PKEY_free};
+  std::unique_ptr<X509, decltype(&X509_free)>         certificate_{nullptr, X509_free};
+  std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)>   context_{nullptr, SSL_CTX_free};
+  std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> connectionTemplate_{nullptr, curl_easy_cleanup};
+  LoopbackWebSocketServer                             server_;
+  Stub                                                stub_;
+};
+
+// Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7120477311
+TEST_F(TcurlTlsTest, RejectsUntrustedCertificate) {
+  ASSERT_NO_FATAL_FAILURE(StartServer("IP:127.0.0.1", false));
+  CheckConnection(false);
+}
+
+TEST_F(TcurlTlsTest, RejectsTrustedCertificateWithWrongHost) {
+  ASSERT_NO_FATAL_FAILURE(StartServer("DNS:notification.invalid", true));
+  CheckConnection(false);
+}
+
+TEST_F(TcurlTlsTest, RejectsExpiredTrustedCertificate) {
+  ASSERT_NO_FATAL_FAILURE(StartServer("IP:127.0.0.1", true, -3600));
+  CheckConnection(false);
+}
+
+TEST_F(TcurlTlsTest, SendsNotificationWithTrustedMatchingCertificate) {
+  ASSERT_NO_FATAL_FAILURE(StartServer("IP:127.0.0.1", true));
+  CheckConnection(true);
+}
 
 struct ArrayDeleter {
   void operator()(SArray* array) const { taosArrayDestroy(array); }
@@ -369,6 +603,277 @@ class StreamNotifyTest : public ::testing::Test {
   int32_t originalFrameSizeKb_ = 0;
 };
 
+class StreamNotifyAsyncTest : public StreamNotifyTest {
+ protected:
+  void SetUp() override {
+    StreamNotifyTest::SetUp();
+    ASSERT_EQ(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, 1), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override {
+    streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
+    StreamNotifyTest::TearDown();
+  }
+};
+
+class StreamNotifyBlockedWorkerTest : public StreamNotifyTest {
+ protected:
+  void SetUp() override {
+    StreamNotifyTest::SetUp();
+    originalParamPoolSizeKb_ = tsStreamNotifyParamPoolSize;
+    tsStreamNotifyParamPoolSize = 1;
+    {
+      std::lock_guard<std::mutex> lock(gBlockingTcurlState.mutex);
+      gBlockingTcurlState.workerEntered = false;
+      gBlockingTcurlState.workerReleased = false;
+    }
+    stub_.reset(new Stub());
+    stub_->set(tcurlGetConnection, BlockTcurlGetConnection);
+    ASSERT_EQ(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, 1), TSDB_CODE_SUCCESS);
+    poolInited_ = true;
+  }
+
+  void TearDown() override {
+    DestroyPool();
+    stub_.reset();
+    tsStreamNotifyParamPoolSize = originalParamPoolSizeKb_;
+    StreamNotifyTest::TearDown();
+  }
+
+  int32_t Enqueue(int64_t streamId) {
+    const char*                           url = "ws://unused/block-worker";
+    std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+    if (urls == nullptr) {
+      return terrno;
+    }
+    char* urlPtr = const_cast<char*>(url);
+    if (taosArrayPush(urls.get(), &urlPtr) == nullptr) {
+      return terrno;
+    }
+
+    SStreamTask task = {};
+    task.type = STREAM_TRIGGER_TASK;
+    task.streamId = streamId;
+    task.taskId = streamId + 1;
+
+    SSTriggerCalcParam param = {};
+    param.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
+    return streamSendNotifyContent(&task, "1.notify_blocked_worker_test", "result_table", STREAM_TRIGGER_SESSION, 42,
+                                   TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1);
+  }
+
+  bool WaitForBlockedWorker() {
+    std::unique_lock<std::mutex> lock(gBlockingTcurlState.mutex);
+    return gBlockingTcurlState.entered.wait_for(lock, std::chrono::seconds(5),
+                                                [] { return gBlockingTcurlState.workerEntered; });
+  }
+
+  void DestroyPool() {
+    {
+      std::lock_guard<std::mutex> lock(gBlockingTcurlState.mutex);
+      gBlockingTcurlState.workerReleased = true;
+    }
+    gBlockingTcurlState.released.notify_all();
+    if (poolInited_) {
+      streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
+      poolInited_ = false;
+    }
+  }
+
+ private:
+  std::unique_ptr<Stub> stub_;
+  int32_t               originalParamPoolSizeKb_ = 0;
+  bool                  poolInited_ = false;
+};
+
+struct NotifyRetryState {
+  std::mutex              mutex;
+  std::condition_variable changed;
+  std::atomic<int64_t>    nowMs{100000};
+  SCURL                   connections[2] = {};
+  std::vector<int64_t>    delivered[2];
+  int32_t                 failures[2] = {};
+  int32_t                 failingUrl = 1;
+  int32_t                 failuresRemaining = 2;
+  bool                    failSecondEvent = false;
+  bool                    firstFailure = false;
+  bool                    released = false;
+  bool                    retryOverflow = false;
+  bool                    stopping = false;
+};
+
+NotifyRetryState* gNotifyRetryState = nullptr;
+
+// Fakes only the wall clock; the monotonic clock stays real.
+int32_t NotifyRetryClock(int clockId, struct timespec* time) {
+  int64_t nowNs = gNotifyRetryState->nowMs.load() * NANOSECOND_PER_MSEC;
+  if (clockId != CLOCK_REALTIME) {
+    nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count();
+  }
+  time->tv_sec = static_cast<time_t>(nowNs / NANOSECOND_PER_SEC);
+  time->tv_nsec = static_cast<long>(nowNs % NANOSECOND_PER_SEC);
+  return 0;
+}
+
+void NotifyRetrySleep(int32_t milliseconds) { gNotifyRetryState->nowMs.fetch_add(milliseconds); }
+
+int64_t NotifyRetryAfterMs(const char*) { return 0; }
+
+int32_t NotifyRetryGetConnection(const char* url, SCURL** connection) {
+  *connection = &gNotifyRetryState->connections[strstr(url, "second") != nullptr ? 1 : 0];
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t NotifyRetryEnsureAlive(SCURL*) { return TSDB_CODE_SUCCESS; }
+
+void NotifyRetryRemoveConnection(const char*) {}
+
+int32_t NotifyRetrySendMessage(SCURL* connection, const void* buffer, size_t length, size_t) {
+  NotifyRetryState&                   state = *gNotifyRetryState;
+  const int32_t                       target = connection == &state.connections[0] ? 0 : 1;
+  std::unique_ptr<cJSON, JsonDeleter> root(cJSON_ParseWithLength(static_cast<const char*>(buffer), length));
+  cJSON*                              streams = cJSON_GetObjectItemCaseSensitive(root.get(), "streams");
+  cJSON*                              stream = cJSON_GetArrayItem(streams, 0);
+  cJSON*                              events = cJSON_GetObjectItemCaseSensitive(stream, "events");
+  std::vector<int64_t>                starts;
+  for (int32_t i = 0; i < cJSON_GetArraySize(events); ++i) {
+    cJSON* start = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(events, i), "windowStart");
+    if (!cJSON_IsNumber(start)) return TSDB_CODE_FAILED;
+    starts.push_back(static_cast<int64_t>(start->valuedouble));
+  }
+
+  std::unique_lock<std::mutex> lock(state.mutex);
+  bool                         fail = false;
+  for (int64_t start : starts) {
+    if (target == state.failingUrl && state.failuresRemaining != 0 &&
+        (start == 1000 || (state.failSecondEvent && start == 3000))) {
+      ++state.failures[start == 1000 ? 0 : 1];
+      fail = true;
+    }
+  }
+  if (fail) {
+    state.firstFailure = true;
+    state.retryOverflow = state.failures[0] > 32 || state.failures[1] > 32;
+    state.changed.notify_all();
+    state.changed.wait(lock, [&state] { return state.stopping || (state.released && !state.retryOverflow); });
+    if (state.failuresRemaining > 0) --state.failuresRemaining;
+    // Two transport attempts exhaust the worker budget, forcing a queue reschedule.
+    state.nowMs.fetch_add(6000);
+    return TSDB_CODE_FAILED;
+  }
+  state.delivered[target].insert(state.delivered[target].end(), starts.begin(), starts.end());
+  state.changed.notify_all();
+  return TSDB_CODE_SUCCESS;
+}
+
+class StreamNotifyRetryTest : public StreamNotifyTest {
+ protected:
+  void SetUp() override {
+    StreamNotifyTest::SetUp();
+    originalBatchIntervalMs_ = tsStreamNotifyBatchIntervalMs;
+    tsStreamNotifyBatchIntervalMs = 0;
+    gNotifyRetryState = &state_;
+    for (SCURL& connection : state_.connections) {
+      connection.pConn = reinterpret_cast<CURL*>(&connection);
+    }
+    stub_.set(taosClockGetTime, NotifyRetryClock);
+    stub_.set(taosMsleep, NotifyRetrySleep);
+    stub_.set(tcurlUrlRetryAfterMs, NotifyRetryAfterMs);
+    stub_.set(tcurlGetConnection, NotifyRetryGetConnection);
+    stub_.set(tcurlEnsureAlive, NotifyRetryEnsureAlive);
+    stub_.set(tcurlRemoveConnection, NotifyRetryRemoveConnection);
+    stub_.set(tcurlSendMessage, NotifyRetrySendMessage);
+    ASSERT_EQ(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, 1), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override {
+    {
+      std::lock_guard<std::mutex> lock(state_.mutex);
+      state_.stopping = true;
+    }
+    state_.changed.notify_all();
+    streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
+    tsStreamNotifyBatchIntervalMs = originalBatchIntervalMs_;
+    StreamNotifyTest::TearDown();
+  }
+
+  int32_t Enqueue(int64_t start, int64_t groupId = 42) {
+    std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(2, sizeof(char*)));
+    if (urls == nullptr) return terrno;
+    const char* addresses[] = {"ws://unused/first", "ws://unused/second"};
+    for (const char* address : addresses) {
+      if (taosArrayPush(urls.get(), &address) == nullptr) return terrno;
+    }
+    SStreamTask task = {};
+    task.type = STREAM_TRIGGER_TASK;
+    task.streamId = 0x7128649969;
+    SSTriggerCalcParam param = {};
+    param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+    param.wstart = start;
+    param.wend = start + 1000;
+    return streamSendNotifyContent(&task, "1.notify_retry_test", "result_table", STREAM_TRIGGER_SESSION, groupId,
+                                   TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1);
+  }
+
+  bool WaitForFailure() {
+    std::unique_lock<std::mutex> lock(state_.mutex);
+    return state_.changed.wait_for(lock, std::chrono::seconds(5), [this] { return state_.firstFailure; });
+  }
+
+  bool FinishAndCheck(const std::vector<int64_t>& first, const std::vector<int64_t>& second) {
+    std::unique_lock<std::mutex> lock(state_.mutex);
+    state_.released = true;
+    state_.changed.notify_all();
+    bool finished = state_.changed.wait_for(lock, std::chrono::seconds(5), [this, &second] {
+      const auto& delivered = state_.delivered[1];
+      return state_.retryOverflow || std::find(delivered.begin(), delivered.end(), second.back()) != delivered.end();
+    });
+    EXPECT_FALSE(state_.retryOverflow);
+    EXPECT_EQ(state_.delivered[0], first);
+    EXPECT_EQ(state_.delivered[1], second);
+    return finished && !state_.retryOverflow;
+  }
+
+  NotifyRetryState state_;
+
+ private:
+  int32_t originalBatchIntervalMs_ = 0;
+  Stub    stub_;
+};
+
+// Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7128649969
+TEST_F(StreamNotifyRetryTest, PartialDeliverySurvivesRequeueAndNewEvents) {
+  ASSERT_EQ(Enqueue(1000), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForFailure());
+  ASSERT_EQ(Enqueue(3000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Enqueue(5000, 84), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(FinishAndCheck({1000, 3000, 5000}, {1000, 3000, 5000}));
+}
+
+TEST_F(StreamNotifyRetryTest, RetryLimitSurvivesWorkerRequeue) {
+  state_.failuresRemaining = -1;
+  ASSERT_EQ(Enqueue(1000), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForFailure());
+  ASSERT_EQ(Enqueue(3000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(FinishAndCheck({1000, 3000}, {3000}));
+}
+
+TEST_F(StreamNotifyRetryTest, NewEventsKeepTheirOwnRetryBudget) {
+  state_.failingUrl = 0;
+  state_.failuresRemaining = -1;
+  state_.failSecondEvent = true;
+  ASSERT_EQ(Enqueue(1000), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForFailure());
+  ASSERT_EQ(Enqueue(3000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Enqueue(5000, 84), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(FinishAndCheck({5000}, {5000}));
+  std::lock_guard<std::mutex> lock(state_.mutex);
+  EXPECT_EQ(state_.failures[0], 32);
+  EXPECT_EQ(state_.failures[1], 32);
+}
+
 TEST(TcurlSendTest, SendFailureKeepsConnectionForMessageLevelRecovery) {
   Stub stub;
   stub.set(curl_ws_send, FailCurlWsSend);
@@ -383,7 +888,8 @@ TEST(TcurlSendTest, SendFailureKeepsConnectionForMessageLevelRecovery) {
   const char payload[] = "payload";
   size_t     sent = 0;
   gCurlWsSendCalls = 0;
-  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET),
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      taosGetMonoTimestampMs()),
             TSDB_CODE_FAILED);
   EXPECT_EQ(gCurlWsSendCalls, 1);
   EXPECT_EQ(sent, 0);
@@ -394,6 +900,150 @@ TEST(TcurlSendTest, SendFailureKeepsConnectionForMessageLevelRecovery) {
     conn.pConn = nullptr;
   }
   taosMemoryFreeClear(conn.url);
+}
+
+TEST(TcurlSendTest, RetryAfterSocketBecomesWritable) {
+  int sockets[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+  Stub wsSendStub;
+  Stub getinfoStub;
+  wsSendStub.set(curl_ws_send, RetryCurlWsSend);
+  getinfoStub.set(curl_easy_getinfo, MockCurlEasyGetinfo);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/retry");
+  const char payload[] = "payload";
+  size_t     sent = 0;
+  gCurlWsSendCalls = 0;
+  gCurlActiveSocket = sockets[0];
+
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      taosGetMonoTimestampMs()),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCurlWsSendCalls, 2);
+  EXPECT_EQ(sent, sizeof(payload) - 1);
+
+  close(sockets[0]);
+  close(sockets[1]);
+  gCurlActiveSocket = CURL_SOCKET_BAD;
+}
+
+TEST(TcurlSendTest, MessageRetryAfterSocketBecomesWritable) {
+  int sockets[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+  Stub wsSendStub;
+  Stub getinfoStub;
+  wsSendStub.set(curl_ws_send, RetryCurlWsSend);
+  getinfoStub.set(curl_easy_getinfo, MockCurlEasyGetinfo);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/message-retry");
+  const char payload[] = "payload";
+  gCurlWsSendCalls = 0;
+  gCurlActiveSocket = sockets[0];
+
+  EXPECT_EQ(tcurlSendMessage(&conn, payload, sizeof(payload) - 1, sizeof(payload) - 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCurlWsSendCalls, 2);
+
+  close(sockets[0]);
+  close(sockets[1]);
+  gCurlActiveSocket = CURL_SOCKET_BAD;
+}
+
+TEST(TcurlSendTest, RetrySupportsSocketOutsideSelectFdSet) {
+  struct rlimit originalLimit = {};
+  ASSERT_EQ(getrlimit(RLIMIT_NOFILE, &originalLimit), 0);
+  bool limitRaised = false;
+  if (originalLimit.rlim_cur <= FD_SETSIZE) {
+    struct rlimit raisedLimit = originalLimit;
+    raisedLimit.rlim_cur = std::min<rlim_t>(originalLimit.rlim_max, FD_SETSIZE + 1);
+    if (raisedLimit.rlim_cur <= FD_SETSIZE) {
+      GTEST_SKIP() << "hard file descriptor limit is too low";
+    }
+    ASSERT_EQ(setrlimit(RLIMIT_NOFILE, &raisedLimit), 0);
+    limitRaised = true;
+  }
+
+  int sockets[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+  int highSocket = fcntl(sockets[0], F_DUPFD, FD_SETSIZE);
+  ASSERT_GE(highSocket, FD_SETSIZE);
+  close(sockets[0]);
+
+  Stub wsSendStub;
+  Stub getinfoStub;
+  wsSendStub.set(curl_ws_send, RetryCurlWsSend);
+  getinfoStub.set(curl_easy_getinfo, MockCurlEasyGetinfo);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/high-fd-retry");
+  const char payload[] = "payload";
+  size_t     sent = 0;
+  gCurlWsSendCalls = 0;
+  gCurlActiveSocket = highSocket;
+
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      taosGetMonoTimestampMs()),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCurlWsSendCalls, 2);
+
+  close(highSocket);
+  close(sockets[1]);
+  if (limitRaised) {
+    EXPECT_EQ(setrlimit(RLIMIT_NOFILE, &originalLimit), 0);
+  }
+  gCurlActiveSocket = CURL_SOCKET_BAD;
+}
+
+TEST(TcurlSendTest, ExpiredMessageDeadlineStopsRetry) {
+  int sockets[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+  Stub wsSendStub;
+  Stub getinfoStub;
+  wsSendStub.set(curl_ws_send, RetryCurlWsSend);
+  getinfoStub.set(curl_easy_getinfo, MockCurlEasyGetinfo);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/expired-retry");
+  const char payload[] = "payload";
+  size_t     sent = 0;
+  gCurlWsSendCalls = 0;
+  gCurlActiveSocket = sockets[0];
+
+  int64_t sendStartMonoMs = taosGetMonoTimestampMs() - 11000;
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      sendStartMonoMs),
+            TSDB_CODE_FAILED);
+  EXPECT_EQ(gCurlWsSendCalls, 1);
+
+  close(sockets[0]);
+  close(sockets[1]);
+  gCurlActiveSocket = CURL_SOCKET_BAD;
+}
+
+TEST(TcurlSendTest, PartialProgressBeforeAgainIsReportedToCaller) {
+  Stub stub;
+  stub.set(curl_ws_send, PartiallySendBeforeAgain);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/partial-progress");
+  const char payload[] = "payload";
+  size_t     sent = 0;
+  gCurlWsSendCalls = 0;
+
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      taosGetMonoTimestampMs()),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCurlWsSendCalls, 1);
+  EXPECT_EQ(sent, sizeof(payload) - 2);
 }
 
 TEST_F(StreamNotifyTest, SmallNotificationUsesOneFinalTextFrame) {
@@ -421,7 +1071,7 @@ TEST_F(StreamNotifyTest, SmallNotificationUsesOneFinalTextFrame) {
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
   ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_single_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
-                                    urls.get(), 0, &param, 1),
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), NOTIFY_ON_FAILURE_PAUSE, &param, 1),
             TSDB_CODE_SUCCESS);
   server.Wait();
   ASSERT_TRUE(server.Error().empty()) << server.Error();
@@ -478,7 +1128,7 @@ TEST_F(StreamNotifyTest, ShortWritesContinueWithinEachFrame) {
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
   ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_short_write_test", "result_table", STREAM_TRIGGER_COUNT, 42,
-                                    urls.get(), 0, &param, 1),
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), NOTIFY_ON_FAILURE_PAUSE, &param, 1),
             TSDB_CODE_SUCCESS);
 
   EXPECT_EQ(gTcurlSendState.connectCalls, 1);
@@ -549,8 +1199,8 @@ TEST_F(StreamNotifyTest, LargeNotificationIsFragmentedWithoutChangingMessage) {
   param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
-  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42, urls.get(),
-                                    0, &param, 1),
+  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), NOTIFY_ON_FAILURE_PAUSE, &param, 1),
             TSDB_CODE_SUCCESS);
   server.Wait();
   ASSERT_TRUE(server.Error().empty()) << server.Error();
@@ -595,9 +1245,243 @@ TEST_F(StreamNotifyTest, LargeNotificationIsFragmentedWithoutChangingMessage) {
   EXPECT_EQ(std::string(receivedPayload->valuestring), payload);
 }
 
+TEST_F(StreamNotifyAsyncTest, LargeNotificationIsFragmentedWithoutChangingMessage) {
+  LoopbackWebSocketServer server;
+  ASSERT_TRUE(server.Start()) << server.Error();
+
+  std::string                           url = server.Url();
+  std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+  ASSERT_NE(urls, nullptr);
+  char* urlPtr = const_cast<char*>(url.c_str());
+  ASSERT_NE(taosArrayPush(urls.get(), &urlPtr), nullptr);
+
+  std::string payload(kTestPayloadBytes, 'a');
+  for (size_t i = 0; i < payload.size(); ++i) {
+    payload[i] = static_cast<char>('a' + i % 26);
+  }
+  std::string extraContent = "{\"payload\":\"" + payload + "\"}";
+
+  SStreamTask task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = 0x9abc;
+  task.taskId = 0xdef0;
+
+  SSTriggerCalcParam param = {};
+  param.wstart = 1000;
+  param.wend = 2000;
+  param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
+
+  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_async_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
+            TSDB_CODE_SUCCESS);
+  server.Wait();
+  ASSERT_TRUE(server.Error().empty()) << server.Error();
+
+  const std::vector<WebSocketFrame>& frames = server.Frames();
+  ASSERT_GT(frames.size(), 1);
+
+  std::string message;
+  for (size_t i = 0; i < frames.size(); ++i) {
+    EXPECT_TRUE(frames[i].masked);
+    EXPECT_LE(frames[i].payload.size(), kFramePayloadBytes);
+    EXPECT_EQ(frames[i].opcode, i == 0 ? 0x1 : 0x0);
+    EXPECT_EQ(frames[i].fin, i + 1 == frames.size());
+    message += frames[i].payload;
+  }
+
+  std::unique_ptr<cJSON, JsonDeleter> root(cJSON_ParseWithLength(message.data(), message.size()));
+  ASSERT_NE(root, nullptr);
+  cJSON* streams = cJSON_GetObjectItemCaseSensitive(root.get(), "streams");
+  ASSERT_TRUE(cJSON_IsArray(streams));
+  cJSON* stream = cJSON_GetArrayItem(streams, 0);
+  ASSERT_TRUE(cJSON_IsObject(stream));
+  cJSON* events = cJSON_GetObjectItemCaseSensitive(stream, "events");
+  ASSERT_TRUE(cJSON_IsArray(events));
+  cJSON* event = cJSON_GetArrayItem(events, 0);
+  ASSERT_TRUE(cJSON_IsObject(event));
+  cJSON* receivedPayload = cJSON_GetObjectItemCaseSensitive(event, "payload");
+  ASSERT_TRUE(cJSON_IsString(receivedPayload));
+  EXPECT_EQ(std::string(receivedPayload->valuestring), payload);
+}
+
+TEST_F(StreamNotifyAsyncTest, DropResultReportsQueueAcceptanceBeforeNetworkDelivery) {
+  Stub stub;
+  stub.set(tcurlConnect, RejectDirectTcurlConnect);
+
+  std::string                           url = "ws://unused/queue-acceptance";
+  std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+  ASSERT_NE(urls, nullptr);
+  char* urlPtr = const_cast<char*>(url.c_str());
+  ASSERT_NE(taosArrayPush(urls.get(), &urlPtr), nullptr);
+
+  SStreamTask task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = 0xa123;
+  task.taskId = 0xb456;
+
+  SSTriggerCalcParam param = {};
+  param.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
+
+  bool attempted = false;
+  bool accepted = false;
+  EXPECT_EQ(
+      streamSendNotifyContentWithResult(&task, "1.notify_queue_acceptance_test", "result_table", STREAM_TRIGGER_SESSION,
+                                        42, TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1, &attempted, &accepted),
+      TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(attempted);
+  EXPECT_TRUE(accepted);
+}
+
+TEST_F(StreamNotifyAsyncTest, DestroyingQueueWithZeroStreamIdDoesNotCrash) {
+  Stub stub;
+  stub.set(tcurlConnect, MockTcurlConnect);
+  stub.set(tcurlSend, MockTcurlSend);
+  gTcurlSendState = {};
+
+  std::string                           url = "ws://unused/zero-stream-id";
+  std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+  ASSERT_NE(urls, nullptr);
+  char* urlPtr = const_cast<char*>(url.c_str());
+  ASSERT_NE(taosArrayPush(urls.get(), &urlPtr), nullptr);
+
+  SStreamTask task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = 0;
+  task.taskId = 0x5678;
+
+  SSTriggerCalcParam param = {};
+  param.wstart = 1000;
+  param.wend = 2000;
+  param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  param.extraNotifyContent = const_cast<char*>("{\"payload\":\"zero-stream-id\"}");
+
+  ASSERT_EQ(streamSendNotifyContent(&task, "0.notify_zero_stream_id_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
+            TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamNotifyBlockedWorkerTest, BorrowedHashNodeDoesNotAccessUnregisteredQueueDuringShutdown) {
+  constexpr int64_t streamId = 0x1234;
+  ASSERT_EQ(Enqueue(streamId), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForBlockedWorker());
+
+  SStreamNotifyWorkerPool* pPool = &gStreamMgmt.notifyWorkerPool;
+  taosThreadMutexLock(&pPool->mapLock);
+  void* pIter = taosHashIterate(pPool->queueMap, nullptr);
+  taosThreadMutexUnlock(&pPool->mapLock);
+  ASSERT_NE(pIter, nullptr);
+
+  streamNotifyQueueUnregister(streamId);
+  EXPECT_EQ(taosHashGetSize(pPool->queueMap), 1);
+  DestroyPool();
+}
+
+TEST_F(StreamNotifyBlockedWorkerTest, ReclaimingParamReleasesQueueMapIterator) {
+  constexpr int64_t blockedStreamId = 0x2000;
+  ASSERT_EQ(Enqueue(blockedStreamId), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForBlockedWorker());
+
+  SStreamNotifyWorkerPool* pPool = &gStreamMgmt.notifyWorkerPool;
+  const int64_t            poolCapacity = pPool->paramPool.capacity;
+  ASSERT_GE(poolCapacity, 4);
+
+  for (int64_t i = 1; i <= poolCapacity; ++i) {
+    ASSERT_EQ(Enqueue(blockedStreamId + i), TSDB_CODE_SUCCESS);
+  }
+  for (int64_t i = 1; i <= poolCapacity; ++i) {
+    streamNotifyQueueUnregister(blockedStreamId + i);
+  }
+
+  EXPECT_EQ(taosHashGetSize(pPool->queueMap), 1);
+  streamNotifyQueueUnregister(blockedStreamId);
+  DestroyPool();
+}
+
+TEST_F(StreamNotifyTest, GroupedNotificationsKeepGidTbnameWindowAndLineage) {
+  Stub stub;
+  stub.set(tcurlConnect, MockTcurlConnect);
+  stub.set(tcurlSend, MockTcurlSend);
+
+  std::string                           url = "ws://unused/grouped-notify";
+  std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+  ASSERT_NE(urls, nullptr);
+  char* urlPtr = const_cast<char*>(url.c_str());
+  ASSERT_NE(taosArrayPush(urls.get(), &urlPtr), nullptr);
+
+  SStreamTask task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = 0x1234;
+  task.taskId = 0x5678;
+
+  const int64_t gids[] = {202, 101, 303};
+  for (int32_t i = 0; i < 3; ++i) {
+    SCOPED_TRACE(i);
+    SWindowLineage lineage = {};
+    lineage.pScopes = taosArrayInit(1, sizeof(SScopeInstanceId));
+    ASSERT_NE(lineage.pScopes, nullptr);
+    SScopeInstanceId scope = {};
+    scope.layerIndex = 0;
+    scope.triggerType = WINDOW_TYPE_INTERVAL;
+    scope.openingTs = 1000 + i;
+    scope.nativeDiscriminator = 700 + i;
+    ASSERT_NE(taosArrayPush(lineage.pScopes, &scope), nullptr);
+
+    const TSKEY   leafStart = 2000 + i;
+    const int32_t windowIndex = 10 + i;
+    char          triggerId[STREAM_NESTED_TRIGGER_ID_LEN] = {0};
+    ASSERT_EQ(stBuildNestedTriggerId(gids[i], &lineage, leafStart, windowIndex, triggerId), TSDB_CODE_SUCCESS);
+
+    const std::string  tableName = "group_" + std::to_string(gids[i]);
+    const std::string  lineageMarker = "lineage-" + std::to_string(i);
+    const std::string  extraContent = "{\"lineageMarker\":\"" + lineageMarker + "\"}";
+    SSTriggerCalcParam param = {};
+    param.wstart = leafStart;
+    param.wend = leafStart + 99;
+    param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+    param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
+    const char* triggerIds[] = {triggerId};
+    gTcurlSendState = {};
+
+    ASSERT_EQ(streamSendNestedResultNotifyContent(&task, "1.grouped_notify", tableName.c_str(), STREAM_TRIGGER_COUNT,
+                                                  gids[i], urls.get(), 0, &param, triggerIds, 1),
+              TSDB_CODE_SUCCESS);
+
+    std::unique_ptr<cJSON, JsonDeleter> root(
+        cJSON_ParseWithLength(gTcurlSendState.payload.data(), gTcurlSendState.payload.size()));
+    ASSERT_NE(root, nullptr);
+    cJSON* streams = cJSON_GetObjectItemCaseSensitive(root.get(), "streams");
+    cJSON* stream = cJSON_IsArray(streams) ? cJSON_GetArrayItem(streams, 0) : nullptr;
+    cJSON* events = cJSON_IsObject(stream) ? cJSON_GetObjectItemCaseSensitive(stream, "events") : nullptr;
+    cJSON* event = cJSON_IsArray(events) ? cJSON_GetArrayItem(events, 0) : nullptr;
+    ASSERT_TRUE(cJSON_IsObject(event));
+    cJSON* groupId = cJSON_GetObjectItemCaseSensitive(event, "groupId");
+    cJSON* receivedTableName = cJSON_GetObjectItemCaseSensitive(event, "tableName");
+    cJSON* windowStart = cJSON_GetObjectItemCaseSensitive(event, "windowStart");
+    cJSON* windowEnd = cJSON_GetObjectItemCaseSensitive(event, "windowEnd");
+    cJSON* receivedTriggerId = cJSON_GetObjectItemCaseSensitive(event, "triggerId");
+    cJSON* receivedLineageMarker = cJSON_GetObjectItemCaseSensitive(event, "lineageMarker");
+    ASSERT_TRUE(cJSON_IsString(groupId));
+    ASSERT_TRUE(cJSON_IsString(receivedTableName));
+    ASSERT_TRUE(cJSON_IsNumber(windowStart));
+    ASSERT_TRUE(cJSON_IsNumber(windowEnd));
+    ASSERT_TRUE(cJSON_IsString(receivedTriggerId));
+    ASSERT_TRUE(cJSON_IsString(receivedLineageMarker));
+    EXPECT_EQ(std::string(groupId->valuestring), std::to_string(gids[i]));
+    EXPECT_EQ(std::string(receivedTableName->valuestring), tableName);
+    EXPECT_EQ(static_cast<TSKEY>(windowStart->valuedouble), param.wstart);
+    EXPECT_EQ(static_cast<TSKEY>(windowEnd->valuedouble), param.wend);
+    EXPECT_STREQ(receivedTriggerId->valuestring, triggerId);
+    EXPECT_EQ(std::string(receivedLineageMarker->valuestring), lineageMarker);
+
+    taosArrayDestroy(lineage.pScopes);
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+  signal(SIGPIPE, SIG_IGN);
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

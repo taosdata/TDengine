@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -41,6 +43,7 @@
 
 static void    syncNodeEqPingTimer(void* param, void* tmrId);
 static void    syncNodeEqElectTimer(void* param, void* tmrId);
+static void    syncNodeEqRestoreElectTimer(void* param, void* tmrId);
 static void    syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodeAppendNoop(SSyncNode* ths);
 static void    syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId);
@@ -79,6 +82,9 @@ int64_t syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncNode->pingBaseLine = pSyncInfo->pingMs;
   pSyncNode->pingTimerMS = pSyncInfo->pingMs;
   pSyncNode->electBaseLine = pSyncInfo->electMs;
+  // Capture the initial baseline once at open time; used as the restore target
+  // by the fallback restore-elect timer. Never overwritten afterwards.
+  pSyncNode->electBaseLineOrig = pSyncInfo->electMs;
   pSyncNode->hbBaseLine = pSyncInfo->heartbeatMs;
   pSyncNode->heartbeatTimerMS = pSyncInfo->heartbeatMs;
   pSyncNode->msgcb = pSyncInfo->msgcb;
@@ -581,6 +587,23 @@ bool syncIsReadyForRead(int64_t rid) {
   }
 
   bool ready = syncNodeIsReadyForRead(pSyncNode);
+
+  syncNodeRelease(pSyncNode);
+  return ready;
+}
+
+bool syncIsReadyForReplicaRead(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("sync replica read readiness check failed");
+    return false;
+  }
+
+  bool ready = pSyncNode->restoreFinish;
+  if (!ready) {
+    terrno = TSDB_CODE_SYN_RESTORING;
+  }
 
   syncNodeRelease(pSyncNode);
   return ready;
@@ -1432,6 +1455,12 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t elec
   pSyncNode->FpElectTimerCB = syncNodeEqElectTimer;
   pSyncNode->electTimerCounter = 0;
 
+  // init restore-elect timer
+  pSyncNode->pRestoreElectTimer = NULL;
+  pSyncNode->restoreElectTimerMS = SYNC_RESTORE_ELECT_TIMEOUT_MS;
+  atomic_store_64(&pSyncNode->restoreElectTimerLogicClock, 0);
+  pSyncNode->FpRestoreElectTimerCB = syncNodeEqRestoreElectTimer;
+
   // init heartbeat timer
   pSyncNode->pHeartbeatTimer = NULL;
   pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
@@ -1732,6 +1761,10 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     sError("vgId:%d, failed to stop heartbeat timer since %s", pSyncNode->vgId, tstrerror(code));
     return;
   }
+  if ((code = syncNodeStopRestoreElectTimer(pSyncNode)) != 0) {
+    sError("vgId:%d, failed to stop restore-elect timer since %s", pSyncNode->vgId, tstrerror(code));
+    return;
+  }
   syncNodeLogReplDestroy(pSyncNode);
 
   syncRespMgrDestroy(pSyncNode->pSyncRespMgr);
@@ -1807,7 +1840,7 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
   (void)atomic_add_fetch_64(&pSyncNode->pingTimerLogicClockUser, 1);
   bool stop = taosTmrStop(pSyncNode->pPingTimer);
   if (!stop) {
-    sWarn("vgId:%d, failed to stop ping timer, maybe it's already stopped, stop:%d", pSyncNode->vgId, stop);
+    sWarn("vgId:%d, failed to stop ping timer, maybe it is already stopped, stop:%d", pSyncNode->vgId, stop);
   } else {
     sDebug("vgId:%d, stop ping timer, stop:%d", pSyncNode->vgId, stop);
   }
@@ -1869,6 +1902,44 @@ void syncNodeResetElectTimer(SSyncNode* pSyncNode) {
 
   sNTrace(pSyncNode, "reset elect timer, min:%d, max:%d, ms:%d", pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine,
           electMS);
+}
+
+int32_t syncNodeStartRestoreElectTimer(SSyncNode* pSyncNode, int32_t ms) {
+  int32_t code = 0;
+  // Invalidate any in-flight restore-elect timer first (bump logic clock),
+  // so repeated syncSetElectBaseline calls always keep only the latest one.
+  TAOS_CHECK_RETURN(syncNodeStopRestoreElectTimer(pSyncNode));
+
+  if (syncIsInit()) {
+    pSyncNode->restoreElectTimerMS = ms;
+
+    int64_t execTime = taosGetTimestampMs() + ms;
+    atomic_store_64(&(pSyncNode->restoreElectTimerParam.executeTime), execTime);
+    atomic_store_64(&(pSyncNode->restoreElectTimerParam.logicClock), pSyncNode->restoreElectTimerLogicClock);
+    pSyncNode->restoreElectTimerParam.pSyncNode = pSyncNode;
+    pSyncNode->restoreElectTimerParam.pData = NULL;
+
+    bool stopped = taosTmrReset(pSyncNode->FpRestoreElectTimerCB, pSyncNode->restoreElectTimerMS,
+                                (void*)(pSyncNode->rid), syncEnv()->pTimerManager, &pSyncNode->pRestoreElectTimer);
+    if (stopped) sWarn("vgId:%d, failed to reset restore-elect timer, ms:%d", pSyncNode->vgId, ms);
+
+    sInfo("vgId:%d, start restore-elect timer, ms:%d, lc:%" PRIu64, pSyncNode->vgId, ms,
+          pSyncNode->restoreElectTimerLogicClock);
+  } else {
+    sError("vgId:%d, start restore-elect timer error, sync env is stop", pSyncNode->vgId);
+  }
+  return code;
+}
+
+int32_t syncNodeStopRestoreElectTimer(SSyncNode* pSyncNode) {
+  int32_t code = 0;
+  // Bump logic clock so any pending restore-elect timeout message is dropped
+  // by syncNodeOnTimeout (its logicClock will be older than the current one).
+  (void)atomic_add_fetch_64(&pSyncNode->restoreElectTimerLogicClock, 1);
+  bool stop = taosTmrStop(pSyncNode->pRestoreElectTimer);
+  sTrace("vgId:%d, stop restore-elect timer, stop:%d", pSyncNode->vgId, stop);
+  pSyncNode->pRestoreElectTimer = NULL;
+  return code;
 }
 
 #ifdef BUILD_NO_CALL
@@ -2148,7 +2219,7 @@ int32_t syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncI
           int32_t oldreplicaIndex = pSyncNode->senders[i]->replicaIndex;
           pSyncNode->senders[i]->replicaIndex = i;
 
-          sNTrace(pSyncNode, "snapshot sender udpate replicaIndex from %d to %d, dnode:%d, %p, reset:%d",
+          sNTrace(pSyncNode, "snapshot sender update replicaIndex from %d to %d, dnode:%d, %p, reset:%d",
                   oldreplicaIndex, i, DID(&pSyncNode->replicasId[i]), pSyncNode->senders[i], reset);
 
           break;
@@ -2547,6 +2618,19 @@ int32_t syncSetElectBaseline(int64_t rid, int32_t ms){
   }
   pSyncNode->electBaseLine = ms;
   syncNodeResetElectTimer(pSyncNode);
+  // Start a fallback timer: if this node does not become leader within
+  // SYNC_RESTORE_ELECT_TIMEOUT_MS, electBaseLine will be restored to its
+  // original value. This protects against a stuck balance-leader transaction
+  // leaving a lagging replica with a too-small baseline (which would make it
+  // repeatedly trigger elections it cannot win, blocking leader election).
+  sInfo("vgId:%d, set electBaseLine to %d, orig:%d, arm restore timer %dms", pSyncNode->vgId, ms,
+        pSyncNode->electBaseLineOrig, SYNC_RESTORE_ELECT_TIMEOUT_MS);
+  if (ms != pSyncNode->electBaseLineOrig) {
+    if ((code = syncNodeStartRestoreElectTimer(pSyncNode, SYNC_RESTORE_ELECT_TIMEOUT_MS)) != 0) {
+      sWarn("vgId:%d, failed to start restore-elect timer since %s", pSyncNode->vgId, tstrerror(code));
+      code = 0;  // best-effort: baseline was set; don't fail the whole call
+    }
+  }
   return code;
 }
 
@@ -2850,6 +2934,48 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
   if (code != 0) {
     sError("failed to sync enqueue elect msg since %s", terrstr());
+    rpcFreeCont(rpcMsg.pCont);
+    syncNodeRelease(pNode);
+    return;
+  }
+
+  syncNodeRelease(pNode);
+}
+
+static void syncNodeEqRestoreElectTimer(void* param, void* tmrId) {
+  if (!syncIsInit()) return;
+
+  int64_t    rid = (int64_t)param;
+  SSyncNode* pNode = syncNodeAcquire(rid);
+
+  if (pNode == NULL) return;
+
+  if (pNode->syncEqMsg == NULL) {
+    syncNodeRelease(pNode);
+    return;
+  }
+
+  int64_t tsNow = taosGetTimestampMs();
+  if (tsNow < pNode->restoreElectTimerParam.executeTime) {
+    syncNodeRelease(pNode);
+    return;
+  }
+
+  SRpcMsg rpcMsg = {0};
+  int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_RESTORE_ELECT, pNode->restoreElectTimerParam.logicClock,
+                                  pNode->restoreElectTimerMS, pNode);
+  if (code != 0) {
+    sError("vgId:%d, failed to build restore-elect msg", pNode->vgId);
+    syncNodeRelease(pNode);
+    return;
+  }
+
+  SyncTimeout* pTimeout = rpcMsg.pCont;
+  sNTrace(pNode, "enqueue restore-elect msg lc:%" PRIu64, pTimeout->logicClock);
+
+  code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
+  if (code != 0) {
+    sError("vgId:%d, failed to sync enqueue restore-elect msg since %s", pNode->vgId, terrstr());
     rpcFreeCont(rpcMsg.pCont);
     syncNodeRelease(pNode);
     return;
@@ -4090,10 +4216,33 @@ bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
 }
 
 bool syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId) {
+  // TD-SEC-2026-044: this function is the membership authorization gate for every
+  // inbound SYNC message (RequestVote/AppendEntries/Heartbeat/Snapshot/...). It must
+  // not trust a CID==0 wildcard. When this node already knows its own cluster id
+  // (i.e. it has joined a cluster), require an EXACT (clusterId, nodeId, vgId) match
+  // via syncUtilSameIdStrict, so a forged message with CID=0 (or a mismatched cluster
+  // id) is rejected instead of being treated as a configured replica. The legacy
+  // lenient comparison is kept only while the local cluster id is still 0 (early
+  // bootstrap / not-yet-joined), to avoid regressing cluster formation.
+  bool strict = (CID(&ths->myRaftId) != 0);
   for (int32_t i = 0; i < ths->totalReplicaNum; ++i) {
-    if (syncUtilSameId(&((ths->replicasId)[i]), pRaftId)) {
+    bool match = strict ? syncUtilSameIdStrict(&((ths->replicasId)[i]), pRaftId)
+                        : syncUtilSameId(&((ths->replicasId)[i]), pRaftId);
+    if (match) {
       return true;
     }
+  }
+
+  if (strict) {
+    // A message from a non-matching cluster id was dropped at the authorization gate.
+    // NOTE: srcId is attacker-controlled and unauthenticated, so a remote peer can
+    // trigger this on every inbound packet. Keep it at DEBUG (not WARN) to avoid a
+    // remotely-abusable log-flood / disk-amplification vector (TD-SEC-2026-044 review).
+    // Enable sync DEBUG to surface possible spoofing/election-interference for forensics.
+    sNDebug(ths,
+            "drop msg from dnode:%d cid:%d, not in my raft group (my cid:%d, replicaNum:%d), possible spoofing "
+            "attempt (TD-SEC-2026-044)",
+            DID(pRaftId), CID(pRaftId), CID(&ths->myRaftId), ths->totalReplicaNum);
   }
   return false;
 }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -29,7 +31,7 @@ struct SMetaSnapReader {
   // entries with status==META_TXN_PRE_ALTER && 0 <= txnOrigVer < sver. When the
   // walker is about to emit such a uid's row in iLoop 0/1, we first emit the
   // (txnOrigVer, uid) row from pTbDb so the destination keeps the prev-version
-  // entry — required for vnodeTxnRollbackShadowEntries to correctly restore the
+  // entry  -  required for vnodeTxnRollbackShadowEntries to correctly restore the
   // pre-ALTER schema on ROLLBACK after an incremental snapshot transfer.
   SHashObj* pPrevVerNeeded;
 };
@@ -86,7 +88,7 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
         }
 
         // Build PRE_ALTER prev-version rescue map for entries whose prevVer is still
-        // below the (possibly adjusted) sver — these need explicit injection.
+        // below the (possibly adjusted) sver  -  these need explicit injection.
         pReader->pPrevVerNeeded =
             taosHashInit(nTxn, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
         if (pReader->pPrevVerNeeded == NULL) {
@@ -218,7 +220,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
     }
 
     if (!pData || !nData) {
-      metaError("meta/snap: invalide nData: %" PRId32 " meta snap read failed.", nData);
+      metaError("meta/snap: invalid nData: %" PRId32 " meta snap read failed.", nData);
       code = TSDB_CODE_INVALID_DATA_FMT;
       goto _exit;
     }
@@ -245,7 +247,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
               " rc:%d, skip rescue"
               " (orphan entry remains in map; may cause spurious prev-ver injection for later versions of same uid)",
               TD_VID(pReader->pMeta->pVnode), key.uid, hrc);
-          // fall through to normal send — avoids infinite loop at the cost of missing prev-ver row
+          // fall through to normal send  -  avoids infinite loop at the cost of missing prev-ver row
         } else {
           void*    pPrevData = NULL;
           int      nPrevData = 0;
@@ -267,7 +269,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
             metaInfo("vgId:%d, snap: emit PRE_ALTER prev-ver row uid:%" PRId64 " prevVer:%" PRId64 " (sver:%" PRId64
                      ") for ROLLBACK safety",
                      TD_VID(pReader->pMeta->pVnode), key.uid, prevVer, pReader->sver);
-            // Do NOT advance cursor — the current PRE_ALTER row will be re-emitted on next call.
+            // Do NOT advance cursor  -  the current PRE_ALTER row will be re-emitted on next call.
             break;
           }
           if (pPrevData) tdbFree(pPrevData);
@@ -791,7 +793,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     if (ret == 0) {
       break;
     }
-    metaDebug("tmqsnap get meta not exist uid:%" PRIi64 " version:%" PRIi64, *uid, idInfo->version);
+    metaDebug("tmqsnap get meta does not exist uid:%" PRIi64 " version:%" PRIi64, *uid, idInfo->version);
   }
 
   ret = tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
@@ -948,7 +950,7 @@ int32_t getMetaTableInfoFromSnapshot(SSnapContext* ctx, SMetaTableInfo* result) 
     TSDB_CHECK_NULL(idInfo, code, lino, END, terrno);
 
     if (MoveToPosition(ctx, idInfo->version, *uidTmp) != 0) {
-      metaDebug("tmqsnap getMetaTableInfoFromSnapshot not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp,
+      metaDebug("tmqsnap getMetaTableInfoFromSnapshot does not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp,
                 idInfo->version);
       continue;
     }
@@ -1004,7 +1006,7 @@ END:
 }
 
 // ============================================================================
-// txn.meta snapshot read/write (§44 lazy COMMIT/ROLLBACK durable transfer)
+// txn.meta snapshot read/write (section 44 lazy COMMIT/ROLLBACK durable transfer)
 // ----------------------------------------------------------------------------
 // Wire format (per SSnapDataHdr block):
 //   uint32_t nEntries;              // number of txn.meta records in block
@@ -1035,7 +1037,7 @@ int32_t metaSnapTxnMetaRead(SMeta* pMeta, uint8_t** ppData) {
   uint32_t nEntries = pResult ? (uint32_t)taosArrayGetSize(pResult) : 0;
   if (nEntries == 0) {
     if (pResult) taosArrayDestroy(pResult);
-    return 0;  // *ppData remains NULL → caller treats as "stream done"
+    return 0;  // *ppData remains NULL  ->  caller treats as "stream done"
   }
 
   uint32_t bodyLen = sizeof(uint32_t) + nEntries * META_SNAP_TXN_META_ENTRY_SIZE;
@@ -1111,7 +1113,7 @@ int32_t metaSnapTxnMetaWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData) {
   // committed by metaSnapWriterClose). We piggy-back on that txn so our
   // upserts atomically land with the snapshot's meta-entry writes.
   // If a SNAP_DATA_TXN_META block arrives without any prior META block (no shadow
-  // entries on source), pMeta->txn may be NULL — open a private one.
+  // entries on source), pMeta->txn may be NULL  -  open a private one.
   bool    ownTxn = (pMeta->txn == NULL);
   int32_t code = 0;
   if (ownTxn) {

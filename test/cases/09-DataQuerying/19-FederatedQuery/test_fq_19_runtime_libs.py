@@ -1,10 +1,31 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+
+import pytest
 from contextlib import contextmanager
+from unittest.mock import MagicMock
+
+import pytest
 
 from new_test_framework.utils import tdCom, tdDnodes, tdLog, tdSql
 
@@ -16,6 +37,10 @@ _PROVIDER_RUNTIME_PATTERNS = {
     "mysql": ("libmariadb*", "libmysqlclient*"),
     "postgresql": ("libpq*",),
     "influxdb": ("libtaos_ext_influx_arrow*", "libarrow*", "libparquet*"),
+    # SQL Server loads unixODBC at runtime and resolves the Microsoft ODBC
+    # Driver 18 from the same runtime dir (both are staged like the other
+    # providers' client libraries, DS 3.3).
+    "sqlserver": ("libodbc*", "libmsodbcsql*"),
 }
 _PROVIDER_PLUGIN_PATTERNS = {
     "influxdb": ("libtaos_ext_influx_arrow*",),
@@ -23,6 +48,33 @@ _PROVIDER_PLUGIN_PATTERNS = {
 _PROVIDER_RESOLVED_DEP_PREFIXES = {
     "influxdb": ("libarrow", "libparquet"),
 }
+_EXT_ENV_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ensure_ext_env.sh")
+
+
+def _check_pymysql_dependency(tmp_path, module_available=True, python_available=True):
+    module = tmp_path / "pymysql.py"
+    module.write_text("" if module_available else "raise ImportError('PyMySQL unavailable')\n")
+    env = _fq_subprocess_env()
+    env["FQ_PYTHON"] = sys.executable if python_available else str(tmp_path / "missing-python")
+    env["PYTHONPATH"] = str(tmp_path)
+    tdLog.debug(
+        f"checking PyMySQL dependency: module_available={module_available}, "
+        f"python_available={python_available}"
+    )
+    return subprocess.run(
+        [
+            "bash",
+            "-c",
+            'FQ_SOURCE_ONLY=1 source "$1"; '
+            '_check_pymysql_dependency',
+            "bash",
+            _EXT_ENV_SCRIPT,
+        ],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
 
 
 def _apply_runtime_exports(output):
@@ -68,11 +120,209 @@ def _check_provider_missing(src, sql):
     tdSql.error(sql, expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT)
 
 
+def _odbcinst_registers_driver18():
+    """True when the host registers 'ODBC Driver 18 for SQL Server' in odbcinst.
+
+    The provider resolves the driver by absolute path first and deliberately
+    does not require a registration (DS 3.3); but when a registration exists it
+    is used as the fallback driver name, so hiding libmsodbcsql alone does not
+    make SQL Server unreachable on such hosts.
+    """
+    for path in ("/etc/odbcinst.ini",
+                 "/usr/local/etc/odbcinst.ini",
+                 os.path.expanduser("~/.odbcinst.ini")):
+        try:
+            with open(path, encoding="utf-8", errors="ignore") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        if re.search(r"^\s*\[ODBC Driver 18 for SQL Server\]", text, re.M):
+            return True
+    return False
+
+
 class TestFq19RuntimeLibs(FederatedQueryTestMixin):
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
+    @pytest.mark.parametrize("action", ["start", "stop", "kill"])
+    @pytest.mark.parametrize("service,version", [("mysql", "8.0"), ("pg", "16"),
+                                                ("influx", "3.0"), ("sqlserver", "2022")])
+    def test_external_lifecycle_requires_lease_controller(self, monkeypatch, action,
+                                                        service, version):
+        """External fault operations fail explicitly without a lease owner.
+
+        1. Reject start, stop and kill when no lifecycle controller is configured.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Simon Guan Add external lifecycle coverage
+
+        """
+        self.do_external_lifecycle_requires_lease_controller(monkeypatch, action, service, version)
+
+    def do_external_lifecycle_requires_lease_controller(self, monkeypatch, action, service, version):
+        monkeypatch.setenv("FQ_ENV_MODE", "external")
+        monkeypatch.delenv("FQ_SERVICE_CONTROL", raising=False)
+        monkeypatch.delenv("FQ_SERVICE_SOCKET", raising=False)
+        with pytest.raises(RuntimeError, match="FQ_SERVICE_CONTROL"):
+            getattr(ExtSrcEnv, f"{action}_{service}_instance")(version)
+        print("external lifecycle guard ......................... [ passed ]")
+
+    def test_external_environment_does_not_reset_local_services(self, monkeypatch):
+        """Repeated external setup preserves the leased database environment.
+
+        1. Probe configured databases without invoking the local reset installer.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Simon Guan Add external environment preservation coverage
+
+        """
+        self.do_external_environment_does_not_reset_local_services(monkeypatch)
+
+    def do_external_environment_does_not_reset_local_services(self, monkeypatch):
+        monkeypatch.setenv("FQ_ENV_MODE", "external")
+        import pymysql
+        import psycopg2
+        import requests
+
+        # This mode test must not require databases before the first full case
+        # provisions them in local-mode CI. Real probes run in the full cases.
+        monkeypatch.setattr(pymysql, "connect", MagicMock())
+        monkeypatch.setattr(psycopg2, "connect", MagicMock())
+        monkeypatch.setattr(requests, "get", lambda *args, **kwargs: MagicMock(status_code=200))
+        monkeypatch.setattr(ExtSrcEnv, "ensure_qnode", lambda: None)
+        monkeypatch.setattr(ExtSrcEnv, "purge_all_external_sources", lambda: None)
+        def reject_local_script(*args, **kwargs):
+            raise AssertionError("external mode invoked a local reset/teardown script")
+
+        monkeypatch.setattr(subprocess, "call", reject_local_script)
+        ExtSrcEnv.ensure_env()
+        ExtSrcEnv.ensure_env()
+        ExtSrcEnv.teardown_env()
+        print("external environment preservation ......................... [ passed ]")
+
+    def test_external_baseline_preserves_result_and_endpoint_errors(self, monkeypatch):
+        """Canonicalize deployment parameters while retaining regression evidence.
+
+        1. Map fixture endpoints without masking wrong addresses or query values.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Simon Guan Cover deployment-independent baseline comparison
+
+        """
+        self.do_external_baseline_preserves_result_and_endpoint_errors(monkeypatch)
+
+    def do_external_baseline_preserves_result_and_endpoint_errors(self, monkeypatch):
+        monkeypatch.setenv("FQ_ENV_MODE", "external")
+        monkeypatch.setattr(ExtSrcEnv, "MYSQL_HOST", "mysql")
+        monkeypatch.setattr(ExtSrcEnv, "MYSQL_PORT", 3306)
+        monkeypatch.setattr(ExtSrcEnv, "MYSQL_PASS", "lease-password")
+        text = ("SQL: create external source s type='mysql' host='mysql' port=3306 "
+                "password='lease-password'\n"
+                "source_name|type|host|port|user|password|database\n"
+                "s|mysql|mysql|3306|root|******|db\n---\n"
+                "SQL: create external source bad host='wrong' port=3307 password='bad'\n"
+                "SQL: select host from information_schema.ins_ext_sources\n"
+                "host\nmysql\nwrong\n---\n"
+                "      Source: mysql:3306 user=root\n"
+                "      Source: wrong:3307 user=root\n"
+                "SQL: select host from ordinary_table\n"
+                "source_name|type|host\ns|mysql|mysql\n---\n"
+                "RESULT:\nmysql\n3306\n")
+        normalized = ExtSrcEnv.baseline_environment(text)
+        assert "host='127.0.0.1' port=13306 password='taosdata'" in normalized
+        assert "s|mysql|127.0.0.1|13306|root|******|db" in normalized
+        assert "host='wrong' port=3307 password='bad'" in normalized
+        assert "host\n127.0.0.1\nwrong\n" in normalized
+        assert "Source: 127.0.0.1:13306 user=root" in normalized
+        assert "Source: wrong:3307 user=root" in normalized
+        assert "source_name|type|host\ns|mysql|mysql\n" in normalized
+        assert normalized.endswith("RESULT:\nmysql\n3306\n")
+        monkeypatch.setattr(ExtSrcEnv, "SQLSERVER_HOST", "sqlserver")
+        monkeypatch.setattr(ExtSrcEnv, "SQLSERVER_PORT", 25003)
+        monkeypatch.setattr(ExtSrcEnv, "SQLSERVER_PASS", "private-sqlserver-password")
+        sqlserver_text = (
+            "SQL: create external source s type='sqlserver' host='sqlserver' "
+            "port=25003 password='private-sqlserver-password'\n"
+            "SQL: create external source bad host='wrong' port=1434 password='bad'\n"
+            "RESULT:\nsqlserver\n25003\n")
+        sqlserver_normalized = ExtSrcEnv.baseline_environment(sqlserver_text)
+        assert "host='127.0.0.1' port=1433 password='TaosFq!2026'" in sqlserver_normalized
+        assert "host='wrong' port=1434 password='bad'" in sqlserver_normalized
+        assert sqlserver_normalized.endswith("RESULT:\nsqlserver\n25003\n")
+        monkeypatch.setenv("FQ_ENV_MODE", "local")
+        assert ExtSrcEnv.baseline_environment(text) == text
+        print("external baseline normalization ......................... [ passed ]")
+
+    def test_external_lifecycle_delegates_without_shell(self, monkeypatch):
+        """Pass the lifecycle operation to one explicit controller executable.
+
+        1. Delegate the service operation and version without shell evaluation.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Simon Guan Add controller delegation coverage
+
+        """
+        self.do_external_lifecycle_delegates_without_shell(monkeypatch)
+
+    def do_external_lifecycle_delegates_without_shell(self, monkeypatch):
+        monkeypatch.setenv("FQ_ENV_MODE", "external")
+        monkeypatch.setenv("FQ_SERVICE_CONTROL", "/runner/lease controller")
+        monkeypatch.delenv("FQ_SERVICE_SOCKET", raising=False)
+        calls = []
+        monkeypatch.setattr(
+            subprocess, "run", lambda args, **kwargs: calls.append((args, kwargs)))
+        ExtSrcEnv.stop_mysql_instance("8.0")
+        assert calls[0][0] == ["/runner/lease controller", "stop", "mysql", "8.0"]
+        assert calls[0][1]["check"] is True
+        assert not calls[0][1].get("shell", False)
+        print("external lifecycle delegation ......................... [ passed ]")
+
     def test_prepare_runtime_libs_sanitizes_shell_helper_env(self, monkeypatch):
+        """Sanitize inherited loader and sanitizer variables before setup.
+
+        Verify that external-source setup does not inherit TDengine runtime
+        overrides that could affect foreign binaries.
+
+        Since: v3.4.2.0
+
+        """
         for name in ("LD_PRELOAD", "ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"):
             monkeypatch.setenv(name, f"poison-{name}")
         for name in (
@@ -99,7 +349,62 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         for name in ("LD_PRELOAD", "ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"):
             assert name not in captured["env"]
 
+    def do_accept_available_pymysql(self, tmp_path):
+        result = _check_pymysql_dependency(tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        print("accept available PyMySQL dependency ......... [ passed ]")
+
+    def do_report_missing_pymysql(self, tmp_path):
+        result = _check_pymysql_dependency(tmp_path, module_available=False)
+
+        assert result.returncode != 0
+        assert "MySQL setup requires the pymysql module" in result.stderr
+        assert f"{sys.executable} -m pip install pymysql" in result.stderr
+        print("report missing PyMySQL dependency .......... [ passed ]")
+
+    def do_report_missing_python_interpreter(self, tmp_path):
+        result = _check_pymysql_dependency(tmp_path, python_available=False)
+
+        assert result.returncode != 0
+        assert "MySQL setup requires Python, but the interpreter was not found" in result.stderr
+        assert "Set FQ_PYTHON to the Python interpreter used by pytest" in result.stderr
+        print("report missing Python interpreter .......... [ passed ]")
+
+    def test_pymysql_dependency(self, tmp_path):
+        """Check the Python dependencies used by MySQL setup
+
+        1. Accept PyMySQL in the configured Python interpreter
+        2. Report installation instructions when PyMySQL cannot be imported
+        3. Report configuration instructions when the interpreter is missing
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-08-06 Wang Mingming Add MySQL client fallback coverage
+            - 2026-09-22 Wang Mingming Cover the retained PyMySQL dependency path
+
+        """
+        self.do_accept_available_pymysql(tmp_path)
+        self.do_report_missing_pymysql(tmp_path)
+        self.do_report_missing_python_interpreter(tmp_path)
+
     def test_taos_cli_env_disables_leak_detection_for_asan_child(self, monkeypatch):
+        """Disable leak detection for ASan child processes.
+
+        Verify that the taos CLI environment preserves preload settings while
+        disabling leak detection in ASan and LSan options.
+
+        Since: v3.4.2.0
+
+        """
         monkeypatch.setenv("CI_ASAN_BUILD", "1")
         monkeypatch.setenv("LD_PRELOAD", "/usr/lib/libasan.so /usr/lib/libstdc++.so")
         monkeypatch.setenv("ASAN_OPTIONS", "detect_odr_violation=0:detect_leaks=1")
@@ -114,6 +419,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert "detect_leaks=0" in env["LSAN_OPTIONS"].split(":")
 
     def test_missing_runtime_moves_normal_provider_libs(self, monkeypatch, tmp_path):
+        """Restore normal provider libraries after a missing-runtime check.
+
+        Verify that provider libraries are moved out of the runtime directory
+        during the check and restored afterward.
+
+        Since: v3.4.2.0
+
+        """
         lib = tmp_path / "libmariadb.so.3"
         subdir = tmp_path / "mariadb"
         subdir.mkdir()
@@ -129,7 +442,38 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert lib.read_text() == "mysql runtime"
         assert nested_lib.read_text() == "nested mysql runtime"
 
+    def test_missing_driver_moves_only_sqlserver_driver_libs(self, monkeypatch, tmp_path):
+        """Hide only the Microsoft driver when a driver-scoped check is requested.
+
+        Verify that the pattern-scoped hide used by the SQL Server
+        driver-missing check (FQSS-LIB-003) moves libmsodbcsql* out of the
+        runtime directory while leaving libodbc in place, and restores both.
+
+        Since: v3.4.4.0
+
+        """
+        (tmp_path / "libodbc.so.2").write_text("driver manager")
+        driver = tmp_path / "libmsodbcsql-18.so"
+        driver.write_text("driver")
+        monkeypatch.setattr(self, "_runtime_lib_dir", lambda: str(tmp_path))
+
+        with self._without_provider_runtime_libs(
+                {"sqlserver"}, patterns=["libmsodbcsql*"]):
+            assert not driver.exists()
+            assert (tmp_path / "libodbc.so.2").exists()
+
+        assert driver.read_text() == "driver"
+        assert (tmp_path / "libodbc.so.2").read_text() == "driver manager"
+
     def test_missing_influx_runtime_moves_arrow_third_party_libs(self, monkeypatch, tmp_path):
+        """Restore InfluxDB plugin and Arrow dependencies after a runtime check.
+
+        Verify that direct and resolved third-party libraries are hidden during
+        the missing-runtime check and restored afterward.
+
+        Since: v3.4.2.0
+
+        """
         plugin = tmp_path / "libtaos_ext_influx_arrow.so"
         arrow = tmp_path / "libarrow.so.1900"
         parquet = tmp_path / "libparquet.so.1900"
@@ -158,6 +502,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert resolved_arrow.read_text() == resolved_arrow.name
 
     def test_existing_source_query_missing_uses_provider_error(self, monkeypatch, tmp_path):
+        """Report the provider error when an existing source lacks runtime libraries.
+
+        Verify that source creation and query failures use the provider-specific
+        error code and that the daemon is restarted with the original runtime.
+
+        Since: v3.4.2.0
+
+        """
         build = tmp_path / "debug" / "build"
         bin_dir = build / "bin"
         lib_dir = build / "lib"
@@ -219,6 +571,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         ]
 
     def test_influx_http_uses_runtime_missing_query_check(self, monkeypatch):
+        """Use the runtime-missing query check for HTTP InfluxDB sources.
+
+        Verify that an HTTP InfluxDB source uses the same provider-error path as
+        other external-source runtime checks.
+
+        Since: v3.4.2.0
+
+        """
         calls = []
 
         class Cfg:
@@ -337,23 +697,37 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         except ValueError:
             return False
 
+    def _link_or_copy_file(self, src, dst):
+        try:
+            os.link(src, dst)
+        except OSError:
+            shutil.copy2(src, dst)
+
     @contextmanager
     def _isolated_runtime_copy(self):
         runtime_dir = self._runtime_lib_dir()
-        build_dir = os.path.dirname(runtime_dir)
         original_taosd_paths = [dnode.binPath for dnode in tdDnodes.dnodes]
         original_global_bin_path = getattr(tdDnodes, "binPath", None)
         original_taosd = original_taosd_paths[0]
+        # CI build trees are shared by concurrent workers. Keep the temporary
+        # taosd outside them so another worker's build-path scan cannot select it.
         copy_root = tempfile.mkdtemp(prefix="fq-runtime-copy.")
         copy_build = os.path.join(copy_root, "build")
         copy_bin_dir = os.path.join(copy_build, "bin")
         copy_lib_dir = os.path.join(copy_build, "lib")
         old_runtime_override = getattr(self, "_runtime_lib_dir_override", None)
         try:
-            shutil.copytree(os.path.join(build_dir, "bin"), copy_bin_dir, symlinks=True)
-            shutil.copytree(runtime_dir, copy_lib_dir, symlinks=True)
+            os.makedirs(copy_bin_dir)
+            copy_taosd = os.path.join(copy_bin_dir, os.path.basename(original_taosd))
+            self._link_or_copy_file(original_taosd, copy_taosd)
+            shutil.copytree(
+                runtime_dir,
+                copy_lib_dir,
+                symlinks=True,
+                copy_function=self._link_or_copy_file,
+            )
             self._runtime_lib_dir_override = copy_lib_dir
-            tdDnodes.binPath = os.path.join(copy_bin_dir, os.path.basename(original_taosd))
+            tdDnodes.binPath = copy_taosd
             for dnode in tdDnodes.dnodes:
                 dnode.binPath = tdDnodes.binPath
             yield
@@ -389,6 +763,16 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                 files.extend(glob.glob(os.path.join(runtime_dir, pattern)))
                 files.extend(glob.glob(os.path.join(runtime_dir, "**", pattern), recursive=True))
             files.extend(self._resolved_runtime_dep_files(provider))
+        return self._existing_runtime_files(
+            path for path in files if self._path_is_under(path, runtime_dir)
+        )
+
+    def _runtime_files_for_patterns(self, patterns):
+        runtime_dir = self._runtime_lib_dir()
+        files = []
+        for pattern in patterns:
+            files.extend(glob.glob(os.path.join(runtime_dir, pattern)))
+            files.extend(glob.glob(os.path.join(runtime_dir, "**", pattern), recursive=True))
         return self._existing_runtime_files(
             path for path in files if self._path_is_under(path, runtime_dir)
         )
@@ -466,11 +850,15 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         return files
 
     @contextmanager
-    def _without_provider_runtime_libs(self, providers, require_present=True):
+    def _without_provider_runtime_libs(self, providers, require_present=True, patterns=None):
         hidden_dir = tempfile.mkdtemp(prefix=".fq-runtime-hidden.", dir=self._runtime_lib_dir())
         moved = []
         try:
-            for path in self._provider_runtime_files(providers):
+            if patterns is None:
+                candidates = self._provider_runtime_files(providers)
+            else:
+                candidates = self._runtime_files_for_patterns(patterns)
+            for path in candidates:
                 hidden_path = os.path.join(hidden_dir, f"{len(moved)}-{os.path.basename(path)}")
                 shutil.move(path, hidden_path)
                 moved.append((hidden_path, path))
@@ -490,7 +878,17 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
 
     def _restart_taosd(self):
         tdDnodes.stop(1)
-        tdDnodes.start(1)
+        for attempt in range(2):
+            try:
+                tdDnodes.start(1)
+                return
+            except SystemExit:
+                if attempt == 1:
+                    raise
+                tdLog.info(
+                    "taosd restart timed out after runtime-lib swap; retrying once"
+                )
+                tdDnodes.stop(1)
 
     def _missing_create_sql_for_src(self, src):
         missing_src = f"{src}_missing_create"
@@ -508,6 +906,13 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                 f"create external source {missing_src} type='postgresql' "
                 "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='public'",
             )
+        if src.endswith("_s"):
+            return (
+                "sqlserver",
+                missing_src,
+                f"create external source {missing_src} type='sqlserver' "
+                "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='dbo'",
+            )
         return (
             "influxdb",
             missing_src,
@@ -524,6 +929,25 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                     _check_provider_missing(missing_create_src, missing_create_sql)
                     tdSql.error(
                         f"select count(*) from {src}.{table}",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+                    )
+            finally:
+                self._restart_taosd()
+
+    def _check_sqlserver_driver_missing(self, src):
+        """Hide only libmsodbcsql*, keep libodbc: the driver-manager survives
+        but the provider's path resolution finds no driver, so the query must
+        fail with IM002 -> TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT (FQSS-LIB-003,
+        DS 3.3 排障区分) instead of crashing."""
+        self._check_remote_count(src)
+        with self._isolated_runtime_copy():
+            try:
+                with self._without_provider_runtime_libs(
+                        {"sqlserver"}, require_present=False,
+                        patterns=["libmsodbcsql*"]):
+                    self._restart_taosd()
+                    tdSql.error(
+                        f"select count(*) from {src}.src_t",
                         expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
                     )
             finally:
@@ -592,6 +1016,12 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             "create external source fq19_runtime_pg type='postgresql' "
             "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='public'",
         )
+        self._check_create_missing_with_runtime_hidden(
+            "sqlserver",
+            "fq19_runtime_sqlserver",
+            "create external source fq19_runtime_sqlserver type='sqlserver' "
+            "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='dbo'",
+        )
         for protocol in ("http", "flight_sql"):
             self._check_create_missing_with_runtime_hidden(
                 "influxdb",
@@ -652,3 +1082,34 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             self._with_std_sources("fq19_runtime", self._check_remote_count_and_missing_runtime)
             self._with_influx_http_source(self._check_influx_http_missing_runtime)
         self._check_create_all_missing()
+
+    def test_sqlserver_missing_driver_uses_provider_error(self):
+        """Check SQL Server reports the missing-driver gate without unixODBC loss
+
+        1. Build a SQL Server external source with all dependencies staged
+        2. Hide only libmsodbcsql* (the driver) and keep libodbc in place
+        3. Expect the IM002-mapped error, not a crash or silent fallback
+
+        The provider resolves the driver by path and only then falls back to
+        the odbcinst driver name; hosts that register 'ODBC Driver 18 for SQL
+        Server' make the fallback reachable, so those hosts skip this check.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Claude Add FQSS-LIB-003 driver-missing coverage
+
+        """
+        if _odbcinst_registers_driver18():
+            pytest.skip("host odbcinst registers 'ODBC Driver 18 for SQL Server'")
+        ExtSrcEnv.ensure_env()
+        self._with_std_sources(
+            "fq19_runtime_ssdrv", self._check_sqlserver_driver_missing,
+            skip_mysql=True, skip_pg=True, skip_influx=True)

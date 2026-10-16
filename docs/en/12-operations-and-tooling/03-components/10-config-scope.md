@@ -93,6 +93,14 @@ This document compares the configuration parameters of taosd (server-side) and t
 | ssAccessString | taosd | A string which contains various options for accessing the shared storage |
 | ssPageCacheSize | taosd | Number of shared storage page cache pages |
 | ssUploadDelaySec | taosd | How long a data file remains unchanged before being uploaded to shared storage |
+| **Cache Related** | | |
+| sLastCacheWriteBufferSize | taosd | Write-buffer (memtable) size per memtable for the RocksDB engine backing the last cache, in MB |
+| sLastCacheMaxWriteBufferNumber | taosd | Maximum number of memtables (write buffers) that can coexist in the RocksDB engine backing the last cache |
+| sLastCacheBackgroundThreads | taosd | Number of background threads used for flush and compaction by the RocksDB engine backing the last cache; each vnode owns its own thread pool of this size |
+| sLastCacheBloomFilterBits | taosd | Number of bloom-filter bits per key in the RocksDB engine backing the last cache, used to reduce unnecessary SST file reads on `last`/`last_row` point lookups; 0 disables it |
+| sLastCacheMaxOpenFiles | taosd | Maximum number of open file descriptors allowed by the RocksDB engine backing the last cache; -1 means unlimited |
+| sLastCacheCompressionType | taosd | Compression algorithm used by the RocksDB engine backing the last cache |
+| sLastCacheOptionsOverride | taosd | Overrides last-cache engine parameters using a raw RocksDB options string; lower priority than the dedicated parameters above, intended for advanced use |
 | **Cluster Related** | | |
 | supportVnodes | taosd | Maximum number of vnodes supported by a dnode |
 | numOfCommitThreads | taosd | Maximum number of commit threads |
@@ -107,6 +115,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | ttlChangeOnWrite | taosd | Whether ttl expiration time changes with table modification |
 | ttlBatchDropNum | taosd | Number of subtables deleted in a batch for ttl |
 | retentionSpeedLimitMB | taosd | Speed limit for data migration across different levels of disks |
+| compactSpeedLimitMB | taosd | Speed limit for compact write |
 | maxTsmaNum | taosd | Maximum number of TSMAs that can be created in the cluster |
 | tmqMaxTopicNum | taosd | Maximum number of topics that can be established for subscription |
 | audit | taosd | Audit feature switch |
@@ -116,6 +125,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | encryptScope | taosd | Encryption scope |
 | encryptPassAlgorithm | taosd | Switch for saving user password as encrypted string |
 | enableWhiteList | taosd | Switch for whitelist feature |
+| anodeAllowInternalUrl | taosd | Allow CREATE ANODE with URLs that resolve to private/internal network addresses (loopback, link-local, RFC-1918). Default true. Set to false to block internal addresses. Hot-reloadable via ALTER ALL DNODES. |
 | syncLogBufferMemoryAllowed | taosd | Maximum memory allowed for sync log cache messages for a dnode |
 | syncApplyQueueSize | taosd | Size of apply queue for sync log |
 | syncNegotiationWin | taosd | Size of the negotiation window for sync, used to control the negotiation buffer during log synchronization |
@@ -124,6 +134,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | syncHeartbeatTimeout | taosd | Internal parameter, for debugging synchronization module |
 | syncSnapReplMaxWaitN | taosd | Internal parameter, for debugging synchronization module |
 | snapshotRateLimit | taosd | Controls the total snapshot sending bandwidth per dnode (MB/s), 0 means no limit |
+| snapshotMediumOnLag | taosd | Whether a replica that owns data but lags behind uses file-level delta (medium) snap replication, 0 means the row-by-row mode |
 | arbHeartBeatIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbCheckSyncIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbSetAssignedTimeoutSec | taosd | Internal parameter, for debugging synchronization module |
@@ -143,6 +154,9 @@ This document compares the configuration parameters of taosd (server-side) and t
 | udfdResFuncs | taosd | Internal parameter, for setting UDF result sets |
 | udfdLdLibPath | taosd | Internal parameter, indicates the library path for loading UDF |
 | enableStrongPassword | taosd | Password requirements for strong password validation |
+| `xnodeDsnProtection` | `taosd` | Master switch for XNODE DSN protection; when enabled, sensitive DSN values in `SHOW XNODE TASKS` and `SHOW XNODE JOBS` output are masked as `******` |
+| `xnodeDsnPublicKeyFile` | `taosd` | Local path of the shared public key file loaded by `mnode`, read and verified only when `xnodeDsnProtection` is `1` |
+| `xnodedDsnPrivateKeyFile` | `taosd` | Local path of the shared private key file handed over by `taosd` to the `xnoded` child process; `taosd` only passes the path through and never reads the key content |
 | **Stream Computing Parameters** | | |
 | numOfMnodeStreamMgmtThreads | taosd | Number of mnode stream computing management threads |
 | numOfStreamMgmtThreads | taosd | Number of snode stream computing management threads |
@@ -152,6 +166,10 @@ This document compares the configuration parameters of taosd (server-side) and t
 | streamBufferSize | taosd | Maximum cache size that stream computing can use |
 | streamNotifyMessageSize | taosd | Controls the message size for event notifications |
 | streamNotifyFrameSize | taosd | Controls the underlying frame size when sending event notification messages |
+| streamNotifyWorkerNum | taosd | Number of async event notification worker threads per snode |
+| streamNotifyBatchIntervalMs | taosd | Maximum wait time before flushing an async notification batch |
+| streamNotifyParamPoolSize | taosd | Total capacity of the async notification pending-item object pool shared by all streams |
+| streamTriggerMaxPendingParams | taosd | Upper bound (count) of pending calculation parameters a stream trigger can accumulate |
 | **Log Related** | | |
 | logDir | both | Log file directory, operational logs will be written to this directory |
 | minimalLogDirGB | both | Stops writing logs when the available space on the disk where the log folder is located is less than this value |

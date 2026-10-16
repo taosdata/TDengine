@@ -1,3 +1,18 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 if(TD_COMMUNITY_STANDALONE)
   option(BUILD_ENTERPRISE    "If build enterprise edition (requires sibling taos-internal repo)" OFF)
   option(BUILD_TEST          "If build unit tests using googletest"  OFF)
@@ -145,14 +160,14 @@ option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
 option(BUILD_USE_PUBLIC_DEPS "Use public (internet) URLs for all external dependencies instead of internal mirrors" OFF)
 
 # Runtime-pluggable accelerated L2 compression backends.
-# When ON (Linux only), taosd can dlopen a user-built drop-in zlib/zstd/lz4
-# (e.g. Intel QAT/IAA, ISA-L) at startup and route the L2 dispatch table
-# through it. If the env var is unset or the dlopen/dlsym fails, the
-# statically linked stock implementations are used unchanged.
+# When ON (Linux only, the default), taosd can dlopen a user-built drop-in
+# zlib/zstd/lz4 (e.g. Intel QAT/IAA, ISA-L) at startup and route the L2
+# dispatch table through it. If the env vars are unset or the dlopen/dlsym
+# fails, the statically linked stock implementations are used unchanged.
 # Activated by: TAOS_COMPRESS_ACCEL=<dir> (or per-codec TAOS_COMPRESS_ACCEL_{ZLIB,ZSTD,LZ4}).
-# See docs/zh/26-tdinternal/11-compress.md for the symbol contract and ABI requirements.
+# See docs/zh/15-internals/08-compress.md for the operator-facing contract.
 if(TD_LINUX)
-  option(BUILD_WITH_ACCEL_COMPRESS "Build runtime-pluggable accelerated L2 compression backends (Linux only)" OFF)
+  option(BUILD_WITH_ACCEL_COMPRESS "Build runtime-pluggable accelerated L2 compression backends (Linux only)" ON)
 endif()
 
 # When BUILD_RELEASE is ON, force CMAKE_BUILD_TYPE to Release so that
@@ -166,6 +181,7 @@ if(TD_ENTERPRISE)
     option(BUILD_WITH_MARIADB "If build with MariaDB Connector/C (ext source: MySQL)" ON)
     option(BUILD_WITH_LIBPQ   "If build with libpq (ext source: PostgreSQL)" ON)
     option(BUILD_WITH_ARROW   "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" ON)
+    option(BUILD_WITH_ODBC    "If build with unixODBC (ext source: SQL Server)" ON)
     option(INSTALL_FQ_RUNTIME_LIBS "Install optional federated-query runtime libraries" OFF)
     if(TD_WINDOWS)
         set(BUILD_WITH_MARIADB OFF CACHE BOOL
@@ -179,6 +195,15 @@ if(TD_ENTERPRISE)
         message(STATUS
             "[options] TD_WINDOWS=ON: federated query providers are disabled on Windows; "
             "taosdump still uses ext_arrow_static when TD_TAOS_TOOLS=ON")
+    endif()
+    if(TD_DARWIN)
+        # SQL Server support targets Linux servers: the Microsoft driver is a
+        # Linux artifact and the unixODBC provider build differs on Darwin.
+        # Keep the ODBC provider off on macOS, like the Windows case above.
+        set(BUILD_WITH_ODBC OFF CACHE BOOL
+            "If build with unixODBC (ext source: SQL Server)" FORCE)
+        message(STATUS
+            "[options] TD_DARWIN=ON: SQL Server (unixODBC/ODBC) provider is disabled on macOS")
     endif()
 else()
     set(BUILD_WITH_MARIADB OFF)

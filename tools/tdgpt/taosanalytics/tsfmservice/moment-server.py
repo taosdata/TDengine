@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import argparse
 import os
 import re
@@ -223,13 +238,19 @@ def complete_timeseries(timestamps, values, precision, freq, freq_val, freq_unit
         }
     ).set_index("timestamp")
 
-    # 生成完整时间范围
+    # guard against explosive date_range: reject spans > 10M periods
     norm_freq = "1" + freq_unit
-    full_range = pd.date_range(
-        start=df.index.min().floor(norm_freq),
-        end=df.index.max().ceil(norm_freq),
-        freq=freq,
-    )
+    _start = df.index.min().floor(norm_freq)
+    _end = df.index.max().ceil(norm_freq)
+    _span = (_end - _start) / pd.tseries.frequencies.to_offset(freq)
+    if _span > 10_000_000:
+        raise ValueError(
+            f"reconstructed time range spans {int(_span)} periods at freq={freq}; "
+            "reduce the timestamp range or increase the frequency"
+        )
+
+    # 生成完整时间范围
+    full_range = pd.date_range(start=_start, end=_end, freq=freq)
 
     # rebuild value list and fill with min value
     complete_df = df.reindex(full_range)
@@ -414,7 +435,7 @@ def main():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
+        default="127.0.0.1",
         help="Host address the server listens on (default: 0.0.0.0).",
     )
     parser.add_argument(
@@ -435,7 +456,7 @@ def main():
 
         if not os.path.exists(model_folder):
             print(
-                f"the specified folder: {model_folder} not exists, start to create it"
+                f"the specified folder: {model_folder} does not exist, creating it"
             )
 
         model_file = os.path.join(model_folder, "model.safetensors")

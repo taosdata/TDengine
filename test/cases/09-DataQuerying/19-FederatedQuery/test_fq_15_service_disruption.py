@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_15_service_disruption.py
 
@@ -25,8 +40,14 @@ third-party service is always restarted, even on assertion failure.
 
 Environment requirements:
     - Enterprise edition with federatedQueryEnable = 1.
-    - MySQL, PostgreSQL, and InfluxDB instances reachable.
+    - MySQL, PostgreSQL, InfluxDB, and SQL Server instances reachable.
     - Root / CAP_NET_ADMIN for network delay tests (s08).
+
+SQL Server runs as the fourth provider in the same per-scenario form (s01,
+s02, s03, s04, s05, s07, s08) on top of the step-1 zero-pushdown contract:
+the remote side only ever executes a base scan, so a stopped/killed instance
+must surface a bounded connection error and a restarted instance must serve
+the same rows again via start_sqlserver_instance()'s readiness probe.
 """
 
 import os
@@ -77,6 +98,15 @@ _PG_TABLE_SQLS = [
     "(id INT PRIMARY KEY, val INT, name TEXT)",
     "DELETE FROM svc_t",
     "INSERT INTO svc_t VALUES (1,10,'alpha'),(2,20,'beta'),"
+    "(3,30,'gamma'),(4,40,'delta'),(5,50,'epsilon')",
+]
+
+# SQL Server 5-row test table (dbo schema; T-SQL idempotent re-create)
+_SQLSERVER_TABLE_SQLS = [
+    "IF OBJECT_ID('dbo.svc_t') IS NOT NULL DROP TABLE dbo.svc_t",
+    "CREATE TABLE dbo.svc_t "
+    "(id INT NOT NULL PRIMARY KEY, val INT, name NVARCHAR(32))",
+    "INSERT INTO dbo.svc_t VALUES (1,10,'alpha'),(2,20,'beta'),"
     "(3,30,'gamma'),(4,40,'delta'),(5,50,'epsilon')",
 ]
 
@@ -167,7 +197,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def setup_method(self, method):
-        """Pre-test safety net: if a previous test left MySQL/PG/InfluxDB down, restart them."""
+        """Pre-test safety net: if a previous test left MySQL/PG/InfluxDB/SQL Server down, restart them."""
         import pymysql, psycopg2, requests
         mysql_cfg  = self._mysql_cfg()
         pg_cfg     = self._pg_cfg()
@@ -176,35 +206,45 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         pg_ver     = self._pg_ver()
         influx_ver = self._influx_ver()
 
-        try:
-            conn = pymysql.connect(
-                host=mysql_cfg.host, port=mysql_cfg.port,
-                user=mysql_cfg.user, password=mysql_cfg.password,
-                connect_timeout=3)
-            conn.close()
-        except Exception:
-            tdLog.info("[fq15 setup_method] MySQL is down — restarting ...")
-            ExtSrcEnv.start_mysql_instance(mysql_ver)
+        if "mysql" in ExtSrcEnv.required_services():
+            try:
+                conn = pymysql.connect(
+                    host=mysql_cfg.host, port=mysql_cfg.port,
+                    user=mysql_cfg.user, password=mysql_cfg.password,
+                    connect_timeout=3)
+                conn.close()
+            except Exception:
+                tdLog.info("[fq15 setup_method] MySQL is down — restarting ...")
+                ExtSrcEnv.start_mysql_instance(mysql_ver)
 
-        try:
-            conn = psycopg2.connect(
-                host=pg_cfg.host, port=pg_cfg.port,
-                user=pg_cfg.user, password=pg_cfg.password,
-                connect_timeout=3)
-            conn.close()
-        except Exception:
-            tdLog.info("[fq15 setup_method] PostgreSQL is down — restarting ...")
-            ExtSrcEnv.start_pg_instance(pg_ver)
+        if "pg" in ExtSrcEnv.required_services():
+            try:
+                conn = psycopg2.connect(
+                    host=pg_cfg.host, port=pg_cfg.port,
+                    user=pg_cfg.user, password=pg_cfg.password,
+                    connect_timeout=3)
+                conn.close()
+            except Exception:
+                tdLog.info("[fq15 setup_method] PostgreSQL is down — restarting ...")
+                ExtSrcEnv.start_pg_instance(pg_ver)
 
-        try:
-            r = requests.get(f"http://{influx_cfg.host}:{influx_cfg.port}/health",
-                             timeout=3)
-            # Auth-enabled InfluxDB can report 401 while still being reachable.
-            if r.status_code not in (200, 204, 401):
-                raise RuntimeError(f"InfluxDB health check returned {r.status_code}")
-        except Exception:
-            tdLog.info("[fq15 setup_method] InfluxDB is down — restarting ...")
-            ExtSrcEnv.start_influx_instance(influx_ver)
+        if "influx" in ExtSrcEnv.required_services():
+            try:
+                r = requests.get(f"http://{influx_cfg.host}:{influx_cfg.port}/health",
+                                 timeout=3)
+                if r.status_code not in (200, 204, 401):
+                    raise RuntimeError(f"InfluxDB health check returned {r.status_code}")
+            except Exception:
+                tdLog.info("[fq15 setup_method] InfluxDB is down — restarting ...")
+                ExtSrcEnv.start_influx_instance(influx_ver)
+
+        if "sqlserver" in ExtSrcEnv.required_services():
+            try:
+                ExtSrcEnv.sqlserver_query_cfg(self._sqlserver_cfg(), "master", "SELECT 1")
+            except Exception:
+                tdLog.info("[fq15 setup_method] SQL Server is down — restarting ...")
+                ExtSrcEnv.start_sqlserver_instance(self._sqlserver_ver())
+
 
     def teardown_class(self):
         # ---- Timing summary ----
@@ -227,20 +267,28 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             tdLog.info(f"  {'Max':<50s} {mx:5.2f}s")
             tdLog.info(f"  {'Avg':<50s} {avg:5.2f}s")
             tdLog.info("=" * 65)
-        # Best-effort cleanup of any leftover test databases
+        # Each grouped CI task owns only its declared provider.
+        services = ExtSrcEnv.required_services()
         for db in ("fq_svc_my", "fq_svc_pg"):
+            for service, drop in (("mysql", ExtSrcEnv.mysql_drop_db),
+                                  ("pg", ExtSrcEnv.pg_drop_db)):
+                if service in services:
+                    try:
+                        drop(db)
+                    except Exception:
+                        pass
+        if "sqlserver" in services:
+            for db in ("fq_svc_s01_ss", "fq_svc_s02_ss", "fq_svc_s03_ss",
+                       "fq_svc_s04_ss", "fq_svc_s05_ss", "fq_svc_s07_ss"):
+                try:
+                    ExtSrcEnv.sqlserver_drop_db_cfg(self._sqlserver_cfg(), db)
+                except Exception:
+                    pass
+        if "influx" in services:
             try:
-                ExtSrcEnv.mysql_drop_db(db)
+                ExtSrcEnv.influx_drop_db(_INFLUX_BUCKET)
             except Exception:
                 pass
-            try:
-                ExtSrcEnv.pg_drop_db(db)
-            except Exception:
-                pass
-        try:
-            ExtSrcEnv.influx_drop_db(_INFLUX_BUCKET)
-        except Exception:
-            pass
 
     # ==================================================================
     # Internal helpers
@@ -264,18 +312,46 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         tdSql.execute(sql)
 
     def _mk_influx_src(self, name, database, extra_options=None):
-        """Create InfluxDB external source with optional extra options."""
-        cfg = self._influx_cfg()
-        opts = f"'api_token'='{cfg.token}','protocol'='flight_sql'"
-        if extra_options:
-            opts += f",{extra_options}"
-        sql = (f"create external source {name} "
-               f"type='influxdb' host='{cfg.host}' "
-               f"port={cfg.port} "
-               f"user='u' password='' "
-               f"database={database} "
-               f"options({opts})")
-        tdSql.execute(sql)
+        """Create InfluxDB external source with optional extra options.
+
+        Generic service-disruption coverage follows the common Influx protocol
+        resolver so this file can run against HTTP as well as Flight SQL.  The
+        normal disruption cases must also set short deadlines; otherwise they
+        exercise the connector's production default timeout instead of the
+        bounded-failure contract asserted by this suite.
+        """
+        if extra_options is None:
+            extra_options = (
+                f"'connect_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}',"
+                f"'read_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}'"
+            )
+        self._mk_influx_real(
+            name,
+            database=database,
+            extra_options=extra_options,
+        )
+
+    def _mk_sqlserver_src(self, name, database, extra_options=None):
+        """Create SQL Server external source with optional extra options.
+
+        Like the other providers, the disruption cases must set short
+        deadlines; otherwise they would exercise the connector's production
+        default timeout instead of the bounded-failure contract asserted by
+        this suite.  SQL Server's TLS keys (tls_enabled /
+        trust_server_certificate) are unrelated to the timeout axis, and the
+        test environment connects with trust_server_certificate.
+        """
+        if extra_options is None:
+            extra_options = (
+                f"'connect_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}',"
+                f"'read_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}'"
+            )
+        self._mk_sqlserver_real(
+            name,
+            database=database,
+            schema="dbo",
+            extra_options=extra_options,
+        )
 
     def _setup_mysql_data(self, db):
         cfg = self._mysql_cfg()
@@ -293,6 +369,11 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         ExtSrcEnv.influx_write_cfg(cfg, _INFLUX_BUCKET, _INFLUX_LINES,
                                    precision='ms')
 
+    def _setup_sqlserver_data(self, db):
+        cfg = self._sqlserver_cfg()
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, _SQLSERVER_TABLE_SQLS)
+
     def _mysql_ver(self):
         return (getattr(self, "_active_mysql_ver", None)
                 or ExtSrcEnv.MYSQL_VERSIONS[0])
@@ -304,6 +385,12 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
     def _influx_ver(self):
         return (getattr(self, "_active_influx_ver", None)
                 or ExtSrcEnv.INFLUX_VERSIONS[0])
+
+    def _sqlserver_ver(self):
+        # The versioned fixture parametrizes MySQL/PG/InfluxDB only (SQL Server
+        # is deliberately not a fourth axis); fall back to the primary version.
+        return (getattr(self, "_active_sqlserver_ver", None)
+                or ExtSrcEnv.SQLSERVER_VERSIONS[0])
 
     def _assert_query_bounded(self, sql, wall_limit=_QUERY_WALL_LIMIT_S,
                               expected_errno=None):
@@ -522,6 +609,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
     def test_svc_s02_pg_kill_query_bounded(self):
         """S02-PG: SIGKILL PostgreSQL → query fails within wall-clock bound.
 
+        S02-PG: SIGKILL PostgreSQL → query fails within wall-clock bound.
+
         Catalog: - Query:FederatedServiceDisruption
 
         Since: v3.4.0.0
@@ -669,6 +758,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
 
     def test_svc_s03_pg_restart_recovery(self):
         """S03-PG: stop → errors → restart → automatic reconnect + correct result.
+
+        S03-PG: stop → errors → restart → automatic reconnect + correct result.
 
         Catalog: - Query:FederatedServiceDisruption
 
@@ -819,6 +910,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
     def test_svc_s04_pg_burst_all_bounded(self):
         """S04-PG: stop mid-burst → all queries complete within wall-clock bound.
 
+        S04-PG: stop mid-burst → all queries complete within wall-clock bound.
+
         Catalog: - Query:FederatedServiceDisruption
 
         Since: v3.4.0.0
@@ -952,6 +1045,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
 
     def test_svc_s05_pg_schema_down_bounded(self):
         """S05-PG: getTableSchema while PG is down → fails fast.
+
+        S05-PG: getTableSchema while PG is down → fails fast.
 
         Catalog: - Query:FederatedServiceDisruption
 
@@ -1156,6 +1251,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
     def test_svc_s07_pg_repeated_cycles(self):
         """S07-PG: 3× stop/start cycles → query always succeeds after restart.
 
+        S07-PG: 3× stop/start cycles → query always succeeds after restart.
+
         Catalog: - Query:FederatedServiceDisruption
 
         Since: v3.4.0.0
@@ -1240,6 +1337,11 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
                     self._record_timing(f"S07-Influx cycle-{cycle+1} error", elapsed)
                 finally:
                     ExtSrcEnv.start_influx_instance(ver)
+                    # start_influx_instance() may fall back to a hard reset, which
+                    # recreates the admin token. Refresh the external source after
+                    # restart so it never keeps a stale token from the previous cycle.
+                    self._cleanup_src(src)
+                    self._mk_influx_src(src, database=_INFLUX_BUCKET)
                     # ensure_ext_env.sh resets InfluxDB buckets on bare-metal restart;
                     # re-create bucket and data so the next cycle's healthy check works.
                     self._setup_influx_data()
@@ -1372,16 +1474,373 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
                     f"'read_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}'"
                 )
                 tdSql.execute(
-                    f"create external source {src} type='influxdb' "
-                    f"host='127.0.0.1' port={bh.port} "
-                    f"user='u' password='' "
-                    f"database='test' "
-                    f"options({opts})"
+                    self._mk_influx_source_sql(
+                        src,
+                        "127.0.0.1",
+                        bh.port,
+                        cfg.token,
+                        database="test",
+                        extra_options=opts,
+                    )
                 )
                 elapsed = self._assert_query_bounded(
                     f"select * from {src}.svc_t limit 1",
                     wall_limit=_QUERY_WALL_LIMIT_S,
                 )
                 self._record_timing("S08-Influx black-hole timeout", elapsed)
+            finally:
+                self._cleanup_src(src)
+
+    # ==================================================================
+    # SQL Server additions (4th provider)
+    #
+    # Same per-scenario form as the MySQL / PG / InfluxDB cases above:
+    # s01 stop, s02 kill, s03 restart recovery, s04 burst, s05 schema-down,
+    # s07 repeated cycles, s08 black-hole.  s06 (isAlive probe) stays
+    # Influx-only by design, so the matrix grows 22 → 29.
+    #
+    # SQL Server timeout plumbing: connect_timeout_ms → SQL_ATTR_LOGIN_TIMEOUT
+    # and read_timeout_ms → SQL_ATTR_QUERY_TIMEOUT.  Queries follow the step-1
+    # zero-pushdown contract (remote side runs a base scan only), so a downed
+    # instance must surface a bounded connection error and a restarted one
+    # must serve the same rows again.
+    # ==================================================================
+
+    def test_svc_s01_sqlserver_stop_query_bounded(self):
+        """S01-SQLServer: stop SQL Server → query fails within wall-clock bound.
+
+        Verifies that ``connect_timeout_ms`` / ``read_timeout_ms`` (mapped to
+        the ODBC login/query timeouts) cause the query to fail quickly rather
+        than blocking indefinitely.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-provider matrix
+
+        """
+        src, db = "svc_s01_ss", "fq_svc_s01_ss"
+        ver = self._sqlserver_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_sqlserver_data(db)
+            self._mk_sqlserver_src(src, database=db)
+
+            # Verify healthy
+            tdSql.query(f"select count(*) from {src}.svc_t")
+            tdSql.checkData(0, 0, 5)
+
+            # Stop and verify fast failure
+            ExtSrcEnv.stop_sqlserver_instance(ver)
+            try:
+                for i in range(3):
+                    elapsed = self._assert_query_bounded(
+                        f"select * from {src}.svc_t limit 1",
+                        expected_errno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+                    self._record_timing(f"S01-SQLServer stop #{i+1}", elapsed)
+            finally:
+                ExtSrcEnv.start_sqlserver_instance(ver)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(self._sqlserver_cfg(), db)
+            except Exception:
+                pass
+
+    def test_svc_s02_sqlserver_kill_query_bounded(self):
+        """S02-SQLServer: SIGKILL SQL Server → query fails within wall-clock bound.
+
+        A hard container kill leaves the client with a broken connection and
+        no clean disconnect; the ODBC query timeout must still fire so the
+        federated query stays bounded.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-provider matrix
+
+        """
+        src, db = "svc_s02_ss", "fq_svc_s02_ss"
+        ver = self._sqlserver_ver()
+
+        self._cleanup_src(src)
+        try:
+            self._setup_sqlserver_data(db)
+            self._mk_sqlserver_src(src, database=db)
+
+            tdSql.query(f"select count(*) from {src}.svc_t")
+            tdSql.checkData(0, 0, 5)
+
+            ExtSrcEnv.kill_sqlserver_instance(ver)
+            try:
+                time.sleep(0.5)  # let kernel notice process exit
+                for i in range(3):
+                    elapsed = self._assert_query_bounded(
+                        f"select * from {src}.svc_t limit 1",
+                        expected_errno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+                    self._record_timing(f"S02-SQLServer kill #{i+1}", elapsed)
+            finally:
+                ExtSrcEnv.start_sqlserver_instance(ver)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(self._sqlserver_cfg(), db)
+            except Exception:
+                pass
+
+    def test_svc_s03_sqlserver_restart_recovery(self):
+        """S03-SQLServer: stop → errors → restart → reconnect + correct result.
+
+        start_sqlserver_instance() already waits for a probe query on master,
+        so after it returns the source must transparently serve the same rows
+        through a fresh connection.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-provider matrix
+
+        """
+        src, db = "svc_s03_ss", "fq_svc_s03_ss"
+        ver = self._sqlserver_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_sqlserver_data(db)
+            self._mk_sqlserver_src(src, database=db)
+
+            # Healthy
+            tdSql.query(f"select val from {src}.svc_t where id=1")
+            tdSql.checkData(0, 0, 10)
+
+            # Stop → errors
+            ExtSrcEnv.stop_sqlserver_instance(ver)
+            try:
+                for i in range(3):
+                    t0 = time.monotonic()
+                    tdSql.error(f"select * from {src}.svc_t",
+                                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+                    self._record_timing(f"S03-SQLServer stop error #{i+1}", time.monotonic() - t0)
+            finally:
+                ExtSrcEnv.start_sqlserver_instance(ver)
+                # Re-create the test database/table in case the restart path
+                # reset it, so the recovery query below is deterministic.
+                self._setup_sqlserver_data(db)
+
+            time.sleep(2)
+
+            # Recovery — must succeed with correct data
+            tdSql.query(f"select count(*) from {src}.svc_t")
+            tdSql.checkData(0, 0, 5)
+            tdSql.query(f"select val from {src}.svc_t where id=1")
+            tdSql.checkData(0, 0, 10)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(self._sqlserver_cfg(), db)
+            except Exception:
+                pass
+
+    def test_svc_s04_sqlserver_burst_all_bounded(self):
+        """S04-SQLServer: stop mid-burst → all queries complete within wall-clock bound.
+
+        Issues N queries against a stopped SQL Server.  Each individual query
+        must complete within the wall-clock bound (no accumulation), proving
+        the ODBC timeout fires per query, not just the first.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-provider matrix
+
+        """
+        N = 5
+        src, db = "svc_s04_ss", "fq_svc_s04_ss"
+        ver = self._sqlserver_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_sqlserver_data(db)
+            self._mk_sqlserver_src(src, database=db)
+
+            tdSql.query(f"select count(*) from {src}.svc_t")
+            tdSql.checkData(0, 0, 5)
+
+            ExtSrcEnv.stop_sqlserver_instance(ver)
+            try:
+                total_start = time.monotonic()
+                for i in range(N):
+                    elapsed = self._assert_query_bounded(
+                        f"select * from {src}.svc_t",
+                        expected_errno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+                    self._record_timing(f"S04-SQLServer burst #{i+1}", elapsed)
+                total_elapsed = time.monotonic() - total_start
+                tdLog.info(f"  [TIMING] S04-SQLServer total {N} queries: {total_elapsed:.2f}s")
+            finally:
+                ExtSrcEnv.start_sqlserver_instance(ver)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(self._sqlserver_cfg(), db)
+            except Exception:
+                pass
+
+    def test_svc_s05_sqlserver_schema_down_bounded(self):
+        """S05-SQLServer: schema access while SQL Server is down → fails fast.
+
+        With the instance down, resolving the remote table (the connector's
+        pre-query schema/metadata step) must fail within the wall-clock bound
+        instead of hanging on the ODBC connection attempt.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-provider matrix
+
+        """
+        src, db = "svc_s05_ss", "fq_svc_s05_ss"
+        ver = self._sqlserver_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_sqlserver_data(db)
+            self._mk_sqlserver_src(src, database=db)
+
+            # Verify schema/data access works while healthy
+            tdSql.query(f"select count(*) from {src}.svc_t")
+            tdSql.checkData(0, 0, 5)
+
+            ExtSrcEnv.stop_sqlserver_instance(ver)
+            try:
+                elapsed = self._assert_query_bounded(
+                    f"select * from {src}.svc_t",
+                )
+                self._record_timing("S05-SQLServer schema-down (SELECT)", elapsed)
+            finally:
+                ExtSrcEnv.start_sqlserver_instance(ver)
+                self._setup_sqlserver_data(db)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(self._sqlserver_cfg(), db)
+            except Exception:
+                pass
+
+    def test_svc_s07_sqlserver_repeated_cycles(self):
+        """S07-SQLServer: 3× stop/start cycles → query always succeeds after restart.
+
+        Verifies that repeated disruptions don't accumulate stale ODBC
+        handles or corrupt internal state.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-provider matrix
+
+        """
+        CYCLES = 3
+        src, db = "svc_s07_ss", "fq_svc_s07_ss"
+        ver = self._sqlserver_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_sqlserver_data(db)
+            self._mk_sqlserver_src(src, database=db)
+
+            for cycle in range(CYCLES):
+                tdLog.debug(f"  S07-SQLServer cycle {cycle+1}/{CYCLES}")
+
+                # Healthy
+                tdSql.query(f"select count(*) from {src}.svc_t")
+                tdSql.checkData(0, 0, 5)
+
+                # Disrupt
+                ExtSrcEnv.stop_sqlserver_instance(ver)
+                try:
+                    t0 = time.monotonic()
+                    tdSql.error(f"select * from {src}.svc_t",
+                                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+                    self._record_timing(f"S07-SQLServer cycle-{cycle+1} error", time.monotonic() - t0)
+                finally:
+                    ExtSrcEnv.start_sqlserver_instance(ver)
+                    # Re-create test data so the next cycle's healthy check works.
+                    self._setup_sqlserver_data(db)
+
+                time.sleep(2)
+
+            # Final verification after all cycles
+            tdSql.query(f"select count(*) from {src}.svc_t")
+            tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(self._sqlserver_cfg(), db)
+            except Exception:
+                pass
+
+    def test_svc_s08_sqlserver_black_hole_timeout(self):
+        """S08-SQLServer: black-hole listener → login timeout fires within wall-clock bound.
+
+        A TCP listener that accepts connections but never sends the pre-login
+        response.  The ``connect_timeout_ms`` → SQL_ATTR_LOGIN_TIMEOUT mapping
+        must cause the query to fail quickly.
+
+        Cross-platform: works on Linux, macOS, and Windows without root
+        privileges or kernel modules.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-provider matrix
+
+        """
+        src = "svc_s08_ss"
+        self._cleanup_src(src)
+        with _BlackHoleListener() as bh:
+            try:
+                cfg = self._sqlserver_cfg()
+                opts = (
+                    f"'connect_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}',"
+                    f"'read_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}'"
+                )
+                tdSql.execute(
+                    f"create external source {src} type='sqlserver' "
+                    f"host='127.0.0.1' port={bh.port} "
+                    f"user='{cfg.user}' password='{cfg.password}' "
+                    f"database='master' schema='dbo' "
+                    f"options({opts})"
+                )
+                elapsed = self._assert_query_bounded(
+                    f"select * from {src}.svc_t limit 1",
+                    wall_limit=_QUERY_WALL_LIMIT_S,
+                )
+                self._record_timing("S08-SQLServer black-hole timeout", elapsed)
             finally:
                 self._cleanup_src(src)

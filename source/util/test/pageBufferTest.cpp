@@ -1,9 +1,29 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include <cassert>
 #include <iostream>
 #include <string>
+#include <vector>
 
+#include "crypt.h"
 #include "taos.h"
+#include "taoserror.h"
 #include "tglobal.h"
 #include "tpagedbuf.h"
 
@@ -180,6 +200,106 @@ bool checkBufVarData(SFilePage* pPg, const char* varData, uint32_t varLen) {
   return true;
 }
 
+void testSpillCryptContext() {
+  SSpillCryptCtx* pCtx = nullptr;
+  ASSERT_EQ(taosCreateSpillCryptCtx(&pCtx, 0), TSDB_CODE_SUCCESS);
+
+  char plain[32] = {0};
+  for (int32_t i = 0; i < (int32_t)sizeof(plain); ++i) {
+    plain[i] = (char)(i + 1);
+  }
+
+  const int32_t lengths[] = {0, 1, 15, 16, 17};
+  for (int32_t plainLen : lengths) {
+    char*   pEncoded = nullptr;
+    int32_t encodedLen = 0;
+    if (plainLen == 0) {
+      // An empty block is not a legal spill image on either side: the
+      // encrypt path rejects it just like the decrypt path always has.
+      ASSERT_EQ(taosEncryptSpillBlock(pCtx, plain, plainLen, &pEncoded,
+                                      &encodedLen),
+                TSDB_CODE_INVALID_PARA);
+      continue;
+    }
+    ASSERT_EQ(
+        taosEncryptSpillBlock(pCtx, plain, plainLen, &pEncoded, &encodedLen),
+        TSDB_CODE_SUCCESS);
+    ASSERT_EQ(encodedLen, (int32_t)sizeof(int32_t) + ENCRYPTED_LEN(plainLen));
+
+    int32_t storedPlainLen = -1;
+    memcpy(&storedPlainLen, pEncoded, sizeof(storedPlainLen));
+    ASSERT_EQ(storedPlainLen, plainLen);
+
+    std::string encoded(pEncoded, encodedLen);
+    char*       pReadBuffer = nullptr;
+    ASSERT_EQ(taosPrepareSpillBlockRead(pCtx, encodedLen, &pReadBuffer),
+              TSDB_CODE_SUCCESS);
+    memcpy(pReadBuffer, encoded.data(), encoded.size());
+
+    char*   pDecoded = nullptr;
+    int32_t decodedLen = 0;
+    ASSERT_EQ(taosDecryptSpillBlock(pCtx, pReadBuffer, encodedLen, &pDecoded,
+                                    &decodedLen),
+              TSDB_CODE_SUCCESS);
+    ASSERT_EQ(decodedLen, plainLen);
+    ASSERT_EQ(memcmp(pDecoded, plain, plainLen), 0);
+  }
+
+  char* pReadBuffer = nullptr;
+  ASSERT_EQ(taosPrepareSpillBlockRead(pCtx, sizeof(int32_t), &pReadBuffer),
+            TSDB_CODE_FILE_CORRUPTED);
+  ASSERT_EQ(taosPrepareSpillBlockRead(pCtx, sizeof(int32_t) + 1, &pReadBuffer),
+            TSDB_CODE_FILE_CORRUPTED);
+
+  int32_t encodedLen = (int32_t)sizeof(int32_t) + 16;
+  ASSERT_EQ(taosPrepareSpillBlockRead(pCtx, encodedLen, &pReadBuffer),
+            TSDB_CODE_SUCCESS);
+  int32_t invalidPlainLen = 17;
+  memcpy(pReadBuffer, &invalidPlainLen, sizeof(invalidPlainLen));
+  memset(pReadBuffer + sizeof(invalidPlainLen), 0, 16);
+  char*   pDecoded = nullptr;
+  int32_t decodedLen = 0;
+  ASSERT_EQ(taosDecryptSpillBlock(pCtx, pReadBuffer, encodedLen, &pDecoded,
+                                  &decodedLen),
+            TSDB_CODE_FILE_CORRUPTED);
+
+  // A buffer the context does not own must be refused rather than decrypted
+  // in place: growing the context buffer for it would move the ciphertext.
+  std::vector<char> outside(encodedLen, 0);
+  ASSERT_EQ(taosDecryptSpillBlock(pCtx, outside.data(), encodedLen, &pDecoded,
+                                  &decodedLen),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(taosDecryptSpillBlock(pCtx, pReadBuffer + 1, encodedLen, &pDecoded,
+                                  &decodedLen),
+            TSDB_CODE_INVALID_PARA);
+
+  // taosSpillCryptEncodedLen must reject the same out-of-range inputs as
+  // taosEncryptSpillBlock instead of silently wrapping.
+  int32_t boundedLen = 0;
+  ASSERT_EQ(taosSpillCryptEncodedLen(0, nullptr), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(taosSpillCryptEncodedLen(-1, &boundedLen),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(taosSpillCryptEncodedLen(0, &boundedLen),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(taosSpillCryptEncodedLen(INT32_MAX, &boundedLen),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(taosSpillCryptEncodedLen(INT32_MAX - 14, &boundedLen),
+            TSDB_CODE_INVALID_PARA);
+  // Largest legal plaintext length: already 16-aligned, so the encoded
+  // image is header + plainLen exactly. Pins the boundary against an
+  // accidental future off-by-one (e.g. > rewritten as >=).
+  ASSERT_EQ(taosSpillCryptEncodedLen(INT32_MAX - 15, &boundedLen),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(boundedLen, INT32_MAX - 11);
+  ASSERT_EQ(taosSpillCryptEncodedLen(16, &boundedLen), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(boundedLen, (int32_t)sizeof(int32_t) + 16);
+  ASSERT_EQ(taosSpillCryptEncodedLen(17, &boundedLen), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(boundedLen, (int32_t)sizeof(int32_t) + 32);
+
+  taosDestroySpillCryptCtx(&pCtx);
+  ASSERT_EQ(pCtx, nullptr);
+}
+
 // SPageInfo.pData: |  sizeof(void*) 8 bytes | sizeof(SFilePage) 4 bytes| 4096 bytes |
 //                                           ^
 //                                           |
@@ -220,6 +340,70 @@ void testFlushAndReadBackBuffer() {
   ASSERT_TRUE(checkBufVarData(pPg, rowData + 3, len));
   destroyDiskbasedBuf(pBuf);
   taosMemoryFree(rowData);
+}
+
+void testGetBufPageNoLRU() {
+  SDiskbasedBuf* pBuf = nullptr;
+  ASSERT_EQ(createDiskbasedBuf(&pBuf, 1024, 2 * 1024, "no_lru",
+                               TD_TMP_DIR_PATH),
+            TSDB_CODE_SUCCESS);
+
+  int32_t pageId1 = -1;
+  auto*   pPage1 = (SFilePage*)getNewBufPage(pBuf, &pageId1);
+  ASSERT_NE(pPage1, nullptr);
+  pPage1->num = 42;
+  setBufPageDirty(pPage1, true);
+  releaseBufPage(pBuf, pPage1);
+
+  int32_t pageId2 = -1;
+  auto*   pPage2 = (SFilePage*)getNewBufPage(pBuf, &pageId2);
+  ASSERT_NE(pPage2, nullptr);
+  releaseBufPage(pBuf, pPage2);
+
+  pPage1 = (SFilePage*)getBufPageNoLRU(pBuf, pageId1);
+  ASSERT_NE(pPage1, nullptr);
+  releaseBufPage(pBuf, pPage1);
+
+  int32_t pageId3 = -1;
+  auto*   pPage3 = (SFilePage*)getNewBufPage(pBuf, &pageId3);
+  ASSERT_NE(pPage3, nullptr);
+  releaseBufPage(pBuf, pPage3);
+
+  ASSERT_EQ(getDBufStatis(pBuf).flushPages, 1);
+  pPage1 = (SFilePage*)getBufPageNoLRU(pBuf, pageId1);
+  ASSERT_NE(pPage1, nullptr);
+  ASSERT_EQ(pPage1->num, 42);
+  ASSERT_EQ(getDBufStatis(pBuf).loadPages, 1);
+  releaseBufPage(pBuf, pPage1);
+
+  destroyDiskbasedBuf(pBuf);
+}
+
+void testPinnedPagesSetOutOfMemory() {
+  int32_t        savedErrno = terrno;
+  SDiskbasedBuf* pBuf = nullptr;
+  ASSERT_EQ(createDiskbasedBuf(&pBuf, 1024, 2 * 1024, "pinned",
+                               TD_TMP_DIR_PATH),
+            TSDB_CODE_SUCCESS);
+
+  int32_t pageId1 = -1;
+  auto*   pPage1 = (SFilePage*)getNewBufPage(pBuf, &pageId1);
+  ASSERT_NE(pPage1, nullptr);
+
+  int32_t pageId2 = -1;
+  auto*   pPage2 = (SFilePage*)getNewBufPage(pBuf, &pageId2);
+  ASSERT_NE(pPage2, nullptr);
+
+  terrno = TSDB_CODE_SUCCESS;
+  int32_t pageId3 = -1;
+  auto*   pPage3 = (SFilePage*)getNewBufPage(pBuf, &pageId3);
+  EXPECT_EQ(pPage3, nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_OUT_OF_MEMORY);
+
+  releaseBufPage(pBuf, pPage1);
+  releaseBufPage(pBuf, pPage2);
+  destroyDiskbasedBuf(pBuf);
+  terrno = savedErrno;
 }
 
 // Same flush-and-readback as testFlushAndReadBackBuffer but with spill
@@ -293,6 +477,67 @@ void testEncryptedFlushAndReadBackBuffer() {
   tsiEncryptScope = savedScope;
 }
 
+void testEvictionWriteFailurePreservesResidentPages() {
+  const int32_t pageSize = 128;
+  SDiskbasedBuf* pBuf = nullptr;
+  ASSERT_EQ(createDiskbasedBuf(&pBuf, pageSize, pageSize * 2,
+                               "flush_failure", TD_TMP_DIR_PATH),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(setBufPageCompressOnDisk(pBuf, true), TSDB_CODE_SUCCESS);
+
+  std::vector<char> first(pageSize, 0x11);
+  std::vector<char> second(pageSize, 0x22);
+  int32_t pageId1 = -1;
+  char* pPage1 = static_cast<char*>(getNewBufPage(pBuf, &pageId1));
+  ASSERT_NE(pPage1, nullptr);
+  memcpy(pPage1, first.data(), first.size());
+  setBufPageDirty(pPage1, true);
+  releaseBufPage(pBuf, pPage1);
+
+  int32_t pageId2 = -1;
+  char* pPage2 = static_cast<char*>(getNewBufPage(pBuf, &pageId2));
+  ASSERT_NE(pPage2, nullptr);
+  memcpy(pPage2, second.data(), second.size());
+  setBufPageDirty(pPage2, true);
+  releaseBufPage(pBuf, pPage2);
+
+  dbgFailNextDiskbasedBufFlushWrite(pBuf);
+  terrno = TSDB_CODE_SUCCESS;
+  int32_t pageId3 = -1;
+  EXPECT_EQ(getNewBufPage(pBuf, &pageId3), nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_APP_ERROR);
+  EXPECT_EQ(getDBufStatis(pBuf).flushPages, 0);
+
+  pPage1 = static_cast<char*>(getBufPage(pBuf, pageId1));
+  ASSERT_NE(pPage1, nullptr);
+  EXPECT_EQ(memcmp(pPage1, first.data(), first.size()), 0);
+  releaseBufPage(pBuf, pPage1);
+
+  pPage2 = static_cast<char*>(getBufPage(pBuf, pageId2));
+  ASSERT_NE(pPage2, nullptr);
+  EXPECT_EQ(memcmp(pPage2, second.data(), second.size()), 0);
+  releaseBufPage(pBuf, pPage2);
+
+  dbgShortNextDiskbasedBufFlushWrite(pBuf);
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  char* pPage3 = static_cast<char*>(getNewBufPage(pBuf, &pageId3));
+  ASSERT_EQ(pPage3, nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_APP_ERROR);
+  EXPECT_EQ(getDBufStatis(pBuf).flushPages, 0);
+
+  pPage1 = static_cast<char*>(getBufPage(pBuf, pageId1));
+  ASSERT_NE(pPage1, nullptr);
+  EXPECT_EQ(memcmp(pPage1, first.data(), first.size()), 0);
+  releaseBufPage(pBuf, pPage1);
+
+  pPage2 = static_cast<char*>(getBufPage(pBuf, pageId2));
+  ASSERT_NE(pPage2, nullptr);
+  EXPECT_EQ(memcmp(pPage2, second.data(), second.size()), 0);
+  releaseBufPage(pBuf, pPage2);
+
+  destroyDiskbasedBuf(pBuf);
+}
+
 }  // namespace
 
 TEST(testCase, resultBufferTest) {
@@ -300,8 +545,12 @@ TEST(testCase, resultBufferTest) {
   simpleTest();
   writeDownTest();
   recyclePageTest();
+  testSpillCryptContext();
   testFlushAndReadBackBuffer();
+  testGetBufPageNoLRU();
+  testPinnedPagesSetOutOfMemory();
   testEncryptedFlushAndReadBackBuffer();
+  testEvictionWriteFailurePreservesResidentPages();
 }
 
 #pragma GCC diagnostic pop

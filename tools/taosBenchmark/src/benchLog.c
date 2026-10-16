@@ -1,13 +1,18 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software
- * Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "bench.h"
@@ -19,77 +24,11 @@
 //
 
 
-// --------  OS IMPL
-#ifdef WINDOWS
-typedef CRITICAL_SECTION     TdThreadMutex;      // windows api
-typedef HANDLE               TdThreadMutexAttr;  // windows api
-#else
-typedef pthread_mutex_t      TdThreadMutex;
-typedef pthread_mutexattr_t  TdThreadMutexAttr;
-#endif
-
-
-int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr) {
-#ifdef WINDOWS
-  /**
-   * Windows Server 2003 and Windows XP:  In low memory situations, InitializeCriticalSection can raise a
-   * STATUS_NO_MEMORY exception. Starting with Windows Vista, this exception was eliminated and
-   * InitializeCriticalSection always succeeds, even in low memory situations.
-   */
-  InitializeCriticalSection(mutex);
-  return 0;
-#else
-  int32_t code = pthread_mutex_init(mutex, attr);
-  if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
-  }
-  return code;
-#endif
-}
-
-int32_t taosThreadMutexDestroy(TdThreadMutex *mutex) {
-#ifdef WINDOWS
-  DeleteCriticalSection(mutex);
-  return 0;
-#else
-  int32_t code = pthread_mutex_destroy(mutex);
-  if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
-  }
-  return code;
-#endif
-}
-
-
-int32_t taosThreadMutexLock(TdThreadMutex *mutex) {
-#ifdef WINDOWS
-  EnterCriticalSection(mutex);
-  return 0;
-#else
-  int32_t code = pthread_mutex_lock(mutex);
-  if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
-  }
-  return code;
-#endif
-}
-
-int32_t taosThreadMutexUnlock(TdThreadMutex *mutex) {
-#ifdef WINDOWS
-  LeaveCriticalSection(mutex);
-  return 0;
-#else
-  int32_t code = pthread_mutex_unlock(mutex);
-  if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
-  }
-  return code;
-#endif
-}
+// TdThreadMutex/TdThreadMutexAttr and the taosThreadMutex* helpers are provided
+// by the os library (see osThread.h / osThread.c, pulled in via toolsdef.h).
+// Do NOT re-implement them here: local copies duplicated os.lib symbols and
+// broke the Windows Release link with "fatal error LNK1179: duplicate COMDAT"
+// at the LTCG (/GL) stage.
 
 //  ------- interface api ---------
 TdThreadMutex mutexs[LOG_COUNT];

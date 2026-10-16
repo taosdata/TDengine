@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -83,6 +85,10 @@ extern "C" {
 void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet);
 bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId);
 bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
+// Strict identity check used for SYNC ingress authorization (see TD-SEC-2026-044).
+// Unlike syncUtilSameId it never falls back to the CID==0 wildcard, so a message
+// whose cluster id is forged/missing can never be mistaken for a configured replica.
+bool syncUtilSameIdStrict(const SRaftId* pId1, const SRaftId* pId2);
 bool syncUtilEmptyId(const SRaftId* pId);
 
 int32_t     syncUtilElectRandomMS(int32_t min, int32_t max);

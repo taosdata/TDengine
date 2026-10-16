@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,99 @@
 
 #include "tsdbDataFileRW.h"
 #include "meta.h"
+#include "tglobal.h"
+
+// SThrottle ===============================================
+// deadline-based throttle struct (forward declared in tsdbDataFileRW.h):
+//   - nextAllowed: ms timestamp; the next write may start at/after this time
+//   - fracBytes:   sub-ms quota debt (< limitBytes), carried over across
+//                  writes so tiny writes still accumulate and get throttled
+struct SThrottle {
+  int64_t limitBytes;   // bytes per second; 0 or negative means no limit
+  int64_t nextAllowed;  // next allowed write time in ms
+  int64_t fracBytes;    // sub-ms quota remainder, 0 <= fracBytes < limitBytes
+};
+
+// process-level singleton throttle shared by all compact tasks
+static SThrottle    gCompactThrottle;
+static TdThreadMutex gCompactThrottleLock;               // lazily initialized (CRITICAL_SECTION on Windows cannot be statically initialized)
+static TdThreadOnce  gCompactThrottleOnce = PTHREAD_ONCE_INIT;
+
+static void tsdbCompactThrottleLockInit(void) { taosThreadMutexInit(&gCompactThrottleLock, NULL); }
+
+SThrottle *tsdbCompactThrottle(void) { return &gCompactThrottle; }
+
+void tsdbThrottleConsume(SThrottle *throttle, int64_t bytes) {
+  if (throttle == NULL || bytes == 0) {
+    return;
+  }
+
+  // read the latest config on every check (dynamic change takes effect
+  // immediately without a config-change callback)
+  int64_t limitBytes = (int64_t)tsCompactSpeedLimitMB * 1024 * 1024;
+  if (limitBytes <= 0) {
+    return;  // no limit
+  }
+
+  // a single wait (and a single write's deadline advance) is capped at this
+  // much, so one oversized write can never stall concurrent compact tasks for
+  // an unbounded time. quota beyond the cap is dropped: the oversized write
+  // was already delayed up to the cap, and dropping keeps the deadline
+  // moving; rate stays correct on average since such huge writes are rare.
+  const int64_t maxWaitMs = 1LL * 60 * 1000;  // 1 minute
+
+  (void)taosThreadOnce(&gCompactThrottleOnce, tsdbCompactThrottleLockInit);
+  (void)taosThreadMutexLock(&gCompactThrottleLock);
+
+  int64_t now = taosGetTimestampMs();
+
+  // re-init the throttle when the config changes (also serves as lazy init)
+  if (throttle->limitBytes != limitBytes) {
+    throttle->limitBytes = limitBytes;
+    throttle->nextAllowed = now;
+    throttle->fracBytes = 0;
+  }
+
+  // wait until this write is allowed by the deadline. the lock is held during
+  // sleep so concurrent compact tasks serialize on the shared deadline, which
+  // is exactly what a global rate limit wants. the wait is bounded by
+  // maxWaitMs: if the quota debt exceeds it, the write proceeds anyway and
+  // the unpaid remainder is absorbed by the monotonic deadline below.
+  if (now < throttle->nextAllowed) {
+    taosMsleep((int32_t)TMIN(throttle->nextAllowed - now, maxWaitMs));
+    now = taosGetTimestampMs();
+  }
+
+  // a write of `bytes` consumes bytes/limitBytes seconds of quota; advance the
+  // deadline by that many whole ms. the sub-ms remainder is carried in
+  // fracBytes: once it accumulates to one full ms of quota (limitBytes bytes)
+  // the deadline is pushed by another ms. without this, a long run of writes
+  // each smaller than limitBytes/1000 would never move the ms deadline and
+  // would escape the throttle entirely.
+  int64_t ms = (bytes * 1000) / limitBytes;
+  throttle->fracBytes += (bytes * 1000) % limitBytes;
+  if (throttle->fracBytes >= limitBytes) {
+    ms += 1;
+    throttle->fracBytes -= limitBytes;
+  }
+
+  // sanity cap: a single write must not push the deadline unreasonably far,
+  // which would stall concurrent compact tasks for an unbounded time. the
+  // un-paid quota beyond the cap is dropped: such an oversized write was
+  // already delayed up to the cap by its own wait above, and dropping keeps
+  // the deadline moving. rate is still correct on average because these huge
+  // writes are rare (a block is normally far smaller than the cap).
+  if (ms > maxWaitMs) {
+    tsdbWarn("throttle consume %" PRId64 " bytes, quota ms %" PRId64 " capped to %" PRId64, bytes, ms, maxWaitMs);
+    ms = maxWaitMs;
+  }
+
+  // TMAX keeps the deadline monotonic: never rewind it, otherwise concurrent
+  // tasks could alternate and gradually slide the deadline forward, diluting
+  // the rate limit.
+  throttle->nextAllowed = TMAX(now, throttle->nextAllowed) + ms;
+  (void)taosThreadMutexUnlock(&gCompactThrottleLock);
+}
 
 // SDataFileReader =============================================
 struct SDataFileReader {
@@ -229,9 +324,9 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 
   // load data
   tBufferClear(buffer);
-  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, brinBlk->dp->size, buffer, 0,
-                                       pEncryptData),
-                  &lino, _exit);
+  code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, brinBlk->dp->size, buffer, 0,
+                              pEncryptData);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   // decode brin block
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer);
@@ -1064,21 +1159,21 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, bData->suid != 0 ? bData->suid : bData->uid,
                         &cmprInfo.pColCmpr);
   if (code) {
-    tsdbWarn("vgId:%d failed to get column compress algrithm", TD_VID(writer->config->tsdb->pVnode));
+    tsdbWarn("vgId:%d failed to get column compress algorithm", TD_VID(writer->config->tsdb->pVnode));
   }
 
   TAOS_CHECK_GOTO(tBlockDataCompress(bData, &cmprInfo, buffers, assist), &lino, _exit);
 
   record->blockKeySize = buffers[0].size + buffers[1].size;
-  record->blockSize = record->blockKeySize + buffers[2].size + buffers[3].size;
 
   SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
-
   for (int i = 0; i < 4; i++) {
+    tsdbThrottleConsume(writer->config->throttle, buffers[i].size);
     TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd[TSDB_FTYPE_DATA], writer->files[TSDB_FTYPE_DATA].size, buffers[i].data,
                                   buffers[i].size, pEncryptData),
                     &lino, _exit);
     writer->files[TSDB_FTYPE_DATA].size += buffers[i].size;
+    record->blockSize += buffers[i].size;
   }
 
   // to .sma file
@@ -1092,9 +1187,10 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
 
     TAOS_CHECK_GOTO(tPutColumnDataAgg(&buffers[0], sma), &lino, _exit);
   }
-  record->smaSize = buffers[0].size;
 
+  record->smaSize = buffers[0].size;
   if (record->smaSize > 0) {
+    tsdbThrottleConsume(writer->config->throttle, record->smaSize);
     TAOS_CHECK_GOTO(
         tsdbWriteFile(writer->fd[TSDB_FTYPE_SMA], record->smaOffset, buffers[0].data, record->smaSize, pEncryptData),
         &lino, _exit);

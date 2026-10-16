@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// extConnector.c — community edition stub
+// extConnector.c  -  community edition stub
 //
 // All public APIs return TSDB_CODE_OPS_NOT_SUPPORT in the community edition.
 // extConnectorModuleInit() / extConnectorModuleDestroy() are no-ops (succeed
@@ -67,6 +69,17 @@ int32_t extConnectorGetCapabilities(SExtConnectorHandle *pHandle, const SExtTabl
   (void)pOut;
   uError("extConnectorGetCapabilities: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorSupportsTimezoneConversion(SExtConnectorHandle *pHandle,
+                                               const char *timezone,
+                                               bool *pSupported) {
+  (void)pHandle;
+  (void)timezone;
+  if (pSupported != NULL) {
+    *pSupported = false;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t extConnectorExecQuery(SExtConnectorHandle *pHandle, const SFederatedScanPhysiNode *pNode,

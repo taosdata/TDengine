@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "audit.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
@@ -1195,8 +1198,8 @@ int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq) {
 
   // batch update all vnodes for this dnode in memory (no SDB write, safe in read thread)
   // Optimized from O(m*n) to O(n+m):
-  //   step1 — build a (compactId,vgId)->rsp lookup map in O(m)
-  //   step2 — single SDB scan in O(n), O(1) lookup per matched entry
+  //   step1  -  build a (compactId,vgId)->rsp lookup map in O(m)
+  //   step2  -  single SDB scan in O(n), O(1) lookup per matched entry
   pProgressMap =
       taosHashInit(rsp.numOfVnodes * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pProgressMap == NULL) {
@@ -1216,7 +1219,7 @@ int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq) {
     if (code != 0) goto _exit;
   }
 
-  // single pass over SDB_COMPACT_DETAIL — O(n)
+  // single pass over SDB_COMPACT_DETAIL  -  O(n)
   void *pIter = NULL;
   while (1) {
     SCompactDetailObj *pDetail = NULL;

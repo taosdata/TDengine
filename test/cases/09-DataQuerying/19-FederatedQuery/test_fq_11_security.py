@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_11_security.py
 
@@ -33,6 +48,15 @@ Coverage matrix:
     SEC-018  PostgreSQL sslmode enum behavior matrix
     SEC-020  Option key acceptance matrix (parser + mnode consistency)
 
+    SQL Server (联邦查询支持 SQLServer TS §10, parallel to the per-dialect
+    matrices above; step-1 zero pushdown):
+    FQSS-SEC-001  Password & certificate masking in SHOW/DESCRIBE/EXPLAIN
+    FQSS-SEC-002  No temporary certificate files on connect/cleanup paths
+    FQSS-SEC-003  Least-privilege account: granted SELECT works, rest denied
+    FQSS-SEC-004  Cross-database visible range matches the granted range
+    FQSS-SEC-005  Identifier injection protection (table/column/db/schema)
+    FQSS-SEC-006  Missing dependency/option support never silently downgrades
+
 Design notes:
     - Tests validate masking/security at the interface level where possible.
     - For tests requiring live external databases or audit subsystems, the
@@ -46,9 +70,19 @@ Environment requirements:
     - For full SEC-005/006: external source with TLS configured.
 """
 
+import glob
+import os
 import time as _time
+import json
+from pathlib import Path
+import select
+import subprocess
+import sys
+import tempfile
 
-from new_test_framework.utils import tdLog, tdSql
+import taos
+
+from new_test_framework.utils import tdLog, tdSql, TDSql
 
 from federated_query_common import (
     FederatedQueryCaseHelper,
@@ -142,6 +176,206 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     def _row_text(self, row_idx):
         return "|".join(str(c) for c in tdSql.queryResult[row_idx])
 
+    def _normal_user_sql(self, user, config=None):
+        conn = taos.connect(host=self.host, port=self.port, user=user,
+                            password="Test1234", config=config or self.cfg_path)
+        sql = TDSql()
+        sql.init(conn.cursor())
+        return conn, sql
+
+    def do_normal_user_external_queries(self):
+        local_db = "sec028_local"
+        tdSql.execute(f"drop database if exists {local_db}")
+        tdSql.execute(f"create database {local_db}")
+        tdSql.execute(f"create table {local_db}.local_t(ts timestamp, val int)")
+        tdSql.execute(f"insert into {local_db}.local_t values(1704067200000, 99)")
+
+        def check_source(src):
+            user = f"{src}_user"
+            tdSql.execute(f"drop user if exists {user}")
+            tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
+            tdSql.query("show external sources")
+            source_row = next(row for row in tdSql.queryResult if row[0] == src)
+            namespace = "public" if str(source_row[1]).lower() == "postgresql" else source_row[6]
+            conn, sql = self._normal_user_sql(user)
+            try:
+                paths = [f"{src}.{namespace}.src_t", f"{src}.src_t"]
+                for path in paths:
+                    sql.query(f"select val,name from {path} order by val")
+                    sql.checkRows(5)
+                    for index, name in enumerate(("alpha", "beta", "gamma", "delta", "epsilon")):
+                        sql.checkData(index, 0, index + 1)
+                        sql.checkData(index, 1, name)
+                sql.execute(f"use {src}")
+                for path in ("src_t", f"{src}.src_t"):
+                    sql.query(f"select count(*),sum(val) from {path}")
+                    sql.checkRows(1)
+                    sql.checkData(0, 0, 5)
+                    sql.checkData(0, 1, 15)
+                sql.error(f"use {local_db}", expectedErrno=0x2644)
+                sql.error(f"select val from {local_db}.local_t", expectedErrno=0x26E3)
+                sql.error(f"explain select val from {local_db}.local_t", expectedErrno=0x26E3)
+                sql.error(f"select val from {src}.src_t union all select val from {local_db}.local_t",
+                          expectedErrno=0x26E3)
+                sql.query(f"explain select val from {src}.src_t")
+                assert len(sql.queryResult) > 0, "外部表 EXPLAIN 应返回执行计划"
+                tdSql.execute(f"grant use on database {local_db} to {user}")
+                sql.execute(f"use {local_db}")
+                # 已授权 USE 但未授权 SELECT 时，本地表查询按表级权限拒绝返回 0x2644。
+                sql.error(f"select val from {local_db}.local_t", expectedErrno=0x2644)
+                tdSql.execute(f"grant select on table {local_db}.local_t to {user}")
+                sql.query("select val from local_t")
+                sql.checkRows(1)
+                sql.checkData(0, 0, 99)
+                sql.query(f"select count(*) from {src}.src_t")
+                sql.checkData(0, 0, 5)
+                for statement in (
+                    f"create external source sec028_forbidden type='postgresql' host='127.0.0.1' "
+                    "port=15434 user='postgres' password='invalid' database='postgres'",
+                    f"alter external source {src} set password='invalid'",
+                    f"refresh external source {src}",
+                    f"drop external source {src}",
+                ):
+                    sql.error(statement, expectedErrno=0x0303)
+                sql.query(f"select count(*) from {src}.src_t")
+                sql.checkData(0, 0, 5)
+            finally:
+                sql.close()
+                conn.close()
+                tdSql.execute(f"drop user if exists {user}")
+
+        try:
+            # SQL Server coverage for these authorization cases is not part of this change.
+            self._with_std_sources("sec028", check_source, skip_sqlserver=True)
+        finally:
+            tdSql.execute(f"drop database if exists {local_db}")
+        print("普通用户外部查询与本地权限边界 [passed]")
+
+    def test_normal_user_external_queries(self):
+        """普通用户无需授权使用外部源，本地权限和源管理权限保持生效。
+
+        普通用户跨外部源查询、EXPLAIN，并确认本地库表权限与外部源管理权限仍然生效。
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan 补齐普通用户外部查询权限回归
+        """
+        self.do_normal_user_external_queries()
+
+    def do_normal_user_credential_delivery(self):
+        user = "sec029_user"
+        tdSql.execute(f"drop user if exists {user}")
+        tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
+
+        def check_source(src):
+            cfg = self._pg_cfg()
+            database = "sec029_pdb"
+            ExtSrcEnv.pg_exec_cfg(cfg, database, [
+                "create schema auth_changed",
+                "create table auth_changed.src_t (ts timestamp, val int)",
+                "insert into auth_changed.src_t values ('2024-01-01', 77)",
+            ])
+            with tempfile.TemporaryDirectory(prefix="fq-normal-credentials-") as temp_dir:
+                cfg_dir = Path(temp_dir) / "cfg"
+                log_dir = Path(temp_dir) / "log"
+                cfg_dir.mkdir()
+                log_dir.mkdir()
+                (cfg_dir / "taos.cfg").write_text(
+                    f"firstEp {self.host}:{self.port}\nfederatedQueryEnable 1\n"
+                    f"qDebugFlag 143\ncDebugFlag 143\nasyncLog 0\nlogDir {log_dir}\n", encoding="utf-8")
+                child = r'''
+import json, sys, time, pathlib, select, taos
+host, port, user, cfg, src, logs = json.loads(sys.argv[1])
+conn = taos.connect(host=host, port=port, user=user, password="Test1234", config=cfg)
+cursor = conn.cursor()
+def check(expected):
+    cursor.execute("select count(*),sum(val) from " + src + ".src_t")
+    assert cursor.fetchall() == [expected]
+def read_logs():
+    return "".join(path.read_text(errors="replace") for path in pathlib.Path(logs).glob("taoslog*"))
+try:
+    check((5, 15))
+    baseline = read_logs().count("hb received ext source push:")
+    print("GET_OK", flush=True)
+    sys.stdin.readline()
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        if read_logs().count("hb received ext source push:") > baseline:
+            cursor.execute("select count(*),sum(val) from " + src + ".src_t")
+            if cursor.fetchall() == [(1, 77)]:
+                print("HEARTBEAT_OK", flush=True)
+                break
+        select.select([], [], [], 0.1)
+    else:
+        details = "\n".join(read_logs().splitlines()[-200:])
+        raise AssertionError("普通用户未收到外部源心跳更新: " + details)
+finally:
+    cursor.close()
+    conn.close()
+'''
+                output = Path(temp_dir) / "client.out"
+                with output.open("w+") as stream:
+                    # The helper process is a plain python client: its own allocations are
+                    # reported by LeakSanitizer under the ASAN build and would turn the exit
+                    # code non-zero, so leak detection stays off for this child only.
+                    child_env = dict(os.environ)
+                    child_env["ASAN_OPTIONS"] = ":".join(
+                        opt for opt in (child_env.get("ASAN_OPTIONS", ""), "detect_leaks=0") if opt)
+                    proc = subprocess.Popen([sys.executable, "-u", "-c", child,
+                                             json.dumps([self.host, self.port, user, str(cfg_dir), src, str(log_dir)])],
+                                            stdin=subprocess.PIPE, stdout=stream, stderr=stream, text=True,
+                                            env=child_env)
+                    try:
+                        deadline = _time.monotonic() + 30
+                        while "GET_OK" not in output.read_text():
+                            assert proc.poll() is None, output.read_text()
+                            assert _time.monotonic() < deadline, output.read_text()
+                            select.select([], [], [], 0.1)
+                        client_logs = "".join(path.read_text(errors="replace") for path in log_dir.glob("taoslog*"))
+                        assert f"source:{src}, try to get ext source from mnode" in client_logs
+                        tdSql.execute(f"alter external source {src} set schema='auth_changed'")
+                        proc.communicate("updated\n", timeout=30)
+                        assert proc.returncode == 0, output.read_text()
+                        assert "HEARTBEAT_OK" in output.read_text()
+                    finally:
+                        if proc.poll() is None:
+                            proc.kill()
+                            proc.wait()
+
+        try:
+            self._with_std_sources("sec029", check_source, skip_mysql=True, skip_influx=True,
+                                   skip_sqlserver=True)
+        finally:
+            tdSql.execute(f"drop user if exists {user}")
+        print("普通用户 GET 与心跳外部源凭据下发 [passed]")
+
+    def test_normal_user_credential_delivery(self):
+        """普通用户获取外部源凭据并接收心跳更新，无需源使用授权。
+
+        普通用户首次查询时从 mnode 拉取外部源凭据，并在外部源变更后通过心跳收到新凭据。
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan 补齐普通用户凭据下发通道回归
+        """
+        self.do_normal_user_credential_delivery()
+
     # ------------------------------------------------------------------
     # SEC-001  Encrypted password storage
     # ------------------------------------------------------------------
@@ -154,7 +388,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         Multi-dimensional coverage:
         1. Create MySQL source with various password patterns:
            a. Simple ASCII password
-           b. Password with special chars (\!@#$%^&)
+           b. Password with special chars (\\!@#$%^&)
            c. Password with unicode-like patterns
         2. For each: SHOW EXTERNAL SOURCES → password column must be masked
         3. DESCRIBE EXTERNAL SOURCE → password field must be masked
@@ -829,7 +1063,9 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     def test_fq_sec_013_option_effectiveness_charset_and_read_timeout(self):
         """Behavior checks for option effectiveness (charset/read_timeout).
 
-        Goal: if option consumption is broken, query path must fail.
+                Goal: if option consumption is broken, query path must fail.
+
+        Since: v3.4.0.0
         """
         cfg_mysql = self._mysql_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
@@ -915,7 +1151,9 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     def test_fq_sec_014_influx_option_effectiveness_api_token_and_protocol(self):
         """Behavior checks for InfluxDB option effectiveness (api_token/protocol).
 
-        Goal: if option consumption is broken, query path must fail.
+                Goal: if option consumption is broken, query path must fail.
+
+        Since: v3.4.0.0
         """
         cfg_influx = self._influx_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
@@ -1028,7 +1266,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sec_021_alter_unknown_option_rejected(self):
-        """ALTER SOURCE with unknown option key must fail in parser."""
+        """ALTER SOURCE with unknown option key must fail in parser.
+
+        Verify the parser rejects an unknown option key on ALTER SOURCE.
+
+        Since: v3.4.0.0
+        """
         run_tag = str(int(_time.time() * 1000))[-6:]
         src = f"sec021_alter_unknown_{run_tag}"
         self._cleanup(src)
@@ -1050,7 +1293,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
             self._cleanup(src)
 
     def test_fq_sec_021b_alter_unknown_option_rejected_pg_influx(self):
-        """ALTER unknown option must be rejected consistently for PG and Influx."""
+        """ALTER unknown option must be rejected consistently for PG and Influx.
+
+        Verify PG and Influx sources reject the unknown option identically.
+
+        Since: v3.4.0.0
+        """
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_pg = f"sec021b_pg_unknown_{run_tag}"
         src_influx = f"sec021b_influx_unknown_{run_tag}"
@@ -1092,7 +1340,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sec_022_alter_delete_non_timeout_option(self):
-        """ALTER SOURCE options('ssl_mode'='') should remove ssl_mode key."""
+        """ALTER SOURCE options('ssl_mode'='') should remove ssl_mode key.
+
+        Verify an empty-string option value removes the stored key.
+
+        Since: v3.4.0.0
+        """
         run_tag = str(int(_time.time() * 1000))[-6:]
         src = f"sec022_mysql_delete_opt_{run_tag}"
         self._cleanup(src)
@@ -1115,7 +1368,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
             self._cleanup(src)
 
     def test_fq_sec_022b_create_empty_option_normalized_as_unset(self):
-        """CREATE with empty option values should be accepted and normalized as unset."""
+        """CREATE with empty option values should be accepted and normalized as unset.
+
+        Verify empty option values are accepted and normalized as unset.
+
+        Since: v3.4.0.0
+        """
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_mysql = f"sec022b_mysql_empty_opt_{run_tag}"
         src_pg = f"sec022b_pg_empty_opt_{run_tag}"
@@ -1169,8 +1427,10 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     def test_fq_sec_013b_option_effectiveness_pg_read_timeout(self):
         """Behavior checks for PostgreSQL read_timeout_ms runtime effect.
 
-        Goal: a low read_timeout_ms should timeout a slow view,
-        while a higher read_timeout_ms should allow the same query to finish.
+                Goal: a low read_timeout_ms should timeout a slow view,
+                while a higher read_timeout_ms should allow the same query to finish.
+
+        Since: v3.4.0.0
         """
         cfg_pg = self._pg_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
@@ -1232,7 +1492,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sec_023_option_effectiveness_read_timeout_zero_override_global(self):
-        """Timeout=0 should be accepted and persisted explicitly across connector types."""
+        """Timeout=0 should be accepted and persisted explicitly across connector types.
+
+        Verify an explicit zero timeout overrides the global default.
+
+        Since: v3.4.0.0
+        """
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_mysql = f"sec023_mysql_timeout_zero_{run_tag}"
         src_pg = f"sec023_pg_timeout_zero_{run_tag}"
@@ -1272,7 +1537,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sec_024_influx_tls_enabled_invalid_value_rejected(self):
-        """Influx tls_enabled must be boolean-like; invalid value is rejected in DDL."""
+        """Influx tls_enabled must be boolean-like; invalid value is rejected in DDL.
+
+        Verify a non-boolean tls_enabled value is rejected at DDL time.
+
+        Since: v3.4.0.0
+        """
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_ok = f"sec024_influx_tls_bool_ok_{run_tag}"
         self._cleanup(src_ok)
@@ -1305,7 +1575,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sec_025_show_describe_masking_tls_client_cert_value(self):
-        """SHOW/DESCRIBE must not expose tls_client_cert/tls_client_key plaintext values."""
+        """SHOW/DESCRIBE must not expose tls_client_cert/tls_client_key plaintext values.
+
+        Verify certificate and key values are masked in SHOW and DESCRIBE output.
+
+        Since: v3.4.0.0
+        """
         cfg_mysql = self._mysql_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
         src = f"sec025_tls_cert_mask_{run_tag}"
@@ -1345,7 +1620,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sec_026_timeout_option_invalid_format_rejected(self):
-        """Timeout options reject non-numeric/negative values on both CREATE and ALTER."""
+        """Timeout options reject non-numeric/negative values on both CREATE and ALTER.
+
+        Verify non-numeric and negative timeout values are rejected on CREATE and ALTER.
+
+        Since: v3.4.0.0
+        """
         cfg_mysql = self._mysql_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_ok = f"sec026_timeout_ok_{run_tag}"
@@ -1396,7 +1676,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sec_027_influx_default_protocol_and_flightsql_tls_consumption(self):
-        """Influx source without protocol uses default behavior; FlightSQL path consumes TLS options."""
+        """Influx source without protocol uses default behavior; FlightSQL path consumes TLS options.
+
+        Verify the default protocol path and the FlightSQL TLS path both behave.
+
+        Since: v3.4.0.0
+        """
         cfg_influx = self._influx_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_default = f"sec027_influx_default_{run_tag}"
@@ -1456,8 +1741,10 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     def test_fq_sec_016_option_effectiveness_connect_timeout_timing(self):
         """Behavior checks for connect_timeout_ms runtime effect.
 
-        Goal: different timeout values should lead to measurable timing difference
-        when connecting to a blackhole host.
+                Goal: different timeout values should lead to measurable timing difference
+                when connecting to a blackhole host.
+
+        Since: v3.4.0.0
         """
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_fast = f"sec016_connect_timeout_fast_{run_tag}"
@@ -1504,7 +1791,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sec_017_mysql_ssl_mode_enum_matrix(self):
-        """Behavior checks for all supported MySQL ssl_mode enum values."""
+        """Behavior checks for all supported MySQL ssl_mode enum values.
+
+        Verify every supported MySQL ssl_mode enum value is accepted end to end.
+
+        Since: v3.4.0.0
+        """
         cfg_mysql = self._mysql_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_disabled = f"sec017_mysql_disabled_{run_tag}"
@@ -1598,7 +1890,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sec_018_pg_sslmode_enum_matrix(self):
-        """Behavior checks for all supported PostgreSQL sslmode enum values."""
+        """Behavior checks for all supported PostgreSQL sslmode enum values.
+
+        Verify every supported PostgreSQL sslmode enum value is accepted end to end.
+
+        Since: v3.4.0.0
+        """
         cfg_pg = self._pg_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_disable = f"sec018_pg_disable_{run_tag}"
@@ -1695,7 +1992,9 @@ class TestFq11Security(FederatedQueryVersionedMixin):
     def test_fq_sec_020_option_key_acceptance_matrix(self):
         """Validate that each supported option key is accepted by create path.
 
-        This guards parser/mnode option allowlist consistency from the SQL entry path.
+                This guards parser/mnode option allowlist consistency from the SQL entry path.
+
+        Since: v3.4.0.0
         """
         cfg_mysql = self._mysql_cfg()
         cfg_pg = self._pg_cfg()
@@ -2320,3 +2619,652 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         )
 
         self._cleanup(src)
+
+    # ==================================================================
+    # SQL Server security matrix (FQSS-SEC-001 ~ 006)
+    #
+    # Parallel to the MySQL / PG / InfluxDB cases above: same helpers, same
+    # SHOW/DESCRIBE column indices, same assertion idioms.  SQL Server runs
+    # the step-1 zero-pushdown contract, so every case only needs a readable
+    # base table (filters/aggregations stay local) and the SQL Server TLS
+    # options are tls_enabled / trust_server_certificate.
+    # ==================================================================
+
+    def _sqlserver_cert_payload(self, tag):
+        """PEM-shaped certificate payload used to prove masking / cleanup.
+
+        SQL Server consumes only tls_enabled / trust_server_certificate, so a
+        PEM body handed over through tls_ca_cert / tls_client_cert /
+        tls_client_key must never be echoed back nor materialized on disk.
+        The embedded tag makes every leftover identifiable in /tmp.
+        """
+        return f"-----BEGIN CERTIFICATE-----{tag}-----END CERTIFICATE-----"
+
+    def test_fq_sec_ss_001_password_and_certificate_masking(self):
+        """FQSS-SEC-001: SQL Server password and certificate masking
+
+        TS: SHOW / DESCRIBE / EXPLAIN must never expose the source's
+        plaintext password nor certificate material.
+
+        Coverage:
+        1. SQL Server source with a known password and the real TLS options
+           (tls_enabled / trust_server_certificate) → password masked as
+           '******', plaintext never appears in any SHOW column.
+        2. PEM-shaped tls_client_cert / tls_client_key values are masked in
+           SHOW's options column (keys stay listed for operators).
+        3. DESCRIBE masks the same password and certificate material.
+        4. EXPLAIN of a query against the source (or the error it raises)
+           contains neither the password nor the certificate payload.
+        5. ALTER password → the new value is masked and the old one is gone.
+        6. Negative: the user column stays visible (it is not sensitive) and
+           the source stays listed and describable — masking is metadata-side
+           only (the placeholder password means no data query can authenticate).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect masking matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"secss001_src_{run_tag}"
+        db = f"secss001_db_{run_tag}"
+        names = [src]
+        self._cleanup(*names)
+
+        secret_pwd = "SsSecret_001!"
+        altered_pwd = "SsAltered_002!"
+        cert_secret = self._sqlserver_cert_payload(f"FQSS-SEC001-CERT-{run_tag}")
+        key_secret = self._sqlserver_cert_payload(f"FQSS-SEC001-KEY-{run_tag}")
+
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS dbo.t_mask",
+            "CREATE TABLE dbo.t_mask (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_mask VALUES ('2024-01-01 00:00:00.000', 1)",
+        ])
+
+        try:
+            tdSql.execute(
+                f"create external source {src} type='sqlserver' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' password='{secret_pwd}' "
+                f"database='{db}' schema='dbo' "
+                f"options('tls_enabled'='true', 'trust_server_certificate'='true', "
+                f"'tls_client_cert'='{cert_secret}', 'tls_client_key'='{key_secret}', "
+                f"'connect_timeout_ms'='3000')"
+            )
+
+            idx = self._find_row(src)
+            assert idx >= 0, f"{src} not found in SHOW EXTERNAL SOURCES"
+            row_text = self._row_text(idx)
+            assert secret_pwd not in row_text, "SQL Server plaintext password leaked in SHOW"
+            assert _MASKED in row_text, "SQL Server password not masked in SHOW"
+            assert cert_secret not in row_text, "tls_client_cert payload leaked in SHOW"
+            assert key_secret not in row_text, "tls_client_key payload leaked in SHOW"
+
+            # User stays visible; masked keys stay listed for operators.
+            user_val = str(tdSql.queryResult[idx][_COL_USER])
+            assert user_val == cfg.user or cfg.user in user_val, \
+                "user column should stay visible, it is not sensitive"
+            options_col = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "trust_server_certificate" in options_col, \
+                "masked option keys should stay listed"
+            assert "tls_client_cert" in options_col and "tls_client_key" in options_col
+            assert _MASKED in options_col, "certificate material not masked in options column"
+
+            # Masking is metadata-side only: the source definition and its
+            # metadata stay readable.  (No data query here: the password used by
+            # this case is a placeholder, so the connector cannot authenticate.)
+            tdSql.query(f"select count(*) from information_schema.ins_ext_sources "
+                        f"where source_name = '{src}'")
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert secret_pwd not in desc_text, "password leaked in DESCRIBE"
+            assert cert_secret not in desc_text, "tls_client_cert payload leaked in DESCRIBE"
+            assert key_secret not in desc_text, "tls_client_key payload leaked in DESCRIBE"
+
+            # EXPLAIN (or the error it raises) must not echo the secrets.
+            try:
+                tdSql.cursor.execute(
+                    f"explain select count(*) from {src}.{db}.dbo.t_mask")
+                explain_text = "\n".join(
+                    str(c) for row in (tdSql.cursor.fetchall() or []) for c in row)
+            except BaseException as e:  # noqa: BLE001 - error text is the observation
+                explain_text = str(e)
+            assert secret_pwd not in explain_text, "password leaked in EXPLAIN"
+            assert cert_secret not in explain_text and key_secret not in explain_text, \
+                "certificate material leaked in EXPLAIN"
+
+            # ALTER password → new value masked, old value gone.
+            tdSql.execute(f"alter external source {src} set password='{altered_pwd}'")
+            idx = self._find_row(src)
+            assert idx >= 0
+            row_text = self._row_text(idx)
+            assert altered_pwd not in row_text, "altered password leaked in SHOW"
+            assert secret_pwd not in row_text, "old password leaked in SHOW"
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert altered_pwd not in desc_text and secret_pwd not in desc_text, \
+                "password leaked in DESCRIBE after ALTER"
+        finally:
+            self._cleanup(*names)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+
+    def test_fq_sec_ss_002_no_temporary_certificate_files(self):
+        """FQSS-SEC-002: SQL Server leaves no temporary certificate files
+
+        TS: certificate material handed over for a connection must be gone
+        again on both the connect-success and the connect-failure path.
+
+        SQL Server consumes only tls_enabled / trust_server_certificate (the
+        ODBC connection string carries Encrypt / TrustServerCertificate), so
+        PEM-shaped tls_ca_cert / tls_client_cert / tls_client_key values must
+        not be materialized into the connector temp directory at all.  Both
+        paths are exercised and the uniquely tagged PEM payload is searched
+        for under /tmp/tdext_* afterwards:
+        1. reachable instance → query succeeds;
+        2. unreachable endpoint → query fails with a connection error;
+        3. sources dropped → no artifact was left behind either.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect TLS matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_up = f"secss002_up_{run_tag}"
+        src_down = f"secss002_down_{run_tag}"
+        db = f"secss002_db_{run_tag}"
+        names = [src_up, src_down]
+        self._cleanup(*names)
+
+        marker = f"FQSS-SEC002-{run_tag}"
+        pem_ca = self._sqlserver_cert_payload(f"{marker}-CA")
+        pem_cert = self._sqlserver_cert_payload(f"{marker}-CERT")
+        pem_key = self._sqlserver_cert_payload(f"{marker}-KEY")
+
+        def _leftover_temp_files():
+            """Temp files under /tmp/tdext_* holding this test's PEM payload."""
+            hits = []
+            for path in glob.glob("/tmp/tdext_*"):
+                if not os.path.isfile(path):
+                    continue
+                try:
+                    with open(path, "r", errors="ignore") as fh:
+                        if marker in fh.read():
+                            hits.append(path)
+                except OSError:
+                    continue
+            return hits
+
+        options = (
+            f"'tls_enabled'='true', 'trust_server_certificate'='true', "
+            f"'tls_ca_cert'='{pem_ca}', 'tls_client_cert'='{pem_cert}', "
+            f"'tls_client_key'='{pem_key}', 'connect_timeout_ms'='500'"
+        )
+
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS dbo.t_cert",
+            "CREATE TABLE dbo.t_cert (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_cert VALUES ('2024-01-01 00:00:00.000', 1)",
+        ])
+
+        try:
+            # --- connect-success path: reachable instance ---
+            tdSql.execute(
+                f"create external source {src_up} type='sqlserver' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' password='{cfg.password}' "
+                f"database='{db}' schema='dbo' options({options})"
+            )
+            tdSql.query(f"select count(*) from {src_up}.{db}.dbo.t_cert")
+            tdSql.checkData(0, 0, 1)
+            assert not _leftover_temp_files(), (
+                "SQL Server left temporary certificate material on disk after a "
+                f"successful connect: {_leftover_temp_files()}")
+
+            # --- connect-failure path: unreachable endpoint ---
+            tdSql.execute(
+                f"create external source {src_down} type='sqlserver' "
+                f"host='127.0.0.1' port=9 user='{cfg.user}' password='{cfg.password}' "
+                f"database='{db}' schema='dbo' options({options})"
+            )
+            tdSql.error(f"select count(*) from {src_down}.{db}.dbo.t_cert")
+            assert not _leftover_temp_files(), (
+                "SQL Server left temporary certificate material on disk after a "
+                f"failed connect: {_leftover_temp_files()}")
+        finally:
+            self._cleanup(*names)
+            assert not _leftover_temp_files(), (
+                "temporary certificate material survived DROP EXTERNAL SOURCE: "
+                f"{_leftover_temp_files()}")
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+
+    def test_fq_sec_ss_003_least_privilege_account(self):
+        """FQSS-SEC-003: SQL Server least-privilege account
+
+        TS: an account granted SELECT only on the target objects must query
+        them normally, while out-of-scope access returns a permission error
+        instead of silently succeeding.
+
+        Coverage:
+        1. Login + database user created with GRANT SELECT on dbo.granted_t
+           only — an external source using these credentials reads it.
+        2. dbo.denied_t (same database, no grant) → query fails.
+        3. Negative: the source stays registered after the denied query, so
+           the permission error is a clean query error, not a crash/eviction.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect security matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"secss003_src_{run_tag}"
+        db = f"secss003_db_{run_tag}"
+        login = f"fqss_sec003_{run_tag}"
+        login_pwd = "FqSs!2026ss03"
+        names = [src]
+        self._cleanup(*names)
+
+        # Clean slate: the login can only be dropped once its database user
+        # is gone, so drop the database first.
+        ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS dbo.granted_t",
+            "DROP TABLE IF EXISTS dbo.denied_t",
+            "CREATE TABLE dbo.granted_t (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "CREATE TABLE dbo.denied_t (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.granted_t VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2),"
+            "('2024-01-01 00:02:00.000', 3)",
+            "INSERT INTO dbo.denied_t VALUES ('2024-01-01 00:00:00.000', 9)",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, "master", [
+            f"IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'{login}') "
+            f"DROP LOGIN [{login}]",
+            f"CREATE LOGIN [{login}] WITH PASSWORD = '{login_pwd}', CHECK_POLICY = OFF",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            f"CREATE USER [{login}] FOR LOGIN [{login}]",
+            f"GRANT SELECT ON dbo.granted_t TO [{login}]",
+        ])
+
+        try:
+            self._mk_sqlserver_real(src, database=db, schema="dbo",
+                                    user=login, password=login_pwd,
+                                    extra_options="'connect_timeout_ms'='3000'")
+
+            # Granted object → normal read.
+            tdSql.query(f"select count(*) from {src}.granted_t")
+            tdSql.checkData(0, 0, 3)
+
+            # Same database, no grant → permission error (any error code).
+            tdSql.error(f"select count(*) from {src}.dbo.denied_t")
+
+            # The source survives the denied query.
+            assert self._find_row(src) >= 0, \
+                "source should stay registered after a permission error"
+        finally:
+            self._cleanup(*names)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+            ExtSrcEnv.sqlserver_exec_cfg(cfg, "master", [
+                f"IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'{login}') "
+                f"DROP LOGIN [{login}]",
+            ])
+
+    def test_fq_sec_ss_004_cross_database_visibility(self):
+        """FQSS-SEC-004: SQL Server cross-database visible range
+
+        TS: the four-segment path lets one external source read several
+        databases, and the visible range must match the authorization.
+
+        Coverage:
+        1. Databases A / B / C each hold one table; the login is a user in
+           all three but granted SELECT only in A and B.
+        2. Source default database = A → the two-segment path reads A.
+        3. Four-segment path `<src>.<db>.<schema>.<table>` reads B through
+           the same source (cross-database visible range).
+        4. C has no grant → the same path must fail (visible range == grants).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect security matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"secss004_src_{run_tag}"
+        db_a = f"secss004_a_{run_tag}"
+        db_b = f"secss004_b_{run_tag}"
+        db_c = f"secss004_c_{run_tag}"
+        login = f"fqss_sec004_{run_tag}"
+        login_pwd = "FqSs!2026ss04"
+        names = [src]
+        self._cleanup(*names)
+
+        # Clean slate: drop the databases first so the login has no user left.
+        for db in (db_a, db_b, db_c):
+            ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db_a)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_a, [
+            "DROP TABLE IF EXISTS dbo.t_a",
+            "CREATE TABLE dbo.t_a (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_a VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2)",
+        ])
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db_b)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_b, [
+            "DROP TABLE IF EXISTS dbo.t_b",
+            "CREATE TABLE dbo.t_b (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_b VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2),"
+            "('2024-01-01 00:02:00.000', 3)",
+        ])
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db_c)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_c, [
+            "DROP TABLE IF EXISTS dbo.t_c",
+            "CREATE TABLE dbo.t_c (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_c VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2),"
+            "('2024-01-01 00:02:00.000', 3),('2024-01-01 00:03:00.000', 4),"
+            "('2024-01-01 00:04:00.000', 5)",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, "master", [
+            f"IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'{login}') "
+            f"DROP LOGIN [{login}]",
+            f"CREATE LOGIN [{login}] WITH PASSWORD = '{login_pwd}', CHECK_POLICY = OFF",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_a, [
+            f"CREATE USER [{login}] FOR LOGIN [{login}]",
+            f"GRANT SELECT ON dbo.t_a TO [{login}]",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_b, [
+            f"CREATE USER [{login}] FOR LOGIN [{login}]",
+            f"GRANT SELECT ON dbo.t_b TO [{login}]",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_c, [
+            f"CREATE USER [{login}] FOR LOGIN [{login}]",
+        ])
+
+        try:
+            self._mk_sqlserver_real(src, database=db_a, schema="dbo",
+                                    user=login, password=login_pwd,
+                                    extra_options="'connect_timeout_ms'='3000'")
+
+            # Default database of the source.
+            tdSql.query(f"select count(*) from {src}.t_a")
+            tdSql.checkData(0, 0, 2)
+
+            # Cross-database read through the four-segment path.
+            tdSql.query(f"select count(*) from {src}.{db_b}.dbo.t_b")
+            tdSql.checkData(0, 0, 3)
+
+            # Ungranted database → outside the visible range.
+            tdSql.error(f"select count(*) from {src}.{db_c}.dbo.t_c")
+        finally:
+            self._cleanup(*names)
+            for db in (db_a, db_b, db_c):
+                try:
+                    ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+                except Exception:
+                    pass
+            ExtSrcEnv.sqlserver_exec_cfg(cfg, "master", [
+                f"IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'{login}') "
+                f"DROP LOGIN [{login}]",
+            ])
+
+    def test_fq_sec_ss_005_identifier_injection_protection(self):
+        """FQSS-SEC-005: SQL Server identifier injection protection
+
+        TS: table / column / database / schema identifiers containing special
+        characters (including ']') are bracket-escaped and cannot escape.
+
+        Coverage:
+        1. Local source-name injection attempts are rejected with a syntax
+           error and leave unrelated local databases untouched.
+        2. A remote table whose name contains ']' is referenced through a
+           backticked path segment and resolves as a literal identifier.
+        3. `select *` on that table also exercises a ']'-containing column
+           name inside the remote SELECT list.
+        4. A table named with an injection payload (semicolon + DROP) stays a
+           literal identifier, and the remote sentinel table plus the
+           injection-named table survive (no injected statement executed).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect injection matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"secss005_src_{run_tag}"
+        db = f"secss005_db_{run_tag}"
+        sentinel_db = f"secss005_sentinel_{run_tag}"
+        names = [src]
+        self._cleanup(*names)
+        tdSql.execute(f"drop database if exists {sentinel_db}")
+        tdSql.execute(f"create database {sentinel_db}")
+
+        brk_tbl = "fq]ss_brk"
+        inj_tbl = "fqss_inj; DROP TABLE t_sentinel--"
+        sentinel_tbl = "t_sentinel"
+
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS dbo.t_sentinel",
+            "DROP TABLE IF EXISTS dbo.[fq]]ss_brk]",
+            "DROP TABLE IF EXISTS dbo.[fqss_inj; DROP TABLE t_sentinel--]",
+            "CREATE TABLE dbo.t_sentinel (id INT NOT NULL PRIMARY KEY)",
+            "INSERT INTO dbo.t_sentinel VALUES (1)",
+            "CREATE TABLE dbo.[fq]]ss_brk] "
+            "(ts datetime2(3) NOT NULL PRIMARY KEY, [v]]] INT)",
+            "INSERT INTO dbo.[fq]]ss_brk] VALUES ('2024-01-01 00:00:00.000', 7)",
+            "CREATE TABLE dbo.[fqss_inj; DROP TABLE t_sentinel--] "
+            "(ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.[fqss_inj; DROP TABLE t_sentinel--] VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2)",
+        ])
+
+        try:
+            # 1. Source-name injection attempts → syntax errors, no side effect.
+            for inj in ["'; DROP DATABASE --", f"{run_tag}; SELECT 1; --", "ss' OR '1'='1"]:
+                tdSql.error(
+                    f"create external source {inj} type='sqlserver' "
+                    f"host='{cfg.host}' port={cfg.port} user='u' password='p' "
+                    f"database='master' schema='dbo'",
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                )
+            tdSql.query("show databases")
+            assert any(str(r[0]) == sentinel_db for r in tdSql.queryResult), \
+                "injection attempt touched an unrelated local database"
+
+            self._mk_sqlserver_real(src, database=db, schema="dbo")
+
+            # 2. Table identifier containing ']' (bracket-escaped remotely).
+            tdSql.query(f"select count(*) from {src}.dbo.`{brk_tbl}`")
+            assert int(tdSql.queryResult[0][0]) == 1, \
+                "table name containing ']' was not resolved as a literal identifier"
+
+            # 3. `select *` also escapes the ']'-containing column name.
+            tdSql.query(f"select * from {src}.dbo.`{brk_tbl}`")
+            tdSql.checkRows(1)
+
+            # 4. Injection-shaped table name stays a literal identifier.
+            tdSql.query(f"select count(*) from {src}.dbo.`{inj_tbl}`")
+            assert int(tdSql.queryResult[0][0]) == 2, \
+                "injection-shaped table name was not treated as a literal identifier"
+
+            # No injected statement reached the remote instance.
+            assert int(ExtSrcEnv.sqlserver_query_cfg(
+                cfg, db, f"SELECT COUNT(*) FROM dbo.{sentinel_tbl}")) == 1, \
+                "injected statement was executed on the remote instance"
+            assert int(ExtSrcEnv.sqlserver_query_cfg(
+                cfg, db,
+                f"SELECT COUNT(*) FROM dbo.[fqss_inj; DROP TABLE t_sentinel--]")) == 2, \
+                "injection-shaped table disappeared from the remote instance"
+        finally:
+            self._cleanup(*names)
+            tdSql.execute(f"drop database if exists {sentinel_db}")
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+
+    def test_fq_sec_ss_006_dependency_missing_no_silent_downgrade(self):
+        """FQSS-SEC-006: SQL Server dependencies never silently downgrade
+
+        TS: when a dependency is missing the connector must return a clear
+        error instead of silently falling back to another path.
+
+        Interface-level coverage (the ODBC runtime-library-removal form of
+        this case is carried by test_fq_19_runtime_libs.py, provider
+        'sqlserver'):
+        1. trust_server_certificate must be boolean-like — an unparsable
+           value is rejected at DDL time instead of being silently treated
+           as false (no downgrade of TLS trust on the connect path).
+        2. Other-dialect / unknown option keys are rejected for SQL Server
+           instead of being silently ignored.
+        3. tls_client_cert without tls_client_key is a parser conflict.
+        4. Empty-valued trust_server_certificate is normalized away and the
+           key disappears from SHOW (no stale forced value).
+        5. Negative: the surviving source keeps its stored options intact
+           across the rejected DDL (no silent downgrade).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect option matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_ok = f"secss006_ok_{run_tag}"
+        names = [src_ok]
+        self._cleanup(*names)
+        cert_payload = self._sqlserver_cert_payload(f"FQSS-SEC006-{run_tag}")
+
+        def _create(name, options):
+            return (
+                f"create external source {name} type='sqlserver' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' "
+                f"password='{cfg.password}' database='master' schema='dbo' "
+                f"options({options})"
+            )
+
+        try:
+            tdSql.error(
+                _create(f"secss006_bad_bool_{run_tag}",
+                        "'trust_server_certificate'='not_bool'"),
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                _create(f"secss006_mysql_opt_{run_tag}", "'charset'='utf8mb4'"),
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                _create(f"secss006_pg_opt_{run_tag}", "'sslmode'='require'"),
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                _create(f"secss006_cert_only_{run_tag}",
+                        f"'tls_client_cert'='{cert_payload}'"),
+                expectedErrno=TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
+            )
+
+            tdSql.execute(
+                _create(src_ok, "'trust_server_certificate'='true'")
+            )
+            idx = self._find_row(src_ok)
+            assert idx >= 0, f"{src_ok} not found in SHOW EXTERNAL SOURCES"
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "trust_server_certificate" in opts
+
+            # Rejected ALTER must not downgrade the stored value.
+            tdSql.error(
+                f"alter external source {src_ok} "
+                f"set options('trust_server_certificate'='not_bool')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                f"alter external source {src_ok} set options('api_token'='x')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            idx = self._find_row(src_ok)
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "not_bool" not in opts, "rejected value leaked into stored options"
+            assert "api_token" not in opts, "unknown key silently stored"
+
+            # Empty value → key normalized away (not forced to a default).
+            tdSql.execute(
+                f"alter external source {src_ok} set options('trust_server_certificate'='')"
+            )
+            idx = self._find_row(src_ok)
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "trust_server_certificate" not in opts, \
+                "empty option value should remove the key"
+        finally:
+            self._cleanup(*names)

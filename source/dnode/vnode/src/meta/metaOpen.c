@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -250,11 +252,11 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   code = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // open pTxnIdx — small B+ tree tracking pending txn entries (key=uid, value=STxnIdxVal)
+  // open pTxnIdx  -  small B+ tree tracking pending txn entries (key=uid, value=STxnIdxVal)
   code = tdbTbOpen("txn.idx", sizeof(tb_uid_t), sizeof(STxnIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pTxnIdx, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // open pTxnMeta — lazy COMMIT/ROLLBACK finalization records (key=txnId, value=STxnMetaVal)
+  // open pTxnMeta  -  lazy COMMIT/ROLLBACK finalization records (key=txnId, value=STxnMetaVal)
   code = tdbTbOpen("txn.meta", sizeof(int64_t), sizeof(STxnMetaVal), uidIdxKeyCmpr, pMeta->pEnv,
                    &pMeta->pTxnMeta, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -412,6 +414,98 @@ static void metaResetStatisInfo(SMeta *pMeta) {
   pMeta->pVnode->config.vndStats.numOfNTimeSeries = 0;
   pMeta->pVnode->config.vndStats.numOfTimeSeries = 0;
   pMeta->pVnode->config.vndStats.numOfRSMAs = 0;
+}
+
+// One-time rebuild of the virtual-table counters for vnodes whose config was
+// written before numOfVTables/numOfVCTables were persisted. Iterates uid.idx
+// and joins table.db by {version, uid}, the same path metaTbCursorNext uses,
+// so table.db rows whose uid was already removed from the index (dropped
+// tables) are not counted. The runtime counters track physical presence in
+// meta (PRE_CREATE shadows included until vacuumed), so no txn-status
+// filtering is applied here; the other counters are left untouched.
+int32_t metaRebuildVTableStats(SMeta *pMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t nVTables = 0;
+  int64_t nVCTables = 0;
+  TBC    *cursor = NULL;
+
+  code = tdbTbcOpen(pMeta->pUidIdx, &cursor, NULL);
+  if (code) {
+    metaError("vgId:%d failed to open uid index cursor, reason:%s", TD_VID(pMeta->pVnode), tstrerror(code));
+    return code;
+  }
+
+  code = tdbTbcMoveToFirst(cursor);
+  if (code) {
+    metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pMeta->pVnode), tstrerror(code));
+    tdbTbcClose(cursor);
+    return code;
+  }
+
+  for (;;) {
+    const void *pKey;
+    int         kLen;
+    const void *pVal;
+    int         vLen;
+
+    if (tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+      break;
+    }
+
+    tb_uid_t    uid = *(tb_uid_t *)pKey;
+    SUidIdxVal *pUidIdxVal = (SUidIdxVal *)pVal;
+    void       *pEntryVal = NULL;
+    int         entryValLen = 0;
+    STbDbKey    tbDbKey = {.version = pUidIdxVal->version, .uid = uid};
+
+    code = tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pEntryVal, &entryValLen);
+    if (code == TSDB_CODE_NOT_FOUND) {
+      // The uid index references a table entry that is gone, so this table is already
+      // unresolvable through metaGetTableEntryByUid; exclude it and keep counting.
+      metaWarn("vgId:%d table entry missing for uid:%" PRId64 ", skipped", TD_VID(pMeta->pVnode), uid);
+      code = TSDB_CODE_SUCCESS;
+    } else if (code != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d failed to fetch table entry for uid:%" PRId64 ", reason:%s", TD_VID(pMeta->pVnode), uid,
+                tstrerror(code));
+      break;
+    } else {
+      SDecoder   dc = {0};
+      SMetaEntry me = {0};
+
+      tDecoderInit(&dc, (uint8_t *)pEntryVal, entryValLen);
+      int32_t dcode = metaDecodeEntryImpl(&dc, &me, true);
+      if (dcode != TSDB_CODE_SUCCESS) {
+        code = dcode;
+        metaError("vgId:%d failed to decode entry header for uid:%" PRId64 ", reason:%s", TD_VID(pMeta->pVnode), uid,
+                  tstrerror(code));
+        tDecoderClear(&dc);
+        tdbFree(pEntryVal);
+        break;
+      } else if (me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+        nVTables++;
+      } else if (me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+        nVCTables++;
+      }
+      tDecoderClear(&dc);
+      tdbFree(pEntryVal);
+    }
+
+    code = tdbTbcMoveToNext(cursor);
+    if (code) {
+      metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pMeta->pVnode), tstrerror(code));
+      break;
+    }
+  }
+
+  tdbTbcClose(cursor);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    pMeta->pVnode->config.vndStats.numOfVTables = nVTables;
+    pMeta->pVnode->config.vndStats.numOfVCTables = nVCTables;
+    metaInfo("vgId:%d rebuilt virtual table stats, vtables:%" PRId64 ", vctables:%" PRId64, TD_VID(pMeta->pVnode),
+             nVTables, nVCTables);
+  }
+  return code;
 }
 
 typedef enum {

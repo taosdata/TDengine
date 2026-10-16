@@ -1,4 +1,18 @@
-# pylint: disable=c0103
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """auto encoder algorithms to detect anomaly for time series data"""
 
 import json
@@ -37,13 +51,14 @@ class _MomentImputationService(AbstractImputationService):
 
         try:
             response = requests.post(
-                self.service_host, data=json.dumps(data), headers=self.headers
+                self.service_host, data=json.dumps(data), headers=self.headers,
+                timeout=Configure.get_instance().get_tsfm_exec_timeout(),
             )
-        except Exception as e:
+        except requests.exceptions.RequestException:
             AppLogger.error(
-                "failed to connect the service: %s %s", self.service_host, str(e)
+                "failed to connect the service: %s", self.service_host, exc_info=True
             )
-            raise
+            raise ValueError("failed to connect to the upstream imputation service")
 
         if response.status_code == 404:
             AppLogger.error(f"failed to connect the service: {self.service_host}")
@@ -52,7 +67,7 @@ class _MomentImputationService(AbstractImputationService):
             AppLogger.error(
                 f"failed to request the service: {self.service_host}, reason: {response.text}"
             )
-            raise ValueError(f"failed to request the service, {response.text}")
+            raise ValueError("upstream service returned an error")
 
         resp_json = response.json()
         AppLogger.debug(f"recv rsp, {resp_json}")
@@ -62,16 +77,8 @@ class _MomentImputationService(AbstractImputationService):
     def set_params(self, params):
         super().set_params(params)
 
-        if "host" in params:
-            self.service_host = params["host"]
-
-            if self.service_host.startswith("https://"):
-                self.service_host = self.service_host.replace("https://", "http://")
-            elif "http://" not in self.service_host:
-                self.service_host = "http://" + self.service_host
-
         AppLogger.info(
-            "%s specify gpt host service: %s",
+            "%s gpt host service: %s",
             self.__class__.__name__,
             self.service_host,
         )
@@ -96,9 +103,9 @@ class _MomentImputationService(AbstractImputationService):
 
         try:
             _ = requests.get(self.service_host, headers=self.headers, timeout=5)
-        except Exception as e:
+        except requests.exceptions.RequestException:
             AppLogger.error(
-                "failed to connect the service: %s %s", self.service_host, str(e)
+                "failed to connect the service: %s", self.service_host, exc_info=True
             )
             return AnalyticsService._toStatusName[AnalyticsService.UNAVAILABLE]
 

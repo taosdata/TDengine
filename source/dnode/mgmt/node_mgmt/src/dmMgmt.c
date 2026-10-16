@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,11 +17,13 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmCorrelation.h"
 #include "dmNodes.h"
 #include "index.h"
 #include "qworker.h"
 #include "tcompression.h"
 #include "tconv.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tconv.h"
@@ -89,6 +93,10 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+  if ((code = dmInitCorrelation(pDnode)) != 0) {
+    goto _OVER;
+  }
+
   indexInit(tsNumOfCommitThreads);
 
   if ((code = dmInitStatusClient(pDnode)) != 0) {
@@ -104,6 +112,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
 
 _OVER:
   if (code != 0 && pDnode != NULL) {
+    dmCleanupCorrelation(pDnode);
     dmClearVars(pDnode);
     pDnode = NULL;
     dError("failed to create dnode since %s", tstrerror(code));
@@ -117,11 +126,13 @@ void dmCleanupDnode(SDnode *pDnode) {
     return;
   }
 
+  dmCleanupCorrelation(pDnode);
   dmCleanupClient(pDnode);
   dmCleanupStatusClient(pDnode);
   dmCleanupSyncClient(pDnode);
   dmCleanupServer(pDnode);
 
+  blockDataRecycleCleanup();
   dmClearVars(pDnode);
   rpcCleanup();
   streamCleanup();

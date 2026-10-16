@@ -1888,7 +1888,7 @@ OK
 ### CASE-024[MYS] STEP-005 EXEC
 SQL: create external source xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='fq01_fw_mdb'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: External source name is too long
 ---
 ### CASE-024[MYS] STEP-005 AUTO-SHOW
 SQL: show external sources
@@ -1946,7 +1946,7 @@ OK
 ### CASE-025[MYS] STEP-002 EXEC
 SQL: create external source fq01_src025 type='mysql' host='hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh' port=13306 user='root' password='taosdata' database='fq01_fw_mdb'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: HOST is too long
 ---
 ### CASE-025[MYS] STEP-002 AUTO-SHOW
 SQL: show external sources
@@ -1961,7 +1961,7 @@ ERROR: describe external source failed
 ### CASE-025[MYS] STEP-003 EXEC
 SQL: create external source fq01_src025 type='mysql' host='127.0.0.1' port=13306 user='uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu' password='taosdata' database='fq01_fw_mdb'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: USER is too long
 ---
 ### CASE-025[MYS] STEP-003 AUTO-SHOW
 SQL: show external sources
@@ -1976,7 +1976,7 @@ ERROR: describe external source failed
 ### CASE-025[MYS] STEP-004 EXEC
 SQL: create external source fq01_src025 type='mysql' host='127.0.0.1' port=13306 user='root' password='ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp' database='fq01_fw_mdb'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: PASSWORD is too long
 ---
 ### CASE-025[MYS] STEP-004 AUTO-SHOW
 SQL: show external sources
@@ -1991,7 +1991,7 @@ ERROR: describe external source failed
 ### CASE-025[MYS] STEP-005 EXEC
 SQL: create external source fq01_src025 type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: DATABASE is too long
 ---
 ### CASE-025[MYS] STEP-005 AUTO-SHOW
 SQL: show external sources
@@ -3155,13 +3155,13 @@ OK
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`fq01-fw-039-hyp`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+fq01-fw-039-hyp|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-005 AUTO-DESCRIBE
 SQL: describe external source `fq01-fw-039-hyp`
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`fq01-fw-039-hyp`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+fq01-fw-039-hyp|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-006 EXEC
 SQL: drop external source if exists `fq01-fw-039-hyp`
@@ -3182,13 +3182,13 @@ OK
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`fq01 fw 039 sp`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+fq01 fw 039 sp|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-008 AUTO-DESCRIBE
 SQL: describe external source `fq01 fw 039 sp`
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`fq01 fw 039 sp`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+fq01 fw 039 sp|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-009 EXEC
 SQL: drop external source if exists `fq01 fw 039 sp`
@@ -3209,13 +3209,13 @@ OK
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`select`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+select|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-011 AUTO-DESCRIBE
 SQL: describe external source `select`
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`select`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+select|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-012 EXEC
 SQL: drop external source if exists `select`
@@ -5577,7 +5577,7 @@ OK
 ### CASE-025i[INF] STEP-002 EXEC
 SQL: create external source fq01_src025i type='influxdb' host='hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh' port=18086 user='admin' database='fq01_fw_idb' options('api_token'='test-token')
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: HOST is too long
 ---
 ### CASE-025i[INF] STEP-002 AUTO-SHOW
 SQL: show external sources
@@ -5592,7 +5592,7 @@ ERROR: describe external source failed
 ### CASE-025i[INF] STEP-003 EXEC
 SQL: create external source fq01_src025i type='influxdb' host='127.0.0.1' port=18086 user='uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu' database='fq01_fw_idb' options('api_token'='test-token')
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: USER is too long
 ---
 ### CASE-025i[INF] STEP-003 AUTO-SHOW
 SQL: show external sources
@@ -5607,7 +5607,7 @@ ERROR: describe external source failed
 ### CASE-025i[INF] STEP-004 EXEC
 SQL: create external source fq01_src025i type='influxdb' host='127.0.0.1' port=18086 user='admin' password='ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp' database='fq01_fw_idb' options('api_token'='test-token')
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: PASSWORD is too long
 ---
 ### CASE-025i[INF] STEP-004 AUTO-SHOW
 SQL: show external sources
@@ -5622,7 +5622,7 @@ ERROR: describe external source failed
 ### CASE-025i[INF] STEP-005 EXEC
 SQL: create external source fq01_src025i type='influxdb' host='127.0.0.1' port=18086 user='admin' database='ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' options('api_token'='test-token')
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: DATABASE is too long
 ---
 ### CASE-025i[INF] STEP-005 AUTO-SHOW
 SQL: show external sources
@@ -6874,13 +6874,13 @@ count(*)
 SQL: select time, val, score, name, flag from fq01_src055i.src_t order by time limit 1
 RESULT:
 time|val|score|name|flag
-1704067200000000000|1|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-055i[INF] STEP-006 QUERY
 SQL: select time, val, score, name, flag from fq01_src055i.fq01_fw_idb.src_t order by time limit 1
 RESULT:
 time|val|score|name|flag
-1704067200000000000|1|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-055i[INF] STEP-007 EXEC
 SQL: alter external source fq01_src055i set database=''
@@ -7881,7 +7881,7 @@ OK
 ### CASE-025p[POS] STEP-002 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh' port=15434 user='postgres' password='taosdata' database='fq01_fw_pdb' schema='public'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: HOST is too long
 ---
 ### CASE-025p[POS] STEP-002 AUTO-SHOW
 SQL: show external sources
@@ -7896,7 +7896,7 @@ ERROR: describe external source failed
 ### CASE-025p[POS] STEP-003 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='127.0.0.1' port=15434 user='uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu' password='taosdata' database='fq01_fw_pdb' schema='public'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: USER is too long
 ---
 ### CASE-025p[POS] STEP-003 AUTO-SHOW
 SQL: show external sources
@@ -7911,7 +7911,7 @@ ERROR: describe external source failed
 ### CASE-025p[POS] STEP-004 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp' database='fq01_fw_pdb' schema='public'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: PASSWORD is too long
 ---
 ### CASE-025p[POS] STEP-004 AUTO-SHOW
 SQL: show external sources
@@ -7926,7 +7926,7 @@ ERROR: describe external source failed
 ### CASE-025p[POS] STEP-005 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' schema='public'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: DATABASE is too long
 ---
 ### CASE-025p[POS] STEP-005 AUTO-SHOW
 SQL: show external sources
@@ -7941,7 +7941,7 @@ ERROR: describe external source failed
 ### CASE-025p[POS] STEP-006 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='fq01_fw_pdb' schema='sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: SCHEMA is too long
 ---
 ### CASE-025p[POS] STEP-006 AUTO-SHOW
 SQL: show external sources
@@ -9276,13 +9276,13 @@ count(*)
 SQL: select ts, val, score, name, flag from fq01_src055p.src_t order by ts limit 1
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:00:00|1|1.5|alpha|1
+2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-055p[POS] STEP-006 QUERY
 SQL: select ts, val, score, name, flag from fq01_src055p.public.src_t order by ts limit 1
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:00:00|1|1.5|alpha|1
+2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-055p[POS] STEP-007 EXEC
 SQL: alter external source fq01_src055p set schema=''
@@ -11027,7 +11027,7 @@ ERROR: query failed
 SQL: select * from fq01_src081m.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|True
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
 ---
 ### CASE-081m[MYS] STEP-009 COUNT
 SQL: select count(*) from fq01_src081m.fq01_fw_mdb.src_t
@@ -11102,7 +11102,7 @@ ERROR: query failed
 SQL: select * from fq01_src081p.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|1
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|1
 ---
 ### CASE-081p[POS] STEP-009 COUNT
 SQL: select count(*) from fq01_src081p.public.src_t
@@ -11149,7 +11149,7 @@ fq01_src082m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 SQL: select * from fq01_src082m.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|True
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
 ---
 ### CASE-082m[MYS] STEP-004 QUERY
 SQL: select 1
@@ -11161,7 +11161,7 @@ RESULT:
 SQL: select * from fq01_src082m.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|True
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
 ---
 ### CASE-082m[MYS] STEP-006 EXEC
 SQL: refresh external source fq01_src082m
@@ -11172,7 +11172,7 @@ OK
 SQL: select * from fq01_src082m.src_t where val=5
 RESULT:
 ts|val|score|name|flag|extra_note
-2024-01-01 00:04:00|5|5.5|epsilon|True|after_refresh
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True|after_refresh
 ---
 ### CASE-082m[MYS] STEP-008 QUERY
 SQL: select 1
@@ -11225,7 +11225,7 @@ fq01_src082p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{}
 SQL: select * from fq01_src082p.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|1
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|1
 ---
 ### CASE-082p[POS] STEP-004 QUERY
 SQL: select 1
@@ -11237,7 +11237,7 @@ RESULT:
 SQL: select * from fq01_src082p.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|1
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|1
 ---
 ### CASE-082p[POS] STEP-006 EXEC
 SQL: refresh external source fq01_src082p
@@ -11248,7 +11248,7 @@ OK
 SQL: select * from fq01_src082p.src_t where val=5
 RESULT:
 ts|val|score|name|flag|extra_note
-2024-01-01 00:04:00|5|5.5|epsilon|1|after_refresh
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|1|after_refresh
 ---
 ### CASE-082p[POS] STEP-008 QUERY
 SQL: select 1
@@ -11270,4 +11270,793 @@ OK
 ================================================================================================
 CASE END: CASE-082p[POS]
 DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column
+================================================================================================
+================================================================================================
+CASE START: CASE-001s[SQL]
+DESC: basic create / show (auto) / describe (auto) / query / drop
+================================================================================================
+### CASE-001s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src001s
+RESULT:
+OK
+---
+### CASE-001s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src001s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-001s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src001s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-001s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src001s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src001s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-001s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src001s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-001s[SQL] STEP-004 CLEANUP
+SQL: drop external source if exists fq01_src001s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-001s[SQL]
+DESC: basic create / show (auto) / describe (auto) / query / drop
+================================================================================================
+================================================================================================
+CASE START: CASE-008s[SQL]
+DESC: ALTER TYPE is always denied; SQL Server attempts to change to another type
+================================================================================================
+### CASE-008s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src008s
+RESULT:
+OK
+---
+### CASE-008s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src008s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-008s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src008s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-008s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src008s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src008s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-008s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src008s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-008s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src008s set type='mysql'
+RESULT:
+ERROR: [0x2600]: syntax error near "type='mysql'"
+---
+### CASE-008s[SQL] STEP-005 COUNT
+SQL: select count(*) from fq01_src008s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-008s[SQL] STEP-006 CLEANUP
+SQL: drop external source if exists fq01_src008s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-008s[SQL]
+DESC: ALTER TYPE is always denied; SQL Server attempts to change to another type
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT001[SQL]
+DESC: FQSS-EXT-001 create with DATABASE and SCHEMA; SHOW/DESCRIBE/query/drop
+================================================================================================
+### CASE-EXT001[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext001
+RESULT:
+OK
+---
+### CASE-EXT001[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext001 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT001[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext001|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT001[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext001
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext001|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT001[SQL] STEP-003 QUERY
+SQL: select source_name, type from information_schema.ins_ext_sources where source_name='fq01_ext001'
+RESULT:
+source_name|type
+fq01_ext001|sqlserver
+---
+### CASE-EXT001[SQL] STEP-004 QUERY
+SQL: describe fq01_ext001
+RESULT:
+ERROR: query failed
+---
+### CASE-EXT001[SQL] STEP-005 COUNT
+SQL: select count(*) from fq01_ext001.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT001[SQL] STEP-006 CLEANUP
+SQL: drop external source if exists fq01_ext001
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT001[SQL]
+DESC: FQSS-EXT-001 create with DATABASE and SCHEMA; SHOW/DESCRIBE/query/drop
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT002[SQL]
+DESC: FQSS-EXT-002 create with DATABASE only; short path reports missing schema
+================================================================================================
+### CASE-EXT002[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext002
+RESULT:
+OK
+---
+### CASE-EXT002[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext002 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb'
+RESULT:
+OK
+---
+### CASE-EXT002[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext002|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb||{}
+---
+### CASE-EXT002[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext002
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext002|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb||{}
+---
+### CASE-EXT002[SQL] STEP-003 QUERY
+SQL: select count(*) from fq01_ext002.src_t
+RESULT:
+ERROR: query failed
+---
+### CASE-EXT002[SQL] STEP-004 QUERY
+SQL: select count(*) from fq01_ext002.fq01_fw_sdb.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT002[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_ext002
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT002[SQL]
+DESC: FQSS-EXT-002 create with DATABASE only; short path reports missing schema
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT003[SQL]
+DESC: FQSS-EXT-003 create with SCHEMA only; short path reports missing database
+================================================================================================
+### CASE-EXT003[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext003
+RESULT:
+OK
+---
+### CASE-EXT003[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext003 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT003[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext003|sqlserver|127.0.0.1|1433|sa|******||dbo|{}
+---
+### CASE-EXT003[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext003
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext003|sqlserver|127.0.0.1|1433|sa|******||dbo|{}
+---
+### CASE-EXT003[SQL] STEP-003 QUERY
+SQL: select count(*) from fq01_ext003.src_t
+RESULT:
+ERROR: query failed
+---
+### CASE-EXT003[SQL] STEP-004 QUERY
+SQL: select count(*) from fq01_ext003.fq01_fw_sdb.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT003[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_ext003
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT003[SQL]
+DESC: FQSS-EXT-003 create with SCHEMA only; short path reports missing database
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT004[SQL]
+DESC: FQSS-EXT-004 create without namespace defaults; fully qualified path still works
+================================================================================================
+### CASE-EXT004[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext004
+RESULT:
+OK
+---
+### CASE-EXT004[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext004 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026'
+RESULT:
+OK
+---
+### CASE-EXT004[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext004|sqlserver|127.0.0.1|1433|sa|******|||{}
+---
+### CASE-EXT004[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext004
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext004|sqlserver|127.0.0.1|1433|sa|******|||{}
+---
+### CASE-EXT004[SQL] STEP-003 QUERY
+SQL: select count(*) from fq01_ext004.src_t
+RESULT:
+ERROR: query failed
+---
+### CASE-EXT004[SQL] STEP-004 QUERY
+SQL: select count(*) from fq01_ext004.fq01_fw_sdb.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT004[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_ext004
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT004[SQL]
+DESC: FQSS-EXT-004 create without namespace defaults; fully qualified path still works
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT005[SQL]
+DESC: FQSS-EXT-005 type='mssql' is an unknown type, not an alias
+================================================================================================
+### CASE-EXT005[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext005
+RESULT:
+OK
+---
+### CASE-EXT005[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext005 type='mssql' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+ERROR: [0x2600]: Unknown external source TYPE
+---
+### CASE-EXT005[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-EXT005[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext005
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-EXT005[SQL] STEP-003 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext005'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-EXT005[SQL]
+DESC: FQSS-EXT-005 type='mssql' is an unknown type, not an alias
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT006[SQL]
+DESC: FQSS-EXT-006 OPTIONS whitelist (tls/timeout) visible in SHOW
+================================================================================================
+### CASE-EXT006[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext006
+RESULT:
+OK
+---
+### CASE-EXT006[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext006 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('tls_enabled'='false', 'trust_server_certificate'='true', 'connect_timeout_ms'='5000', 'read_timeout_ms'='5000')
+RESULT:
+OK
+---
+### CASE-EXT006[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext006|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"tls_enabled":"false","trust_server_certificate":"true","connect_timeout_ms":"5000","read_timeout_ms":"5000"}
+---
+### CASE-EXT006[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext006
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext006|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"tls_enabled":"false","trust_server_certificate":"true","connect_timeout_ms":"5000","read_timeout_ms":"5000"}
+---
+### CASE-EXT006[SQL] STEP-003 QUERY
+SQL: select source_name, type, options from information_schema.ins_ext_sources where source_name='fq01_ext006'
+RESULT:
+source_name|type|options
+fq01_ext006|sqlserver|{"tls_enabled":"false","trust_server_certificate":"true","connect_timeout_ms":"5000","read_timeout_ms":"5000"}
+---
+### CASE-EXT006[SQL] STEP-004 QUERY
+SQL: describe fq01_ext006
+RESULT:
+ERROR: query failed
+---
+### CASE-EXT006[SQL] STEP-005 COUNT
+SQL: select count(*) from fq01_ext006.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT006[SQL] STEP-006 CLEANUP
+SQL: drop external source if exists fq01_ext006
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT006[SQL]
+DESC: FQSS-EXT-006 OPTIONS whitelist (tls/timeout) visible in SHOW
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT007[SQL]
+DESC: FQSS-EXT-007 unknown option key is rejected / not persisted
+================================================================================================
+### CASE-EXT007[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext007
+RESULT:
+OK
+---
+### CASE-EXT007[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext007 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('unknown_fw_opt'='1')
+RESULT:
+ERROR: [0x2600]: Unknown OPTIONS key 'unknown_fw_opt' for source type
+---
+### CASE-EXT007[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-EXT007[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext007
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-EXT007[SQL] STEP-003 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext007'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-EXT007[SQL]
+DESC: FQSS-EXT-007 unknown option key is rejected / not persisted
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT008[SQL]
+DESC: FQSS-EXT-008 SHOW reports type='sqlserver' and masks the password
+================================================================================================
+### CASE-EXT008[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext008
+RESULT:
+OK
+---
+### CASE-EXT008[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext008 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT008[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext008|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT008[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext008
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext008|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT008[SQL] STEP-003 QUERY
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext008|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT008[SQL] STEP-004 CLEANUP
+SQL: drop external source if exists fq01_ext008
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT008[SQL]
+DESC: FQSS-EXT-008 SHOW reports type='sqlserver' and masks the password
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT009[SQL]
+DESC: FQSS-EXT-009 DESCRIBE shows the definition with the masked password
+================================================================================================
+### CASE-EXT009[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext009
+RESULT:
+OK
+---
+### CASE-EXT009[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext009 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT009[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext009|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT009[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext009
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext009|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT009[SQL] STEP-003 QUERY
+SQL: describe fq01_ext009
+RESULT:
+ERROR: query failed
+---
+### CASE-EXT009[SQL] STEP-004 CLEANUP
+SQL: drop external source if exists fq01_ext009
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT009[SQL]
+DESC: FQSS-EXT-009 DESCRIBE shows the definition with the masked password
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT010[SQL]
+DESC: FQSS-EXT-010 ALTER DATABASE re-resolves the short path
+================================================================================================
+### CASE-EXT010[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext010
+RESULT:
+OK
+---
+### CASE-EXT010[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext010 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT010[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext010|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT010[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext010
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext010|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT010[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_ext010.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT010[SQL] STEP-004 EXEC
+SQL: alter external source fq01_ext010 set database='fq01_fw_sdb2'
+RESULT:
+OK
+---
+### CASE-EXT010[SQL] STEP-005 COUNT
+SQL: select count(*) from fq01_ext010.dbo.src_t
+RESULT:
+ERROR: count query failed (expected in negative case)
+---
+### CASE-EXT010[SQL] STEP-006 EXEC
+SQL: alter external source fq01_ext010 set database='fq01_fw_sdb'
+RESULT:
+OK
+---
+### CASE-EXT010[SQL] STEP-007 COUNT
+SQL: select count(*) from fq01_ext010.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT010[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_ext010
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT010[SQL]
+DESC: FQSS-EXT-010 ALTER DATABASE re-resolves the short path
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT011[SQL]
+DESC: FQSS-EXT-011 ALTER SCHEMA re-resolves the short path
+================================================================================================
+### CASE-EXT011[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext011
+RESULT:
+OK
+---
+### CASE-EXT011[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext011 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT011[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext011|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT011[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext011
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext011|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT011[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_ext011.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT011[SQL] STEP-004 EXEC
+SQL: alter external source fq01_ext011 set schema='dbo_none'
+RESULT:
+OK
+---
+### CASE-EXT011[SQL] STEP-005 COUNT
+SQL: select count(*) from fq01_ext011.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT011[SQL] STEP-006 EXEC
+SQL: alter external source fq01_ext011 set schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT011[SQL] STEP-007 COUNT
+SQL: select count(*) from fq01_ext011.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT011[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_ext011
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT011[SQL]
+DESC: FQSS-EXT-011 ALTER SCHEMA re-resolves the short path
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT012[SQL]
+DESC: FQSS-EXT-012 ALTER HOST to an unreachable address fails only at query time
+================================================================================================
+### CASE-EXT012[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext012
+RESULT:
+OK
+---
+### CASE-EXT012[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext012 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT012[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext012|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT012[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext012
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext012|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT012[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_ext012.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT012[SQL] STEP-004 EXEC
+SQL: alter external source fq01_ext012 set host='127.0.0.1' port=14330
+RESULT:
+ERROR: [0x2600]: syntax error near "port=14330"
+---
+### CASE-EXT012[SQL] STEP-005 QUERY
+SQL: select source_name, type from information_schema.ins_ext_sources where source_name='fq01_ext012'
+RESULT:
+source_name|type
+fq01_ext012|sqlserver
+---
+### CASE-EXT012[SQL] STEP-006 COUNT
+SQL: select count(*) from fq01_ext012.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT012[SQL] STEP-007 CLEANUP
+SQL: drop external source if exists fq01_ext012
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT012[SQL]
+DESC: FQSS-EXT-012 ALTER HOST to an unreachable address fails only at query time
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT013[SQL]
+DESC: FQSS-EXT-013 REFRESH exposes a new remote column
+================================================================================================
+### CASE-EXT013[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext013
+RESULT:
+OK
+---
+### CASE-EXT013[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext013 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT013[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext013|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT013[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext013
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext013|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT013[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_ext013.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-EXT013[SQL] STEP-004 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-EXT013[SQL] STEP-005 QUERY
+SQL: select extra_col from fq01_ext013.src_t where val = 1
+RESULT:
+extra_col
+7
+---
+### CASE-EXT013[SQL] STEP-006 EXEC
+SQL: refresh external source fq01_ext013
+RESULT:
+OK
+---
+### CASE-EXT013[SQL] STEP-007 QUERY
+SQL: select extra_col from fq01_ext013.src_t where val = 1
+RESULT:
+extra_col
+7
+---
+### CASE-EXT013[SQL] STEP-008 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-EXT013[SQL] STEP-009 CLEANUP
+SQL: drop external source if exists fq01_ext013
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-EXT013[SQL]
+DESC: FQSS-EXT-013 REFRESH exposes a new remote column
+================================================================================================
+================================================================================================
+CASE START: CASE-EXT014[SQL]
+DESC: FQSS-EXT-014 DROP removes the source; IF EXISTS is idempotent
+================================================================================================
+### CASE-EXT014[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_ext014
+RESULT:
+OK
+---
+### CASE-EXT014[SQL] STEP-002 EXEC
+SQL: create external source fq01_ext014 type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-EXT014[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext014|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT014[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_ext014
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_ext014|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-EXT014[SQL] STEP-003 EXEC
+SQL: drop external source fq01_ext014
+RESULT:
+OK
+---
+### CASE-EXT014[SQL] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext014'
+RESULT:
+count(*)
+0
+---
+### CASE-EXT014[SQL] STEP-005 EXEC
+SQL: drop external source if exists fq01_ext014
+RESULT:
+OK
+---
+### CASE-EXT014[SQL] STEP-006 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext014'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-EXT014[SQL]
+DESC: FQSS-EXT-014 DROP removes the source; IF EXISTS is idempotent
 ================================================================================================

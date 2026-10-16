@@ -22,7 +22,7 @@ MySQL is one of the most popular relational databases. Many systems have used or
 
 Fill in the *`connection information for the source MySQL database`* in the **Connection Configuration** area, as shown below:
 
-![Configure connection information](../../assets/mysql-01.png)
+![Configure connection information](../../assets/mysql-01.webp)
 
 ### Configure Authentication Information
 
@@ -30,16 +30,22 @@ Fill in the *`connection information for the source MySQL database`* in the **Co
 
 **Password** Enter the login password for the user mentioned above in the source MySQL database.
 
-![Configure authentication information](../../assets/mysql-02.png)
+![Configure authentication information](../../assets/mysql-02.webp)
 
 ### Configure Connection Options
 
 **Character Set** Set the character set for the connection. The default character set is utf8mb4. MySQL 5.5.3 supports this feature. If connecting to an older version, it is recommended to change to utf8.
 Options include utf8, utf8mb4, utf16, utf32, gbk, big5, latin1, ascii.
 
+**Pipes as Concatenation** (`pipes_as_concat`) controls whether `PIPES_AS_CONCAT` is added to the SQL mode for this connection. When enabled, `||` concatenates strings. When disabled, this mode is not added, but any mode already present in the server session remains; the actual meaning of `||` depends on the final session SQL mode. This option is enabled by default to preserve the behavior of existing MySQL ingestion tasks. Changing it can change the results of existing SQL queries.
+
+**No Engine Substitution** (`no_engine_substitution`) controls whether `NO_ENGINE_SUBSTITUTION` is added to the SQL mode for this connection, preventing MySQL from substituting a storage engine when the requested engine is unavailable. Disabling this option does not remove the mode if it is already present in the server session. This option is enabled by default.
+
+Apache Doris provides a MySQL-compatible endpoint, which taosX connects to using the MySQL driver. By default, the driver adds `PIPES_AS_CONCAT` and `NO_ENGINE_SUBSTITUTION` to the session SQL mode during connection initialization. Doris does not support these modes, so the connection fails before any synchronization query runs. To synchronize Doris data, turn **both options off** (`false`) so the driver does not add these modes, then click **Check Connectivity**. Set these options for other MySQL-compatible databases according to their compatibility requirements, and avoid changing them on existing tasks without checking their queries.
+
 **SSL Mode** Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority of negotiation. The default value is PREFERRED. Options include DISABLED, PREFERRED, REQUIRED.
 
-![Configure character set and SSL mode](../../assets/mysql-03.png)
+![Configure MySQL connection options](../../assets/mysql-03.webp)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally fetch data from the source MySQL database.
 
@@ -69,7 +75,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-![Configure data collection](../../assets/mysql-04.png)
+![Configure data collection](../../assets/mysql-04.webp)
 
 ### Configure Data Mapping
 
@@ -85,7 +91,7 @@ In **Mapping**, select the supertable in TDengine to map to, and the columns to 
 
 Click **Preview** to view the results of the mapping.
 
-![Configure data mapping](../../assets/mysql-05.png)
+![Configure data mapping](../../assets/mysql-05.webp)
 
 ### Configure Advanced Options
 
@@ -95,7 +101,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-![Configure advanced options](../../assets/mysql-06.png)
+![Configure advanced options](../../assets/mysql-06.webp)
 
 ### Configure Exception Handling
 

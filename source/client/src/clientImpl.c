@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,8 +20,10 @@
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "clientSession.h"
+#include "cmdnodes.h"
 #include "command.h"
 #include "extConnector.h"
+#include "extError.h"
 #include "decimal.h"
 #include "scheduler.h"
 #include "tdatablock.h"
@@ -30,6 +34,7 @@
 #include "tmsg.h"
 #include "tmsgtype.h"
 #include "ttimer.h"
+#include "tuuid.h"
 #include "tpagedbuf.h"
 #include "tref.h"
 #include "tsched.h"
@@ -38,10 +43,14 @@
 #include <gsasl.h>
 #endif
 
+#include <ctype.h>
+#include <stdlib.h>
+
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode,
                                const char* saslToken);
 static int32_t removeQueryDbMeta(STscObj* pTscObj, SArray* dbList);
+static void    tscChargeTouchedObjects(STscObj* pTscObj, const SQuery* pQuery, const SExecResult* pRes);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -408,8 +417,10 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .stmtBindVersion = pRequest->stmtBindVersion,
       .setQueryFp = setQueryRequest,
       .timezone = pTscObj->optionInfo.timezone,
-      .charsetCxt = pTscObj->optionInfo.charsetCxt,
-      .txnId = pTscObj->txnId,
+      .charsetCxt = taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt),
+      // .txnId / .txnDdlRemaining are filled in below, under pTscObj->mutex: they are the pair
+      // that governs the txn DDL budget and are written (and zeroed together) by the txn
+      // lifecycle under that lock.
       .pTxnVgSet = pTscObj->pTxnVgSet,
       .pTxnTableMeta = pTscObj->pTxnTableMeta,
       .pTxnSuidMap = pTscObj->pTxnSuidMap,
@@ -418,6 +429,12 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
   // Inject active external source context so 1-seg table refs can be resolved
   (void)taosThreadMutexLock(&pTscObj->mutex);
+  // Snapshot the txn identity and the remaining budget under the same lock that the BEGIN
+  // handler and tscResetTxnState use to write (and zero) them. txnDdlCount is also charged from
+  // the scheduler completion callback, so deriving the per-vgroup quota from an unlocked read
+  // could see a half-updated txnId/txnDdlCount pair.
+  cxt.txnId = pTscObj->txnId;
+  cxt.txnDdlRemaining = txnDdlRemainingOps(pTscObj);
   tstrncpy(cxt.currentExtSource, pTscObj->extSource, sizeof(cxt.currentExtSource));
   tstrncpy(cxt.currentExtNs1,    pTscObj->extNs1,    sizeof(cxt.currentExtNs1));
   tstrncpy(cxt.currentExtNs2,    pTscObj->extNs2,    sizeof(cxt.currentExtNs2));
@@ -476,6 +493,316 @@ static uint8_t getShowVarPrivMask(SRequestObj* pRequest) {
 }
 #endif
 
+static int32_t execResetQueryCacheForExtSource(SRequestObj* pRequest, const SResetQueryCacheStmt* pStmt) {
+  if (NULL == pRequest || NULL == pStmt || !pStmt->forExtSource || pStmt->sourceName[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SCatalog* pCatalog = NULL;
+  int32_t   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  code = catalogClearExtSourceDemotions(pCatalog, pStmt->sourceName);
+  if (TSDB_CODE_SUCCESS == code) {
+    tscDebug("RESET QUERY CACHE FOR EXTERNAL SOURCE `%s`: cleared demotion cache", pStmt->sourceName);
+  }
+
+  return code;
+}
+
+static void extCopyLowerString(const char* pIn, char* pOut, int32_t outLen) {
+  if (NULL == pOut || outLen <= 0) {
+    return;
+  }
+
+  pOut[0] = '\0';
+  if (NULL == pIn) {
+    return;
+  }
+
+  int32_t n = (int32_t)strlen(pIn);
+  if (n > outLen - 1) {
+    n = outLen - 1;
+  }
+
+  for (int32_t i = 0; i < n; ++i) {
+    pOut[i] = (char)tolower((unsigned char)pIn[i]);
+  }
+  pOut[n] = '\0';
+}
+
+static bool extClauseNameToKind(const char* pName, EExtClauseKind* pKind) {
+  if (NULL == pName || NULL == pKind || pName[0] == '\0') {
+    return false;
+  }
+
+  const char* pNorm = pName;
+  if (0 == strncasecmp(pNorm, "EXT_CLAUSE_", strlen("EXT_CLAUSE_"))) {
+    pNorm += strlen("EXT_CLAUSE_");
+  }
+
+  static const struct {
+    const char*    name;
+    EExtClauseKind kind;
+  } kClauseMap[] = {
+      {"FILTER", EXT_CLAUSE_FILTER},
+      {"PROJECTION", EXT_CLAUSE_PROJECTION},
+      {"AGG", EXT_CLAUSE_AGG},
+      {"ORDER", EXT_CLAUSE_ORDER},
+      {"LIMIT", EXT_CLAUSE_LIMIT},
+      {"JOIN", EXT_CLAUSE_JOIN},
+      {"GROUP_ROLLUP", EXT_CLAUSE_GROUP_ROLLUP},
+      {"HAVING", EXT_CLAUSE_HAVING},
+      {"ORDER_NULLS_FIRST", EXT_CLAUSE_ORDER_NULLS_FIRST},
+      {"ORDER_NULLS_LAST", EXT_CLAUSE_ORDER_NULLS_LAST},
+      {"OFFSET", EXT_CLAUSE_OFFSET},
+      {"DISTINCT", EXT_CLAUSE_DISTINCT},
+      {"INNER_JOIN", EXT_CLAUSE_INNER_JOIN},
+      {"LEFT_JOIN", EXT_CLAUSE_LEFT_JOIN},
+      {"RIGHT_JOIN", EXT_CLAUSE_RIGHT_JOIN},
+      {"FULL_OUTER_JOIN", EXT_CLAUSE_FULL_OUTER_JOIN},
+      {"SEMI_JOIN", EXT_CLAUSE_SEMI_JOIN},
+      {"ANTI_JOIN", EXT_CLAUSE_ANTI_JOIN},
+      {"FROM_SUBQUERY", EXT_CLAUSE_FROM_SUBQUERY},
+      {"SCALAR_SUBQUERY", EXT_CLAUSE_SCALAR_SUBQUERY},
+      {"INTERVAL_TUMBLING", EXT_CLAUSE_INTERVAL_TUMBLING},
+      {"INTERVAL_SLIDING", EXT_CLAUSE_INTERVAL_SLIDING},
+      {"PARTITION_TBNAME", EXT_CLAUSE_PARTITION_TBNAME},
+      {"PARTITION_COLUMN", EXT_CLAUSE_PARTITION_COLUMN},
+      {"FEAT_CTE", EXT_CLAUSE_FEAT_CTE},
+      {"FEAT_WINDOW_FUNCTIONS", EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS},
+      {"FEAT_LARGE_IN_LIST", EXT_CLAUSE_FEAT_LARGE_IN_LIST},
+      {"IN_SUBQUERY", EXT_CLAUSE_IN_SUBQUERY},
+      {"ALL_ANY_SUBQUERY", EXT_CLAUSE_ALL_ANY_SUBQUERY},
+      {"ASOF_JOIN", EXT_CLAUSE_ASOF_JOIN},
+      {"WINDOW_JOIN", EXT_CLAUSE_WINDOW_JOIN},
+      {"STATE_WINDOW", EXT_CLAUSE_STATE_WINDOW},
+      {"SESSION_WINDOW", EXT_CLAUSE_SESSION_WINDOW},
+      {"EVENT_WINDOW", EXT_CLAUSE_EVENT_WINDOW},
+      {"COUNT_WINDOW", EXT_CLAUSE_COUNT_WINDOW},
+      {"FILL", EXT_CLAUSE_FILL},
+      {"INTERP", EXT_CLAUSE_INTERP},
+      {"SLIMIT", EXT_CLAUSE_SLIMIT},
+  };
+
+  for (size_t i = 0; i < sizeof(kClauseMap) / sizeof(kClauseMap[0]); ++i) {
+    if (0 == strcasecmp(pNorm, kClauseMap[i].name)) {
+      *pKind = kClauseMap[i].kind;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool extTypeNameToCode(const char* pName, int8_t* pTypeCode) {
+  if (NULL == pName || NULL == pTypeCode || pName[0] == '\0') {
+    return false;
+  }
+
+  static const struct {
+    const char* name;
+    int8_t      typeCode;
+  } kTypeMap[] = {
+      {"BOOL", TSDB_DATA_TYPE_BOOL},
+      {"BOOLEAN", TSDB_DATA_TYPE_BOOL},
+      {"TINYINT", TSDB_DATA_TYPE_TINYINT},
+      {"SMALLINT", TSDB_DATA_TYPE_SMALLINT},
+      {"INT", TSDB_DATA_TYPE_INT},
+      {"INTEGER", TSDB_DATA_TYPE_INT},
+      {"BIGINT", TSDB_DATA_TYPE_BIGINT},
+      {"UTINYINT", TSDB_DATA_TYPE_UTINYINT},
+      {"USMALLINT", TSDB_DATA_TYPE_USMALLINT},
+      {"UINT", TSDB_DATA_TYPE_UINT},
+      {"UBIGINT", TSDB_DATA_TYPE_UBIGINT},
+      {"FLOAT", TSDB_DATA_TYPE_FLOAT},
+      {"DOUBLE", TSDB_DATA_TYPE_DOUBLE},
+      {"VARCHAR", TSDB_DATA_TYPE_VARCHAR},
+      {"BINARY", TSDB_DATA_TYPE_VARCHAR},
+      {"NCHAR", TSDB_DATA_TYPE_NCHAR},
+      {"TIMESTAMP", TSDB_DATA_TYPE_TIMESTAMP},
+      {"JSON", TSDB_DATA_TYPE_JSON},
+      {"VARBINARY", TSDB_DATA_TYPE_VARBINARY},
+      {"DECIMAL", TSDB_DATA_TYPE_DECIMAL},
+      {"DECIMAL64", TSDB_DATA_TYPE_DECIMAL64},
+      {"BLOB", TSDB_DATA_TYPE_BLOB},
+      {"MEDIUMBLOB", TSDB_DATA_TYPE_MEDIUMBLOB},
+      {"GEOMETRY", TSDB_DATA_TYPE_GEOMETRY},
+  };
+
+  for (size_t i = 0; i < sizeof(kTypeMap) / sizeof(kTypeMap[0]); ++i) {
+    if (0 == strcasecmp(pName, kTypeMap[i].name)) {
+      *pTypeCode = kTypeMap[i].typeCode;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool extOperatorNameToType(const char* pName, EOperatorType* pOpType) {
+  if (NULL == pName || NULL == pOpType || pName[0] == '\0') {
+    return false;
+  }
+
+  static const struct {
+    const char*   name;
+    EOperatorType opType;
+  } kOpMap[] = {
+      {"+", OP_TYPE_ADD},
+      {"ADD", OP_TYPE_ADD},
+      {"-", OP_TYPE_SUB},
+      {"SUB", OP_TYPE_SUB},
+      {"*", OP_TYPE_MULTI},
+      {"MULTI", OP_TYPE_MULTI},
+      {"MUL", OP_TYPE_MULTI},
+      {"/", OP_TYPE_DIV},
+      {"DIV", OP_TYPE_DIV},
+      {"%", OP_TYPE_REM},
+      {"REM", OP_TYPE_REM},
+      {"&", OP_TYPE_BIT_AND},
+      {"BIT_AND", OP_TYPE_BIT_AND},
+      {"|", OP_TYPE_BIT_OR},
+      {"BIT_OR", OP_TYPE_BIT_OR},
+      {">", OP_TYPE_GREATER_THAN},
+      {"GT", OP_TYPE_GREATER_THAN},
+      {"GREATER_THAN", OP_TYPE_GREATER_THAN},
+      {">=", OP_TYPE_GREATER_EQUAL},
+      {"GE", OP_TYPE_GREATER_EQUAL},
+      {"GREATER_EQUAL", OP_TYPE_GREATER_EQUAL},
+      {"<", OP_TYPE_LOWER_THAN},
+      {"LT", OP_TYPE_LOWER_THAN},
+      {"LOWER_THAN", OP_TYPE_LOWER_THAN},
+      {"<=", OP_TYPE_LOWER_EQUAL},
+      {"LE", OP_TYPE_LOWER_EQUAL},
+      {"LOWER_EQUAL", OP_TYPE_LOWER_EQUAL},
+      {"=", OP_TYPE_EQUAL},
+      {"==", OP_TYPE_EQUAL},
+      {"EQ", OP_TYPE_EQUAL},
+      {"EQUAL", OP_TYPE_EQUAL},
+      {"!=", OP_TYPE_NOT_EQUAL},
+      {"<>", OP_TYPE_NOT_EQUAL},
+      {"NE", OP_TYPE_NOT_EQUAL},
+      {"NOT_EQUAL", OP_TYPE_NOT_EQUAL},
+      {"IN", OP_TYPE_IN},
+      {"NOT_IN", OP_TYPE_NOT_IN},
+      {"LIKE", OP_TYPE_LIKE},
+      {"NOT_LIKE", OP_TYPE_NOT_LIKE},
+      {"MATCH", OP_TYPE_MATCH},
+      {"NMATCH", OP_TYPE_NMATCH},
+      {"IS_NULL", OP_TYPE_IS_NULL},
+      {"IS_NOT_NULL", OP_TYPE_IS_NOT_NULL},
+      {"IS_TRUE", OP_TYPE_IS_TRUE},
+      {"IS_FALSE", OP_TYPE_IS_FALSE},
+      {"IS_UNKNOWN", OP_TYPE_IS_UNKNOWN},
+      {"IS_NOT_TRUE", OP_TYPE_IS_NOT_TRUE},
+      {"IS_NOT_FALSE", OP_TYPE_IS_NOT_FALSE},
+      {"IS_NOT_UNKNOWN", OP_TYPE_IS_NOT_UNKNOWN},
+      {"EXISTS", OP_TYPE_EXISTS},
+      {"NOT_EXISTS", OP_TYPE_NOT_EXISTS},
+      {"->", OP_TYPE_JSON_GET_VALUE},
+      {"JSON_GET_VALUE", OP_TYPE_JSON_GET_VALUE},
+      {"JSON_CONTAINS", OP_TYPE_JSON_CONTAINS},
+      {"MINUS", OP_TYPE_MINUS},
+      {"ASSIGN", OP_TYPE_ASSIGN},
+  };
+
+  for (size_t i = 0; i < sizeof(kOpMap) / sizeof(kOpMap[0]); ++i) {
+    if (0 == strcasecmp(pName, kOpMap[i].name)) {
+      *pOpType = kOpMap[i].opType;
+      return true;
+    }
+  }
+
+  char* end = NULL;
+  int64_t opVal = taosStr2Int64(pName, &end, 10);
+  if (NULL != end && *end == '\0' && opVal > 0 && opVal < OP_TYPE_ASSIGN + 1) {
+    *pOpType = (EOperatorType)opVal;
+    return true;
+  }
+
+  return false;
+}
+
+static int32_t execAlterExtSourceCapability(SRequestObj* pRequest, const SAlterExtSourceStmt* pStmt) {
+  if (NULL == pRequest || NULL == pStmt || pStmt->sourceName[0] == '\0' || pStmt->capValue[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pStmt->capAction == EXT_CAP_ACTION_NONE) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pStmt->capKind != EXT_DEMOTE_KIND_FUNC && pStmt->capKind != EXT_DEMOTE_KIND_CLAUSE &&
+      pStmt->capKind != EXT_DEMOTE_KIND_TYPE && pStmt->capKind != EXT_DEMOTE_KIND_OP) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SCatalog* pCatalog = NULL;
+  int32_t   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  bool isExtSource = false;
+  code = catalogIsExtSource(pCatalog, pStmt->sourceName, &isExtSource);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (!isExtSource) {
+    return pStmt->ignoreNotExists ? TSDB_CODE_SUCCESS : TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+  }
+
+  SExtCapDemoteSpec spec = {.kind = (EExtCapDemoteKind)pStmt->capKind, .reasonCode = EXT_DEMOTE_REASON_USER_FORCED};
+  switch (spec.kind) {
+    case EXT_DEMOTE_KIND_FUNC:
+      extCopyLowerString(pStmt->capValue, spec.detail.funcName, sizeof(spec.detail.funcName));
+      if (spec.detail.funcName[0] == '\0') {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      break;
+    case EXT_DEMOTE_KIND_CLAUSE: {
+      EExtClauseKind clauseKind = EXT_CLAUSE_FILTER;
+      if (!extClauseNameToKind(pStmt->capValue, &clauseKind)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      spec.detail.clauseKind = clauseKind;
+      break;
+    }
+    case EXT_DEMOTE_KIND_TYPE: {
+      int8_t typeCode = TSDB_DATA_TYPE_NULL;
+      if (!extTypeNameToCode(pStmt->capValue, &typeCode)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      spec.detail.tsdbTypeCode = typeCode;
+      break;
+    }
+    case EXT_DEMOTE_KIND_OP: {
+      EOperatorType opType = OP_TYPE_ADD;
+      if (!extOperatorNameToType(pStmt->capValue, &opType)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      spec.detail.opType = opType;
+      break;
+    }
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pStmt->capAction == EXT_CAP_ACTION_DISABLE) {
+    code = catalogDemoteExtSourceCapability(pCatalog, pStmt->sourceName, &spec);
+  } else {
+    code = catalogClearExtSourceDemoteEntry(pCatalog, pStmt->sourceName, &spec);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    const char* action = (pStmt->capAction == EXT_CAP_ACTION_DISABLE) ? "DISABLE" : "ENABLE";
+    tscDebug("ALTER EXTERNAL SOURCE `%s` %s capability kind=%d value=%s applied", pStmt->sourceName, action,
+             pStmt->capKind, pStmt->capValue);
+  }
+
+  return code;
+}
 static int32_t execSetTimezone(SRequestObj* pRequest, SSetTimezoneStmt* pStmt) {
   int64_t rid = pRequest->pTscObj->id;
   int32_t code = taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->timezone);
@@ -507,21 +834,43 @@ static bool execLocalSetCmd(SRequestObj* pRequest, SQuery* pQuery, int32_t* pCod
   }
 }
 
-static int32_t syncAlterLocalConnectionOption(SRequestObj* pRequest, SAlterLocalStmt* pStmt) {
-  if (pRequest == NULL || pStmt == NULL) {
+static int32_t prepareAlterLocalTimezone(SRequestObj* pRequest, SNode* pRoot,
+                                         SPreparedTimezone* pTimezone, bool* pPrepared) {
+  if (pRequest == NULL || pTimezone == NULL || pPrepared == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pPrepared = false;
+  if (pRoot == NULL || nodeType(pRoot) != QUERY_NODE_ALTER_LOCAL_STMT) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SAlterLocalStmt* pStmt = (SAlterLocalStmt*)pRoot;
   if (strcasecmp(pStmt->config, "timezone") == 0) {
-    int64_t rid = pRequest->pTscObj->id;
-    int32_t code = taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->value);
-    if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+    int32_t code = tscPrepareSessionTimezone(pStmt->value, true, pTimezone);
+    if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL &&
+        pRequest->msgBufLen > 0) {
       (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen, "Invalid timezone: '%s'", pStmt->value);
     }
-    return code;
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    *pPrepared = true;
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static void commitAlterLocalTimezone(SRequestObj* pRequest,
+                                     const SPreparedTimezone* pTimezone, bool prepared) {
+  if (!prepared) {
+    return;
+  }
+
+  tscCommitSessionTimezone(pRequest->pTscObj, pTimezone);
+  tscDebug("ALTER LOCAL timezone: updated connection timezoneName to '%s', explicit:%d",
+           pRequest->pTscObj->optionInfo.timezoneName,
+           (int)pRequest->pTscObj->optionInfo.timezoneExplicit);
 }
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
@@ -534,11 +883,32 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_RESET_QUERY_CACHE_STMT) {
+    SResetQueryCacheStmt* pStmt = (SResetQueryCacheStmt*)pQuery->pRoot;
+    if (pStmt->forExtSource) {
+      return execResetQueryCacheForExtSource(pRequest, pStmt);
+    }
+  }
+
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_EXT_SOURCE_STMT) {
+    SAlterExtSourceStmt* pStmt = (SAlterExtSourceStmt*)pQuery->pRoot;
+    if (pStmt->capAction != EXT_CAP_ACTION_NONE) {
+      return execAlterExtSourceCapability(pRequest, pStmt);
+    }
+  }
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
   int32_t            code = TSDB_CODE_SUCCESS;
+  SPreparedTimezone preparedTimezone = {0};
+  bool               timezonePrepared = false;
 
   if (execLocalSetCmd(pRequest, pQuery, &code)) {
+    return code;
+  }
+
+  code = prepareAlterLocalTimezone(pRequest, pQuery->pRoot, &preparedTimezone,
+                                   &timezonePrepared);
+  if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
@@ -550,29 +920,20 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 #endif
   code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
                       biMode, pRequest->pTscObj->optionInfo.charsetCxt);
+  if (code == TSDB_CODE_SUCCESS) {
+    commitAlterLocalTimezone(pRequest, &preparedTimezone, timezonePrepared);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
   }
 
-  // DS §5.2.6: propagate ALTER LOCAL "timezone" to per-connection optionInfo so the
-  // timezone name flows planner → SFederatedScanPhysiNode → external connectors.
+#ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code && pQuery->pRoot != NULL &&
       nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
     SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
-    if (strcasecmp(pAlterStmt->config, "timezone") == 0) {
-      if (pAlterStmt->value[0] != '\0') {
-        tstrncpy(pRequest->pTscObj->optionInfo.timezoneName, pAlterStmt->value,
-                 sizeof(pRequest->pTscObj->optionInfo.timezoneName));
-      } else {
-        pRequest->pTscObj->optionInfo.timezoneName[0] = '\0';
-      }
-      tscDebug("ALTER LOCAL timezone: updated connection timezoneName to '%s'",
-               pRequest->pTscObj->optionInfo.timezoneName);
-    }
-#ifdef TD_ENTERPRISE
     // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
-    if (TSDB_CODE_SUCCESS == code && strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
+    if (strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
       SExtConnectorModuleCfg extConnCfg = {
         .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
         .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
@@ -582,8 +943,8 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
       };
       extConnectorUpdateModuleCfg(&extConnCfg);
     }
-#endif
   }
+#endif
 
   return code;
 }
@@ -702,14 +1063,10 @@ static SAppInstInfo* getAppInfo(SRequestObj* pRequest) { return pRequest->pTscOb
 void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int32_t            code = TSDB_CODE_SUCCESS;
+  SPreparedTimezone preparedTimezone = {0};
+  bool               timezonePrepared = false;
   if (pRequest->validateOnly) {
     doRequestCallback(pRequest, 0);
-    return;
-  }
-
-  if (execLocalSetCmd(pRequest, pQuery, &code)) {
-    pRequest->code = code;
-    doRequestCallback(pRequest, code);
     return;
   }
 
@@ -723,6 +1080,40 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_RESET_QUERY_CACHE_STMT) {
+    SResetQueryCacheStmt* pStmt = (SResetQueryCacheStmt*)pQuery->pRoot;
+    if (pStmt->forExtSource) {
+      code = execResetQueryCacheForExtSource(pRequest, pStmt);
+      pRequest->code = code;
+      doRequestCallback(pRequest, code);
+      return;
+    }
+  }
+
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_EXT_SOURCE_STMT) {
+    SAlterExtSourceStmt* pStmt = (SAlterExtSourceStmt*)pQuery->pRoot;
+    if (pStmt->capAction != EXT_CAP_ACTION_NONE) {
+      code = execAlterExtSourceCapability(pRequest, pStmt);
+      pRequest->code = code;
+      doRequestCallback(pRequest, code);
+      return;
+    }
+  }
+
+  if (execLocalSetCmd(pRequest, pQuery, &code)) {
+    pRequest->code = code;
+    doRequestCallback(pRequest, code);
+    return;
+  }
+
+  code = prepareAlterLocalTimezone(pRequest, pQuery->pRoot, &preparedTimezone,
+                                   &timezonePrepared);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRequest->code = code;
+    doRequestCallback(pRequest, code);
+    return;
+  }
+
   uint8_t showVarPrivMask = SHOW_VAR_PRIV_ALL;
 #ifdef TD_ENTERPRISE
   if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
@@ -731,19 +1122,20 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 #endif
   code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
                       atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
+  if (code == TSDB_CODE_SUCCESS) {
+    commitAlterLocalTimezone(pRequest, &preparedTimezone, timezonePrepared);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
   }
 
+#ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code && pQuery->pRoot != NULL &&
       nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
     SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
-    code = syncAlterLocalConnectionOption(pRequest, pAlterStmt);
-
-#ifdef TD_ENTERPRISE
     // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
-    if (TSDB_CODE_SUCCESS == code && strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
+    if (strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
       SExtConnectorModuleCfg extConnCfg = {
         .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
         .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
@@ -753,8 +1145,8 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
       };
       extConnectorUpdateModuleCfg(&extConnCfg);
     }
-#endif
   }
+#endif
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
   pRequest->code = code;
@@ -940,18 +1332,25 @@ static int32_t syncQnodeListIfEmpty(SRequestObj* pRequest, SArray** pQnodeList) 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
   SAppInstInfo* pAppInfo = getAppInfo(pRequest);
+  void*         charsetCxt =
+      taosResolveCharsetCxt(pRequest->pTscObj->optionInfo.charsetCxt);
 
   SPlanContext cxt = {.queryId = pRequest->requestId,
                       .acctId = pRequest->pTscObj->acctId,
                       .mgmtEpSet = getEpSet_s(&pAppInfo->mgmtEp),
                       .pAstRoot = pQuery->pRoot,
                       .showRewrite = pQuery->showRewrite,
+                      .xnodeDsnOutputMode = pQuery->xnodeDsnOutputMode,
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                       .pUser = pRequest->pTscObj->user,
                       .userId = pRequest->pTscObj->userId,
+                      .pExtCapability = NULL,
+                      .pExtSessionOverlay = &pRequest->extSessionOverlay,
+                      .pExtPushdownAttempt = &pRequest->extPushdownAttemptCount,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
                       .timezoneExplicit = pRequest->pTscObj->optionInfo.timezoneExplicit,
+                      .charsetCxt = charsetCxt,
                       .sysInfo = pRequest->pTscObj->sysInfo,
                       .userAppId = pRequest->pTscObj->optionInfo.userAppId,
                       .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
@@ -1151,7 +1550,7 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
       (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
     effectivePolicy = QUERY_POLICY_HYBRID;
-    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override async policy %d → HYBRID, QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override async policy %d -> HYBRID, QID:0x%" PRIx64,
              pRequest->requestId, tsQueryPolicy, pRequest->requestId);
   }
 
@@ -1244,7 +1643,7 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
         TSC_ERR_JRET(taosThreadMutexUnlock(&pInst->qnodeMutex));
       }
 
-      // FH-11: Pure federated queries REQUIRE qnode — reject mnode fallback
+      // FH-11: Pure federated queries REQUIRE qnode  -  reject mnode fallback
       int64_t qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
       if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
         TSC_ERR_JRET(syncQnodeListIfEmpty(pRequest, &pQnodeList));
@@ -1287,7 +1686,7 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
   if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
       (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
     effectivePolicy = QUERY_POLICY_HYBRID;
-    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override sync policy %d → HYBRID, QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override sync policy %d -> HYBRID, QID:0x%" PRIx64,
              pRequest->requestId, tsQueryPolicy, pRequest->requestId);
   }
 
@@ -1337,7 +1736,7 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
       TSC_ERR_JRET(getQnodeList(pRequest, &pQnodeList));
       int64_t qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
 
-      // FH-11: Pure federated queries REQUIRE qnode — reject mnode fallback
+      // FH-11: Pure federated queries REQUIRE qnode  -  reject mnode fallback
       if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
         TSC_ERR_JRET(syncQnodeListIfEmpty(pRequest, &pQnodeList));
         qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
@@ -1365,6 +1764,44 @@ _return:
   taosArrayDestroy(pQnodeList);
 
   return code;
+}
+
+static bool queryPlanHasCorrelationTemplates(const SQueryPlan* pPlan) {
+  if (NULL == pPlan) {
+    return false;
+  }
+  if (LIST_LENGTH(pPlan->pCorrelationTemplates) > 0) {
+    return true;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pPlan->pChildren) {
+    if (queryPlanHasCorrelationTemplates((const SQueryPlan*)pChild)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static SCorrelationExecution initCorrelationExecution(const SRequestObj* pRequest, const SQueryPlan* pDag) {
+  SCorrelationExecution correlation = {0};
+  if (!queryPlanHasCorrelationTemplates(pDag)) {
+    return correlation;
+  }
+
+  correlation.rootExecutionId = (uint64_t)tGenIdPI64();
+  correlation.rootQueryId = pRequest->requestId;
+  correlation.rootClientId = pRequest->pTscObj->connId;
+  correlation.executionGeneration = pRequest->retry + 1;
+
+  const char* pUser = NULL != pRequest->effectiveUser ? pRequest->effectiveUser : pRequest->pTscObj->user;
+  const char* pDb = NULL != pRequest->pDb ? pRequest->pDb : pRequest->pTscObj->db;
+  const char* pCharset = taosConvCharset(pRequest->pTscObj->optionInfo.charsetCxt);
+  tstrncpy(correlation.user, pUser, sizeof(correlation.user));
+  tstrncpy(correlation.dbFName, pDb, sizeof(correlation.dbFName));
+  tstrncpy(correlation.timezoneName, pRequest->pTscObj->optionInfo.timezoneName,
+           sizeof(correlation.timezoneName));
+  tstrncpy(correlation.charsetName, pCharset, sizeof(correlation.charsetName));
+  return correlation;
 }
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
@@ -1395,9 +1832,11 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
          .pWorkerCb = getTaskPoolWorkerCb(),
          .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
          .txnId = pRequest->pTscObj->txnId,
+         .correlation = initCorrelationExecution(pRequest, pDag),
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
+  pRequest->execDispatched |= res.execDispatched;
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
   (void)memcpy(&pRequest->body.resInfo.execRes, &res, sizeof(res));
@@ -1408,6 +1847,14 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     pRequest->code = code;
     terrno = code;
     return pRequest->code;
+  }
+
+  // Only reconcile the DDL budget when the statement itself succeeded, mirroring the
+  // async path (schedulerExecCb): a failed statement's numTouchedObjects is not
+  // trustworthy (the vnode may have assigned it before the lock/track loop failed),
+  // so charging it here would diverge from the async behavior and skew txnDdlCount.
+  if (res.code == TSDB_CODE_SUCCESS) {
+    tscChargeTouchedObjects(pRequest->pTscObj, pRequest->pQuery, &res);
   }
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
@@ -1520,7 +1967,7 @@ int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, const char* fullName, STableMeta
   return code;
 }
 
-// Record STB's suid → fullName in pTxnSuidMap so that subsequent queries against child
+// Record STB's suid  ->  fullName in pTxnSuidMap so that subsequent queries against child
 // tables can detect the parent STB was dropped in this txn.
 int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName) {
   SCatalog* pCatalog = NULL;
@@ -1562,7 +2009,7 @@ int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName) {
 }
 
 // Decode STableMetaRsp into STableMeta and upsert into pTxnTableMeta.
-// Handles the full lifecycle: decode → fullName → upsert → log.
+// Handles the full lifecycle: decode  ->  fullName  ->  upsert  ->  log.
 int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, STableMetaRsp* pMetaRsp, const char* opName) {
   if (pMetaRsp == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -1605,8 +2052,8 @@ int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, STableMetaRsp* pMetaRsp) {
     pTableMeta->vgId = pMetaRsp->vgId;
     pTableMeta->tableType = TSDB_CHILD_TABLE;
 
-    // Populate suid → stbFullName reverse map for on-demand schema assembly.
-    // Multiple CTBs with the same suid overwrite with the same value — idempotent.
+    // Populate suid  ->  stbFullName reverse map for on-demand schema assembly.
+    // Multiple CTBs with the same suid overwrite with the same value  -  idempotent.
     char stbFullName[TSDB_TABLE_FNAME_LEN];
     (void)snprintf(stbFullName, sizeof(stbFullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->stbName);
     (void)taosThreadMutexLock(&pTscObj->mutex);
@@ -1790,6 +2237,9 @@ void returnToUser(SRequestObj* pRequest) {
   SRequestObj* pUserReq = acquireRequest(pRequest->relation.userRefId);
   if (pUserReq) {
     pUserReq->code = pRequest->code;
+    if (pUserReq->msgBuf != NULL && pUserReq->msgBufLen > 0 && pRequest->msgBuf != NULL && pRequest->msgBuf[0] != '\0') {
+      tstrncpy(pUserReq->msgBuf, pRequest->msgBuf, pUserReq->msgBufLen);
+    }
     // return to client
     doRequestCallback(pUserReq, pUserReq->code);
     (void)releaseRequest(pRequest->relation.userRefId);
@@ -1801,9 +2251,9 @@ void returnToUser(SRequestObj* pRequest) {
 }
 
 static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock** pBlock) {
-  int64_t     lastTs = 0;
-  TAOS_FIELD* pResFields = taos_fetch_fields(pRes);
-  int32_t     numOfFields = taos_num_fields(pRes);
+  int64_t       lastTs = 0;
+  TAOS_FIELD_E* pResFields = taos_fetch_fields_e(pRes);
+  int32_t       numOfFields = taos_num_fields(pRes);
 
   int32_t code = createDataBlock(pBlock);
   if (code) {
@@ -1812,6 +2262,8 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
 
   for (int32_t i = 0; i < numOfFields; ++i) {
     SColumnInfoData colInfoData = createColumnInfoData(pResFields[i].type, pResFields[i].bytes, i + 1);
+    colInfoData.info.precision = pResFields[i].precision;
+    colInfoData.info.scale = pResFields[i].scale;
     code = blockDataAppendColInfo(*pBlock, &colInfoData);
     if (TSDB_CODE_SUCCESS != code) {
       blockDataDestroy(*pBlock);
@@ -1929,6 +2381,182 @@ static void extPoolRetryTimerCb(void* param, void* tmrId) {
   (void)releaseRequest(refId);
 }
 
+static bool extIsPushdownDemoteCode(int32_t code) {
+  return code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC || code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP ||
+         code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE || code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE ||
+         code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY;
+}
+
+static bool extExtractHintToken(const char* pMsg, const char* pToken, char* pBuf, int32_t bufLen) {
+  if (NULL == pMsg || NULL == pToken || NULL == pBuf || bufLen <= 0) {
+    return false;
+  }
+
+  pBuf[0] = '\0';
+  const char* pPos = taosStrCaseStr(pMsg, pToken);
+  if (NULL == pPos) {
+    return false;
+  }
+
+  pPos += strlen(pToken);
+  while (*pPos == ' ' || *pPos == '\'' || *pPos == '"') {
+    ++pPos;
+  }
+
+  int32_t i = 0;
+  while (*pPos != '\0' && *pPos != ',' && *pPos != ']' && !isspace((unsigned char)*pPos) && i < (bufLen - 1)) {
+    pBuf[i++] = *pPos++;
+  }
+
+  while (i > 0 && (pBuf[i - 1] == '\'' || pBuf[i - 1] == '"')) {
+    --i;
+  }
+
+  pBuf[i] = '\0';
+  return i > 0;
+}
+
+static bool extInferClauseFromMsg(const char* pMsg, EExtClauseKind* pClause) {
+  if (NULL == pClause) {
+    return false;
+  }
+
+  *pClause = EXT_CLAUSE_FILTER;
+  if (NULL == pMsg || '\0' == pMsg[0]) {
+    return true;
+  }
+
+  if (NULL != taosStrCaseStr(pMsg, "order by") || NULL != taosStrCaseStr(pMsg, "clause=order")) {
+    *pClause = EXT_CLAUSE_ORDER;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "group by") || NULL != taosStrCaseStr(pMsg, "having") ||
+      NULL != taosStrCaseStr(pMsg, "clause=agg")) {
+    *pClause = EXT_CLAUSE_AGG;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "limit") || NULL != taosStrCaseStr(pMsg, "clause=limit")) {
+    *pClause = EXT_CLAUSE_LIMIT;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, " join ") || NULL != taosStrCaseStr(pMsg, "clause=join")) {
+    *pClause = EXT_CLAUSE_JOIN;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "select") || NULL != taosStrCaseStr(pMsg, "projection") ||
+      NULL != taosStrCaseStr(pMsg, "clause=projection")) {
+    *pClause = EXT_CLAUSE_PROJECTION;
+    return true;
+  }
+
+  return true;
+}
+
+static bool extBuildDemoteSpecFromDiag(int32_t code, const char* pMsg, const SExtPushdownDiagnostic* pDiag,
+                                       SExtCapDemoteSpec* pSpec) {
+  if (NULL == pSpec || NULL == pDiag) {
+    return false;
+  }
+
+  memset(pSpec, 0, sizeof(*pSpec));
+  pSpec->reasonCode = (pDiag->reasonCode > 0) ? (uint8_t)pDiag->reasonCode : (uint8_t)EXT_DEMOTE_REASON_REMOTE_UNKNOWN;
+
+  if (EXT_DEMOTE_KIND_NONE != pDiag->suggestedDemoteKind) {
+    pSpec->kind = pDiag->suggestedDemoteKind;
+  } else {
+    return false;
+  }
+
+  switch (pSpec->kind) {
+    case EXT_DEMOTE_KIND_FUNC: {
+      if (pDiag->detail.funcName[0] != '\0') {
+        tstrncpy(pSpec->detail.funcName, pDiag->detail.funcName, sizeof(pSpec->detail.funcName));
+        return true;
+      }
+      char funcName[TSDB_FUNC_NAME_LEN] = {0};
+      if (!extExtractHintToken(pMsg, "func=", funcName, sizeof(funcName))) {
+        return false;
+      }
+      tstrncpy(pSpec->detail.funcName, funcName, sizeof(pSpec->detail.funcName));
+      return true;
+    }
+    case EXT_DEMOTE_KIND_OP: {
+      if (pDiag->detail.opType > 0 && pDiag->detail.opType <= OP_TYPE_ASSIGN) {
+        pSpec->detail.opType = pDiag->detail.opType;
+        return true;
+      }
+      char opBuf[32] = {0};
+      if (!extExtractHintToken(pMsg, "op=", opBuf, sizeof(opBuf))) {
+        return false;
+      }
+      char* end = NULL;
+      int64_t opVal = taosStr2Int64(opBuf, &end, 10);
+      if (NULL == end || *end != '\0') {
+        return false;
+      }
+      pSpec->detail.opType = (EOperatorType)opVal;
+      return true;
+    }
+    case EXT_DEMOTE_KIND_CLAUSE: {
+      EExtClauseKind clauseKind;
+      if (pDiag->detail.clauseKind >= EXT_CLAUSE_FILTER && pDiag->detail.clauseKind < EXT_CLAUSE_MAX) {
+        clauseKind = pDiag->detail.clauseKind;
+      } else if (!extInferClauseFromMsg(pMsg, &clauseKind)) {
+        return false;
+      }
+      // Only GATE clause values participate in error-based dynamic demote.
+      // STATIC values (dialect defaults / manual SQL only) must not be produced
+      // by error classification; fall back to unclassified handling instead.
+      if (!extClauseIsGate(clauseKind)) {
+        return false;
+      }
+      pSpec->detail.clauseKind = clauseKind;
+      return true;
+    }
+    case EXT_DEMOTE_KIND_TYPE: {
+      if (pDiag->detail.tsdbTypeCode > 0) {
+        pSpec->detail.tsdbTypeCode = pDiag->detail.tsdbTypeCode;
+        return true;
+      }
+      char typeBuf[32] = {0};
+      if (!extExtractHintToken(pMsg, "type=", typeBuf, sizeof(typeBuf))) {
+        return false;
+      }
+      char* end = NULL;
+      int64_t typeVal = taosStr2Int64(typeBuf, &end, 10);
+      if (NULL == end || *end != '\0' || typeVal < INT8_MIN || typeVal > INT8_MAX) {
+        return false;
+      }
+      pSpec->detail.tsdbTypeCode = (int8_t)typeVal;
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+// FILTER-clause runtime demote is too coarse to persist into catalog capability.
+// A failed WHERE pushdown can be caused by a query-specific combination such as
+// nested subquery SQL fragments, function composition, or connector-side rewrite
+// shape; persisting it as "this source no longer supports FILTER" poisons later
+// unrelated statements. Keep FILTER demote scoped to the request overlay so the
+// current statement can fall back while later statements still re-evaluate full
+// pushability from the capability matrix.
+static bool extShouldPersistCatalogDemote(const SRequestObj* pRequest, const SExtCapDemoteSpec* pSpec) {
+  if (NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    return false;
+  }
+
+  if (EXT_DEMOTE_KIND_CLAUSE == pSpec->kind && EXT_CLAUSE_FILTER == pSpec->detail.clauseKind) {
+    tscDebug("req:0x%" PRIx64
+             ", skip catalog demote for FILTER clause; keep overlay-only to avoid cross-query capability poisoning, "
+             "QID:0x%" PRIx64,
+             (NULL != pRequest) ? pRequest->self : 0, (NULL != pRequest) ? pRequest->requestId : 0);
+    return false;
+  }
+
+  return true;
+}
 // FH-8/9/7: Handle ext source errors returned by Executor/FederatedScan.
 // extErrMsg should already have been copied to pRequest->msgBuf before this call.
 void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
@@ -1954,9 +2582,100 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
     return;
   }
 
+  if (code == TSDB_CODE_EXT_PUSHDOWN_FAILED || code == TSDB_CODE_EXT_SYNTAX_UNSUPPORTED ||
+      extIsPushdownDemoteCode(code)) {
+    SExtPushdownDiagnostic diag = {0};
+    if (pRequest->body.resInfo.execRes.extPushdownDiag != NULL) {
+      diag = *pRequest->body.resInfo.execRes.extPushdownDiag;
+    }
+    if (diag.reasonCode == 0) {
+      (void)extClassifyRemoteError(code, NULL, 0, 0, pRequest->msgBuf, &diag);
+    }
+
+    if (pRequest->extPushdownAttemptCount < INT32_MAX) {
+      pRequest->extPushdownAttemptCount += 1;
+    }
+    pRequest->extSessionOverlay.attemptCount = pRequest->extPushdownAttemptCount;
+
+    bool              demoted = false;
+    SExtCapDemoteSpec spec = {0};
+    bool              hasSpec = extBuildDemoteSpecFromDiag(code, pRequest->msgBuf, &diag, &spec);
+    bool              preferOverlay = false;
+
+    if (hasSpec) {
+      SExtCapDemoteSpec escalated = {0};
+      if (extCapOverlayTryEscalateOnRepeat(&pRequest->extSessionOverlay, &spec, &escalated)) {
+        spec = escalated;
+        preferOverlay = true;
+        tscDebug("req:0x%" PRIx64 ", repeated precise demote escalated to clause:%d, attempt:%d, QID:0x%" PRIx64,
+                 pRequest->self, spec.detail.clauseKind, pRequest->extPushdownAttemptCount, pRequest->requestId);
+      }
+    }
+
+    const char* sourceName = pRequest->extSourceName;
+    bool allowCatalogDemote = hasSpec && !preferOverlay && EXT_REASON_IS_PRECISE(spec.reasonCode) &&
+                              '\0' != sourceName[0] && extShouldPersistCatalogDemote(pRequest, &spec);
+
+    if (hasSpec && !preferOverlay && EXT_REASON_IS_PRECISE(spec.reasonCode) && '\0' != sourceName[0] &&
+        !allowCatalogDemote) {
+      tscDebug("req:0x%" PRIx64
+               ", precise demote kept in overlay only for source:%s kind:%d clause:%d reason:%d, QID:0x%" PRIx64,
+               pRequest->self, sourceName, (int32_t)spec.kind,
+               (EXT_DEMOTE_KIND_CLAUSE == spec.kind) ? (int32_t)spec.detail.clauseKind : -1,
+               (int32_t)spec.reasonCode, pRequest->requestId);
+    }
+
+    if (allowCatalogDemote) {
+      SCatalog*     pCtg = NULL;
+      SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+      int32_t       ctgCode = catalogGetHandle(pInst->clusterId, &pCtg);
+      if (TSDB_CODE_SUCCESS == ctgCode) {
+        int32_t demoteCode = catalogDemoteExtSourceCapability(pCtg, sourceName, &spec);
+        if (TSDB_CODE_SUCCESS == demoteCode) {
+          demoted = true;
+          tscDebug("req:0x%" PRIx64 ", catalog demote applied for source:%s kind:%d attempt:%d, QID:0x%" PRIx64,
+                   pRequest->self, sourceName, spec.kind, pRequest->extPushdownAttemptCount, pRequest->requestId);
+        } else {
+          tscWarn("req:0x%" PRIx64 ", catalog demote failed for source:%s, error:%s, fallback to overlay, QID:0x%" PRIx64,
+                  pRequest->self, sourceName, tstrerror(demoteCode), pRequest->requestId);
+        }
+      } else {
+        tscWarn("req:0x%" PRIx64 ", catalogGetHandle failed:%s, fallback to overlay demote, QID:0x%" PRIx64,
+                pRequest->self, tstrerror(ctgCode), pRequest->requestId);
+      }
+    }
+
+    if (!demoted) {
+      int32_t overlayCode = TSDB_CODE_SUCCESS;
+      if (hasSpec) {
+        overlayCode = extCapOverlayDemote(&pRequest->extSessionOverlay, &spec);
+      } else {
+        // Keep unclassified failures in overlay-only path without forcing a
+        // synthetic clause demotion. Coarse baseline fallback is still ensured
+        // by EXT_MAX_PUSHDOWN_ATTEMPTS below.
+        tscDebug("req:0x%" PRIx64 ", unclassified pushdown diagnostic (reason:%d), no precise demote applied, QID:0x%" PRIx64,
+                 pRequest->self, (int32_t)diag.reasonCode, pRequest->requestId);
+      }
+
+      if (TSDB_CODE_SUCCESS != overlayCode) {
+        tscWarn("req:0x%" PRIx64 ", overlay demote failed:%s, mark coarse fallback, QID:0x%" PRIx64,
+                pRequest->self, tstrerror(overlayCode), pRequest->requestId);
+        extCapOverlayMarkAllCoarse(&pRequest->extSessionOverlay,
+                                   (uint8_t)((diag.reasonCode > 0) ? diag.reasonCode
+                                                                   : EXT_DEMOTE_REASON_REMOTE_UNKNOWN));
+      }
+    }
+
+    if (pRequest->extPushdownAttemptCount >= EXT_MAX_PUSHDOWN_ATTEMPTS) {
+      extCapOverlayMarkAllCoarse(&pRequest->extSessionOverlay, EXT_DEMOTE_REASON_RETRY_ESCALATION);
+    }
+
+    restartAsyncQuery(pRequest, code);
+    return;
+  }
   const char* sourceName = pRequest->extSourceName;
   if ('\0' == sourceName[0]) {
-    // No ext source context stashed — just return to user.
+    // No ext source context stashed  -  just return to user.
     returnToUser(pRequest);
     return;
   }
@@ -1987,7 +2706,6 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
       restartAsyncQuery(pRequest, code);
       return;
     }
-
     returnToUser(pRequest);
     return;
   }
@@ -2015,22 +2733,10 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
   }
 
   if (NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(code)) {
-    // Connection / auth / runtime errors — return details to user, no retry
+    // Connection / auth / runtime errors  -  return details to user, no retry
     tscDebug("req:0x%" PRIx64 ", ext source runtime error %s for:%s, returning to user, QID:0x%" PRIx64,
              pRequest->self, tstrerror(code), sourceName, pRequest->requestId);
     returnToUser(pRequest);
-    return;
-  }
-
-  if (code == TSDB_CODE_EXT_PUSHDOWN_FAILED) {
-    // Phase 1 stub: capability bits are 0, pushdown never attempted.
-    // Disable capabilities, re-plan without pushdown, then restore.
-    tscDebug("req:0x%" PRIx64 ", ext pushdown failed for:%s, disabling caps & retrying, QID:0x%" PRIx64,
-             pRequest->self, sourceName, pRequest->requestId);
-    (void)catalogDisableExtSourceCapabilities(pCtg, sourceName);
-    restartAsyncQuery(pRequest, code);
-    // Note: capabilities are restored when the re-planned query completes
-    // (catalogRestoreExtSourceCapabilities is called by the new query lifecycle)
     return;
   }
 
@@ -2038,7 +2744,7 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
     // Executor probed new capabilities; update cache and re-plan
     tscDebug("req:0x%" PRIx64 ", ext capability changed for:%s, updating & retrying, QID:0x%" PRIx64,
              pRequest->self, sourceName, pRequest->requestId);
-    // extErrMsg carried new capability info — update cache then retry
+    // extErrMsg carried new capability info  -  update cache then retry
     restartAsyncQuery(pRequest, code);
     return;
   }
@@ -2059,8 +2765,20 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   pRequest->code = code;
   if (pResult) {
+    pRequest->execDispatched |= pResult->execDispatched;
     destroyQueryExecRes(&pRequest->body.resInfo.execRes);
     (void)memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
+    // Only reconcile on success, matching the sync path above.
+    //
+    // Exact for a single-vgroup statement. On a partial multi-vgroup failure it is not: the
+    // vnodes that already applied did leave their children PRE_ALTER'd under this txn, yet the
+    // provisional charge of 1 is kept, so txnDdlCount understates the real reach until the txn
+    // ends. The per-vnode pre-scan quota is the backstop bounding that window. Charging the
+    // partial count from here is not possible: a response carrying a non-zero code has no
+    // trustworthy numTouched to add.
+    if (code == TSDB_CODE_SUCCESS) {
+      tscChargeTouchedObjects(pTscObj, pRequest->pQuery, pResult);
+    }
   }
 
   int32_t type = pRequest->type;
@@ -2124,7 +2842,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   tscTrace("req:0x%" PRIx64 ", scheduler exec cb, request type:%s", pRequest->self, TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    // For DROP STB: save suid→fullName before removeMeta clears the cache
+    // For DROP STB: save suid -> fullName before removeMeta clears the cache
     if (code == 0 && pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
       for (int32_t i = 0; i < tbNum; ++i) {
@@ -2160,7 +2878,6 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 
   invalidateExtSourceCacheAfterDdl(pRequest, code);
-
   pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
 
   int32_t code1 = handleQueryExecRsp(pRequest);
@@ -2206,18 +2923,82 @@ static bool nodeIsShowStmt(int16_t type) {
 }
 
 // Return values for isTxnAllowedStmtType:
-//   0  TXN_STMT_REJECTED  — not allowed inside a transaction
-//   1  TXN_STMT_NON_DDL   — allowed, but does not count toward the DDL op limit
-//   2  TXN_STMT_DDL       — allowed DDL; counted against TSDB_TXN_MAX_DDL_OPS_PER_TXN
+//   0  TXN_STMT_REJECTED   -  not allowed inside a transaction
+//   1  TXN_STMT_NON_DDL    -  allowed, but does not count toward the DDL op limit
+//   2  TXN_STMT_DDL        -  allowed DDL; counted against TSDB_TXN_MAX_DDL_OPS_PER_TXN
 #define TXN_STMT_REJECTED  0
 #define TXN_STMT_NON_DDL   1
 #define TXN_STMT_DDL       2
 
+// Number of metadata objects a single statement affects, for DDL-op accounting.
+//
+// Counting per object rather than per statement: a batch statement occupies vnode/mnode
+// resources proportional to how many objects it touches (one shadow B+tree entry and one
+// track record each), so charging it as a single op made TSDB_TXN_MAX_DDL_OPS_PER_TXN
+// meaningless for batches - DROP TABLE with 5000 clauses used to cost the same as one.
+//
+// There is no per-statement cap: a batch may affect any number of objects as long as the
+// transaction total stays within the limit. Statements whose object count is only known
+// server-side (WHERE-based bulk tag update) are counted as 1 here; see the note below.
+static int32_t txnStmtObjectCount(SNode* pRoot) {
+  switch ((int32_t)pRoot->type) {
+    case QUERY_NODE_DROP_TABLE_STMT:
+      return TMAX(1, LIST_LENGTH(((SDropTableStmt*)pRoot)->pTables));
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      return TMAX(1, LIST_LENGTH(((SDropVirtualTableStmt*)pRoot)->pTables));
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      return TMAX(1, LIST_LENGTH(((SCreateMultiTablesStmt*)pRoot)->pSubTables));
+    case QUERY_NODE_DROP_STREAM_STMT:
+      return TMAX(1, LIST_LENGTH(((SDropStreamStmt*)pRoot)->pStreamList));
+    case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT: {
+      SAlterTableStmt* pAlter = (SAlterTableStmt*)pRoot;
+      // Multi-table SET TAG carries one clause per table in pList.
+      if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+        return TMAX(1, LIST_LENGTH(pAlter->pList));
+      }
+      // UPDATE_CHILD_TABLE_TAG_VAL (SET TAG ... WHERE) matches an arbitrary number of
+      // children, resolved by the vnode pre-scan. The client cannot know the count here,
+      // so it is charged as 1; the real resource bound for that statement is the vnode
+      // pre-scan plus the async vacuum, not this counter.
+      return 1;
+    }
+    case QUERY_NODE_VNODE_MODIFY_STMT: {
+      // After translation, CREATE/DROP table statements are rewritten into per-vgroup
+      // blocks; each block records how many tables it carries.
+      SVnodeModifyOpStmt* pModify = (SVnodeModifyOpStmt*)pRoot;
+      if (pModify->pDataBlocks == NULL) {
+        return 1;
+      }
+      // Accumulate in int64_t: pVgData->numOfTables is int32_t and a batch spanning
+      // many vgroups could overflow an int32 sum, which would then wrap negative and
+      // make TMAX(1, total) return 1 - under-counting the batch and evading the limit.
+      // Non-positive per-block counts are skipped for the same reason. The final
+      // int32 cast is safe because the sum is clamped to the (50000) txn limit.
+      int64_t total = 0;
+      int32_t numBlocks = (int32_t)taosArrayGetSize(pModify->pDataBlocks);
+      for (int32_t i = 0; i < numBlocks; ++i) {
+        SVgDataBlocks* pVgData = *(SVgDataBlocks**)TARRAY_GET_ELEM(pModify->pDataBlocks, i);
+        if (pVgData != NULL && pVgData->numOfTables > 0) {
+          total += pVgData->numOfTables;
+        }
+      }
+      if (total > TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
+        total = TSDB_TXN_MAX_DDL_OPS_PER_TXN;
+      }
+      return (int32_t)TMAX(1, total);
+    }
+    default:
+      return 1;
+  }
+}
+
 int32_t isTxnAllowedStmtType(SNode* pRoot) {
-  // switch lets the compiler emit a jump table — O(1) dispatch instead of a linear if-chain.
+  // switch lets the compiler emit a jump table  -  O(1) dispatch instead of a linear if-chain.
   // SHOW ranges (spanning ~200 values) are still handled by nodeIsShowStmt() in the default branch.
   switch ((int32_t)pRoot->type) {
-    // Table-level DDL — counted
+    // Table-level DDL  -  counted
     case QUERY_NODE_CREATE_TABLE_STMT:
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
     case QUERY_NODE_DROP_TABLE_STMT:
@@ -2230,8 +3011,13 @@ int32_t isTxnAllowedStmtType(SNode* pRoot) {
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
     case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
+    // Stream DDL (phase 2). Only CREATE/DROP are in scope; ALTER/STOP/START/
+    // RECALCULATE STREAM stay rejected via the default branch (runtime control,
+    // not metadata DDL).
+    case QUERY_NODE_CREATE_STREAM_STMT:
+    case QUERY_NODE_DROP_STREAM_STMT:
       return TXN_STMT_DDL;
-    // SELECT, read-only utilities, transaction control — not counted
+    // SELECT, read-only utilities, transaction control  -  not counted
     case QUERY_NODE_SELECT_STMT:
     case QUERY_NODE_USE_DATABASE_STMT:
     case QUERY_NODE_EXPLAIN_STMT:
@@ -2242,6 +3028,16 @@ int32_t isTxnAllowedStmtType(SNode* pRoot) {
     case QUERY_NODE_COMMIT_TRANS_STMT:
     case QUERY_NODE_ROLLBACK_TRANS_STMT:
       return TXN_STMT_NON_DDL;
+
+    // Tag-index DDL is rejected. The index is a separate mnode SDB object (SIdxObj) with
+    // no txnId/txnStatus marker and no shadow-op type, so it cannot be committed or rolled
+    // back together with the super table it belongs to. Listed explicitly rather than left
+    // to the default branch to make the exclusion deliberate and greppable.
+    // Note: the index updates that DROP TAG / RENAME TAG perform as a side effect are
+    // unaffected - those ride along with the super-table change.
+    case QUERY_NODE_CREATE_INDEX_STMT:
+    case QUERY_NODE_DROP_INDEX_STMT:
+      return TXN_STMT_REJECTED;
 
     case QUERY_NODE_VNODE_MODIFY_STMT: {
       // VNODE_MODIFY_STMT wraps both CREATE TABLE and INSERT after translation.
@@ -2265,6 +3061,72 @@ int32_t isTxnAllowedStmtType(SNode* pRoot) {
       // SHOW statements cover two discontiguous ranges; delegate to nodeIsShowStmt().
       return nodeIsShowStmt((int32_t)pRoot->type) ? TXN_STMT_NON_DDL : TXN_STMT_REJECTED;
   }
+}
+
+// Charge the objects a completed statement actually touched against the txn's DDL budget.
+//
+// Most statements' object count is known client-side and already charged in
+// tscCheckTxnState. The exception is the WHERE-based bulk tag update, whose reach is
+// resolved by the vnode pre-scan: it is provisionally charged as 1 there, and the real count
+// arrives here via SExecResult::numTouchedObjects (summed across vgroups by the scheduler).
+// Replace the provisional 1 with the real figure.
+//
+// The budget was already enforced per-vnode during the pre-scan, so a statement reaching
+// this point is within its share; this only keeps the running total honest for the
+// statements that follow. Clamped at the limit so the counter cannot be driven past it by
+// the divide-across-vgroups approximation.
+//
+// Note on the vnode-side over-quota rejection: when the pre-scan finds more matching
+// children than the txn's remaining budget allows, the vnode aborts the statement with
+// TSDB_CODE_TXN_TOO_MANY_DDL_OPS and no result reaches this function. The provisional
+// charge of 1 from tscCheckTxnState is therefore left in txnDdlCount - a statement that
+// failed to execute still consumed its provisional unit. That is an over-count of at most
+// one object per rejected statement, which only makes the limit marginally stricter;
+// it never under-counts, so the budget can never be evaded through this path.
+static void tscChargeTouchedObjects(STscObj* pTscObj, const SQuery* pQuery, const SExecResult* pRes) {
+#ifdef TD_ENTERPRISE
+  if (pTscObj == NULL || pTscObj->txnId == 0 || pRes == NULL || pRes->numTouchedObjects <= 0) {
+    return;
+  }
+  // Only the WHERE-based bulk tag update is charged provisionally as 1 in
+  // txnStmtObjectCount; every other statement is already charged by its real object count.
+  // Verify that is the statement we are reconciling rather than relying on numTouchedObjects
+  // being populated by that path alone - otherwise the -1 below would silently discount a
+  // correctly-charged statement.
+  if (pQuery == NULL || pQuery->pRoot == NULL) {
+    return;
+  }
+  int32_t nodeT = (int32_t)nodeType(pQuery->pRoot);
+  if (nodeT != QUERY_NODE_ALTER_TABLE_STMT && nodeT != QUERY_NODE_ALTER_SUPER_TABLE_STMT &&
+      nodeT != QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT) {
+    return;
+  }
+  if (((SAlterTableStmt*)pQuery->pRoot)->alterType != TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
+    return;
+  }
+  // Undo the provisional charge of 1 before adding the measured count.
+  //
+  // This runs on the scheduler completion thread, while the next statement's budget slice is
+  // computed on the parse thread and the txn lifecycle zeroes the counter - all under
+  // pTscObj->mutex. Charge under the same lock so this read-modify-write cannot interleave with
+  // those and lose an update. Only a completed WHERE-based bulk tag update inside a txn reaches
+  // here, so the lock is not on a hot path.
+  int32_t prev = 0;
+  int32_t adjusted = 0;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  prev = pTscObj->txnDdlCount;
+  adjusted = prev - 1 + pRes->numTouchedObjects;
+  if (adjusted > TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
+    adjusted = TSDB_TXN_MAX_DDL_OPS_PER_TXN;
+  }
+  if (adjusted < 0) {
+    adjusted = 0;
+  }
+  pTscObj->txnDdlCount = adjusted;
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  tscDebug("txn:%" PRIu64 " bulk DDL touched %d objects, DDL count %d -> %d", pTscObj->txnId,
+           pRes->numTouchedObjects, prev, adjusted);
+#endif
 }
 
 // Validate transaction state and statement type for the current request.
@@ -2320,12 +3182,35 @@ int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, b
     return TSDB_CODE_TXN_INVALID_OPERATION;
   }
   if (stmtKind == TXN_STMT_DDL) {
-    if (pTscObj->txnDdlCount >= TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
-      tscError("req:0x%" PRIx64 ", txn:%" PRIu64 " DDL count %d >= limit %d, reject", pRequest->self, pTscObj->txnId,
-               pTscObj->txnDdlCount, TSDB_TXN_MAX_DDL_OPS_PER_TXN);
+    int32_t objCount = txnStmtObjectCount(pRequest->pQuery->pRoot);
+    // Clamp the object count to [1, limit] before the budget arithmetic: a count that
+    // is somehow out of range (e.g. an overflowing batch accumulator) must neither make
+    // limit - objCount negative-and-then-always-true (rejecting everything) nor inflate
+    // the remaining budget past the real limit.
+    if (objCount < 1) {
+      objCount = 1;
+    } else if (objCount > TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
+      objCount = TSDB_TXN_MAX_DDL_OPS_PER_TXN;
+    }
+    // The check-and-add below must run under the same mutex that the scheduler
+    // completion thread uses in tscChargeTouchedObjects to reconcile txnDdlCount
+    // (prev - 1 + numTouchedObjects) and that the txn lifecycle uses to zero it.
+    // An unlocked read-modify-write here could lose an add (under-charging and
+    // evading the limit) or interleave with the -1 reconciliation of a WHERE-based
+    // bulk update that is still in flight from an earlier statement.
+    bool overLimit = false;
+    (void)taosThreadMutexLock(&pTscObj->mutex);
+    if (pTscObj->txnDdlCount > TSDB_TXN_MAX_DDL_OPS_PER_TXN - objCount) {
+      overLimit = true;
+    } else {
+      pTscObj->txnDdlCount += objCount;
+    }
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    if (overLimit) {
+      tscError("req:0x%" PRIx64 ", txn:%" PRIu64 " DDL count %d + %d objects > limit %d, reject", pRequest->self,
+               pTscObj->txnId, pTscObj->txnDdlCount, objCount, TSDB_TXN_MAX_DDL_OPS_PER_TXN);
       return TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
     }
-    pTscObj->txnDdlCount++;
   }
 #endif
   return TSDB_CODE_SUCCESS;
@@ -2424,6 +3309,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       }
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
+      const bool trackStmtPhase = pRequest->stmtBindVersion > 0;
       code = tscTxnTrackVgIdsFromQuery(pRequest->pTscObj, pQuery);
       if (code != 0) break;
       SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
@@ -2432,11 +3318,17 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
         break;
       }
       SQueryPlan* pDag = NULL;
+      if (trackStmtPhase) {
+        CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PLAN);
+      }
       code = getPlan(pRequest, pQuery, &pDag, pMnodeList);
       if (TSDB_CODE_SUCCESS == code) {
         pRequest->body.subplanNum = pDag->numOfSubplans;
         if (!pRequest->validateOnly) {
           SArray* pNodeList = NULL;
+          if (trackStmtPhase) {
+            CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_SCHEDULE);
+          }
           code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList, pDag);
 
           if (TSDB_CODE_SUCCESS == code) {
@@ -2445,6 +3337,9 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
           }
 
           if (TSDB_CODE_SUCCESS == code) {
+            if (trackStmtPhase) {
+              CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_EXECUTE);
+            }
             code = scheduleQuery(pRequest, pDag, pNodeList);
           }
           taosArrayDestroy(pNodeList);
@@ -2465,7 +3360,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
   }
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    // For DROP STB: save suid→fullName before removeMeta clears the cache,
+    // For DROP STB: save suid -> fullName before removeMeta clears the cache,
     // so child table queries can detect the parent was dropped.
     if (pRequest->code == 0 && pRequest->pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
@@ -2536,11 +3431,14 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     if (NULL == pMnodeList) {
       code = terrno;
     }
+    void* charsetCxt =
+        taosResolveCharsetCxt(pRequest->pTscObj->optionInfo.charsetCxt);
     SPlanContext cxt = {.queryId = pRequest->requestId,
                         .acctId = pRequest->pTscObj->acctId,
                         .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
                         .pAstRoot = pQuery->pRoot,
                         .showRewrite = pQuery->showRewrite,
+                        .xnodeDsnOutputMode = pQuery->xnodeDsnOutputMode,
                         .isView = pWrapper->pParseCtx->isView,
                         .isAudit = pWrapper->pParseCtx->isAudit,
                         .privInfo = pWrapper->pParseCtx->privInfo,
@@ -2548,10 +3446,14 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
                         .userId = pRequest->pTscObj->userId,
+                        .pExtCapability = NULL,
+                        .pExtSessionOverlay = &pRequest->extSessionOverlay,
+                        .pExtPushdownAttempt = &pRequest->extPushdownAttemptCount,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .userAppId = pRequest->pTscObj->optionInfo.userAppId,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .timezoneExplicit = pRequest->pTscObj->optionInfo.timezoneExplicit,
+                        .charsetCxt = charsetCxt,
                         .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
     tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
@@ -2607,6 +3509,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
              .pWorkerCb = getTaskPoolWorkerCb(),
              .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
              .txnId = pRequest->pTscObj->txnId,
+             .correlation = initCorrelationExecution(pRequest, pDag),
       };
 
       if (TSDB_CODE_SUCCESS == code) {
@@ -2703,11 +3606,14 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
   }
 }
 
-int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
-  SCatalog* pCatalog = NULL;
-  int32_t   code = 0;
-  int32_t   dbNum = taosArrayGetSize(pRequest->dbList);
-  int32_t   tblNum = taosArrayGetSize(pRequest->tableList);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest, int32_t errorCode) {
+  SCatalog*               pCatalog = NULL;
+  int32_t                 code = 0;
+  int32_t                 dbNum = taosArrayGetSize(pRequest->dbList);
+  int32_t                 tblNum = taosArrayGetSize(pRequest->tableList);
+  EClientMetaRefreshScope refreshScope = clientGetMetaRefreshScope(errorCode);
+  bool                    refreshDbVgroup = (CLIENT_META_REFRESH_TABLE != refreshScope);
+  // Keep the legacy full refresh for non-client-handled errors passed by specialized callers.
 
   if (dbNum <= 0 && tblNum <= 0) {
     return TSDB_CODE_APP_ERROR;
@@ -2723,13 +3629,15 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
 
-  for (int32_t i = 0; i < dbNum; ++i) {
-    char* dbFName = taosArrayGet(pRequest->dbList, i);
+  if (refreshDbVgroup) {
+    for (int32_t i = 0; i < dbNum; ++i) {
+      char* dbFName = taosArrayGet(pRequest->dbList, i);
 
-    // catalogRefreshDBVgInfo will handle dbFName == null.
-    code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      // catalogRefreshDBVgInfo will handle dbFName == null.
+      code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 
@@ -2739,6 +3647,11 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
     // catalogRefreshTableMeta will handle tableName == null.
     code = catalogRefreshTableMeta(pCatalog, &conn, tableName, -1);
     if (code != TSDB_CODE_SUCCESS) {
+      // A table-only refresh can discover stale vnode routing. Escalate once;
+      // CLIENT_META_REFRESH_FULL cannot enter this branch recursively.
+      if (CLIENT_META_REFRESH_TABLE == refreshScope && CLIENT_META_REFRESH_FULL == clientGetMetaRefreshScope(code)) {
+        return refreshMeta(pTscObj, pRequest, code);
+      }
       return code;
     }
   }
@@ -3947,15 +4860,12 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(tmp),
                                          pResultInfo->charsetCxt);
           if (length <= 0) {
-            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
-                     pResultInfo->charsetCxt != NULL ? ((SConvInfo*)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
           int32_t escapeLength = escapeToPrinted(varDataVal(dst) + CHAR_BYTES, TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2,
                                                  varDataVal(tmp), length);
           varDataSetLen(dst, escapeLength + CHAR_BYTES * 2);
           *(char*)POINTER_SHIFT(varDataVal(dst), escapeLength + CHAR_BYTES) = '\"';
-          tscError("value:%s.", varDataVal(dst));
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
           double jsonVd = *(double*)(jsonInnerData);
           (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%.9lf", jsonVd);
@@ -4294,7 +5204,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
-    tscError("faild to convert taos version from str to int, errcode:%s", terrstr());
+    tscError("failed to convert taos version from str to int, errcode:%s", terrstr());
     goto _OVER;
   }
 
@@ -4605,7 +5515,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
 
   pRequest->source = source;
   pRequest->body.queryFp = fp;
-  doAsyncQuery(pRequest, false);
+  doAsyncQuery(pRequest, CLIENT_META_REFRESH_NONE);
 }
 
 void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
@@ -4648,7 +5558,7 @@ void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* 
   }
 
   pRequest->body.queryFp = fp;
-  doAsyncQuery(pRequest, false);
+  doAsyncQuery(pRequest, CLIENT_META_REFRESH_NONE);
 }
 
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {

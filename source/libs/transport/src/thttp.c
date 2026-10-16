@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -726,7 +728,7 @@ static void httpHandleReq(SHttpMsg* msg) {
 
   ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&cli->dest, clientConnCb);
   if (ret != 0) {
-    tError("http-report failed to connect to http-server,dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 ", reson:%s",
+    tError("http-report failed to connect to http-server,dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 ", reason:%s",
            cli->addr, cli->port, chanId, cli->seq, uv_strerror(ret));
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
     uv_close((uv_handle_t*)&cli->tcp, httpDestroyClientCb);

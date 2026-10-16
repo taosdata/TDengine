@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import platform
 from new_test_framework.utils import (
@@ -55,7 +70,7 @@ class TestStreamDrop:
         4. Test [Error Handling] for Drop Operations
             4.1 Test error messages for invalid drop operations
                 4.1.1 "Table does not exist" for invalid table drop
-                4.1.2 "STable not exist" for invalid stable drop
+                4.1.2 "STable does not exist" for invalid stable drop
                 4.1.3 "Cannot drop super table in batch" for batch stable drop
             4.2 Repeat error tests multiple times
                 4.2.1 Execute each error scenario 5 times
@@ -69,6 +84,7 @@ class TestStreamDrop:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -262,9 +278,9 @@ class TestStreamDrop:
                     tdLog.info(dropTableWithSpace[:-1])
                     tdSql.error(dropTableWithSpace[:-1], expectErrInfo="Table does not exist", fullMatched=False)
                     tdLog.info(dropStableWithSpace[:-1])
-                    tdSql.error(dropStableWithSpace[:-1], expectErrInfo="STable not exist", fullMatched=False)
+                    tdSql.error(dropStableWithSpace[:-1], expectErrInfo="STable does not exist", fullMatched=False)
                     tdLog.info(dropStableNotExist[:-1])
-                    tdSql.error(dropStableWithSpace[:-1], expectErrInfo="STable not exist", fullMatched=False)
+                    tdSql.error(dropStableNotExist[:-1], expectErrInfo="STable does not exist", fullMatched=False)
             else:
                 dropTable += f'`{stb_result[1]}`.`{stb_result[10]}`,'
                 dropStable += f'`{stb_result[1]}`.`{stb_result[10]}`,'

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,6 +26,9 @@
 #include "tmqttProto.h"
 #include "ttlist.h"
 #include "ttqMemory.h"
+
+static const char JSON_TABLE_NAME_KEY[] = "tbl";
+static const char JSON_META_TABLE_NAME_KEY[] = "$tbl";
 
 bool tmq_ctx_auth(struct tmq_ctx* context, const char* username, const char* password) {
   const char* host = "localhost";
@@ -209,6 +214,10 @@ static tmq_list_t* tmq_ctx_remove_topic(struct tmq_ctx* context, const char* top
   char**  topic_names = NULL;
   int32_t topic_count = 0;
 
+  if (context == NULL || topic_name == NULL || topic_name[0] == '\0') {
+    return NULL;
+  }
+
   // append topic name to the list
   tmq_list_t* topic_list = tmq_list_new();
   if (!topic_list) {
@@ -246,6 +255,10 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
   char        consumer_client_id[64] = {0};
   char        port_str[16] = {0};
   tmq_list_t* topic_list = NULL;
+
+  if (context == NULL || topic_name == NULL || topic_name[0] == '\0' || cid == NULL || cid[0] == '\0') {
+    return false;
+  }
 
   UNUSED(snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id));
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);
@@ -334,6 +347,10 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
   char            port_str[16] = {0};
   tmq_list_t*     topic_list = NULL;
   tmq_topic_info* tinfo_found;
+
+  if (context == NULL || topic_name == NULL || topic_name[0] == '\0' || cid == NULL || cid[0] == '\0') {
+    return false;
+  }
 
   snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id);
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);
@@ -490,7 +507,6 @@ static cJSON* tmq_ctx_do_topic(const char* topic_name, const char* db_name, cons
                                cJSON** ajson) {
   const char* json_topic_name_key = "topic";
   const char* json_db_name_key = "db";
-  const char* json_tbl_name_key = "tbl";
   const char* json_vid_name_key = "vid";
   const char* json_rows_key = "rows";
 
@@ -515,7 +531,7 @@ static cJSON* tmq_ctx_do_topic(const char* topic_name, const char* db_name, cons
   }
 
   if (tbl_name) {
-    if (NULL == cJSON_AddStringToObject(json, json_tbl_name_key, tbl_name)) {
+    if (NULL == cJSON_AddStringToObject(json, JSON_TABLE_NAME_KEY, tbl_name)) {
       bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return NULL;
@@ -767,6 +783,15 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
       bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return;
+    }
+
+    const char *tbl_name = tmq_get_table_name(msg);
+    if (tbl_name) {
+      if (NULL == cJSON_AddStringToObject(item, JSON_META_TABLE_NAME_KEY, tbl_name)) {
+	bndError("json msg: out of memory.");
+	cJSON_Delete(json);
+	return;
+      }
     }
 
     int rc = tmq_ctx_do_fields(item, fields, field_count, row);

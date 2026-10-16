@@ -14,8 +14,24 @@ Prepare the following environments:
 
 - TDengine 3.3.6.0 and above version is installed and running normally (both Enterprise and Community versions are available).
 - taosAdapter is running normally, refer to [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter.md).
-- Spark 3.3.2 and above version ([Spark Down](https://spark.apache.org/downloads.html)).
-- JDBC driver 3.6.2 and above version. Download from [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver).
+- Spark 3.3.x ([Spark Download](https://spark.apache.org/downloads.html)). The dialect v1.0.0 is built and verified against Spark 3.3.2 / Scala 2.13.
+- JDBC driver 3.9.2 and above version. Download from [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver).
+- Spark dialect `tdengine-spark-dialect` v1.0.0 and above version, published on [maven.org](https://central.sonatype.com/artifact/com.taosdata.spark/tdengine-spark-dialect), source code is available on [GitHub](https://github.com/taosdata/tdengine-spark-dialect). Add the following dependencies to the `pom.xml` of your project (the JDBC driver is not a transitive dependency of the dialect and must be declared explicitly):
+
+    ```xml
+    <dependency>
+        <groupId>com.taosdata.spark</groupId>
+        <artifactId>tdengine-spark-dialect</artifactId>
+        <version>1.0.0</version>
+    </dependency>
+    <dependency>
+        <groupId>com.taosdata.jdbc</groupId>
+        <artifactId>taos-jdbcdriver</artifactId>
+        <version>3.9.2</version>
+    </dependency>
+    ```
+
+    You can also pass them to `spark-submit` via the `--packages com.taosdata.spark:tdengine-spark-dialect:1.0.0,com.taosdata.jdbc:taos-jdbcdriver:3.9.2` option.
 
 ## Configure Data Source
 
@@ -38,6 +54,9 @@ SparkSession spark = SparkSession.builder()
     .master("local[*]")
     .getOrCreate();
 
+// register TDengine dialect (com.taosdata.spark.TDengineDialect)
+JdbcDialects.registerDialect(new TDengineDialect());
+
 // connect TDengine and create reader
 String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
 String driver  = "com.taosdata.jdbc.ws.WebSocketDriver";
@@ -50,7 +69,17 @@ DataFrameReader dataFrameReader = spark.read()
 
 ## Data Interaction
 
-When accessing data, it is necessary to register the TDengine dialect. The dialect mainly deals with backticks. The data - type mapping is the same as that of JDBC and requires no additional processing. see: [JDBC DataType Map](../../10-developer-guide/08-connectors-reference/02-java.mdx#data-type-mapping)
+When accessing data, it is necessary to register the TDengine dialect. The official dialect `tdengine-spark-dialect` has been released (for installation, see [Prerequisites](#prerequisites)). Register it once in your task:
+
+```java
+import com.taosdata.spark.TDengineDialect;
+import org.apache.spark.sql.jdbc.JdbcDialects;
+
+// register TDengine dialect
+JdbcDialects.registerDialect(new TDengineDialect());
+```
+
+The dialect quotes identifiers with backticks and handles the data type mapping between TDengine and Spark SQL types: TDengine `NCHAR` and `JSON` columns are mapped to Spark `StringType`, and when Spark creates tables, Spark SQL types are mapped to TDengine types (for example, `StringType` to `VARCHAR(4096)` and `DateType` to `TIMESTAMP`). The JDBC-level data type mapping follows the JDBC driver, see: [JDBC DataType Map](../../10-developer-guide/08-connectors-reference/02-java.mdx#data-type-mapping)
 
 The following takes a Spark task written in the JAVA language and submitted for execution via `spark-submit` as an example to introduce data access. The complete example code is attached later.
 
@@ -324,7 +353,7 @@ The LAG() function in Spark is used to obtain data from a previous row relative 
 
 3. Output the analysis results, as shown in the following table:
 
-    ![Output results](../../assets/spark-01.png)
+    ![Output results](../../assets/spark-01.webp)
 
 After Spark accesses the TDengine data source, it can further support complex data - processing functions such as cross - database analysis, intersection/union/difference operations of datasets, sub - query filtering with the WHERE clause, and normal - column JOIN.
 

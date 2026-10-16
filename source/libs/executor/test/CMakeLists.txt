@@ -1,3 +1,17 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 MESSAGE(STATUS "build parser unit test")
 
@@ -36,6 +50,94 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
+ADD_EXECUTABLE(mergeJoinValidationTests mergeJoinValidationTests.cpp)
+DEP_ext_gtest(mergeJoinValidationTests)
+TARGET_LINK_LIBRARIES(mergeJoinValidationTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode)
+TARGET_INCLUDE_DIRECTORIES(mergeJoinValidationTests
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+add_test(NAME mergeJoinValidationTests COMMAND mergeJoinValidationTests)
+
+ADD_EXECUTABLE(hashJoinMultiGroupTests hashJoinMultiGroupTests.cpp)
+DEP_ext_gtest(hashJoinMultiGroupTests)
+if(BUILD_TEST)
+        target_compile_definitions(hashJoinMultiGroupTests PRIVATE BUILD_TEST)
+endif()
+TARGET_LINK_LIBRARIES(
+        hashJoinMultiGroupTests
+        PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        hashJoinMultiGroupTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+
+add_test(NAME hashJoinMultiGroupTests COMMAND hashJoinMultiGroupTests)
+
+ADD_EXECUTABLE(streamJoinFilterTests streamJoinFilterTests.cpp)
+DEP_ext_gtest(streamJoinFilterTests)
+DEP_ext_cppstub(streamJoinFilterTests)
+if(BUILD_TEST)
+        target_compile_definitions(streamJoinFilterTests PRIVATE BUILD_TEST)
+endif()
+TARGET_LINK_LIBRARIES(
+        streamJoinFilterTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+TARGET_INCLUDE_DIRECTORIES(
+        streamJoinFilterTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+add_test(NAME streamJoinFilterTests COMMAND streamJoinFilterTests)
+
+ADD_EXECUTABLE(hashJoinTests hashJoinTests.cpp)
+DEP_ext_gtest(hashJoinTests)
+DEP_ext_cppstub(hashJoinTests)
+TARGET_LINK_LIBRARIES(
+        hashJoinTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        hashJoinTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+
+ADD_EXECUTABLE(thetaJoinTests thetaJoinTests.cpp)
+DEP_ext_gtest(thetaJoinTests)
+DEP_ext_cppstub(thetaJoinTests)
+TARGET_LINK_LIBRARIES(
+        thetaJoinTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        thetaJoinTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+
+ADD_EXECUTABLE(joinResetTests joinResetTests.cpp)
+DEP_ext_gtest(joinResetTests)
+TARGET_LINK_LIBRARIES(
+        joinResetTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+TARGET_INCLUDE_DIRECTORIES(
+        joinResetTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+
 ADD_EXECUTABLE(queryPlanTests queryPlanTests.cpp)
 DEP_ext_gtest(queryPlanTests)
 DEP_ext_cppstub(queryPlanTests)
@@ -53,6 +155,7 @@ TARGET_INCLUDE_DIRECTORIES(
 
 ADD_EXECUTABLE(execUtilTests execUtilTests.cpp)
 DEP_ext_gtest(execUtilTests)
+DEP_ext_cppstub(execUtilTests)
 if(BUILD_TEST)
         target_compile_definitions(execUtilTests PRIVATE BUILD_TEST)
 endif()
@@ -80,3 +183,20 @@ TARGET_INCLUDE_DIRECTORIES(
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+
+ADD_EXECUTABLE(partitionSpillTests partitionSpillTests.cpp)
+DEP_ext_gtest(partitionSpillTests)
+target_compile_definitions(partitionSpillTests PRIVATE BUILD_TEST)
+TARGET_LINK_LIBRARIES(
+        partitionSpillTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        partitionSpillTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+
+add_test(NAME partitionSpillTests COMMAND partitionSpillTests)

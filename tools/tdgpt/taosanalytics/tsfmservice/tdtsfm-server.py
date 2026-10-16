@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import sys
 
@@ -12,6 +27,7 @@ from collections.abc import Callable
 from typing import Any, Optional
 
 from flask import Flask, jsonify, request
+from startup_args import StartupArgsError, parse_model_server_args
 from transformers import (
     Cache,
     DynamicCache,
@@ -957,12 +973,64 @@ class TaosForPrediction(TaosPreTrainedModel, TaosTSGenerationMixin):
         return model_inputs
 
 
-def init_model():
+# This script serves exactly one resource: the tdtsfm model, whose archive carries
+# exactly one weights file (see tdgpt/script/resource_manifest.py).
+_MODEL_NAME = "tdtsfm"
+_WEIGHT_FILENAME = "taos.pth"
+_DEFAULT_PORT = 6061
+
+# Where the weights may sit relative to the directory this server is pointed at,
+# tried in order. The first entry covers the exact model directory (what the
+# service passes), the other two a model *root*: a repository install puts the
+# model in the `tsfm` subdirectory of the root, and whether
+# Configure.get_model_directory() reports the root or that subdirectory depends
+# on the deployed build -- taosanode_service.py sets TDGPT_MODEL_DIR to the
+# resource root and the current conf.py honours it, while an older one ignores it
+# and answers with the configured model_dir.
+_WEIGHT_LAYOUTS = (
+    (),
+    ("tsfm", _MODEL_NAME),
+    (_MODEL_NAME,),
+)
+
+
+def _resolve_weight_path(model_folder: Optional[str] = None) -> str:
+    """Return the weights file to load.
+
+    ``--model-folder`` is the directory to search from when present: only the
+    caller that installed the resource knows where a *dynamic* model was placed,
+    and the layout belongs to the installer, not to this script. Without it the
+    search starts from Configure.get_model_directory(), so the server still
+    starts when it is run by hand. Either way the known layouts under that
+    directory are probed (see _WEIGHT_LAYOUTS), because the directory handed over
+    may be the model's own directory or the model root.
+
+    Raises:
+        FileNotFoundError: When no candidate exists, naming every path tried --
+            torch.load's own error names only the one file it was handed, which
+            is what made a layout mismatch look like a missing weight file.
+    """
+    search_root = model_folder or Configure().get_model_directory()
+    candidates = [
+        os.path.join(search_root, *layout, _WEIGHT_FILENAME)
+        for layout in _WEIGHT_LAYOUTS
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+
+    raise FileNotFoundError(
+        f"{_MODEL_NAME} weights ({_WEIGHT_FILENAME}) not found; looked in: "
+        + ", ".join(candidates)
+        + ". Install the model, or start this server with --model-folder <dir>."
+    )
+
+
+def init_model(model_folder: Optional[str] = None):
     global Taos_model
 
-    conf = Configure()
-    model_dir = conf.get_model_directory()
-    weight_path = f"{model_dir}/tdtsfm/taos.pth"
+    weight_path = _resolve_weight_path(model_folder)
+    print(f"loading {_MODEL_NAME} weights from {weight_path}")
 
     config = TaosConfig(
         Taos_input_token_len=96,
@@ -1008,6 +1076,9 @@ def ds_predict():
         input_data = data["input"]
         num_len = data["next_len"]
 
+        if isinstance(num_len, bool) or not isinstance(num_len, int) or num_len < 1 or num_len > 10000:
+            return jsonify({"status": "error", "error": "next_len must be an integer in [1, 10000]"}), 400
+
         if len(set(input_data)) == 1:
             # for identical array list, std is 0, return directly
             pred_y = [input_data[0] for _ in range(num_len)]
@@ -1032,22 +1103,30 @@ def ds_predict():
 
 
 def main():
-    # Extract --port from argv so the port can be driven by configuration
-    _port = 6061
-    _new_argv = [sys.argv[0]]
-    _i = 1
-    while _i < len(sys.argv):
-        if sys.argv[_i] == "--port" and _i + 1 < len(sys.argv):
-            _port = int(sys.argv[_i + 1])
-            _i += 2
-        else:
-            _new_argv.append(sys.argv[_i])
-            _i += 1
-    sys.argv = _new_argv
+    try:
+        port, model_folder, remaining = parse_model_server_args(sys.argv, _DEFAULT_PORT)
+    except StartupArgsError as exc:
+        # Loud, and before a single weight is loaded: the server cannot know
+        # whether the caller meant another port, and starting on the default one
+        # anyway is exactly how a mismatch stayed invisible -- the caller passes
+        # the configured port, so the service would listen where nobody looks.
+        print(f"{_MODEL_NAME}-server: {exc}", file=sys.stderr)
+        raise SystemExit(2) from None
 
-    init_model()
+    # Unknown flags stay tolerated (the same argv shape goes to every model
+    # server) but are no longer swallowed without a trace.
+    ignored = remaining[1:]
+    if ignored:
+        print(
+            f"{_MODEL_NAME}-server: ignoring unsupported arguments: {' '.join(ignored)}",
+            file=sys.stderr,
+        )
 
-    app.run(host="0.0.0.0", port=_port, threaded=True, debug=False)
+    sys.argv = remaining
+
+    init_model(model_folder)
+
+    app.run(host="127.0.0.1", port=port, threaded=True, debug=False)
 
 
 if __name__ == "__main__":

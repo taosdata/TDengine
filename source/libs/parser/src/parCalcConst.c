@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -29,6 +31,9 @@ typedef struct SCalcConstContext {
   SNodeReplaceContext replaceCxt;
   SMsgBuf             msgBuf;
   int32_t             code;
+  // Preserve timestamp projections while folding nested temporal JOIN inputs;
+  // the planner selects the effective keys and prunes unused candidates.
+  bool                keepTemporalCandidates;
 } SCalcConstContext;
 
 static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery);
@@ -151,6 +156,19 @@ _end:
   return DEAL_RES_IGNORE_CHILD;
 }
 
+static bool calcConstInputContainsJoin(SNode* pTable) {
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) return true;
+  if (QUERY_NODE_TEMP_TABLE != nodeType(pTable)) return false;
+  SNode* pSubquery = ((STempTableNode*)pTable)->pSubquery;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    return ((SSelectStmt*)pSubquery)->joinContains;
+  }
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
+    return ((SSetOperator*)pSubquery)->joinContains;
+  }
+  return false;
+}
+
 static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pTable)) {
@@ -161,10 +179,17 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
       SNode* pCond = NULL;
+      bool keepCandidates = pCxt->keepTemporalCandidates;
+      if ((IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) &&
+          (calcConstInputContainsJoin(pJoin->pLeft) ||
+           calcConstInputContainsJoin(pJoin->pRight))) {
+        pCxt->keepTemporalCandidates = true;
+      }
       code = rewriteConditionForFromTable(pCxt, pJoin->pLeft);
       if (TSDB_CODE_SUCCESS == code) {
         code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
       }
+      pCxt->keepTemporalCandidates = keepCandidates;
       if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
         code = rewriteCondition(pCxt, &pJoin->pOnCond);
       }
@@ -203,7 +228,8 @@ static void rewriteConstCondition(SNode** pCond, bool* pAlwaysFalse) {
   if (QUERY_NODE_VALUE != nodeType(*pCond)) {
     return;
   }
-  if (((SValueNode*)*pCond)->datum.b) {
+  SValueNode* pValue = (SValueNode*)*pCond;
+  if (!pValue->isNull && pValue->datum.b) {
     nodesDestroyNode(*pCond);
     *pCond = NULL;
   } else {
@@ -366,7 +392,13 @@ static int32_t createConstantValue(SValueNode** ppNode) {
 static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   SNode* pProj = NULL;
   WHERE_EACH(pProj, pSelect->pProjectionList) {
-    if (subquery && !pSelect->isDistinct && !pSelect->tagScan && isUselessCol((SExprNode*)pProj) && (pSelect->pFromTable && nodeType(pSelect->pFromTable) != QUERY_NODE_VIRTUAL_TABLE)) {
+    // JOIN time candidates are chosen after constant folding, in public order.
+    bool keepTime = pCxt->keepTemporalCandidates &&
+                    TSDB_DATA_TYPE_TIMESTAMP ==
+                        ((SExprNode*)pProj)->resType.type;
+    if (subquery && !keepTime && !pSelect->isDistinct && !pSelect->tagScan &&
+        isUselessCol((SExprNode*)pProj) && pSelect->pFromTable &&
+        QUERY_NODE_VIRTUAL_TABLE != nodeType(pSelect->pFromTable)) {
       ERASE_NODE(pSelect->pProjectionList);
       continue;
     }
@@ -416,7 +448,16 @@ static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t calcConstSelectWithoutFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
-  return calcConstProjections(pCxt, pSelect, subquery);
+  int32_t code = calcConstProjections(pCxt, pSelect, subquery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstStmtCondition(pCxt, &pSelect->pWhere,
+                                  &pSelect->isEmptyResult);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstStmtCondition(pCxt, &pSelect->pHaving,
+                                  &pSelect->isEmptyResult);
+  }
+  return code;
 }
 
 static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
@@ -473,9 +514,15 @@ static bool isEmptyResultQuery(SNode* pStmt) {
       break;
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOp = (SSetOperator*)pStmt;
-      isEmptyResult = isEmptyResultQuery(pSetOp->pLeft);
-      if (isEmptyResult) {
-        isEmptyResult = isEmptyResultQuery(pSetOp->pRight);
+      int32_t childCount = setOperatorChildCount(pSetOp);
+      if (childCount > 0) {
+        isEmptyResult = true;
+        for (int32_t i = 0; i < childCount; ++i) {
+          if (!isEmptyResultQuery(setOperatorChildAt(pSetOp, i))) {
+            isEmptyResult = false;
+            break;
+          }
+        }
       }
       break;
     }
@@ -557,15 +604,15 @@ static SNodeList* getChildProjection(SNode* pStmt) {
 }
 
 static void eraseSetOpChildProjection(SSetOperator* pSetOp, int32_t index) {
-  SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
-  (void)nodesListErase(pLeftProjs, nodesListGetCell(pLeftProjs, index));
-  if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pLeft)) {
-    eraseSetOpChildProjection((SSetOperator*)pSetOp->pLeft, index);
-  }
-  SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
-  (void)nodesListErase(pRightProjs, nodesListGetCell(pRightProjs, index));
-  if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pRight)) {
-    eraseSetOpChildProjection((SSetOperator*)pSetOp->pRight, index);
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i) {
+    SNode* pOperand = setOperatorChildAt(pSetOp, i);
+    SNodeList* pProjs = getChildProjection(pOperand);
+    if (pProjs == NULL) continue;
+    SListCell* pCell = nodesListGetCell(pProjs, index);
+    if (pCell != NULL) (void)nodesListErase(pProjs, pCell);
+    if (QUERY_NODE_SET_OPERATOR == nodeType(pOperand)) {
+      eraseSetOpChildProjection((SSetOperator*)pOperand, index);
+    }
   }
 }
 
@@ -627,8 +674,10 @@ static bool isSubqueryProjUseless(SNode* pStmt, int32_t index) {
       if (pSetOp->opType == SET_OP_TYPE_UNION) {
         return false;
       }
-      return isSubqueryProjUseless(pSetOp->pLeft, index) &&
-             isSubqueryProjUseless(pSetOp->pRight, index);
+      for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i) {
+        if (!isSubqueryProjUseless(setOperatorChildAt(pSetOp, i), index)) return false;
+      }
+      return true;
     }
     default:
       break;
@@ -641,8 +690,10 @@ static bool isSetUselessCol(SSetOperator* pSetOp, int32_t index, SExprNode* pPro
     return false;
   }
 
-  return isSubqueryProjUseless(pSetOp->pLeft, index) &&
-         isSubqueryProjUseless(pSetOp->pRight, index);
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i) {
+    if (!isSubqueryProjUseless(setOperatorChildAt(pSetOp, i), index)) return false;
+  }
+  return true;
 }
 
 static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
@@ -652,7 +703,11 @@ static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* 
   int32_t index = 0;
   SNode*  pProj = NULL;
   WHERE_EACH(pProj, pSetOp->pProjectionList) {
-    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) &&
+    bool keepTime = pCxt->keepTemporalCandidates &&
+                    TSDB_DATA_TYPE_TIMESTAMP ==
+                        ((SExprNode*)pProj)->resType.type;
+    if (subquery && !keepTime &&
+        notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) &&
         isSetUselessCol(pSetOp, index, (SExprNode*)pProj)) {
       ERASE_NODE(pSetOp->pProjectionList);
       eraseSetOpChildProjection(pSetOp, index);
@@ -673,11 +728,8 @@ static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* 
 
 static int32_t calcConstSetOperator(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
   int32_t code = calcConstSetOpProjections(pCxt, pSetOp, subquery);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstQuery(pCxt, pSetOp->pLeft, false);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstQuery(pCxt, pSetOp->pRight, false);
+  for (int32_t i = 0; TSDB_CODE_SUCCESS == code && i < setOperatorChildCount(pSetOp); ++i) {
+    code = calcConstQuery(pCxt, setOperatorChildAt(pSetOp, i), false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstList(pSetOp->pOrderByList);
@@ -714,6 +766,142 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
   return code;
 }
 
+static void replaceSetOpWithChild(SNode** ppStmt, SSetOperator* pSetOp, SNode* pKeep, SNode* pDrop) {
+  SNode* pKeepProj = NULL;
+  SNode* pSetOpProj = NULL;
+  FORBOTH(pKeepProj, getChildProjection(pKeep), pSetOpProj, pSetOp->pProjectionList) {
+    tstrncpy(((SExprNode*)pKeepProj)->aliasName, ((SExprNode*)pSetOpProj)->aliasName, TSDB_COL_NAME_LEN);
+  }
+
+  // Outer column references must retain the set operator's output namespace.
+  if (QUERY_NODE_SELECT_STMT == nodeType(pKeep)) {
+    tstrncpy(((SSelectStmt*)pKeep)->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pKeep)) {
+    tstrncpy(((SSetOperator*)pKeep)->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
+  }
+
+  if (pSetOp->pOperands != NULL) {
+    SListCell* pKeepCell = nodesListGetCell(pSetOp->pOperands, 0);
+    if (pKeepCell != NULL) pKeepCell->pNode = NULL;
+  } else {
+    if (pSetOp->pLeft == pKeep) pSetOp->pLeft = NULL;
+    if (pSetOp->pRight == pKeep) pSetOp->pRight = NULL;
+    if (pSetOp->pLeft == pDrop) pSetOp->pLeft = NULL;
+    if (pSetOp->pRight == pDrop) pSetOp->pRight = NULL;
+  }
+  if (pDrop != NULL) nodesDestroyNode(pDrop);
+  nodesDestroyList(pSetOp->pOperands);
+  pSetOp->pOperands = NULL;
+  nodesDestroyList(pSetOp->pProjectionList);
+  pSetOp->pProjectionList = NULL;
+  nodesDestroyNode((SNode*)pSetOp);
+  *ppStmt = pKeep;
+}
+
+
+static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt);
+
+static int32_t pruneEmptyUnionAllBranchesInList(SNodeList* pStmts) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pStmt = NULL;
+  FOREACH(pStmt, pStmts) {
+    code = pruneEmptyUnionAllBranches(&cell->pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
+static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt) {
+  if (NULL == ppStmt || NULL == *ppStmt) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  switch (nodeType(*ppStmt)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)*ppStmt;
+      int32_t code = pruneEmptyUnionAllBranches(&pSelect->pFromTable);
+      if (TSDB_CODE_SUCCESS == code && pSelect->pSubQueries) {
+        code = pruneEmptyUnionAllBranchesInList(pSelect->pSubQueries);
+      }
+      return code;
+    }
+    case QUERY_NODE_TEMP_TABLE:
+      return pruneEmptyUnionAllBranches(&((STempTableNode*)*ppStmt)->pSubquery);
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)*ppStmt;
+      int32_t code = pruneEmptyUnionAllBranches(&pJoin->pLeft);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = pruneEmptyUnionAllBranches(&pJoin->pRight);
+      }
+      return code;
+    }
+    case QUERY_NODE_EXPLAIN_STMT:
+      return pruneEmptyUnionAllBranches(&((SExplainStmt*)*ppStmt)->pQuery);
+    case QUERY_NODE_SET_OPERATOR:
+      break;
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+
+  SSetOperator* pSetOp = (SSetOperator*)*ppStmt;
+  int32_t       code = TSDB_CODE_SUCCESS;
+  if (pSetOp->pOperands != NULL) {
+    for (SListCell* pCell = pSetOp->pOperands->pHead; TSDB_CODE_SUCCESS == code && pCell != NULL;
+         pCell = pCell->pNext) {
+      code = pruneEmptyUnionAllBranches(&pCell->pNode);
+    }
+  } else {
+    code = pruneEmptyUnionAllBranches(&pSetOp->pLeft);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = pruneEmptyUnionAllBranches(&pSetOp->pRight);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && pSetOp->pSubQueries) {
+    code = pruneEmptyUnionAllBranchesInList(pSetOp->pSubQueries);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (SET_OP_TYPE_UNION_ALL != pSetOp->opType || NULL != pSetOp->pOrderByList || NULL != pSetOp->pLimit) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool hasNonEmptyOperand = false;
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i) {
+    if (!isEmptyResultQuery(setOperatorChildAt(pSetOp, i))) {
+      hasNonEmptyOperand = true;
+      break;
+    }
+  }
+  // Keep an all-empty UNION ALL intact so it continues to carry the output
+  // projection/type metadata; removing every operand would create an invalid
+  // zero-child set operator.
+  if (!hasNonEmptyOperand) return TSDB_CODE_SUCCESS;
+
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOp);) {
+    if (isEmptyResultQuery(setOperatorChildAt(pSetOp, i))) {
+      if (pSetOp->pOperands == NULL) break;
+      nodesListErase(pSetOp->pOperands, nodesListGetCell(pSetOp->pOperands, i));
+    } else {
+      ++i;
+    }
+  }
+  if (setOperatorChildCount(pSetOp) == 1 && pSetOp->pOperands != NULL) {
+    SNode* pKeep = setOperatorChildAt(pSetOp, 0);
+    replaceSetOpWithChild(ppStmt, pSetOp, pKeep, NULL);
+  } else if (pSetOp->pOperands == NULL) {
+    bool leftEmpty = isEmptyResultQuery(pSetOp->pLeft);
+    bool rightEmpty = isEmptyResultQuery(pSetOp->pRight);
+    if (leftEmpty != rightEmpty) {
+      replaceSetOpWithChild(ppStmt, pSetOp, leftEmpty ? pSetOp->pRight : pSetOp->pLeft,
+                            leftEmpty ? pSetOp->pLeft : pSetOp->pRight);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static void resetProjectNullTypeImpl(SNodeList* pProjects) {
   SNode* pProj = NULL;
@@ -737,10 +925,8 @@ static void resetProjectNullType(SNode* pStmt) {
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOp = (SSetOperator*)pStmt;
       resetProjectNullTypeImpl(pSetOp->pProjectionList);
-      if (pSetOp->pLeft)
-        resetProjectNullType(pSetOp->pLeft);
-      if (pSetOp->pRight)
-        resetProjectNullType(pSetOp->pRight);
+      for (int32_t i = 0; i < setOperatorChildCount(pSetOp); ++i)
+        resetProjectNullType(setOperatorChildAt(pSetOp, i));
       break;
     }
     default:
@@ -763,6 +949,9 @@ int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
 
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstQuery(&cxt, pQuery->pRoot, false);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pruneEmptyUnionAllBranches(&pQuery->pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     resetProjectNullType(pQuery->pRoot);

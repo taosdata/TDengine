@@ -12,7 +12,7 @@ The standard TDengine server package includes `taosd`, `taosAdapter`, `taosc`, t
 
 TDengine provides Deb and RPM packages for Linux, a generic tar.gz package, an `apt-get` repository, a Windows client installer, and macOS packages.
 
-The download lists in the installation steps below are for the **Community Edition (TDengine TSDB-OSS)**. For the Enterprise Edition, get the package for your platform and version from the [TDengine Product Download Center](https://www.taosdata.com/en/download-center?product=TDengine+TSDB-Enterprise).
+The download lists in the installation steps below are for the **Community Edition (TDengine TSDB-OSS)**. Get the package for your platform and version from the [TDengine Product Download Center](https://tdengine.com/downloads?product=TDengine+TSDB-OSS).
 
 ## Requirements
 
@@ -180,8 +180,8 @@ The default Linux installation creates the following paths:
 | `/usr/local/taos/include` | Public C headers |
 | `/etc/taos/taos.cfg` | Default configuration file |
 | `/var/lib/taos` | Default data directory |
-| `/var/log/taos` | Default log directory |
+| `/var/log/taos` | Default log directory. For each component's log files, see [Locating and Collecting Log Files](./06-logs.md). |
 
 The executables include `taosd`, `taos`, `taosdump`, `taosBenchmark`, `taosadapter`, and maintenance scripts such as `remove.sh` and `set_core.sh`.
 
-For IPv4 and IPv6 configuration, see [Network and FQDN Configuration](./08-network.md).
+For IPv4 and IPv6 configuration, see [Network and FQDN Configuration](./09-network.md).

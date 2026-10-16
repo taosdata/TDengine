@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,19 +32,29 @@ extern "C" {
 #include "functionMgt.h"
 #include "plannodes.h"
 
+#define QUERY_EXEC_FETCH_MAX_ROWS   4096
+#define QUERY_EXEC_FETCH_MAX_BYTES  (INT64_C(64) * 1024 * 1024)
+#define QUERY_EXEC_FETCH_MAX_EVENTS 4096
+
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
 
 struct SRpcMsg;
 struct SSubplan;
+struct SSDataBlock;
 
 typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
+typedef int32_t (*localResultBlockFp)(void* param, struct SSDataBlock* pBlock, bool* pContinue);
 
 typedef struct {
-  void*        handle;
-  bool         localExec;
-  localFetchFp fp;
-  SArray*      explainRes;
+  void*              handle;
+  bool               localExec;
+  localFetchFp       fp;
+  SArray*            explainRes;
+  bool               directBlock;
+  localResultBlockFp putBlockFp;
+  void*              putBlockParam;
+  bool               continueExec;
 } SLocalFetch;
 
 typedef struct {
@@ -72,6 +84,7 @@ typedef struct {
   void*              streamRtInfo;
   bool               cacheSttStatis;
   int64_t            txnId;  // batch meta txn ID for same-txn visibility
+  SCorrelationTaskSession* pCorrelationSession;
 } SReadHandle;
 
 typedef struct STrueForInfo {
@@ -81,8 +94,10 @@ typedef struct STrueForInfo {
 } STrueForInfo;
 
 typedef struct SStreamInserterParam {
-  SArray*   pFields;     // SArray<SFieldWithOptions>
-  SArray*   pTagFields;  // SArray<SFieldWithOptions>
+  SArray*   pFields;       // SArray<SFieldWithOptions>
+  SArray*   pFullFields;   // full out stb columns for partial column writes
+  SArray*   pFullColCids;  // colIds for pFullFields
+  SArray*   pTagFields;    // SArray<SFieldWithOptions>
   int64_t   suid;
   int32_t   sver;
   char*     tbname;
@@ -105,9 +120,21 @@ typedef void (*FStreamInputStats)(void* param, uint64_t rows, uint64_t blocks);
 typedef void (*FStreamBlockingStats)(void* param, bool blocking);
 
 typedef struct {
+  SStreamRuntimeFuncInfo funcInfo;  // shallow borrowed view; never destroy its fields
+  const SStreamFetchContextSelection* pContextSelection;  // borrowed from this batch's prepared owner
+  bool                                readerDimensionBatch;
+  bool                   reuseReader;
+  bool                   active;
+} SStreamFetchRuntimeInfo;
+
+typedef struct {
   SStreamRuntimeFuncInfo funcInfo;
+  SStreamFetchRuntimeInfo fetchInfo;
+  SStreamContextFrames*   pContextFrames;  // owned by this execution, never by borrowed views
+  SStreamPreparedFetchContext* pPreparedFetchContext;  // owned; borrows funcInfo and pContextFrames
   int32_t                 execId;
   bool                    resetFlag;
+  bool                    reuseReaderOnFetchReset;
   const SArray*           pForceOutputCols;
   SStreamInserterParam    inserterParams;
   SStreamVtableDeployInfo vtableDeployInfo;
@@ -118,7 +145,21 @@ typedef struct {
   FStreamBlockingStats    blockingStatsFp;
 } SStreamRuntimeInfo;
 
-#define GET_STM_RTINFO(_t) (((_t)->pStreamRuntimeInfo) ? (&(_t)->pStreamRuntimeInfo->funcInfo) : NULL)
+#define GET_STM_RTINFO(_t)                                                                           \
+  (((_t)->pStreamRuntimeInfo)                                                                        \
+       ? ((_t)->pStreamRuntimeInfo->fetchInfo.active ? &(_t)->pStreamRuntimeInfo->fetchInfo.funcInfo \
+                                                     : &(_t)->pStreamRuntimeInfo->funcInfo)          \
+       : NULL)
+
+static FORCE_INLINE bool qStreamFetchReuseReader(const SStreamRuntimeInfo* pRuntime) {
+  return pRuntime != NULL &&
+         (pRuntime->fetchInfo.active ? pRuntime->fetchInfo.reuseReader : pRuntime->reuseReaderOnFetchReset);
+}
+
+static FORCE_INLINE void qClearStreamFetchRuntime(SStreamRuntimeInfo* pRuntime) {
+  if (pRuntime == NULL) return;
+  memset(&pRuntime->fetchInfo, 0, sizeof(pRuntime->fetchInfo));
+}
 
 // in queue mode, data streams are seperated by msg
 typedef enum {
@@ -135,7 +176,15 @@ typedef enum {
  * @return
  */
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, SStreamInserterParam* pInsertParams, int32_t vgId, int32_t taskId);
-int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle);
+typedef enum {
+  QUERY_TABLE_SCAN_RESET_FRESH = 0,
+  QUERY_TABLE_SCAN_RESET_REUSE_READER = 1,
+} EQueryTableScanResetMode;
+
+int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle, EQueryTableScanResetMode mode);
+int32_t qResetStreamDimensionScan(qTaskInfo_t task, SReadHandle* handle, EQueryTableScanResetMode mode);
+// End a retained task's dimension preparation before retiring its batch runtime.
+int32_t qClearStreamDimensionPreparation(qTaskInfo_t task);
 bool    qNeedReset(qTaskInfo_t pInfo);
 
 /**
@@ -160,6 +209,7 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
  */
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 bool    qTaskIsDone(qTaskInfo_t tinfo);
+bool    qTaskUsesMultiGroupJoinProtocol(qTaskInfo_t tinfo);
 
 /**
  * Update the worker pool callback for a task to match the current executing
@@ -183,10 +233,18 @@ int32_t qDeleteTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList
 int32_t qAddTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList);
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo);
+bool qIsNoQuickFreeTask(qTaskInfo_t tinfo);
 
 void qDestroyOperatorParam(SOperatorParam* pParam);
 
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
+
+/**
+  @brief Take back a param installed by qUpdateOperatorParam and destroy it -- but only
+         when it is still the pending (not yet consumed) one. For error rollbacks where
+         the exec that would have consumed the param never ran.
+*/
+void qRemoveOperatorParam(qTaskInfo_t tinfo, void* pParam);
 
 /**
  * Create the exec task object according to task json
@@ -200,6 +258,11 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
                         EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain);
+// Call on the receiving task's private subplan after its correlation parameters are bound,
+// before qCreateExecTask builds operators. Descriptors for other subplans are ignored.
+int32_t qInitCorrelationTimeRange(SSubplan* pSubplan, const SNodeList* pTimeRangeInit);
+int32_t qBindCorrelationSubplan(SSubplan* pSubplan, const SArray* pDefs, const SArray* pValues,
+                               SNodeList* pTimeRangeInit);
 
 /**
  *
@@ -224,7 +287,32 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
 int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal,
                      bool processOneBlock);
 
+/** Copy evaluated ranges into finalized table order; NULL uses the existing scan condition. */
+int32_t qInstallReaderTableRanges(qTaskInfo_t task, const SArray* readRanges);
+/** Borrow a contiguous slice until the ranges are cleared or replaced. */
+int32_t qGetReaderTableRangeView(qTaskInfo_t task, int32_t tableStart, int32_t numTables,
+                                 const STableScanRange** ranges);
+void    qClearReaderTableRanges(qTaskInfo_t task);
+/** Finish this group-read batch, preserving task-owned response result blocks. Idempotent. */
+void qFinishReaderGroupRead(qTaskInfo_t task);
+
+/** Enable completed trigger-group events for a qualified Reader scan before execution. */
+int32_t qEnableReaderGroupOutput(qTaskInfo_t task, bool requested, bool* pEnabled);
+
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
+
+/**
+ * Transfer one result block from the task-owned reusable result cache.
+ * The caller owns the returned block until it is restored or handed to a sink.
+ */
+int32_t qDetachExecTaskResultBlock(qTaskInfo_t tinfo, SSDataBlock* pBlock, int32_t* pBlockIndex);
+
+/**
+ * Restore a block previously detached from the specified reusable cache slot.
+ * If a later local fetch has already replaced the slot, this function destroys
+ * the stale block and keeps the replacement.
+ */
+int32_t qRestoreExecTaskResultBlock(qTaskInfo_t tinfo, int32_t blockIndex, SSDataBlock* pBlock);
 
 int32_t qExecutorInit(void);
 void    qResetTaskCode(qTaskInfo_t tinfo);
@@ -247,6 +335,9 @@ bool qTaskIsExecuting(qTaskInfo_t qinfo);
  * @param qHandle
  */
 void qDestroyTask(qTaskInfo_t tinfo);
+
+/** Return an estimate of executor-owned memory currently visible from a query task. */
+int32_t qGetTaskMemorySize(qTaskInfo_t tinfo, int64_t *pBytes);
 
 void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
@@ -280,6 +371,8 @@ int32_t  qStreamOperatorReloadState(qTaskInfo_t tInfo);
 int32_t  streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
 int32_t  streamClearStatesForOperators(qTaskInfo_t tInfo);
 int32_t  streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, bool* finished);
+int32_t  qSetMultiGroupEogBlock(SSDataBlock* pBlock, uint64_t baseGId);
+bool     qIsMultiGroupEogBlock(const SSDataBlock* pBlock);
 void     streamDestroyExecTask(qTaskInfo_t tInfo);
 int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                          SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
@@ -344,12 +437,16 @@ SNode*  getTagCondNodeForQueryTmq(void* tinfo);
 
 // Pre-initialize external-window runtime (batch mode) from subquery results so that
 // downstream scan can build table list with baseGId via stream multi-group path.
-int32_t  extWinPreInitFromSubquery(SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
+int32_t extWinPreInitFromSubquery(SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
+void    qCleanupExternalWindowGroupCtx(SSHashObj* pGroupCalcInfos);
 
 // Federated query: retrieve the remote-side error message stored in the task info.
 // Returns NULL if no ext error occurred. The returned pointer is owned by pTaskInfo.
 const char* qGetExtErrMsg(qTaskInfo_t tinfo);
 
+// Federated query: retrieve structured pushdown diagnostic stored in task info.
+// Returns NULL if no diagnostic occurred. The returned pointer is owned by pTaskInfo.
+const SExtPushdownDiagnostic* qGetExtPushdownDiagnostic(qTaskInfo_t tinfo);
 #ifdef __cplusplus
 }
 #endif

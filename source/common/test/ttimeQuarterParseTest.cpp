@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -109,6 +111,24 @@ TEST_F(QuarterParseTest, YearStillWorks) {
   int32_t code = parseNatualDuration("1y", 2, &duration, &unit, TSDB_TIME_PRECISION_MILLI, false);
   EXPECT_EQ(code, TSDB_CODE_SUCCESS);
   EXPECT_EQ(duration, 1);
+  EXPECT_EQ(unit, 'y');
+}
+
+TEST_F(QuarterParseTest, UpperCaseMonthNormalizesToLowerCase) {
+  int64_t duration = 0;
+  char    unit = 0;
+  int32_t code = parseNatualDuration("2N", 2, &duration, &unit, TSDB_TIME_PRECISION_MILLI, false);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(duration, 2);
+  EXPECT_EQ(unit, 'n');
+}
+
+TEST_F(QuarterParseTest, UpperCaseYearNormalizesToLowerCase) {
+  int64_t duration = 0;
+  char    unit = 0;
+  int32_t code = parseNatualDuration("2Y", 2, &duration, &unit, TSDB_TIME_PRECISION_MILLI, false);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(duration, 2);
   EXPECT_EQ(unit, 'y');
 }
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "taosdef.h"
 #ifndef _TD_TCOL_H_
 #define _TD_TCOL_H_
@@ -104,4 +107,5 @@ int8_t validColEncode(uint8_t type, uint8_t l1);
 
 uint32_t createDefaultColCmprByType(uint8_t type);
 int32_t  validColCmprByType(uint8_t type, uint32_t cmpr);
+int32_t  validAndNormalizeColCmprByType(uint8_t type, uint32_t* cmpr);
 #endif /*_TD_TCOL_H_*/

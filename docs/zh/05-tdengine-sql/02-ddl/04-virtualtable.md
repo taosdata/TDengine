@@ -12,7 +12,7 @@ description: 对虚拟表的各种管理操作
 
 - 虚拟普通表：独立存在的虚拟表，可直接定义列与数据源的对应关系。
 - 虚拟超级表：作为模板定义一组虚拟子表的公共列和标签，本身不直接保存数据。
-- 虚拟子表：以虚拟超级表为模板创建，列数据来自其他表，标签可以是常量，也可以引用其他表的标签。
+- 虚拟子表：以虚拟超级表为模板创建，列数据来自其他表，标签可以是常量，也可以引用其他表的标签。此外，虚拟子表还可以拥有独立于虚拟超级表的自有列与自有标签，详见[创建虚拟子表](#创建虚拟子表)与[修改虚拟子表](#修改虚拟子表)。
 
 ## 创建虚拟表
 
@@ -36,13 +36,22 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
     vtb_col_name column_definition
 
   column_definition:
-    type_name [FROM [db_name.]table_name.col_name]
+    type_name [FROM column_reference]
+
+  column_reference:
+    [db_name.]table_name.col_name
+    | ext_source_name.db_name.table_name.col_name [WHERE filter_condition]
+    | series_alias.col_name
 
   vtag_def:
     tag_name type_name = const_value
     | tag_name type_name FROM [db_name.]table_name.tag_name
 
 ```
+
+引用 TDengine 表或已有虚拟表时，`column_reference` 使用 `[db_name.]table_name.col_name`，因此列定义仍为 `type_name [FROM [db_name.]table_name.col_name]`。`ext_source_name` 表示已创建的外部数据源，`series_alias` 表示 InfluxDB 的 `SERIES` 声明别名；外部引用的可选 `WHERE filter_condition` 见 [外部列引用条件过滤](#外部列引用条件过滤)。
+
+上述 `column_reference` 定义也适用于虚拟子表的列引用列表，以及 `ALTER VTABLE` 的 `ADD COLUMN ... FROM` 和 `ALTER COLUMN ... SET`。
 
 创建虚拟普通表时可以通过 `TAGS` 子句声明标签，详见下方“虚拟普通表标签”章节。
 
@@ -52,13 +61,17 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
 CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
     (create_definition[ ,create_definition] ...)
     USING [db_name.]stb_name
-    [(tag_name [, tag_name] ...)]
+    [(tag_definition [, tag_definition] ...)]
     TAGS (tag_value [, tag_value] ...)
     [SERIES series_alias AS ext_source_name.db_name.measurement_name
         (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...) ...]
 
   create_definition:
-     [stb_col_name FROM] [db_name.]table_name.col_name
+     [stb_col_name FROM] column_reference
+     | owned_col_name type_name FROM column_reference
+  tag_definition:
+     tag_name
+     | owned_tag_name type_name
   tag_value:
      const_value
      | [tag_name] FROM [db_name.]table_name.tag_name
@@ -99,6 +112,29 @@ CREATE VTABLE
 
 此语法与列引用的 `[stb_col_name FROM] table_name.col_name` 设计一致：`FROM` 关键字前的名称为虚拟表侧的名称，`FROM` 后为数据源侧的名称。
 
+**自有列与自有标签（owned column / owned tag）**
+
+虚拟子表可以拥有独立于虚拟超级表的成员。语法上靠是否携带显式类型区分：
+
+- `create_definition` 中**不带类型**的 `[stb_col_name FROM] table_name.col_name` 为对齐列（既有语义，按名或按位置对齐虚拟超级表列）；**带显式类型**的 `owned_col_name type_name FROM table_name.col_name` 声明**自有列**——列名不在虚拟超级表 schema 中，且必须携带 `FROM` 数据源引用。对虚拟超级表已有的列再声明类型会报错。
+- `tag_definition` 中**不带类型**的 `tag_name` 为按名绑定虚拟超级表标签（既有语义）；**带显式类型**的 `owned_tag_name type_name` 声明**自有标签**，其值在 `TAGS(...)` 中按位置给出，可为字面量、`NULL` 或标签引用。位置式标签绑定（不写标签清单）不支持声明自有标签。
+
+**示例**
+
+```sql
+CREATE TABLE ev_log (ts timestamp, event bigint);
+
+CREATE VTABLE v_d1 (
+    switch   FROM p10.val,            -- 对齐列：不带类型
+    ext_ev   BIGINT FROM ev_log.event -- 自有列：显式类型 + 引用
+) USING v_devices (
+    device,                           -- 对齐标签：按名绑定
+    owner   VARCHAR(16)               -- 自有标签：显式类型
+) TAGS ('d1', 'alice');
+```
+
+自有列、自有标签只存在于该虚拟子表本身：直接查询该子表时可见（`SELECT *` 的结果中自有列排在虚拟超级表列之后），查询虚拟超级表时**不可见**，虚拟超级表的 schema 不受影响。
+
 **使用说明**
 
 1. 虚拟表（列）名命名规则参见 [名称命名规则](../11-appendix/02-limit.md#名称命名规则)。
@@ -113,10 +149,61 @@ CREATE VTABLE
 10. 虚拟超级表下只支持创建虚拟子表，虚拟子表也只能以虚拟超级表为模板创建。
 11. 创建虚拟表时需要保证虚拟表中的列、标签与指定的数据源列、标签的数据类型相同，否则会报错。
 12. 在同一个数据库内，虚拟表名称不允许重名，虚拟表名和表名也不允许重名。虚拟表名和视图名允许重名但不推荐；当视图与虚拟表重名时，写入、查询、授权、回收权限等操作优先使用同名表。
-13. 创建虚拟子表和虚拟普通表时，使用 `FROM` 指定某一列的数据来源时，该列支持来源于普通表、普通子表以及已有虚拟表；不支持来源于超级表、视图，也不支持来源于有复合主键的表。
+13. 创建虚拟子表和虚拟普通表时，使用 `FROM` 指定某一列的数据来源时，该列支持来源于普通表、普通子表以及已有虚拟表；不支持来源于 TDengine 超级表、视图或有复合主键的 TDengine 表。MySQL、PostgreSQL 外部表的引用规则见 [外部列引用条件过滤](#外部列引用条件过滤)。
 14. 创建虚拟子表时，`TAGS (...)` 中的标签既可以使用常量值，也可以使用标签引用（语法见上方 `tag_value` 定义）。跨库时可写成 `db_name.table.tag`。
 15. 引用相关的限制和行为详见下方“当前支持的引用能力”章节。
 16. 虚拟普通表的标签（`TAGS` 子句）规则详见下方“虚拟普通表标签”章节。
+17. 自有列必须携带 `FROM` 数据源引用，不支持纯本地数据列；引用目标必须是数据列（不能是标签列），类型必须与声明一致，且不允许形成引用环。
+18. 自有标签不支持 `JSON` 和 `DECIMAL` 类型；虚拟超级表仅有单个 `JSON` 标签时，不可再为虚拟子表声明自有标签。
+19. 列名与标签名共享同一个名字空间：自有列/自有标签的名称不得与虚拟超级表的列、标签及其他自有成员重名。此外，`ALTER STABLE` 为虚拟超级表引入的新列名/标签名若被任一虚拟子表的自有成员占用，该 `ALTER` 会失败。
+
+### 外部列引用条件过滤
+
+虚拟普通表和虚拟子表可以直接引用 MySQL 或 PostgreSQL 外部表的数据列，并在列引用后指定 `WHERE`。条件保存在虚拟表定义中，每次查询先在外部表上过滤，再将各引用列的数据按时间戳对齐。
+
+```sql
+filter_condition:
+    column_name comparison_operator literal
+    | (filter_condition)
+    | filter_condition AND filter_condition
+
+comparison_operator: = | != | <> | < | <= | > | >=
+```
+
+**过滤条件限制**
+
+- `WHERE` 仅支持直接引用 MySQL 或 PostgreSQL 外部表的数据列。引用 TDengine 表、其他虚拟表、标签列或 InfluxDB `SERIES` 时不能追加此条件。通过其他虚拟表间接引用时，底层已经保存的过滤条件仍然有效。
+- 外部表必须有主键，且主键中恰好有一个可映射为 TDengine `TIMESTAMP` 的列。若有其他主键列，必须在每个列引用的 `WHERE` 中用 `列名 = 字面量` 覆盖所有这些列，以保证过滤后每个时间戳至多一行。主键只有时间戳列时，可以省略 `WHERE`。
+- 比较式左侧必须是当前外部表中不带表名或数据库名前缀的列名，右侧必须是数字、字符串或布尔字面量。条件也可以使用未被引用的外部列；字面量必须能转换为该列的数据类型，时间戳值必须使用字符串字面量。
+- 同一过滤条件内，每个外部列只能出现一次。MySQL 列名匹配不区分大小写；PostgreSQL 列名匹配区分大小写，未加反引号的标识符会转为小写，引用包含大写字母的列名时须用反引号保留大小写。例如，PostgreSQL 中的 `device` 和 `Device` 是不同列，可以分别用于同一过滤条件。非时间戳主键列只允许 `=`；其他列可以使用上方列出的比较运算符。多个比较式只能用 `AND` 连接，允许括号。
+- 不支持 `OR`、`NOT`、`IN`、`LIKE`、`IS NULL`、`NULL` 值、函数、算术表达式、子查询或参数占位符。`BETWEEN` 会展开为对同一列的两次比较，因此也不支持。
+- 查询语句中的 `WHERE` 不能代替列定义中必需的主键过滤条件。不同列可以引用同一外部表的不同过滤结果；各列独立过滤，时间戳取参与查询的引用列过滤结果的并集，缺失值填充为 `NULL`。
+
+假设已创建 MySQL 外部数据源 `mysql_src`，其中 `metrics.readings` 有 `ts`、`device`、`tenant`、`v`、`w` 列，主键为 `(ts, device, tenant)`，`ts` 映射为 `TIMESTAMP`，`v` 和 `w` 映射为 `INT`：
+
+```sql
+CREATE VTABLE filtered_readings (
+    ts TIMESTAMP,
+    a INT FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1,
+    b INT FROM mysql_src.metrics.readings.w WHERE device = 'd2' AND tenant = 1
+);
+
+CREATE STABLE filtered_stable (ts TIMESTAMP, a INT) TAGS (site INT) VIRTUAL 1;
+CREATE VTABLE filtered_child (
+    a FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1
+) USING filtered_stable TAGS (1);
+
+ALTER VTABLE filtered_readings ADD COLUMN c INT
+    FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1 AND v >= 10;
+ALTER VTABLE filtered_readings ALTER COLUMN a SET
+    mysql_src.metrics.readings.v WHERE device = 'd2' AND tenant = 1;
+ALTER VTABLE filtered_readings ALTER COLUMN b SET NULL;
+SHOW CREATE VTABLE filtered_readings;
+```
+
+`ALTER COLUMN ... SET` 会替换整个列引用及其条件，不能单独修改 `WHERE`。重新绑定时省略 `WHERE` 会清除旧条件，但新引用仍须满足主键要求；上例的复合主键不能省略 `device` 和 `tenant` 的等值条件。`SET NULL` 同时清除数据源引用和过滤条件。`SHOW CREATE VTABLE` 会输出保存的 `WHERE`，便于重建表定义。
+
+查询时会用当前外部元数据重新校验保存的条件。若过滤列被删除、字面量与新类型不兼容，或新的主键不再被条件完整覆盖，受影响的查询会报错；外部过滤执行失败也会报错，不会返回未过滤的数据。
 
 ### 虚拟普通表标签
 
@@ -187,7 +274,7 @@ SELECT * FROM vntb WHERE region = 'us-east';  -- 过滤条件下推到源表标�
 
 - 标签引用只能引用标签列，不能引用数据列；源标签与目标标签数据类型必须一致。
 - 列引用只能引用数据列，不能引用标签列；源列与目标列数据类型必须一致。
-- 不支持引用超级表、视图，不支持引用有复合主键的表。
+- 不支持引用 TDengine 超级表、视图或有复合主键的 TDengine 表。MySQL、PostgreSQL 外部表支持满足 [主键过滤要求](#外部列引用条件过滤) 的复合主键。
 - 引用链中不允许出现环（A→B→A），创建时会校验。
 - 引用深度上限为 32 跳。
 
@@ -456,14 +543,15 @@ SELECT c1, c2 FROM v1;
 ALTER VTABLE [db_name.]vtb_name alter_table_clause
 
 alter_table_clause: {
-  ADD COLUMN vtb_col_name vtb_column_type [FROM table_name.col_name]
+  ADD COLUMN vtb_col_name vtb_column_type [FROM column_reference]
   | DROP COLUMN vtb_col_name
-  | ALTER COLUMN vtb_col_name SET {table_name.col_name | NULL }
+  | ALTER COLUMN vtb_col_name SET {column_reference | NULL}
   | MODIFY COLUMN col_name column_type
   | RENAME COLUMN old_col_name new_col_name
   | ADD TAG tag_name tag_type [FROM [db_name.]table_name.tag_name]
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
   | DROP TAG tag_name
+  | RENAME TAG old_tag_name new_tag_name
 }
 ```
 
@@ -479,11 +567,12 @@ alter_table_clause: {
 6. `ADD TAG`：添加标签。不带 `FROM` 时添加自有标签（初值为 `NULL`）；带 `FROM` 时添加标签引用。
 7. `SET TAG`：修改标签。设置为字面量（含 `NULL`）时，如果该标签原本是标签引用，则引用被清除并转为自有标签；设置为 `[db_name.]table_name.tag_name` 时，将自有标签转为标签引用，或将已有标签引用重指向其他源标签。源标签不存在、类型不一致或目标是数据列时报错。
 8. `DROP TAG`：删除标签，自有标签与标签引用均可删除。
+9. `RENAME TAG`：修改标签名称，自有标签与标签引用均可改名。仅改变标签的显示名称：自有标签的值保持不变，标签引用仍指向原源标签。新名称不能与该表已有的列名或标签名重复。自 3.4.3.0 版本开始支持。
 
 ### 增加列
 
 ```sql
-ALTER VTABLE vtb_name ADD COLUMN vtb_col_name vtb_col_type [FROM [db_name.]table_name.col_name]
+ALTER VTABLE vtb_name ADD COLUMN vtb_col_name vtb_col_type [FROM column_reference]
 ```
 
 ### 删除列
@@ -507,7 +596,7 @@ ALTER VTABLE vtb_name RENAME COLUMN old_col_name new_col_name
 ### 修改列的数据源
 
 ```sql
-ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {[db_name.]table_name.col_name | NULL}
+ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {column_reference | NULL}
 ```
 
 ### 增加标签
@@ -538,20 +627,34 @@ ALTER VTABLE vtb_name SET TAG tag_name = [db_name.]table_name.tag_name;
 ALTER VTABLE vtb_name DROP TAG tag_name;
 ```
 
+### 修改标签名
+
+```sql
+ALTER VTABLE vtb_name RENAME TAG old_tag_name new_tag_name;
+```
+
 ## 修改虚拟子表
 
 ```sql
 ALTER VTABLE [db_name.]vtb_name alter_table_clause
 
 alter_table_clause: {
-  ALTER COLUMN vtb_col_name SET table_name.col_name
+  ALTER COLUMN vtb_col_name SET {column_reference | NULL}
+  | ADD COLUMN owned_col_name type_name FROM column_reference
+  | ADD TAG owned_tag_name type_name
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
+  | DROP COLUMN owned_col_name
+  | DROP TAG owned_tag_name
 }
 ```
 
 **使用说明**
 
-1. 对虚拟子表的列和标签的修改，除了更改标签值以外，都要通过虚拟超级表才能进行。
+1. 对虚拟子表上来自虚拟超级表的列和标签（级联成员）的修改，需要通过虚拟超级表进行。
+2. 对虚拟子表的**自有列**和**自有标签**，可以直接在本表上执行 `ADD COLUMN`、`ADD TAG`、`SET TAG`、`DROP COLUMN`、`DROP TAG`。
+3. `DROP COLUMN` / `DROP TAG` 仅对自有成员合法；对级联成员执行会报错，需改用 `ALTER STABLE`（会级联影响该虚拟超级表下的全部虚拟子表）。
+4. 删除自有成员后名字立即释放，可被列或标签任意一侧复用；删除自有标签时若其携带标签引用，引用关系同步清除。
+5. `MODIFY COLUMN`、`RENAME COLUMN`、`RENAME TAG` 对虚拟子表不支持；自有成员的列宽和名称不可修改，只能删除后重新创建。
 
 ### 修改虚拟子表标签值
 
@@ -559,7 +662,7 @@ alter_table_clause: {
 ALTER VTABLE tb_name SET TAG tag_name1 = new_tag_value1, tag_name2 = new_tag_value2 ...;
 ```
 
-`SET TAG` 既可以把标签改成静态字面量值，也可以把标签改成标签引用。
+`SET TAG` 既可以把标签改成静态字面量值，也可以把标签改成标签引用。对**自有标签**同样适用：设为字面量时若原为引用则清除引用关系；设为标签引用时值随源表动态变化。
 
 #### 把标签设置为字面量
 
@@ -599,8 +702,42 @@ ALTER VTABLE v0 SET TAG ref_city=db1.src1.city;
 ### 修改列的数据源
 
 ```sql
-ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {[db_name.]table_name.col_name | NULL}
+ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {column_reference | NULL}
 ```
+
+### 增加自有列
+
+```sql
+ALTER VTABLE vtb_name ADD COLUMN owned_col_name type_name FROM column_reference
+```
+
+为虚拟子表追加自有列。自有列必须携带 `FROM` 数据源引用，不带引用会报错；引用目标必须是数据列，类型必须与声明一致，校验规则与创建时一致。
+
+```sql
+ALTER VTABLE v_d1 ADD COLUMN ext_v2 INT FROM p20.val;
+```
+
+### 增加自有标签
+
+```sql
+ALTER VTABLE vtb_name ADD TAG owned_tag_name type_name
+```
+
+为虚拟子表追加自有标签，初值为 `NULL`；字面量值或标签引用通过 `SET TAG` 设置（见上方“修改虚拟子表标签值”）。
+
+```sql
+ALTER VTABLE v_d1 ADD TAG dept VARCHAR(16);
+ALTER VTABLE v_d1 SET TAG dept = 'rd';
+```
+
+### 删除自有列或自有标签
+
+```sql
+ALTER VTABLE vtb_name DROP COLUMN owned_col_name
+ALTER VTABLE vtb_name DROP TAG owned_tag_name
+```
+
+仅能删除自有成员。若要删除来自虚拟超级表的级联列或标签，使用 `ALTER STABLE stb_name DROP COLUMN/DROP TAG`（会级联影响全部虚拟子表，不影响其他自有成员）。
 
 ## 删除虚拟表
 
@@ -640,6 +777,7 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 
 显示 `vtable_name` 指定的虚拟表的创建语句。支持虚拟普通表和虚拟子表。常用于数据库迁移。对一个已经存在的虚拟表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的虚拟表。
 对于使用标签引用创建的虚拟子表，返回结果会保留对应的标签引用定义。
+对于包含自有成员的虚拟子表，返回结果同样包含自有列（含其数据源引用）与自有标签（含其值或引用）的完整定义，`DECIMAL` 列输出精度标度 `DECIMAL(p,s)`；输出为单条完整可回放的 DDL。
 对于带标签的虚拟普通表，返回结果包含 `TAGS(...)` 子句：自有标签内联输出 `= value`（`NULL` 值输出 `= NULL`），标签引用输出 `FROM db_name.table_name.tag_name`，单条语句即可完整重建该虚拟表。
 
 ### 获取虚拟表结构信息
@@ -648,7 +786,7 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 DESCRIBE [db_name.]vtb_name;
 ```
 
-`DESCRIBE` 会展示虚拟表的列与标签结构；对于标签引用和列引用，结果中会包含对应的引用来源信息。虚拟普通表的标签行带 `TAG` 标记。
+`DESCRIBE` 会展示虚拟表的列与标签结构；对于标签引用和列引用，结果中会包含对应的引用来源信息。标签行带 `TAG` 标记（虚拟普通表的自有标签、虚拟子表的自有标签均是）；对于包含自有成员的虚拟子表，自有列显示为普通数据列，排在虚拟超级表列之后。
 
 ### 查看虚拟子表当前标签值
 

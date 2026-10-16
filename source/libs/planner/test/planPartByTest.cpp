@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -77,4 +79,33 @@ TEST_F(PlanPartitionByTest, withSlimit) {
   useDb("root", "test");
 
   run("SELECT CSUM(c1) FROM st1 PARTITION BY TBNAME SLIMIT 1");
+}
+
+TEST_F(PlanPartitionByTest, implicitHavingPlanShape) {
+  useDb("root", "test");
+
+  run("SELECT c1 FROM t1 HAVING c1 > 0");
+  EXPECT_EQ(1, countRawLogicPlanNode("Partition"));
+  EXPECT_EQ(0, countRawLogicPlanNode("Agg"));
+  EXPECT_TRUE(rawLogicPlanContains(IMPLICIT_PARTITION_KEY_ALIAS));
+
+  run("SELECT COUNT(*) FROM st1 PARTITION BY TBNAME");
+  EXPECT_TRUE(rawLogicPlanHasPartTableAgg());
+
+  run("SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 0");
+  EXPECT_EQ(1, countRawLogicPlanNode("Partition"));
+  EXPECT_EQ(1, countRawLogicPlanNode("Agg"));
+  EXPECT_TRUE(rawLogicPlanContains(IMPLICIT_PARTITION_KEY_ALIAS));
+  EXPECT_FALSE(rawLogicPlanHasPartTableAgg());
+  EXPECT_FALSE(rawLogicPlanHasPartTagAgg());
+}
+
+TEST_F(PlanPartitionByTest, implicitHavingLastKeepsNullGroup) {
+  useDb("root", "test");
+
+  run("SELECT LAST(c1) FROM t1 WHERE c2 > 0 "
+      "HAVING LAST(c1) IS NULL");
+  const string isNotNullOp =
+      "\"OpType\":\"" + to_string(OP_TYPE_IS_NOT_NULL) + "\"";
+  EXPECT_FALSE(planContains(isNotNullOp));
 }

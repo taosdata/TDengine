@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -480,7 +482,7 @@ static int32_t mndFindConfigsToAdd(SMnode *pMnode, SArray *addArray) {
     SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
     SConfigObj  *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
     if (obj == NULL) {
-      mInfo("config:%s, not exist in sdb, will add it", item->name);
+      mInfo("config:%s, does not exist in sdb, will add it", item->name);
       SConfigObj newObj;
       if ((code = mndInitConfigObj(item, &newObj)) != 0) {
         TAOS_RETURN(code);
@@ -530,7 +532,7 @@ static int32_t mndFindConfigsToDelete(SMnode *pMnode, SArray *deleteArray) {
     }
 
     if (!existsInGlobal) {
-      mInfo("config:%s, not exist in global config, will delete it from sdb", obj->name);
+      mInfo("config:%s, does not exist in global config, will delete it from sdb", obj->name);
       SConfigObj deleteObj = {0};
       tstrncpy(deleteObj.name, obj->name, CFG_NAME_MAX_LEN);
       deleteObj.dtype = obj->dtype;
@@ -835,8 +837,21 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     }
 
     CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
-    TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true, alterType), &lino,
-                    _err_out);
+    code = cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config,
+                                     dcfgReq.value, true, alterType);
+    if (code == TSDB_CODE_PAR_INVALID_TIMEZONE) {
+      char detail[TSDB_DNODE_VALUE_LEN + sizeof("Invalid timezone: ''")] = {0};
+      (void)snprintf(detail, sizeof(detail), "Invalid timezone: '%s'",
+                     dcfgReq.value);
+      int32_t detailLen = strlen(detail) + 1;
+      void   *pRsp = rpcMallocCont(detailLen);
+      if (pRsp != NULL) {
+        memcpy(pRsp, detail, detailLen);
+        pReq->info.rsp = pRsp;
+        pReq->info.rspLen = detailLen;
+      }
+    }
+    TAOS_CHECK_GOTO(code, &lino, _err_out);
   }
   SConfigItem *pItem = cfgGetItem(taosGetCfg(), dcfgReq.config);
   // Update config in sdb.
@@ -1347,6 +1362,10 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, u
         tstrncpy(info.category, "unknown", sizeof(info.category));
         break;
     }
+
+    // init info reboot: marks a value altered at runtime that is not yet effective until restart
+    tstrncpy(info.reboot, pItem->restartRequired ? "true" : "false", sizeof(info.reboot));
+
     if (NULL == taosArrayPush(pInfos, &info)) {
       mError("failed to push info to array while init variables from items,since %s", tstrerror(terrno));
       taosArrayDestroy(pInfos);

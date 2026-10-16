@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1086,7 +1088,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeBatchImp(J
 
   int32_t code = taos_stmt_execute(pStmt);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("excute batch jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
+    jniError("execute batch jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
     return code;
   }
 

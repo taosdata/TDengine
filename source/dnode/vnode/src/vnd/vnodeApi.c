@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -26,6 +28,12 @@ static void initMetaFilterAPI(SMetaDataFilterAPI* pFilter);
 static void initCacheFn(SStoreCacheReader* pCache);
 static void initSnapshotFn(SStoreSnapshotFn* pSnapshot);
 
+static int32_t tsVnodeDnodeId = 0;
+
+void vnodeSetDnodeId(int32_t dnodeId) { atomic_store_32(&tsVnodeDnodeId, dnodeId); }
+
+int32_t vnodeGetDnodeId(void) { return atomic_load_32(&tsVnodeDnodeId); }
+
 void initStorageAPI(SStorageAPI* pAPI) {
   initTsdbReaderAPI(&pAPI->tsdReader);
   initMetadataAPI(&pAPI->metaFn);
@@ -38,6 +46,8 @@ void initStorageAPI(SStorageAPI* pAPI) {
 
 void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderOpen = tsdbReaderOpen2;
+  pReader->tsdReaderOpenGroup = tsdbReaderOpenGroup2;
+  pReader->tsdReaderActivateGroup = tsdbReaderActivateGroup2;
   pReader->tsdReaderClose = tsdbReaderClose2;
 
   pReader->tsdNextDataBlock = tsdbNextDataBlock2;
@@ -89,6 +99,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->getBasicInfo = vnodeGetInfo;
   pMeta->getSecurityLevel = vnodeGetSecurityLevel;
+  pMeta->getVnodePrecision = vnodeGetTsdbPrecision;
   pMeta->getNumOfChildTables = metaGetStbStats;
 
   pMeta->getChildTableList = vnodeGetCtbIdList;
@@ -102,6 +113,8 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->resolveVTableTagChain    = vnodeResolveVTableTagChain;
 
   pMeta->getTableUidByName = metaGetTableUidByName;
+  pMeta->getTableUidsByNames = metaGetTableUidsByNames;
+  pMeta->getTableInfosByNames = metaGetTableInfosByNames;
   pMeta->getTableTypeSuidByName = metaGetTableTypeSuidByName;
   pMeta->getTableNameByUid = metaGetTableNameByUid;
 
@@ -123,6 +136,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->closeCtbCursor = metaCloseCtbCursor;
   pMeta->ctbCursorNext = metaCtbCursorNext;
   pMeta->getDBSize = vnodeGetDBSize;
+  pMeta->getLastCacheStats = vnodeGetLastCacheStats;
 
   pMeta->metaGetCachedRefDbs = metaGetCachedRefDbs;
   pMeta->metaPutRefDbsToCache = metaPutRefDbsToCache;

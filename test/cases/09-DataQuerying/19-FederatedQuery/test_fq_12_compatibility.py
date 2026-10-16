@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_12_compatibility.py
 
@@ -657,7 +672,137 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
     def test_fq_comp_s01_influx_http_protocol_query(self):
         """InfluxDB HTTP protocol end-to-end data query and parity with flight_sql.
 
-        NOTE: InfluxDB HTTP protocol does not support data queries in this version.
-        Skipped until the connector adds HTTP query support.
+        Verifies the HTTP query path returns the same rows as the Flight SQL
+        path for the configured InfluxDB version(s).
+
+        Since: v3.4.0.0
+
         """
-        pytest.skip("InfluxDB HTTP protocol query not yet supported by the connector")
+        for ver_cfg in ExtSrcEnv.influx_version_configs():
+            tag = ver_cfg.version.replace(".", "")
+            bucket = f"comp_s01_influx_http_{tag}"
+            src_http = f"comp_s01_http_v{tag}"
+            src_flight = f"comp_s01_flight_v{tag}"
+            self._cleanup(src_http, src_flight)
+            try:
+                ExtSrcEnv.influx_create_db_cfg(ver_cfg, bucket)
+                ExtSrcEnv.influx_write_cfg(ver_cfg, bucket, [
+                    "meas,region=north val=1.5,score=10i 1704067200000",
+                    "meas,region=south val=2.5,score=20i 1704067260000",
+                    "meas,region=east val=3.5,score=30i 1704067320000",
+                ])
+
+                self._mk_influx_real_ver(
+                    src_http,
+                    ver_cfg,
+                    bucket,
+                    protocol="http",
+                )
+                self._mk_influx_real_ver(
+                    src_flight,
+                    ver_cfg,
+                    bucket,
+                    protocol="flight_sql",
+                )
+
+                query_sql = "select region, val, score from {}.{}.meas order by time"
+
+                tdSql.query(query_sql.format(src_http, bucket))
+                tdSql.checkRows(3)
+                http_result = list(tdSql.queryResult)
+
+                tdSql.query(query_sql.format(src_flight, bucket))
+                tdSql.checkRows(3)
+                flight_result = list(tdSql.queryResult)
+
+                assert http_result == flight_result, (
+                    f"Influx HTTP query result differs from Flight SQL for {ver_cfg.version}: "
+                    f"http={http_result}, flight={flight_result}"
+                )
+                tdLog.debug(
+                    f"COMP-s01 InfluxDB {ver_cfg.version}: HTTP query path parity OK")
+            finally:
+                self._cleanup(src_http, src_flight)
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(ver_cfg, bucket)
+                except Exception:
+                    pass
+
+    # ------------------------------------------------------------------
+    # FQSS-COMP-001..003  SQL Server version compatibility (2019 / 2022)
+    # ------------------------------------------------------------------
+
+    def test_fq_ss_comp_version_compat(self):
+        """FQSS-COMP-001..003: SQL Server version compatibility — core query & mapping consistent
+
+        TS: SQL Server 2019 / 2022 execute the same core query with identical
+        results; with a single version configured only that version is
+        validated (2019 requires FQ_SQLSERVER_VERSIONS=2019,2022 plus the 2019
+        container; the default environment ships 2022 only).
+
+        The remote SQL text assertion covers the dialect requirements from the
+        SQL Server TS: bracket-quoted identifiers, three-part [db].[schema].[table]
+        naming, and ISO-8601 timestamp literals without the TIMESTAMP keyword.
+
+        Catalog:
+            - Query:FederatedCompatibility
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        first_result = None
+        for ver_cfg in ExtSrcEnv.sqlserver_version_configs():
+            tag = ver_cfg.version.replace(".", "")
+            ext_db = f"comp13_sqlserver_{tag}"
+            src    = f"comp13_sqlserver_v{tag}"
+            self._cleanup(src)
+            try:
+                ExtSrcEnv.sqlserver_create_db_cfg(ver_cfg, ext_db)
+                ExtSrcEnv.sqlserver_exec_cfg(ver_cfg, ext_db, [
+                    "IF OBJECT_ID('dbo.t1') IS NOT NULL DROP TABLE dbo.t1",
+                    "CREATE TABLE dbo.t1 (ts datetime2(3) NOT NULL PRIMARY KEY, id INT, val FLOAT, name NVARCHAR(64))",
+                    "INSERT INTO dbo.t1 VALUES "
+                    "('2024-01-01 00:00:00.000', 1, 1.5, 'alpha'),"
+                    "('2024-01-01 00:01:00.000', 2, 2.5, 'beta'),"
+                    "('2024-01-01 00:02:00.000', 3, 3.5, 'gamma')",
+                ])
+                self._active_sqlserver_ver = ver_cfg.version
+                self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+                tdSql.query(
+                    f"select id, val, name from {src}.{ext_db}.dbo.t1 order by id")
+                tdSql.checkRows(3)
+                tdSql.checkData(0, 0, 1)
+                tdSql.checkData(0, 1, 1.5)
+                tdSql.checkData(0, 2, "alpha")
+                tdSql.checkData(2, 0, 3)
+                result = list(tdSql.queryResult)
+                if first_result is None:
+                    first_result = result
+                else:
+                    assert result == first_result, (
+                        f"SQL Server {ver_cfg.version} results differ from first version")
+
+                # Dialect SQL text: remote SQL must carry the full three-part
+                # name and ISO-8601 literals without the TIMESTAMP keyword.
+                tdSql.query(
+                    "explain verbose true "
+                    f"select id, val from {src}.{ext_db}.dbo.t1 where name = 'alpha'")
+                plan = "\n".join(
+                    str(cell)
+                    for row in (tdSql.queryResult or [])
+                    for cell in row
+                    if cell is not None
+                )
+                assert f"[{ext_db}].[dbo].[t1]" in plan, plan
+                assert "TIMESTAMP '" not in plan, plan
+                tdLog.debug(
+                    f"FQSS-COMP SQL Server {ver_cfg.version}: 3 rows OK, dialect SQL text OK")
+            finally:
+                self._cleanup(src)
+                try:
+                    ExtSrcEnv.sqlserver_drop_db_cfg(ver_cfg, ext_db)
+                except Exception:
+                    pass

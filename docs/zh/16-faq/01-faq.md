@@ -23,6 +23,8 @@ ALTER DNODE <dnode_id> 'debugFlag' '135';
 
 系统正常运行时，须将 `debugFlag` 设为 `131`，否则会产生大量日志并降低系统效率。
 
+各组件日志文件的位置、文件名，以及如何确认实际日志目录和打包日志，详见 [日志文件位置与获取](../12-operations-and-tooling/02-operations/06-logs.md)。
+
 <!-- markdownlint-disable MD051 -->
 ## 常见问题列表
 
@@ -60,7 +62,7 @@ go env -w GOPROXY=https://goproxy.cn,direct
 如果无法正常访问 Docker Hub 官方仓库（hub.docker.com），可以尝试以下方法解决：
 
 - 检查网络连接是否正常。
-- 从 [TDengine 下载中心](https://www.taosdata.com/download-center) 下载镜像文件，然后使用 `docker load` 命令加载镜像，用法详见下载页面的使用说明。
+- 从 [TDengine 下载中心](https://taosdata.com/downloads) 下载镜像文件，然后使用 `docker load` 命令加载镜像，用法详见下载页面的使用说明。
 - 尝试使用其他镜像源，例如：[CNIX Internal Container Registry Mirror](https://m.ixdev.cn/)，该镜像源与涛思数据无关，如果失效，请尝试更换网络上的其它镜像源，用法详见镜像源的使用说明。
 
 ### 1.4 内网环境如何获取 JDBC 驱动的所有依赖 jar？
@@ -151,7 +153,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 其中，`v3.3.6.6` 起支持 `TAOS_ROOT_PASSWORD`，`v3.3.8.8` 及以上支持 `TAOS_ROOT_PASSWORD_FILE` 并可直接升级，`v3.4.1.0` 及以上支持 `taos-check startup` 和 `taos-check service`。
 
-### 2.7 遇到报错 "some vnode/qnode/mnode(s) out of service" 怎么办？
+### 2.7 遇到报错 "Some vnode/qnode/mnode(s) are out of service" 怎么办？
 
 客户端未配置所有服务端的 FQDN 解析。比如服务端有 3 个节点，客户端只配置了 1 个节点的 FQDN 解析。FQDN 配置参考：[一篇文章说清楚 TDengine 的 FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)
 

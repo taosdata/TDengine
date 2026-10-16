@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from fun_ts_window_case_helper import FunTsWindowCaseHelper
 
 
@@ -7,7 +22,8 @@ class TestFunTsWithWindow(FunTsWindowCaseHelper):
         Verify csum in ordinary window queries.
 
         Cover interval/session/state_window/event_window/count_window semantics,
-        plus null, partition, numeric-type, and interval-specific cases.
+        SQL-window partition/order/frame behavior, plus null, numeric-type,
+        and interval-specific cases.
 
         Since: 3.0.0.0
 
@@ -19,6 +35,7 @@ class TestFunTsWithWindow(FunTsWindowCaseHelper):
 
         History:
         - 2026-04-10 Joey Sima migrated ordinary-window coverage into 04-Timeseries.
+        - 2026-09-29 Codex added CSUM SQL-window regression coverage.
         """
         self.run_csum_with_window_case()
 

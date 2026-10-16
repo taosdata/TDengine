@@ -1,3 +1,18 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 aux_source_directory(src PARSER_SRC)
 set(PARSER_SRC
   src/parAstCreater.c
@@ -48,6 +63,7 @@ add_custom_target(lemon_sql
 
 add_library(parser STATIC ${PARSER_SRC})
 add_dependencies(parser lemon_sql)
+set_property(TARGET parser PROPERTY LINK_INTERFACE_MULTIPLICITY 3)
 target_include_directories(
         parser
         PUBLIC "${TD_SOURCE_DIR}/include/libs/parser"
@@ -59,6 +75,16 @@ target_link_libraries(
         parser
         PRIVATE os util nodes catalog function scalar planner geometry transport qcom decimal
 )
+
+# parser belongs to a cyclic static-archive group (parser/scalar/function/
+# catalog/extconnector/nodes/planner/index/geometry). CMake repeats the
+# whole group LINK_INTERFACE_MULTIPLICITY times on the link line; the
+# default of 2 is not enough for some consumers (clientMonitorTest needs
+# parseJsontoTagData from a libparser.a occurrence after the last
+# libscalar.a; bseTest and mnode tests need extConnector* after the last
+# libcatalog.a). CMake takes the max of this property across the cycle's
+# members, so setting it here covers every consumer of the group.
+set_property(TARGET parser PROPERTY LINK_INTERFACE_MULTIPLICITY 3)
 
 if(BUILD_TEST)
         ADD_SUBDIRECTORY(test)

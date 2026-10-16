@@ -28,81 +28,81 @@ fq03_src_m|mysql|127.0.0.1|13306|root|******|fq03_type_mdb||{}
 SQL: select ts, c_tinyint from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_tinyint
-2024-01-01 00:00:00.123456|-128
-2024-01-01 00:01:00|127
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|-128
+2024-01-01 00:01:00+00:00|127
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-004 QUERY
 SQL: select ts, c_tinyint_u from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_tinyint_u
-2024-01-01 00:00:00.123456|0
-2024-01-01 00:01:00|255
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|0
+2024-01-01 00:01:00+00:00|255
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-005 QUERY
 SQL: select ts, c_smallint from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_smallint
-2024-01-01 00:00:00.123456|-32768
-2024-01-01 00:01:00|32767
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|-32768
+2024-01-01 00:01:00+00:00|32767
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-006 QUERY
 SQL: select ts, c_smallint_u from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_smallint_u
-2024-01-01 00:00:00.123456|0
-2024-01-01 00:01:00|65535
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|0
+2024-01-01 00:01:00+00:00|65535
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-007 QUERY
 SQL: select ts, c_mediumint from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_mediumint
-2024-01-01 00:00:00.123456|-8388608
-2024-01-01 00:01:00|8388607
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|-8388608
+2024-01-01 00:01:00+00:00|8388607
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-008 QUERY
 SQL: select ts, c_mediumint_u from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_mediumint_u
-2024-01-01 00:00:00.123456|0
-2024-01-01 00:01:00|16777215
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|0
+2024-01-01 00:01:00+00:00|16777215
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-009 QUERY
 SQL: select ts, c_int from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_int
-2024-01-01 00:00:00.123456|42
-2024-01-01 00:01:00|2147483647
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|42
+2024-01-01 00:01:00+00:00|2147483647
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-010 QUERY
 SQL: select ts, c_int_u from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_int_u
-2024-01-01 00:00:00.123456|100
-2024-01-01 00:01:00|4294967295
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|100
+2024-01-01 00:01:00+00:00|4294967295
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-011 QUERY
 SQL: select ts, c_bigint from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_bigint
-2024-01-01 00:00:00.123456|-9223372036854775808
-2024-01-01 00:01:00|9223372036854775807
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|-9223372036854775808
+2024-01-01 00:01:00+00:00|9223372036854775807
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-012 QUERY
 SQL: select ts, c_bigint_u from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_bigint_u
-2024-01-01 00:00:00.123456|0
-2024-01-01 00:01:00|18446744073709551615
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|0
+2024-01-01 00:01:00+00:00|18446744073709551615
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-013 QUERY
 SQL: select c_tinyint, c_smallint, c_mediumint, c_int, c_bigint from fq03_src_m.all_types order by ts
@@ -116,231 +116,231 @@ NULL|NULL|NULL|NULL|NULL
 SQL: select ts, c_float from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_float
-2024-01-01 00:00:00.123456|3.1400001049
-2024-01-01 00:01:00|-3.1400001049
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|3.1400001049
+2024-01-01 00:01:00+00:00|-3.1400001049
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-015 QUERY
 SQL: select ts, c_double from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_double
-2024-01-01 00:00:00.123456|2.718281828
-2024-01-01 00:01:00|-2.718281828
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|2.718281828
+2024-01-01 00:01:00+00:00|-2.718281828
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-016 QUERY
 SQL: select ts, c_decimal from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_decimal
-2024-01-01 00:00:00.123456|12345.6789
-2024-01-01 00:01:00|-99999999999999.9999
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|12345.6789
+2024-01-01 00:01:00+00:00|-99999999999999.9999
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-017 QUERY
 SQL: select ts, c_decimal_big from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_decimal_big
-2024-01-01 00:00:00.123456|1234567890.1234567890
-2024-01-01 00:01:00|-9999999999999999999999999999.9999999999
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|1234567890.1234567890
+2024-01-01 00:01:00+00:00|-9999999999999999999999999999.9999999999
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-018 QUERY
 SQL: select ts, c_decimal_trunc from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_decimal_trunc
-2024-01-01 00:00:00.123456|123456789012345678.123
-2024-01-01 00:01:00|-123456789012345678.123
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|123456789012345678.123
+2024-01-01 00:01:00+00:00|-123456789012345678.123
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-019 QUERY
 SQL: select ts, c_bool from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_bool
-2024-01-01 00:00:00.123456|True
-2024-01-01 00:01:00|False
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|True
+2024-01-01 00:01:00+00:00|False
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-020 QUERY
 SQL: select ts, c_char from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_char
-2024-01-01 00:00:00.123456|hello
-2024-01-01 00:01:00|
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|hello
+2024-01-01 00:01:00+00:00|
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-021 QUERY
 SQL: select ts, c_varchar from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_varchar
-2024-01-01 00:00:00.123456|中文测试UTF8
-2024-01-01 00:01:00|
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|中文测试UTF8
+2024-01-01 00:01:00+00:00|
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-022 QUERY
 SQL: select ts, c_tinytext from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_tinytext
-2024-01-01 00:00:00.123456|tiny
-2024-01-01 00:01:00|
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|tiny
+2024-01-01 00:01:00+00:00|
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-023 QUERY
 SQL: select ts, c_text from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_text
-2024-01-01 00:00:00.123456|text content
-2024-01-01 00:01:00|
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|text content
+2024-01-01 00:01:00+00:00|
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-024 QUERY
 SQL: select ts, c_mediumtext from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_mediumtext
-2024-01-01 00:00:00.123456|medium text
-2024-01-01 00:01:00|
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|medium text
+2024-01-01 00:01:00+00:00|
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-025 QUERY
 SQL: select ts, c_longtext from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_longtext
-2024-01-01 00:00:00.123456|long text
-2024-01-01 00:01:00|
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|long text
+2024-01-01 00:01:00+00:00|
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-026 QUERY
 SQL: select ts, c_binary from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_binary
-2024-01-01 00:00:00.123456|b'HELLO\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-2024-01-01 00:01:00|b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|b'HELLO\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+2024-01-01 00:01:00+00:00|b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-027 QUERY
 SQL: select ts, c_varbinary from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_varbinary
-2024-01-01 00:00:00.123456|b'\xde\xad\xbe\xef'
-2024-01-01 00:01:00|b''
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|b'\xde\xad\xbe\xef'
+2024-01-01 00:01:00+00:00|b''
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-028 QUERY
 SQL: select ts, c_tinyblob from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_tinyblob
-2024-01-01 00:00:00.123456|b'\xaa'
-2024-01-01 00:01:00|b''
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|b'\xaa'
+2024-01-01 00:01:00+00:00|b''
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-029 QUERY
 SQL: select ts, c_blob from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_blob
-2024-01-01 00:00:00.123456|b'\xbb\xcc'
-2024-01-01 00:01:00|b''
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|b'\xbb\xcc'
+2024-01-01 00:01:00+00:00|b''
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-030 QUERY
 SQL: select ts, c_mediumblob from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_mediumblob
-2024-01-01 00:00:00.123456|b'\xdd\xee\xff'
-2024-01-01 00:01:00|b''
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|b'\xdd\xee\xff'
+2024-01-01 00:01:00+00:00|b''
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-031 QUERY
 SQL: select ts, c_longblob from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_longblob
-2024-01-01 00:00:00.123456|b'\x11"3'
-2024-01-01 00:01:00|b''
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|b'\x11"3'
+2024-01-01 00:01:00+00:00|b''
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-032 QUERY
 SQL: select ts, c_date from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_date
-2024-01-01 00:00:00.123456|2024-06-15 00:00:00
-2024-01-01 00:01:00|2023-12-31 00:00:00
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|2024-06-15 00:00:00+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:00+00:00
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-033 QUERY
 SQL: select ts, c_time from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_time
-2024-01-01 00:00:00.123456|37800000
-2024-01-01 00:01:00|1000
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|37800000
+2024-01-01 00:01:00+00:00|1000
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-034 QUERY
 SQL: select ts, c_datetime from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_datetime
-2024-01-01 00:00:00.123456|2024-01-01 12:00:00
-2024-01-01 00:01:00|2024-01-02 00:00:00
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|2024-01-01 12:00:00+00:00
+2024-01-01 00:01:00+00:00|2024-01-02 00:00:00+00:00
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-035 QUERY
 SQL: select ts, c_timestamp from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_timestamp
-2024-01-01 00:00:00.123456|2024-06-15 04:30:00
-2024-01-01 00:01:00|2024-01-01 16:00:00
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|2024-06-15 04:30:00+00:00
+2024-01-01 00:01:00+00:00|2024-01-01 16:00:00+00:00
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-036 QUERY
 SQL: select ts, c_year from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_year
-2024-01-01 00:00:00.123456|2024
-2024-01-01 00:01:00|1901
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|2024
+2024-01-01 00:01:00+00:00|1901
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-037 QUERY
 SQL: select ts, c_json from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_json
-2024-01-01 00:00:00.123456|{"name": "test", "value": 42}
-2024-01-01 00:01:00|[]
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|{"name": "test", "value": 42}
+2024-01-01 00:01:00+00:00|[]
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-038 QUERY
 SQL: select ts, c_enum from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_enum
-2024-01-01 00:00:00.123456|red
-2024-01-01 00:01:00|blue
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|red
+2024-01-01 00:01:00+00:00|blue
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-039 QUERY
 SQL: select ts, c_set from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_set
-2024-01-01 00:00:00.123456|a,b
-2024-01-01 00:01:00|a,b,c,d
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|a,b
+2024-01-01 00:01:00+00:00|a,b,c,d
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-040 QUERY
 SQL: select ts, c_geometry from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_geometry
-2024-01-01 00:00:00.123456|b'\x00\x00\x00\x00\x01\x01\x00\x00\x00)\\\x8f\xc2\xf5\x18]@\x14\xaeG\xe1z\xf4C@'
-2024-01-01 00:01:00|b'\x00\x00\x00\x00\x01\x02\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\xf0?'
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|b'\x00\x00\x00\x00\x01\x01\x00\x00\x00)\\\x8f\xc2\xf5\x18]@\x14\xaeG\xe1z\xf4C@'
+2024-01-01 00:01:00+00:00|b'\x00\x00\x00\x00\x01\x02\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\xf0?'
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-041 QUERY
 SQL: select ts, c_point from fq03_src_m.all_types order by ts
 RESULT:
 ts|c_point
-2024-01-01 00:00:00.123456|b'\x00\x00\x00\x00\x01\x01\x00\x00\x00\xaeG\xe1z\x14^^@{\x14\xaeG\xe1:?@'
-2024-01-01 00:01:00|b'\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00.123456+00:00|b'\x00\x00\x00\x00\x01\x01\x00\x00\x00\xaeG\xe1z\x14^^@{\x14\xaeG\xe1:?@'
+2024-01-01 00:01:00+00:00|b'\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01m[MYS] STEP-042 QUERY
 SQL: select * from fq03_src_m.all_types where c_int is null
 RESULT:
 ts|c_tinyint|c_tinyint_u|c_smallint|c_smallint_u|c_mediumint|c_mediumint_u|c_int|c_int_u|c_bigint|c_bigint_u|c_float|c_double|c_decimal|c_decimal_big|c_decimal_trunc|c_bool|c_char|c_varchar|c_tinytext|c_text|c_mediumtext|c_longtext|c_binary|c_varbinary|c_tinyblob|c_blob|c_mediumblob|c_longblob|c_date|c_time|c_datetime|c_timestamp|c_year|c_json|c_enum|c_set|c_geometry|c_point
-2024-01-01 00:02:00|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL
+2024-01-01 00:02:00+00:00|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL
 ---
 ### CASE-01m[MYS] STEP-043 QUERY
 SQL: select c_varchar from fq03_src_m.all_types where c_varchar like '%中文%'
@@ -391,13 +391,13 @@ c_dbl_prec|c_real|c_integer|c_integer_u
 SQL: select ts, val from fq03_src_m.ts_pk_timestamp
 RESULT:
 ts|val
-2023-12-31 16:00:00|1
+2023-12-31 16:00:00+00:00|1
 ---
 ### CASE-01m[MYS] STEP-051 QUERY
 SQL: select ts_pk, ts_extra, val from fq03_src_m.multi_ts
 RESULT:
 ts_pk|ts_extra|val
-2024-01-01 00:00:00|2024-06-15 12:00:00|42
+2024-01-01 00:00:00+00:00|2024-06-15 12:00:00+00:00|42
 ---
 ### CASE-01m[MYS] STEP-052 QUERY
 SQL: select count(*) from fq03_src_m.no_ts_table
@@ -422,8 +422,8 @@ id|val
 SQL: select ts, c_int, c_str, c_bool from fq03_src_m.v_mixed order by ts
 RESULT:
 ts|c_int|c_str|c_bool
-2024-01-01 00:00:00|42|test|True
-2024-01-02 00:00:00|-1|hello|False
+2024-01-01 00:00:00+00:00|42|test|True
+2024-01-02 00:00:00+00:00|-1|hello|False
 ---
 ### CASE-01m[MYS] STEP-056 QUERY
 SQL: select data, val from fq03_src_m.blob_overflow
@@ -455,13 +455,13 @@ b'\x00\x00\x00\x00\x01\x03\x00\x00\x00\x01\x00\x00\x00\x05\x00\x00\x00\x00\x00\x
 SQL: select ts from fq03_src_m.all_types order by ts limit 1
 RESULT:
 ts
-2024-01-01 00:00:00.123456
+2024-01-01 00:00:00.123456+00:00
 ---
 ### CASE-01m[MYS] STEP-061 QUERY
 SQL: select ts, val from fq03_src_m.unmappable_test
 RESULT:
 ts|val
-2024-01-01 00:00:00|7
+2024-01-01 00:00:00+00:00|7
 ---
 ### CASE-01m[MYS] STEP-062 EXPECT-ERROR
 SQL: select shape from fq03_src_m.unmappable_test
@@ -512,281 +512,281 @@ fq03_src_p|postgresql|127.0.0.1|15434|postgres|******|fq03_type_pdb||{}
 SQL: select ts, c_smallint from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_smallint
-2024-01-01 00:00:00|-32768
-2024-01-01 00:01:00|32767
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|-32768
+2024-01-01 00:01:00+00:00|32767
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-004 QUERY
 SQL: select ts, c_integer from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_integer
-2024-01-01 00:00:00|42
-2024-01-01 00:01:00|2147483647
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|42
+2024-01-01 00:01:00+00:00|2147483647
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-005 QUERY
 SQL: select ts, c_bigint from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_bigint
-2024-01-01 00:00:00|-9223372036854775808
-2024-01-01 00:01:00|9223372036854775807
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|-9223372036854775808
+2024-01-01 00:01:00+00:00|9223372036854775807
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-006 QUERY
 SQL: select ts, c_real from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_real
-2024-01-01 00:00:00|3.1400001049
-2024-01-01 00:01:00|-3.1400001049
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|3.1400001049
+2024-01-01 00:01:00+00:00|-3.1400001049
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-007 QUERY
 SQL: select ts, c_double_prec from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_double_prec
-2024-01-01 00:00:00|2.718281828
-2024-01-01 00:01:00|-2.718281828
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|2.718281828
+2024-01-01 00:01:00+00:00|-2.718281828
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-008 QUERY
 SQL: select ts, c_numeric from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_numeric
-2024-01-01 00:00:00|12345.6789
-2024-01-01 00:01:00|-99999999999999.9999
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|12345.6789
+2024-01-01 00:01:00+00:00|-99999999999999.9999
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-009 QUERY
 SQL: select ts, c_numeric_big from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_numeric_big
-2024-01-01 00:00:00|1234567890.1234567890
-2024-01-01 00:01:00|-9999999999999999999999999999.9999999999
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|1234567890.1234567890
+2024-01-01 00:01:00+00:00|-9999999999999999999999999999.9999999999
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-010 QUERY
 SQL: select ts, c_boolean from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_boolean
-2024-01-01 00:00:00|True
-2024-01-01 00:01:00|False
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|True
+2024-01-01 00:01:00+00:00|False
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-011 QUERY
 SQL: select ts, c_char from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_char
-2024-01-01 00:00:00|hello               
-2024-01-01 00:01:00|                    
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|hello               
+2024-01-01 00:01:00+00:00|                    
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-012 QUERY
 SQL: select ts, c_varchar from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_varchar
-2024-01-01 00:00:00|中文测试UTF8
-2024-01-01 00:01:00|
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|中文测试UTF8
+2024-01-01 00:01:00+00:00|
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-013 QUERY
 SQL: select ts, c_text from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_text
-2024-01-01 00:00:00|text content
-2024-01-01 00:01:00|
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|text content
+2024-01-01 00:01:00+00:00|
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-014 QUERY
 SQL: select ts, c_bytea from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_bytea
-2024-01-01 00:00:00|b'\xde\xad\xbe\xef'
-2024-01-01 00:01:00|b'\x00'
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|b'\xde\xad\xbe\xef'
+2024-01-01 00:01:00+00:00|b'\x00'
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-015 QUERY
 SQL: select ts, c_date from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_date
-2024-01-01 00:00:00|2024-06-15 00:00:00
-2024-01-01 00:01:00|2023-12-31 00:00:00
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|2024-06-15 00:00:00+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:00+00:00
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-016 QUERY
 SQL: select ts, c_time from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_time
-2024-01-01 00:00:00|37800000000
-2024-01-01 00:01:00|1000000
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|37800000000
+2024-01-01 00:01:00+00:00|1000000
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-017 QUERY
 SQL: select ts, c_timetz from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_timetz
-2024-01-01 00:00:00|49530000000
-2024-01-01 00:01:00|1000000
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|49530000000
+2024-01-01 00:01:00+00:00|1000000
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-018 QUERY
 SQL: select ts, c_timestamp from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_timestamp
-2024-01-01 00:00:00|2024-01-01 12:00:00
-2024-01-01 00:01:00|2024-01-02 00:00:00
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|2024-01-01 12:00:00+00:00
+2024-01-01 00:01:00+00:00|2024-01-02 00:00:00+00:00
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-019 QUERY
 SQL: select ts, c_timestamptz from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_timestamptz
-2024-01-01 00:00:00|2024-06-15 12:30:00
-2024-01-01 00:01:00|2024-01-01 16:00:00
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|2024-06-15 12:30:00+00:00
+2024-01-01 00:01:00+00:00|2024-01-01 16:00:00+00:00
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-020 QUERY
 SQL: select ts, c_interval from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_interval
-2024-01-01 00:00:00|259200000000
-2024-01-01 00:01:00|0
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|259200000000
+2024-01-01 00:01:00+00:00|0
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-021 QUERY
 SQL: select ts, c_money from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_money
-2024-01-01 00:00:00|12.34
-2024-01-01 00:01:00|0
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|12.34
+2024-01-01 00:01:00+00:00|0
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-022 QUERY
 SQL: select ts, c_inet from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_inet
-2024-01-01 00:00:00|192.168.1.1
-2024-01-01 00:01:00|::1
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|192.168.1.1
+2024-01-01 00:01:00+00:00|::1
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-023 QUERY
 SQL: select ts, c_cidr from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_cidr
-2024-01-01 00:00:00|10.0.0.0/8
-2024-01-01 00:01:00|::/0
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|10.0.0.0/8
+2024-01-01 00:01:00+00:00|::/0
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-024 QUERY
 SQL: select ts, c_macaddr from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_macaddr
-2024-01-01 00:00:00|08:00:2b:01:02:03
-2024-01-01 00:01:00|ff:ff:ff:ff:ff:ff
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|08:00:2b:01:02:03
+2024-01-01 00:01:00+00:00|ff:ff:ff:ff:ff:ff
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-025 QUERY
 SQL: select ts, c_macaddr8 from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_macaddr8
-2024-01-01 00:00:00|08:00:2b:01:02:03:04:05
-2024-01-01 00:01:00|ff:ff:ff:ff:ff:ff:ff:ff
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|08:00:2b:01:02:03:04:05
+2024-01-01 00:01:00+00:00|ff:ff:ff:ff:ff:ff:ff:ff
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-026 QUERY
 SQL: select ts, c_uuid from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_uuid
-2024-01-01 00:00:00|a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
-2024-01-01 00:01:00|00000000-0000-0000-0000-000000000000
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+2024-01-01 00:01:00+00:00|00000000-0000-0000-0000-000000000000
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-027 QUERY
 SQL: select ts, c_tsvector from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_tsvector
-2024-01-01 00:00:00|   brown   fox   quick   the   
-2024-01-01 00:01:00|    
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|   brown   fox   quick   the   
+2024-01-01 00:01:00+00:00|    
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-028 QUERY
 SQL: select ts, c_tsquery from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_tsquery
-2024-01-01 00:00:00|     dog   fox 
-2024-01-01 00:01:00|    
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|     dog   fox 
+2024-01-01 00:01:00+00:00|    
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-029 QUERY
 SQL: select ts, c_json from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_json
-2024-01-01 00:00:00|{"name":"test","value":42}
-2024-01-01 00:01:00|[]
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|{"name":"test","value":42}
+2024-01-01 00:01:00+00:00|[]
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-030 QUERY
 SQL: select ts, c_jsonb from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_jsonb
-2024-01-01 00:00:00|{"key": "val"}
-2024-01-01 00:01:00|{}
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|{"key": "val"}
+2024-01-01 00:01:00+00:00|{}
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-031 QUERY
 SQL: select ts, c_xml from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_xml
-2024-01-01 00:00:00|<root><item>1</item></root>
-2024-01-01 00:01:00|<empty/>
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|<root><item>1</item></root>
+2024-01-01 00:01:00+00:00|<empty/>
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-032 QUERY
 SQL: select ts, c_point from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_point
-2024-01-01 00:00:00|b'@]\x18\xf5\xc2\x8f\\)@C\xf4z\xe1G\xae\x14'
-2024-01-01 00:01:00|b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|b'@]\x18\xf5\xc2\x8f\\)@C\xf4z\xe1G\xae\x14'
+2024-01-01 00:01:00+00:00|b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-033 QUERY
 SQL: select ts, c_bit from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_bit
-2024-01-01 00:00:00|b'\x00\x00\x00\x08\xaa'
-2024-01-01 00:01:00|b'\x00\x00\x00\x08\x01'
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|b'\x00\x00\x00\x08\xaa'
+2024-01-01 00:01:00+00:00|b'\x00\x00\x00\x08\x01'
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-034 QUERY
 SQL: select ts, c_bit_varying from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_bit_varying
-2024-01-01 00:00:00|b'\x00\x00\x00\x06\xcc'
-2024-01-01 00:01:00|b'\x00\x00\x00\x01\x80'
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|b'\x00\x00\x00\x06\xcc'
+2024-01-01 00:01:00+00:00|b'\x00\x00\x00\x01\x80'
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-035 QUERY
 SQL: select ts, c_hstore from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_hstore
-2024-01-01 00:00:00|      key   value
-2024-01-01 00:01:00|      a   b
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|      key   value
+2024-01-01 00:01:00+00:00|      a   b
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-036 QUERY
 SQL: select ts, c_geom from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_geom
-2024-01-01 00:00:00|b'\x01\x01\x00\x00 \xe6\x10\x00\x00)\\\x8f\xc2\xf5\x18]@\x14\xaeG\xe1z\xf4C@'
-2024-01-01 00:01:00|b'\x01\x01\x00\x00 \xe6\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|b'\x01\x01\x00\x00 \xe6\x10\x00\x00)\\\x8f\xc2\xf5\x18]@\x14\xaeG\xe1z\xf4C@'
+2024-01-01 00:01:00+00:00|b'\x01\x01\x00\x00 \xe6\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-037 QUERY
 SQL: select ts, c_mood from fq03_src_p.public.all_types order by ts
 RESULT:
 ts|c_mood
-2024-01-01 00:00:00|happy
-2024-01-01 00:01:00|sad
-2024-01-01 00:02:00|NULL
+2024-01-01 00:00:00+00:00|happy
+2024-01-01 00:01:00+00:00|sad
+2024-01-01 00:02:00+00:00|NULL
 ---
 ### CASE-01p[POS] STEP-038 QUERY
 SQL: select c_float4, c_float8, c_int2, c_int4, c_int8 from fq03_src_p.public.all_types order by ts
@@ -808,7 +808,7 @@ NULL|NULL
 SQL: select * from fq03_src_p.public.all_types where c_integer is null
 RESULT:
 ts|c_smallint|c_integer|c_bigint|c_real|c_double_prec|c_numeric|c_numeric_big|c_boolean|c_char|c_varchar|c_text|c_bytea|c_date|c_time|c_timetz|c_timestamp|c_timestamptz|c_interval|c_money|c_inet|c_cidr|c_macaddr|c_macaddr8|c_uuid|c_tsvector|c_tsquery|c_json|c_jsonb|c_xml|c_point|c_bit|c_bit_varying|c_hstore|c_geom|c_mood|c_float4|c_float8|c_int2|c_int4|c_int8|c_character|c_char_varying
-2024-01-01 00:02:00|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL
+2024-01-01 00:02:00+00:00|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL|NULL
 ---
 ### CASE-01p[POS] STEP-041 QUERY
 SQL: select c_varchar from fq03_src_p.public.all_types where c_varchar like '%中文%'
@@ -844,7 +844,7 @@ c_smallserial|c_serial|c_bigserial
 SQL: select ts, val from fq03_src_p.public.ts_pk_tstz
 RESULT:
 ts|val
-2024-01-01 00:00:00|1
+2024-01-01 00:00:00+00:00|1
 ---
 ### CASE-01p[POS] STEP-047 QUERY
 SQL: select count(*) from fq03_src_p.public.no_ts_table
@@ -862,15 +862,15 @@ count(*)
 SQL: select c_tstz from fq03_src_p.public.tstz_multi order by ts
 RESULT:
 c_tstz
-2024-06-15 12:00:00
-2024-06-15 12:00:00
-2024-06-15 12:00:00
+2024-06-15 12:00:00+00:00
+2024-06-15 12:00:00+00:00
+2024-06-15 12:00:00+00:00
 ---
 ### CASE-01p[POS] STEP-050 QUERY
 SQL: select c_ttz, c_tstz, c_tsno from fq03_src_p.public.ts_variants
 RESULT:
 c_ttz|c_tstz|c_tsno
-49530000000|2024-06-15 12:00:00|2024-06-15 15:30:00
+49530000000|2024-06-15 12:00:00+00:00|2024-06-15 15:30:00+00:00
 ---
 ### CASE-01p[POS] STEP-051 QUERY
 SQL: select c_text from fq03_src_p.public.all_types where c_text != '' order by ts limit 1
@@ -882,7 +882,7 @@ text content
 SQL: select ts, val from fq03_src_p.public.udt_type_test
 RESULT:
 ts|val
-2024-01-01 00:00:00|99
+2024-01-01 00:00:00+00:00|99
 ---
 ### CASE-01p[POS] STEP-053 EXPECT-ERROR
 SQL: select loc from fq03_src_p.public.udt_type_test
@@ -898,7 +898,7 @@ ERROR_EXPECTED: 2147509253
 SQL: select ts, val from fq03_src_p.public.domain_type_test
 RESULT:
 ts|val
-2024-01-01 00:00:00|42
+2024-01-01 00:00:00+00:00|42
 ---
 ### CASE-01p[POS] STEP-056 EXPECT-ERROR
 SQL: select score from fq03_src_p.public.domain_type_test
@@ -909,7 +909,7 @@ ERROR_EXPECTED: 2147509253
 SQL: select ts, val from fq03_src_p.public.custom_range_test
 RESULT:
 ts|val
-2024-01-01 00:00:00|7
+2024-01-01 00:00:00+00:00|7
 ---
 ### CASE-01p[POS] STEP-058 EXPECT-ERROR
 SQL: select rng from fq03_src_p.public.custom_range_test
@@ -945,7 +945,7 @@ RESULT:
 OK
 ---
 ### CASE-01i[INF] STEP-002 EXEC
-SQL: create external source fq03_src_i type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq03_type_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source fq03_src_i type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq03_type_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -953,13 +953,13 @@ OK
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq03_src_i|influxdb|127.0.0.1|18086|admin|******|fq03_type_idb||{"api_token":"******","protocol":"flight_sql"}
+fq03_src_i|influxdb|127.0.0.1|18086|admin|******|fq03_type_idb||{"api_token":"******","protocol":"<PROTO>"}
 ---
 ### CASE-01i[INF] STEP-002 AUTO-DESCRIBE
 SQL: describe external source fq03_src_i
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq03_src_i|influxdb|127.0.0.1|18086|admin|******|fq03_type_idb||{"api_token":"******","protocol":"flight_sql"}
+fq03_src_i|influxdb|127.0.0.1|18086|admin|******|fq03_type_idb||{"api_token":"******","protocol":"<PROTO>"}
 ---
 ### CASE-01i[INF] STEP-003 QUERY
 SQL: select f_int, f_float, f_bool, f_str from fq03_src_i.scalar_types order by f_int
@@ -993,8 +993,8 @@ data|meta
 SQL: select time, value from fq03_src_i.date_test order by value
 RESULT:
 time|value
-1705276800000000000|1
-1718409600000000000|2
+2024-01-15 00:00:00+00:00|1
+2024-06-15 00:00:00+00:00|2
 ---
 ### CASE-01i[INF] STEP-008 QUERY
 SQL: select tod_us from fq03_src_i.time_of_day order by tod_us
@@ -1072,4 +1072,247 @@ OK
 ================================================================================================
 CASE END: CASE-01i[INF]
 DESC: InfluxDB full type mapping
+================================================================================================
+================================================================================================
+CASE START: CASE-01s[SQL]
+DESC: SQL Server full type mapping
+================================================================================================
+### CASE-01s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq03_src_s
+RESULT:
+OK
+---
+### CASE-01s[SQL] STEP-002 EXEC
+SQL: create external source fq03_src_s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database=fq03_type_sdb schema=dbo
+RESULT:
+OK
+---
+### CASE-01s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq03_src_s|sqlserver|127.0.0.1|1433|sa|******|fq03_type_sdb|dbo|{}
+---
+### CASE-01s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq03_src_s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq03_src_s|sqlserver|127.0.0.1|1433|sa|******|fq03_type_sdb|dbo|{}
+---
+### CASE-01s[SQL] STEP-003 QUERY
+SQL: select ts, c_bit from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_bit
+2024-01-01 00:00:00.123456+00:00|True
+2024-01-01 00:01:00+00:00|False
+---
+### CASE-01s[SQL] STEP-004 QUERY
+SQL: select ts, c_tinyint, c_smallint, c_int, c_bigint from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_tinyint|c_smallint|c_int|c_bigint
+2024-01-01 00:00:00.123456+00:00|100|-32768|42|-9223372036854775808
+2024-01-01 00:01:00+00:00|127|32767|-2147483648|9223372036854775807
+---
+### CASE-01s[SQL] STEP-005 QUERY
+SQL: select ts, c_real, c_float from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_real|c_float
+2024-01-01 00:00:00.123456+00:00|3.5|2.71828182846
+2024-01-01 00:01:00+00:00|-3.5|-2.71828182846
+---
+### CASE-01s[SQL] STEP-006 QUERY
+SQL: select ts, c_decimal, c_decimal_big from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_decimal|c_decimal_big
+2024-01-01 00:00:00.123456+00:00|12345.6789|1234567890.1234567890
+2024-01-01 00:01:00+00:00|-99999999999999.9999|-9999999999.9999999999
+---
+### CASE-01s[SQL] STEP-007 QUERY
+SQL: select ts, c_money, c_smallmoney from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_money|c_smallmoney
+2024-01-01 00:00:00.123456+00:00|314.1592|-12.3456
+2024-01-01 00:01:00+00:00|-314.1592|12.3456
+---
+### CASE-01s[SQL] STEP-008 QUERY
+SQL: select ts, c_char, c_varchar from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_char|c_varchar
+2024-01-01 00:00:00.123456+00:00|hello               |ascii-varchar
+2024-01-01 00:01:00+00:00|                    |
+---
+### CASE-01s[SQL] STEP-009 QUERY
+SQL: select ts, c_nchar, c_nvarchar from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_nchar|c_nvarchar
+2024-01-01 00:00:00.123456+00:00|宽字符                 |宽字符测试UTF8
+2024-01-01 00:01:00+00:00|                    |
+---
+### CASE-01s[SQL] STEP-010 QUERY
+SQL: select ts, c_uniqueidentifier from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_uniqueidentifier
+2024-01-01 00:00:00.123456+00:00|A1B2C3D4-E5F6-7890-ABCD-EF1234567890
+2024-01-01 00:01:00+00:00|00000000-0000-0000-0000-000000000000
+---
+### CASE-01s[SQL] STEP-011 QUERY
+SQL: select ts, c_xml from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_xml
+2024-01-01 00:00:00.123456+00:00|<root><v>1</v></root>
+2024-01-01 00:01:00+00:00|<root/>
+---
+### CASE-01s[SQL] STEP-012 QUERY
+SQL: select ts, c_binary from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_binary
+2024-01-01 00:00:00.123456+00:00|b'HELLO\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+2024-01-01 00:01:00+00:00|b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+---
+### CASE-01s[SQL] STEP-013 QUERY
+SQL: select ts, c_varbinary from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_varbinary
+2024-01-01 00:00:00.123456+00:00|b'\xde\xad\xbe\xef'
+2024-01-01 00:01:00+00:00|b'\x00'
+---
+### CASE-01s[SQL] STEP-014 QUERY
+SQL: select ts, c_image from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_image
+2024-01-01 00:00:00.123456+00:00|b'\xaa\xbb'
+2024-01-01 00:01:00+00:00|b'\x00'
+---
+### CASE-01s[SQL] STEP-015 QUERY
+SQL: select ts, c_date, c_time from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_date|c_time
+2024-01-01 00:00:00.123456+00:00|2024-06-15 00:00:00+00:00|37800000000
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:00+00:00|1000000
+---
+### CASE-01s[SQL] STEP-016 QUERY
+SQL: select ts, c_datetime, c_datetime2 from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_datetime|c_datetime2
+2024-01-01 00:00:00.123456+00:00|2024-01-01 12:00:00+00:00|2024-01-01 12:00:00.123456+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:00+00:00|2023-12-31 00:00:01+00:00
+---
+### CASE-01s[SQL] STEP-017 QUERY
+SQL: select ts, c_datetimeoffset from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_datetimeoffset
+2024-01-01 00:00:00.123456+00:00|2024-01-01 04:00:00.123456+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 05:00:00+00:00
+---
+### CASE-01s[SQL] STEP-018 QUERY
+SQL: select ts, c_smalldatetime from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_smalldatetime
+2024-01-01 00:00:00.123456+00:00|2024-01-01 12:00:00+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:00+00:00
+---
+### CASE-01s[SQL] STEP-019 QUERY
+SQL: select ts, c_geography from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_geography
+2024-01-01 00:00:00.123456+00:00|b'\xe6\x10\x00\x00\x01\x0c\x14\xaeG\xe1z\xf4C@)\\\x8f\xc2\xf5\x18]@'
+2024-01-01 00:01:00+00:00|b'\xe6\x10\x00\x00\x01\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+---
+### CASE-01s[SQL] STEP-020 QUERY
+SQL: select ts, c_geometry from fq03_src_s.all_types_ss order by ts
+RESULT:
+ts|c_geometry
+2024-01-01 00:00:00.123456+00:00|b'\xe6\x10\x00\x00\x01\x0c)\\\x8f\xc2\xf5\x18]@\x14\xaeG\xe1z\xf4C@'
+2024-01-01 00:01:00+00:00|b'\xe6\x10\x00\x00\x01\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+---
+### CASE-01s[SQL] STEP-021 QUERY
+SQL: describe fq03_src_s.all_types_ss
+RESULT:
+field|type|length|note
+ts|TIMESTAMP|8|
+c_bit|BOOL|1|
+c_tinyint|TINYINT|1|
+c_smallint|SMALLINT|2|
+c_int|INT|4|
+c_bigint|BIGINT|8|
+c_real|FLOAT|4|
+c_float|DOUBLE|8|
+c_decimal|DECIMAL(18, 4)|8|
+c_decimal_big|DECIMAL(38, 10)|16|
+c_money|DECIMAL(19, 4)|16|
+c_smallmoney|DECIMAL(10, 4)|8|
+c_char|VARCHAR|20|
+c_varchar|VARCHAR|100|
+c_nchar|NCHAR|20|
+c_nvarchar|NCHAR|100|
+c_uniqueidentifier|VARCHAR|36|
+c_xml|NCHAR|16379|
+c_binary|VARBINARY|16|
+c_varbinary|VARBINARY|100|
+c_image|BLOB|16777220|
+c_date|TIMESTAMP|8|
+c_time|BIGINT|8|
+c_datetime|TIMESTAMP|8|
+c_datetime2|TIMESTAMP|8|
+c_datetimeoffset|TIMESTAMP|8|
+c_smalldatetime|TIMESTAMP|8|
+c_geography|GEOMETRY|65517|
+c_geometry|GEOMETRY|65517|
+---
+### CASE-01s[SQL] STEP-022 QUERY
+SQL: select ts, c_tinyint from fq03_src_s.tinyint_overflow_ss order by ts
+RESULT:
+ERROR: query failed
+---
+### CASE-01s[SQL] STEP-023 QUERY
+SQL: describe fq03_src_s.rowversion_ss
+RESULT:
+field|type|length|note
+ts|TIMESTAMP|8|
+c_rowversion|VARBINARY|8|
+c_v|INT|4|
+---
+### CASE-01s[SQL] STEP-024 QUERY
+SQL: select ts, c_v from fq03_src_s.rowversion_ss order by ts
+RESULT:
+ts|c_v
+2024-01-01 00:00:00+00:00|1
+---
+### CASE-01s[SQL] STEP-025 EXPECT-ERROR
+SQL: select ts, c_variant from fq03_src_s.unmappable_ss
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01s[SQL] STEP-026 EXPECT-ERROR
+SQL: select * from fq03_src_s.unmappable_ss
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01s[SQL] STEP-027 EXPECT-ERROR
+SQL: select ts, c_hier from fq03_src_s.unmappable_ss
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01s[SQL] STEP-028 QUERY
+SQL: select ts, c_int from fq03_src_s.fq03_type_sdb.dbo.all_types_ss order by ts
+RESULT:
+ts|c_int
+2024-01-01 00:00:00.123456+00:00|42
+2024-01-01 00:01:00+00:00|-2147483648
+---
+### CASE-01s[SQL] STEP-029 QUERY
+SQL: select ts, c_int from fq03_src_s.dbo.all_types_ss order by ts
+RESULT:
+ts|c_int
+2024-01-01 00:00:00.123456+00:00|42
+2024-01-01 00:01:00+00:00|-2147483648
+---
+### CASE-01s[SQL] STEP-030 CLEANUP
+SQL: drop external source if exists fq03_src_s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-01s[SQL]
+DESC: SQL Server full type mapping
 ================================================================================================

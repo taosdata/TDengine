@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
 
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set -euo pipefail
 
 usage() {
@@ -51,10 +66,72 @@ prune_toolchain_runtime_libs() {
   done
 }
 
+resolve_darwin_dep() {
+  local dep=$1
+  local owner=$2
+  local owner_dir
+  local rpath
+  local candidate
+
+  case "${dep}" in
+    /*)
+      printf '%s\n' "${dep}"
+      return 0
+      ;;
+  esac
+
+  owner_dir="$(dirname "${owner}")"
+  case "${dep}" in
+    @loader_path/*)
+      candidate="${owner_dir}/${dep#@loader_path/}"
+      ;;
+    @rpath/*)
+      while IFS= read -r rpath; do
+        case "${rpath}" in
+          @loader_path)
+            rpath="${owner_dir}"
+            ;;
+          @loader_path/*)
+            rpath="${owner_dir}/${rpath#@loader_path/}"
+            ;;
+          /*)
+            ;;
+          *)
+            continue
+            ;;
+        esac
+
+        candidate="${rpath}/${dep#@rpath/}"
+        if [ -e "${candidate}" ]; then
+          printf '%s\n' "${candidate}"
+          return 0
+        fi
+      done < <(otool -l "${owner}" | awk '
+        $1 == "cmd" && $2 == "LC_RPATH" { in_rpath = 1; next }
+        in_rpath && $1 == "path" { print $2; in_rpath = 0 }
+      ')
+
+      candidate="${owner_dir}/${dep#@rpath/}"
+      if [ -e "${candidate}" ]; then
+        printf '%s\n' "${candidate}"
+        return 0
+      fi
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  [ -e "${candidate}" ] || return 1
+  printf '%s\n' "${candidate}"
+}
+
 copy_ldd() {
   local src_lib=$1
   local dst_dir=$2
   local dep=""
+  local raw_dep=""
   local cur=""
   local seen=""
   local queue=("${src_lib}")
@@ -65,8 +142,9 @@ copy_ldd() {
       cur="${queue[0]}"
       queue=("${queue[@]:1}")
       otool -L "${cur}" >/dev/null 2>&1 || continue
-      while IFS= read -r dep; do
-        [ -n "${dep}" ] || continue
+      while IFS= read -r raw_dep; do
+        [ -n "${raw_dep}" ] || continue
+        dep="$(resolve_darwin_dep "${raw_dep}" "${cur}")" || continue
         [ "$(basename "${dep}")" = "$(basename "${cur}")" ] && continue
         should_skip_ldd_dep "${dep}" && continue
         [ -e "${dep}" ] || continue
@@ -76,7 +154,7 @@ copy_ldd() {
         seen="${seen}|${dep}|"
         copy_to_dir "${dep}" "${dst_dir}"
         queue+=("${dep}")
-      done < <(otool -L "${cur}" | awk 'NR > 1 && $1 ~ /^\// {print $1}' | sort -u)
+      done < <(otool -L "${cur}" | awk 'NR > 1 {print $1}' | sort -u)
     done
     prune_toolchain_runtime_libs "${dst_dir}"
     return 0
@@ -145,6 +223,19 @@ should_skip_ldd_dep() {
   esac
   case "${base}" in
     ld-linux*.so*|linux-vdso*.so*|libBrokenLocale.so*|libSystem*.dylib|libanl.so*|libc.so*|libdl.so*|libm.so*|libmvec.so*|libpthread.so*|libresolv.so*|librt.so*|libthread_db.so*|libutil.so*)
+      return 0
+      ;;
+  esac
+  # libselinux ships with the base OS and is linked by coreutils (find, mkdir,
+  # cp, ...).  On some build images the staged closure pulls it in (e.g. an
+  # RHEL-style libkrb5support needed by libmsodbcsql links it), and the copied
+  # build-machine build has no version symbols.  Shadowing the container's own
+  # copy through LD_LIBRARY_PATH then makes every one of those tools print
+  # "no version information available" on stderr — which breaks tests that
+  # parse merged tool output (12-UDFs locates UDF libraries with `find`).
+  # The host copy is always the right one, so never stage it.
+  case "${base}" in
+    libselinux.so*)
       return 0
       ;;
   esac

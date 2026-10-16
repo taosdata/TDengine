@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -148,6 +150,7 @@ TEST(osSystemTest, systemUUIDTest2) {
   ASSERT_EQ(strlen(uuid9), sizeof(uuid9) - 1);
 }
 
+#if defined(LINUX)
 // Tests for cgroup-aware resource detection (K8s/container environments)
 TEST(osSystemTest, cgroupCpuCoresTest) {
   // taosGetCpuCores with physical=false should return cgroup-aware value
@@ -231,6 +234,7 @@ TEST(osSystemTest, cgroupConsistencyTest) {
   ASSERT_LE(usedKB, totalKB);
   ASSERT_LE(freeKB, totalKB);
 }
+#endif
 
 TEST(osSystemTests, taosDllOperations) {
   // Test loading a system library (libc on Linux)

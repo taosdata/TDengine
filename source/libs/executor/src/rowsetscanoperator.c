@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,18 +25,80 @@
 #include "tdatablock.h"
 #include "tutil.h"
 
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 // Internal state
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 
 typedef struct SRowsetSourceInfo {
-  SArray*   pBlocks;    // SArray<SSDataBlock*> — pre-deserialized blocks
+  SArray*   pBlocks;    // SArray<SSDataBlock*>  -  pre-deserialized blocks
   int32_t   curBlock;   // next block index to return
 } SRowsetSourceInfo;
 
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 // Helpers
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
+
+static SSDataBlock* createRowsetDataBlock(const SRowsetSourcePhysiNode* pPhyNode) {
+  SDataBlockDescNode* pDesc = pPhyNode->node.pOutputDataBlockDesc;
+
+  if (NULL == pDesc || pPhyNode->colCount <= 0 || pPhyNode->colCount > LIST_LENGTH(pDesc->pSlots)) {
+    qError("rowset source invalid data block desc, desc:%p colCount:%d slots:%d", pDesc, pPhyNode->colCount,
+           NULL == pDesc ? 0 : LIST_LENGTH(pDesc->pSlots));
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return NULL;
+  }
+
+  return createDataBlockFromDescNode(pDesc);
+}
+
+static int32_t fillRowsetExtendedColumns(const SRowsetSourcePhysiNode* pPhyNode, SSDataBlock* pBlock) {
+  SDataBlockDescNode* pDesc = pPhyNode->node.pOutputDataBlockDesc;
+  int32_t             numOfSlots = LIST_LENGTH(pDesc->pSlots);
+
+  for (int32_t dstIndex = pPhyNode->colCount; dstIndex < numOfSlots; ++dstIndex) {
+    SSlotDescNode* pDstSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, dstIndex);
+    SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstIndex);
+    if (NULL == pDstSlot || NULL == pDstCol) {
+      qError("rowset source invalid extended slot:%d slot:%p col:%p", dstIndex, pDstSlot, pDstCol);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    if (pDstSlot->reserve) {
+      colDataSetNNULL(pDstCol, 0, pBlock->info.rows);
+      continue;
+    }
+
+    bool copied = false;
+    for (int32_t srcIndex = 0; srcIndex < pPhyNode->colCount; ++srcIndex) {
+      SSlotDescNode* pSrcSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, srcIndex);
+      SColumnInfoData* pSrcCol = taosArrayGet(pBlock->pDataBlock, srcIndex);
+      if (NULL == pSrcSlot || NULL == pSrcCol) {
+        qError("rowset source invalid source slot:%d slot:%p col:%p", srcIndex, pSrcSlot, pSrcCol);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      if (pDstSlot->dataType.type != pSrcSlot->dataType.type || pDstSlot->dataType.bytes != pSrcSlot->dataType.bytes ||
+          strcmp(pDstSlot->name, pSrcSlot->name) != 0) {
+        continue;
+      }
+
+      int32_t code = colDataAssign(pDstCol, pSrcCol, pBlock->info.rows, &pBlock->info);
+      if (TSDB_CODE_SUCCESS != code) {
+        qError("rowset source failed to copy extended slot:%d from source slot:%d, code:%s", dstIndex, srcIndex,
+               tstrerror(code));
+        return code;
+      }
+      copied = true;
+      break;
+    }
+
+    if (!copied) {
+      qError("rowset source cannot populate extended slot:%d name:%s", dstIndex, pDstSlot->name);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static void destroyRowsetSourceOperatorInfo(void* param) {
   if (param == NULL) return;
@@ -51,9 +115,9 @@ static void destroyRowsetSourceOperatorInfo(void* param) {
   taosMemoryFree(pInfo);
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 // Operator callbacks
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 
 static int32_t doRowsetSourceNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SRowsetSourceInfo* pInfo = pOperator->info;
@@ -80,10 +144,10 @@ static int32_t doRowsetSourceNext(SOperatorInfo* pOperator, SSDataBlock** pResBl
   return TSDB_CODE_SUCCESS;
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Deserialization: length-prefix multi-block binary → SArray<SSDataBlock*>
+// --------------------------------------------------------------------------------
+// Deserialization: length-prefix multi-block binary  ->  SArray<SSDataBlock*>
 // Format: [uint32_t blockSize][blockDataToBuf output] repeated numBlocks times
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 
 static int32_t deserializeRowsetBlocks(const SRowsetSourcePhysiNode* pPhyNode,
                                        SArray** ppBlocks) {
@@ -101,10 +165,9 @@ static int32_t deserializeRowsetBlocks(const SRowsetSourcePhysiNode* pPhyNode,
   const uint8_t* pCur = pPhyNode->pBlockBuf;
   const uint8_t* pEnd = pPhyNode->pBlockBuf + pPhyNode->blockBufLen;
 
-  SDataBlockDescNode* pDesc = pPhyNode->node.pOutputDataBlockDesc;
-
   for (int32_t i = 0; i < numBlocks; ++i) {
-    if (pCur + sizeof(uint32_t) > pEnd) {
+    if ((size_t)(pEnd - pCur) < sizeof(uint32_t)) {
+      qError("rowset source block header exceeds buffer, block:%d remaining:%zu", i, (size_t)(pEnd - pCur));
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       goto _error;
     }
@@ -112,49 +175,49 @@ static int32_t deserializeRowsetBlocks(const SRowsetSourcePhysiNode* pPhyNode,
     memcpy(&blockSize, pCur, sizeof(uint32_t));
     pCur += sizeof(uint32_t);
 
-    if (pCur + blockSize > pEnd) {
+    if ((size_t)blockSize > (size_t)(pEnd - pCur)) {
+      qError("rowset source block exceeds buffer, block:%d blockSize:%u remaining:%zu", i, blockSize,
+             (size_t)(pEnd - pCur));
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       goto _error;
     }
 
-    // Build an empty block with the declared schema from the physi node's output descriptor
-    SSDataBlock* pBlock = createDataBlockFromDescNode((void*)pDesc);
+    SSDataBlock* pBlock = createRowsetDataBlock(pPhyNode);
     if (pBlock == NULL) {
       code = terrno;
+      qError("rowset source failed to create data block, code:%s", tstrerror(code));
       goto _error;
     }
 
-    code = blockDataFromBuf(pBlock, (const char*)pCur);
+    code = blockDataFromBufWithCapacity(pBlock, (const char*)pCur, blockSize, pPhyNode->colCount);
     if (code != TSDB_CODE_SUCCESS) {
+      qError("rowset source failed to decode block:%d blockSize:%u colCount:%d, code:%s", i, blockSize,
+             pPhyNode->colCount, tstrerror(code));
+      blockDataDestroy(pBlock);
+      goto _error;
+    }
+    code = fillRowsetExtendedColumns(pPhyNode, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("rowset source failed to populate extended columns for block:%d, code:%s", i, tstrerror(code));
       blockDataDestroy(pBlock);
       goto _error;
     }
     pCur += blockSize;
 
-    // blockDataFromBuf doesn't restore hasNull flag; do it now
-    int32_t numCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
-    for (int32_t c = 0; c < numCols; ++c) {
-      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, c);
-      if (pCol == NULL) continue;
-      if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-        // VAR-length types encode NULL as varmeta.offset[r] == -1
-        if (pCol->varmeta.offset) {
-          for (int32_t r = 0; r < pBlock->info.rows; ++r) {
-            if (pCol->varmeta.offset[r] == -1) { pCol->hasNull = true; break; }
-          }
-        }
-      } else if (pCol->nullbitmap != NULL) {
-        for (int32_t r = 0; r < pBlock->info.rows; ++r) {
-          if (colDataIsNull_f(pCol, r)) { pCol->hasNull = true; break; }
-        }
-      }
-    }
+    // blockDataFromBufWithCapacity() leaves hasNull unset after decoding.
+    blockDataUpdateHasNull(pBlock);
 
     if (taosArrayPush(pArr, &pBlock) == NULL) {
       blockDataDestroy(pBlock);
       code = terrno;
       goto _error;
     }
+  }
+
+  if (pCur != pEnd) {
+    qError("rowset source buffer has trailing bytes:%zu", (size_t)(pEnd - pCur));
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto _error;
   }
 
   *ppBlocks = pArr;
@@ -169,9 +232,9 @@ _error:
   return code;
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 // Public: create operator
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 
 int32_t createRowsetSourceOperatorInfo(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                        SOperatorInfo** pOptrInfo) {

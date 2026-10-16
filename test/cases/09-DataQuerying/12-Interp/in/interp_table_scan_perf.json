@@ -1,0 +1,59 @@
+{
+    "filetype": "insert",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 8,
+    "create_table_thread_count": 4,
+    "num_of_records_per_req": 10000,
+    "prepared_rand": 10000,
+    "confirm_parameter_prompt": "no",
+    "continue_if_fail": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "interp_table_scan_perf_v3",
+                "drop": "yes",
+                "vgroups": 4,
+                "duration": 1,
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 8,
+                    "childtable_prefix": "s",
+                    "auto_create_table": "yes",
+                    "batch_create_tbl_num": 8,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "insert_rows": 8196,
+                    "interlace_rows": 0,
+                    "insert_interval": 0,
+                    "timestamp_step": 1,
+                    "start_timestamp": "2026-01-01T23:59:51.804Z",
+                    "columns": [
+                        {
+                            "type": "DOUBLE",
+                            "name": "v_near_near",
+                            "min": 1,
+                            "max": 1,
+                            "fillNull": "false"
+                        }
+                    ],
+                    "tags": [
+                        {
+                            "type": "INT",
+                            "name": "group_id",
+                            "min": 0,
+                            "max": 8,
+                            "gen": "order"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

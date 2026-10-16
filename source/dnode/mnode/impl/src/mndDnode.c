@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -45,24 +47,24 @@
 
 static const char *offlineReason[] = {
     "",
-    "status msg timeout",
+    "status message timeout",
     "status not received",
-    "version not match",
-    "dnodeId not match",
-    "clusterId not match",
-    "statusInterval not match",
-    "timezone not match",
-    "locale not match",
-    "charset not match",
-    "ttlChangeOnWrite not match",
-    "enableWhiteList not match",
-    "encryptionKey not match",
-    "monitor not match",
-    "monitor switch not match",
-    "monitor interval not match",
-    "monitor slow log threshold not match",
-    "monitor slow log sql max len not match",
-    "monitor slow log scope not match",
+    "version does not match",
+    "dnodeId does not match",
+    "clusterId does not match",
+    "statusInterval does not match",
+    "timezone does not match",
+    "locale does not match",
+    "charset does not match",
+    "ttlChangeOnWrite does not match",
+    "enableWhiteList does not match",
+    "encryptionKey does not match",
+    "monitor does not match",
+    "monitor switch does not match",
+    "monitor interval does not match",
+    "monitor slow log threshold does not match",
+    "monitor slow log sql max len does not match",
+    "monitor slow log scope does not match",
     "unknown",
 };
 
@@ -515,7 +517,7 @@ static int64_t tsCachedPrevSetMs    = 0;
 static int8_t  tsCachedHasPrev      = 0;
 /*
  * Seqlock sequence: even = stable, odd = write in
- * progress.  CAS from even→odd grants single-writer
+ * progress.  CAS from even -> odd grants single-writer
  * access; store even+2 publishes the new snapshot.
  */
 static int64_t tsTzSeq              = 0;
@@ -560,7 +562,7 @@ static void mndRefreshTzCache(int64_t nowMs) {
     return;
   }
 
-  /* seq is now odd — we are the sole writer */
+  /* seq is now odd  -  we are the sole writer */
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t offset = (int64_t)taosGetLocalTimezoneOffset(&code);
   if (code != TSDB_CODE_SUCCESS) {
@@ -573,7 +575,7 @@ static void mndRefreshTzCache(int64_t nowMs) {
   int64_t oldMs = atomic_load_64(&tsCachedTzOffsetMs);
   int64_t oldOff = atomic_load_64(&tsCachedTzOffset);
   if (oldMs != 0 && offset != oldOff) {
-    /* offset changed (DST edge) — keep old one */
+    /* offset changed (DST edge)  -  keep old one */
     atomic_store_64(&tsCachedTzOffsetPrev, oldOff);
     atomic_store_64(&tsCachedPrevSetMs, nowMs);
     atomic_store_8(&tsCachedHasPrev, 1);
@@ -610,7 +612,7 @@ static bool mndCheckTimezoneOffset(int64_t dnodeOffset) {
     return true;
 
   /*
-   * dnodeOffset doesn't match — force an immediate
+   * dnodeOffset doesn't match  -  force an immediate
    * refresh in case we are stale after a DST switch,
    * then re-check.
    */
@@ -712,7 +714,7 @@ static void mndApplyOneSnapProgress(int32_t vgId, SVnodeGid *pGid, int64_t snapT
     // Requires: a previous sample time exists, time moved forward, and transferred bytes did not
     // go backwards, before computing the rate
     if (pGid->prevSampleMs > 0 && nowMs > pGid->prevSampleMs && snapTransferredSize >= pGid->prevTransferredSize) {
-      // rate = Δbytes * 1000 / Δms (bytes/second)
+      // rate = deltabytes * 1000 / deltams (bytes/second)
       pGid->snapRate =
           (double)(snapTransferredSize - pGid->prevTransferredSize) * 1000.0 / (double)(nowMs - pGid->prevSampleMs);
     } else {
@@ -837,9 +839,12 @@ extern char   *tsMonSlowLogUri;
 static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatisReq statisReq = {0};
-  int32_t    code = -1;
 
-  TAOS_CHECK_RETURN(tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq));
+  int32_t code = tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq);
+  if (code != 0) {
+    tFreeSStatisReq(&statisReq);
+    TAOS_RETURN(code);
+  }
 
   if (tsMonitorLogProtocol) {
     mInfo("process statis req,\n %s", statisReq.pCont);
@@ -860,8 +865,11 @@ static int32_t mndProcessAuditReq(SRpcMsg *pReq) {
   if (tsEnableAudit && tsAuditLevel >= AUDIT_LEVEL_DATA) {
     SMnode   *pMnode = pReq->info.node;
     SAuditReq auditReq = {0};
-
-    TAOS_CHECK_RETURN(tDeserializeSAuditReq(pReq->pCont, pReq->contLen, &auditReq));
+    int32_t   code = tDeserializeSAuditReq(pReq->pCont, pReq->contLen, &auditReq);
+    if (code != 0) {
+      tFreeSAuditReq(&auditReq);
+      TAOS_RETURN(code);
+    }
 
     mDebug("received audit req:%s, %s, %s, %s", auditReq.operation, auditReq.db, auditReq.table, auditReq.pSql);
 
@@ -878,8 +886,11 @@ static int32_t mndProcessBatchAuditReq(SRpcMsg *pReq) {
   if (tsEnableAudit && tsAuditLevel >= AUDIT_LEVEL_DATA) {
     SMnode        *pMnode = pReq->info.node;
     SBatchAuditReq auditReq = {0};
-
-    TAOS_CHECK_RETURN(tDeserializeSBatchAuditReq(pReq->pCont, pReq->contLen, &auditReq));
+    int32_t        code = tDeserializeSBatchAuditReq(pReq->pCont, pReq->contLen, &auditReq);
+    if (code != 0) {
+      tFreeSBatchAuditReq(&auditReq);
+      TAOS_RETURN(code);
+    }
 
     int32_t nAudit = taosArrayGetSize(auditReq.auditArr);
 
@@ -1009,7 +1020,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
 
-      mWarn("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
+      mWarn("dnode:%d, %s does not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
       if (err == TSDB_CODE_MND_DNODE_NOT_EXIST) {
         code = err;
         TAOS_CHECK_GOTO(code, &lino, _OVER);
@@ -1146,7 +1157,14 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
 
-    SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
+    // Must accept non-READY vgroups: during create-db the vgroups stay CREATING until commit, yet the
+    // transaction now waits for leader election before committing, so the syncState learned here is
+    // what lets that wait finish. Side effect: DROPPING/DROPPED vgroups also get updated, which is
+    // harmless because they are about to disappear and are already invisible to sdbFetch.
+    SVgObj *pVgroup = mndAcquireVgroupNotReady(pMnode, pVload->vgId);
+    if (pVgroup == NULL) {
+      mDebug("vgId:%d, not found while processing status req from dnode:%d", pVload->vgId, statusReq.dnodeId);
+    }
     if (pVgroup != NULL) {
       if (pVload->syncState == TAOS_SYNC_STATE_LEADER || pVload->syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         pVgroup->cacheUsage = pVload->cacheUsage;
@@ -1172,7 +1190,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
           if (pVload->roleTimeMs == 0) {
             pVload->roleTimeMs = statusReq.rebootTime;
           }
-          // 记录该 vnode 最近一次被上报的时间，供后续"未上报 vnode"离线判断使用
+          // Record the vnode's latest report time for later offline checks of unreported vnodes.
           pGid->lastSeenMs = curMs;
           stateChanged = mndUpdateVnodeState(pVgroup->vgId, pGid, pVload);
           break;
@@ -1192,9 +1210,28 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseVgroup(pMnode, pVgroup);
   }
 
-  // Mark vnodes on this dnode that were NOT reported as OFFLINE (e.g. closed vnodes)
-  // Skip during reboot — vnodes may not all be ready in the first heartbeat after restart
-  if (!reboot) {
+  // Mark vnodes on this dnode that were NOT reported as OFFLINE (e.g. closed vnodes).
+  // Skip in two cases:
+  //  1) reboot  -  vnodes may not all be ready in the first heartbeats after restart.
+  //  2) the heartbeat carries no vnode load at all (numOfVloads == 0). An empty list only means
+  //     the dnode failed to collect the loads (NULL pVloads on the dnode side, taosArrayInit()
+  //     failure, ...); it says nothing about whether an individual vnode is alive. Interpreting
+  //     it as "no vnode reported" would mark every vnode of the dnode OFFLINE. A truly dead
+  //     dnode is detected by the mnode's own offline check (mndSetVgroupOffline(), driven by
+  //     tsStatusTimeoutMs), which is the authoritative path.
+  int32_t numOfVloads = taosArrayGetSize(statusReq.pVloads);
+  if (numOfVloads == 0) {
+    mWarn("dnode:%d, status msg carries no vnode load, skip not-reported check, reboot:%d, statusSeq:%d",
+          statusReq.dnodeId, reboot, statusReq.statusSeq);
+  }
+
+  // Grace window before a not-reported vnode is marked OFFLINE: tolerate 3 missed heartbeats,
+  // and never be shorter than tsStatusTimeoutMs so that this path never preempts the dnode-level
+  // offline detection (mndIsDnodeOnline()/mndSetVgroupOffline()).
+  int64_t offlineThresholdMs = 3 * (int64_t)tsStatusIntervalMs;
+  if (offlineThresholdMs < (int64_t)tsStatusTimeoutMs) offlineThresholdMs = tsStatusTimeoutMs;
+
+  if (!reboot && numOfVloads > 0) {
     SSdb *pSdb = pMnode->pSdb;
     void *pIter2 = NULL;
     while (1) {
@@ -1206,7 +1243,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
         if (pGid->dnodeId == statusReq.dnodeId && pGid->syncState != TAOS_SYNC_STATE_OFFLINE) {
           bool found = false;
-          for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
+          for (int32_t v = 0; v < numOfVloads; ++v) {
             SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
             if (pVload->vgId == pVgroup->vgId) {
               found = true;
@@ -1214,14 +1251,16 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
             }
           }
           if (!found) {
-            // 该 vnode 本次心跳未被上报。为避免偶发的单次心跳缺失导致误判为 OFFLINE，
-            // 只有当距离最近一次上报（lastSeenMs）已超过 3 秒时，才将其标记为 OFFLINE。
-            int64_t offlineThresholdMs = 3000;
+            // This vnode was not reported by the current heartbeat. To avoid misjudging a single
+            // missed heartbeat as OFFLINE, only mark it OFFLINE when the time elapsed since the
+            // last report (lastSeenMs) exceeds the grace window computed above.
             int64_t elapsedMs = curMs - pGid->lastSeenMs;
             if (pGid->lastSeenMs > 0 && elapsedMs >= offlineThresholdMs) {
-              mInfo("vgId:%d, state changed to offline by status msg (not reported), dnode:%d, old state:%s, "
-                    "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64,
-                    pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs);
+              mInfo(
+                  "vgId:%d, state changed to offline by status msg (not reported), dnode:%d, old state:%s, "
+                  "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64 " thresholdMs:%" PRId64,
+                  pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs,
+                  offlineThresholdMs);
               pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
               pGid->syncRestore = 0;
               pGid->syncCanRead = 0;
@@ -1233,10 +1272,13 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
               }
               mndReleaseDb(pMnode, pDb);
             } else {
-              // 未上报但距离上次上报还不足 3 秒，暂不置为离线，等待后续心跳确认
-              mDebug("vgId:%d, not reported by dnode:%d but within grace window, keep state:%s, "
-                     "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64,
-                     pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs);
+              // Not reported, but still inside the grace window  -  keep the current state and wait
+              // for the following heartbeats to confirm.
+              mDebug(
+                  "vgId:%d, not reported by dnode:%d but within grace window, keep state:%s, "
+                  "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64 " thresholdMs:%" PRId64,
+                  pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs,
+                  offlineThresholdMs);
             }
           }
           break;
@@ -1267,7 +1309,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       if (pDnode != NULL) {
         pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
-      mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
+      mError("dnode:%d, status msg version:%d does not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
       code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
@@ -1279,7 +1321,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         if (pDnode != NULL) {
           pDnode->offlineReason = DND_REASON_CLUSTER_ID_NOT_MATCH;
         }
-        mError("dnode:%d, clusterId %" PRId64 " not match exist %" PRId64, pDnode->id, statusReq.clusterId,
+        mError("dnode:%d, clusterId %" PRId64 " does not match the existing %" PRId64, pDnode->id, statusReq.clusterId,
                pMnode->clusterId);
         code = TSDB_CODE_MND_INVALID_CLUSTER_ID;
         TAOS_CHECK_GOTO(code, &lino, _OVER);
@@ -1788,7 +1830,12 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   if (pDnode == NULL) {
     int32_t err = terrno;
     char    ep[TSDB_EP_LEN + 1] = {0};
-    (void)snprintf(ep, sizeof(ep), dropReq.fqdn, dropReq.port);
+    // NOTE: dropReq.fqdn is request-supplied (decoded from the wire without any character filtering).
+    // It MUST NOT be used as the snprintf format string, otherwise it becomes a format-string
+    // injection (CWE-134, %n arbitrary write / %s %p read crashes). Build the endpoint with a
+    // constant format and pass fqdn as data, matching the "fqdn:port" endpoint expected by
+    // mndAcquireDnodeByEp.
+    (void)snprintf(ep, sizeof(ep), "%s:%d", dropReq.fqdn, dropReq.port);
     pDnode = mndAcquireDnodeByEp(pMnode, ep);
     if (pDnode == NULL) {
       code = err;
@@ -1939,7 +1986,7 @@ static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId,
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
     if (pIter == NULL) break;
     if (pDnode->offlineReason != DND_REASON_ONLINE) {
-      mGWarn("msg:%p, don't send create encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
+      mGWarn("msg:%p, do not send create encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
              offlineReason[pDnode->offlineReason]);
       sdbRelease(pSdb, pDnode);
       continue;
@@ -2507,7 +2554,7 @@ static int32_t mndProcessAlterEncryptKeyReqImpl(SRpcMsg *pReq, SMAlterEncryptKey
     if (pIter == NULL) break;
 
     if (pDnode->offlineReason != DND_REASON_ONLINE) {
-      mGWarn("msg:%p, don't send alter encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
+      mGWarn("msg:%p, do not send alter encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
              offlineReason[pDnode->offlineReason]);
       sdbRelease(pSdb, pDnode);
       continue;
@@ -2523,9 +2570,9 @@ static int32_t mndProcessAlterEncryptKeyReqImpl(SRpcMsg *pReq, SMAlterEncryptKey
         sdbRelease(pSdb, pDnode);
         goto _exit;
       }
-      // 第二跳广播：使用 DND 版本消息，确保被各 dnode 的 DNODE 模块消费执行本地密钥更新。
-      // 不能用 TDMT_MND_ALTER_ENCRYPT_KEY（那是 client->mnode 第一跳消息），否则会被远端 mnode 模块
-      // 再次当作第一跳处理，造成路由错乱 / 广播风暴，且非 leader 节点不会真正更新密钥。
+      // Second-hop broadcast: use the DND message so each DNODE module applies the local key update.
+      // Do not use TDMT_MND_ALTER_ENCRYPT_KEY, which is the client-to-mnode first-hop message; remote
+      // mnode modules would process it as a first hop again, causing misrouting and broadcast storms.
       SRpcMsg rpcMsg = {.msgType = TDMT_DND_ALTER_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
       int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
       if (ret != 0) {
@@ -2625,7 +2672,7 @@ static int32_t mndProcessAlterKeyExpirationReqImpl(SRpcMsg *pReq, SMAlterKeyExpi
     if (pIter == NULL) break;
 
     if (pDnode->offlineReason != DND_REASON_ONLINE) {
-      mGWarn("msg:%p, don't send alter key_expiration req since dnode:%d in offline state:%s", pReq, pDnode->id,
+      mGWarn("msg:%p, do not send alter key_expiration req since dnode:%d in offline state:%s", pReq, pDnode->id,
              offlineReason[pDnode->offlineReason]);
       sdbRelease(pSdb, pDnode);
       continue;
@@ -2641,7 +2688,7 @@ static int32_t mndProcessAlterKeyExpirationReqImpl(SRpcMsg *pReq, SMAlterKeyExpi
         sdbRelease(pSdb, pDnode);
         goto _exit;
       }
-      // 第二跳广播：使用 DND 版本消息，确保被各 dnode 的 DNODE 模块消费执行本地过期时间更新。
+      // Second-hop broadcast: use the DND message so each DNODE module applies the local expiry update.
       SRpcMsg rpcMsg = {.msgType = TDMT_DND_ALTER_KEY_EXPIRATION, .pCont = pBuf, .contLen = bufLen};
       int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
       if (ret != 0) {

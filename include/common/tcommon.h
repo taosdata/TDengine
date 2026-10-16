@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -45,6 +47,20 @@ typedef struct STableKeyInfo {
   uint64_t groupId;
   uint64_t baseGId;
 } STableKeyInfo;
+
+/** Evaluated entry range, indexed by the original Reader read-info number. */
+typedef struct SReaderReadRange {
+  int32_t     readInfoIndex;
+  STimeWindow window;
+  bool        valid;
+} SReaderReadRange;
+
+/** Task-owned range in finalized scan-table order; valid=false means empty. */
+typedef struct STableScanRange {
+  STableKeyInfo table;
+  STimeWindow   window;
+  bool          valid;
+} STableScanRange;
 
 typedef struct SWinKey {
   uint64_t groupId;
@@ -207,6 +223,16 @@ typedef struct SPkInfo {
   } ekey;
 } SPkInfo;
 
+// Identifies the source scan window for a block. Values follow scan order so
+// consumers can detect phase advances numerically. MAIN must remain zero for
+// calloc-created blocks and blocks encoded before scanPhase was introduced.
+typedef enum EScanPhase {
+  SCAN_PHASE_MAIN = 0,
+  SCAN_PHASE_NEXT = 1,
+  SCAN_PHASE_PREV = 2,
+  SCAN_PHASE_COUNT,
+} EScanPhase;
+
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
@@ -216,9 +242,11 @@ typedef struct SDataBlockInfo {
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not
   uint8_t     scanFlag;
+  int8_t      scanPhase;  // EScanPhase serialized in the block flag segment
   bool        blankFill;
   SValue      pks[2];
   SColumnDataAgg* pBlockAgg;  // borrowed block SMA for dynamic aggregate pruning; do not serialize or copy
+  int32_t     smaSourceRows;  // source physical row count represented by a one-row SMA block; do not serialize
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -231,8 +259,14 @@ typedef struct SDataBlockInfo {
 
 typedef struct SSDataBlock {
   SColumnDataAgg* pBlockAgg;
+  SColumnDataAgg* pBlockAggBuf;      // reusable storage for block SMA results
+  uint32_t        pBlockAggBufSize;  // number of entries in pBlockAggBuf
   SArray*         pDataBlock;  // SArray<SColumnInfoData>
   SDataBlockInfo  info;
+  uint64_t        recycleKey;
+  int64_t         recycleTime;
+  struct SSDataBlock* recycleNext;
+  bool            recycleEnabled;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
@@ -268,6 +302,11 @@ typedef struct SQueryTableDataCond {
   int64_t      endVersion;
   bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
   bool         cacheSttStatis;
+  bool         mainFirst;  // scan external windows in MAIN/NEXT/PREV order
+  // A planner-proven LAST-only scan may discard clean-block rows before copying them.
+  bool         lastOnlyScan;
+  // Positive only for a planner-proven ordered single-primary-key scan with LIMIT and no OFFSET.
+  int32_t      blockRowLimit;
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
@@ -310,7 +349,7 @@ typedef struct STableBlockDistInfo {
   uint32_t numOfSttRows;
   uint32_t numOfVgroups;
   int32_t  blockRowsHisto[20];
-  int32_t  blockRowsHistoFixed[8];  // buckets: ≤64, ≤128, ≤256, ≤512, ≤1024, ≤2048, ≤4096, >4096
+  int32_t  blockRowsHistoFixed[8];  // buckets:  <= 64,  <= 128,  <= 256,  <= 512,  <= 1024,  <= 2048,  <= 4096, >4096
 } STableBlockDistInfo;
 
 int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);
@@ -421,6 +460,10 @@ typedef struct SFederatedScanExplainInfo {
   int64_t fetchedRows;
   int64_t fetchBlockCount;
   int64_t elapsedTimeUs;
+  char    remoteSql[TSDB_SHOW_SQL_LEN];
+  bool    batchMode;                                // true when runtime input is a source batch
+  int32_t batchTables;                              // number of remote tables in the active batch
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];     // registered external source batch key
 } SFederatedScanExplainInfo;
 
 typedef struct STUidTagInfo {

@@ -53,7 +53,7 @@ window_clause: {
 }
 ```
 
-其中，`interval_val` 和 `sliding_val` 都表示时间段，`interval_offset` 表示窗口偏移量，且必须小于 `interval_val`。语法上支持三种写法，例如：
+其中，`interval_val` 和 `sliding_val` 都表示时间段，`interval_offset` 表示窗口偏移量。显式指定偏移时长时，必须满足 `0 <= interval_offset < interval_val`。语法上支持三种写法，例如：
 
 - `INTERVAL(1s, 500a) SLIDING(1s)`：自带时间单位，时间单位参见 [时间单位](../01-datatype.md#时间单位)。
 - `INTERVAL(1000, 500) SLIDING(1000)`：不带时间单位，使用查询库的时间精度作为默认单位；存在多个库时默认采用精度更高的库。
@@ -79,7 +79,7 @@ window_clause: {
 
 时间窗口又可分为滑动时间窗口和翻转时间窗口。
 
-`INTERVAL` 子句用于产生等长时间周期的窗口，`SLIDING` 用于指定窗口向前滑动的时间。每次执行的查询对应一个时间窗口，窗口随时间向前滑动。定义连续查询时需指定时间窗口大小和前向增量。如图，`[t0s, t0e]`、`[t1s, t1e]`、`[t2s, t2e]` 分别是三次连续查询的时间窗口范围，前向滑动范围由 sliding time 标识。查询过滤、聚合等操作按每个时间窗口独立执行。当 `SLIDING` 与 `INTERVAL` 相等时，滑动窗口即为翻转窗口。默认情况下，窗口从 Unix time 0（`1970-01-01 00:00:00 UTC`）开始划分；若设置了 `interval_offset`，则从“Unix time 0 + interval_offset”开始划分。
+`INTERVAL` 子句用于产生等长时间周期的窗口，`SLIDING` 用于指定窗口向前滑动的时间。每次执行的查询对应一个时间窗口，窗口随时间向前滑动。定义连续查询时需指定时间窗口大小和前向增量。如图，`[t0s, t0e]`、`[t1s, t1e]`、`[t2s, t2e]` 分别是三次连续查询的时间窗口范围，前向滑动范围由 sliding time 标识。查询过滤、聚合等操作按每个时间窗口独立执行。当 `SLIDING` 与 `INTERVAL` 相等时，滑动窗口即为翻转窗口。对于以小时、分钟、秒等固定时长单位划分的窗口，默认以 Unix time 0（`1970-01-01 00:00:00 UTC`）为对齐基准；显式指定 `interval_offset` 后，基准变为“Unix time 0 + interval_offset”。使用天、周、月、年等单位时，还需考虑时区和自然时间边界，详见 [时区与自然时间单位](../10-time/01-timezone.md)。
 
 查询对象是超级表时，聚合函数会作用于该超级表下满足过滤条件的所有表数据，返回结果按窗口起始时间严格单调递增；若使用 `PARTITION BY` 分组，则每个分组内按窗口起始时间严格单调递增。
 
@@ -93,24 +93,106 @@ window_clause: {
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
-`INTERVAL` 子句允许使用 `AUTO` 关键字指定窗口偏移量（`v3.3.5.0` 起支持）。若 `WHERE` 条件给出了明确可应用的起始时间限制，则会自动计算偏移量，使时间窗口从该时间点切分；否则不生效，仍以 `0` 作为偏移量。示例如下：
+#### 窗口边界与查询范围
+
+`WHERE` 条件限定参与计算的原始数据范围，默认不会让窗口从查询起始时间重新划分。`_wstart` 表示窗口的起始边界，因此可以早于 `WHERE` 指定的起始时间；这不表示该时间之前的原始数据参与了聚合。
+
+以下示例的客户端和服务端时区均为 `Asia/Shanghai`（东八区），数据库精度为毫秒。不指定 `SLIDING`，使用互不重叠的翻转窗口；不指定 `FILL`，没有数据的窗口不输出聚合结果。
 
 ```sql
--- 有起始时间限制，从 '2018-10-03 14:38:05' 切分时间窗口
-SELECT COUNT(*) FROM meters WHERE _rowts >= '2018-10-03 14:38:05' INTERVAL (1m, AUTO);
+CREATE DATABASE interval_demo PRECISION 'ms' KEEP 3650;
+USE interval_demo;
+CREATE TABLE samples (ts TIMESTAMP, v INT);
+INSERT INTO samples VALUES
+    ('2025-12-08 23:30:00', 100)
+    ('2025-12-09 00:00:00', 10)
+    ('2025-12-09 01:00:00', 20)
+    ('2025-12-09 02:00:00', 30)
+    ('2025-12-09 03:00:00', 40)
+    ('2025-12-09 08:00:00', 50)
+    ('2025-12-10 00:00:00', 60);
 
--- 无起始时间限制，不生效，仍以 0 为偏移量
-SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, AUTO);
-
--- 起始时间限制不明确，不生效，仍以 0 为偏移量
-SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
+SELECT _wstart, COUNT(*) AS n, SUM(v) AS total
+FROM samples
+WHERE ts >= '2025-12-09 00:00:00'
+  AND ts <  '2025-12-10 00:00:00'
+INTERVAL(3h);
 ```
 
-`INTERVAL` 子句支持使用 `FILL` 指定数据缺失时的填充方法，支持除 `NEAR` 外的所有填充模式。`FILL` 用法详见 [FILL 子句](01-query.md#fill-子句)。
+查询结果如下：
+
+| _wstart | n | total |
+| --- | --- | --- |
+| 2025-12-08 23:00:00.000 | 2 | 30 |
+| 2025-12-09 02:00:00.000 | 2 | 70 |
+| 2025-12-09 08:00:00.000 | 1 | 50 |
+
+`3h` 等于 `10800` 秒。查询起点 `2025-12-09 00:00:00` 对应 Unix 时间戳 `1765209600` 秒，向下对齐到 `10800` 的整数倍得到 `1765206000` 秒，即东八区的 `2025-12-08 23:00:00`。后续窗口起点依次为 `02:00`、`05:00`、`08:00` 等，而不是从查询起点每隔 3 小时划分。
+
+首个窗口为 `[2025-12-08 23:00:00, 2025-12-09 02:00:00)`。其中只有 `00:00` 和 `01:00` 两行满足 `WHERE`，所以 `n = 2`、`total = 30`；前一天 `23:30` 的数据不会参与计算。`02:00` 的数据属于下一个窗口。`05:00` 开始的窗口没有数据，因此未出现在结果中。
+
+这里使用 `ts < '2025-12-10 00:00:00'` 排除次日零点。若改为 `<=` 或使用包含该上界的 `BETWEEN`，次日零点的数据也会参与计算，可能增加一个结果窗口。
+
+#### 使用偏移量对齐查询起点
+
+`interval_offset` 是窗口划分的偏移时长，不是绝对起始时间。将完整 Unix 时间戳作为偏移量会超过窗口宽度，例如：
+
+```sql
+-- 错误：1765209600 秒超过 24 小时
+SELECT COUNT(*) FROM samples INTERVAL(24h, 1765209600s);
+```
+
+该语句报错 `Interval offset should be shorter than interval`。偏移量等于窗口宽度也不合法，例如 `INTERVAL(3h, 3h)`。
+
+如果需要窗口与查询起点对齐，可以使用 `AUTO`（`v3.3.5.0` 起支持）。对于上述不带 `SLIDING` 的查询，若 `WHERE` 给出了明确可应用的起始时间限制，`AUTO` 会自动计算偏移量，使窗口从该时间点切分：
+
+```sql
+SELECT _wstart, COUNT(*) AS n, SUM(v) AS total
+FROM samples
+WHERE ts >= '2025-12-09 00:00:00'
+  AND ts <  '2025-12-10 00:00:00'
+INTERVAL(3h, AUTO);
+```
+
+查询结果变为：
+
+| _wstart | n | total |
+| --- | --- | --- |
+| 2025-12-09 00:00:00.000 | 3 | 60 |
+| 2025-12-09 03:00:00.000 | 1 | 40 |
+| 2025-12-09 06:00:00.000 | 1 | 50 |
+
+也可以将该查询改为 `INTERVAL(3h, 1h)`，结果相同。此例的偏移量为查询起点的 Unix 时间戳对窗口宽度取余，即 `1765209600 % 10800 = 3600` 秒。这个取余方法适用于本例以固定时长单位划分、未指定 `SLIDING` 的窗口，不应直接套用于按自然时间划分的窗口。
+
+若无法从 `WHERE` 提取明确可应用的起始时间，`AUTO` 不生效，偏移量仍为 `0`。例如，以下查询只有结束时间限制：
+
+```sql
+SELECT _wstart, COUNT(*) FROM samples
+WHERE ts < '2025-12-10 00:00:00'
+INTERVAL(3h, AUTO);
+```
+
+#### `24h` 与 `1d` 的区别
+
+在上述东八区环境中，`INTERVAL(24h)` 按固定的 24 小时时长相对于 Unix time 0 对齐，对应当地每天 `08:00` 的边界；`INTERVAL(1d)` 按天划分并考虑时区，对齐当地零点。两种写法的窗口边界不同。
+
+保留第一个查询的 `WHERE` 条件，分别将 `INTERVAL(3h)` 替换为 `INTERVAL(24h)` 和 `INTERVAL(1d)`，结果如下：
+
+| 窗口子句 | _wstart | n | total |
+| --- | --- | --- | --- |
+| `INTERVAL(24h)` | 2025-12-08 08:00:00.000 | 4 | 100 |
+| `INTERVAL(24h)` | 2025-12-09 08:00:00.000 | 1 | 50 |
+| `INTERVAL(1d)` | 2025-12-09 00:00:00.000 | 5 | 150 |
+
+`INTERVAL(24h)` 的第一个窗口虽然从前一天 `08:00` 开始，仍然只聚合查询范围内的 4 行数据。`INTERVAL(1d)` 则将查询范围内的 5 行数据放入同一天的窗口。若查询上界改为 `<= '2025-12-10 00:00:00'`，本例的 `INTERVAL(1d)` 还会输出次日零点开始的窗口，`n = 1`、`total = 60`。
+
+#### 空窗口填充与使用限制
+
+`INTERVAL` 子句支持使用 `FILL` 指定数据缺失时的填充方法，支持除 `NEAR` 外的所有填充模式。`FILL` 不改变窗口的划分基准。例如，在第一个查询的 `INTERVAL(3h)` 后添加 `FILL(PREV)`，会填充 `05:00` 等没有数据的窗口，但首个窗口的 `_wstart` 仍为前一天 `23:00`。`FILL` 用法详见 [FILL 子句](01-query.md#fill-子句)。
 
 使用时间窗口需要注意：
 
-- 窗口宽度由 `INTERVAL` 指定，最小允许值受客户端配置参数 [`minIntervalTime`](../../12-operations-and-tooling/03-components/02-taosc.md#minintervaltime) 约束（默认值为 `1`，单位与数据库时间精度一致）；并支持偏移 `interval_offset`（必须小于间隔），即相对“UTC 时刻 0”的划分偏移。`SLIDING` 用于指定每次窗口向前滑动的时长。
+- 窗口宽度由 `INTERVAL` 指定，最小允许值受客户端配置参数 [`minIntervalTime`](../../12-operations-and-tooling/03-components/02-taosc.md#minintervaltime) 约束（默认值为 `1`，单位与数据库时间精度一致）；并支持通过 `interval_offset` 调整划分偏移。显式指定偏移时长时，必须满足 `0 <= interval_offset < interval_val`。`SLIDING` 用于指定每次窗口向前滑动的时长。
 - 使用 `INTERVAL` 时，除极特殊情况外，建议将客户端与服务端 `taos.cfg` 中的 `timezone` 配置为相同取值，以避免时间处理函数频繁跨时区转换带来的严重性能影响。
 - 返回结果中的时间序列严格单调递增。
 - 使用 `AUTO` 作为窗口偏移量时，如果 `WHERE` 时间条件较复杂（例如多个 `AND` / `OR` / `IN` 组合），`AUTO` 可能不生效，此时可手动指定窗口偏移量。
@@ -120,7 +202,7 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 
 状态窗口根据一个或多个状态键的连续性划分窗口（从 `v3.4.2.0` 版本开始支持多个状态键）。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的表达式，例如 `CASE WHEN`、`IF`、比较表达式、`IN`、`BETWEEN`、`IS NULL` / `IS NOT NULL` 以及由 `AND`、`OR`、`NOT` 组合的逻辑表达式。相邻记录的状态键会按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。如下图展示的是单状态键场景，对应的两个窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12]。
 
-![状态窗口示意图](../../assets/distinguished-02.png)
+![状态窗口示意图](../../assets/distinguished-02.webp)
 
 状态窗口语法如下：
 
@@ -137,6 +219,22 @@ STATE_WINDOW(state_expr [, state_expr ...])
 - `EXTEND(extend_val)`：可选，指定窗口边界扩展策略。`0` 为默认行为，窗口开始、结束时间取当前状态的第一条和最后一条记录，窗口间的全 `NULL` 行会被丢弃；`1` 保持窗口开始时间不变，并将窗口结束时间向后扩展到下一个窗口开始前；`2` 保持窗口结束时间不变，并将窗口开始时间向前扩展到上一个窗口结束后。
 - `ZEROTH_STATE(...)`：可选，指定"零状态"。通过 `ZEROTH_STATE` 指定这些不关心的状态值后，匹配的窗口会被自动过滤，不参与计算也不输出，从而简化结果。参数个数必须与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，且可以转换为对应状态键的数据类型；`NO_ZEROTH` 表示对应位置不参与零状态判断。只有所有已配置零状态的位置都等于对应值时，该窗口才会被过滤。
 - `TRUE_FOR(true_for_expr)`：可选，指定窗口过滤条件。支持 `TRUE_FOR(duration_time)`、`TRUE_FOR(COUNT n)`、`TRUE_FOR(duration_time AND COUNT n)`、`TRUE_FOR(duration_time OR COUNT n)` 四种形式。
+
+#### 分区优化
+
+从 `v3.4.3.0` 起，超级表按标签列或 `tbname` 分区执行状态窗口查询时，可以使用 `PARTITION_FIRST` Hint 保留独立的 `Partition` 算子：
+
+```sql
+SELECT /*+ PARTITION_FIRST() */
+       gid, _wstart, COUNT(*), SUM(val)
+FROM meters
+PARTITION BY gid
+STATE_WINDOW(status);
+```
+
+该计划先通过 Table Merge Scan 扫描相关子表，再由 `Partition` 按 `gid` 组织数据，最后由 `STATE_WINDOW` 在每个分区内计算窗口。它主要适用于分区数量多、每个分区数据量较小的场景，不保证所有数据分布都能获得性能提升。该 Hint 不改变窗口边界和聚合结果；不使用 Hint 时继续采用默认计划。详细说明和验证方法请参阅 [Hints](./01-query.md#hints)。
+
+状态窗口也支持按普通数据列以及标签与普通数据列的组合分区，例如 `PARTITION BY category STATE_WINDOW(status)` 或 `PARTITION BY gid, category STATE_WINDOW(status)`。这两类查询在有无 `PARTITION_FIRST` 时都会使用独立的 `Partition`，并在多 vnode 环境保持分区内的主时间戳和可选第二主键顺序。由于它们本来就是一次扫描加上层分区，使用 Hint 通常不改变计划结构，也不承诺获得上述纯标签分区的扫描优化收益。
 
 状态键中的 `NULL` 按下面的规则处理：
 
@@ -334,7 +432,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 会话窗口根据记录时间戳主键的值判断是否属于同一会话。如下图所示，若连续时间戳间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是 `[2019-04-28 14:22:10，2019-04-28 14:22:30]` 和 `[2019-04-28 14:23:10，2019-04-28 14:23:30]`。因为 `2019-04-28 14:22:30` 与 `2019-04-28 14:23:10` 的时间间隔为 40 秒，超过了连续时间间隔（12 秒）。
 
-![会话窗口示意图](../../assets/distinguished-03.png)
+![会话窗口示意图](../../assets/distinguished-03.webp)
 
 在 `tol_val` 时间间隔范围内的记录归属于同一窗口；若连续两条记录的时间间隔超过 `tol_val`，则自动开启下一个窗口。
 
@@ -367,7 +465,7 @@ EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupI
 SELECT _wstart, _wend, COUNT(*) FROM t EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10;
 ```
 
-![事件窗口示意图](../../assets/distinguished-04.png)
+![事件窗口示意图](../../assets/distinguished-04.webp)
 
 事件窗口支持使用 `TRUE_FOR` 参数来设定窗口整体过滤条件，以及开窗/关窗连续满足门限。三种参数均可选，顺序任意，最多各出现一次：
 
@@ -428,7 +526,7 @@ SELECT _wstart, _wend, COUNT(*) FROM t EVENT_WINDOW START WITH c1 > 0 END WITH c
 SELECT _wstart, _wend, COUNT(*) FROM t COUNT_WINDOW(4);
 ```
 
-![计数窗口示意图](../../assets/distinguished-05.png)
+![计数窗口示意图](../../assets/distinguished-05.webp)
 
 ### 外部窗口
 
@@ -582,13 +680,34 @@ ORDER BY _wstart;
 
 上面的 SQL 定义了 3 个一分钟的外部窗口。如果某个窗口内没有 `meters` 表的数据，则 `avg_vol` 和 `cnt` 都会被填充为 `0`。
 
+#### 窗口内函数
+
+外部窗口的函数使用规则与 `INTERVAL`、`SESSION`、`STATE_WINDOW`、`EVENT_WINDOW`、`COUNT_WINDOW` 一致。除聚合函数和标量表达式外，还可以使用：
+
+- 序列分析：`DIFF`、`DERIVATIVE`、`CSUM`、`MAVG`、`STATECOUNT`、`STATEDURATION`、`LAG`、`LEAD`、`FILL_FORWARD`
+- 多行选择：`TOP`、`BOTTOM`、`SAMPLE`
+- 分布统计：`HISTOGRAM`
+
+参数、函数并列、关联列以及与 `FILL` 的组合限制，与其他时间窗口相同。`TAIL`、`UNIQUE`、`INTERP` 不能用于外部窗口。
+
+外部窗口使用 `FILL` 时：
+
+- 包含聚合函数时，支持 [空窗口的 FILL](#空窗口的-fill) 中列出的模式；
+- 包含上述序列分析函数、不含聚合函数时，只支持 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`；
+- 只输出原始列和标量表达式、不含聚合函数和序列分析函数时，不能使用 `FILL`，查询报错 `Fill only supports aggregate query with external window`。
+
+```sql
+SELECT _wstart, ts, DIFF(voltage)
+FROM d1001
+EXTERNAL_WINDOW ((SELECT ts, ts + 10s FROM d1001 WHERE voltage > 220) w);
+```
+
 #### 约束与限制
 
 - 暂时不支持在流式计算和订阅中使用。
 - 窗口子查询的前两列必须为 `TIMESTAMP` 类型，分别表示窗口开始和结束时间。
 - 子查询返回的窗口行需要保持有序：未分组场景按窗口开始时间（第一列）升序；分组场景在各分组内按窗口开始时间升序；不满足时执行报错。
 - 若外部窗口（内部子查询）使用了分组，则外部查询必须同时使用 `PARTITION BY`，否则语法报错。
-- 不支持窗口作用域内的不定行函数（如 `DIFF`、`INTERP`）。
 
 ### 窗口投影模式
 
@@ -646,7 +765,7 @@ SELECT AGG _wstart, _wend, location FROM d1001
 
 #### FILL 支持
 
-窗口投影模式支持 `FILL` 子句，但仅支持以下模式：`NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`。不支持 `PREV`、`NEXT`、`LINEAR` 和 `NEAR`。
+窗口投影模式支持 `FILL` 子句，但仅支持以下模式：`NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`。不支持 `PREV`、`NEXT`、`LINEAR` 和 `NEAR`。`EXTERNAL_WINDOW` 只输出原始列、不含序列分析函数时不能使用 `FILL`，详见 [窗口内函数](#窗口内函数)。
 
 ```sql
 SELECT _wstart, ts, current FROM meters

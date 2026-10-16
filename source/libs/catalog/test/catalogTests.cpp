@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -54,6 +56,7 @@ void ctgTestSetRspTableMeta();
 void ctgTestSetRspCTableMeta();
 void ctgTestSetRspSTableMeta();
 void ctgTestSetRspMultiSTableMeta();
+int32_t ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp);
 
 extern int32_t clientConnRefPool;
 
@@ -109,6 +112,292 @@ char    *ctgTestCurrentSTableName = NULL;
 
 int32_t ctgTestRspFunc[100] = {0};
 int32_t ctgTestRspIdx = 0;
+
+enum {
+  CTGT_ASYNC_RSP_REQTYPE_MISMATCH = 1,
+  CTGT_ASYNC_RSP_VIRTUAL_TABLE_NAME,
+  CTGT_ASYNC_RSP_TSMA_NULL_STREAM_ADDR,
+};
+
+typedef struct {
+  tsem_t    sem;
+  SMetaData meta;
+  int32_t   code;
+} SCtgTestAsyncResult;
+
+int32_t ctgTestAsyncRspType = 0;
+
+int32_t ctgTestSerializeTableMetaRsp(STableMetaRsp *rsp, SBatchRspMsg *batchRsp) {
+  int32_t len = tSerializeSTableMetaRsp(NULL, 0, rsp);
+  if (len <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  batchRsp->msg = taosMemoryMalloc(len);
+  if (NULL == batchRsp->msg) {
+    return terrno;
+  }
+
+  if (tSerializeSTableMetaRsp(batchRsp->msg, len, rsp) <= 0) {
+    taosMemoryFreeClear(batchRsp->msg);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  batchRsp->msgLen = len;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgTestBuildVirtualTableNameRsp(SBatchRspMsg *batchRsp) {
+  STableMetaRsp rsp = {0};
+  SSchema       schema[2] = {0};
+  SSchemaExt    schemaExt[2] = {0};
+  SColRef       colRef[2] = {0};
+
+  TAOS_STRCPY(rsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(rsp.tbName, "vctb1");
+  TAOS_STRCPY(rsp.stbName, "vstb1");
+  rsp.numOfColumns = 2;
+  rsp.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  rsp.sversion = 1;
+  rsp.tversion = 1;
+  rsp.rversion = 1;
+  rsp.suid = 2;
+  rsp.tuid = 3;
+  rsp.vgId = 1;
+  rsp.pSchemas = schema;
+  rsp.pSchemaExt = schemaExt;
+  rsp.numOfColRefs = 2;
+  rsp.pColRefs = colRef;
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema[0].bytes = sizeof(int64_t);
+  TAOS_STRCPY(schema[0].name, "ts");
+  schema[1].type = TSDB_DATA_TYPE_INT;
+  schema[1].colId = 2;
+  schema[1].bytes = sizeof(int32_t);
+  TAOS_STRCPY(schema[1].name, "value");
+  colRef[0].id = PRIMARYKEY_TIMESTAMP_COL_ID;
+  colRef[1].id = 2;
+
+  return ctgTestSerializeTableMetaRsp(&rsp, batchRsp);
+}
+
+int32_t ctgTestBuildNormalTableMetaRsp(SBatchRspMsg *batchRsp) {
+  STableMetaRsp rsp = {0};
+  SSchema       schema[2] = {0};
+  SSchemaExt    schemaExt[2] = {0};
+
+  TAOS_STRCPY(rsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(rsp.tbName, ctgTestTablename);
+  rsp.numOfColumns = 2;
+  rsp.tableType = TSDB_NORMAL_TABLE;
+  rsp.sversion = 1;
+  rsp.tversion = 1;
+  rsp.tuid = 1;
+  rsp.vgId = 1;
+  rsp.pSchemas = schema;
+  rsp.pSchemaExt = schemaExt;
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema[0].bytes = sizeof(int64_t);
+  TAOS_STRCPY(schema[0].name, "ts");
+  schema[1].type = TSDB_DATA_TYPE_INT;
+  schema[1].colId = 2;
+  schema[1].bytes = sizeof(int32_t);
+  TAOS_STRCPY(schema[1].name, "value");
+
+  return ctgTestSerializeTableMetaRsp(&rsp, batchRsp);
+}
+
+int32_t ctgTestBuildTsmaRspWithNullStreamAddr(SBatchRspMsg *batchRsp) {
+  STableTSMAInfoRsp rsp = {0};
+  STableTSMAInfo    tsma = {0};
+  STableTSMAInfo   *pTsma = &tsma;
+
+  rsp.pTsmas = taosArrayInit(1, POINTER_BYTES);
+  if (NULL == rsp.pTsmas) {
+    return terrno;
+  }
+
+  TAOS_STRCPY(tsma.name, "tsma1");
+  TAOS_STRCPY(tsma.tb, ctgTestTablename);
+  TAOS_STRCPY(tsma.dbFName, ctgTestDbname);
+  tsma.streamUid = 1;
+  if (NULL == taosArrayPush(rsp.pTsmas, &pTsma)) {
+    taosArrayDestroy(rsp.pTsmas);
+    return terrno;
+  }
+
+  int32_t len = tSerializeTableTSMAInfoRsp(NULL, 0, &rsp);
+  taosArrayDestroy(rsp.pTsmas);
+  if (len <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  batchRsp->msg = taosMemoryMalloc(len);
+  if (NULL == batchRsp->msg) {
+    return terrno;
+  }
+
+  rsp.pTsmas = taosArrayInit(1, POINTER_BYTES);
+  if (NULL == rsp.pTsmas || NULL == taosArrayPush(rsp.pTsmas, &pTsma) ||
+      tSerializeTableTSMAInfoRsp(batchRsp->msg, len, &rsp) <= 0) {
+    taosArrayDestroy(rsp.pTsmas);
+    taosMemoryFreeClear(batchRsp->msg);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  taosArrayDestroy(rsp.pTsmas);
+  batchRsp->msgLen = len;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgTestBuildUseDbRsp(SBatchRspMsg *batchRsp) {
+  SRpcMsg req = {0};
+  SRpcMsg rsp = {0};
+
+  int32_t code = ctgTestRspDbVgroups(NULL, NULL, &req, &rsp);
+  if (code) {
+    return code;
+  }
+
+  batchRsp->msg = taosMemoryMalloc(rsp.contLen);
+  if (NULL == batchRsp->msg) {
+    rpcFreeCont(rsp.pCont);
+    return terrno;
+  }
+
+  TAOS_MEMCPY(batchRsp->msg, rsp.pCont, rsp.contLen);
+  rpcFreeCont(rsp.pCont);
+  batchRsp->msgLen = rsp.contLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgTestBuildAsyncBatchRsp(SMsgSendInfo *pInfo, SDataBuf *pMsg) {
+  SBatchReq batchReq = {0};
+  SBatchRsp batchRsp = {0};
+  int32_t   code = tDeserializeSBatchReq(pInfo->msgInfo.pData, pInfo->msgInfo.len, &batchReq);
+  if (code) {
+    return code;
+  }
+
+  batchRsp.pRsps = taosArrayInit(taosArrayGetSize(batchReq.pMsgs), sizeof(SBatchRspMsg));
+  if (NULL == batchRsp.pRsps) {
+    taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(batchReq.pMsgs); ++i) {
+    SBatchMsg *req = (SBatchMsg *)taosArrayGet(batchReq.pMsgs, i);
+    if (NULL == req) {
+      code = TSDB_CODE_INVALID_MSG;
+      break;
+    }
+
+    SBatchRspMsg rsp = {.reqType = req->msgType, .msgIdx = req->msgIdx, .rspCode = TSDB_CODE_SUCCESS};
+    if (CTGT_ASYNC_RSP_REQTYPE_MISMATCH == ctgTestAsyncRspType) {
+      rsp.reqType = TDMT_MND_QNODE_LIST;
+    } else if (TDMT_MND_USE_DB == req->msgType) {
+      code = ctgTestBuildUseDbRsp(&rsp);
+    } else if (TDMT_VND_TABLE_NAME == req->msgType) {
+      code = ctgTestBuildVirtualTableNameRsp(&rsp);
+    } else if (TDMT_VND_TABLE_META == req->msgType) {
+      code = ctgTestBuildNormalTableMetaRsp(&rsp);
+    } else if (TDMT_MND_GET_TABLE_TSMA == req->msgType) {
+      code = ctgTestBuildTsmaRspWithNullStreamAddr(&rsp);
+    } else {
+      code = TSDB_CODE_INVALID_MSG;
+    }
+
+    if (code || NULL == taosArrayPush(batchRsp.pRsps, &rsp)) {
+      tFreeSBatchRspMsg(&rsp);
+      if (!code) {
+        code = terrno;
+      }
+      break;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    int32_t len = tSerializeSBatchRsp(NULL, 0, &batchRsp);
+    if (len <= 0) {
+      code = TSDB_CODE_INVALID_MSG;
+    } else {
+      pMsg->pData = taosMemoryMalloc(len);
+      if (NULL == pMsg->pData) {
+        code = terrno;
+      } else if (tSerializeSBatchRsp(pMsg->pData, len, &batchRsp) <= 0) {
+        taosMemoryFreeClear(pMsg->pData);
+        code = TSDB_CODE_INVALID_MSG;
+      } else {
+        pMsg->len = len;
+      }
+    }
+  }
+
+  taosArrayDestroyEx(batchRsp.pRsps, tFreeSBatchRspMsg);
+  taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
+  return code;
+}
+
+int32_t ctgTestDeliverAsyncBatchRsp(void *param) {
+  SMsgSendInfo *pInfo = (SMsgSendInfo *)param;
+  SDataBuf      rsp = {0};
+  int32_t       code = ctgTestBuildAsyncBatchRsp(pInfo, &rsp);
+
+  (void)(*pInfo->fp)(pInfo->param, &rsp, code);
+  destroySendMsgInfo(pInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgTestAsyncSendMsgToServer(void *pTransporter, SEpSet *epSet, int64_t *pTransporterId, SMsgSendInfo *pInfo,
+                                     bool persistHandle, void *rpcCtx) {
+  int32_t code = taosAsyncExec(ctgTestDeliverAsyncBatchRsp, pInfo, NULL);
+  if (code) {
+    destroySendMsgInfo(pInfo);
+  }
+  return code;
+}
+
+void ctgTestSetAsyncBatchRsp() {
+  static Stub stub;
+  stub.set(asyncSendMsgToServerExt, ctgTestAsyncSendMsgToServer);
+}
+
+void ctgTestAsyncMetaCb(SMetaData *meta, void *param, int32_t code) {
+  SCtgTestAsyncResult *result = (SCtgTestAsyncResult *)param;
+  result->code = code;
+  result->meta = *meta;
+  TAOS_MEMSET(meta, 0, sizeof(*meta));
+  EXPECT_EQ(tsem_post(&result->sem), 0);
+}
+
+void ctgTestInitTablesReq(SArray **pTablesReq, STablesReq **pTables, const char *tbName) {
+  *pTablesReq = taosArrayInit(1, sizeof(STablesReq));
+  ASSERT_NE(*pTablesReq, nullptr);
+
+  STablesReq tables = {0};
+  TAOS_STRCPY(tables.dbFName, ctgTestDbname);
+  tables.pTables = taosArrayInit(1, sizeof(SName));
+  ASSERT_NE(tables.pTables, nullptr);
+
+  SName name = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  TAOS_STRCPY(name.dbname, "db1");
+  TAOS_STRCPY(name.tname, tbName);
+  ASSERT_NE(taosArrayPush(tables.pTables, &name), nullptr);
+  ASSERT_NE(taosArrayPush(*pTablesReq, &tables), nullptr);
+
+  *pTables = (STablesReq *)taosArrayGet(*pTablesReq, 0);
+  ASSERT_NE(*pTables, nullptr);
+}
+
+void ctgTestDestroyTablesReq(SArray *tablesReq) {
+  STablesReq *tables = (STablesReq *)taosArrayGet(tablesReq, 0);
+  if (NULL != tables) {
+    taosArrayDestroy(tables->pTables);
+  }
+  taosArrayDestroy(tablesReq);
+}
 
 void ctgTestResetStop() { atomic_store_8(&ctgTestStop, false); }
 
@@ -892,14 +1181,15 @@ void ctgTestRspDndeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
   rpcFreeCont(pMsg->pCont);
 
   SDnodeListRsp dRsp = {0};
-  dRsp.dnodeList = taosArrayInit(1, sizeof(SEpSet));
+  dRsp.dnodeList = taosArrayInit(1, sizeof(SDNodeAddr));
   ASSERT(dRsp.dnodeList != NULL);
-  SEpSet epSet = {0};
-  epSet.numOfEps = 1;
-  tstrncpy(epSet.eps[0].fqdn, "localhost", TSDB_FQDN_LEN);
-  epSet.eps[0].port = 6030;
+  SDNodeAddr dnodeAddr = {0};
+  dnodeAddr.nodeId = 1;
+  dnodeAddr.epSet.numOfEps = 1;
+  tstrncpy(dnodeAddr.epSet.eps[0].fqdn, "localhost", TSDB_FQDN_LEN);
+  dnodeAddr.epSet.eps[0].port = 6030;
 
-  ASSERT(NULL != taosArrayPush(dRsp.dnodeList, &epSet));
+  ASSERT(NULL != taosArrayPush(dRsp.dnodeList, &dnodeAddr));
 
   int32_t contLen = tSerializeSDnodeListRsp(NULL, 0, &dRsp);
   ASSERT(contLen > 0);
@@ -3358,13 +3648,175 @@ TEST(apiTest, catalogGetDnodeList_test) {
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize(pList), 1);
 
+  SDNodeAddr *pAddr = (SDNodeAddr *)taosArrayGet(pList, 0);
+  ASSERT_NE(pAddr, nullptr);
+  ASSERT_EQ(pAddr->nodeId, 1);
+  ASSERT_EQ(pAddr->epSet.eps[0].port, 6030);
+
   taosArrayDestroy(pList);
 
   catalogDestroy();
 }
 
+TEST(catalogAsync, batchRspReqTypeMismatch) {
+  SCatalog            *pCtg = NULL;
+  SRequestConnInfo     conn = {0};
+  SCatalogReq           req = {0};
+  SCtgTestAsyncResult   result = {0};
+  SArray               *tablesReq = NULL;
+  STablesReq           *tables = NULL;
+
+  ctgTestAsyncRspType = CTGT_ASYNC_RSP_REQTYPE_MISMATCH;
+  ctgTestSetAsyncBatchRsp();
+  initQueryModuleMsgHandle();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+  ASSERT_EQ(tsem_init(&result.sem, 0, 0), 0);
+
+  ctgTestInitTablesReq(&tablesReq, &tables, ctgTestTablename);
+  req.pTableName = tablesReq;
+  ASSERT_EQ(catalogAsyncGetAllMeta(pCtg, &conn, &req, ctgTestAsyncMetaCb, &result, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tsem_timewait(&result.sem, 5000), 0);
+  ASSERT_EQ(result.code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(result.meta.pTableMeta, nullptr);
+  ASSERT_EQ(taosArrayGetSize(result.meta.pTableMeta), 1);
+
+  SMetaRes *metaRes = (SMetaRes *)taosArrayGet(result.meta.pTableMeta, 0);
+  ASSERT_NE(metaRes, nullptr);
+  ASSERT_EQ(metaRes->code, TSDB_CODE_INVALID_MSG);
+  ASSERT_EQ(metaRes->pRes, nullptr);
+
+  catalogFreeMetaData(&result.meta);
+  ctgTestDestroyTablesReq(tablesReq);
+  ASSERT_EQ(tsem_destroy(&result.sem), 0);
+  catalogDestroy();
+  ctgTestAsyncRspType = 0;
+}
+
+TEST(catalogAsync, virtualSubtableMetaRequestInitializesMsgCtx) {
+  SCatalog         ctg = {0};
+  SCtgJob          job = {0};
+  SCtgTask         task = {};
+  SCtgVStbRefDbsCtx taskCtx = {0};
+  SRequestConnInfo conn = {0};
+  SVgroupInfo      vgInfo = {0};
+  SName            name = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+
+  initQueryModuleMsgHandle();
+  TAOS_STRCPY(name.dbname, "db1");
+  TAOS_STRCPY(name.tname, "vstb1");
+
+  job.subTaskNum = 1;
+  job.pBatchs = taosHashInit(CTG_DEFAULT_BATCH_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false,
+                             HASH_NO_LOCK);
+  ASSERT_NE(job.pBatchs, nullptr);
+
+  task.type = CTG_TASK_GET_V_STBREFDBS;
+  task.taskId = 0;
+  task.pJob = &job;
+  task.taskCtx = &taskCtx;
+  task.msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), 1);
+  ASSERT_NE(task.msgCtxs, nullptr);
+  taskCtx.pNames = &name;
+
+  vgInfo.vgId = 1;
+  vgInfo.epSet.numOfEps = 1;
+  TAOS_STRCPY(vgInfo.epSet.eps[0].fqdn, "localhost");
+  vgInfo.epSet.eps[0].port = 6030;
+
+  SCtgTaskReq req = {.pTask = &task, .msgIdx = 0};
+  ASSERT_EQ(ctgGetVSubtablesMetaFromVnode(&ctg, &conn, 1, &vgInfo, &req), TSDB_CODE_SUCCESS);
+
+  SCtgMsgCtx *msgCtx = static_cast<SCtgMsgCtx *>(CTG_GET_TASK_MSGCTX(&task, 0));
+  ASSERT_NE(msgCtx, nullptr);
+  ASSERT_EQ(msgCtx->reqType, TDMT_VND_VSUBTABLES_META);
+
+  ctgFreeBatchs(job.pBatchs);
+  taosArrayDestroy(task.msgCtxs);
+}
+
+TEST(catalogAsync, virtualTableNamePreserved) {
+  SCatalog            *pCtg = NULL;
+  SRequestConnInfo     conn = {0};
+  SCatalogReq           req = {0};
+  SCtgTestAsyncResult   result = {0};
+  SArray               *tablesReq = NULL;
+  STablesReq           *tables = NULL;
+
+  ctgTestAsyncRspType = CTGT_ASYNC_RSP_VIRTUAL_TABLE_NAME;
+  ctgTestSetAsyncBatchRsp();
+  initQueryModuleMsgHandle();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+  ASSERT_EQ(tsem_init(&result.sem, 0, 0), 0);
+
+  ctgTestInitTablesReq(&tablesReq, &tables, "vctb1");
+  req.pTableName = tablesReq;
+  ASSERT_EQ(catalogAsyncGetAllMeta(pCtg, &conn, &req, ctgTestAsyncMetaCb, &result, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tsem_timewait(&result.sem, 5000), 0);
+  ASSERT_EQ(result.code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(result.meta.pTableMeta, nullptr);
+  ASSERT_EQ(taosArrayGetSize(result.meta.pTableMeta), 1);
+
+  SMetaRes *metaRes = (SMetaRes *)taosArrayGet(result.meta.pTableMeta, 0);
+  ASSERT_NE(metaRes, nullptr);
+  ASSERT_EQ(metaRes->code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(metaRes->pRes, nullptr);
+  STableMeta *meta = (STableMeta *)metaRes->pRes;
+  ASSERT_EQ(meta->tableType, TSDB_VIRTUAL_CHILD_TABLE);
+  ASSERT_EQ(meta->numOfColRefs, 2);
+  ASSERT_STREQ((char *)meta + TABLE_META_FULL_SIZE(meta), "vctb1");
+
+  catalogFreeMetaData(&result.meta);
+  ctgTestDestroyTablesReq(tablesReq);
+  ASSERT_EQ(tsem_destroy(&result.sem), 0);
+  catalogDestroy();
+  ctgTestAsyncRspType = 0;
+}
+
+TEST(catalogAsync, tsmaNullStreamAddrReturnsInvalidMessage) {
+  SCatalog            *pCtg = NULL;
+  SRequestConnInfo     conn = {0};
+  SCatalogReq           req = {0};
+  SCtgTestAsyncResult   result = {0};
+  SArray               *tablesReq = NULL;
+  STablesReq           *tables = NULL;
+  int32_t               oldTsQuerySmaOptimize = tsQuerySmaOptimize;
+
+  ctgTestAsyncRspType = CTGT_ASYNC_RSP_TSMA_NULL_STREAM_ADDR;
+  ctgTestSetAsyncBatchRsp();
+  initQueryModuleMsgHandle();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+  ASSERT_EQ(tsem_init(&result.sem, 0, 0), 0);
+
+  tsQuerySmaOptimize = 1;
+  ctgTestInitTablesReq(&tablesReq, &tables, ctgTestTablename);
+  req.pTableTSMAs = tablesReq;
+  ASSERT_EQ(catalogAsyncGetAllMeta(pCtg, &conn, &req, ctgTestAsyncMetaCb, &result, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tsem_timewait(&result.sem, 5000), 0);
+  ASSERT_EQ(result.code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(result.meta.pTableTsmas, nullptr);
+  ASSERT_EQ(taosArrayGetSize(result.meta.pTableTsmas), 1);
+
+  SMetaRes *metaRes = (SMetaRes *)taosArrayGet(result.meta.pTableTsmas, 0);
+  ASSERT_NE(metaRes, nullptr);
+  ASSERT_EQ(metaRes->code, TSDB_CODE_INVALID_MSG);
+
+  catalogFreeMetaData(&result.meta);
+  ctgTestDestroyTablesReq(tablesReq);
+  tsQuerySmaOptimize = oldTsQuerySmaOptimize;
+  ASSERT_EQ(tsem_destroy(&result.sem), 0);
+  catalogDestroy();
+  ctgTestAsyncRspType = 0;
+}
+
 TEST(apiTest, ctgEnqueueStopQueueDestroyOrder_test) {
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
+  // NOTE: Direct memset on global variable triggers ASAN global-buffer-overflow
+  // when sizeof differs between test and library compilation units.
+  // Only initialize the fields needed for this test.
+  gCtgMgmt.exit = false;
+  gCtgMgmt.queue.stopQueue = false;
   taosInitRWLatch(&gCtgMgmt.lock);
   taosInitRWLatch(&gCtgMgmt.queue.qlock);
   ASSERT_EQ(TSDB_CODE_SUCCESS, tsem_init(&gCtgMgmt.queue.reqSem, 0, 0));
@@ -3493,9 +3945,14 @@ TEST(intTest, autoCreateTableTest) {
 #endif
 
 int main(int argc, char **argv) {
+  if (initTaskQueue() != TSDB_CODE_SUCCESS) {
+    return 1;
+  }
+
   testing::InitGoogleTest(&argc, argv);
   testing::UnitTest::GetInstance()->listeners().Append(new CatalogCleanupListener);
   int32_t code = RUN_ALL_TESTS();
+  (void)cleanupTaskQueue();
   DestoryThreadLocalRegComp();
   DestroyRegexCache();
   return code;

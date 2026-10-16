@@ -1,32 +1,32 @@
 ### 001
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryEnable'
 RESULT
-federatedQueryEnable|1|both|global|
+federatedQueryEnable|1|both|global||false
 ---
 ### 002
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryEnable'
 RESULT
-federatedQueryEnable|0|both|global|
+federatedQueryEnable|0|both|global||false
 ---
 ### 003
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryEnable'
 RESULT
-1|federatedQueryEnable|1|both|global|
+1|federatedQueryEnable|1|both|global||false
 ---
 ### 004
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryEnable'
 RESULT
-1|federatedQueryEnable|0|both|global|
+1|federatedQueryEnable|0|both|global||false
 ---
 ### 005
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryEnable'
 RESULT
-1|federatedQueryEnable|0|both|global|
+1|federatedQueryEnable|0|both|global||false
 ---
 ### 006
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryEnable'
 RESULT
-federatedQueryEnable|0|both|global|
+federatedQueryEnable|0|both|global||false
 ---
 ### 007
 SQL: ALTER LOCAL 'federatedQueryEnable' '2'
@@ -39,32 +39,32 @@ ERROR -0x7ffffeee: Out of range
 ### 009
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
 RESULT
-1|federatedQueryConnectTimeoutMs|100|both|global|
+1|federatedQueryConnectTimeoutMs|100|both|global||false
 ---
 ### 010
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
 RESULT
-1|federatedQueryConnectTimeoutMs|600000|both|global|
+1|federatedQueryConnectTimeoutMs|600000|both|global||false
 ---
 ### 011
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
 RESULT
-1|federatedQueryConnectTimeoutMs|5000|both|global|
+1|federatedQueryConnectTimeoutMs|5000|both|global||false
 ---
 ### 012
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
 RESULT
-federatedQueryConnectTimeoutMs|3000|both|global|
+federatedQueryConnectTimeoutMs|3000|both|global||false
 ---
 ### 013
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
 RESULT
-federatedQueryConnectTimeoutMs|5000|both|global|
+federatedQueryConnectTimeoutMs|5000|both|global||false
 ---
 ### 014
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
 RESULT
-federatedQueryConnectTimeoutMs|5000|both|global|
+federatedQueryConnectTimeoutMs|5000|both|global||false
 ---
 ### 015
 SQL: ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '99'
@@ -97,32 +97,32 @@ ERROR -0x7ffffeee: Out of range
 ### 022
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
 RESULT
-1|federatedQueryConnectTimeoutMs|5000|both|global|
+1|federatedQueryConnectTimeoutMs|5000|both|global||false
 ---
 ### 023
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
 RESULT
-1|federatedQueryQueryTimeoutMs|100|both|global|
+1|federatedQueryQueryTimeoutMs|100|both|global||false
 ---
 ### 024
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
 RESULT
-1|federatedQueryQueryTimeoutMs|1000000000|both|global|
+1|federatedQueryQueryTimeoutMs|1000000000|both|global||false
 ---
 ### 025
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
 RESULT
-federatedQueryQueryTimeoutMs|5000|both|global|
+federatedQueryQueryTimeoutMs|5000|both|global||false
 ---
 ### 026
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
 RESULT
-federatedQueryQueryTimeoutMs|1000000000|both|global|
+federatedQueryQueryTimeoutMs|1000000000|both|global||false
 ---
 ### 027
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
 RESULT
-federatedQueryQueryTimeoutMs|1000000000|both|global|
+federatedQueryQueryTimeoutMs|1000000000|both|global||false
 ---
 ### 028
 SQL: ALTER ALL DNODES 'federatedQueryQueryTimeoutMs' '99'
@@ -147,37 +147,37 @@ ERROR -0x7ffffeee: Out of range
 ### 033
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
 RESULT
-1|federatedQueryQueryTimeoutMs|1000000000|both|global|
+1|federatedQueryQueryTimeoutMs|1000000000|both|global||false
 ---
 ### 034
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
 RESULT
-1|federatedQueryMaxPoolSizePerSour|1|both|global|
+1|federatedQueryMaxPoolSizePerSour|1|both|global||false
 ---
 ### 035
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
 RESULT
-1|federatedQueryMaxPoolSizePerSour|1024|both|global|
+1|federatedQueryMaxPoolSizePerSour|1024|both|global||false
 ---
 ### 036
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
 RESULT
-1|federatedQueryMaxPoolSizePerSour|64|both|global|
+1|federatedQueryMaxPoolSizePerSour|64|both|global||false
 ---
 ### 037
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
 RESULT
-federatedQueryMaxPoolSizePerSour|128|both|global|
+federatedQueryMaxPoolSizePerSour|128|both|global||false
 ---
 ### 038
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
 RESULT
-federatedQueryMaxPoolSizePerSour|64|both|global|
+federatedQueryMaxPoolSizePerSour|64|both|global||false
 ---
 ### 039
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
 RESULT
-federatedQueryMaxPoolSizePerSour|64|both|global|
+federatedQueryMaxPoolSizePerSour|64|both|global||false
 ---
 ### 040
 SQL: ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '0'
@@ -202,37 +202,37 @@ ERROR -0x7ffffeee: Out of range
 ### 045
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
 RESULT
-1|federatedQueryMaxPoolSizePerSour|64|both|global|
+1|federatedQueryMaxPoolSizePerSour|64|both|global||false
 ---
 ### 046
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
 RESULT
-1|federatedQueryIdleConnTtlSec|1|both|global|
+1|federatedQueryIdleConnTtlSec|1|both|global||false
 ---
 ### 047
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
 RESULT
-1|federatedQueryIdleConnTtlSec|86400|both|global|
+1|federatedQueryIdleConnTtlSec|86400|both|global||false
 ---
 ### 048
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
 RESULT
-1|federatedQueryIdleConnTtlSec|600|both|global|
+1|federatedQueryIdleConnTtlSec|600|both|global||false
 ---
 ### 049
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
 RESULT
-federatedQueryIdleConnTtlSec|300|both|global|
+federatedQueryIdleConnTtlSec|300|both|global||false
 ---
 ### 050
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
 RESULT
-federatedQueryIdleConnTtlSec|600|both|global|
+federatedQueryIdleConnTtlSec|600|both|global||false
 ---
 ### 051
 SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
 RESULT
-federatedQueryIdleConnTtlSec|600|both|global|
+federatedQueryIdleConnTtlSec|600|both|global||false
 ---
 ### 052
 SQL: ALTER ALL DNODES 'federatedQueryIdleConnTtlSec' '0'
@@ -253,5 +253,5 @@ ERROR -0x7ffffeee: Out of range
 ### 056
 SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
 RESULT
-1|federatedQueryIdleConnTtlSec|600|both|global|
+1|federatedQueryIdleConnTtlSec|600|both|global||false
 ---

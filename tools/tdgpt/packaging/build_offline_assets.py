@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """Build TDgpt Windows offline asset bundles."""
 
 from __future__ import annotations
@@ -235,6 +251,7 @@ def create_manifest_lines(
     main_venv_dir: Optional[Path],
     extra_venvs: Iterable[Path],
     bundle_kind: str,
+    flavor: str,
 ) -> str:
     lines = [
         "TDgpt offline assets manifest",
@@ -242,6 +259,7 @@ def create_manifest_lines(
         "generated_at="
         + datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         f"bundle_kind={bundle_kind}",
+        f"flavor={flavor}",
         f"main_venv={main_venv_dir or ''}",
         "runtime=provided-by-installer",
     ]
@@ -261,6 +279,8 @@ def resolve_tar_write_mode(output_file: Path) -> str:
     suffixes = "".join(output_file.suffixes).lower()
     if suffixes.endswith(".tar.gz") or suffixes.endswith(".tgz"):
         return "w:gz"
+    if suffixes.endswith((".tar.xz", ".txz")):
+        return "w:xz"
     return "w"
 
 
@@ -270,6 +290,7 @@ def build_bundle(
     main_venv_dir: Optional[Path],
     extra_venvs: list[Path],
     bundle_kind: str,
+    flavor: str,
 ) -> Path:
     output_file.parent.mkdir(parents=True, exist_ok=True)
     if output_file.exists():
@@ -334,7 +355,7 @@ def build_bundle(
             info(f"Copied {copied} members from seed package")
 
         manifest = create_manifest_lines(
-            seed_package, main_venv_dir, extra_venvs, bundle_kind
+            seed_package, main_venv_dir, extra_venvs, bundle_kind, flavor
         )
         data = manifest.encode("utf-8")
         info("Adding offline assets manifest")
@@ -358,6 +379,12 @@ def parse_args() -> argparse.Namespace:
         "combined = legacy combined bundle.",
     )
     parser.add_argument(
+        "--flavor",
+        choices=["standard", "lite"],
+        default="standard",
+        help="Offline asset flavor recorded in offline-assets-manifest.txt.",
+    )
+    parser.add_argument(
         "--output-file",
         required=True,
         help="Output tar path, for example "
@@ -365,7 +392,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--seed-package",
-        help="Existing tar/tar.gz package that already contains offline model payloads and optional model venvs.",
+        help="Existing tar/tar.gz/tar.xz package that already contains offline model payloads and optional model venvs.",
     )
     parser.add_argument(
         "--main-venv-dir",
@@ -399,7 +426,12 @@ def main() -> int:
     ]
 
     bundle_path = build_bundle(
-        output_file, seed_package, main_venv_dir, extra_venvs, args.bundle_kind
+        output_file,
+        seed_package,
+        main_venv_dir,
+        extra_venvs,
+        args.bundle_kind,
+        args.flavor,
     )
 
     ok(f"Offline assets package created: {bundle_path}")

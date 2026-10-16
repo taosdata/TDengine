@@ -32,7 +32,7 @@ taosX-Agent 是 TDengine TSDB Enterprise 的一个组件，作为 taosX 的代�
 
 ## 获取 taosX-Agent
 
-请访问 [TDengine 下载中心](https://www.taosdata.com/download-center)，在产品列表中选择 **TDengine taosX-Agent**，然后选择对应的版本、操作系统和架构，下载安装包。
+请访问 [TDengine 下载中心](https://taosdata.com/downloads)，在产品列表中选择 **TDengine taosX-Agent**，然后选择对应的版本、操作系统和架构，下载安装包。
 
 :::note
 taosX-Agent 仅在 TDengine TSDB Enterprise（企业版）中提供，社区版不包含此组件。
@@ -74,7 +74,7 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 
 ## 安装
 
-从 [TDengine 下载中心](https://www.taosdata.com/download-center) 下载对应平台的 taosX-Agent 安装包后，按照安装包的引导完成安装。
+从 [TDengine 下载中心](https://taosdata.com/downloads) 下载对应平台的 taosX-Agent 安装包后，按照安装包的引导完成安装。
 
 安装完成后，taosX-Agent 的相关文件位于：
 
@@ -94,11 +94,11 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 3. 在顶部选择 **代理** 标签页。
 4. 点击右上角的 **+创建新的代理** 按钮。
 
-![创建 Agent](../../../assets/taosx-agent-01.png)
+![创建 Agent](../../../assets/taosx-agent-01.webp)
 
 5. 按照创建代理的指引操作，系统会生成 **endpoint** 和 **token**，请将其复制保存到 `agent.toml` 配置文件中。
 
-![生成 endpoint 和 token](../../../assets/taosx-agent-02.png)
+![生成 endpoint 和 token](../../../assets/taosx-agent-02.webp)
 
 :::warning
 请在点击"下一步"前保存好 endpoint 和 token。如果丢失，将无法找回，必须重新创建代理。
@@ -151,7 +151,7 @@ sc start taosx-agent
 
 启动后，回到 taosExplorer 创建代理的向导页面，点击 **检查代理是否连接正常** 按钮，状态显示为 **正常** 即表示 Agent 已成功上线。
 
-![验证 Agent 状态](../../../assets/taosx-agent-03.png)
+![验证 Agent 状态](../../../assets/taosx-agent-03.webp)
 
 也可以通过日志确认启动是否正常：
 

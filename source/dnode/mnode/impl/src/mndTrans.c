@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,6 +23,7 @@
 #include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndStream.h"
 #include "mndStreamRecalc.h"
 #include "mndSubscribe.h"
 #include "mndSync.h"
@@ -29,6 +32,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "osTime.h"
+#include "tlogKeyOp.h"
 
 #define TRANS_VER1_NUMBER    1
 #define TRANS_VER2_NUMBER    2
@@ -39,6 +43,63 @@
 #define TRANS_ARRAY_SIZE     8
 #define TRANS_RESERVE_SIZE   35
 #define TRANS_ACTION_TIMEOUT (1000 * 1000 * 60 * 15)
+
+// KEYOP: opername -> canonical "key operation" category for the transactions that are
+// either high-impact on overall cluster performance or high-risk (data migration, vgroup
+// split/redistribute/replica change, stream lifecycle, subscription rebalance, dnode
+// restore, config update, compact kill, etc). See docs/unplanned/engine/ (key-operation log search guide).
+//
+// pTrans->opername is truncated to TSDB_TRANS_OPER_LEN-1 (15) chars by mndTransCreate's
+// tstrncpy() call, so entries whose literal opername exceeds 15 chars are matched against
+// only their first 15 characters below instead of a full strcmp - do not "fix" this into a
+// plain strcmp. opernameCmpLen is computed at compile time (KEYOP_CMP_LEN) so the lookup below
+// never calls strlen() on the table itself.
+//
+// IMPORTANT: two entries must never end up with the same opernameCmpLen while also sharing
+// that many leading characters of their opername - if a future long (>15 char) opername would
+// truncate to the exact same 15-char prefix as an existing entry, mndTransCreate has already
+// destroyed the information needed to tell them apart (pTrans->opername stores them
+// identically), so this table cannot disambiguate them either; picking a new opername that
+// doesn't collide on its first 15 characters with an existing entry is the only fix.
+#define KEYOP_CMP_LEN(lit) \
+  ((int32_t)(sizeof(lit) - 1 > TSDB_TRANS_OPER_LEN - 1 ? TSDB_TRANS_OPER_LEN - 1 : sizeof(lit) - 1))
+
+typedef struct {
+  const char *opername;
+  int32_t     opernameCmpLen;  // number of leading chars of `opername` to compare against, see KEYOP_CMP_LEN
+  const char *category;
+} SKeyOpTransEntry;
+
+static const SKeyOpTransEntry KEYOP_TRANS_ALLOWLIST[] = {
+    {"split-vgroup", KEYOP_CMP_LEN("split-vgroup"), "split-vgroup"},
+    {"red-vgroup", KEYOP_CMP_LEN("red-vgroup"), "redistribute-vgroup"},
+    {"balance-vgroup", KEYOP_CMP_LEN("balance-vgroup"), "balance-vgroup"},
+    {"balance-vg-leader", KEYOP_CMP_LEN("balance-vg-leader"), "balance-vgroup-leader"},
+    {"alter-db", KEYOP_CMP_LEN("alter-db"), "alter-db"},
+    {"kill-compact-force", KEYOP_CMP_LEN("kill-compact-force"), "compact-kill-force"},
+    {"kill-compact", KEYOP_CMP_LEN("kill-compact"), "compact-kill"},
+    {"compact-db", KEYOP_CMP_LEN("compact-db"), "compact-db"},
+    {"ssmigrate-db", KEYOP_CMP_LEN("ssmigrate-db"), "ss-migrate"},
+    {"update-config-with-dnode", KEYOP_CMP_LEN("update-config-with-dnode"), "update-config"},
+    {"update-config", KEYOP_CMP_LEN("update-config"), "update-config"},
+    {"restore-dnode", KEYOP_CMP_LEN("restore-dnode"), "restore-dnode"},
+    {MND_STREAM_CREATE_NAME, KEYOP_CMP_LEN(MND_STREAM_CREATE_NAME), "stream-create"},
+    {MND_STREAM_DROP_NAME, KEYOP_CMP_LEN(MND_STREAM_DROP_NAME), "stream-drop"},
+    {"stream-recalc", KEYOP_CMP_LEN("stream-recalc"), "stream-recalc"},
+    {"tmq-reb", KEYOP_CMP_LEN("tmq-reb"), "tmq-rebalance"},
+    {"drop-cgroup", KEYOP_CMP_LEN("drop-cgroup"), "tmq-drop-cgroup"},
+};
+
+static const char *mndKeyOpLookupCategory(const char *opername) {
+  if (opername == NULL) return NULL;
+  int32_t opernameLen = (int32_t)strlen(opername);
+  for (size_t i = 0; i < sizeof(KEYOP_TRANS_ALLOWLIST) / sizeof(KEYOP_TRANS_ALLOWLIST[0]); ++i) {
+    const SKeyOpTransEntry *pEntry = &KEYOP_TRANS_ALLOWLIST[i];
+    if (opernameLen != pEntry->opernameCmpLen) continue;
+    if (strncmp(opername, pEntry->opername, pEntry->opernameCmpLen) == 0) return pEntry->category;
+  }
+  return NULL;
+}
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
@@ -848,7 +909,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
         pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage), pNew->createdTime);
 
   if (pOld->createdTime != pNew->createdTime) {
-    mError("trans:%d, failed to perform update action since createTime not match, old row:%p stage:%s create:%" PRId64
+    mError("trans:%d, failed to perform update action since createTime does not match, old row:%p stage:%s create:%" PRId64
            ", new row:%p stage:%s create:%" PRId64,
            pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
            pNew->createdTime);
@@ -967,6 +1028,12 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   }
 
   mInfo("trans:%d, create transaction:%s, origin:%s", pTrans->id, pTrans->opername, opername);
+
+  const char *keyOpCategory = mndKeyOpLookupCategory(pTrans->opername);
+  if (keyOpCategory != NULL) {
+    mInfo(KEYOP_TAG_FMT "trans:%d, category:%s, opername:%s", keyOpCategory, KEYOP_PHASE_START, pTrans->id,
+          keyOpCategory, pTrans->opername);
+  }
 
   mTrace("trans:%d, local object is created, data:%p", pTrans->id, pTrans);
   return pTrans;
@@ -1254,7 +1321,7 @@ static bool mndCheckStbConflict(const char *conflict, STrans *pTrans) {
 
 static void mndTransLogConflict(STrans *pNew, STrans *pTrans, bool conflict, bool *globalConflict) {
   if (conflict) {
-    mError("trans:%d, opername:%s db:%s stb:%s type:%d, can't execute since conflict with trans:%d, opername:%s db:%s "
+    mError("trans:%d, opername:%s db:%s stb:%s type:%d, cannot execute since conflict with trans:%d, opername:%s db:%s "
       "stb:%s type:%d", 
       pNew->id, pNew->opername, pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->opername, 
       pTrans->dbname, pTrans->stbname, pTrans->conflict);
@@ -1371,7 +1438,7 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
     }
 
     if (thisConflict) {
-      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with compact:%d db:%s", pTrans->id,
+      mError("trans:%d, db:%s stb:%s type:%d, cannot execute since conflict with compact:%d db:%s", pTrans->id,
              pTrans->dbname, pTrans->stbname, pTrans->conflict, pCompact->compactId, pCompact->dbname);
       conflict = true;
     } else {
@@ -1408,7 +1475,7 @@ int32_t mndTransCheckConflictWithRetention(SMnode *pMnode, STrans *pTrans) {
     }
 
     if (conflict) {
-      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with retention:%d db:%s", pTrans->id,
+      mError("trans:%d, db:%s stb:%s type:%d, cannot execute since conflict with retention:%d db:%s", pTrans->id,
              pTrans->dbname, pTrans->stbname, pTrans->conflict, pRetention->id, pRetention->dbname);
       sdbRelease(pSdb, pRetention);
       sdbCancelFetch(pSdb, pIter);
@@ -1693,7 +1760,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         int32_t code = mndRefreshUserIpWhiteList(pMnode);
         if (code != 0) {
           // Log as error: if the whitelist refresh fails, the new dnode's intra-cluster RPC will be rejected
-          // even though CREATE DNODE returned success to the client — operators need visibility on this.
+          // even though CREATE DNODE returned success to the client  -  operators need visibility on this.
           mError("failed to refresh user ip white list since %s", tstrerror(code));
         }
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_TOKEN) {
@@ -2229,7 +2296,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
 
     if (notSend && !pAction->msgSent) {
       mInfo(
-          "trans:%d, %s:%d (%d/%d at group %d) skip to execute, curent state(actionType(1:msg,2:log):%d, "
+          "trans:%d, %s:%d (%d/%d at group %d) skip to execute, current state(actionType(1:msg,2:log):%d, "
           "msgSent:%d, msgReceived:%d), transaction(action pos:%d)",
           pTrans->id, mndTransStr(pTrans->stage), pAction->id, action, numOfActions, groupId, pAction->actionType,
           pAction->msgSent, pAction->msgReceived, pTrans->actionPos);
@@ -2238,7 +2305,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
     }
 
     mInfo(
-        "trans:%d, %s:%d (%d/%d at group %d) begin to execute, curent state(actionType(1:msg,2:log):%d, "
+        "trans:%d, %s:%d (%d/%d at group %d) begin to execute, current state(actionType(1:msg,2:log):%d, "
         "msgSent:%d, msgReceived:%d), transaction(action pos:%d)",
         pTrans->id, mndTransStr(pTrans->stage), pAction->id, action, numOfActions, groupId, pAction->actionType,
         pAction->msgSent, pAction->msgReceived, pTrans->actionPos);
@@ -2251,7 +2318,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
             code = pAction->errCode;
             mndTransResetAction(pMnode, pTrans, pAction);
           } else {
-            mInfo("trans:%d, %s:%d (%d/%d at group %d) suceed to exeute", pTrans->id, mndTransStr(pAction->stage),
+            mInfo("trans:%d, %s:%d (%d/%d at group %d) successfully executed", pTrans->id, mndTransStr(pAction->stage),
                   pAction->id, action, numOfActions, groupId);
           }
         } else {
@@ -2499,7 +2566,7 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
   if (successCount == groupCount) {
     total_code = 0;
   } else {
-    mInfo("trans:%d, redo action group is executed, %d of %d groups is executed", pTrans->id, successCount, groupCount);
+    mInfo("trans:%d, redo action group is executed, %d of %d groups are executed", pTrans->id, successCount, groupCount);
   }
 
   return total_code;
@@ -2777,6 +2844,14 @@ static bool mndTransPerformFinishStage(SMnode *pMnode, STrans *pTrans, bool topH
 
   mInfo("trans:%d, execute finished, code:0x%x, failedTimes:%d createTime:%" PRId64, pTrans->id, pTrans->code,
         pTrans->failedTimes, pTrans->createdTime);
+
+  const char *keyOpCategory = mndKeyOpLookupCategory(pTrans->opername);
+  if (keyOpCategory != NULL) {
+    const char *keyOpPhase = (pTrans->code == 0) ? KEYOP_PHASE_END : KEYOP_PHASE_FAIL;
+    mInfo(KEYOP_TAG_FMT "trans:%d, category:%s, code:0x%x, failedTimes:%d", keyOpCategory, keyOpPhase,
+          pTrans->id, keyOpCategory, pTrans->code, pTrans->failedTimes);
+  }
+
   return continueExec;
 }
 
@@ -2874,6 +2949,13 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
   }
 
   mInfo("trans:%d, execute transaction in kill trans", pTrans->id);
+
+  const char *keyOpCategory = mndKeyOpLookupCategory(pTrans->opername);
+  if (keyOpCategory != NULL) {
+    mInfo(KEYOP_TAG_FMT "trans:%d, category:%s, killMode:%d", keyOpCategory, KEYOP_PHASE_KILLED, pTrans->id,
+          keyOpCategory, pTrans->killMode);
+  }
+
   mndTransExecute(pMnode, pTrans, true);
   return 0;
 }
@@ -2932,7 +3014,7 @@ void mndTransPullup(SMnode *pMnode) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
     if (pIter == NULL) break;
     if (taosArrayPush(pArray, &pTrans->id) == NULL) {
-      mError("failed to put trans into array, trans:%d, but pull up will continute", pTrans->id);
+      mError("failed to put trans into array, trans:%d, but pull up will continue", pTrans->id);
     }
     sdbRelease(pSdb, pTrans);
   }
@@ -3071,7 +3153,7 @@ static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   char    *pBuf = &buf[0];
 
   // Use a local iterator instead of pShow->pIter to avoid cross-SDB-type
-  // contamination — mndRetrieveTrans() already occupies pShow->pIter for SDB_TRANS.
+  // contamination  -  mndRetrieveTrans() already occupies pShow->pIter for SDB_TRANS.
   // TXN entries are typically few, so full iteration without paging is acceptable.
   void *pTxnIter = NULL;
 
@@ -3395,7 +3477,18 @@ static void mndTransShowActions(SSdb *pSdb, STransDetailIter *pShowIter, SShowOb
   mInfo("stage:%s, Actions num:%d", mndTransStr(pShowIter->stage), actionNum);
 
   for (int32_t i = start; i < actionNum; ++i) {
-    STransAction *pAction = taosArrayGet(pShowIter->pTrans->redoActions, i);
+    // FIX (entry 191): fetch the action from the same stage-selected array `pActions`
+    // that bounds this loop, NOT from `pTrans->redoActions`. Indexing `redoActions`
+    // here was a NULL-pointer-dereference (CWE-476): when the current stage array
+    // (prepareActions / commitActions / undoActions) was longer than redoActions,
+    // taosArrayGet(redoActions, i) returned NULL for i >= redoActions->size, and that
+    // NULL was dereferenced without a check in mndShowTransCommonColumns.
+    STransAction *pAction = taosArrayGet(pActions, i);
+    if (pAction == NULL) {
+      mError("failed to retrieve transaction action, action is NULL at index:%d, transactionId:%d, stage:%s", i,
+             pShowIter->pTrans->id, mndTransStr(pShowIter->stage));
+      continue;
+    }
     mndShowTransAction(pShow, pBlock, pAction, pShowIter->pTrans->id, pShowIter->pTrans->lastAction, rows, *numOfRows);
     (*numOfRows)++;
     if (*numOfRows >= rows) break;

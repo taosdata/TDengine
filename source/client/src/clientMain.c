@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -119,54 +121,170 @@ void tzCleanup() {
 #endif
 }
 
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
-static timezone_t setConnectionTz(const char *val) {
-  timezone_t  tz = NULL;
-  timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
-  if (tmp != NULL && *tmp != NULL) {
-    tz = *tmp;
-    goto END;
+static void buildSessionTimezoneName(const char* inputName,
+                                     const char* normalizedName,
+                                     char* sessionName,
+                                     int32_t sessionNameLen) {
+  size_t inputLen = strlen(inputName);
+  bool isZulu = inputLen == 1 &&
+                (inputName[0] == 'Z' || inputName[0] == 'z');
+  bool isBareOffset = inputName[0] == '+' || inputName[0] == '-';
+  bool isIanaName = strchr(inputName, '/') != NULL;
+
+  if (isZulu || isBareOffset || isIanaName) {
+    tstrncpy(sessionName, inputName, sessionNameLen);
+    return;
   }
 
-  tscDebug("set timezone to %s", val);
+  bool isUtcName = strncasecmp(inputName, "UTC", 3) == 0 &&
+                   (inputLen == 3 ||
+                    (inputLen > 3 &&
+                     (inputName[3] == '+' || inputName[3] == '-')));
+  if (isUtcName) {
+    (void)snprintf(sessionName, sessionNameLen, "UTC%s", inputName + 3);
+    return;
+  }
 
-  /* Validate and allocate via the shared implementation in ttime.c.
-   * This covers: empty string rejection, ambiguous abbreviation rejection,
-   * fixed-offset normalization, and tzalloc. */
-  int32_t code = taosValidateTimezone(val, &tz);
+  tstrncpy(sessionName, normalizedName, sessionNameLen);
+}
+
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
+static timezone_t setConnectionTz(const char* val, char* sessionName,
+                                  int32_t sessionNameLen) {
+  char       normalizedName[TD_TIMEZONE_LEN] = {0};
+  timezone_t tz = NULL;
+  int32_t code = taosValidateAndNormalizeTimezone(
+      val, normalizedName, sizeof(normalizedName), NULL);
   if (code != TSDB_CODE_SUCCESS) {
     tscError("%s invalid timezone '%s', code:0x%x", __func__, val, code);
     terrno = code;
-    goto END;
+    return NULL;
   }
 
-  code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
-  if (code != 0) {
+  buildSessionTimezoneName(val, normalizedName, sessionName, sessionNameLen);
+  timezone_t* tmp = taosHashGet(pTimezoneMap, sessionName,
+                                strlen(sessionName));
+  if (tmp != NULL && *tmp != NULL) {
+    return *tmp;
+  }
+
+  code = taosValidateTimezone(sessionName, &tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("%s failed to create timezone '%s', code:0x%x", __func__,
+             sessionName, code);
+    terrno = code;
+    return NULL;
+  }
+
+  tscDebug("set timezone to %s", sessionName);
+
+  code = taosHashPut(pTimezoneMap, sessionName, strlen(sessionName),
+                     &tz, sizeof(timezone_t));
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
     tscError("%s put timezone to tz map error:%d", __func__, code);
     tzfree(tz);
-    tz = NULL;
-    goto END;
+    terrno = code;
+    return NULL;
+  }
+  if (code == TSDB_CODE_DUP_KEY) {
+    tmp = taosHashGet(pTimezoneMap, sessionName, strlen(sessionName));
+    if (tmp == NULL || *tmp == NULL) {
+      tscError("%s failed to get concurrently cached timezone '%s'",
+               __func__, sessionName);
+      tzfree(tz);
+      terrno = TSDB_CODE_DUP_KEY;
+      return NULL;
+    }
+
+    timezone_t cachedTz = *tmp;
+    tzfree(tz);
+    tz = cachedTz;
   }
 
   time_t tx1 = taosGetTimestampSec();
   char   output[TD_TIMEZONE_LEN] = {0};
-  code = taosFormatTimezoneStr(tx1, val, tz, output);
+  code = taosFormatTimezoneStr(tx1, sessionName, tz, output);
   if (code == 0) {
-    code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output, strlen(output) + 1);
+    code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output,
+                       strlen(output) + 1);
   }
-  if (code != 0) {
-    tscError("failed to put timezone %s to map", val);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+    tscError("failed to put timezone %s to map", sessionName);
   }
 
-END:
   return tz;
 }
 #endif
 
+int32_t tscPrepareSessionTimezone(const char* timezoneName,
+                                  bool explicitTimezone,
+                                  SPreparedTimezone* pPrepared) {
+  if (pPrepared == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pPrepared = (SPreparedTimezone){0};
+  if (timezoneName == NULL || timezoneName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char sessionName[TD_TIMEZONE_LEN] = {0};
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
+  timezone_t timezone = setConnectionTz(timezoneName, sessionName,
+                                        sizeof(sessionName));
+  if (timezone == NULL) {
+    return terrno;
+  }
+
+  pPrepared->timezone = timezone;
+#else
+  char normalizedName[TD_TIMEZONE_LEN] = {0};
+  int32_t code = taosValidateAndNormalizeTimezone(
+      timezoneName, normalizedName, sizeof(normalizedName), NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  buildSessionTimezoneName(timezoneName, normalizedName, sessionName,
+                           sizeof(sessionName));
+#endif
+  tstrncpy(pPrepared->timezoneName, sessionName,
+           sizeof(pPrepared->timezoneName));
+  pPrepared->timezoneExplicit = explicitTimezone;
+  return TSDB_CODE_SUCCESS;
+}
+
+void tscCommitSessionTimezone(STscObj* pObj, const SPreparedTimezone* pPrepared) {
+  if (pObj == NULL || pPrepared == NULL) {
+    return;
+  }
+
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
+  pObj->optionInfo.timezone = pPrepared->timezone;
+#endif
+  tstrncpy(pObj->optionInfo.timezoneName, pPrepared->timezoneName,
+           sizeof(pObj->optionInfo.timezoneName));
+  pObj->optionInfo.timezoneExplicit = pPrepared->timezoneExplicit;
+}
+
+int32_t tscSetSessionTimezone(STscObj* pObj, const char* timezoneName, bool explicitTimezone) {
+  if (pObj == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SPreparedTimezone prepared = {0};
+  int32_t code = tscPrepareSessionTimezone(timezoneName, explicitTimezone, &prepared);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  tscCommitSessionTimezone(pObj, &prepared);
+  return TSDB_CODE_SUCCESS;
+}
+
 /* Snapshot the current client-level timezone (tsTimezoneStr) into the
  * session-level timezone (pObj->optionInfo.timezone) when the connection is
- * established.  Later ALTER LOCAL timezone calls update the client-level
- * setting first, then execLocalCmd syncs the accepted value back here. */
+ * established. ALTER LOCAL prepares the validated session state before changing
+ * the client-level setting, then commits it after the change succeeds. */
 int32_t tscInitSessionTimezone(STscObj *pObj) {
 #if defined(WINDOWS) || defined(TD_ASTRA)
   (void)pObj;
@@ -189,18 +307,14 @@ int32_t tscInitSessionTimezone(STscObj *pObj) {
   }
   tstrncpy(tzName, tsTimezoneStr, nameLen + 1);
 
-  timezone_t tz = setConnectionTz(tzName);
-  if (tz == NULL) {
+  int32_t code = tscSetSessionTimezone(pObj, tzName, false);
+  if (code != TSDB_CODE_SUCCESS) {
     /* Non-fatal: session tz stays NULL; timestamp parsing falls back to
      * getGlobalDefaultTZ() at query time (live global tz, not a snapshot). */
     tscWarn("tscInitSessionTimezone: setConnectionTz failed for '%s', "
             "session-level timezone not snapshotted", tzName);
     return TSDB_CODE_SUCCESS;
   }
-
-  pObj->optionInfo.timezone = tz;
-  tstrncpy(pObj->optionInfo.timezoneName, tzName, sizeof(pObj->optionInfo.timezoneName));
-  pObj->optionInfo.timezoneExplicit = false;
   return TSDB_CODE_SUCCESS;
 #endif
 }
@@ -282,18 +396,12 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       if (val[0] == 0) {
         val = "UTC";
       }
-      timezone_t tz = setConnectionTz(val);
-      if (tz == NULL) {
-        code = terrno;
+      code = tscSetSessionTimezone(pObj, val, true);
+      if (code != TSDB_CODE_SUCCESS) {
         goto END;
       }
-      pObj->optionInfo.timezone = tz;
-      tstrncpy(pObj->optionInfo.timezoneName, val, sizeof(pObj->optionInfo.timezoneName));
-      pObj->optionInfo.timezoneExplicit = true;
     } else {
-      pObj->optionInfo.timezone = NULL;
-      pObj->optionInfo.timezoneName[0] = '\0';
-      pObj->optionInfo.timezoneExplicit = false;
+      code = tscSetSessionTimezone(pObj, NULL, false);
     }
 #endif
   }
@@ -1095,7 +1203,7 @@ void taos_close(TAOS *taos) {
  * round-trip completes.
  *
  * The actual BEGIN message is sent via taos_query("BEGIN"), which goes through
- * the normal SQL parser → execDdlQuery → processBeginTxnRsp path — the same
+ * the normal SQL parser -> execDdlQuery -> processBeginTxnRsp path - the same
  * path used when the user issues `taos_query(conn, "BEGIN")` directly.  On
  * success processBeginTxnRsp promotes txnState to UTXN_STAGE_ACTIVE; on
  * failure it resets txnState back to UTXN_STAGE_IDLE.
@@ -1159,7 +1267,7 @@ static int tscTxnEndImpl(TAOS *taos, const char *sql) {
     bool isRollback = (strcmp(sql, "ROLLBACK") == 0);
     (void)taosThreadMutexUnlock(&pTscObj->mutex);
     if (isRollback) {
-      // Local cleanup only — do not send ROLLBACK RPC to MNode since it already
+      // Local cleanup only - do not send ROLLBACK RPC to MNode since it already
       // completed the rollback.  Just clear client-side txn state.
       tscResetTxnState(pTscObj);
       releaseTscObj(connId);
@@ -1322,7 +1430,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     if (pRequest->killed) {
-      tscInfo("query has been killed, can not fetch more row.");
+      tscInfo("query has been killed, cannot fetch more rows.");
       pRequest->code = TSDB_CODE_TSC_QUERY_KILLED;
       CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
       return NULL;
@@ -1337,7 +1445,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     }
 
     if (pRequest->inCallback) {
-      tscError("can not call taos_fetch_row before query callback ends.");
+      tscError("cannot call taos_fetch_row before query callback ends.");
       terrno = TSDB_CODE_TSC_INVALID_OPERATION;
       return NULL;
     }
@@ -1382,7 +1490,15 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   int32_t len = 0;
   for (int i = 0; i < num_fields; ++i) {
-    if (i > 0 && len < size - 1) {
+    // the buffer holds size - 1 characters at most plus the terminator: stop
+    // before writing anything once it is full. len may already have jumped
+    // past size through the return value of snprintf(), and the "size - len"
+    // below would underflow in that case
+    if ((uint32_t)len + 1 >= size) {
+      break;
+    }
+
+    if (i > 0) {
       str[len++] = ' ';
     }
 
@@ -1501,10 +1617,6 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       } break;
       default:
         break;
-    }
-
-    if (len >= size - 1) {
-      break;
     }
   }
   if (len < size) {
@@ -1992,6 +2104,17 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   stashFirstExtSourceNameFromCatalogReq(pRequest, pWrapper->pCatalogReq);
 
   if (TSDB_CODE_SUCCESS == code) {
+    // FH-10: stash the first ext source name for error-driven cache management
+    if (pWrapper->pCatalogReq != NULL &&
+        taosArrayGetSize(pWrapper->pCatalogReq->pExtSourceCheck) > 0) {
+      const char* srcName = (const char*)taosArrayGet(pWrapper->pCatalogReq->pExtSourceCheck, 0);
+      if (srcName != NULL) {
+        tstrncpy(pRequest->extSourceName, srcName, TSDB_EXT_SOURCE_NAME_LEN);
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     code = sqlSecurityCheckASTLevel(pRequest, pQuery);
   }
 
@@ -2030,6 +2153,7 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->dNodeRequired = pSrc->dNodeRequired;
     pTarget->svrVerRequired = pSrc->svrVerRequired;
     pTarget->forceUpdate = pSrc->forceUpdate;
+    pTarget->forceUpdateTbMetaOnly = pSrc->forceUpdateTbMetaOnly;
     pTarget->cloned = true;
     pTarget->pExtSourceCheck = taosArrayDup(pSrc->pExtSourceCheck, NULL);
     pTarget->pExtTableMeta = taosArrayDup(pSrc->pExtTableMeta, NULL);
@@ -2057,7 +2181,7 @@ void handleSubQueryFromAnalyse(SSqlCallbackWrapper *pWrapper, SMetaData *pResult
     pNewRequest->pQuery->execStage = QUERY_EXEC_STAGE_ANALYSE;
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = prepareAndParseSqlSyntax(&pNewWrapper, pNewRequest, false);
+    code = prepareAndParseSqlSyntax(&pNewWrapper, pNewRequest, CLIENT_META_REFRESH_NONE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = cloneCatalogReq(&pNewWrapper->pCatalogReq, pWrapper->pCatalogReq);
@@ -2205,6 +2329,10 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
       handleExtSourceError(pRequest, code);
       return;
     }
+    if (pRequest->stmtBindVersion == 0 && clientGetMetaRefreshScope(code) == CLIENT_META_REFRESH_FULL) {
+      restartAsyncQuery(pRequest, code);
+      return;
+    }
     terrno = code;
     pRequest->code = code;
     doRequestCallback(pRequest, code);
@@ -2246,6 +2374,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
     return terrno;
   }
 
+  void *charsetCxt = taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt);
+
   **pCxt = (SParseContext){.requestId = pRequest->requestId,
                            .requestRid = pRequest->self,
                            .acctId = pTscObj->acctId,
@@ -2272,8 +2402,12 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
-                           .charsetCxt = pTscObj->optionInfo.charsetCxt,
-                           .txnId = pTscObj->txnId,
+                           .charsetCxt = charsetCxt,
+                           // .txnId / .txnDdlRemaining are filled in below, under
+                           // pTscObj->mutex: they are the pair that governs the txn DDL
+                           // budget and are written (and zeroed together) by the txn
+                           // lifecycle under that lock. Deriving the per-vgroup quota from
+                           // an unlocked read could see a half-updated txnId/txnDdlCount pair.
                            .pTxnVgSet = pTscObj->pTxnVgSet,
                            .pTxnTableMeta = pTscObj->pTxnTableMeta,
                            .pTxnSuidMap = pTscObj->pTxnSuidMap,
@@ -2287,6 +2421,12 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
 
   // Inject active external source context so 1-seg table refs can be resolved after USE ext_source
   (void)taosThreadMutexLock(&((STscObj *)pTscObj)->mutex);
+  // Snapshot the txn identity and the remaining budget under the same lock that the BEGIN
+  // handler and tscResetTxnState use to write (and zero) them. txnDdlCount is also charged
+  // from the scheduler completion callback, so deriving the per-vgroup quota from an unlocked
+  // read could see a half-updated txnId/txnDdlCount pair.
+  (*pCxt)->txnId = pTscObj->txnId;
+  (*pCxt)->txnDdlRemaining = txnDdlRemainingOps(pTscObj);
   tstrncpy((*pCxt)->currentExtSource, pTscObj->extSource, sizeof((*pCxt)->currentExtSource));
   tstrncpy((*pCxt)->currentExtNs1,    pTscObj->extNs1,    sizeof((*pCxt)->currentExtNs1));
   tstrncpy((*pCxt)->currentExtNs2,    pTscObj->extNs2,    sizeof((*pCxt)->currentExtNs2));
@@ -2295,7 +2435,21 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce) {
+EClientMetaRefreshScope clientGetMetaRefreshScope(int32_t code) {
+  if (NEED_CLIENT_REFRESH_VG_ERROR(code) || TSDB_CODE_SCH_DATA_SRC_EP_MISS == code) {
+    return CLIENT_META_REFRESH_FULL;
+  }
+
+  if (NEED_CLIENT_RM_TBLMETA_ERROR(code) || TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER == code ||
+      TSDB_CODE_MND_INVALID_SCHEMA_VER == code) {
+    return CLIENT_META_REFRESH_TABLE;
+  }
+
+  return CLIENT_META_REFRESH_NONE;
+}
+
+int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest,
+                                 EClientMetaRefreshScope refreshScope) {
   int32_t              code = TSDB_CODE_SUCCESS;
   STscObj             *pTscObj = pRequest->pTscObj;
   SSqlCallbackWrapper *pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
@@ -2323,7 +2477,8 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
     if (pWrapper->pCatalogReq == NULL) {
       code = terrno;
     } else {
-      pWrapper->pCatalogReq->forceUpdate = updateMetaForce;
+      pWrapper->pCatalogReq->forceUpdate = (CLIENT_META_REFRESH_NONE != refreshScope);
+      pWrapper->pCatalogReq->forceUpdateTbMetaOnly = (CLIENT_META_REFRESH_TABLE == refreshScope);
       TSC_ERR_RET(qnodeRequired(pRequest, &pWrapper->pCatalogReq->qNodeRequired));
       code = qParseSqlSyntax(pWrapper->pParseCtx, &pRequest->pQuery, pWrapper->pCatalogReq);
     }
@@ -2331,6 +2486,29 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
     pRequest->metric.parseCostUs += taosGetTimestampUs() - syntaxStart;
   }
 
+  return code;
+}
+
+static bool tscIsInternalExtLifecycleCode(int32_t code) {
+  switch (code) {
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY:
+    case TSDB_CODE_EXT_PUSHDOWN_FAILED:
+    case TSDB_CODE_EXT_PUSHDOWN_BASELINE:
+    case TSDB_CODE_EXT_PUSHDOWN_BAILOUT_BROKEN:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static int32_t tscSanitizeExtCodeForUser(int32_t code) {
+  if (tscIsInternalExtLifecycleCode(code)) {
+    return TSDB_CODE_EXT_PUSHDOWN_FAILED;
+  }
   return code;
 }
 
@@ -2367,15 +2545,16 @@ static void doAsyncExec(SRequestObj *pRequest, int32_t code) {
     pRequest->pQuery = NULL;
 
     if (NEED_CLIENT_HANDLE_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      EClientMetaRefreshScope retryScope = clientGetMetaRefreshScope(code);
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
-      code = refreshMeta(pRequest->pTscObj, pRequest);
-      if (code != 0) {
-        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code,
-                tstrerror(code), pRequest->requestId);
+      int32_t refreshCode = refreshMeta(pRequest->pTscObj, pRequest, code);
+      if (refreshCode != 0) {
+        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self,
+                refreshCode, tstrerror(refreshCode), pRequest->requestId);
       }
-      pRequest->prevCode = code;
-      doAsyncQuery(pRequest, true);
+      pRequest->prevCode = (TSDB_CODE_SUCCESS == refreshCode) ? code : refreshCode;
+      doAsyncQuery(pRequest, retryScope);
       return;
     }
 
@@ -2385,14 +2564,14 @@ static void doAsyncExec(SRequestObj *pRequest, int32_t code) {
   }
 }
 
-void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
+void doAsyncQuery(SRequestObj *pRequest, EClientMetaRefreshScope refreshScope) {
   SSqlCallbackWrapper *pWrapper = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
 
   CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PARSE);
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
-    code = pRequest->prevCode;
+    code = tscSanitizeExtCodeForUser(pRequest->prevCode);
     terrno = code;
     pRequest->code = code;
     tscDebug("req:0x%" PRIx64 ", call sync query cb with code:%s", pRequest->self, tstrerror(code));
@@ -2400,8 +2579,15 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     return;
   }
 
+  // The same request object may be reused across fallback/retry paths. Clear any
+  // stale server-side error text before the next parse/dispatch attempt so later
+  // parser or planner failures do not inherit unrelated auth/network messages.
+  if (pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+    pRequest->msgBuf[0] = '\0';
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
-    code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
+    code = prepareAndParseSqlSyntax(&pWrapper, pRequest, refreshScope);
   }
 
   if (pRequest->literal_by_stmt2) {
@@ -2440,6 +2626,11 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
   bool hasSubRequest = pUserReq != pRequest || pRequest->relation.prevRefId != 0;
   if (pUserReq) {
     destroyCtxInRequest(pUserReq);
+    // Ext pushdown lifecycle has its own bounded attempt counter; reset generic
+    // parse/refresh retry so fallback restarts are not cut off prematurely.
+    if (tscIsInternalExtLifecycleCode(code)) {
+      pUserReq->retry = 0;
+    }
     pUserReq->prevCode = code;
     (void)memset(&pUserReq->relation, 0, sizeof(pUserReq->relation));
   } else {
@@ -2451,7 +2642,7 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
     (void)removeFromMostPrevReq(pRequest);
   else
     (void)releaseRequest(pUserReq->self);
-  doAsyncQuery(pUserReq, true);
+  doAsyncQuery(pUserReq, clientGetMetaRefreshScope(code));
 }
 
 typedef struct SAsyncFetchParam {
@@ -3080,6 +3271,17 @@ int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length) 
   return stmtPrepare2(stmt, sql, length);
 }
 
+static int32_t stmt2BindError(STscStmt2 *pStmt, int32_t code) {
+  // A new binding error takes precedence over the previous execution result.
+  SRequestObj *pRequest = pStmt->exec.pRequest;
+  if (pRequest != NULL && pRequest->msgBuf != NULL) {
+    pRequest->msgBuf[0] = '\0';
+  }
+  pStmt->errCode = code;
+  terrno = pStmt->errCode;
+  return terrno;
+}
+
 int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) {
   if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -3097,14 +3299,6 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   // check query bind number
   bool isQuery = (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt)));
-  if (isQuery) {
-    if (bindv->count != 1 || bindv->bind_cols[0]->num != 1) {
-      terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-      STMT2_ELOG_E("query only support one table and one row bind");
-      return terrno;
-    }
-  }
-
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     STMT2_ELOG_E("async bind param is still working, please try again later");
     terrno = TSDB_CODE_TSC_STMT_API_ERROR;
@@ -3116,6 +3310,13 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       STMT2_ELOG_E("bind param wait asyncExecSem failed");
     }
     pStmt->execSemWaited = true;
+  }
+
+  if (isQuery) {
+    if (bindv->count != 1 || bindv->bind_cols[0]->num != 1) {
+      STMT2_ELOG_E("query only support one table and one row bind");
+      return stmt2BindError(pStmt, TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR);
+    }
   }
 
   for (int i = 0; i < bindv->count; ++i) {
@@ -3172,12 +3373,11 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
-        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
         if (pCreateTbReq) {
           tdDestroySVCreateTbReq(pCreateTbReq);
           taosMemoryFreeClear(pCreateTbReq);
         }
-        return terrno;
+        return stmt2BindError(pStmt, TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR);
       }
 
       code = stmtBindBatch2(stmt, bind, col_idx, pCreateTbReq);
@@ -4176,10 +4376,22 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
   memset(&rowBindv, 0, sizeof(rowBindv));
 
   // Input validation
-  if (stmt == NULL || bindv == NULL) {
+  if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
+  }
+
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
+    terrno = TSDB_CODE_TSC_STMT_API_ERROR;
+    return terrno;
+  }
+  // Finish the previous execution before updating its request diagnostics or field cache.
+  if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
+    if (tsem_wait(&pStmt->asyncExecSem) != 0) {
+      STMT2_ELOG_E("column bind wait asyncExecSem failed");
+    }
+    pStmt->execSemWaited = true;
   }
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
@@ -4187,10 +4399,9 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
     return pStmt->errCode;
   }
 
-  if (bindv->num_columns < 1 || bindv->columns == NULL) {
+  if (bindv == NULL || bindv->num_columns < 1 || bindv->columns == NULL) {
     tscError("No columns in bindv");
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return stmt2BindError(pStmt, TSDB_CODE_INVALID_PARA);
   }
 
   STMT2_DLOG_E("start to bind param from columnar data");
@@ -4465,7 +4676,7 @@ _return:
     taosMemoryFree(rowBindv.tbnames);
   }
 
-  // Free bind_cols (只释放结构数组本身，不释放内部指针)
+  // Free bind_cols (free the structure array only; do not free pointees).
   if (rowBindv.bind_cols != NULL) {
     for (int i = 0; i < tableIdx; i++) {
       if (rowBindv.bind_cols[i] != NULL) {
@@ -4475,7 +4686,7 @@ _return:
     taosMemoryFree(rowBindv.bind_cols);
   }
 
-  // Free tags (只释放结构数组本身，不释放内部指针)
+  // Free tags (free the structure array only; do not free pointees).
   if (rowBindv.tags != NULL) {
     for (int i = 0; i < tableIdx; i++) {
       if (rowBindv.tags[i] != NULL) {
@@ -4486,6 +4697,9 @@ _return:
   }
 
   if (code != TSDB_CODE_SUCCESS) {
+    if (pStmt->errCode == TSDB_CODE_SUCCESS) {
+      return stmt2BindError(pStmt, code);
+    }
     terrno = code;
   } else {
     terrno = TSDB_CODE_SUCCESS;

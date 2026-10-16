@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -215,6 +217,14 @@ int tdbTbUpsert(TTB *pTb, const void *pKey, int kLen, const void *pVal, int vLen
 
 int tdbTbGet(TTB *pTb, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreeGet(pTb->pBt, pKey, kLen, ppVal, vLen);
+}
+
+int32_t tdbTbGetBatch(TTB *pTb, STdbTbBatchGetArg *pArgs, int32_t numOfArgs) {
+  if (NULL == pTb) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return tdbBtreeGetBatch(pTb->pBt, pArgs, numOfArgs);
 }
 
 int tdbTbPGet(TTB *pTb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {

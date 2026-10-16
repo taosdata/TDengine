@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -158,9 +160,16 @@ typedef struct SParseContext {
   SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t     allocatorId;
   txn_id_t    txnId;
+  // Remaining per-txn DDL object budget (TSDB_TXN_MAX_DDL_OPS_PER_TXN - txnDdlCount) at the
+  // time this statement is parsed. Only consumed by the WHERE-based bulk tag update, whose
+  // object count is not knowable client-side; it is divided across the target db's vgroups
+  // and sent along so each vnode can abort its pre-scan instead of materialising an
+  // unbounded match set. 0 means "not in a txn" OR "in a txn but the budget is already
+  // exhausted" - use txnId, not this field, to tell whether a txn is active.
+  int32_t     txnDdlRemaining;
   SSHashObj*  pTxnVgSet;   // borrowed ref to STscObj->pTxnVgSet (read-only during parse)
   SHashObj*   pTxnTableMeta;  // borrowed ref to STscObj->pTxnTableMeta (same-txn table cache)
-  SHashObj*   pTxnSuidMap;    // borrowed ref to STscObj->pTxnSuidMap (suid → stbFullName for compact CTB assembly)
+  SHashObj*   pTxnSuidMap;    // borrowed ref to STscObj->pTxnSuidMap (suid  ->  stbFullName for compact CTB assembly)
   parseSqlFn  parseSqlFp;
   void*       parseSqlParam;
   SArray*     pSubMetaList;
@@ -168,12 +177,12 @@ typedef struct SParseContext {
   timezone_t  timezone;
   char        timezoneName[TD_TIMEZONE_LEN]; // IANA name for serialization to taosd
   void*       charsetCxt;
-  int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
   // External source context: set by client from STscObj when USE ext_source was called.
   // These allow 1-seg table references to resolve against the active external source.
   char        currentExtSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name (empty = none)
   char        currentExtNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty if not set
   char        currentExtNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg only); empty otherwise
+  int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
 } SParseContext;
 
 typedef struct SPureInsertParserCtx {
@@ -238,6 +247,8 @@ int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind
 int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 int32_t qBindUpdateStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                                  void* charsetCxt, SSHashObj* parsedCols);
+int32_t qBindUpdateStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                                  void* charsetCxt, SSHashObj* parsedCols);
 
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                                 int32_t colIdx, int32_t rowNum, void* charsetCxt);
@@ -297,7 +308,6 @@ typedef struct SParseMetaCache {
   SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
   SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool
   SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
-  SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
   SHashObj* pViews;        // key is viewFName, element is SViewMeta*
   SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
@@ -308,8 +318,9 @@ typedef struct SParseMetaCache {
   bool      dnodeRequired;
   bool      forceFetchViewMeta;
   // Federated query ext source metadata (populated by collectMetaKey / putMetaDataToCache)
-  SHashObj* pExtSources;   // key is sourceName (varchar), element is SMetaRes* → SExtSourceInfo*
-  SHashObj* pExtTableMeta; // key is ext-table composite key, element is SMetaRes* → SExtTableMeta*
+  SHashObj* pExtSources;      // key is sourceName (varchar), element is SMetaRes* -> SExtSourceInfo*
+  SHashObj* pExtTableMetaReq; // key is ext-table composite key, element is SExtTableMetaReq
+  SHashObj* pExtTableMeta;    // key is ext-table composite key, element is SMetaRes* -> SExtTableMeta*
 } SParseMetaCache;
 
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);

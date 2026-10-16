@@ -1,12 +1,18 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "colCompress.h"
@@ -20,6 +26,34 @@
 // TODO: Implement getDefaultCompressLevel
 static int8_t getDefaultCompressLevel(int8_t type) {
     return 0; // Default compression level
+}
+
+// Normalise the L2 compress algorithm to the one this build actually supports.
+// Mirrors the engine (tcompression.c): on Windows and macOS (_TD_DARWIN_64) the
+// engine's compressL2Dict maps the zlib/zstd/xz slots to the LZ4 implementation
+// (those 3rd-party libs are not built there), so the data is *really* LZ4
+// compressed while the schema still claims zstd/zlib/xz.  That mismatch makes a
+// backup produced on those platforms unreadable on Linux (which honours the
+// claimed algorithm and runs the real zstd/zlib/xz decoder).  Record LZ4 when
+// the platform would substitute it for the requested algorithm.
+//
+// TSZ is deliberately NOT normalised: l2CompressImpl_tsz / l2DecompressImpl_tsz
+// live outside the platform #if (shared code), so Windows/macOS and Linux run
+// the very same TSZ implementation and are cross-platform compatible as-is.
+// (Linux keeps its real zstd/zlib/xz as-is too.)
+static uint16_t normalizeCompressAlg(uint16_t compress) {
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
+    switch (compress) {
+        case TSDB_COLVAL_COMPRESS_ZLIB:
+        case TSDB_COLVAL_COMPRESS_ZSTD:
+        case TSDB_COLVAL_COMPRESS_XZ:
+            return TSDB_COLVAL_COMPRESS_LZ4;
+        default:
+            return compress;
+    }
+#else
+    return compress;
+#endif
 }
 
 void fillFieldsInfo(FieldInfo* fieldInfos, TAOS_FIELD_E* fields, int numFields) {
@@ -36,7 +70,7 @@ void fillFieldsInfo(FieldInfo* fieldInfos, TAOS_FIELD_E* fields, int numFields) 
         }
         // default from engine
         fieldInfos[i].encode = getDefaultEncode(fields[i].type);
-        fieldInfos[i].compress = getDefaultCompress(fields[i].type);
+        fieldInfos[i].compress = normalizeCompressAlg(getDefaultCompress(fields[i].type));
         fieldInfos[i].level = getDefaultCompressLevel(fields[i].type);
     }
 }

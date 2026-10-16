@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_02_path_resolution.py
 
@@ -26,7 +41,10 @@ import re
 import shutil
 import tempfile
 import time
+from datetime import datetime, timezone
 from typing import Any, List, Optional, Sequence, Union
+
+from taos.constants import FieldType
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -52,6 +70,15 @@ _P_DB     = "fq02_path_pdb"
 _P_SCHEMA = "public"
 _P_SCHEMA2 = "analytics"
 
+_S_HOST    = ExtSrcEnv.SQLSERVER_HOST
+_S_PORT    = ExtSrcEnv.SQLSERVER_PORT
+_S_USER    = ExtSrcEnv.SQLSERVER_USER
+_S_PASS    = ExtSrcEnv.SQLSERVER_PASS
+_S_DB      = "fq02_path_sdb"
+_S_DB2     = "fq02_path_sdb2"
+_S_SCHEMA  = ExtSrcEnv.SQLSERVER_SCHEMA
+_S_SCHEMA2 = "analytics"
+
 _I_HOST  = ExtSrcEnv.INFLUX_HOST
 _I_PORT  = ExtSrcEnv.INFLUX_PORT
 _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
@@ -67,12 +94,23 @@ _FW_ROWS = [
     ("2024-01-01 00:02:00.000", 3, 3.5, "gamma"),
 ]
 
+_FW_ROWS_ALT = [
+    ("2024-01-01 00:10:00.000", 101, 10.5, "alt-alpha"),
+    ("2024-01-01 00:11:00.000", 102, 20.5, "alt-beta"),
+    ("2024-01-01 00:12:00.000", 103, 30.5, "alt-gamma"),
+]
+
+_LOCAL_CTX_ROW = ("2024-01-01 00:20:00.000", 901, 90.5, "local-only")
+_LOCAL_USE_DB = "fq02_use_db"
+_LOCAL_USE_DB_NO_DEFAULT = "fq02_use_db_no_default"
+
 _DYNAMIC_RESULT_COLUMNS = {"create_time", "ctime"}
 
 # ── Type shortcuts ─────────────────────────────────────────────────────────
 _mysql    = "mysql"
 _pg       = "postgresql"
 _influxdb = "influxdb"
+_sqlserver = "sqlserver"
 
 # ── Step sentinel classes ──────────────────────────────────────────────────
 
@@ -98,10 +136,46 @@ def _comment(text: str) -> _CommentStep:
     return _CommentStep(text)
 
 
+def _rows_to_sql_values(rows) -> str:
+    return ", ".join(
+        f"('{ts}', {val}, {score}, '{name}')"
+        for ts, val, score, name in rows
+    )
+
+
+def _influx_lines_for_rows(rows):
+    return [
+        (
+            f"{_FW_TABLE} val={val}i,score={score},name=\"{name}\" "
+            f"{_BASE_TS + idx * 60000}000000"
+        )
+        for idx, (_, val, score, name) in enumerate(rows)
+    ]
+
+
+def _local_ctx_setup_steps(db_name: str) -> List[str]:
+    local_values = _rows_to_sql_values([_LOCAL_CTX_ROW])
+    return [
+        f"drop database if exists {db_name}",
+        f"create database {db_name}",
+        f"use {db_name}",
+        (
+            f"create table {_FW_TABLE} ("
+            "ts timestamp, val int, score double, name binary(32))"
+        ),
+        f"insert into {_FW_TABLE} values {local_values}",
+    ]
+
+
 # ── Path generators ────────────────────────────────────────────────────────
 
-def _paths_for_source(src_name: str, ns: str, table: str):
+def _paths_for_source(src_name: str, ns: str, table: str,
+                       src_type: Optional[str] = None):
     """Generate path test entries for 0 through 5 segments.
+
+    ns is the schema (PG / SQL Server) or the database (MySQL / InfluxDB).
+    SQL Server has a two-level namespace: 3 segments carry the schema and 4
+    segments carry database + schema (DS 5.3.3).
 
     Returns list of (seg_count, path_str).
     """
@@ -112,17 +186,27 @@ def _paths_for_source(src_name: str, ns: str, table: str):
     paths.append((1, table))
     # 2-seg: source.table
     paths.append((2, f"{src_name}.{table}"))
-    # 3-seg: source.ns.table
+    # 3-seg: source.ns.table   (SQL Server: ns is the schema)
     paths.append((3, f"{src_name}.{ns}.{table}"))
-    # 4-seg: too many segments
-    paths.append((4, f"{src_name}.{ns}.{table}.extra"))
-    # 5-seg: too many segments
-    paths.append((5, f"{src_name}.{ns}.{table}.extra.more"))
+    if src_type == _sqlserver:
+        # 4-seg: source.database.schema.table is valid for SQL Server
+        paths.append((4, f"{src_name}.{_S_DB}.{ns}.{table}"))
+        # 5-seg: too many segments
+        paths.append((5, f"{src_name}.{_S_DB}.{ns}.{table}.extra"))
+    else:
+        # 4-seg: too many segments
+        paths.append((4, f"{src_name}.{ns}.{table}.extra"))
+        # 5-seg: too many segments
+        paths.append((5, f"{src_name}.{ns}.{table}.extra.more"))
     return paths
 
 
-def _use_paths_for_source(src_name: str, ns: str):
+def _use_paths_for_source(src_name: str, ns: str,
+                          src_type: Optional[str] = None):
     """Generate USE path test entries for 0 through 5 segments.
+
+    For SQL Server: USE source.db (2-seg) and USE source.db.schema (3-seg) are
+    both valid (DS 5.3.4).
 
     Returns list of (seg_count, use_sql).
     """
@@ -131,10 +215,14 @@ def _use_paths_for_source(src_name: str, ns: str):
     paths.append((0, "use "))
     # 1-seg: USE source_name
     paths.append((1, f"use {src_name}"))
-    # 2-seg: USE source.ns
-    paths.append((2, f"use {src_name}.{ns}"))
-    # 3-seg: USE source.ns.extra (should fail)
-    paths.append((3, f"use {src_name}.{ns}.extra"))
+    # 2-seg: USE source.ns   (SQL Server: ns is the database)
+    paths.append((2, f"use {src_name}.{_S_DB if src_type == _sqlserver else ns}"))
+    if src_type == _sqlserver:
+        # 3-seg: USE source.db.schema is valid for SQL Server
+        paths.append((3, f"use {src_name}.{_S_DB}.{ns}"))
+    else:
+        # 3-seg: USE source.ns.extra (should fail)
+        paths.append((3, f"use {src_name}.{ns}.extra"))
     # 4-seg: USE a.b.c.d (should fail)
     paths.append((4, f"use {src_name}.{ns}.extra.more"))
     # 5-seg: USE a.b.c.d.e (should fail)
@@ -185,7 +273,7 @@ def _build_path_test_steps(src_name: str, ns: str, table: str, src_type: str,
     Returns a flat list of SQL strings that the framework will execute and record.
     """
     steps: List[str] = []
-    paths = _paths_for_source(src_name, ns, table)
+    paths = _paths_for_source(src_name, ns, table, src_type)
 
     for seg_count, path in paths:
         if not path:
@@ -209,14 +297,15 @@ def _build_path_test_steps(src_name: str, ns: str, table: str, src_type: str,
 
 
 def _build_use_test_steps(src_name: str, ns: str, table: str = "",
-                          has_default_ns: bool = True) -> List[str]:
+                          has_default_ns: bool = True,
+                          src_type: Optional[str] = None) -> List[str]:
     """Build USE statement steps for all segment combinations (0-5 segments).
 
     When *table* is provided, a verification SELECT is appended after each
     USE that is expected to succeed (1-seg when has_default_ns, 2-seg always).
     """
     steps: List[str] = []
-    use_paths = _use_paths_for_source(src_name, ns)
+    use_paths = _use_paths_for_source(src_name, ns, src_type)
 
     for seg_count, use_sql in use_paths:
         steps.append(f"-- [{seg_count}-seg USE] sql={use_sql}")
@@ -242,13 +331,16 @@ def _dim01_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
     steps = _build_path_test_steps(src, ns, table, src_type)
     # Also test USE with 0-5 segments
     steps.append("-- [USE segment tests in DIM-01]")
-    steps.extend(_build_use_test_steps(src, ns, table))
+    steps.extend(_build_use_test_steps(src, ns, table, src_type=src_type))
     return steps
 
 
@@ -259,12 +351,15 @@ def _dim02_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
     steps = _build_path_test_steps(src, ns, table, src_type)
     steps.append("-- [USE segment tests in DIM-02]")
-    steps.extend(_build_use_test_steps(src, ns, table, has_default_ns=False))
+    steps.extend(_build_use_test_steps(src, ns, table, has_default_ns=False, src_type=src_type))
     # After USE source.ns, 2-seg source.table should succeed
     # (USE sets the namespace context; 2-seg falls back to USE ns when source matches)
     steps.append(f"-- [2-seg after USE source.ns] should succeed — USE provides the ns")
@@ -280,6 +375,9 @@ def _dim03_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -290,7 +388,7 @@ def _dim03_steps(src_type: str) -> list:
     steps.extend(_select_stmts(table))
     # USE 0-5 segment tests while already in USE context
     steps.append("-- [USE segment tests in DIM-03]")
-    steps.extend(_build_use_test_steps(src, ns, table))
+    steps.extend(_build_use_test_steps(src, ns, table, src_type=src_type))
     return steps
 
 
@@ -301,6 +399,9 @@ def _dim04_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -311,7 +412,7 @@ def _dim04_steps(src_type: str) -> list:
     steps.extend(_select_stmts(table))
     # USE 0-5 segment tests
     steps.append("-- [USE segment tests in DIM-04]")
-    steps.extend(_build_use_test_steps(src, ns, table))
+    steps.extend(_build_use_test_steps(src, ns, table, src_type=src_type))
     return steps
 
 
@@ -322,6 +423,9 @@ def _dim05_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -336,7 +440,7 @@ def _dim05_steps(src_type: str) -> list:
     steps.append(f"select * from {table}")
     # USE 0-5 segment tests from local db context
     steps.append("-- [USE segment tests in DIM-05]")
-    steps.extend(_build_use_test_steps(src, ns, table))
+    steps.extend(_build_use_test_steps(src, ns, table, src_type=src_type))
     steps.append("drop database if exists fq02_local_db")
     return steps
 
@@ -352,6 +456,9 @@ def _dim06_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -371,7 +478,7 @@ def _dim06_steps(src_type: str) -> list:
         # USE 0-5 segments with conflict name
         f"-- [USE segment tests in DIM-06 with name conflict]",
     ]
-    steps.extend(_build_use_test_steps(src, ns, table))
+    steps.extend(_build_use_test_steps(src, ns, table, src_type=src_type))
     steps.append(f"drop database if exists {src}")
     return steps
 
@@ -399,6 +506,18 @@ def _dim07_steps(src_type: str) -> list:
             f"use {src.upper()}",
             f"select * from {table} limit 1",
             f"use {src.upper()}.{ns.upper()}",
+            f"select * from {table} limit 1",
+        ]
+    elif src_type == _sqlserver:
+        ns, table = _S_SCHEMA, _FW_TABLE
+        steps = [
+            f"-- SQL Server case-insensitive identifiers (default collation)",
+            f"select * from {src.upper()}.{ns}.{table} limit 1",
+            f"select * from {src}.{ns}.{table.upper()} limit 1",
+            f"select * from {src.upper()}.{table.upper()} limit 1",
+            f"use {src.upper()}",
+            f"select * from {table} limit 1",
+            f"use {src}.{_S_DB}",
             f"select * from {table} limit 1",
         ]
     elif src_type == _pg:
@@ -440,6 +559,9 @@ def _dim08_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -519,6 +641,10 @@ def _dim09_steps(src_type: str) -> list:
         ns, ns2, table = _P_SCHEMA, _P_SCHEMA2, _FW_TABLE
         alter_sql = f"alter external source {src} set schema='{ns2}'"
         restore_sql = f"alter external source {src} set schema='{ns}'"
+    elif src_type == _sqlserver:
+        ns, ns2, table = _S_SCHEMA, _S_SCHEMA2, _FW_TABLE
+        alter_sql = f"alter external source {src} set schema='{ns2}'"
+        restore_sql = f"alter external source {src} set schema='{ns}'"
     else:
         ns, ns2, table = _I_DB, _I_DB2, _FW_TABLE
         alter_sql = f"alter external source {src} set database='{ns2}'"
@@ -553,14 +679,17 @@ def _dim10_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
     ext_path = f"{src}.{ns}.{table}"
     steps = [
-        "create database if not exists fq02_join_db",
+        "drop database if exists fq02_join_db",
+        "create database fq02_join_db",
         "use fq02_join_db",
-        "drop table if exists local_t",
         "create table local_t (ts timestamp, val int, score double, name binary(32))",
         "insert into local_t values ('2024-01-01 00:00:00.000', 1, 1.5, 'alpha')",
         "insert into local_t values ('2024-01-01 00:01:00.000', 2, 2.5, 'beta')",
@@ -619,7 +748,7 @@ def _dim10_steps(src_type: str) -> list:
         f"drop external source if exists {sec_src}",
     ])
 
-    steps.append("drop table if exists local_t")
+    steps.append("drop database if exists fq02_join_db")
     return steps
 
 
@@ -631,6 +760,8 @@ def _dim11_steps(src_type: str) -> list:
         ns, ns2, table = _M_DB, _M_DB2, _FW_TABLE
     elif src_type == _pg:
         ns, ns2, table = _P_SCHEMA, _P_SCHEMA2, _FW_TABLE
+    elif src_type == _sqlserver:
+        ns, ns2, table = _S_SCHEMA, _S_SCHEMA2, _FW_TABLE
     else:
         ns, ns2, table = _I_DB, _I_DB2, _FW_TABLE
 
@@ -645,6 +776,11 @@ def _dim11_steps(src_type: str) -> list:
             f"create external source if not exists {sec_src} type='postgresql' "
             f"host='{_P_HOST}' port={_P_PORT} user='{_P_USER}' password='{_P_PASS}' "
             f"database='{_P_DB}' schema='{ns2}'")
+    elif src_type == _sqlserver:
+        sec_create = (
+            f"create external source if not exists {sec_src} type='sqlserver' "
+            f"host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' "
+            f"database='{_S_DB}' schema='{ns2}'")
     else:
         sec_create = (
             f"create external source if not exists {sec_src} type='influxdb' "
@@ -652,8 +788,8 @@ def _dim11_steps(src_type: str) -> list:
             f"database='{ns2}' options('api_token'='{_I_TOKEN}', 'protocol'='flight_sql')")
 
     steps = [
-        "create database if not exists fq02_switch_db",
-        "drop table if exists fq02_switch_db.local_t",
+        "drop database if exists fq02_switch_db",
+        "create database fq02_switch_db",
         "create table fq02_switch_db.local_t (ts timestamp, val int)",
         "insert into fq02_switch_db.local_t values ('2024-06-01 00:00:00.000', 42)",
         f"-- Switch to external source (1-seg USE)",
@@ -698,7 +834,7 @@ def _dim11_steps(src_type: str) -> list:
         f"select * from {table} order by val limit 1",
         f"-- Cleanup secondary source",
         f"drop external source if exists {sec_src}",
-        "use fq02_switch_db",
+        "drop database if exists fq02_switch_db",
     ]
     return steps
 
@@ -710,6 +846,9 @@ def _dim12_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -750,6 +889,9 @@ def _dim13_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -825,13 +967,16 @@ def _dim14_steps(src_type: str) -> list:
     elif src_type == _pg:
         ns, ns2 = _P_SCHEMA, _P_SCHEMA2
         table = _FW_TABLE
+    elif src_type == _sqlserver:
+        ns, ns2 = _S_SCHEMA, _S_SCHEMA2
+        table = _FW_TABLE
     else:
         ns, ns2 = _I_DB, _I_DB2
         table = _FW_TABLE
 
     steps = []
     # Test USE with 0 through 5 segments
-    use_paths = _use_paths_for_source(src, ns)
+    use_paths = _use_paths_for_source(src, ns, src_type)
     for seg_count, use_sql in use_paths:
         steps.append(f"-- [{seg_count}-seg USE] sql={use_sql}")
         steps.append(use_sql)
@@ -850,32 +995,66 @@ def _dim14_steps(src_type: str) -> list:
         f"use {src}.nonexistent_ns_xyz",
         f"-- [Failed USE preserves context] previous ext context should be retained",
         f"select * from {table} order by val limit 1",
-        f"-- USE local db (verify local USE still works)",
-        "drop database if exists fq02_use_db",
-        "create database fq02_use_db",
-        "use fq02_use_db",
+        f"-- USE local db (same table name, distinct local row) → must resolve locally",
+    ])
+    steps.extend(_local_ctx_setup_steps(_LOCAL_USE_DB))
+    steps.extend([
         "select database()",
-        f"-- [Rule 4] 1-seg ext table after USE local_db should fail",
-        f"select * from {table}",
-        "drop database if exists fq02_use_db",
-        f"-- USE back to external after local",
+        f"select * from {table} order by val limit 1",
+        f"-- USE back to external after local → default namespace row should return",
         f"use {src}",
         f"select * from {table} order by val limit 1",
-        f"-- USE source.ns then 1-seg query",
+        f"-- USE source.ns then 1-seg query → explicit default namespace row should return",
         f"use {src}.{ns}",
         f"select * from {table} order by val limit 1",
-        f"-- [USE override/reset] USE source.ns2 overrides to alt namespace",
+        f"-- [USE override/reset] USE source.ns2 overrides to alt namespace row",
         f"use {src}.{ns2}",
         f"select * from {table} order by val limit 1",
-        f"-- [USE override/reset] USE source (1-seg) resets to default ns",
+        f"-- [USE override/reset] USE source (1-seg) resets to default namespace row",
         f"use {src}",
         f"select * from {table} order by val limit 1",
+        f"drop database if exists {_LOCAL_USE_DB}",
         f"-- [EXT-013] USE with leading dot → should fail",
         f"use .{src}",
         f"-- [EXT-013] USE with trailing dot → should fail",
         f"use {src}.",
         f"-- [EXT-013] USE with double dot → should fail",
         f"use {src}..{ns}",
+    ])
+    return steps
+
+
+def _dim19_steps(src_type: str) -> list:
+    """DIM-19: No default namespace + USE local_db/source/source.ns hard validation."""
+    src = "fq02_dim19"
+    if src_type == _mysql:
+        ns, ns2 = _M_DB, _M_DB2
+    elif src_type == _pg:
+        ns, ns2 = _P_SCHEMA, _P_SCHEMA2
+    elif src_type == _sqlserver:
+        ns, ns2 = _S_SCHEMA, _S_SCHEMA2
+    else:
+        ns, ns2 = _I_DB, _I_DB2
+
+    steps = []
+    steps.extend(_local_ctx_setup_steps(_LOCAL_USE_DB_NO_DEFAULT))
+    steps.extend([
+        f"-- local context row must win before any external USE",
+        "select database()",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"-- USE source without default namespace must fail and preserve local context",
+        f"use {src}",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"-- USE source.ns should switch to explicit namespace row",
+        f"use {src}.{ns}",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"-- USE source.ns2 should switch to alternate namespace row",
+        f"use {src}.{ns2}",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"-- Switching back to local db should restore the local row",
+        f"use {_LOCAL_USE_DB_NO_DEFAULT}",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"drop database if exists {_LOCAL_USE_DB_NO_DEFAULT}",
     ])
     return steps
 
@@ -949,6 +1128,8 @@ def _dim16_steps(src_type: str) -> list:
 
     if src_type == _mysql:
         ns = _M_DB
+    elif src_type == _sqlserver:
+        ns = _S_SCHEMA
     else:
         ns = _P_SCHEMA
 
@@ -985,6 +1166,9 @@ def _dim17_steps(src_type: str) -> list:
         ns, table = _M_DB, _FW_TABLE
     elif src_type == _pg:
         ns, table = _P_SCHEMA, _FW_TABLE
+    elif src_type == _sqlserver:
+        # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
+        ns, table = _S_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -1015,6 +1199,9 @@ def _dim18_steps(src_type: str) -> list:
         alter_sql = f"alter external source {src} set database='{ns2}'"
     elif src_type == _pg:
         ns, ns2, table = _P_SCHEMA, _P_SCHEMA2, _FW_TABLE
+        alter_sql = f"alter external source {src} set schema='{ns2}'"
+    elif src_type == _sqlserver:
+        ns, ns2, table = _S_SCHEMA, _S_SCHEMA2, _FW_TABLE
         alter_sql = f"alter external source {src} set schema='{ns2}'"
     else:
         ns, ns2, table = _I_DB, _I_DB2, _FW_TABLE
@@ -1052,6 +1239,14 @@ def _make_create_sql(src_name: str, src_type: str, database: Optional[str],
         if schema:
             sql += f" schema='{schema}'"
         return sql
+    elif src_type == _sqlserver:
+        sql = (f"create external source if not exists {src_name} type='sqlserver' "
+               f"host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}'")
+        if database:
+            sql += f" database='{database}'"
+        if schema:
+            sql += f" schema='{schema}'"
+        return sql
     else:  # influxdb
         sql = (f"create external source if not exists {src_name} type='influxdb' "
                f"host='{_I_HOST}' port={_I_PORT} user='admin'")
@@ -1059,6 +1254,22 @@ def _make_create_sql(src_name: str, src_type: str, database: Optional[str],
             sql += f" database='{database}'"
         sql += f" options('api_token'='{_I_TOKEN}', 'protocol'='flight_sql')"
         return sql
+
+
+def _ns_create_kwargs(src_type: str, with_default: bool = True) -> dict:
+    """Default-namespace keyword arguments for _make_create_sql.
+
+    SQL Server carries both a database and a schema default; PostgreSQL only a
+    schema; MySQL / InfluxDB only a database.
+    """
+    if src_type == _mysql:
+        return {"database": _M_DB if with_default else None, "schema": None}
+    if src_type == _pg:
+        return {"database": _P_DB, "schema": _P_SCHEMA if with_default else None}
+    if src_type == _sqlserver:
+        return {"database": _S_DB if with_default else None,
+                "schema": _S_SCHEMA if with_default else None}
+    return {"database": _I_DB if with_default else None, "schema": None}
 
 
 def _drop_src_sql(name: str) -> str:
@@ -1070,72 +1281,60 @@ def _drop_src_sql(name: str) -> str:
 _CASES = [
 
     # ── DIM-01: With default namespace ─────────────────────────────────
-    ["DIM-01", [_mysql, _pg, _influxdb], ["fq02_dim01"],
+    ["DIM-01", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim01"],
      "With default namespace: 0-5 segment paths × all statement types (incl. USE)",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim01"),
-         lambda t: _make_create_sql("fq02_dim01", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim01", t, **_ns_create_kwargs(t)),
          lambda t: _dim01_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-02: Without default namespace ──────────────────────────────
-    ["DIM-02", [_mysql, _pg, _influxdb], ["fq02_dim02"],
+    ["DIM-02", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim02"],
      "Without default namespace: 0-5 segment paths × all statement types (incl. USE)",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim02"),
-         lambda t: _make_create_sql("fq02_dim02", t, database=None,
-                                    schema=None) if t == _mysql else
-                   _make_create_sql("fq02_dim02", t,
-                                    database=_P_DB if t == _pg else None,
-                                    schema=None),
+         lambda t: _make_create_sql("fq02_dim02", t, **_ns_create_kwargs(t, False)),
          lambda t: _dim02_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-03: After USE source ───────────────────────────────────────
-    ["DIM-03", [_mysql, _pg, _influxdb], ["fq02_dim03"],
+    ["DIM-03", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim03"],
      "After USE source_name: 0-5 segment paths × all statement types (incl. USE)",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim03"),
-         lambda t: _make_create_sql("fq02_dim03", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim03", t, **_ns_create_kwargs(t)),
          lambda t: _dim03_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-04: After USE source.ns ────────────────────────────────────
-    ["DIM-04", [_mysql, _pg, _influxdb], ["fq02_dim04"],
+    ["DIM-04", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim04"],
      "After USE source.ns: 0-5 segment paths × all statement types (incl. USE)",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim04"),
-         lambda t: _make_create_sql("fq02_dim04", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim04", t, **_ns_create_kwargs(t)),
          lambda t: _dim04_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-05: After USE local_db ─────────────────────────────────────
-    ["DIM-05", [_mysql, _pg, _influxdb], ["fq02_dim05"],
+    ["DIM-05", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim05"],
      "After USE local_db: external paths via qualified paths + USE 0-5 seg",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim05"),
-         lambda t: _make_create_sql("fq02_dim05", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim05", t, **_ns_create_kwargs(t)),
          lambda t: _dim05_steps(t),
          "drop database if exists fq02_local_db",
          _cleanup_sources(),
@@ -1143,14 +1342,12 @@ _CASES = [
     ],
 
     # ── DIM-06: Three-segment disambiguation ───────────────────────────
-    ["DIM-06", [_mysql, _pg, _influxdb], ["fq02_dim06"],
+    ["DIM-06", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim06"],
      "Three-segment disambiguation: source_name vs local_db conflict + USE 0-5 seg",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim06"),
-         lambda t: _make_create_sql("fq02_dim06", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim06", t, **_ns_create_kwargs(t)),
          lambda t: _dim06_steps(t),
          lambda t: f"drop database if exists fq02_dim06",
          _cleanup_sources(),
@@ -1158,86 +1355,74 @@ _CASES = [
     ],
 
     # ── DIM-07: Case sensitivity ───────────────────────────────────────
-    ["DIM-07", [_mysql, _pg, _influxdb], ["fq02_dim07"],
+    ["DIM-07", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim07"],
      "Case sensitivity: MySQL insensitive, PG fold, InfluxDB sensitive (incl. USE)",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim07"),
-         lambda t: _make_create_sql("fq02_dim07", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim07", t, **_ns_create_kwargs(t)),
          lambda t: _dim07_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-08: Special identifiers & backticks ────────────────────────
-    ["DIM-08", [_mysql, _pg, _influxdb], ["fq02_dim08"],
+    ["DIM-08", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim08"],
      "Special identifiers: backtick combinations in FROM and USE",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim08"),
-         lambda t: _make_create_sql("fq02_dim08", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim08", t, **_ns_create_kwargs(t)),
          lambda t: _dim08_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-09: ALTER namespace impact ─────────────────────────────────
-    ["DIM-09", [_mysql, _pg, _influxdb], ["fq02_dim09"],
+    ["DIM-09", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim09"],
      "ALTER default namespace: path resolution + USE changes after ALTER",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim09"),
-         lambda t: _make_create_sql("fq02_dim09", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim09", t, **_ns_create_kwargs(t)),
          lambda t: _dim09_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-10: Multi-source JOIN ──────────────────────────────────────
-    ["DIM-10", [_mysql, _pg, _influxdb], ["fq02_dim10", "fq02_dim10_sec"],
+    ["DIM-10", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim10", "fq02_dim10_sec"],
      "Multi-source JOIN: local+external, cross-source, subquery, UNION",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim10"),
-         lambda t: _make_create_sql("fq02_dim10", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim10", t, **_ns_create_kwargs(t)),
          lambda t: _dim10_steps(t),
-         "drop table if exists fq02_join_db.local_t",
+         "drop database if exists fq02_join_db",
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-11: USE context switching ──────────────────────────────────
-    ["DIM-11", [_mysql, _pg, _influxdb], ["fq02_dim11", "fq02_dim11b"],
+    ["DIM-11", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim11", "fq02_dim11b"],
      "USE context switching: external ↔ local ↔ cross-ext alternation",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim11"),
-         lambda t: _make_create_sql("fq02_dim11", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim11", t, **_ns_create_kwargs(t)),
          lambda t: _dim11_steps(t),
-         "drop table if exists fq02_switch_db.local_t",
+         "drop database if exists fq02_switch_db",
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-12: Name conflict ──────────────────────────────────────────
-    ["DIM-12", [_mysql, _pg, _influxdb], ["fq02_dim12"],
+    ["DIM-12", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim12"],
      "Name conflict: source_name = local db name rejection + USE behavior",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim12"),
-         lambda t: _make_create_sql("fq02_dim12", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim12", t, **_ns_create_kwargs(t)),
          lambda t: _dim12_steps(t),
          lambda t: f"drop database if exists fq02_dim12",
          _cleanup_sources(),
@@ -1245,70 +1430,73 @@ _CASES = [
     ],
 
     # ── DIM-13: Non-SELECT statements on external paths ────────────────
-    ["DIM-13", [_mysql, _pg, _influxdb], ["fq02_dim13"],
+    ["DIM-13", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim13"],
      "Non-SELECT statements: INSERT/DELETE/DROP/ALTER/CREATE/CREATE INDEX/DESCRIBE/REFRESH on external paths",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim13"),
-         lambda t: _make_create_sql("fq02_dim13", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim13", t, **_ns_create_kwargs(t)),
          lambda t: _dim13_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-14: USE 0-5 segments comprehensive ─────────────────────────
-    ["DIM-14", [_mysql, _pg, _influxdb], ["fq02_dim14"],
+    ["DIM-14", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim14"],
      "USE statement 0-5 segments: all forms, valid + invalid + edge cases",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim14"),
-         lambda t: _make_create_sql("fq02_dim14", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim14", t, **_ns_create_kwargs(t)),
          lambda t: _dim14_steps(t),
-         "drop database if exists fq02_use_db",
+         f"drop database if exists {_LOCAL_USE_DB}",
+         _cleanup_sources(),
+     ],
+    ],
+
+    # ── DIM-19: No-default source + local/external switching ──────────
+    ["DIM-19", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim19"],
+     "No default namespace: USE local_db/source/source.ns hard validation",
+     [
+         _cleanup_sources(),
+         lambda t: _drop_src_sql("fq02_dim19"),
+         lambda t: _make_create_sql("fq02_dim19", t, **_ns_create_kwargs(t, False)),
+         lambda t: _dim19_steps(t),
+         f"drop database if exists {_LOCAL_USE_DB_NO_DEFAULT}",
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-15: PG-specific schema handling ────────────────────────────
-    ["DIM-15", [_mysql, _pg, _influxdb], ["fq02_dim15", "fq02_dim15b"],
+    ["DIM-15", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim15", "fq02_dim15b"],
      "PG-specific: schema handling (default/explicit/ALTER/clear) + USE",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim15"),
-         lambda t: _make_create_sql("fq02_dim15", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim15", t, **_ns_create_kwargs(t)),
          lambda t: _dim15_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-16: View path resolution (EXT-004) ────────────────────────
-    ["DIM-16", [_mysql, _pg, _influxdb], ["fq02_dim16"],
+    ["DIM-16", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim16"],
      "View path resolution: MySQL/PG views via FROM path (EXT-004)",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim16"),
-         lambda t: _make_create_sql("fq02_dim16", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim16", t, **_ns_create_kwargs(t)),
          lambda t: _dim16_steps(t),
          _cleanup_sources(),
      ],
     ],
 
     # ── DIM-17: DROP during active USE (EXT-016) ──────────────────────
-    ["DIM-17", [_mysql, _pg, _influxdb], ["fq02_dim17"],
+    ["DIM-17", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim17"],
      "DROP source during active USE context (EXT-016)",
      [
          lambda t: _drop_src_sql("fq02_dim17"),
-         lambda t: _make_create_sql("fq02_dim17", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim17", t, **_ns_create_kwargs(t)),
          lambda t: _dim17_steps(t),
          # Source already dropped in steps; cleanup just in case
          _cleanup_sources(),
@@ -1316,14 +1504,12 @@ _CASES = [
     ],
 
     # ── DIM-18: ALTER during active USE (EXT-015) ─────────────────────
-    ["DIM-18", [_mysql, _pg, _influxdb], ["fq02_dim18"],
+    ["DIM-18", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim18"],
      "ALTER source during active USE context (EXT-015)",
      [
          _cleanup_sources(),
          lambda t: _drop_src_sql("fq02_dim18"),
-         lambda t: _make_create_sql("fq02_dim18", t,
-                                    database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
-                                    schema=_P_SCHEMA if t == _pg else None),
+         lambda t: _make_create_sql("fq02_dim18", t, **_ns_create_kwargs(t)),
          lambda t: _dim18_steps(t),
          _cleanup_sources(),
      ],
@@ -1335,18 +1521,6 @@ _CASES = [
 
 class TestFq02PathResolution(FederatedQueryVersionedMixin):
     _fw_data_prepared = False
-
-    # Override parent updatecfgDict to also reset the client-side timezone to
-    # Asia/Shanghai (CST).  Same reason as TestFq01ExternalSource: prevents
-    # C-library UTC leakage from prior test classes in the full suite.
-    updatecfgDict = {
-        "federatedQueryEnable": 1,
-        "timezone": "Asia/Shanghai",
-        "clientCfg": {
-            "federatedQueryEnable": 1,
-            "timezone": "Asia/Shanghai",
-        },
-    }
 
     # ──────────────────────────────────────────────────────────────────────
     # Lifecycle
@@ -1378,13 +1552,11 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         pg_cfg     = self._pg_cfg()
         influx_cfg = self._influx_cfg()
 
-        mysql_values = ", ".join(
-            f"('{ts}', {val}, {score}, '{name}')"
-            for ts, val, score, name in _FW_ROWS
-        )
+        mysql_values = _rows_to_sql_values(_FW_ROWS)
+        mysql_values_alt = _rows_to_sql_values(_FW_ROWS_ALT)
 
-        # MySQL: create tables and views in both databases
-        for db in [_M_DB, _M_DB2]:
+        # MySQL: default database and alternate database must have distinct rows.
+        for db, rows_sql in [(_M_DB, mysql_values), (_M_DB2, mysql_values_alt)]:
             ExtSrcEnv.mysql_create_db_cfg(mysql_cfg, db)
             ExtSrcEnv.mysql_exec_cfg(mysql_cfg, db, [
                 f"DROP TABLE IF EXISTS `{_FW_TABLE}`",
@@ -1393,7 +1565,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                     "ts DATETIME(3) PRIMARY KEY, "
                     "val INT, score DOUBLE, name VARCHAR(32))"
                 ),
-                f"INSERT INTO `{_FW_TABLE}` VALUES {mysql_values}",
+                f"INSERT INTO `{_FW_TABLE}` VALUES {rows_sql}",
                 # Views for EXT-004 (view path resolution)
                 f"DROP VIEW IF EXISTS `v_{_FW_TABLE}`",
                 f"CREATE VIEW `v_{_FW_TABLE}` AS SELECT * FROM `{_FW_TABLE}` WHERE val > 0",
@@ -1401,7 +1573,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 f"CREATE VIEW `v_no_ts` AS SELECT val, name FROM `{_FW_TABLE}`",
             ])
 
-        # PostgreSQL: create tables and views in both schemas
+        # PostgreSQL: public and analytics schemas must have distinct rows.
         ExtSrcEnv.pg_create_db_cfg(pg_cfg, _P_DB)
         ExtSrcEnv.pg_exec_cfg(pg_cfg, _P_DB, [
             f"CREATE SCHEMA IF NOT EXISTS {_P_SCHEMA}",
@@ -1427,20 +1599,50 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 "ts TIMESTAMP PRIMARY KEY, "
                 "val INT, score DOUBLE PRECISION, name VARCHAR(32))"
             ),
-            f"INSERT INTO {_P_SCHEMA2}.{_FW_TABLE} VALUES {mysql_values}",
+            f"INSERT INTO {_P_SCHEMA2}.{_FW_TABLE} VALUES {mysql_values_alt}",
             f"CREATE VIEW {_P_SCHEMA2}.v_{_FW_TABLE} AS SELECT * FROM {_P_SCHEMA2}.{_FW_TABLE} WHERE val > 0",
         ])
 
-        # InfluxDB: create tables in both databases
-        for db in [_I_DB, _I_DB2]:
+        # SQL Server: default database (dbo + analytics schemas) and an
+        # alternate database must have distinct rows.
+        ExtSrcEnv.sqlserver_drop_db(_S_DB)
+        ExtSrcEnv.sqlserver_drop_db(_S_DB2)
+        ExtSrcEnv.sqlserver_create_db(_S_DB)
+        ExtSrcEnv.sqlserver_create_db(_S_DB2)
+        ExtSrcEnv.sqlserver_exec(_S_DB, [
+            "IF SCHEMA_ID('analytics') IS NULL EXEC('CREATE SCHEMA analytics')",
+            f"DROP VIEW IF EXISTS {_S_SCHEMA}.v_no_ts",
+            f"DROP VIEW IF EXISTS {_S_SCHEMA}.v_{_FW_TABLE}",
+            f"DROP TABLE IF EXISTS {_S_SCHEMA}.{_FW_TABLE}",
+            (
+                f"CREATE TABLE {_S_SCHEMA}.{_FW_TABLE} ("
+                "ts datetime2(3) NOT NULL, val int, score float, name nvarchar(32))"
+            ),
+            f"INSERT INTO {_S_SCHEMA}.{_FW_TABLE} VALUES {mysql_values}",
+            f"CREATE VIEW {_S_SCHEMA}.v_{_FW_TABLE} AS SELECT * FROM {_S_SCHEMA}.{_FW_TABLE} WHERE val > 0",
+            f"CREATE VIEW {_S_SCHEMA}.v_no_ts AS SELECT val, name FROM {_S_SCHEMA}.{_FW_TABLE}",
+            f"DROP VIEW IF EXISTS {_S_SCHEMA2}.v_{_FW_TABLE}",
+            f"DROP TABLE IF EXISTS {_S_SCHEMA2}.{_FW_TABLE}",
+            (
+                f"CREATE TABLE {_S_SCHEMA2}.{_FW_TABLE} ("
+                "ts datetime2(3) NOT NULL, val int, score float, name nvarchar(32))"
+            ),
+            f"INSERT INTO {_S_SCHEMA2}.{_FW_TABLE} VALUES {mysql_values_alt}",
+            f"CREATE VIEW {_S_SCHEMA2}.v_{_FW_TABLE} AS SELECT * FROM {_S_SCHEMA2}.{_FW_TABLE} WHERE val > 0",
+        ])
+        ExtSrcEnv.sqlserver_exec(_S_DB2, [
+            f"DROP TABLE IF EXISTS {_S_SCHEMA}.{_FW_TABLE}",
+            (
+                f"CREATE TABLE {_S_SCHEMA}.{_FW_TABLE} ("
+                "ts datetime2(3) NOT NULL, val int, score float, name nvarchar(32))"
+            ),
+            f"INSERT INTO {_S_SCHEMA}.{_FW_TABLE} VALUES {mysql_values_alt}",
+        ])
+
+        # InfluxDB: default database and alternate database must have distinct rows.
+        for db, rows in [(_I_DB, _FW_ROWS), (_I_DB2, _FW_ROWS_ALT)]:
             ExtSrcEnv.influx_create_db_cfg(influx_cfg, db)
-            influx_lines = [
-                (
-                    f"{_FW_TABLE} val={val}i,score={score},name=\"{name}\" "
-                    f"{_BASE_TS + idx * 60000}000000"
-                )
-                for idx, (_, val, score, name) in enumerate(_FW_ROWS)
-            ]
+            influx_lines = _influx_lines_for_rows(rows)
             ExtSrcEnv.influx_write_cfg(influx_cfg, db, influx_lines)
 
     # ──────────────────────────────────────────────────────────────────────
@@ -1448,15 +1650,35 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _fw_fmt_cell(value: Any) -> str:
+    def _fw_fmt_cell(value: Any, is_timestamp: bool = False) -> str:
         if value is None:
             return "NULL"
+        if is_timestamp and isinstance(value, datetime) and value.tzinfo is None:
+            # Keep millisecond connector results aligned with the offset-aware
+            # rendering used for nanosecond timestamp values below.
+            return str(value.astimezone())
+        if is_timestamp and isinstance(value, int) and abs(value) >= 10**17:
+            seconds, nanos = divmod(value, 1_000_000_000)
+            return str(datetime.fromtimestamp(seconds, timezone.utc).astimezone().replace(microsecond=nanos // 1000))
         if isinstance(value, float):
             return f"{value:.12g}"
         return str(value)
 
-    def _fw_fmt_rows(self, rows: Sequence) -> List[str]:
-        return ["|".join(self._fw_fmt_cell(v) for v in row) for row in rows]
+    @staticmethod
+    def _fw_is_timestamp_column(field: Any) -> bool:
+        field_type = getattr(field, "type", None)
+        if field_type is None:
+            try:
+                field_type = field[1]
+            except (IndexError, KeyError, TypeError):
+                return False
+        return field_type == FieldType.C_TIMESTAMP
+
+    def _fw_fmt_rows(self, rows: Sequence, timestamp_cols: set[int]) -> List[str]:
+        return [
+            "|".join(self._fw_fmt_cell(value, index in timestamp_cols) for index, value in enumerate(row))
+            for row in rows
+        ]
 
     @staticmethod
     def _fw_drop_dynamic_columns(description, rows: Sequence):
@@ -1479,7 +1701,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         lines = []
         if description:
             lines.append("|".join(col[0] for col in description))
-        lines.extend(self._fw_fmt_rows(rows))
+        timestamp_cols = {
+            index for index, field in enumerate(description or []) if self._fw_is_timestamp_column(field)
+        }
+        lines.extend(self._fw_fmt_rows(rows, timestamp_cols))
         return lines
 
     @staticmethod
@@ -1529,17 +1754,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         return tdSql.query(sql, exit=exit, queryTimes=1)
 
     def _fw_runtime_sql(self, sql: str, src_type: str) -> str:
-        """Patch import-time Influx token placeholders with runtime token."""
+        """Patch generic import-time Influx source SQL to runtime token/protocol."""
         if src_type != _influxdb:
             return sql
-        runtime_token = self._influx_cfg().token
-        if not runtime_token or runtime_token == _I_TOKEN:
-            return sql
-        pattern = re.compile(
-            r"(api_token'\s*=\s*')" + re.escape(_I_TOKEN) + r"(')",
-            re.IGNORECASE,
-        )
-        return pattern.sub(r"\1" + runtime_token + r"\2", sql)
+        return self._rewrite_influx_source_runtime_sql(sql, _I_TOKEN)
 
     def _fw_exec_step(
         self,
@@ -1632,7 +1850,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         )
 
     def _fw_compare_baseline(self, blocks: List[str]):
-        actual   = "\n".join(blocks) + "\n"
+        actual   = ExtSrcEnv.baseline_environment("\n".join(blocks) + "\n")
         # Normalise dynamic influxdb3 admin tokens (apiv3_...) to the stable
         # placeholder "test-token" so that the baseline comparison is stable
         # across test runs even though influxdb3 generates a new random token
@@ -1650,8 +1868,21 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             r'(ERROR: \[0x2600\]: syntax error near "[^\n]*test-token)[^\n]*',
             _re.MULTILINE,
         )
+        _PROTOCOL_SQL_NORM = _re.compile(
+            r"('protocol'\s*=\s*')(?:flight_sql|http)(')",
+            _re.IGNORECASE,
+        )
+        _PROTOCOL_JSON_NORM = _re.compile(
+            r'("protocol"\s*:\s*")(?:flight_sql|http)(")',
+            _re.IGNORECASE,
+        )
         def _norm_synerr(text):
-            return _SYNTAX_ERR_NORM.sub(r"\1", text)
+            text = _SYNTAX_ERR_NORM.sub(r"\1", text)
+            text = _PROTOCOL_SQL_NORM.sub(r"\1<PROTO>\2", text)
+            text = _PROTOCOL_JSON_NORM.sub(r'\1<PROTO>\2', text)
+            text = text.replace("protocol value visible", "protocol visible")
+            return _re.sub(r"protocol='(?:flight_sql|http)' visible",
+                           "protocol visible", text, flags=_re.IGNORECASE)
         actual = _norm_synerr(actual)
         baseline = self._fw_baseline_file()
         tmp_file = os.path.join(
@@ -1703,7 +1934,13 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
 
     def test_fq_path_resolution_framework(self):
-        """Data-driven path resolution test: all dimensions × all source types."""
+        """Data-driven path resolution test: all dimensions × all source types.
+
+        Data-driven path resolution test: all dimensions × all source types.
+
+        Since: v3.4.0.0
+
+        """
         # FQ_CASES="DIM-01,DIM-05" → only run specified dimensions
         _only = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None

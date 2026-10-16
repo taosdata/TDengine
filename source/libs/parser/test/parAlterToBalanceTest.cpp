@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,6 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <array>
+#include <memory>
+
+#include "mockCatalog.h"  // mockChkColRefByPrivCode: drive the stubbed RESTRICT verdict
+#include "parInt.h"
 #include "parTestUtil.h"
 
 using namespace std;
@@ -20,6 +27,25 @@ using namespace std;
 namespace ParserTest {
 
 class ParserInitialATest : public ParserDdlTest {};
+
+namespace {
+
+// g_chkColRefByPrivCode (mockCatalog.cpp) is process-global and the harness has no SetUp/TearDown
+// that resets it. A run() mismatch throws (see DO_WITH_THROW), which unwinds the whole test body,
+// so an inline "reset to SUCCESS" after the last assertion would be skipped and the stale RESTRICT
+// verdict would leak into every later RENAME COLUMN/TAG case in this binary. Restoring from a
+// destructor makes the reset happen on every exit path, including the throwing one.
+struct ScopedChkColRefByPrivCode {
+  explicit ScopedChkColRefByPrivCode(int32_t code) { mockChkColRefByPrivCode(code); }
+  ~ScopedChkColRefByPrivCode() { mockChkColRefByPrivCode(TSDB_CODE_SUCCESS); }
+
+  ScopedChkColRefByPrivCode(const ScopedChkColRefByPrivCode&) = delete;
+  ScopedChkColRefByPrivCode& operator=(const ScopedChkColRefByPrivCode&) = delete;
+  ScopedChkColRefByPrivCode(ScopedChkColRefByPrivCode&&) = delete;
+  ScopedChkColRefByPrivCode& operator=(ScopedChkColRefByPrivCode&&) = delete;
+};
+
+}  // namespace
 
 /*
  * ALTER ACCOUNT account_name alter_account_options
@@ -50,6 +76,58 @@ TEST_F(ParserInitialATest, alterAccount) {
  * ALTER DNODE dnode_id 'config' ['value']
  * ALTER ALL DNODES 'config' ['value']
  */
+TEST_F(ParserInitialATest, alterDnodeTimezoneValidatedByServer) {
+  // Error-code-only responses and logs must not expose format placeholders.
+  EXPECT_STREQ(tstrerror(TSDB_CODE_PAR_INVALID_TIMEZONE), "Invalid timezone");
+  struct TestCase {
+    const char* sql;
+    int32_t dnodeId;
+    const char* config;
+    const char* value;
+  };
+  const array<TestCase, 8> cases = {{
+      {"ALTER ALL DNODES 'timezone' 'UTF-8'", -1, "timezone", "UTF-8"},
+      {"ALTER ALL DNODES 'timezone UTF-8'", -1, "timezone UTF-8", ""},
+      {"ALTER DNODE 1 'timezone' 'UTF-8'", 1, "timezone", "UTF-8"},
+      {"ALTER ALL DNODES 'TIMEZONE' 'UTF-8'", -1, "TIMEZONE", "UTF-8"},
+      {"ALTER ALL DNODES 'timezone' 'Europe/Kyiv'", -1,
+       "timezone", "Europe/Kyiv"},
+      {"ALTER ALL DNODES 'timezone Europe/Kyiv'", -1,
+       "timezone Europe/Kyiv", ""},
+      {"ALTER ALL DNODES 'timezone' 'America/Nuuk'", -1,
+       "timezone", "America/Nuuk"},
+      {"ALTER ALL DNODES 'timezone America/Nuuk'", -1,
+       "timezone America/Nuuk", ""},
+  }};
+  for (const auto& testCase : cases) {
+    const char* sql = testCase.sql;
+    array<char, 1024> message = {0};
+    SParseContext context = {0};
+    context.acctId = 0;
+    context.db = "test";
+    context.pUser = "root";
+    context.pSql = sql;
+    context.sqlLen = strlen(sql);
+    context.pMsg = message.data();
+    context.msgLen = message.size();
+    SQuery* query = nullptr;
+    ASSERT_EQ(parse(&context, &query), TSDB_CODE_SUCCESS) << sql;
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> guard(query, qDestroyQuery);
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(translate(&context, query, nullptr), TSDB_CODE_SUCCESS) << sql;
+    ASSERT_NE(query->pCmdMsg, nullptr) << sql;
+    EXPECT_EQ(query->pCmdMsg->msgType, TDMT_MND_CONFIG_DNODE) << sql;
+    SMCfgDnodeReq req = {0};
+    ASSERT_EQ(tDeserializeSMCfgDnodeReq(query->pCmdMsg->pMsg,
+                                        query->pCmdMsg->msgLen, &req),
+              TSDB_CODE_SUCCESS) << sql;
+    EXPECT_EQ(req.dnodeId, testCase.dnodeId) << sql;
+    EXPECT_STREQ(req.config, testCase.config) << sql;
+    EXPECT_STREQ(req.value, testCase.value) << sql;
+    tFreeSMCfgDnodeReq(&req);
+  }
+}
+
 TEST_F(ParserInitialATest, alterDnode) {
   useDb("root", "test");
 
@@ -90,6 +168,14 @@ TEST_F(ParserInitialATest, alterDnode) {
 
   setCfgDnodeReq(-1, "qDebugflag", "135");
   run("ALTER ALL DNODES 'qDebugflag' '135'");
+  clearCfgDnodeReq();
+
+  setCfgDnodeReq(-1, "timezone", "UTC");
+  run("ALTER ALL DNODES 'timezone' 'UTC'");
+  clearCfgDnodeReq();
+
+  setCfgDnodeReq(-1, "timezone UTC");
+  run("ALTER ALL DNODES 'timezone UTC'");
   clearCfgDnodeReq();
 }
 
@@ -516,12 +602,17 @@ TEST_F(ParserInitialATest, alterSTable) {
   setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, 2, "tag1", 0, 0, "tag11");
   run("ALTER STABLE st1 RENAME TAG tag1 tag11");
   clearAlterStbReq();
+
+  // super table column rename is now supported (routes to mnode as UPDATE_COLUMN_NAME,
+  // carrying old/new names in pFields[0]/[1], same shape as tag rename)
+  setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
+  run("ALTER STABLE st1 RENAME COLUMN c1 cc1");
+  clearAlterStbReq();
 }
 
 TEST_F(ParserInitialATest, alterSTableSemanticCheck) {
   useDb("root", "test");
 
-  run("ALTER STABLE st1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER STABLE st1 MODIFY COLUMN c2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
   run("ALTER STABLE st1 MODIFY TAG tag2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
   run("ALTER STABLE st1 SET TAG tag1 = 10", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
@@ -584,6 +675,7 @@ TEST_F(ParserInitialATest, alterTable) {
           expect.colModBytes = dataBytes;
           break;
         case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+        case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
           expect.colNewName = strdup(pNewColName);
           break;
         default:
@@ -700,6 +792,12 @@ TEST_F(ParserInitialATest, alterTable) {
     run("ALTER TABLE t1 RENAME COLUMN c1 cc1");
     clearAlterTbReq();
 
+    // RENAME TAG on the owned tags of a normal table goes to the vnode (t3 owns ntag1/ntag2);
+    // the super-table form is routed to the mnode instead (asserted in the super table block).
+    setAlterTableCol("t3", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, "ntag1", 0, 0, "ntag1_new");
+    run("ALTER TABLE t3 RENAME TAG ntag1 ntag1_new");
+    clearAlterTbReq();
+
     int32_t val = 10;
     setAlterTableTag("st1s1", "tag1", (uint8_t*)&val, sizeof(val));
     run("ALTER TABLE st1s1 SET TAG tag1=10");
@@ -797,6 +895,11 @@ TEST_F(ParserInitialATest, alterTable) {
     setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, 2, "tag1", 0, 0, "tag11");
     run("ALTER TABLE st1 RENAME TAG tag1 tag11");
     clearAlterStbReq();
+
+    // super table column rename via ALTER TABLE (non-STABLE) syntax also routes to mnode
+    setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
+    run("ALTER TABLE st1 RENAME COLUMN c1 cc1");
+    clearAlterStbReq();
   }
 }
 
@@ -804,6 +907,31 @@ TEST_F(ParserInitialATest, alterTableSemanticCheck) {
   useDb("root", "test");
 
   run("ALTER TABLE st1s1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  // RENAME TAG on a normal table's owned tags: the old tag must exist and the new name must not
+  // collide with an existing tag or column. RENAME COLUMN and RENAME TAG are not interchangeable.
+  run("ALTER TABLE t3 RENAME TAG nosuchtag x", TSDB_CODE_PAR_INVALID_TAG_NAME);
+  run("ALTER TABLE t3 RENAME TAG ntag1 ntag2", TSDB_CODE_PAR_DUPLICATED_COLUMN);
+  run("ALTER TABLE t3 RENAME TAG ntag1 c1", TSDB_CODE_PAR_DUPLICATED_COLUMN);
+  run("ALTER TABLE t3 RENAME COLUMN ntag1 x", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("ALTER TABLE t3 RENAME TAG c1 x", TSDB_CODE_PAR_INVALID_TAG_NAME);
+  // a normal table without tags has nothing to rename
+  run("ALTER TABLE t1 RENAME TAG t x", TSDB_CODE_PAR_INVALID_TAG_NAME);
+
+  // The RESTRICT verdict comes back from the mnode over TDMT_MND_CHECK_COL_REF_BY_PRIV and must
+  // travel out of translate() unchanged for both RENAME forms — checkColRefByPriv is the only
+  // barrier between these two statements and the privilege-dependency check, so a swallowed or
+  // remapped code would silently turn "referenced by a privilege" into an accepted rename.
+  // The stub answer is process-global, hence the scoped guards.
+  {
+    ScopedChkColRefByPrivCode userPriv(TSDB_CODE_MND_COL_REF_BY_USER_PRIV);
+    run("ALTER TABLE t3 RENAME TAG ntag1 ntag1_new", TSDB_CODE_MND_COL_REF_BY_USER_PRIV);
+    run("ALTER TABLE t1 RENAME COLUMN c1 cc1", TSDB_CODE_MND_COL_REF_BY_USER_PRIV);
+  }
+  {
+    ScopedChkColRefByPrivCode rolePriv(TSDB_CODE_MND_COL_REF_BY_ROLE_PRIV);
+    run("ALTER TABLE t3 RENAME TAG ntag1 ntag1_new", TSDB_CODE_MND_COL_REF_BY_ROLE_PRIV);
+  }
+
   run("ALTER TABLE st1s1 ADD TAG tag11 BIGINT", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER TABLE st1s1 DROP TAG tag1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER TABLE st1s1 MODIFY TAG tag2 VARCHAR(30)", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
@@ -887,21 +1015,54 @@ TEST_F(ParserInitialATest, balanceVgroup) {
 }
 
 /*
- * BALANCE VGROUP LEADER
+ * BALANCE VGROUP LEADER [ ON vgroup_id | DATABASE db_name ] [ FORCE ]
+ *
+ * The command was split into two behaviors selected by the optional FORCE keyword.
+ * The parser encodes that keyword into SBalanceVgroupLeaderReq.reserved:
+ *   - reserved == 0 -> non-forced (default, random rebalance, what old clients send)
+ *   - reserved == 1 -> forced (deterministic, bias elect baseline)
+ * We assert the round-tripped reserved value for every syntactic variant. Note the
+ * DATABASE variant produces a different node type
+ * (QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT), so we do NOT assert a single
+ * unified node type here; validating the message-layer reserved flag is the goal.
  */
 TEST_F(ParserInitialATest, balanceVgroupLeader) {
   useDb("root", "test");
 
+#ifndef TD_ENTERPRISE
+  run("BALANCE VGROUP LEADER", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER ON 1", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER DATABASE test", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER FORCE", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER ON 1 FORCE", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER DATABASE test FORCE", TSDB_CODE_OSS_NOT_SUPPORT);
+#else
+  // Expected value of req.reserved for the statement currently under test. The check
+  // lambda captures this by reference; set it before each run() call.
+  int32_t expectedReserved = 0;
+
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_BALANCE_VGROUP_LEADER_STMT);
     ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_BALANCE_VGROUP_LEADER);
     SBalanceVgroupLeaderReq req = {0};
     ASSERT_EQ(tDeserializeSBalanceVgroupLeaderReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
               TSDB_CODE_SUCCESS);
+    // reserved carries the FORCE flag (0 = non-forced, 1 = forced).
+    ASSERT_EQ(req.reserved, expectedReserved);
     tFreeSBalanceVgroupLeaderReq(&req);
   });
 
+  // Non-forced variants: FORCE keyword absent -> reserved == 0.
+  expectedReserved = 0;
   run("BALANCE VGROUP LEADER");
+  run("BALANCE VGROUP LEADER ON 1");
+  run("BALANCE VGROUP LEADER DATABASE test");
+
+  // Forced variants: FORCE keyword present -> reserved == 1.
+  expectedReserved = 1;
+  run("BALANCE VGROUP LEADER FORCE");
+  run("BALANCE VGROUP LEADER ON 1 FORCE");
+  run("BALANCE VGROUP LEADER DATABASE test FORCE");
+#endif
 }
 
 }  // namespace ParserTest

@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import re
 import shutil
@@ -270,10 +285,10 @@ class TestNestedWindowNotify:
         events = self._wait_stable_event_count(log_path, 4)
         actual = [self._subevent_key(event) for event in events]
         expected = [
-            ("WINDOW_OPEN", -1, 0, 1755276000000),
-            ("WINDOW_OPEN", 0, 0, 1755276000000),
-            ("WINDOW_CLOSE", 0, 0, 1755276000000),
-            ("WINDOW_OPEN", 1, 1, 1755276001000),
+            ("WINDOW_OPEN", -1, "", 1755276000000),
+            ("WINDOW_OPEN", 0, "0", 1755276000000),
+            ("WINDOW_CLOSE", 0, "0", 1755276000000),
+            ("WINDOW_OPEN", 1, "1", 1755276001000),
         ]
         assert actual == expected, events
         assert all(event.get("triggerType") == "Event" for event in events), events
@@ -439,7 +454,7 @@ class TestNestedWindowNotify:
         return (
             event.get("eventType"),
             event.get("windowIndex"),
-            condition.get("conditionIndex"),
+            condition.get("conditionPath"),
             event.get("windowStart"),
         )
 

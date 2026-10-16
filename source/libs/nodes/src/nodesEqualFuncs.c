@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cmdnodes.h"
 #include "functionMgt.h"
 #include "plannodes.h"
 #include "querynodes.h"
@@ -89,6 +92,80 @@ static bool nodeNodeListEqual(const SNodeList* a, const SNodeList* b) {
 
 static bool dataTypeEqual(SDataType a, SDataType b) {
   return a.type == b.type && a.bytes == b.bytes && a.precision == b.precision && a.scale == b.scale;
+}
+
+static bool outerRefNodeEqual(const SOuterRefNode* a, const SOuterRefNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_SCALAR_FIELD(bindingId);
+  COMPARE_SCALAR_FIELD(tableRefId);
+  // Display names are diagnostic; stable IDs distinguish shadowed or repeated tables.
+  return true;
+}
+
+static bool correlationParamNodeEqual(const SCorrelationParamNode* a, const SCorrelationParamNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(paramId);
+  return true;
+}
+
+static bool correlationParamBindingNodeEqual(const SCorrelationParamBindingNode* a,
+                                            const SCorrelationParamBindingNode* b) {
+  COMPARE_OBJECT_FIELD(dataType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(paramId);
+  COMPARE_SCALAR_FIELD(sourceKind);
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_SCALAR_FIELD(bindingId);
+  COMPARE_SCALAR_FIELD(tableRefId);
+  COMPARE_SCALAR_FIELD(sourceBlockId);
+  COMPARE_SCALAR_FIELD(sourceSlotId);
+  COMPARE_SCALAR_FIELD(inheritedParamId);
+  COMPARE_NODE_FIELD(pSource);
+  if (NULL != a->pSource && nodesIsExprNode(a->pSource) && nodesIsExprNode(b->pSource)) {
+    return dataTypeEqual(((SExprNode*)a->pSource)->resType, ((SExprNode*)b->pSource)->resType);
+  }
+  return true;
+}
+
+static bool correlatedSubqueryNodeEqual(const SCorrelatedSubqueryNode* a, const SCorrelatedSubqueryNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(templateId);
+  COMPARE_SCALAR_FIELD(exprId);
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_SCALAR_FIELD(parentScopeId);
+  COMPARE_NODE_LIST_FIELD(pParamBindings);
+  return true;
+}
+
+static bool correlationTemplateNodeEqual(const SCorrelationTemplateNode* a, const SCorrelationTemplateNode* b) {
+  COMPARE_SCALAR_FIELD(templateId);
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_OBJECT_FIELD(resultType, dataTypeEqual);
+  COMPARE_STRING_FIELD(resultName);
+  COMPARE_NODE_LIST_FIELD(pParams);
+  COMPARE_NODE_LIST_FIELD(pNestedTemplates);
+  COMPARE_NODE_LIST_FIELD(pTimeRangeInit);
+  COMPARE_SCALAR_FIELD(planLen);
+  if (a->planLen < 0 || (NULL == a->pPlan) != (NULL == b->pPlan)) {
+    return false;
+  }
+  return 0 == a->planLen ||
+         (NULL != a->pPlan && 0 == memcmp(a->pPlan, b->pPlan, a->planLen));
+}
+
+static bool correlationTimeRangeInitNodeEqual(const SCorrelationTimeRangeInitNode* a,
+                                              const SCorrelationTimeRangeInitNode* b) {
+  COMPARE_SCALAR_FIELD(scopeId);
+  COMPARE_SCALAR_FIELD(precision);
+  COMPARE_SCALAR_FIELD(interpRange);
+  COMPARE_SCALAR_FIELD(allowNoTimeRange);
+  COMPARE_SCALAR_FIELD(targetSubplanId.queryId);
+  COMPARE_SCALAR_FIELD(targetSubplanId.groupId);
+  COMPARE_SCALAR_FIELD(targetSubplanId.subplanId);
+  COMPARE_SCALAR_FIELD(targetBlockId);
+  COMPARE_SCALAR_FIELD(targetNodeType);
+  COMPARE_NODE_FIELD(pRangeExpr);
+  return true;
 }
 
 static bool columnNodeEqual(const SColumnNode* a, const SColumnNode* b) {
@@ -225,6 +302,53 @@ static bool caseWhenNodeEqual(const SCaseWhenNode* a, const SCaseWhenNode* b) {
   return true;
 }
 
+static bool streamTriggerOptionsEqual(const SStreamTriggerOptions* a, const SStreamTriggerOptions* b) {
+  COMPARE_NODE_FIELD(pPreFilter);
+  COMPARE_NODE_FIELD(pWaterMark);
+  COMPARE_NODE_FIELD(pMaxDelay);
+  COMPARE_NODE_FIELD(pExpiredTime);
+  COMPARE_NODE_FIELD(pFillHisStartTime);
+  COMPARE_NODE_FIELD(pIdleTimeout);
+  COMPARE_SCALAR_FIELD(pEventType);
+  COMPARE_SCALAR_FIELD(fillHistoryStartTime);
+  COMPARE_SCALAR_FIELD(ignoreDisorder);
+  COMPARE_SCALAR_FIELD(deleteRecalc);
+  COMPARE_SCALAR_FIELD(deleteOutputTable);
+  COMPARE_SCALAR_FIELD(fillHistory);
+  COMPARE_SCALAR_FIELD(fillHistoryFirst);
+  COMPARE_SCALAR_FIELD(calcNotifyOnly);
+  COMPARE_SCALAR_FIELD(lowLatencyCalc);
+  COMPARE_SCALAR_FIELD(forceOutput);
+  COMPARE_SCALAR_FIELD(ignoreNoDataTrigger);
+  COMPARE_SCALAR_FIELD(flushOnOuterClose);
+  return true;
+}
+
+static bool streamNotifyOptionsEqual(const SStreamNotifyOptions* a, const SStreamNotifyOptions* b) {
+  COMPARE_NODE_LIST_FIELD(pAddrUrls);
+  COMPARE_NODE_FIELD(pWhere);
+  COMPARE_SCALAR_FIELD(eventType);
+  COMPARE_SCALAR_FIELD(notifyType);
+  return true;
+}
+
+static bool streamTriggerNodeEqual(const SStreamTriggerNode* a, const SStreamTriggerNode* b) {
+  COMPARE_NODE_FIELD(pTriggerWindow);
+  COMPARE_NODE_FIELD(pTrigerTable);
+  COMPARE_NODE_FIELD(pOptions);
+  COMPARE_NODE_FIELD(pNotify);
+  COMPARE_NODE_LIST_FIELD(pPartitionList);
+  COMPARE_NODE_LIST_FIELD(pRollupTagList);
+  return true;
+}
+
+static bool streamTagDefNodeEqual(const SStreamTagDefNode* a, const SStreamTagDefNode* b) {
+  COMPARE_STRING_FIELD(tagName);
+  COMPARE_OBJECT_FIELD(dataType, dataTypeEqual);
+  COMPARE_NODE_FIELD(pTagExpr);
+  return true;
+}
+
 static bool groupingSetNodeEqual(const SGroupingSetNode* a, const SGroupingSetNode* b) {
   COMPARE_SCALAR_FIELD(groupingSetType);
   COMPARE_NODE_LIST_FIELD(pParameterList);
@@ -269,6 +393,52 @@ static bool nodeListNodeEqual(const SNodeListNode* a, const SNodeListNode* b) {
   return true;
 }
 
+static bool streamSqlSpanEqual(SStreamSqlSpan a, SStreamSqlSpan b) { return a.begin == b.begin && a.end == b.end; }
+
+static bool streamSqlSpanArrayEqual(const SArray* a, const SArray* b) {
+  if (a == b) {
+    return true;
+  }
+  if (a == NULL || b == NULL || taosArrayGetSize(a) != taosArrayGetSize(b)) {
+    return false;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(a); ++i) {
+    const SStreamSqlSpan* pA = taosArrayGet(a, i);
+    const SStreamSqlSpan* pB = taosArrayGet(b, i);
+    if (!streamSqlSpanEqual(*pA, *pB)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool streamCreateTimeInfoEqual(const SStreamCreateTimeInfo* a, const SStreamCreateTimeInfo* b) {
+  if (a == b) {
+    return true;
+  }
+  if (a == NULL || b == NULL) {
+    return false;
+  }
+  return a->hasTimezone == b->hasTimezone && a->hasFirstDayOfWeek == b->hasFirstDayOfWeek &&
+         streamSqlSpanEqual(a->timezoneValue, b->timezoneValue) &&
+         streamSqlSpanEqual(a->firstDayOfWeekValue, b->firstDayOfWeekValue) &&
+         streamSqlSpanEqual(a->streamOptions, b->streamOptions) &&
+         a->streamOptionsInsertPos == b->streamOptionsInsertPos &&
+         streamSqlSpanArrayEqual(a->pNonConfigOptionSpans, b->pNonConfigOptionSpans) &&
+         strncmp(a->config.timezone, b->config.timezone, sizeof(a->config.timezone)) == 0 &&
+         a->config.firstDayOfWeek == b->config.firstDayOfWeek;
+}
+
+static bool createStreamStmtEqual(const SCreateStreamStmt* a, const SCreateStreamStmt* b) {
+  return strncmp(a->streamDbName, b->streamDbName, sizeof(a->streamDbName)) == 0 &&
+         strncmp(a->streamName, b->streamName, sizeof(a->streamName)) == 0 &&
+         strncmp(a->targetDbName, b->targetDbName, sizeof(a->targetDbName)) == 0 &&
+         strncmp(a->targetTabName, b->targetTabName, sizeof(a->targetTabName)) == 0 &&
+         a->ignoreExists == b->ignoreExists && a->nodelayCreateSubtable == b->nodelayCreateSubtable &&
+         nodesEqualNode(a->pTrigger, b->pTrigger) && nodesEqualNode(a->pQuery, b->pQuery) &&
+         nodesEqualNode(a->pSubtable, b->pSubtable) && nodeNodeListEqual(a->pTags, b->pTags) &&
+         nodeNodeListEqual(a->pCols, b->pCols) && streamCreateTimeInfoEqual(a->pTimeInfo, b->pTimeInfo);
+}
 
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
@@ -284,6 +454,22 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
   }
 
   switch (nodeType(a)) {
+    case QUERY_NODE_LEFT_VALUE:
+      return true;
+    case QUERY_NODE_OUTER_REF:
+      return outerRefNodeEqual((const SOuterRefNode*)a, (const SOuterRefNode*)b);
+    case QUERY_NODE_CORRELATION_PARAM:
+      return correlationParamNodeEqual((const SCorrelationParamNode*)a, (const SCorrelationParamNode*)b);
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      return correlationParamBindingNodeEqual((const SCorrelationParamBindingNode*)a,
+                                             (const SCorrelationParamBindingNode*)b);
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      return correlatedSubqueryNodeEqual((const SCorrelatedSubqueryNode*)a, (const SCorrelatedSubqueryNode*)b);
+    case QUERY_NODE_CORRELATION_TEMPLATE:
+      return correlationTemplateNodeEqual((const SCorrelationTemplateNode*)a, (const SCorrelationTemplateNode*)b);
+    case QUERY_NODE_CORRELATION_TIME_RANGE_INIT:
+      return correlationTimeRangeInitNodeEqual((const SCorrelationTimeRangeInitNode*)a,
+                                               (const SCorrelationTimeRangeInitNode*)b);
     case QUERY_NODE_COLUMN:
       return columnNodeEqual((const SColumnNode*)a, (const SColumnNode*)b);
     case QUERY_NODE_VALUE:
@@ -312,6 +498,16 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return groupingSetNodeEqual((const SGroupingSetNode*)a, (const SGroupingSetNode*)b);
     case QUERY_NODE_NODE_LIST:
       return nodeListNodeEqual((const SNodeListNode*)a, (const SNodeListNode*)b);
+    case QUERY_NODE_STREAM_TRIGGER:
+      return streamTriggerNodeEqual((const SStreamTriggerNode*)a, (const SStreamTriggerNode*)b);
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
+      return streamTriggerOptionsEqual((const SStreamTriggerOptions*)a, (const SStreamTriggerOptions*)b);
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
+      return streamNotifyOptionsEqual((const SStreamNotifyOptions*)a, (const SStreamNotifyOptions*)b);
+    case QUERY_NODE_STREAM_TAG_DEF:
+      return streamTagDefNodeEqual((const SStreamTagDefNode*)a, (const SStreamTagDefNode*)b);
+    case QUERY_NODE_CREATE_STREAM_STMT:
+      return createStreamStmtEqual((const SCreateStreamStmt*)a, (const SCreateStreamStmt*)b);
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_VIRTUAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:

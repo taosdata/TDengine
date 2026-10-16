@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,7 +16,7 @@
  */
 
 /*
- * mndSnapSend.c — mnode side of the snapshot-send progress system tables:
+ * mndSnapSend.c  -  mnode side of the snapshot-send progress system tables:
  *   ins_snap_send_vnodes   (one row per vnode currently sending a snapshot)
  *   ins_snap_send_filesets (one row per fileset of an active snapshot send)
  *
@@ -39,7 +41,7 @@
 #include "tmisce.h"
 #include "tmsgcb.h"
 
-/* transferType constant — matches SNAP_DATA_RAW in vnodeInt.h */
+/* transferType constant  -  matches SNAP_DATA_RAW in vnodeInt.h */
 #define SNAP_TRANSFER_TYPE_RAW 14
 
 /* ====================================================================
@@ -47,7 +49,7 @@
  * ==================================================================== */
 
 typedef struct {
-  SHashObj      *pHash;   /* key: int32_t vgId → value: SSnapSendVnodeInfo (deep copy) */
+  SHashObj      *pHash;   /* key: int32_t vgId  ->  value: SSnapSendVnodeInfo (deep copy) */
   TdThreadMutex  mutex;
 } SSnapSendMgmt;
 
@@ -123,7 +125,7 @@ static int32_t mndProcessDnodeSnapSendProgressRsp(SRpcMsg *pReq) {
     SSnapSendVnodeInfo   *pOld = taosHashGet(gSnapSendMgmt.pHash, &pSrc->vgId, sizeof(int32_t));
     SSnapSendFileSetInfo *pOldFs = (pOld != NULL) ? pOld->pFileSetInfos : NULL;
 
-    // Upsert — only free old memory after a successful put
+    // Upsert  -  only free old memory after a successful put
     if (taosHashPut(gSnapSendMgmt.pHash, &pSrc->vgId, sizeof(int32_t), &copy, sizeof(copy)) != 0) {
       taosMemoryFree(pFsCopy);
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -193,7 +195,7 @@ void mndSnapSendPullup(SMnode *pMnode) {
   }
 
   // Remove stale hash entries (vgIds that are no longer snapRestoring).
-  // Collect keys first — modifying the hash during taosHashIterate corrupts the walk.
+  // Collect keys first  -  modifying the hash during taosHashIterate corrupts the walk.
   SArray *pStaleVgIds = taosArrayInit(8, sizeof(int32_t));
 
   (void)taosThreadMutexLock(&gSnapSendMgmt.mutex);
@@ -233,7 +235,7 @@ void mndSnapSendPullup(SMnode *pMnode) {
       continue;
     }
 
-    // Empty request body (no fields needed — dnode returns all vnode stats)
+    // Empty request body (no fields needed  -  dnode returns all vnode stats)
     int32_t   contLen = sizeof(SMsgHead);
     SMsgHead *pHead   = rpcMallocCont(contLen);
     if (pHead != NULL) {

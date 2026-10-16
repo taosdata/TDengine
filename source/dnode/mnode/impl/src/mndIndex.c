@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -66,16 +68,6 @@ int32_t mndInitIdx(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_INDEX_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_INDEX_RSP, mndTransProcessRsp);
 
-  // mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessCreateIdxReq);
-  // mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropIdxReq);
-  // mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndTransProcessRsp);
-  // mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndTransProcessRsp);
-  // mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetIdxReq);
-  // mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_INDEX, mndProcessGetTbIdxReq);
-
-  // type same with sma
-  // mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveIdx);
-  // mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelGetNextIdx);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -497,7 +489,7 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
 
   pStb = mndAcquireStb(pMnode, createReq.stbName);
   if (pStb == NULL) {
-    mError("idx:%s, failed to create since stb:%s not exist", createReq.idxName, createReq.stbName);
+    mError("idx:%s, failed to create since stb:%s does not exist", createReq.idxName, createReq.stbName);
     code = TSDB_CODE_MND_DB_NOT_EXIST;
     if (terrno != 0) code = terrno;
     goto _OVER;
@@ -921,7 +913,7 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
   }
   if (pIdx == NULL) {
     if (req.igNotExists) {
-      mInfo("idx:%s, not exist, ignore not exist is set", req.name);
+      mInfo("idx:%s, does not exist, ignore-not-exist is set", req.name);
       code = 0;
       goto _OVER;
     } else {

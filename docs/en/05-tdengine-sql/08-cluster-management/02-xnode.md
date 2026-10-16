@@ -7,6 +7,8 @@ toc_max_heading_level: 3
 
 Xnode is a distributed execution node in the TDengine data ingestion service. It runs data synchronization tasks and writes data from external data sources into TDengine in real time or in batches. This document describes the SQL commands used to manage data ingestion, including Xnode nodes, data ingestion tasks, Job shards, and Agents.
 
+Task auto-resume is controlled by the `xnoded` daemon and can be configured via `--auto-resume` or the `XNODED_AUTO_RESUME` environment variable; it is enabled by default.
+
 ## Xnode Management
 
 Xnodes are the basic execution units of the data synchronization service, responsible for specific data transmission tasks.
@@ -26,6 +28,8 @@ CREATE XNODE 'url' TOKEN 'token'
 - **url**: The address of the Xnode, in the format `host:port` with port to taosx GRPC service (6055 by default)
 - **name** and **password**: For initial creation, it is recommended to specify a token or username and password for daemon xnoded to connect to taosd. If neither a token nor username and password is specified, a default token will be created.
 - **token**: For authenticating when connecting to taosd
+
+While the control connection is active, a taosX instance accepts xnoded connections from only one TDengine cluster. If another cluster tries to register it, `CREATE XNODE` returns an ownership conflict without interrupting the existing control connection. To migrate the taosX instance, first execute `DROP XNODE` in the original cluster and then execute `CREATE XNODE` in the new cluster. The current xnoded identity uses a compile-time static JWT secret and a client-declared `cluster_id`. This mechanism prevents accidental registration; it does not protect against forged identities or malicious takeover.
 
 **Example**
 
@@ -61,6 +65,25 @@ Query OK, 0 row(s) affected (0.024293s)
 
 taos> ALTER XNODE SET USER root PASS 'taosdata';
 Query OK, 0 row(s) affected (0.025161s)
+```
+
+### Restart Daemon
+
+Restart the `xnoded` daemon on the dnode hosting the current mnode leader. This command does not restart the remote `taosx` data-plane process.
+
+This operation requires the `NODE ALTER` privilege and briefly interrupts the `xnoded` daemon. Avoid issuing it repeatedly in a short period.
+
+**Syntax**
+
+```sql
+RESTART XNODE
+```
+
+**Example**
+
+```sql
+taos> RESTART XNODE;
+Query OK, 0 row(s) affected (0.028153s)
 ```
 
 ### View Xnodes
@@ -131,6 +154,8 @@ Drop OK, 0 row(s) affected (0.038173s)
 taos> DROP XNODE 'localhost:6055';
 Drop OK, 0 row(s) affected (0.038593s)
 ```
+
+To register the taosX instance with a different TDengine cluster, you must first execute `DROP XNODE` in the original cluster to release ownership.
 
 ## Task Management
 

@@ -53,7 +53,7 @@ TDengine requires that inserted data must have timestamps. Pay attention to the 
 
 3. The newest timestamp allowed for insertion is the current time plus 100 years. For example, if the current time is `2024-11-11 12:00:00`, the newest allowed timestamp is `2124-11-11 12:00:00`. The oldest timestamp allowed depends on the database `KEEP` setting. The enterprise edition supports multi-tier storage and can set multiple `KEEP` values. As shown below, if `KEEP` is `100h,100d,3650d`, the oldest allowed timestamp is the current time minus 3650 days. Data with timestamps in `[Now - 100h, Now + 100y)` is kept on tier-1 storage, `[Now - 100d, Now - 100h)` on tier-2, and `[Now - 3650d, Now - 100d)` on tier-3. The community edition does not support multi-tier storage and can only use one `KEEP` value; if multiple values are configured, the maximum is used. If a timestamp is outside the valid range, TDengine returns the error `Timestamp out of range`.
 
-![Keep time-range diagram](../../assets/insert-01.jpg)
+![Keep time-range diagram](../../assets/insert-01.webp)
 
 #### Syntax Notes
 
@@ -193,3 +193,5 @@ Create subtables for the supertable based on the contents of the CSV file, and p
 INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
                 FILE '/tmp/csvfile_21002.csv'
 ```
+
+**NOTE:** Only UTF-8 encoded CSV files are supported.

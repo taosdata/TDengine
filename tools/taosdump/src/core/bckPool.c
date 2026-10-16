@@ -1,13 +1,20 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
     
 #include "bckArgs.h"
 #include "bckLog.h"
@@ -210,7 +217,7 @@ TAOS* getConnection(int *code) {
                 // Apply exponential back-off and retry instead of giving up
                 // immediately, so transient restarts are handled transparently.
                 logWarn("connect to %s:%d failed (0x%08X): %s — retry in %d ms",
-                        argHost() ? argHost() : "(firstEp)", argPort(), errCode, errStr, reconnectWaitMs);
+                        argHost() ? argHost() : "(firstEp)", argPortDisplay(), errCode, errStr, reconnectWaitMs);
 
                 // Unlock, sleep, re-lock, then retry the outer loop
                 taosThreadMutexUnlock(&g_pool.mutex);
@@ -240,7 +247,7 @@ TAOS* getConnection(int *code) {
                     g_fatalError = 1;
                     g_fatalCode = errCode;
                     logError("server %s:%d unreachable for %" PRId64 " ms — aborting (0x%08X, %s)",
-                             argHost() ? argHost() : "(firstEp)", argPort(),
+                             argHost() ? argHost() : "(firstEp)", argPortDisplay(),
                              taosGetTimestampMs() - connFailStart, errCode, errStr);
                     taosThreadMutexUnlock(&g_pool.mutex);
                     *code = errCode;

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -31,7 +33,7 @@
 #include "tsimplehash.h"
 #include "tuuid.h"
 
-// Forward declaration — full definition in libs/nodes/nodes.h
+// Forward declaration  -  full definition in libs/nodes/nodes.h
 typedef struct SNode SNode;
 
 #ifdef __cplusplus
@@ -115,7 +117,7 @@ static inline bool tmsgIsValid(tmsg_t type) {
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
          (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM) || (type == TDMT_VND_COMMIT) ||
-         (type == TDMT_SYNC_CONFIG_CHANGE);
+         (type == TDMT_SYNC_CONFIG_CHANGE) || (type == TDMT_VND_SYNC_COMMIT);
 }
 
 static inline bool syncUtilUserCommit(tmsg_t msgType) {
@@ -149,7 +151,7 @@ enum {
   HEARTBEAT_KEY_VIEWINFO,
   HEARTBEAT_KEY_TSMA,
   HEARTBEAT_KEY_TXN_KEEPALIVE,
-  HEARTBEAT_KEY_TXN_KILLED,  // MNode → client: txn was forcibly rolled back due to inactivity timeout
+  HEARTBEAT_KEY_TXN_KILLED,  // MNode  ->  client: txn was forcibly rolled back due to inactivity timeout
   HEARTBEAT_KEY_EXTSOURCE,  // federated query: external source change notifications
 };
 
@@ -230,6 +232,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_TXN_LOG,
   TSDB_MGMT_TABLE_TXN_ORPHANS,
   TSDB_MGMT_TABLE_VSTABLE_INHERITS,
+  TSDB_MGMT_TABLE_BACKUP,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -238,7 +241,158 @@ typedef enum EExtSourceType {
   EXT_SOURCE_POSTGRESQL = 1,
   EXT_SOURCE_INFLUXDB   = 2,
   EXT_SOURCE_TDENGINE   = 3,  // reserved, not delivered in Phase 1
+  EXT_SOURCE_SQLSERVER  = 4,  // Microsoft SQL Server (ODBC); appended, never reorder/reuse
 } EExtSourceType;
+
+// Federated pushdown demotion granularity.
+typedef enum EExtCapDemoteKind {
+  EXT_DEMOTE_KIND_NONE = 0,
+  EXT_DEMOTE_KIND_FUNC,
+  EXT_DEMOTE_KIND_OP,
+  EXT_DEMOTE_KIND_CLAUSE,
+  EXT_DEMOTE_KIND_TYPE,
+} EExtCapDemoteKind;
+
+typedef enum EExtDemoteReason {
+  // Precise reasons (catalog-level demotion candidates)
+  EXT_DEMOTE_REASON_REMOTE_FUNC_MISS      = 1,
+  EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE = 2,
+  EXT_DEMOTE_REASON_REMOTE_TYPE_MISMATCH  = 3,
+
+  // Vague reasons (session overlay only)
+  EXT_DEMOTE_REASON_REMOTE_SYNTAX_VAGUE = 10,
+  EXT_DEMOTE_REASON_REMOTE_TIMEOUT,
+  EXT_DEMOTE_REASON_REMOTE_INTERNAL,
+  EXT_DEMOTE_REASON_REMOTE_NETWORK,
+  EXT_DEMOTE_REASON_REMOTE_UNKNOWN,
+
+  EXT_DEMOTE_REASON_RETRY_ESCALATION = 20,
+  EXT_DEMOTE_REASON_DIALECT_BASELINE = 30,
+  EXT_DEMOTE_REASON_USER_FORCED      = 40,
+} EExtDemoteReason;
+
+#define EXT_REASON_IS_PRECISE(reasonCode) ((reasonCode) >= 1 && (reasonCode) <= 9)
+
+typedef enum EExtClauseKind {
+  // -- GATE ------------------------------------------------------------------
+  // These 6 values participate in the full 3-level pushdown fallback:
+  //   * classifiable from remote error responses (via extResolveFuncClause /
+  //     extResolveOpClause escalation or explicit clause=N token in errors)
+  //   * support dynamic disable at runtime (catalog-level or session overlay)
+  //   * planner gates on each: a disabled GATE prevents pushdown of queries
+  //     that exercise that capability
+  //   * extCapShouldUseBaseline() checks all 6: if every GATE is disabled
+  //     the system falls back to TDengine-local execution (baseline mode)
+  EXT_CLAUSE_FILTER = 0,      // WHERE predicates (comparisons, LIKE, MATCH, ...)
+  EXT_CLAUSE_PROJECTION,      // SELECT expressions (scalar functions, casts, ...)
+  EXT_CLAUSE_AGG,             // GROUP BY / aggregate functions
+  EXT_CLAUSE_ORDER,           // ORDER BY
+  EXT_CLAUSE_LIMIT,           // LIMIT / FETCH FIRST
+  EXT_CLAUSE_JOIN,            // any join (coarse gate; covers all join subtypes)
+
+  // -- STATIC ----------------------------------------------------------------
+  // These values are set only via dialect defaults (extLoadDialectDefaults)
+  // or explicit manual SQL (ALTER EXTERNAL SOURCE ... DISABLE CLAUSE ...).
+  // They are NOT produced by error classification and do NOT trigger the
+  // pushdown fallback machinery.  They serve as fine-grained capability
+  // markers for display (SHOW EXTERNAL SOURCES) and for dialect-specific
+  // default configurations.
+  EXT_CLAUSE_GROUP_ROLLUP,        // GROUP BY ROLLUP (dialect default)
+  EXT_CLAUSE_HAVING,              // HAVING clause (fine-grained AGG subtype)
+  EXT_CLAUSE_ORDER_NULLS_FIRST,   // NULLS FIRST ordering (MySQL default: disabled)
+  EXT_CLAUSE_ORDER_NULLS_LAST,    // NULLS LAST ordering  (MySQL default: disabled)
+  EXT_CLAUSE_OFFSET,              // OFFSET keyword
+  EXT_CLAUSE_DISTINCT,            // SELECT DISTINCT
+  // JOIN subtypes - dialect defaults only; disabling any subtype must also
+  // explicitly disable the parent EXT_CLAUSE_JOIN gate in the defaults table.
+  EXT_CLAUSE_INNER_JOIN,
+  EXT_CLAUSE_LEFT_JOIN,
+  EXT_CLAUSE_RIGHT_JOIN,
+  EXT_CLAUSE_FULL_OUTER_JOIN,
+  EXT_CLAUSE_SEMI_JOIN,
+  EXT_CLAUSE_ANTI_JOIN,
+  EXT_CLAUSE_FROM_SUBQUERY,       // subquery in FROM (common default: disabled)
+  EXT_CLAUSE_SCALAR_SUBQUERY,     // scalar subquery in SELECT (common default: disabled)
+  EXT_CLAUSE_INTERVAL_TUMBLING,   // TDengine INTERVAL(...) tumbling window
+  EXT_CLAUSE_INTERVAL_SLIDING,    // TDengine INTERVAL(...) SLIDING window
+  EXT_CLAUSE_PARTITION_TBNAME,    // PARTITION BY tbname
+  EXT_CLAUSE_PARTITION_COLUMN,    // PARTITION BY <column>
+  // SQL feature flags - set in common/dialect defaults; no error-based demote.
+  EXT_CLAUSE_FEAT_CTE,            // WITH (common table expressions; common default: disabled)
+  EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS, // window functions (common default: disabled)
+  EXT_CLAUSE_FEAT_LARGE_IN_LIST,  // remote handles large IN (v1,...,vN) lists (common default: disabled)
+  // Subquery expression types - dialect defaults only.
+  // EXISTS/NOT EXISTS are tracked at the operator layer (disabledOps).
+  EXT_CLAUSE_IN_SUBQUERY,         // IN/NOT IN (subquery) - InfluxDB default: disabled
+  EXT_CLAUSE_ALL_ANY_SUBQUERY,    // ALL/ANY/SOME subquery - InfluxDB default: disabled
+  // Additional JOIN subtypes - always local for all current dialects.
+  // Disabling these does not require disabling the parent EXT_CLAUSE_JOIN gate
+  // because they are never pushed down regardless.
+  EXT_CLAUSE_ASOF_JOIN,           // ASOF Join - always local (common default: disabled)
+  EXT_CLAUSE_WINDOW_JOIN,         // Window Join - always local (common default: disabled)
+  // TDengine-specific window types - always local for all current dialects.
+  // (INTERVAL tumbling/sliding are above; state/session/event/count are below.)
+  EXT_CLAUSE_STATE_WINDOW,        // STATE_WINDOW - always local (common default: disabled)
+  EXT_CLAUSE_SESSION_WINDOW,      // SESSION - always local (common default: disabled)
+  EXT_CLAUSE_EVENT_WINDOW,        // EVENT_WINDOW - always local (common default: disabled)
+  EXT_CLAUSE_COUNT_WINDOW,        // COUNT_WINDOW - always local (common default: disabled)
+  // TDengine-specific sub-clauses - always local for all current dialects.
+  EXT_CLAUSE_FILL,                // FILL clause (window fill) - always local (common default: disabled)
+  EXT_CLAUSE_INTERP,              // INTERP + RANGE/EVERY - always local (common default: disabled)
+  EXT_CLAUSE_SLIMIT,              // SLIMIT/SOFFSET (per-partition limit) - always local (common default: disabled)
+  EXT_CLAUSE_EXISTS_SUBQUERY,     // EXISTS/NOT EXISTS (subquery) - InfluxDB default: disabled
+
+  EXT_CLAUSE_MAX,
+} EExtClauseKind;
+
+// FQ subquery render mode (v2 two-state pushdown model).  Decided in the
+// collect phase, carried on each REMOTE_* node, consumed by nodesRemotePlanToSQL.
+//   FQ_SUBQ_RENDER_DIRECT_SQL   - clause directly pushable AND inner SELECT needs
+//                                 no transform: inline the user's original SQL.
+//   FQ_SUBQ_RENDER_ORIG_TYPE_2B - keep the original predicate form (IN/ALL/ANY/
+//                                 EXISTS) but render the inner SELECT with dialect
+//                                 transforms (function mapping, federated-name ->
+//                                 schema/db/remoteTableName translation).
+typedef enum EFqSubqRenderMode {
+  FQ_SUBQ_RENDER_DIRECT_SQL = 0,
+  FQ_SUBQ_RENDER_ORIG_TYPE_2B,
+} EFqSubqRenderMode;
+
+typedef struct SExtCapDisabledEntry {
+  uint8_t  reasonCode;
+  uint16_t hitCount;
+  int64_t  firstHitMs;
+} SExtCapDisabledEntry;
+
+typedef struct SExtCapDemoteSpec {
+  EExtCapDemoteKind kind;
+  union {
+    char           funcName[TSDB_FUNC_NAME_LEN];
+    EOperatorType  opType;
+    EExtClauseKind clauseKind;
+    int8_t         tsdbTypeCode;
+  } detail;
+  uint8_t reasonCode;
+} SExtCapDemoteSpec;
+
+typedef struct SExtPushdownDiagnostic {
+  int32_t          classifiedCode;
+  EExtDemoteReason reasonCode;
+  EExtCapDemoteKind suggestedDemoteKind;
+  union {
+    char           funcName[TSDB_FUNC_NAME_LEN];
+    EOperatorType  opType;
+    EExtClauseKind clauseKind;
+    int8_t         tsdbTypeCode;
+  } detail;
+  char     remoteSqlState[8];
+  int32_t  remoteCode;
+  int32_t  httpStatus;
+  char     remoteMessage[512];
+  char     generatedSql[2048];
+} SExtPushdownDiagnostic;
+
+#define EXT_MAX_PUSHDOWN_ATTEMPTS 3
 
 // Length constants for external source connection fields.
 // External source names follow the same rules as database names (globally unique, must not
@@ -262,27 +416,65 @@ typedef enum EExtSourceType {
 // A single option value budget (value length boundary remains 4095 chars).
 #define TSDB_EXT_SOURCE_OPTION_VALUE_LEN 4096
 
-// SExtSourceCapability — push-down ability flags for an external source.
+// SExtSourceCapability  -  push-down ability flags for an external source.
 // Defined here (tmsg.h) so that SExtSourceInfo below and extConnector.h both
 // share the same declaration without a circular-include.
 typedef struct SExtSourceCapability {
-  bool ext_can_pushdown_filter;
-  bool ext_can_pushdown_projection;
-  bool ext_can_pushdown_limit;
-  bool ext_can_pushdown_agg;
-  bool ext_can_pushdown_order;
-  // Path-2 subquery pushdown: TDengine resolves the subquery locally and rewrites
-  // the condition as "col IN (v1, v2, ...)" before sending SQL to the external source.
-  bool ext_can_pushdown_in_const_list;  // WHERE col IN (resolved constant list)
+  SHashObj* disabledFuncs;    // key: lowercase function name
+  SHashObj* disabledOps;      // key: EOperatorType
+  SHashObj* disabledTypes;    // key: int8_t (TSDB_DATA_TYPE_*)
+  SHashObj* disabledClauses;  // key: EExtClauseKind
+  int32_t   dialect;
+  int64_t   loadedAtMs;
 } SExtSourceCapability;
 
-// EExtSQLDialect — SQL dialect selector for remote SQL generation.
+typedef struct SExtCapSessionOverlay {
+  SHashObj* disabledFuncs;
+  SHashObj* disabledOps;
+  SHashObj* disabledTypes;
+  SHashObj* disabledClauses;
+  int32_t   attemptCount;
+  EExtCapDemoteKind lastDemoteKind;
+  union {
+    char           funcName[TSDB_FUNC_NAME_LEN];
+    EOperatorType  opType;
+    EExtClauseKind clauseKind;
+    int8_t         tsdbTypeCode;
+  } lastDemoteDetail;
+  uint8_t   repeatFailCount;
+} SExtCapSessionOverlay;
+
+int32_t extCapInit(SExtSourceCapability* pCap);
+void    extCapDestroy(SExtSourceCapability* pCap);
+int32_t extCapClone(const SExtSourceCapability* pSrc, SExtSourceCapability* pDst);
+
+int32_t extCapSessionOverlayInit(SExtCapSessionOverlay* pOverlay);
+void    extCapSessionOverlayDestroy(SExtCapSessionOverlay* pOverlay);
+int32_t extCapSessionOverlayClone(const SExtCapSessionOverlay* pSrc, SExtCapSessionOverlay* pDst);
+
+bool    capDisabled(const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay,
+                    EExtCapDemoteKind kind, const void* pKey);
+int32_t extCapDemoteApply(SExtSourceCapability* pCap, const SExtCapDemoteSpec* pSpec);
+int32_t extCapOverlayDemote(SExtCapSessionOverlay* pOverlay, const SExtCapDemoteSpec* pSpec);
+bool    extCapOverlayTryEscalateOnRepeat(SExtCapSessionOverlay* pOverlay, const SExtCapDemoteSpec* pCurrent,
+                                         SExtCapDemoteSpec* pEscalated);
+void    extCapOverlayMarkAllCoarse(SExtCapSessionOverlay* pOverlay, uint8_t reasonCode);
+bool    extCapShouldUseBaseline(const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay);
+
+EExtClauseKind extResolveFuncClause(const char* funcName);
+EExtClauseKind extResolveOpClause(EOperatorType opType);
+bool           extClauseIsGate(EExtClauseKind kind);
+
+int32_t tEncodeSExtPushdownDiagnostic(SEncoder* pEncoder, const SExtPushdownDiagnostic* pDiag);
+int32_t tDecodeSExtPushdownDiagnostic(SDecoder* pDecoder, SExtPushdownDiagnostic* pDiag);
+// EExtSQLDialect - SQL dialect selector for remote SQL generation.
 // Defined here (alongside EExtSourceType) so that nodes/plannodes.h can reference
-// it without including extConnector.h, breaking the nodes → extconnector dependency.
+// it without including extConnector.h, breaking the nodes  ->  extconnector dependency.
 typedef enum EExtSQLDialect {
-  EXT_SQL_DIALECT_MYSQL    = 0,
-  EXT_SQL_DIALECT_POSTGRES = 1,
-  EXT_SQL_DIALECT_INFLUXQL = 2,
+  EXT_SQL_DIALECT_MYSQL     = 0,
+  EXT_SQL_DIALECT_POSTGRES  = 1,
+  EXT_SQL_DIALECT_INFLUXQL  = 2,
+  EXT_SQL_DIALECT_SQLSERVER = 3,  // appended, never reorder/reuse
 } EExtSQLDialect;
 
 // Declared width (in characters) used for InfluxDB tag columns, both when the
@@ -290,19 +482,141 @@ typedef enum EExtSQLDialect {
 // extInitInfluxTagPartition / fetchDataBatchInflux column-type mappings) and
 // when the stream parser auto-derives an output TAG from a PARTITION BY tag
 // column (parTranslater.c's createStreamReqSetDefaultTag).  Keeping both sides
-// on this single constant prevents them drifting apart — InfluxDB tags have no
+// on this single constant prevents them drifting apart  -  InfluxDB tags have no
 // declared TDengine-side width, so the two call sites must agree on one.
 #define EXT_INFLUX_TAG_NCHAR_CHARS (257 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE)
 #define EXT_INFLUX_KEY_NCHAR_CHARS ((TSDB_COL_NAME_LEN - 1) * TSDB_NCHAR_SIZE)
 #define EXT_INFLUX_KEY_NCHAR_CHARS_TOO_LONG (TSDB_COL_NAME_LEN * TSDB_NCHAR_SIZE)
 
-// SExtColumnDef / SExtTableMeta — external table metadata types.
+// -- FQ push-down capability bitmap ------------------------------------------
+// uint16_t bitmap encoding:
+//   bits [2:0]  - default capability per dialect (0 = not pushable)
+//   bits [5:3]  - session-level override (1 = force-disable for that dialect)
+//
+// fqPushCap bitmap layout (uint16_t):
+//
+//   Low byte  (bits 0-7)  - static/global capability defaults
+//   High byte (bits 8-15) - session-level overrides (set to force-disable)
+//
+//   The high byte mirrors the low byte: each bit in the high byte disables the
+//   corresponding bit position in the low byte at session level.
+//
+//   Low-byte layout:
+//     bits 0-2 : main capability    (MySQL=bit0, PG=bit1, Influx=bit2)
+//     bits 3-5 : sub-cap 1: CAST(timestamp -> integer)
+//     bit  6   : main capability - SQL Server (appended; see the note below)
+//     bit  7   : reserved for future sub-capabilities
+//
+//   High-byte layout (FQ_CAP_SESSION_SHIFT = 8):
+//     bits 8-10 : session override for main capability
+//     bits 11-13: session override for CAST(ts->int) sub-capability
+//     bit  14   : session override for SQL Server
+//     bit  15   : reserved
+//
+//   SQL Server placement note: the 4th main-capability bit sits at bit 6, not at
+//   bit 3, because bits 3-5 form the shift-derived CAST(ts->int) band shared by
+//   the first three dialects; `fqDialectBit(SQLSERVER) << FQ_CAP_CAST_TS_INT_SHIFT`
+//   (bit 9) would collide with the PG session-override bit.  SQL Server therefore
+//   does NOT take part in the shift-derived sub-capability band: code that derives
+//   a sub-capability bit must special-case it (SQL Server has no such sub-capability
+//   today; return FQ_CAP_NONE).
+
+// Main capability bits (low byte, bits 0-2):
+#define FQ_CAP_MYSQL   ((uint16_t)(1u << 0))   // MySQL / MariaDB
+#define FQ_CAP_PG      ((uint16_t)(1u << 1))   // PostgreSQL
+#define FQ_CAP_INFLUX  ((uint16_t)(1u << 2))   // InfluxDB v3 (DataFusion)
+#define FQ_CAP_SQLSERVER ((uint16_t)(1u << 6)) // SQL Server (ODBC); appended, see layout note
+#define FQ_CAP_ALL     ((uint16_t)(FQ_CAP_MYSQL | FQ_CAP_PG | FQ_CAP_INFLUX))
+
+// Session-override band: high byte (shift = 8).
+// Set a bit here to force-disable the corresponding dialect at session level.
+#define FQ_CAP_SESSION_SHIFT      8
+#define FQ_CAP_SESSION_MYSQL      ((uint16_t)(FQ_CAP_MYSQL  << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_PG         ((uint16_t)(FQ_CAP_PG     << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_INFLUX     ((uint16_t)(FQ_CAP_INFLUX << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_SQLSERVER  ((uint16_t)(FQ_CAP_SQLSERVER << FQ_CAP_SESSION_SHIFT))
+
+// Convenience: the dialect combinations used in the capability tables
+#define FQ_CAP_PG_INFLUX   ((uint16_t)(FQ_CAP_PG | FQ_CAP_INFLUX))
+#define FQ_CAP_MYSQL_PG    ((uint16_t)(FQ_CAP_MYSQL | FQ_CAP_PG))
+#define FQ_CAP_NONE        ((uint16_t)0)
+
+// Sub-capability 1: CAST(timestamp AS integer/bigint/uint/ubigint)
+//   default band   : bits 3-5  (FQ_CAP_CAST_TS_INT_SHIFT = 3)
+//   session band   : bits 11-13 (= FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT = 3+8)
+//
+// Only PostgreSQL supports CAST(timestamp -> integer) natively.
+//   MySQL   : binary protocol returns MYSQL_TIME for TIMESTAMP; connector cannot safely
+//             reinterpret that as an integer epoch, so local conversion is required.
+//   InfluxDB: DataFusion does not support CAST(timestamp AS BIGINT).
+#define FQ_CAP_CAST_TS_INT_SHIFT  3
+#define FQ_CAP_CAST_TS_INT_PG     ((uint16_t)(FQ_CAP_PG << FQ_CAP_CAST_TS_INT_SHIFT))
+// Session-level overrides for the CAST(ts->int) sub-capability:
+#define FQ_CAP_CAST_TS_INT_SESSION_MYSQL   ((uint16_t)(FQ_CAP_MYSQL  << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_PG      ((uint16_t)(FQ_CAP_PG     << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_INFLUX  ((uint16_t)(FQ_CAP_INFLUX << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+
+// Convert EExtSQLDialect to the corresponding FQ_CAP_* default bit.
+// Returns 0 for unknown dialects.
+static inline uint16_t fqDialectBit(int32_t dialect) {
+  switch ((EExtSQLDialect)dialect) {
+    case EXT_SQL_DIALECT_MYSQL:    return FQ_CAP_MYSQL;
+    case EXT_SQL_DIALECT_POSTGRES: return FQ_CAP_PG;
+    case EXT_SQL_DIALECT_INFLUXQL: return FQ_CAP_INFLUX;
+    case EXT_SQL_DIALECT_SQLSERVER: return FQ_CAP_SQLSERVER;
+    default:                       return 0;
+  }
+}
+
+// Query whether a function (by funcId), operator (by EOperatorType), or
+// clause (by EExtClauseKind) is pushable for the given dialect, taking
+// session-level overrides into account.
+//
+// fqFuncCapBitmap  - returns the uint16_t bitmap; FQ_CAP_NONE for UDFs/unknown.
+// fqFuncArg0NcharCapBitmap - returns the arg0==NCHAR-specific bitmap when
+// configured, otherwise inherits fqFuncCapBitmap(funcId).
+// fqOpCapBitmap    - lookup in gFqOpCap[]; FQ_CAP_NONE for unmapped ops.
+// fqClauseCapBitmap - lookup in gFqClauseCap[]; FQ_CAP_NONE for unknown kinds.
+uint16_t fqFuncCapBitmap(int32_t funcId);
+uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId);
+uint16_t fqOpCapBitmap(EOperatorType opType);
+uint16_t fqClauseCapBitmap(EExtClauseKind clauseKind);
+// Transform-pushdown capability bitmap for a subquery clause.
+// Current DS/product semantics do not ship transform-only subquery pushdown;
+// all entries are reserved and default to unsupported.
+uint16_t fqClauseTransformCapBitmap(EExtClauseKind clauseKind);
+
+// High-level pushability check: combines the static bitmap with any active
+// session-level override (pOverlay may be NULL).
+bool fqFuncIsPushable(int32_t funcId, int32_t dialect,
+                      const SExtCapSessionOverlay* pOverlay);
+bool fqFuncArg0NcharIsPushable(int32_t funcId, int32_t dialect,
+                               const SExtCapSessionOverlay* pOverlay);
+bool fqOpIsPushable(EOperatorType opType, int32_t dialect,
+                    const SExtCapSessionOverlay* pOverlay);
+bool fqClauseIsPushable(EExtClauseKind clauseKind, int32_t dialect,
+                        const SExtCapSessionOverlay* pOverlay);
+// Whether the dialect supports transform-pushdown of this clause.
+// Current implementation returns false for all shipped subquery clauses.
+bool fqClauseTransformIsPushable(EExtClauseKind clauseKind, int32_t dialect,
+                                 const SExtCapSessionOverlay* pOverlay);
+
+// Sub-capability check: tests a specific sub-capability band within a function's
+// fqPushCap bitmap.  subCapShift is the bit offset of the sub-capability's default
+// band in the low byte (e.g. FQ_CAP_CAST_TS_INT_SHIFT = 3).  The session-override
+// band for the same sub-capability sits at (subCapShift + FQ_CAP_SESSION_SHIFT),
+// i.e. in the high byte at the same relative position.
+//
+// Returns true only when the default bit for `dialect` is set in the sub-cap band
+// AND the session-override bit is NOT set.
+bool fqFuncSubCapIsPushable(int32_t funcId, int32_t subCapShift, int32_t dialect,
+                             const SExtCapSessionOverlay* pOverlay);
+// SExtColumnDef / SExtTableMeta - external table metadata types.
 // Defined here so that nodes/querynodes.h and nodes source files can use them
-// without depending on extConnector.h, which would create a nodes → extconnector
+// without depending on extConnector.h, which would create a nodes  ->  extconnector
 // build dependency.
 typedef struct SExtColumnDef {
-  char colName[TSDB_COL_NAME_LEN];        // TDengine-side column name (may differ from remote)
-  char remoteColName[TSDB_COL_NAME_LEN];  // original column name on the remote source; empty = same as colName
+  char colName[TSDB_COL_NAME_LEN];        // connector-normalized column name
   char extTypeName[64];                   // original type name from the external source
   // Charset / encoding for string columns:
   //   MySQL: CHARACTER_SET_NAME from INFORMATION_SCHEMA.COLUMNS (e.g. "utf8mb4").
@@ -311,6 +625,7 @@ typedef struct SExtColumnDef {
   bool nullable;
   bool isTag;          // InfluxDB only
   bool isPrimaryKey;   // true if this column maps to the TDengine primary key (timestamp)
+  bool isRemotePrimaryKey;  // original remote primary-key column
 } SExtColumnDef;
 
 typedef struct SExtTableMeta {
@@ -492,6 +807,7 @@ typedef enum ENodeType {
   QUERY_NODE_EXTERNAL_TABLE,    // SExtTableNode: external table reference in FROM clause
   QUERY_NODE_EXT_OPTION,        // helper: single OPTIONS key='val' pair node
   QUERY_NODE_EXT_ALTER_CLAUSE,  // helper: one SET clause in ALTER EXTERNAL SOURCE
+  QUERY_NODE_EVENT_START_LEAF,
   QUERY_NODE_STREAM_WINDOW_PLAN,
   QUERY_NODE_STREAM_WINDOW_LAYER,
 
@@ -576,7 +892,7 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
   QUERY_NODE_SET_TIMEZONE_STMT,
   QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT,
-  QUERY_NODE_FLUSH_MNODE_STMT,
+  QUERY_NODE_CREATE_BACKUP_STMT,
 
   // show statement nodes
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -629,14 +945,16 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT,
   QUERY_NODE_DROP_ENCRYPT_ALGR_STMT,
   QUERY_NODE_SHOW_CREATE_STREAM_STMT,
+  QUERY_NODE_KILL_BACKUP_STMT,
 
-  // DDL statement nodes for federated query (external source) — 240-249 reserved
+  // DDL statement nodes for federated query (external source)  -  240-249 reserved
   QUERY_NODE_CREATE_EXT_SOURCE_STMT   = 240,
   QUERY_NODE_ALTER_EXT_SOURCE_STMT,
   QUERY_NODE_DROP_EXT_SOURCE_STMT,
   QUERY_NODE_REFRESH_EXT_SOURCE_STMT,
   QUERY_NODE_SHOW_EXT_SOURCES_STMT,     // SHOW EXTERNAL SOURCES
   QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT,  // DESCRIBE EXTERNAL SOURCE <name>
+  QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT,  // SHOW EXTERNAL SOURCE <name> CAPABILITY
 
   QUERY_NODE_BEGIN_TRANS_STMT = 250,
   QUERY_NODE_COMMIT_TRANS_STMT,
@@ -717,7 +1035,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT,
   // VST inheritance (BASE ON): appended at the end to preserve existing enum values.
   QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT,
-
+  QUERY_NODE_SHOW_BACKUPS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -816,8 +1134,13 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE,
   QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE,
-  QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER,
+  QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER, // deprecated
   QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN,  // federated query scan operator
+  // Same plan as TABLE_COUNT_SCAN plus an ins_tables row type filter (tbCountType). Emitted only when
+  // the filter is present so that older vnodes reject the unknown node type instead of silently
+  // ignoring the filter and returning an unfiltered (too large) count during rolling upgrades.
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE,
+  QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN,
   // xnode
   QUERY_NODE_CREATE_XNODE_STMT = 1200,  // Xnode
   QUERY_NODE_DROP_XNODE_STMT,
@@ -843,6 +1166,18 @@ typedef enum ENodeType {
   // ext-source virtual table series (appended to avoid disturbing pinned QUERY_NODE_SHOW_CREATE_VIEW_STMT=181 block)
   QUERY_NODE_SERIES_DECL,
   QUERY_NODE_SERIES_TAG_ASSIGN,
+  // appended to avoid disturbing pinned show-statement values
+  QUERY_NODE_FLUSH_MNODE_STMT,
+
+  // xnode restart (appended to preserve existing enum numeric values)
+  QUERY_NODE_RESTART_XNODE_STMT,
+  // Correlation nodes use a separate range; existing wire IDs stay unchanged.
+  QUERY_NODE_OUTER_REF = 1300,
+  QUERY_NODE_CORRELATION_PARAM,
+  QUERY_NODE_CORRELATION_PARAM_BINDING,
+  QUERY_NODE_CORRELATED_SUBQUERY,
+  QUERY_NODE_CORRELATION_TEMPLATE,
+  QUERY_NODE_CORRELATION_TIME_RANGE_INIT,
 } ENodeType;
 
 typedef struct {
@@ -949,7 +1284,7 @@ int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   bool     hasRef;
   col_id_t id;
-  int8_t   refType;                                   // 0=internal, 1=external (DS §6.2.7)
+  int8_t   refType;                                   // 0=internal, 1=external (DS section 6.2.7)
   char     refSourceName[TSDB_EXT_SOURCE_NAME_LEN];   // external source name (refType=1)
   char     refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema captured at virtual-table creation (PG only)
   char     refDbName[TSDB_DB_NAME_LEN];
@@ -957,6 +1292,8 @@ typedef struct {
   char     refColName[TSDB_COL_NAME_LEN];
   int32_t  tagCondLen;
   char     *tagCondJson; // serialized series tag condition (JSON string from nodesNodeToString), or NULL
+  int32_t  filterCondLen;
+  char     *filterCondJson;  // serialized MySQL/PostgreSQL column filter, or NULL
   char     colName[TSDB_COL_NAME_LEN];     // for tmq get json
 } SColRef;
 
@@ -1001,6 +1338,7 @@ typedef struct {
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName[TSDB_COL_NAME_LEN];
   char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external source name, empty for internal refs
+  bool    hasFilterCond;  // saved external-column filter, including resolved leaf refs
 } SRefColInfo;
 
 typedef struct SVCTableRefCols {
@@ -1392,6 +1730,8 @@ static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pC
 static FORCE_INLINE int32_t tDecodeSColRef(SDecoder* pDecoder, SColRef* pColRef) {
   pColRef->tagCondLen = 0;
   pColRef->tagCondJson = NULL;
+  pColRef->filterCondLen = 0;
+  pColRef->filterCondJson = NULL;
   pColRef->refType = 0;
   pColRef->refSourceName[0] = '\0';
   pColRef->refSchemaName[0] = '\0';
@@ -1444,6 +1784,34 @@ static FORCE_INLINE int32_t tDecodeSColRefExt(SDecoder* pDecoder, SColRef* pColR
   return 0;
 }
 
+static FORCE_INLINE int32_t tEncodeSColRefFilterCond(SEncoder* pEncoder, const SColRef* pColRef) {
+  int32_t len = pColRef->hasRef ? pColRef->filterCondLen : 0;
+  if (len < 0 || (len > 0 && NULL == pColRef->filterCondJson)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, len));
+  if (len > 0) {
+    TAOS_CHECK_RETURN(tEncodeBinary(pEncoder, (const uint8_t*)pColRef->filterCondJson, len));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static FORCE_INLINE int32_t tDecodeSColRefFilterCondRaw(SDecoder* pDecoder, SColRef* pColRef, uint8_t** ppBuf) {
+  *ppBuf = NULL;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pColRef->filterCondLen));
+  if (pColRef->filterCondLen < 0 || (!pColRef->hasRef && pColRef->filterCondLen > 0)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pColRef->filterCondLen > 0) {
+    uint32_t len = 0;
+    TAOS_CHECK_RETURN(tDecodeBinary(pDecoder, ppBuf, &len));
+    if (len != (uint32_t)pColRef->filterCondLen) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
   int32_t tlen = 0;
   tlen += taosEncodeVariantI32(buf, pSW->nCols);
@@ -1491,7 +1859,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperImpl(SDecoder* pDecoder, SSchem
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->nCols));
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->version));
 
-  pSW->pSchema = decoderMalloc ? (SSchema*)tDecoderMalloc(pDecoder, pSW->nCols * sizeof(SSchema))
+  pSW->pSchema = decoderMalloc ? (SSchema*)tDecoderMalloc(pDecoder, (int64_t)pSW->nCols * sizeof(SSchema))
                                : (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
@@ -1897,7 +2265,7 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
 
 
 // SCRAM-SHA-256 credentials. When algo==TSDB_SCRAM_ALGO_SHA256, the client has
-// pre-derived the credentials locally and the server stores them directly — the
+// pre-derived the credentials locally and the server stores them directly  -  the
 // password hash is never sent over the wire.
 typedef struct {
   int8_t  algo;     // TSDB_SCRAM_ALGO_*
@@ -2371,6 +2739,7 @@ typedef struct {
   int64_t affectedRows;
   SArray* tbVerInfo;    // STbVerInfo
   char*   extErrMsg;    // federated query remote-side error string (NULL if no ext error)
+  SExtPushdownDiagnostic* extPushdownDiag;  // optional structured pushdown diagnostic (NULL if absent)
 } SQueryTableRsp;
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -2491,6 +2860,7 @@ typedef struct {
   // Not serialized in vnode wire format.
   int32_t      numOfColRefs;
   SRefColInfo* pColRefCols;  // Array[numOfColRefs]
+  SColRef*     pResolvedColRefs;  // leaf refs, Array[numOfColRefs], catalog-local only
   // Tag ref info synthesized from first child (local only, not serialized in vnode wire format)
   int32_t      numOfTagRefs;
   SRefColInfo* pTagRefCols;  // Array[numOfTagRefs]
@@ -2660,6 +3030,7 @@ typedef struct {
   SArray* pVgroupInfos;  // Array of SVgroupInfo
   int32_t errCode;
   int64_t stateTs;  // ms
+  int8_t  precision;
 } SUseDbRsp;
 
 int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, const SUseDbRsp* pRsp);
@@ -2912,7 +3283,12 @@ typedef struct SDownstreamSourceNode {
   int32_t        execId;
   int32_t        fetchMsgType;
   bool           localExec;
+  uint64_t       producerQueryId;  // Zero means the legacy same-query producer.
+  bool           allowFollowerRead;
 } SDownstreamSourceNode;
+
+#define DOWNSTREAM_SOURCE_LOCAL_BLOCK_FLAG (1U << 30)
+#define DOWNSTREAM_SOURCE_FETCH_TYPE(type) ((type) & ~DOWNSTREAM_SOURCE_LOCAL_BLOCK_FLAG)
 
 
 
@@ -2997,6 +3373,224 @@ typedef struct {
 int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 void    tFreeSKillCompactReq(SKillCompactReq* pReq);
+
+// ==================== Cluster-level backup/restore ====================
+// client -> mnode: start a backup. Phase 2 only wires cluster-level FULL backup;
+// isFull and dbName are reserved for later phases.
+typedef struct {
+  int32_t dnodeId;                     // dnode that owns backupRoot and runs the agent
+  char    backupRoot[TSDB_MOUNT_PATH_LEN];
+  int8_t  isFull;                      // reserved: 1 = full, 0 = incremental
+  int64_t backupChainId;               // reserved: target chain for incremental; 0 = latest
+  char    dbName[TSDB_DB_FNAME_LEN];   // reserved: empty = whole cluster
+  int8_t  hasPassword;
+  char    password[TSDB_PASSWORD_LEN];
+  int32_t parallel;                    // vgroup backup parallelism; >= 1, 1 = serial
+  int32_t sqlLen;
+  char*   sql;
+} SBackupReq;
+
+int32_t tSerializeSBackupReq(void* buf, int32_t bufLen, SBackupReq* pReq);
+int32_t tDeserializeSBackupReq(void* buf, int32_t bufLen, SBackupReq* pReq);
+void    tFreeSBackupReq(SBackupReq* pReq);
+
+typedef struct {
+  int64_t chainId;   // backup chain id assigned by mnode
+  int64_t backupId;  // individual backup id within the chain
+  int8_t  bAccepted;
+} SBackupRsp;
+
+int32_t tSerializeSBackupRsp(void* buf, int32_t bufLen, SBackupRsp* pRsp);
+int32_t tDeserializeSBackupRsp(void* buf, int32_t bufLen, SBackupRsp* pRsp);
+
+typedef struct {
+  int64_t backupId;
+  int32_t sqlLen;
+  char*   sql;
+} SKillBackupReq;
+
+int32_t tSerializeSKillBackupReq(void* buf, int32_t bufLen, SKillBackupReq* pReq);
+int32_t tDeserializeSKillBackupReq(void* buf, int32_t bufLen, SKillBackupReq* pReq);
+void    tFreeSKillBackupReq(SKillBackupReq* pReq);
+
+typedef struct {
+  int32_t vgId;
+  int64_t dbUid;
+  char    dbName[TSDB_DB_FNAME_LEN];
+  int8_t  numOfDnodes;
+  int32_t dnodeIds[TSDB_MAX_REPLICA];
+} SBackupVgroupInfo;
+
+typedef struct {
+  int64_t streamId;
+  int32_t snodeDnodeId;
+} SBackupStreamSnodeInfo;
+
+typedef struct {
+  int32_t id;
+  int8_t  isSnode;
+  int8_t  isMnode;
+} SBackupDnodeInfo;
+
+// mnode -> target dnode agent: dispatch a backup job
+typedef struct {
+  int64_t chainId;  // resolved chain id assigned/selected by mnode
+  int64_t backupId;
+  int32_t dnodeId;
+  char    backupRoot[TSDB_MOUNT_PATH_LEN];
+  int8_t  isFull;
+  char    dbName[TSDB_DB_FNAME_LEN];  // reserved: empty = whole cluster
+  int8_t  hasPassword;
+  char    password[TSDB_PASSWORD_LEN];
+  int32_t parallel;                   // vgroup backup parallelism; >= 1, 1 = serial
+  SArray *dnodes;                      // SBackupDnodeInfo, sorted ascending by id
+  SArray *streamSnodes;                 // SBackupStreamSnodeInfo
+  SArray *vgroups;                     // SBackupVgroupInfo
+} SBackupDnodeReq;
+
+int32_t tSerializeSBackupDnodeReq(void* buf, int32_t bufLen, SBackupDnodeReq* pReq);
+int32_t tDeserializeSBackupDnodeReq(void* buf, int32_t bufLen, SBackupDnodeReq* pReq);
+void    tFreeSBackupDnodeReq(SBackupDnodeReq* pReq);
+
+// mnode <-> dnode agent: query backup progress
+typedef struct {
+  int64_t chainId;
+  int64_t backupId;
+} SBackupProgressReq;
+
+int32_t tSerializeSBackupProgressReq(void* buf, int32_t bufLen, SBackupProgressReq* pReq);
+int32_t tDeserializeSBackupProgressReq(void* buf, int32_t bufLen, SBackupProgressReq* pReq);
+
+typedef struct {
+  int64_t chainId;
+  int64_t backupId;
+  int8_t  finished;  // 1 = the agent-side task has finished (success or failure)
+  int64_t totalSize; // bytes written so far
+  int32_t totalVgroups;
+  int32_t finishedVgroups;
+  int32_t code;       // agent-side result code; 0 = success
+} SBackupProgressRsp;
+
+int32_t tSerializeSBackupProgressRsp(void* buf, int32_t bufLen, SBackupProgressRsp* pRsp);
+int32_t tDeserializeSBackupProgressRsp(void* buf, int32_t bufLen, SBackupProgressRsp* pRsp);
+
+// dnode agent -> mnode: pull mnode metadata for backup
+typedef struct {
+  int64_t chainId;
+  int64_t backupId;
+} SBackupMetaReq;
+
+int32_t tSerializeSBackupMetaReq(void* buf, int32_t bufLen, SBackupMetaReq* pReq);
+int32_t tDeserializeSBackupMetaReq(void* buf, int32_t bufLen, SBackupMetaReq* pReq);
+
+// One packaged file within a backup unit. relPath is relative to the unit's
+// directory (e.g. "sdb.data", "mnode.json", "sync/raft_config.json"), so the
+// agent can recreate the exact tree. Reusable across mnode/vnode/snode units.
+typedef struct {
+  char    relPath[TSDB_FILENAME_LEN];
+  int32_t dataLen;
+  void*   data;
+} SBackupFile;
+
+typedef struct {
+  int64_t     sdbEndVersion;  // sdb.data end version at snapshot time
+  int32_t     numOfFiles;     // number of valid entries in files[]
+  SBackupFile files[4];       // sdb.data + mnode.json + sync raft config/store
+} SBackupMetaRsp;
+
+int32_t tSerializeSBackupMetaRsp(void* buf, int32_t bufLen, SBackupMetaRsp* pRsp);
+int32_t tDeserializeSBackupMetaRsp(void* buf, int32_t bufLen, SBackupMetaRsp* pRsp);
+void    tFreeSBackupMetaRsp(SBackupMetaRsp* pRsp);
+
+// dnode backup agent -> mnode: resolve the current leader immediately before
+// starting this vgroup's snapshot. The returned endpoint is the sole source
+// for that snapshot session.
+typedef struct {
+  int64_t chainId;
+  int64_t backupId;
+  int32_t vgId;
+} SBackupVgroupLeaderReq;
+
+typedef struct {
+  int32_t vgId;
+  int32_t leaderDnodeId;
+  SEpSet  leaderEpSet;
+} SBackupVgroupLeaderRsp;
+
+int32_t tSerializeSBackupVgroupLeaderReq(void* buf, int32_t bufLen, SBackupVgroupLeaderReq* pReq);
+int32_t tDeserializeSBackupVgroupLeaderReq(void* buf, int32_t bufLen, SBackupVgroupLeaderReq* pReq);
+int32_t tSerializeSBackupVgroupLeaderRsp(void* buf, int32_t bufLen, SBackupVgroupLeaderRsp* pRsp);
+int32_t tDeserializeSBackupVgroupLeaderRsp(void* buf, int32_t bufLen, SBackupVgroupLeaderRsp* pRsp);
+
+// dnode backup agent -> SNode dnode: package the requested stream checkpoints.
+typedef struct {
+  int32_t dnodeId;
+  SArray* streamIds;  // int64_t
+} SBackupSnodeReq;
+
+typedef struct {
+  SArray* files;  // SBackupFile
+} SBackupSnodeRsp;
+
+int32_t tSerializeSBackupSnodeReq(void* buf, int32_t bufLen, SBackupSnodeReq* pReq);
+int32_t tDeserializeSBackupSnodeReq(void* buf, int32_t bufLen, SBackupSnodeReq* pReq);
+void    tFreeSBackupSnodeReq(SBackupSnodeReq* pReq);
+int32_t tSerializeSBackupSnodeRsp(void* buf, int32_t bufLen, SBackupSnodeRsp* pRsp);
+int32_t tDeserializeSBackupSnodeRsp(void* buf, int32_t bufLen, SBackupSnodeRsp* pRsp);
+void    tFreeSBackupSnodeRsp(SBackupSnodeRsp* pRsp);
+
+// Check column/tag reference by privilege (for RENAME COLUMN/TAG on normal/virtual tables)
+typedef struct {
+  char     tbFName[TSDB_TABLE_FNAME_LEN];
+  col_id_t colId;
+  char     colName[TSDB_COL_NAME_LEN];
+} SMndCheckColRefReq;
+
+typedef struct {
+  int32_t code;  // TSDB_CODE_SUCCESS or error code (e.g., TSDB_CODE_MND_COL_REF_BY_USER_PRIV)
+} SMndCheckColRefRsp;
+
+int32_t tSerializeSMndCheckColRefReq(void* buf, int32_t bufLen, SMndCheckColRefReq* pReq);
+int32_t tDeserializeSMndCheckColRefReq(void* buf, int32_t bufLen, SMndCheckColRefReq* pReq);
+int32_t tSerializeSMndCheckColRefRsp(void* buf, int32_t bufLen, SMndCheckColRefRsp* pRsp);
+int32_t tDeserializeSMndCheckColRefRsp(void* buf, int32_t bufLen, SMndCheckColRefRsp* pRsp);
+
+typedef enum {
+  BACKUP_VNODE_SNAP_BEGIN = 1,
+  BACKUP_VNODE_SNAP_FETCH = 2,
+  BACKUP_VNODE_SNAP_RELEASE = 3,
+} EBackupVnodeSnapOp;
+
+// vnode write queue: establish a committed boundary after all preceding writes
+typedef struct {
+  int32_t vgId;
+} SVnodeSyncCommitReq;
+
+int32_t tSerializeSVnodeSyncCommitReq(void* buf, int32_t bufLen, SVnodeSyncCommitReq* pReq);
+int32_t tDeserializeSVnodeSyncCommitReq(void* buf, int32_t bufLen, SVnodeSyncCommitReq* pReq);
+
+// dnode agent -> vnode leader: manage one backup snapshot session
+typedef struct {
+  int32_t vgId;
+  int64_t chainId;
+  int64_t backupId;
+  int8_t  isFull;
+  int8_t  op;
+} SBackupVnodeSnapReq;
+
+typedef struct {
+  int32_t vgId;
+  int64_t snapshotIndex;
+  int8_t  eof;
+  int32_t dataLen;
+  void*   data;
+} SBackupVnodeSnapRsp;
+
+int32_t tSerializeSBackupVnodeSnapReq(void* buf, int32_t bufLen, SBackupVnodeSnapReq* pReq);
+int32_t tDeserializeSBackupVnodeSnapReq(void* buf, int32_t bufLen, SBackupVnodeSnapReq* pReq);
+int32_t tSerializeSBackupVnodeSnapRsp(void* buf, int32_t bufLen, SBackupVnodeSnapRsp* pRsp);
+int32_t tDeserializeSBackupVnodeSnapRsp(void* buf, int32_t bufLen, SBackupVnodeSnapRsp* pRsp);
+void    tFreeSBackupVnodeSnapRsp(SBackupVnodeSnapRsp* pRsp);
 
 typedef SCompactDbRsp   STrimDbRsp;         // reuse structs
 typedef SKillCompactReq SKillRetentionReq;  // reuse structs
@@ -3178,6 +3772,29 @@ typedef struct {
   const char* dbname;
   int8_t      estimateRawData;
 } SDbSizeStatisInfo;
+
+typedef struct SLastCacheStats {
+  int32_t dnodeId;
+  int64_t blockCacheCapacity;
+  int64_t blockCacheUsage;
+  int64_t blockCachePinnedUsage;
+  int64_t estimateTableReadersMem;
+  int64_t curSizeActiveMemTable;
+  int64_t curSizeAllMemTables;
+  int32_t numImmutableMemTable;
+  bool    memTableFlushPending;
+  int32_t numRunningFlushes;
+  bool    compactionPending;
+  int32_t numRunningCompactions;
+  int64_t estimatePendingCompactionBytes;
+  bool    isWriteStopped;
+  int64_t actualDelayedWriteRate;
+  int32_t numFilesAtLevel0;
+  int64_t totalSstFilesSize;
+  int64_t estimateNumKeys;
+  int32_t numLiveVersions;
+  int32_t backgroundErrors;
+} SLastCacheStats;
 
 typedef struct {
   int32_t vgId;
@@ -3510,7 +4127,7 @@ typedef struct {
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 
-// Snap send progress query (mnode → dnode, dnode → mnode RSP)
+// Snap send progress query (mnode  ->  dnode, dnode  ->  mnode RSP)
 typedef struct {
   int32_t fid;
   int32_t fileCount;
@@ -3542,7 +4159,6 @@ typedef struct {
 int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
 int32_t tDeserializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
 void    tFreeSDnodeQuerySnapSendProgressRsp(SDnodeQuerySnapSendProgressRsp *pRsp);
-
 typedef struct {
   int32_t compactId;
 } SDnodeQueryCompactProgressReq;
@@ -3825,6 +4441,7 @@ typedef struct {
   char scope[TSDB_CONFIG_SCOPE_LEN + 1];
   char category[TSDB_CONFIG_CATEGORY_LEN + 1];
   char info[TSDB_CONFIG_INFO_LEN + 1];
+  char reboot[TSDB_CONFIG_REBOOT_LEN + 1];
 } SVariablesInfo;
 
 typedef struct {
@@ -3870,7 +4487,21 @@ typedef struct {
   int64_t compactId;  // for compact
   int64_t txnId;      // batch meta txn: same-txn visibility
   bool    withFull;   // for show users full
+  int8_t  xnodeDsnOutputMode;
+  int8_t  xnodeRetrieveFilterType;
+  int64_t xnodeRetrieveFilterValue;
 } SRetrieveTableReq;
+
+typedef enum {
+  XNODE_DSN_OUTPUT_DEFAULT = 0,
+  XNODE_DSN_OUTPUT_ENCRYPTED = 1,
+} EXnodeDsnOutputMode;
+
+typedef enum {
+  XNODE_RETRIEVE_FILTER_NONE = 0,
+  XNODE_RETRIEVE_FILTER_ID_EQ = 1,
+  XNODE_RETRIEVE_FILTER_TASK_ID_EQ = 2,
+} EXnodeRetrieveFilterType;
 
 typedef struct SSysTableSchema {
   int8_t   type;
@@ -3880,6 +4511,9 @@ typedef struct SSysTableSchema {
 
 int32_t tSerializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
 int32_t tDeserializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
+// Checks that the xnode retrieve options are consistent with the requested system table.
+// Defined in common/src/systable.c, next to the schemas the rules are derived from.
+int32_t tValidateSRetrieveTableReq(const SRetrieveTableReq* pReq);
 
 #define RETRIEVE_TABLE_RSP_VERSION         0
 #define RETRIEVE_TABLE_RSP_TMQ_VERSION     1
@@ -3932,6 +4566,13 @@ typedef struct {
   char    data[];
 } SRetrieveMetaTableRsp;
 
+typedef struct SExplainCorrelationStat {
+  int32_t  templateId;
+  uint64_t inputRows;
+  uint64_t calls;
+  int64_t  elapsedUs;
+} SExplainCorrelationStat;
+
 typedef struct SExplainExecInfo {
   /* the number of rows returned */
   uint64_t numOfRows;
@@ -3961,6 +4602,8 @@ typedef struct SExplainExecInfo {
   uint64_t inputRows;
 
   int32_t  vgId;
+  uint32_t correlationStatNum;
+  SExplainCorrelationStat* pCorrelationStats;
 } SExplainExecInfo;
 
 typedef struct {
@@ -4050,6 +4693,8 @@ typedef struct {
   int32_t sqlLen;
   char*   sql;
   int32_t vgId;
+  // parallel: upper limit on the number of vnodes restored in parallel. 0 means no limit (backward compatible).
+  int32_t parallel;
 } SRestoreDnodeReq;
 
 int32_t tSerializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
@@ -4297,6 +4942,15 @@ typedef struct {
 int32_t tSerializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
 int32_t tDeserializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
 void    tFreeSMDrainXnodeReq(SMDrainXnodeReq* pReq);
+
+typedef struct {
+  int32_t sqlLen;
+  char*   sql;
+} SMRestartXnodeReq;
+int32_t tSerializeSMRestartXnodeReq(void* buf, int32_t bufLen, SMRestartXnodeReq* pReq);
+int32_t tDeserializeSMRestartXnodeReq(void* buf, int32_t bufLen, SMRestartXnodeReq* pReq);
+void    tFreeSMRestartXnodeReq(SMRestartXnodeReq* pReq);
+
 typedef enum {
   XNODE_TASK_SOURCE_DSN = 1,
   XNODE_TASK_SOURCE_DATABASE,
@@ -4387,6 +5041,7 @@ typedef struct {
   xTaskSource  source;
   xTaskSink    sink;
   xTaskOptions options;
+  CowStr       desiredState;
 } SMCreateXnodeTaskReq;
 int32_t tSerializeSMCreateXnodeTaskReq(void* buf, int32_t bufLen, SMCreateXnodeTaskReq* pReq);
 int32_t tDeserializeSMCreateXnodeTaskReq(void* buf, int32_t bufLen, SMCreateXnodeTaskReq* pReq);
@@ -4402,6 +5057,7 @@ typedef struct {
   xTaskSink   sink;
   CowStr      parser;
   CowStr      reason;
+  CowStr      desiredState;
   CowStr      updateName;
   CowStr      labels;
   int32_t     sqlLen;
@@ -4441,6 +5097,7 @@ typedef struct {
   int32_t via;
   int32_t xnodeId;
   CowStr  status;
+  CowStr  desiredState;
   CowStr  config;
   CowStr  reason;
   int32_t sqlLen;
@@ -4455,6 +5112,7 @@ typedef struct {
   int32_t via;
   int32_t xnodeId;
   CowStr  status;
+  CowStr  desiredState;
   int32_t configLen;
   int32_t reasonLen;
   int32_t sqlLen;
@@ -4811,6 +5469,38 @@ int32_t tDeserializeSServerStatusRsp(void* buf, int32_t bufLen, SServerStatusRsp
  * |(denoted by sqlLen) |(In JSON, denoted by contentLen) |
  * +--------------------+---------------------------------+
  */
+typedef struct SCorrelationParamDef {
+  int32_t   paramId;
+  SDataType dataType;
+} SCorrelationParamDef;
+
+typedef struct SCorrelationWireValue {
+  int32_t   paramId;
+  SDataType dataType;
+  bool      isNull;
+  int32_t   dataLen;  // Exact byte length; zero when isNull is true.
+  uint8_t*  pData;    // May contain NUL; owned on decode/copy, borrowed on send.
+} SCorrelationWireValue;
+
+typedef struct SCorrelationExecution {
+  uint64_t rootExecutionId;
+  uint64_t rootQueryId;
+  uint64_t rootClientId;
+  uint32_t executionGeneration;
+  uint64_t parentQueryId;
+  uint64_t parentClientId;
+  uint64_t parentTaskId;
+  uint64_t parentSeriesId;
+  int32_t  parentExecId;
+  int32_t  templateId;
+  uint64_t callOrdinal;
+  // Bounded NUL-terminated names copied into the task-session context.
+  char     user[TSDB_USER_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     timezoneName[TD_TIMEZONE_LEN];
+  char     charsetName[TD_LOCALE_LEN];
+} SCorrelationExecution;
+
 typedef struct SSubQueryMsg {
   SMsgHead header;
   uint64_t sId;
@@ -4832,11 +5522,22 @@ typedef struct SSubQueryMsg {
   char*    msg;
   SArray*  subEndPoints;  // subJobs's endpoints, element is SDownstreamSourceNode*
   int64_t  txnId;         // batch meta txn ID (0 = not in txn)
+  SCorrelationExecution correlation;
+  SArray*  pCorrelationParamDefs;    // SCorrelationParamDef elements.
+  SArray*  pCorrelationParamValues;  // SCorrelationWireValue elements.
+  uint32_t correlationTemplatesLen;
+  char*    pCorrelationTemplates;    // Owned on decode; borrowed on send.
+  uint32_t correlationTimeInitLen;
+  char*    pCorrelationTimeInit;     // Owned on decode; borrowed on send.
+  SArray*  pCorrelationNodeList;     // SQueryNodeLoad candidates inherited by nested jobs.
+  // Set only by the scheduler for a pure VNode scan eligible for replica execution.
+  bool     allowFollowerRead;
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
 int32_t tDeserializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
 void    tFreeSSubQueryMsg(SSubQueryMsg* pReq);
+int32_t tValidateCorrelationParams(const SArray* pDefs, const SArray* pValues);
 
 typedef struct {
   SMsgHead header;
@@ -4896,6 +5597,12 @@ typedef struct SVTagCondEntry {
   char*    tagCondJson;  // heap, owned by SVTagCondRsp
 } SVTagCondEntry;
 
+typedef struct SVtbColFilterCond {
+  col_id_t colId;
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // heap, owned by SVTagCondRsp
+} SVtbColFilterCond;
+
 typedef struct SVTagCondReq {
   SMsgHead header;
   char     dbFName[TSDB_DB_FNAME_LEN];
@@ -4905,6 +5612,8 @@ typedef struct SVTagCondReq {
 typedef struct SVTagCondRsp {
   int32_t numOfRefs;
   SArray* pEntries;  // SArray<SVTagCondEntry>
+  int32_t numOfFilterConds;
+  SArray* pFilterConds;  // optional tail extension: SArray<SVtbColFilterCond>
 } SVTagCondRsp;
 
 int32_t tSerializeSVTagCondReq(void* buf, int32_t bufLen, SVTagCondReq* pReq);
@@ -4940,7 +5649,9 @@ typedef struct SColIdSlotIdPair {
 typedef struct SOrgTbInfo {
   int32_t vgId;
   char    tbName[TSDB_TABLE_FNAME_LEN];
-  SArray* colMap;  // SArray<SColIdNameKV>
+  SArray* colMap;       // SArray<SColIdNameKV>
+  uint8_t srcPrecision; // source DB precision; UINT8_MAX = unknown (use getVnodePrecision at runtime)
+  uint8_t dstPrecision; // vtable precision; UINT8_MAX = unknown
 } SOrgTbInfo;
 
 typedef struct SForeignSourceInfo {
@@ -4950,8 +5661,12 @@ typedef struct SForeignSourceInfo {
   SArray* colMap;   // SArray<SColIdNameKV>
   char*   tagCond;  // heap, owned; external series filter shared by this group (may be NULL)
   int32_t tagCondLen;
+  uint64_t scanParamId;    // stable identity of one external scan parameter group
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // serialized external column filter, heap owned
   int64_t rowLimit;  // optional per-stream top-N limit for VStb remote SQL; <=0 means unset
   SNode*  pPushedCond;  // heap, owned; VStb local filter fragment safe to push to this foreign source
+  uint64_t virtualChildUid;  // virtual child whose row is reconstructed from this remote table
 } SForeignSourceInfo;
 
 void destroySOrgTbInfo(void *info);
@@ -4962,6 +5677,7 @@ typedef enum {
   DYN_TYPE_VSTB_SINGLE_SCAN,
   DYN_TYPE_VSTB_BATCH_SCAN,
   DYN_TYPE_VSTB_WIN_SCAN,
+  DYN_TYPE_TWO_PASS_RESCAN,  // coord-driven vtable two-pass phase-2 rescan
 } ETableScanDynType;
 
 typedef enum {
@@ -4982,8 +5698,10 @@ typedef struct STableScanOperatorParam {
   STimeWindow            window;
   ETableScanDynType      dynType;
   /* for notifying source step done */
-  bool                   notifyToProcess;  // received notify STEP DONE message
-  TSKEY                  notifyTs;         // notify timestamp
+  bool     notifyToProcess;    // received notify STEP DONE message
+  TSKEY    notifyTs;           // notify timestamp
+  int8_t   notifyPhase;        // EScanPhase of the source scan
+  uint64_t notifyScanGroupId;  // source scan group identity
 } STableScanOperatorParam;
 
 typedef struct STagScanOperatorParam {
@@ -5000,8 +5718,8 @@ typedef struct SVTableScanOperatorParam {
   SOperatorParam* pTagScanOp;
   int32_t         tagDownStreamId;
   char            tbName[TSDB_TABLE_NAME_LEN];
-  SArray*         pOpParamArray;       // SArray<SOperatorParam> — internal Exchange params
-  SArray*         pForeignParamArray;  // SArray<SOperatorParam> — external FederatedScan params
+  SArray*         pOpParamArray;       // SArray<SOperatorParam>  -  internal Exchange params
+  SArray*         pForeignParamArray;  // SArray<SOperatorParam>  -  external FederatedScan params
   SArray*         pRefColGroups;       // SArray<SRefColIdGroup>
   SArray*         pResolvedTags;       // SArray<STagVal>, resolved tag values from source tables
 } SVTableScanOperatorParam;
@@ -5017,8 +5735,32 @@ typedef struct SSysTableScanOperatorParam {
   SArray* pVtbRefReqs;  // SArray<SSysTableScanVtbRefReq>
 } SSysTableScanOperatorParam;
 
+typedef enum EForeignScanParamType {
+  FOREIGN_SCAN_PARAM_SINGLE = 0,
+  FOREIGN_SCAN_PARAM_BATCH,
+} EForeignScanParamType;
+
+typedef struct SForeignTableInfo {
+  char    dbName[TSDB_DB_NAME_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  SArray* colMap;       // SArray<SColIdNameKV>
+  int8_t  dstPrecision;
+  char*   tagCond;      // heap, owned
+  int32_t tagCondLen;
+  uint64_t scanParamId;
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // serialized external column filter, heap owned
+  int64_t rowLimit;
+  char*   pPushedCondJson;  // serialized SNode, heap owned
+  SNode*  pPushedCond;      // runtime-only SNode, heap owned
+  uint64_t virtualChildUid;  // virtual child whose row is reconstructed from this table
+  SArray* pVtbTagList;       // runtime-only SArray<STagVal>, owned by the batch table
+} SForeignTableInfo;
+
 typedef struct SForeignScanOperatorParam {
+  EForeignScanParamType paramType;
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  int64_t sourceMetaVersion;
   char    dbName[TSDB_DB_NAME_LEN];
   char    tableName[TSDB_TABLE_NAME_LEN];
   SArray* colMap;  // SArray<SColIdNameKV>
@@ -5028,12 +5770,26 @@ typedef struct SForeignScanOperatorParam {
   int8_t  dstPrecision;
   char*   tagCond;  // heap, owned; external series filter pushed into the remote SQL (may be NULL)
   int32_t tagCondLen;
+  uint64_t scanParamId;
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // serialized external column filter, heap owned in standalone params
   int64_t rowLimit;  // optional per-stream top-N limit for VStb remote SQL; <=0 means unset
   SNode*  pPushedCond;  // heap, owned; optional VStb data filter pushed into the remote SQL
+  SArray* pBatchTables;  // SArray<SForeignTableInfo>, owned in batch mode
+  int32_t groupId;       // virtual-table group; zero when the query has no grouping
+  STimeWindow window;    // common half-open scan range applied to every table in the batch
+  bool isNewParam;       // true when FederatedScan must start this batch from its first table
+  uint64_t virtualChildUid;  // runtime-only discriminator for one table view inside a batch
+  bool      hasVtbGroupId;   // runtime-only full-width virtual-table group id discriminator
+  uint64_t  vtbGroupId;      // runtime-only; never encoded by the legacy batch codec
+  SArray*   pVtbTagList;     // runtime-only borrowed tag payload for the active table view
+  // Runtime-only: consumer accepts timestamp order changes between batch tables.
+  bool allowUnorderedBatch;
 } SForeignScanOperatorParam;
-
 typedef struct SMergeOperatorParam {
-  int32_t         winNum;
+  int32_t winNum;
+  bool    mergeSameCols;
+  bool    activeSourcesOnly;  // runtime-only scoped row-merge dispatch
 } SMergeOperatorParam;
 
 typedef struct SAggOperatorParam {
@@ -5041,7 +5797,8 @@ typedef struct SAggOperatorParam {
 } SAggOperatorParam;
 
 typedef struct SExternalWindowOperatorParam {
-  SArray*         ExtWins;  // SArray<SExtWinTimeWindow>
+  SArray*         ExtWins;          // SArray<SExtWinTimeWindow>
+  SArray*         pNullOutputSlots; // SArray<int32_t>, aggregate outputs not owned by this execution unit
 } SExternalWindowOperatorParam;
 
 typedef struct SDynQueryCtrlOperatorParam {
@@ -5049,6 +5806,8 @@ typedef struct SDynQueryCtrlOperatorParam {
 } SDynQueryCtrlOperatorParam;
 
 struct SStreamRuntimeFuncInfo;
+typedef struct SStreamContextFrames SStreamContextFrames;
+typedef struct SStreamFetchContextSelection SStreamFetchContextSelection;
 typedef struct {
   SMsgHead        header;
   uint64_t        sId;
@@ -5065,11 +5824,29 @@ typedef struct {
   bool                           reset;
   bool                           dynTbname;
   bool                           forceFetchCompleted;
+  bool                           phase2Rescan;  // vtable two-pass: remote origin reuses reader and rescans
+  bool                           reuseReader;
+  bool                           readerGroupMode;
+  bool                           readerDimensionBatch;
+  bool                           runnerEogBatch;
+  uint64_t                       readerFetchId;
+  SStreamContextFrames*          pContextFrames;  // optional owned validated frame copy
+  // Set only by the scheduler for a pure VNode scan eligible for replica execution.
+  bool                           allowFollowerRead;
   // used for new-stream
 } SResFetchReq;
 
+#define SRES_FETCH_FOLLOWER_READ_FRAME_VERSION 1
+#define SRES_FETCH_FOLLOWER_READ_FRAME_MAGIC   UINT32_C(0x46525244)
+
 int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
+int32_t tDeserializeSResFetchReqWithContextFrames(void* buf, int32_t bufLen, SResFetchReq* pReq);
+int32_t tBuildStreamRunnerFetchReq(SResFetchReq* pReq, const SStreamContextFrames* pFrames, void** ppBuf,
+                                   int32_t* pLen);
+int32_t tBuildStreamReaderFetchReq(SResFetchReq* pReq, void** ppBuf, int32_t* pLen);
+int32_t tBuildStreamPreparedFetchReq(SResFetchReq* pReq, const struct SStreamRuntimeFuncInfo* pBatch,
+                                     const SStreamFetchContextSelection* pSelection, void** ppBuf, int32_t* pLen);
 void    tDestroySResFetchReq(SResFetchReq* pReq);
 typedef struct {
   SMsgHead header;
@@ -5270,45 +6047,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   return tlen;
 }
 
-static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq, int32_t len) {
-  void* start = buf;
-  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
-  buf = taosDecodeStringTo(buf, pReq->cgroup);
-  buf = taosDecodeStringTo(buf, pReq->clientId);
-
-  int32_t topicNum = 0;
-  buf = taosDecodeFixedI32(buf, &topicNum);
-
-  pReq->topicNames = taosArrayInit(topicNum, sizeof(void*));
-  if (pReq->topicNames == NULL) {
-    return terrno;
-  }
-  for (int32_t i = 0; i < topicNum; i++) {
-    char* name = NULL;
-    buf = taosDecodeString(buf, &name);
-    if (taosArrayPush(pReq->topicNames, &name) == NULL) {
-      return terrno;
-    }
-  }
-
-  buf = taosDecodeFixedI8(buf, &pReq->withTbName);
-  buf = taosDecodeFixedI8(buf, &pReq->autoCommit);
-  buf = taosDecodeFixedI32(buf, &pReq->autoCommitInterval);
-  buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
-  buf = taosDecodeFixedI8(buf, &pReq->enableReplay);
-  buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
-  if ((char*)buf - (char*)start < len) {
-    buf = taosDecodeFixedI32(buf, &pReq->sessionTimeoutMs);
-    buf = taosDecodeFixedI32(buf, &pReq->maxPollIntervalMs);
-    buf = taosDecodeStringTo(buf, pReq->user);
-    buf = taosDecodeStringTo(buf, pReq->fqdn);
-  } else {
-    pReq->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
-    pReq->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
-  }
-
-  return 0;
-}
+int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq, int32_t len);
 
 typedef struct {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -5474,10 +6213,46 @@ typedef struct SVCheckHasCtbReq {
 int32_t tSerializeSVCheckHasCtbReq(void* buf, int32_t bufLen, const SVCheckHasCtbReq* pReq);
 int32_t tDeserializeSVCheckHasCtbReq(const void* buf, int32_t bufLen, SVCheckHasCtbReq* pReq);
 
+// TDMT_VND_CHECK_STB_ALTER_NAME ==============
+// Pre-check for a virtual stb alter that introduces new column/tag names: each vnode owning
+// vchild tables of the stb verifies that none of them already owns one of the names as an
+// own (extension) column/tag. Response carries only the error code.
+typedef struct SVCheckStbAlterNameReq {
+  int64_t suid;    // uid of the virtual super table being altered
+  SArray* pNames;  // array of char[TSDB_COL_NAME_LEN], new names introduced by the alter
+} SVCheckStbAlterNameReq;
+
+int32_t tSerializeSVCheckStbAlterNameReq(void* buf, int32_t bufLen, const SVCheckStbAlterNameReq* pReq);
+int32_t tDeserializeSVCheckStbAlterNameReq(const void* buf, int32_t bufLen, SVCheckStbAlterNameReq* pReq);
+void    tFreeSVCheckStbAlterNameReq(SVCheckStbAlterNameReq* pReq);
+
 // TDMT_VND_CREATE_TABLE ==============
 #define TD_CREATE_IF_NOT_EXISTS       0x1
 #define TD_CREATE_NORMAL_TB_IN_STREAM 0x2
 #define TD_CREATE_SUB_TB_IN_STREAM    0x4
+
+// Own (extension) column of a virtual child table declared at CREATE VTABLE time
+// (see SVChildOwnSchema in storageapi.h). schema.colId is a placeholder on the wire;
+// the vnode assigns colIds from TSDB_VCHILD_OWN_COL_ID_BASE upwards.
+typedef struct SVChildOwnColDef {
+  SSchema  schema;
+  SColRef  ref;  // hasRef is always true: an own data column must carry an origin reference
+  STypeMod typeMod;  // decimal precision/scale for own columns of decimal type (0 otherwise)
+} SVChildOwnColDef;
+
+// Own (extension) tag of a virtual child table declared at CREATE VTABLE time. Carries
+// an optional literal value (hasValue) or an optional tag reference (ref.hasRef); both
+// empty means the tag value is NULL. schema.colId is a placeholder as above.
+typedef struct SVChildOwnTagDef {
+  SSchema  schema;
+  SColRef  ref;
+  bool     hasValue;
+  int8_t   valType;
+  int64_t  valI64;   // fixed-width literal value
+  int32_t  valLen;   // payload length for var-width types
+  uint8_t *pVal;     // var-width literal payload
+} SVChildOwnTagDef;
+
 typedef struct SVCreateTbReq {
   int32_t  flags;
   char*    name;
@@ -5510,6 +6285,11 @@ typedef struct SVCreateTbReq {
   SSeriesWrapper  series;  // series declarations for virtual table
   int64_t         txnId;   // batch meta txn ID (0 = not in txn)
   int8_t          txnStatus; // EMetaTxnStatus for snapshot replication (0 = normal/PRE_CREATE)
+  // vchild own (extension) columns/tags declared at create time, TSDB_VIRTUAL_CHILD_TABLE only
+  int32_t           nOwnColDefs;
+  SVChildOwnColDef *pOwnColDefs;
+  int32_t           nOwnTagDefs;
+  SVChildOwnTagDef *pOwnTagDefs;
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -5655,7 +6435,13 @@ typedef struct SVAlterTbReq {
   char* refTbName;
   char* refColName;
   char* refSourceName;
+  // External schema segment of the reference (SQL Server 5-part paths; empty otherwise).
+  // Encoded as the last field of the message so that older readers simply ignore it and
+  // this decoder treats its absence as empty (same pattern as txnDdlQuota).
+  char* refSchemaName;
   int8_t refType;  // 0=local, 1=external
+  int32_t filterCondLen;
+  char*   filterCondJson;
   // TSDB_ALTER_TABLE_REMOVE_COLUMN_REF
   // TSDB_ALTER_TABLE_ADD_SERIES
   char*   seriesAlias;
@@ -5664,8 +6450,15 @@ typedef struct SVAlterTbReq {
   char*   seriesMeasurementName;
   int32_t seriesTagCondLen;
   char*   seriesTagCondJson;
-  // TSDB_ALTER_TABLE_REMOVE_SERIES — uses seriesAlias above
+  // TSDB_ALTER_TABLE_REMOVE_SERIES  -  uses seriesAlias above
   int64_t txnId;  // batch meta txn ID (0 = not in txn)
+  // Per-vnode share of the remaining TSDB_TXN_MAX_DDL_OPS_PER_TXN budget, for
+  // TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL only. The client cannot know how many
+  // children a WHERE predicate matches (tag values live on the vnode, and inside a txn the
+  // predicate must be evaluated against uncommitted shadow state), so it sends the quota it
+  // can afford and the vnode aborts its pre-scan once the match count exceeds it. 0 = no
+  // limit (non-txn path). See metaPreScanChildTableTagUpdate.
+  int32_t txnDdlQuota;
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -5678,6 +6471,14 @@ void    tfreeUpdateTableTagVal(void* pMultiTable);
 typedef struct {
   int32_t        code;
   STableMetaRsp* pMeta;
+  // Number of child tables this vnode actually rewrote, for
+  // TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL (WHERE-based bulk tag update) inside a
+  // txn. The vnode fills this in when that action runs with txnId != 0
+  // (vnodeProcessAlterTbReq, txn path); it stays 0 on the non-txn path and for all
+  // other action types. Only txn callers consume it: the client sums this across
+  // vgroups into txnDdlCount so the per-object accounting in FS Sec.4.13 reflects the
+  // real object count for a statement whose reach is only knowable server-side.
+  int32_t        numTouched;
 } SVAlterTbRsp;
 
 int32_t tEncodeSVAlterTbRsp(SEncoder* pEncoder, const SVAlterTbRsp* pRsp);
@@ -5968,7 +6769,11 @@ static FORCE_INLINE int32_t tDecodeSKv(SDecoder* pDecoder, SKv* pKv) {
   if (pKv->value == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, (char*)pKv->value));
+  int32_t code = tDecodeCStrToN(pDecoder, (char*)pKv->value, pKv->valueLen + 1);
+  if (code != 0) {
+    taosMemoryFreeClear(pKv->value);
+    return code;
+  }
   return 0;
 }
 
@@ -6096,6 +6901,7 @@ typedef struct {
   char**  name;
   int32_t count;
   int8_t  igNotExists;
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SMDropStreamReq;
 
 typedef struct {
@@ -6165,6 +6971,8 @@ typedef struct SVUpdateCheckpointInfoReq {
   int64_t  hTaskId;
   int8_t   dropRelHTask;
 } SVUpdateCheckpointInfoReq;
+
+#define SMQ_REB_VG_REQ_VERSION                 1
 
 typedef struct {
   int64_t        leftForVer;
@@ -6314,7 +7122,7 @@ typedef struct {
   int8_t     clientStage;
   txn_id_t   txnId;
   int64_t    connId;
-  SSHashObj* pVgSet;                      // Hash set of int32_t vgId → dummy, client-tracked participant VGroups
+  SSHashObj* pVgSet;                      // Hash set of int32_t vgId  ->  dummy, client-tracked participant VGroups
   char       dbFName[TSDB_DB_FNAME_LEN];  // participating DB fullName (replicated txn COMMIT/ROLLBACK)
 } SMTransReq;
 
@@ -6333,13 +7141,13 @@ typedef struct {
   txn_id_t txnId;
 } SMndTxnRegRsp;
 
-// MNode → VNode: COMMIT instruction for a single transaction
+// MNode  ->  VNode: COMMIT instruction for a single transaction
 typedef struct {
   txn_id_t  txnId;
   int64_t   term;    // current MNode Raft term (SyncTerm); used for VNode-side fencing
 } SVTxnCommitReq;
 
-// MNode → VNode: ROLLBACK instruction for a single transaction
+// MNode  ->  VNode: ROLLBACK instruction for a single transaction
 typedef struct {
   txn_id_t  txnId;
   int64_t   term;    // current MNode Raft term (SyncTerm); used for VNode-side fencing
@@ -6355,7 +7163,7 @@ int32_t tDeserializeSVTxnCommitReq(void* buf, int32_t bufLen, SVTxnCommitReq* pR
 int32_t tSerializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
 int32_t tDeserializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
 
-// VNode → DNode → MNode keepalive query (piggy-backed onto SStatusReq)
+// VNode  ->  DNode  ->  MNode keepalive query (piggy-backed onto SStatusReq)
 typedef struct {
   txn_id_t  txnId;
   int32_t   vgId;  // VNode issuing the query
@@ -6885,6 +7693,19 @@ typedef struct {
 int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq);
 int32_t tDecodeSVDeleteRsp(SDecoder* pCoder, SVDeleteRsp* pReq);
 
+// One matched point produced by a DELETE carrying an ordinary column filter, for the subtable
+// `uid`. The deleter (dataDeleter.c) only ever emits the degenerate form skey == ekey == the
+// matched row's ts -- it never widens [skey, ekey] into a true multi-row range, and consecutive
+// duplicate timestamps for the same uid collapse into one entry. Do not read this as "every row
+// inside [skey, ekey] matches the filter" for a non-degenerate range: that invariant has never
+// been established here, and treating a wider range as safe to bulk-delete would delete rows the
+// filter never matched.
+typedef struct SDeleteInterval {
+  uint64_t uid;
+  int64_t  skey;
+  int64_t  ekey;
+} SDeleteInterval;
+
 typedef struct SDeleteRes {
   uint64_t suid;
   SArray*  uidList;
@@ -6896,6 +7717,16 @@ typedef struct SDeleteRes {
   int64_t  ctimeMs;  // fill by vnode
   int8_t   source;
   int8_t   secureDelete;  // force physical overwrite
+  // SArray<SDeleteInterval>. In-process scratch only, and NOT one entry per matched row: the
+  // deleter (dataDeleter.c) collapses consecutive duplicate timestamps for the same uid into a
+  // single degenerate entry, so this list can be shorter than affectedRows. It is populated by
+  // qwGetDeleteResFromSink (copied from SDeleterRes.pIntervals, which the deleter itself fills
+  // in), and read exactly once by vnodePreProcessDeleteMsg on the leader to fan the statement out
+  // into N independent old-shape SDeleteRes proposals before Raft ever sees anything.
+  // tEncodeDeleteRes/tDecodeDeleteRes never touch this field -- it must never appear on the wire,
+  // and every SDeleteRes must be zero-initialized before use so an unset pointer here is never
+  // mistaken for a live one.
+  SArray*  pSplitPoints;
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
@@ -7523,7 +8354,7 @@ int32_t tSerializeSRefreshExtSourceReq(void* buf, int32_t bufLen, SRefreshExtSou
 int32_t tDeserializeSRefreshExtSourceReq(void* buf, int32_t bufLen, SRefreshExtSourceReq* pReq);
 void    tFreeSRefreshExtSourceReq(SRefreshExtSourceReq* pReq);
 
-// Catalog → Mnode: query a single external source (on cache miss)
+// Catalog  ->  Mnode: query a single external source (on cache miss)
 typedef struct SGetExtSourceReq {
   char source_name[TSDB_EXT_SOURCE_NAME_LEN];
 } SGetExtSourceReq;
@@ -7532,7 +8363,7 @@ int32_t tSerializeSGetExtSourceReq(void* buf, int32_t bufLen, SGetExtSourceReq* 
 int32_t tDeserializeSGetExtSourceReq(void* buf, int32_t bufLen, SGetExtSourceReq* pReq);
 void    tFreeSGetExtSourceReq(SGetExtSourceReq* pReq);
 
-// Mnode → Catalog: external source info response (password decrypted by mnode for internal RPC)
+// Mnode  ->  Catalog: external source info response (password decrypted by mnode for internal RPC)
 typedef struct SGetExtSourceRsp {
   char    source_name[TSDB_EXT_SOURCE_NAME_LEN];
   int8_t  type;          // EExtSourceType
@@ -7574,12 +8405,12 @@ int32_t tSerializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pR
 int32_t tDeserializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pRsp);
 void    tFreeSExtSourceHbRsp(SExtSourceHbRsp *pRsp);
 
-// SQueryTableRsp.extErrMsg: federated query remote-side error string
-// (appended at the end of SQueryTableRsp for backward compatibility)
+// SQueryTableRsp.extErrMsg / extPushdownDiag: federated query diagnostics payload.
+// Both are appended optional fields at the end of SQueryTableRsp.
 // See SQueryTableRsp definition above; tSerializeSQueryTableRsp / tDeserializeSQueryTableRsp
-// encode/decode extErrMsg with a hasExtErrMsg flag after all existing fields.
+// encode/decode both fields with dedicated has-* flags after all existing fields.
 
-// SExtTableMetaReq — identifies an external table to be resolved by catalog.
+// SExtTableMetaReq  -  identifies an external table to be resolved by catalog.
 // Parser registers one per external table reference during collectMetaKey.
 // sourceName matches the ext source name; rawMidSegs holds 0-2 intermediate
 // path segments (db / schema) whose interpretation depends on source type;

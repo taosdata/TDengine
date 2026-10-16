@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -440,6 +442,13 @@ void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus) {
 
 void mstDestroySStmTaskToDeployExt(void* param) {
   SStmTaskToDeployExt* pExt = (SStmTaskToDeployExt*)param;
+  if (pExt->ownsExtSpec && pExt->deploy.task.type == STREAM_READER_TASK) {
+    mstDebug("release dynamic external reader spec from deployment queue");
+    tFreeSStreamExtTriggerSpec(pExt->deploy.msg.reader.pExtSpec);
+    pExt->deploy.msg.reader.pExtSpec = NULL;
+    pExt->deploy.msg.reader.ownsExtSpec = false;
+    pExt->ownsExtSpec = false;
+  }
   if (pExt->deployed) {
     return;
   }
@@ -1303,7 +1312,8 @@ _exit:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBlock* pBlock, int32_t numOfRows) {
+int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBlock* pBlock, int32_t numOfRows,
+                                 int64_t viewerTxnId) {
   int32_t code = 0;
   int32_t cols = 0;
   int32_t lino = 0;
@@ -1351,8 +1361,20 @@ int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBloc
   // status
   char   status[20 + VARSTR_HEADER_SIZE] = {0};
   char msg[TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
-  code = mstGetStreamStatusStr(pStream, status, sizeof(status), msg, sizeof(msg));
-  TSDB_CHECK_CODE(code, lino, _end);
+  // batch-meta-txn (stream phase 2): to the txn that owns an uncommitted change, report the
+  // pending state instead of the runtime status (FS Sec.4.6/Sec.9). A pending_create stream has no
+  // runtime instance at all, and a pending_drop one is still running - the runtime status
+  // would say "Running" in both cases and hide the fact that the change is uncommitted.
+  // Other connections fall through to the real status: they must not see the pending state.
+  if (pStream->txnId != 0 && pStream->txnId == (txn_id_t)viewerTxnId &&
+      (pStream->txnStatus == META_TXN_PRE_CREATE || pStream->txnStatus == META_TXN_PRE_DROP)) {
+    const char* pending =
+        (pStream->txnStatus == META_TXN_PRE_CREATE) ? "pending_create" : "pending_drop";
+    STR_WITH_MAXSIZE_TO_VARSTR(status, pending, sizeof(status));
+  } else {
+    code = mstGetStreamStatusStr(pStream, status, sizeof(status), msg, sizeof(msg));
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
@@ -1424,6 +1446,22 @@ int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBloc
       colDataSetVal(pColInfo, numOfRows, (const char*)&metricView.historyProgressPct, !metricView.historyProgressValid);
   TSDB_CHECK_CODE(code, lino, _end);
 
+  bool timeConfigMissing = pStream->pCreate->timeConfig.timezone[0] == '\0';
+  char timezone[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
+  if (!timeConfigMissing) {
+    STR_WITH_MAXSIZE_TO_VARSTR(timezone, pStream->pCreate->timeConfig.timezone, sizeof(timezone));
+  }
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, timeConfigMissing ? NULL : timezone, timeConfigMissing);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  int32_t firstDayOfWeek = pStream->pCreate->timeConfig.firstDayOfWeek;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, timeConfigMissing ? NULL : (const char*)&firstDayOfWeek, timeConfigMissing);
+  TSDB_CHECK_CODE(code, lino, _end);
+
 _end:
   if (code) {
     mError("error happens when build stream attr result block, lino:%d, code:%s", lino, tstrerror(code));
@@ -1449,7 +1487,7 @@ int32_t mstGetTaskStatusStr(SStmTaskStatus* pTask, char* status, int32_t statusS
   if (STREAM_TRIGGER_TASK == pTask->type && mstWaitLock(&pTask->detailStatusLock, true)) {
     if (pTask->detailStatus) {
       SSTriggerRuntimeStatus* pTrigger = (SSTriggerRuntimeStatus*)pTask->detailStatus;
-      snprintf(tmpBuf, sizeof(tmpBuf), "Current RT/HI/RE session num: %d/%d/%d, histroy progress:%d%%, total AUTO/USER recalc num: %d/%d", 
+      snprintf(tmpBuf, sizeof(tmpBuf), "Current RT/HI/RE session num: %d/%d/%d, history progress:%d%%, total AUTO/USER recalc num: %d/%d", 
           pTrigger->realtimeSessionNum, pTrigger->historySessionNum, pTrigger->recalcSessionNum, pTrigger->histroyProgress,
           pTrigger->autoRecalcNum, (int32_t)taosArrayGetSize(pTrigger->userRecalcs));
       taosRUnLockLatch(&pTask->detailStatusLock);

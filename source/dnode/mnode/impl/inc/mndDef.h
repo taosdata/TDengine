@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -133,7 +135,9 @@ typedef enum {
   MND_OPER_COMMIT_TXN,
   MND_OPER_ROLLBACK_TXN,
   MND_OPER_ALLOC_TXN_SEQ,
+  MND_OPER_BACKUP,  // cluster-level CREATE/KILL BACKUP
   MND_OPER_FLUSH_MNODE,
+  MND_OPER_RESTART_XNODE,
   MND_OPER_MAX  // the max operation type
 } EOperType;
 
@@ -371,7 +375,7 @@ typedef enum {
 #define MAC_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
 
 typedef struct {
-  int32_t type;  // ESecurityPolicyType — SDB key (SDB_KEY_INT32)
+  int32_t type;  // ESecurityPolicyType  -  SDB key (SDB_KEY_INT32)
   int64_t createdTime;
   int64_t updateTime;
   int64_t activateTime;
@@ -470,6 +474,7 @@ typedef struct {
   int64_t  ownerId;
   // Account domain used when matching explicit XNode task privileges.
   int32_t  acctId;
+  int8_t   desiredState;
   SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;
@@ -488,6 +493,7 @@ typedef struct {
   char*    reason;
   int64_t  createTime;
   int64_t  updateTime;
+  int8_t   desiredState;
   SRWLatch lock;
 } SXnodeJobObj;
 
@@ -926,8 +932,8 @@ typedef struct {
   int64_t    bufferSegmentSize;
   int32_t    snapSeq;
   int64_t    syncTotalIndex;
-  // 运行时字段（不持久化到 SDB）：记录该 vnode 最近一次在 status 心跳中被上报的时间戳(ms)。
-  // 用于在 mnode 侧判断"未上报的 vnode"是否已离线足够久，避免因偶发单次心跳缺失就误判为 OFFLINE。
+  // Runtime field (not persisted in SDB): timestamp in ms of the vnode's latest status heartbeat report.
+  // Used by mnode to determine whether a vnode missing from reports has been offline long enough.
   int64_t    lastSeenMs;
   int64_t    snapTotalSize;        // snapshot total bytes from the latest heartbeat report
   int64_t    snapTransferredSize;  // transferred bytes from the latest heartbeat report
@@ -1075,7 +1081,7 @@ typedef struct {
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
   int8_t      secureDelete;
-  int8_t      txnStatus;  // batch-meta-txn: EMetaTxnStatus — transaction status flag (shared enum for VNode/MNode)
+  int8_t      txnStatus;  // batch-meta-txn: EMetaTxnStatus  -  transaction status flag (shared enum for VNode/MNode)
   int32_t     txnAlterReqsLen;  // batch-meta-txn: length of above blob (0 means no ALTER pending)
   txn_id_t    txnId;            // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
   void*       pTxnAlterReqs;    // batch-meta-txn: chained ALTER request data blob for crash recovery
@@ -1137,6 +1143,11 @@ typedef struct {
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];
   int64_t        txnId;  // batch meta txn: same-txn visibility
+  int8_t         xnodeOutputMode;
+  int8_t         xnodeRetrieveFilterType;
+  int64_t        xnodeRetrieveFilterValue;
+  bool           xnodeProtectionFailed;
+  void*          pXnodeBatch;
 } SShowObj;
 
 typedef struct {
@@ -1222,6 +1233,7 @@ typedef struct {
   SArray*   unassignedVgs;  // SArray<vgId>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
+  SHashObj* vgDnodeId;      // vgId -> SArray<dnodeId>
   SRWLatch  lock;
 } SMqSubscribeObj;
 
@@ -1248,7 +1260,6 @@ typedef struct {
   SArray*          removedConsumers;  // SArray<int64_t>
   SArray*          modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj* pSub;
-  bool             isReload;
 } SMqRebOutputObj;
 
 typedef struct SStreamRecalcPersistReq {
@@ -1282,6 +1293,13 @@ typedef struct {
   // (SCMCreateStreamReq.extSpecs), which is JSON-serialized as part of
   // pCreate and persists for the whole lifetime of the stream object; there
   // is no separate copy on SStreamObj itself.
+
+  // batch-meta-txn (stream phase 2): both fields are serialized into SDB_STREAM.
+  // Unlike userDropped/userStopped above, these MUST persist - the drop intent of
+  // an uncommitted txn has to survive a leader transfer, otherwise the new leader
+  // would resurrect a stream the txn had already dropped. See DS 5.2.
+  txn_id_t txnId;      // 0 = no associated txn; >0 = owning txn
+  int8_t   txnStatus;  // EMetaTxnStatus: NORMAL / PRE_CREATE / PRE_CREATE_DROP / PRE_DROP
 } SStreamObj;
 #if 0
 typedef struct SStreamConf {
@@ -1480,6 +1498,35 @@ typedef struct {
   int64_t startTime;
   SArray* scanDetail;
 } SScanObj;
+
+// Backup lifecycle state persisted in SDB and surfaced in SHOW BACKUPS status.
+typedef enum {
+  BACKUP_STATE_RUNNING = 0,    // backup in progress
+  BACKUP_STATE_SUCCEEDED = 1,  // finished successfully
+  BACKUP_STATE_FAILED = 2,     // finished with error
+  BACKUP_STATE_CANCELLED = 3   // killed by user
+} EBackupState;
+
+// Cluster-level backup record persisted in SDB (drives SHOW BACKUPS history).
+// A record is keyed by backupId; chainId groups backups in the same chain.
+// code/bytesDone are updated by the backup progress timer; code holds the
+// final agent-side result once the backup finishes (0 = success).
+typedef struct {
+  int64_t chainId;        // backup chain id
+  int64_t backupId;       // backup id (SDB key)
+  int32_t dnodeId;        // dnode that owns backupRoot and runs the agent
+  char    backupRoot[TSDB_MOUNT_PATH_LEN];
+  char    dbName[TSDB_DB_FNAME_LEN];  // empty means whole cluster
+  int64_t startTime;
+  int64_t updateTime;     // most recent dnode progress report time
+  int64_t totalSize;      // bytes written so far
+  int8_t  isFull;         // 1 = full, 0 = incremental
+  int8_t  encrypted;      // 1 when the backup request included a password
+  int32_t code;           // final result code when state != RUNNING; 0 = success
+  int32_t state;          // EBackupState
+  int32_t totalVgroups;   // total number of vgroups to back up
+  int32_t finishedVgroups;// number of vgroups already backed up
+} SBackupObj;
 
 typedef SCompactObj       SRetentionObj;        // reuse compact obj for retention
 typedef SCompactDetailObj SRetentionDetailObj;  // reuse compact detail obj for retention

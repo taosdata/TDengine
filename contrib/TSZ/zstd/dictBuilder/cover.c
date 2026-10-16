@@ -29,6 +29,7 @@
 #include "mem.h" /* read */
 #include "pool.h"
 #include "threading.h"
+#include "cover.h"
 #include "zstd_internal.h" /* includes zstd.h */
 #ifndef ZDICT_STATIC_LINKING_ONLY
 #define ZDICT_STATIC_LINKING_ONLY
@@ -38,7 +39,8 @@
 /*-*************************************
 *  Constants
 ***************************************/
-#define COVER_MAX_SAMPLES_SIZE (sizeof(size_t) == 8 ? ((U32)-1) : ((U32)1 GB))
+#define COVER_MAX_SAMPLES_SIZE (sizeof(size_t) == 8 ? ((unsigned)-1) : ((unsigned)1 GB))
+#define DEFAULT_SPLITPOINT 1.0
 
 /*-*************************************
 *  Console display
@@ -184,7 +186,7 @@ static void COVER_map_remove(COVER_map_t *map, U32 key) {
 }
 
 /**
- * Destroyes a map that is inited with COVER_map_init().
+ * Destroys a map that is inited with COVER_map_init().
  */
 static void COVER_map_destroy(COVER_map_t *map) {
   if (map->data) {
@@ -203,6 +205,8 @@ typedef struct {
   size_t *offsets;
   const size_t *samplesSizes;
   size_t nbSamples;
+  size_t nbTrainSamples;
+  size_t nbTestSamples;
   U32 *suffix;
   size_t suffixSize;
   U32 *freqs;
@@ -220,9 +224,9 @@ static COVER_ctx_t *g_ctx = NULL;
 /**
  * Returns the sum of the sample sizes.
  */
-static size_t COVER_sum(const size_t *samplesSizes, unsigned nbSamples) {
+size_t COVER_sum(const size_t *samplesSizes, unsigned nbSamples) {
   size_t sum = 0;
-  size_t i;
+  unsigned i;
   for (i = 0; i < nbSamples; ++i) {
     sum += samplesSizes[i];
   }
@@ -377,14 +381,6 @@ static void COVER_group(COVER_ctx_t *ctx, const void *group,
   ctx->suffix[dmerId] = freq;
 }
 
-/**
- * A segment is a range in the source as well as the score of the segment.
- */
-typedef struct {
-  U32 begin;
-  U32 end;
-  U32 score;
-} COVER_segment_t;
 
 /**
  * Selects the best segment in an epoch.
@@ -494,6 +490,10 @@ static int COVER_checkParameters(ZDICT_cover_params_t parameters,
   if (parameters.d > parameters.k) {
     return 0;
   }
+  /* 0 < splitPoint <= 1 */
+  if (parameters.splitPoint <= 0 || parameters.splitPoint > 1){
+    return 0;
+  }
   return 1;
 }
 
@@ -531,25 +531,44 @@ static void COVER_ctx_destroy(COVER_ctx_t *ctx) {
  */
 static int COVER_ctx_init(COVER_ctx_t *ctx, const void *samplesBuffer,
                           const size_t *samplesSizes, unsigned nbSamples,
-                          unsigned d) {
+                          unsigned d, double splitPoint) {
   const BYTE *const samples = (const BYTE *)samplesBuffer;
   const size_t totalSamplesSize = COVER_sum(samplesSizes, nbSamples);
+  /* Split samples into testing and training sets */
+  const unsigned nbTrainSamples = splitPoint < 1.0 ? (unsigned)((double)nbSamples * splitPoint) : nbSamples;
+  const unsigned nbTestSamples = splitPoint < 1.0 ? nbSamples - nbTrainSamples : nbSamples;
+  const size_t trainingSamplesSize = splitPoint < 1.0 ? COVER_sum(samplesSizes, nbTrainSamples) : totalSamplesSize;
+  const size_t testSamplesSize = splitPoint < 1.0 ? COVER_sum(samplesSizes + nbTrainSamples, nbTestSamples) : totalSamplesSize;
   /* Checks */
   if (totalSamplesSize < MAX(d, sizeof(U64)) ||
       totalSamplesSize >= (size_t)COVER_MAX_SAMPLES_SIZE) {
     DISPLAYLEVEL(1, "Total samples size is too large (%u MB), maximum size is %u MB\n",
-                 (U32)(totalSamplesSize>>20), (COVER_MAX_SAMPLES_SIZE >> 20));
+                 (unsigned)(totalSamplesSize>>20), (COVER_MAX_SAMPLES_SIZE >> 20));
+    return 0;
+  }
+  /* Check if there are at least 5 training samples */
+  if (nbTrainSamples < 5) {
+    DISPLAYLEVEL(1, "Total number of training samples is %u and is invalid.", nbTrainSamples);
+    return 0;
+  }
+  /* Check if there's testing sample */
+  if (nbTestSamples < 1) {
+    DISPLAYLEVEL(1, "Total number of testing samples is %u and is invalid.", nbTestSamples);
     return 0;
   }
   /* Zero the context */
   memset(ctx, 0, sizeof(*ctx));
-  DISPLAYLEVEL(2, "Training on %u samples of total size %u\n", nbSamples,
-               (U32)totalSamplesSize);
+  DISPLAYLEVEL(2, "Training on %u samples of total size %u\n", nbTrainSamples,
+               (unsigned)trainingSamplesSize);
+  DISPLAYLEVEL(2, "Testing on %u samples of total size %u\n", nbTestSamples,
+               (unsigned)testSamplesSize);
   ctx->samples = samples;
   ctx->samplesSizes = samplesSizes;
   ctx->nbSamples = nbSamples;
+  ctx->nbTrainSamples = nbTrainSamples;
+  ctx->nbTestSamples = nbTestSamples;
   /* Partial suffix array */
-  ctx->suffixSize = totalSamplesSize - MAX(d, sizeof(U64)) + 1;
+  ctx->suffixSize = trainingSamplesSize - MAX(d, sizeof(U64)) + 1;
   ctx->suffix = (U32 *)malloc(ctx->suffixSize * sizeof(U32));
   /* Maps index to the dmerID */
   ctx->dmerAt = (U32 *)malloc(ctx->suffixSize * sizeof(U32));
@@ -563,7 +582,7 @@ static int COVER_ctx_init(COVER_ctx_t *ctx, const void *samplesBuffer,
   ctx->freqs = NULL;
   ctx->d = d;
 
-  /* Fill offsets from the samlesSizes */
+  /* Fill offsets from the samplesSizes */
   {
     U32 i;
     ctx->offsets[0] = 0;
@@ -620,11 +639,11 @@ static size_t COVER_buildDictionary(const COVER_ctx_t *ctx, U32 *freqs,
   /* Divide the data up into epochs of equal size.
    * We will select at least one segment from each epoch.
    */
-  const U32 epochs = MAX(1, (U32)(dictBufferCapacity / parameters.k / 4));
-  const U32 epochSize = (U32)(ctx->suffixSize / epochs);
+  const unsigned epochs = MAX(1, (U32)(dictBufferCapacity / parameters.k / 4));
+  const unsigned epochSize = (U32)(ctx->suffixSize / epochs);
   size_t epoch;
-  DISPLAYLEVEL(2, "Breaking content into %u epochs of size %u\n", epochs,
-               epochSize);
+  DISPLAYLEVEL(2, "Breaking content into %u epochs of size %u\n",
+                epochs, epochSize);
   /* Loop through the epochs until there are no more segments or the dictionary
    * is full.
    */
@@ -651,7 +670,7 @@ static size_t COVER_buildDictionary(const COVER_ctx_t *ctx, U32 *freqs,
     memcpy(dict + tail, ctx->samples + segment.begin, segmentSize);
     DISPLAYUPDATE(
         2, "\r%u%%       ",
-        (U32)(((dictBufferCapacity - tail) * 100) / dictBufferCapacity));
+        (unsigned)(((dictBufferCapacity - tail) * 100) / dictBufferCapacity));
   }
   DISPLAYLEVEL(2, "\r%79s\r", "");
   return tail;
@@ -665,7 +684,7 @@ ZDICTLIB_API size_t ZDICT_trainFromBuffer_cover(
   BYTE* const dict = (BYTE*)dictBuffer;
   COVER_ctx_t ctx;
   COVER_map_t activeDmers;
-
+  parameters.splitPoint = 1.0;
   /* Initialize global data */
   g_displayLevel = parameters.zParams.notificationLevel;
   /* Checks */
@@ -684,7 +703,7 @@ ZDICTLIB_API size_t ZDICT_trainFromBuffer_cover(
   }
   /* Initialize context and activeDmers */
   if (!COVER_ctx_init(&ctx, samplesBuffer, samplesSizes, nbSamples,
-                      parameters.d)) {
+                      parameters.d, parameters.splitPoint)) {
     return ERROR(GENERIC);
   }
   if (!COVER_map_init(&activeDmers, parameters.k - parameters.d + 1)) {
@@ -703,7 +722,7 @@ ZDICTLIB_API size_t ZDICT_trainFromBuffer_cover(
         samplesBuffer, samplesSizes, nbSamples, parameters.zParams);
     if (!ZSTD_isError(dictionarySize)) {
       DISPLAYLEVEL(2, "Constructed dictionary of size %u\n",
-                   (U32)dictionarySize);
+                   (unsigned)dictionarySize);
     }
     COVER_ctx_destroy(&ctx);
     COVER_map_destroy(&activeDmers);
@@ -711,28 +730,65 @@ ZDICTLIB_API size_t ZDICT_trainFromBuffer_cover(
   }
 }
 
-/**
- * COVER_best_t is used for two purposes:
- * 1. Synchronizing threads.
- * 2. Saving the best parameters and dictionary.
- *
- * All of the methods except COVER_best_init() are thread safe if zstd is
- * compiled with multithreaded support.
- */
-typedef struct COVER_best_s {
-  ZSTD_pthread_mutex_t mutex;
-  ZSTD_pthread_cond_t cond;
-  size_t liveJobs;
-  void *dict;
-  size_t dictSize;
-  ZDICT_cover_params_t parameters;
-  size_t compressedSize;
-} COVER_best_t;
+
+
+size_t COVER_checkTotalCompressedSize(const ZDICT_cover_params_t parameters,
+                                    const size_t *samplesSizes, const BYTE *samples,
+                                    size_t *offsets,
+                                    size_t nbTrainSamples, size_t nbSamples,
+                                    BYTE *const dict, size_t dictBufferCapacity) {
+  size_t totalCompressedSize = ERROR(GENERIC);
+  /* Pointers */
+  ZSTD_CCtx *cctx;
+  ZSTD_CDict *cdict;
+  void *dst;
+  /* Local variables */
+  size_t dstCapacity;
+  size_t i;
+  /* Allocate dst with enough space to compress the maximum sized sample */
+  {
+    size_t maxSampleSize = 0;
+    i = parameters.splitPoint < 1.0 ? nbTrainSamples : 0;
+    for (; i < nbSamples; ++i) {
+      maxSampleSize = MAX(samplesSizes[i], maxSampleSize);
+    }
+    dstCapacity = ZSTD_compressBound(maxSampleSize);
+    dst = malloc(dstCapacity);
+  }
+  /* Create the cctx and cdict */
+  cctx = ZSTD_createCCtx();
+  cdict = ZSTD_createCDict(dict, dictBufferCapacity,
+                           parameters.zParams.compressionLevel);
+  if (!dst || !cctx || !cdict) {
+    goto _compressCleanup;
+  }
+  /* Compress each sample and sum their sizes (or error) */
+  totalCompressedSize = dictBufferCapacity;
+  i = parameters.splitPoint < 1.0 ? nbTrainSamples : 0;
+  for (; i < nbSamples; ++i) {
+    const size_t size = ZSTD_compress_usingCDict(
+        cctx, dst, dstCapacity, samples + offsets[i],
+        samplesSizes[i], cdict);
+    if (ZSTD_isError(size)) {
+      totalCompressedSize = ERROR(GENERIC);
+      goto _compressCleanup;
+    }
+    totalCompressedSize += size;
+  }
+_compressCleanup:
+  ZSTD_freeCCtx(cctx);
+  ZSTD_freeCDict(cdict);
+  if (dst) {
+    free(dst);
+  }
+  return totalCompressedSize;
+}
+
 
 /**
  * Initialize the `COVER_best_t`.
  */
-static void COVER_best_init(COVER_best_t *best) {
+void COVER_best_init(COVER_best_t *best) {
   if (best==NULL) return; /* compatible with init on NULL */
   (void)ZSTD_pthread_mutex_init(&best->mutex, NULL);
   (void)ZSTD_pthread_cond_init(&best->cond, NULL);
@@ -746,7 +802,7 @@ static void COVER_best_init(COVER_best_t *best) {
 /**
  * Wait until liveJobs == 0.
  */
-static void COVER_best_wait(COVER_best_t *best) {
+void COVER_best_wait(COVER_best_t *best) {
   if (!best) {
     return;
   }
@@ -760,7 +816,7 @@ static void COVER_best_wait(COVER_best_t *best) {
 /**
  * Call COVER_best_wait() and then destroy the COVER_best_t.
  */
-static void COVER_best_destroy(COVER_best_t *best) {
+void COVER_best_destroy(COVER_best_t *best) {
   if (!best) {
     return;
   }
@@ -776,7 +832,7 @@ static void COVER_best_destroy(COVER_best_t *best) {
  * Called when a thread is about to be launched.
  * Increments liveJobs.
  */
-static void COVER_best_start(COVER_best_t *best) {
+void COVER_best_start(COVER_best_t *best) {
   if (!best) {
     return;
   }
@@ -790,7 +846,7 @@ static void COVER_best_start(COVER_best_t *best) {
  * Decrements liveJobs and signals any waiting threads if liveJobs == 0.
  * If this dictionary is the best so far save it and its parameters.
  */
-static void COVER_best_finish(COVER_best_t *best, size_t compressedSize,
+void COVER_best_finish(COVER_best_t *best, size_t compressedSize,
                               ZDICT_cover_params_t parameters, void *dict,
                               size_t dictSize) {
   if (!best) {
@@ -812,6 +868,8 @@ static void COVER_best_finish(COVER_best_t *best, size_t compressedSize,
         if (!best->dict) {
           best->compressedSize = ERROR(GENERIC);
           best->dictSize = 0;
+          ZSTD_pthread_cond_signal(&best->cond);
+          ZSTD_pthread_mutex_unlock(&best->mutex);
           return;
         }
       }
@@ -821,10 +879,10 @@ static void COVER_best_finish(COVER_best_t *best, size_t compressedSize,
       best->parameters = parameters;
       best->compressedSize = compressedSize;
     }
-    ZSTD_pthread_mutex_unlock(&best->mutex);
     if (liveJobs == 0) {
       ZSTD_pthread_cond_broadcast(&best->cond);
     }
+    ZSTD_pthread_mutex_unlock(&best->mutex);
   }
 }
 
@@ -839,7 +897,7 @@ typedef struct COVER_tryParameters_data_s {
 } COVER_tryParameters_data_t;
 
 /**
- * Tries a set of parameters and upates the COVER_best_t with the results.
+ * Tries a set of parameters and updates the COVER_best_t with the results.
  * This function is thread safe if zstd is compiled with multithreaded support.
  * It takes its parameters as an *OWNING* opaque pointer to support threading.
  */
@@ -870,7 +928,7 @@ static void COVER_tryParameters(void *opaque) {
                                               dictBufferCapacity, parameters);
     dictBufferCapacity = ZDICT_finalizeDictionary(
         dict, dictBufferCapacity, dict + tail, dictBufferCapacity - tail,
-        ctx->samples, ctx->samplesSizes, (unsigned)ctx->nbSamples,
+        ctx->samples, ctx->samplesSizes, (unsigned)ctx->nbTrainSamples,
         parameters.zParams);
     if (ZDICT_isError(dictBufferCapacity)) {
       DISPLAYLEVEL(1, "Failed to finalize dictionary\n");
@@ -878,49 +936,10 @@ static void COVER_tryParameters(void *opaque) {
     }
   }
   /* Check total compressed size */
-  {
-    /* Pointers */
-    ZSTD_CCtx *cctx;
-    ZSTD_CDict *cdict;
-    void *dst;
-    /* Local variables */
-    size_t dstCapacity;
-    size_t i;
-    /* Allocate dst with enough space to compress the maximum sized sample */
-    {
-      size_t maxSampleSize = 0;
-      for (i = 0; i < ctx->nbSamples; ++i) {
-        maxSampleSize = MAX(ctx->samplesSizes[i], maxSampleSize);
-      }
-      dstCapacity = ZSTD_compressBound(maxSampleSize);
-      dst = malloc(dstCapacity);
-    }
-    /* Create the cctx and cdict */
-    cctx = ZSTD_createCCtx();
-    cdict = ZSTD_createCDict(dict, dictBufferCapacity,
-                             parameters.zParams.compressionLevel);
-    if (!dst || !cctx || !cdict) {
-      goto _compressCleanup;
-    }
-    /* Compress each sample and sum their sizes (or error) */
-    totalCompressedSize = dictBufferCapacity;
-    for (i = 0; i < ctx->nbSamples; ++i) {
-      const size_t size = ZSTD_compress_usingCDict(
-          cctx, dst, dstCapacity, ctx->samples + ctx->offsets[i],
-          ctx->samplesSizes[i], cdict);
-      if (ZSTD_isError(size)) {
-        totalCompressedSize = ERROR(GENERIC);
-        goto _compressCleanup;
-      }
-      totalCompressedSize += size;
-    }
-  _compressCleanup:
-    ZSTD_freeCCtx(cctx);
-    ZSTD_freeCDict(cdict);
-    if (dst) {
-      free(dst);
-    }
-  }
+  totalCompressedSize = COVER_checkTotalCompressedSize(parameters, ctx->samplesSizes,
+                                                       ctx->samples, ctx->offsets,
+                                                       ctx->nbTrainSamples, ctx->nbSamples,
+                                                       dict, dictBufferCapacity);
 
 _cleanup:
   COVER_best_finish(data->best, totalCompressedSize, parameters, dict,
@@ -941,6 +960,8 @@ ZDICTLIB_API size_t ZDICT_optimizeTrainFromBuffer_cover(
     ZDICT_cover_params_t *parameters) {
   /* constants */
   const unsigned nbThreads = parameters->nbThreads;
+  const double splitPoint =
+      parameters->splitPoint <= 0.0 ? DEFAULT_SPLITPOINT : parameters->splitPoint;
   const unsigned kMinD = parameters->d == 0 ? 6 : parameters->d;
   const unsigned kMaxD = parameters->d == 0 ? 8 : parameters->d;
   const unsigned kMinK = parameters->k == 0 ? 50 : parameters->k;
@@ -958,6 +979,10 @@ ZDICTLIB_API size_t ZDICT_optimizeTrainFromBuffer_cover(
   POOL_ctx *pool = NULL;
 
   /* Checks */
+  if (splitPoint <= 0 || splitPoint > 1) {
+    LOCALDISPLAYLEVEL(displayLevel, 1, "Incorrect parameters\n");
+    return ERROR(GENERIC);
+  }
   if (kMinK < kMaxD || kMaxK < kMinK) {
     LOCALDISPLAYLEVEL(displayLevel, 1, "Incorrect parameters\n");
     return ERROR(GENERIC);
@@ -988,7 +1013,7 @@ ZDICTLIB_API size_t ZDICT_optimizeTrainFromBuffer_cover(
     /* Initialize the context for this value of d */
     COVER_ctx_t ctx;
     LOCALDISPLAYLEVEL(displayLevel, 3, "d=%u\n", d);
-    if (!COVER_ctx_init(&ctx, samplesBuffer, samplesSizes, nbSamples, d)) {
+    if (!COVER_ctx_init(&ctx, samplesBuffer, samplesSizes, nbSamples, d, splitPoint)) {
       LOCALDISPLAYLEVEL(displayLevel, 1, "Failed to initialize context\n");
       COVER_best_destroy(&best);
       POOL_free(pool);
@@ -1013,6 +1038,7 @@ ZDICTLIB_API size_t ZDICT_optimizeTrainFromBuffer_cover(
       data->parameters = *parameters;
       data->parameters.k = k;
       data->parameters.d = d;
+      data->parameters.splitPoint = splitPoint;
       data->parameters.steps = kSteps;
       data->parameters.zParams.notificationLevel = g_displayLevel;
       /* Check the parameters */
@@ -1030,7 +1056,7 @@ ZDICTLIB_API size_t ZDICT_optimizeTrainFromBuffer_cover(
       }
       /* Print status */
       LOCALDISPLAYUPDATE(displayLevel, 2, "\r%u%%       ",
-                         (U32)((iteration * 100) / kIterations));
+                         (unsigned)((iteration * 100) / kIterations));
       ++iteration;
     }
     COVER_best_wait(&best);

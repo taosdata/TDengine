@@ -10,12 +10,13 @@ description: SELECT 语句语法、常用子句与查询示例
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
 SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
-    from_clause
+    [from_clause]
     [WHERE condition]
     [partition_by_clause]
     [interp_clause]
     [window_clause]
     [group_by_clause]
+    [having_clause]
     [order_by_clause]
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
@@ -24,7 +25,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
 
 select_list:
     select_expr [, select_expr] ...
@@ -56,8 +57,14 @@ table_expr: {
 column_list:
     col_name type_name [, col_name type_name] ...
 
-join_clause:
-    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
+join_clause: {
+    [INNER] JOIN table_reference ON condition
+  | {LEFT|RIGHT|FULL} [OUTER] JOIN table_reference ON condition
+  | {LEFT|RIGHT} {SEMI|ANTI} JOIN table_reference ON condition
+  | CROSS JOIN table_reference
+  | {LEFT|RIGHT} ASOF JOIN table_reference [ON condition] [JLIMIT jlimit_num]
+  | {LEFT|RIGHT} WINDOW JOIN table_reference [ON condition] WINDOW_OFFSET(start_offset, end_offset) [JLIMIT jlimit_num]
+}
 
 window_clause: {
     SESSION(ts_col, tol_val)
@@ -81,17 +88,20 @@ fill_mode_and_val:
   | PREV|NEXT|NEAR
   | LINEAR
 
-group_by_clause:
-    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
-
-group_by_expr:
-    {expr | position | c_alias}
-
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
 
 partition_by_expr:
     {expr | position | c_alias}
+
+group_by_clause:
+    GROUP BY group_by_expr [, group_by_expr] ...
+
+group_by_expr:
+    {expr | position | c_alias}
+
+having_clause:
+    HAVING condition
 
 order_by_clause:
     ORDER BY order_expr [, order_expr] ...
@@ -123,7 +133,7 @@ limit_expr: {
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
 - table_expr: 指定查询数据源，可以为表名、视图名、子查询，或内联数据源（`TEXT` 或 `FILE`）。详见 [TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
 - column_list: `TEXT` 和 `FILE` 共用的列定义语法，每项为 `col_name type_name`。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
-- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参见 [关联查询](05-join.md)。
+- join_clause: 连接查询。普通 JOIN 支持子表、普通表、超级表、虚拟表和子查询。WINDOW JOIN 必须指定 `WINDOW_OFFSET(start_offset, end_offset)`，设置窗口边界相对驱动表主键时间戳的偏移；时间单位见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。`JLIMIT` 限制每行最多匹配的行数，取值范围为 `[0, 1024]`；省略时，ASOF JOIN 默认最多匹配 1 行，WINDOW JOIN 匹配窗口内的全部行。ASOF/WINDOW 的输入限制和详细语法见 [关联查询](05-join.md)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详见 [特色查询](04-distinguished.md)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
   - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 `v3.4.2.0` 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
@@ -139,7 +149,7 @@ limit_expr: {
 - group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
 - partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
 - order_expr: 指定输出数据排序规则，默认不排序。支持表达式、函数、位置、列、别名，可以在单列或者多列中每列使用不同的排序规则，可以指定空值排序在前或者在后。
-- SLIMIT: 指定输出分片数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，limit_val 和 offset_val 均为正值，在 PARTITION BY、GROUP BY 子句中使用。使用 ORDER BY 子句时只输出一个分片。
+- SLIMIT: 指定输出分片数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，二者均为正值。它与 `PARTITION BY`、`GROUP BY` 或由 `HAVING` 产生的隐式分区配合使用。使用 `ORDER BY` 子句时只输出一个分片。
 - LIMIT: 指定输出数据数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，limit_val 和 offset_val 均为正值。使用 PARTITION BY 子句时控制的是每个分片的数量。
 
 ## Hints
@@ -159,11 +169,16 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 | `BATCH_SCAN`          | 无 | 采用批量读表方式 | 超级表 `JOIN` 语句 |
 | `NO_BATCH_SCAN`       | 无 | 采用顺序读表方式 | 超级表 `JOIN` 语句 |
 | `SORT_FOR_GROUP`      | 无 | 采用 sort 方式分组，与 `PARTITION_FIRST` 冲突 | `PARTITION BY` 列表含普通列时 |
-| `PARTITION_FIRST`     | 无 | 聚合前先按 `PARTITION` 分组，与 `SORT_FOR_GROUP` 冲突 | `PARTITION BY` 列表含普通列时 |
+| `PARTITION_FIRST`     | 无 | 优先保留独立的 `Partition` 算子完成分区，与 `SORT_FOR_GROUP` 冲突 | `PARTITION BY` 列表含普通列时；从 `v3.4.3.0` 起，也适用于超级表按标签列或 `tbname` 分区的 `STATE_WINDOW` 查询 |
 | `PARA_TABLES_SORT`    | 无 | 超级表按时间戳排序时不使用临时磁盘空间，仅使用内存；子表多、行长大时可能 OOM | 超级表按时间戳排序时 |
 | `SMALLDATA_TS_SORT`   | 无 | 超级表按时间戳排序时，查询列长度大于等于 256 但行数不多，可提升性能 | 超级表按时间戳排序时 |
 | `SMALLDATA_SCAN_SORT` | 无 | 超级表需要按时间戳有序扫描输出时，用普通表扫描加排序代替表合并扫描；每 vnode 数据量较小时更优。适用于引擎会用表合并扫描产生时间戳有序输出的场景，包括 `ORDER BY ts`，以及会话窗口 `SESSION`、状态窗口 `STATE_WINDOW`（无需显式 `ORDER BY`）；对时间窗口 `INTERVAL`（本身不使用表合并扫描）以及按非时间戳列的 `ORDER BY` 无效 | 小数据量超级表需要时间戳有序时 |
 | `SKIP_TSMA`           | 无 | 显式禁用 TSMA 查询优化 | 带聚合函数的查询语句 |
+| `FAST_INTERVAL`       | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 FAST 执行路径 | 无 `PARTITION BY`、`FILL`、窗口偏移或滑动，且不使用日/周/月/年自然时间单位的超级表 `INTERVAL` 聚合查询 |
+| `EX_INTERVAL`         | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 EX 执行路径 | 满足 `FAST_INTERVAL` 的基础窗口条件，且无 `LIMIT`、`SLIMIT`；查询仅有一个表扫描、所有 vgroup 位于同一 dnode，选择列表仅支持 `_wstart`、`_wend`、`_wduration`、`COUNT`、`SUM` 和 `AVG` 的受限组合 |
+| `JOIN_ALGO` | `HASH`、`MERGE` 或 `THETA`，仅一个参数 | 自 `v3.4.3.0` 起支持，指定 JOIN 算法偏好，不适用时回退；详见 [JOIN 算法与 Hint](./05-join.md#join-算法与-hint) | 普通 JOIN |
+| `HASH_JOIN` | 无 | 已有写法，对应 `JOIN_ALGO(HASH)` | 普通 JOIN |
+| `MERGE_JOIN` | 无 | 自 `v3.4.3.0` 起支持，对应 `JOIN_ALGO(MERGE)` | 普通 JOIN |
 
 示例：
 
@@ -171,10 +186,20 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ gid, _wstart, COUNT(*) FROM meters PARTITION BY gid STATE_WINDOW(status);
+SELECT /*+ PARTITION_FIRST() */ category, _wstart, COUNT(*) FROM meters PARTITION BY category STATE_WINDOW(status);
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
+SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
+SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 ```
+
+从 `v3.4.3.0` 起，`PARTITION_FIRST` 也适用于超级表按标签列或 `tbname` 分区的状态窗口查询。在该执行路径中，Table Merge Scan 先扫描相关子表，独立的 `Partition` 算子再按标签列或 `tbname` 组织分区，之后由 `STATE_WINDOW` 在每个分区内计算状态窗口。多 vnode 查询会保持分区内的主时间戳顺序；表具有第二主键时，也会使用第二主键确定相同时间戳记录的顺序。
+
+当 `PARTITION BY` 包含普通数据列，或者同时包含标签和普通数据列时，系统在有无 `PARTITION_FIRST` 时都会保留独立的 `Partition`。这是因为普通列的值可能逐行变化，不能按子表标签在扫描阶段预先分组。多 vnode 查询同样会保持分区内的主时间戳和可选第二主键顺序。此类查询使用 Hint 通常不会改变算子结构，也不应预期获得额外的扫描性能收益。
+
+该 Hint 不改变查询结果语义。对纯标签或 `tbname` 分区，它主要用于减少大量小分区带来的扫描分组切换和小数据块调度开销；少量大分区可能因额外的分区重组而无法获得性能收益。建议使用 `EXPLAIN` 确认计划中存在独立的 `Partition`，并使用 `EXPLAIN ANALYZE` 对比启用 Hint 前后的耗时和资源使用。不使用该 Hint 时，系统继续采用默认计划。
 
 ## SELECT 列表
 
@@ -343,7 +368,7 @@ TDengine 支持基于时间戳主键的 `INNER JOIN`，规则如下：
 
 ## JOIN 子句
 
-`JOIN` 用于多表关联查询。自 `v3.3.0.0` 起，TDengine 除内连接外，还支持 `LEFT` / `RIGHT` / `FULL` / `SEMI` / `ANTI` 等传统连接，以及时序场景中的 `ASOF JOIN`、`WINDOW JOIN`。`JOIN` 可在子表、普通表、超级表以及子查询之间进行。
+`JOIN` 用于多表关联查询。自 `v3.3.0.0` 起，TDengine 除内连接外，还支持 `LEFT` / `RIGHT` / `FULL` / `SEMI` / `ANTI` 等传统连接，以及时序场景中的 `ASOF JOIN`、`WINDOW JOIN`。自 `v3.4.3.0` 起，普通 JOIN 支持业务列等值、表达式、范围和组合布尔条件，不再要求主时间戳等值；可在子表、普通表、超级表、虚拟表以及子查询之间关联。该版本同时支持显式 CROSS JOIN 和无 WHERE 的逗号连接；ASOF/WINDOW 的适用范围保持专用限制。详见 [普通 JOIN 的条件支持](./05-join.md#普通-join-的条件支持) 和 [JOIN 算法与 Hint](./05-join.md#join-算法与-hint)。
 
 完整语法、连接类型与限制说明参见 [关联查询](05-join.md)。
 
@@ -524,6 +549,7 @@ INTERVAL(1h);
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 参见 [时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周，不支持月/季/年）。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](#fill-子句)。注意：插值时所使用的采样数据并非限制于 RANGE 字段的约束，而是满足 WHERE 子句条件的全部数据，如果没有指定 WHERE 子句，则为全表数据；FILL 子句的参数为 PREV/NEXT/NEAR 时，会使用相邻的有效数据进行插值，NULL 数据能否被认定为有效数据，取决于 INTERP 函数的 ignore_null_values 参数。若想限制采样数据的范围，可以使用 SURROUND 子句。
+- INTERP 与 PARTITION BY 联用时，如果分组键包含普通列或普通列表达式，只有经过 WHERE 过滤后、在 RANGE 范围内至少存在一条源数据的组才参与输出；仅在 RANGE 两侧存在数据的组不会输出。如果分组键仅由标签、TBNAME 等静态键组成，候选组由满足 WHERE 条件的数据确定，因此 RANGE 内没有数据的组也可能输出。该组最终能否产生结果仍取决于 FILL 模式及可用的相邻参照数据。（v3.4.3.0 及以后支持）
 - INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`。
 - INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的有效数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值。此模式在窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (`v3.3.4.9` 及以后支持)。
 
@@ -664,6 +690,42 @@ GROUP BY 子句中在使用位置语法和结果集列名进行分组时，其�
 
 详见 [特色查询](04-distinguished.md)。
 
+## HAVING
+
+`HAVING` 子句用于在分组、分区或窗口计算后筛选结果。它可以和 `GROUP BY`、`PARTITION BY` 或窗口子句一起使用。当本查询层没有这些子句和窗口关联时，也可以使用 `HAVING`；此时 TDengine 将全部输入视为一个隐式分区，其语义等价于按照取值恒定的列执行 `PARTITION BY`。
+
+`WHERE` 在分组、分区或窗口计算前筛选输入行，而 `HAVING` 筛选这些计算产生的结果。`HAVING` 后的条件表达式可以使用普通列或聚合函数：普通列表达式按列值筛选，聚合表达式按聚合结果筛选。
+
+使用 `HAVING` 时需注意以下限制：
+
+1. 对于聚合查询和窗口查询，`HAVING` 中未聚合的普通列必须是分组键、分区键或窗口键，非键列不能用于筛选。这类查询包括 `GROUP BY` 查询，以及使用 `PARTITION BY` 或窗口子句执行聚合或窗口计算的查询。对于非聚合查询，即仅使用 `PARTITION BY` 切分数据、但不执行聚合或窗口计算的查询，分区内的行不会合并，因此 `HAVING` 可以引用任意普通列，包括非分区键列。
+2. 不使用 `GROUP BY`、`PARTITION BY`、窗口子句或窗口关联时，普通列表达式和聚合表达式可以分别使用，但不能在同一查询层混用。TDengine 会将全部输入视为一个隐式分区，其分区键是常量。例如，`SELECT current FROM meters HAVING COUNT(*) > 5` 中，`SELECT` 列表的普通列 `current` 与 `HAVING` 中的聚合表达式冲突；`SELECT COUNT(*) FROM meters HAVING COUNT(*) > 5 AND current > 10` 中，`HAVING` 的普通列表达式 `current > 10` 与聚合表达式冲突，这两条语句均非法。
+3. 窗口关联仅支持在 `HAVING` 中使用聚合函数筛选，不支持标量筛选。详细限制参见 [Left/Right Window Join](05-join.md#leftright-window-join)。
+
+以下示例分别展示聚合查询、非聚合查询和隐式分区查询中的合法用法：
+
+```sql
+-- 聚合查询：普通列 location 是分组键
+SELECT location, COUNT(*)
+FROM meters
+GROUP BY location
+HAVING location = 'California.SanFrancisco' AND COUNT(*) > 10;
+
+-- 非聚合 PARTITION BY 查询：current 不是分区键，也可以用于筛选
+SELECT ts, current
+FROM meters
+PARTITION BY location
+HAVING current > 10;
+
+-- 隐式分区查询：仅使用普通列表达式
+SELECT ts, current FROM meters HAVING current > 10;
+
+-- 隐式分区查询：仅使用聚合表达式
+SELECT COUNT(*), AVG(current)
+FROM meters
+HAVING COUNT(*) > 100;
+```
+
 ## ORDER BY
 
 ORDER BY 子句对结果集排序。如果没有指定 ORDER BY，无法保证同一语句多次查询的结果集返回顺序一致。
@@ -688,7 +750,7 @@ function_name ( [ arguments ] ) OVER (
 )
 ```
 
-窗口函数既支持已有聚合 / 选择函数（如 `avg`、`sum`、`first`）配合 `OVER` 子句使用，也支持专用窗口函数，例如 `row_number`、`rank`、`dense_rank`、`percent_rank`、`cume_dist`、`lag`、`lead`、`first_value`、`last_value`、`nth_value`。窗口函数只能出现在 `SELECT` 列表和 `ORDER BY` 中。完整语法、框架规则、命名窗口与函数列表见 [窗口函数](./06-window-function.md)。
+窗口函数既支持已有聚合 / 选择函数（如 `avg`、`sum`、`first`）配合 `OVER` 子句使用，也支持专用窗口函数，例如 `row_number`、`rank`、`dense_rank`、`percent_rank`、`cume_dist`、`lag`、`lead`、`first_value`、`last_value`、`nth_value`。窗口函数只能出现在 `SELECT` 列表和 `ORDER BY` 中。完整语法、框架规则、命名窗口与函数列表见 [窗口函数](./07-window-function.md)。
 
 ## LIMIT
 
@@ -696,11 +758,11 @@ LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/O
 
 在有 PARTITION BY/GROUP BY 子句时，LIMIT 控制的是每个切分的分片中的输出，而不是总的结果集输出。
 
-从 `v3.4.2.0` 起，`OFFSET N` 可以单独使用、不必搭配 `LIMIT`，便于跳过 [窗口函数](./06-window-function.md) 计算后的预热行。
+从 `v3.4.2.0` 起，`OFFSET N` 可以单独使用、不必搭配 `LIMIT`，便于跳过 [窗口函数](./07-window-function.md) 计算后的预热行。
 
 ## SLIMIT
 
-SLIMIT 和 PARTITION BY/GROUP BY 子句一起使用，用来控制输出的分片的数量。`SLIMIT 5 SOFFSET 2` 可以简写为 SLIMIT `2, 5`，都表示输出第 3 个到第 7 个分片。
+SLIMIT 和 `PARTITION BY`、`GROUP BY` 子句一起使用，用于控制输出分片的数量。由 `HAVING` 产生的隐式分区也支持 SLIMIT。`SLIMIT 5 SOFFSET 2` 可以简写为 `SLIMIT 2, 5`，均表示输出第 3 个到第 7 个分片。
 
 需要注意，如果有 ORDER BY 子句，则输出只有一个分片。
 
@@ -737,9 +799,7 @@ WHERE ts >= '2024-01-01 00:00:00'
   AND ts < '2024-02-01 00:00:00';
 ```
 
-其中，[NOW()](03-function.md#now) 返回当前时间，[TODAY()](03-function.md#today) 返回当前日期零点，
-[TIMETRUNCATE()](03-function.md#timetruncate) 用于按指定时间单位截断时间戳。
-时间字符串的解析和显示受当前连接时区影响，详见[时区](../10-time/01-timezone.md)。
+其中，[NOW()](03-function.md#now) 返回当前时间，[TODAY()](03-function.md#today) 返回当前日期零点，[TIMETRUNCATE()](03-function.md#timetruncate) 用于按指定时间单位截断时间戳。时间字符串的解析和显示受当前连接时区影响，详见 [时区](../10-time/01-timezone.md)。
 
 ## 无 FROM 的特殊查询
 
@@ -845,11 +905,15 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## 时间线
 
-TDengine 的时间线函数（如 `diff`、`derivative`、`twa`、`elapsed` 等）和窗口算子（如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）需要一条有效时间线才能执行。
+自 `v3.4.3.0` 起，普通 JOIN 不强制要求主键时间戳列作为连接条件，优化器会根据条件与输入顺序自动选择适用算法。这个放宽仅涉及 JOIN 的执行，不取消后续时间线函数和窗口算子的时间线要求，详见 [JOIN 的主键时间线](./05-join.md#主键时间线)。
+
+依赖时间值或时间差的函数（如 `DERIVATIVE`、`TWA`、`ELAPSED`）和窗口算子（如 `INTERVAL`、`SESSION`、`STATE_WINDOW`）需要一条有效时间线才能执行。只依赖行序的函数可以在无时间列模式下计算，见下文。
 
 直接查询物理表或虚拟表时，系统时间列（主键列 `ts`/`_rowts`，以及窗口伪列 `_wstart` 等派生列）自动作为有效时间线，用户无需额外操作。
 
-当外层查询的输入来自子查询，且子查询结果中不存在系统时间列、或系统时间列不有序时，系统会自动选择输出列中第一个 `TIMESTAMP` 类型列作为退化时间线。如果不存在任何 `TIMESTAMP` 列，仅 `first`、`last`、`last_row` 可按输入行顺序返回结果，其他时间线函数和窗口算子报错。
+当外层查询的输入来自子查询，且子查询结果中不存在系统时间列、或系统时间列不有序时，系统会自动选择输出列中第一个 `TIMESTAMP` 类型列作为退化时间线。
+
+如果不存在任何 `TIMESTAMP` 列，查询进入无时间列模式。`FIRST`、`LAST`、`LAST_ROW`、`DIFF`、`CSUM`、`MAVG`、`STATECOUNT`、`LAG`、`LEAD`、`FILL_FORWARD` 和 `UNIQUE` 按输入行顺序计算。需要时间值、时间差、时间加权或窗口边界的函数和窗口算子仍然报错，例如 `DERIVATIVE`、`TWA`、`ELAPSED`、`STATEDURATION`、`INTERP` 和 `INTERVAL`。需要稳定行序时，在子查询中显式使用 `ORDER BY`。各函数的具体行为见 [序列分析函数](./03-function.md#序列分析函数)，`UNIQUE` 见 [UNIQUE](./03-function.md#unique)。
 
 ```sql
 -- 子查询未输出系统时间列 ts，event_time 成为退化时间线
@@ -861,7 +925,18 @@ FROM (
 );
 ```
 
-**注意**：退化时间线的数据质量由用户负责。如果退化时间线乱序，依赖时间差的函数（`derivative`、`twa`、`elapsed`、`stateduration`、`interp`）结果可能无物理意义。用户应在子查询中通过 `ORDER BY` 保证退化时间线有序。
+```sql
+-- 结果中没有 TIMESTAMP 列时，按子查询的 ORDER BY 计算相邻差值
+SELECT DIFF(avg_v)
+FROM (
+  SELECT groupId, AVG(voltage) AS avg_v
+  FROM meters
+  GROUP BY groupId
+  ORDER BY groupId
+);
+```
+
+**注意**：退化时间线的数据质量由用户负责。如果退化时间线乱序，依赖时间差的函数（`DERIVATIVE`、`TWA`、`ELAPSED`、`STATEDURATION`、`INTERP`）结果可能无物理意义。用户应在子查询中通过 `ORDER BY` 保证退化时间线有序。无时间列模式下，不写 `ORDER BY` 时输入行顺序不保证每次相同。
 
 ## 子查询
 
@@ -879,13 +954,13 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 - 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
 - 外层查询支持直接通过列名或\`列名\`的形式引用内层查询的列或伪列。
-- 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
+- 内层和外层查询都支持普通 JOIN；子查询结果也可参与关联。ASOF/WINDOW 的输入限制见 [关联查询](./05-join.md)。
 - 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
-  - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
+  - 如果内层排序不用于 `LIMIT` 取行，也不用于满足后续时间线运算的顺序要求，一般建议省略内层 `ORDER BY`，避免不必要的排序开销。需要最终结果有序时，应在外层指定 `ORDER BY`。
+  - 内层查询同时使用 `ORDER BY` 和 `LIMIT` 时，排序决定选取哪些行；该语义在参与 JOIN 时保持不变。
 - 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
   - 计算函数部分：
-    - 如果内层查询的结果数据未提供任何 TIMESTAMP 类型列，那么依赖时间线的函数在外层无法使用（仅 FIRST、LAST、LAST_ROW 可按输入行顺序返回结果）。如果内层查询输出了普通 TIMESTAMP 列但未输出主键列，系统会自动选择第一个 TIMESTAMP 列作为退化时间线。
-    - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES、ELAPSED、INTERP、DERIVATIVE、IRATE、TWA、DIFF、STATECOUNT、STATEDURATION、CSUM、MAVG、TAIL、UNIQUE。
+    - 后续时间线函数和窗口查询对时间列及顺序的要求，见 [时间线](#时间线)。普通 JOIN 可以执行，不代表其输出已满足这些要求。
     - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
 
 :::
@@ -904,6 +979,20 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
 SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 ```
+
+### 相关标量子查询
+
+相关标量子查询引用外层查询块的列，并在外层表达式实际求值时，使用当前行的值执行内层查询。例如：
+
+```sql
+SELECT r.ts, r.c1,
+       (SELECT h.c1 FROM history h WHERE h.device_id = r.device_id ORDER BY h.ts DESC LIMIT 1)
+FROM readings r;
+```
+
+内层查询必须只返回一列。返回零行时，表达式结果为该列类型的 `NULL`；返回一行时，使用该行的值；返回多行时报错。`LIMIT 1` 可以明确限制结果基数。相关引用可以来自当前外层查询块或更外层的祖先查询块，内层每次执行都使用对应调用位置的值。
+
+相关标量子查询可用于普通查询和 `INSERT INTO ... SELECT` 的查询部分。查询中的非相关子查询仍按原有方式独立计算和复用。当前不支持相关 `IN`、`EXISTS`、`ANY`、`ALL`、行子查询，以及在 `FROM` 派生表中引用外层列；这些限制不影响查询中已有的非相关子查询。流计算、订阅、DDL 及其他 DML 语句不支持相关标量子查询。`queryPolicy` 为 `4`（客户端聚合）时也不支持，查询报错 `Client query policy does not support correlated scalar subqueries`；`queryPolicy` 为 `1`、`2`、`3` 时支持。
 
 ### 子查询表达式
 

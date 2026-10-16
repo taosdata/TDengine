@@ -64,7 +64,7 @@ MQTT DSN parameters:
 
 - `ip`: IP address of the MQTT broker.
 - `port`: Port of the MQTT broker.
-- `version`: MQTT protocol version, required, options are 3.1/3.1.1/5.0.
+- `version`: MQTT protocol version, required, options are `3.1.1`/`5.0`. MQTT 3.1 (legacy, MQIsdp) is not supported; `3.1` is treated as `3.1.1`.
 - `qos`: MQTT QoS level, default is 0.
 - `client_id`: MQTT client ID, required, must be unique for each client.
 - `topic`: Target MQTT topic for data publishing, required.

@@ -592,8 +592,13 @@ taos> select last(val), last(event_time) from (select val, event_time from t1);
           10 | 2022-05-15 00:00:05.000 |
 
 taos> select diff(val) from (select val from t1);
+       diff(val)       |
+========================
+                    10 |
+                    10 |
+                    10 |
+                    10 |
 
-DB error: Valid primary timestamp required [0x80002674]
 taos> select diff(val) from (select 1 blk, ts, val from t1 union all select 2 blk, ts, val from t2 order by blk, ts);
        diff(val)       |
 ========================
@@ -618,14 +623,26 @@ taos> select csum(val) from (select 1 blk, ts, event_time, val from t1 union all
                    360 |
 
 taos> select fill_forward(val) from (select val from t1);
+ fill_forward(val) |
+====================
+                10 |
+                20 |
+                30 |
+                40 |
+                50 |
 
-DB error: Valid primary timestamp required [0x80002674]
 taos> select tail(val, 2) from (select val from t1);
 
 DB error: Valid primary timestamp required [0x80002674]
 taos> select unique(val) from (select val from t1);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
 
-DB error: Valid primary timestamp required [0x80002674]
 taos> create table t_allnull (ts timestamp, val int);
 Create OK, 0 row(s) affected
 

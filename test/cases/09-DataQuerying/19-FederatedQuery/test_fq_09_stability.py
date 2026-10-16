@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_09_stability.py
 
@@ -15,7 +30,8 @@ environment would increase the count and duration.
 
 Design notes:
     - Tests use internal vtables where possible so no external DB is needed.
-    - Fault-injection tests stop/start real MySQL instances to simulate unreachable sources.
+    - Fault-injection tests stop/start real MySQL / SQL Server instances to
+      simulate unreachable sources.
     - Connection pool stability uses burst sequential queries on internal vtables.
     - Each test is guarded with try/finally to ensure environment cleanup.
     - teardown_class prints a structured test summary.
@@ -35,7 +51,6 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     ExtSrcEnv,
-    TSDB_CODE_PAR_INVALID_COLUMN,
     TSDB_CODE_PAR_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
@@ -61,6 +76,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     #   FQ_STAB_DRIFT_CYCLES      Drift-check repetition count      (default 49)
     #   FQ_STAB_POOL_HOLD_S       Seconds to hold saturating connection (default 3)
     #   FQ_STAB_POOL_RETRY_WAIT_S Max seconds to wait for retry success (default 12)
+    #   FQ_STAB_SS_REPEAT         SQL Server repeat-query count     (default 10)
     #
     # Example (full stress run):
     #   FQ_STAB_ITERS=200 FQ_STAB_BURST_COUNT=20 FQ_STAB_BURST_SIZE=100 pytest fq_09...
@@ -79,6 +95,8 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     #   Must exceed EXT_POOL_RETRY_MAX_TIMES * EXT_POOL_RETRY_DELAY_MS (5 s).
     _STAB_POOL_HOLD_S       = float(os.getenv("FQ_STAB_POOL_HOLD_S",       "3.0"))
     _STAB_POOL_RETRY_WAIT_S = float(os.getenv("FQ_STAB_POOL_RETRY_WAIT_S", "12.0"))
+    # SQL Server repeated-query count (FQSS-LOCAL-011).
+    _STAB_SS_REPEAT         = int(os.getenv("FQ_STAB_SS_REPEAT",           "10"))
 
     # Class-level test result registry used by teardown_class summary
     _test_results: list = []
@@ -1270,3 +1288,347 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
             raise
         finally:
             self._cleanup_src(src)
+
+    # ------------------------------------------------------------------
+    # STAB-S09  SQL Server: repeated identical queries (FQSS-LOCAL-011)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s09_sqlserver_repeat_consistency(self):
+        """FQSS-LOCAL-011: the same SQL executed repeatedly stays consistent
+
+        SQL Server source under the step-1 zero-pushdown path: one aggregate
+        SQL is executed _STAB_SS_REPEAT times back-to-back and every run must
+        return exactly the baseline result (no drift between consecutive
+        executions).
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Initial implementation
+
+        """
+        _test_name = "STAB-S09_sqlserver_repeat_consistency"
+        repeat = self._STAB_SS_REPEAT
+        self._start_test(
+            _test_name,
+            f"SQL Server same SQL x{repeat}, every run must match the first",
+            repeat,
+        )
+        src = "fq_stab_s09_ss_src"
+        ext_db = "fq_stab_s09_ss_db"
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, [
+                "IF OBJECT_ID('dbo.stab_ss_t') IS NOT NULL "
+                "DROP TABLE dbo.stab_ss_t",
+                "CREATE TABLE dbo.stab_ss_t "
+                "(ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+                "INSERT INTO dbo.stab_ss_t (ts, val) VALUES "
+                "('2024-01-01 00:00:00.000', 10),"
+                "('2024-01-01 00:00:01.000', 20),"
+                "('2024-01-01 00:00:02.000', 30),"
+                "('2024-01-01 00:00:03.000', 40)",
+            ])
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            sql = (f"select count(*), sum(val), min(val), max(val) "
+                   f"from {src}.stab_ss_t")
+            baseline = None
+            for i in range(repeat):
+                tdSql.query(sql)
+                tdSql.checkRows(1)
+                row = tuple(tdSql.queryResult[0])
+                if baseline is None:
+                    baseline = row
+                    tdSql.checkData(0, 0, 4)     # count
+                    tdSql.checkData(0, 1, 100)   # sum = 10+20+30+40
+                    tdSql.checkData(0, 2, 10)    # min
+                    tdSql.checkData(0, 3, 40)    # max
+                elif row != baseline:
+                    raise AssertionError(
+                        f"result drift at execution {i + 1}/{repeat}: "
+                        f"got {row}, baseline {baseline}"
+                    )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-S10  SQL Server: concurrent namespace isolation (FQSS-ERR-012)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s10_sqlserver_namespace_isolation(self):
+        """FQSS-ERR-012: concurrent sessions do not cross namespace boundaries
+
+        One SQL Server source exposes the same table name in two schemas
+        (dbo.stab_ns_t and fq_ns2.stab_ns_t) holding different data.  Two
+        logical sessions switch to a different database/schema context with
+        USE <src>.<db>.<schema> and query the 2-segment path <src>.stab_ns_t;
+        every query must keep returning the rows of the session's own schema.
+
+        tdSql is a single connection and the native client is not thread-safe,
+        so each worker serializes its USE + query pair under a lock (the same
+        proxy used by stab_s04); what is exercised here is the namespace
+        context switching between the two logical sessions.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Initial implementation
+
+        """
+        _test_name = "STAB-S10_sqlserver_namespace_isolation"
+        _THREAD_COUNT = 2
+        _QUERIES_PER_THREAD = 5
+        self._start_test(
+            _test_name,
+            f"{_THREAD_COUNT} sessions x {_QUERIES_PER_THREAD} queries on "
+            f"different database/schema contexts",
+            _THREAD_COUNT * _QUERIES_PER_THREAD,
+        )
+        src = "fq_stab_s10_ss_src"
+        ext_db = "fq_stab_s10_ss_db"
+        alt_schema = "fq_ns2"
+        local_db = "fq_stab_s10_local"
+        self._cleanup_src(src)
+        errors: list = []
+        results: list = []
+        results_lock = threading.Lock()
+
+        try:
+            # Local database: restored as the session context in the finally
+            # block before the external namespace is dropped.
+            tdSql.execute(f"drop database if exists {local_db}")
+            tdSql.execute(f"create database {local_db}")
+
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, [
+                f"IF SCHEMA_ID(N'{alt_schema}') IS NULL "
+                f"EXEC('CREATE SCHEMA {alt_schema}')",
+                "IF OBJECT_ID('dbo.stab_ns_t') IS NOT NULL "
+                "DROP TABLE dbo.stab_ns_t",
+                f"IF OBJECT_ID('{alt_schema}.stab_ns_t') IS NOT NULL "
+                f"DROP TABLE {alt_schema}.stab_ns_t",
+                "CREATE TABLE dbo.stab_ns_t "
+                "(ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+                f"CREATE TABLE {alt_schema}.stab_ns_t "
+                "(ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+                "INSERT INTO dbo.stab_ns_t (ts, val) VALUES "
+                "('2024-01-01 00:00:00.000', 1),"
+                "('2024-01-01 00:00:01.000', 2),"
+                "('2024-01-01 00:00:02.000', 3)",
+                f"INSERT INTO {alt_schema}.stab_ns_t (ts, val) VALUES "
+                "('2024-01-01 00:00:00.000', 101),"
+                "('2024-01-01 00:00:01.000', 102),"
+                "('2024-01-01 00:00:02.000', 103)",
+            ])
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            # Fully-qualified paths: the same table name in two schemas must
+            # stay distinct no matter what the default context is.
+            tdSql.execute(f"use {local_db}")
+            tdSql.query(
+                f"select count(*), sum(val) "
+                f"from {src}.{ext_db}.dbo.stab_ns_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(0, 1, 6)     # dbo rows: 1+2+3
+            tdSql.query(
+                f"select count(*), sum(val) "
+                f"from {src}.{ext_db}.{alt_schema}.stab_ns_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(0, 1, 306)   # fq_ns2 rows: 101+102+103
+
+            # Serialize tdSql calls — the native C driver is not thread-safe
+            # for concurrent calls on a shared connection (see stab_s04).
+            _query_lock = threading.Lock()
+
+            def _worker(tid, use_schema, expect_sum):
+                try:
+                    for _ in range(_QUERIES_PER_THREAD):
+                        with _query_lock:
+                            tdSql.execute(f"use {src}.{ext_db}.{use_schema}")
+                            tdSql.query(
+                                f"select count(*), sum(val) "
+                                f"from {src}.stab_ns_t")
+                            row = (tdSql.queryResult[0][0],
+                                   tdSql.queryResult[0][1])
+                        with results_lock:
+                            results.append((tid, use_schema, row))
+                except Exception as ex:
+                    with results_lock:
+                        errors.append(f"session {tid} ({use_schema}): {ex}")
+
+            threads = [
+                threading.Thread(target=_worker, args=(1, "dbo", 6)),
+                threading.Thread(target=_worker, args=(2, alt_schema, 306)),
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=120)
+
+            assert not errors, f"Session errors: {errors}"
+            assert len(results) == _THREAD_COUNT * _QUERIES_PER_THREAD
+            for tid, use_schema, row in results:
+                expect_sum = 6 if use_schema == "dbo" else 306
+                assert row == (3, expect_sum), (
+                    f"session {tid} in schema '{use_schema}' saw {row}, "
+                    f"expected (3, {expect_sum})"
+                )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            # Restore a local context before the external namespace is dropped.
+            try:
+                tdSql.execute(f"use {local_db}")
+            except Exception:
+                pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+            try:
+                tdSql.execute(f"drop database if exists {local_db}")
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-S11  SQL Server fault injection: stop / restart / recover
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s11_sqlserver_restart_and_recovery(self):
+        """Fault injection — SQL Server container stop / restart / recovery
+
+        Keeps the existing restart-and-recovery stability scenario and adds
+        the SQL Server source:
+
+        1. Create a SQL Server source backed by the managed container
+        2. Stop the container; every query must fail with a connection-layer
+           error (UNAVAILABLE, not syntax/catalog) and taosd must stay alive
+        3. The source must survive repeated failures in the catalog
+        4. Restart the container (start_sqlserver_instance waits and probes);
+           the same source must answer correctly again, without being rebuilt
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Initial implementation
+
+        """
+        _test_name = "STAB-S11_sqlserver_restart_and_recovery"
+        self._start_test(
+            _test_name,
+            "SQL Server stop -> connection errors -> restart -> recovery",
+            1,
+        )
+        src = "fq_stab_s11_ss_src"
+        ext_db = "fq_stab_s11_ss_db"
+        cfg = self._sqlserver_cfg()
+        ver = cfg.version
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, [
+                "IF OBJECT_ID('dbo.stab_ss_t') IS NOT NULL "
+                "DROP TABLE dbo.stab_ss_t",
+                "CREATE TABLE dbo.stab_ss_t "
+                "(ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+                "INSERT INTO dbo.stab_ss_t (ts, val) VALUES "
+                "('2024-01-01 00:00:00.000', 9),"
+                "('2024-01-01 00:00:01.000', 99)",
+            ])
+            self._mk_sqlserver_real(
+                src,
+                database=ext_db,
+                schema="dbo",
+                extra_options="'connect_timeout_ms'='500'",
+            )
+
+            # Healthy baseline
+            tdSql.query(f"select count(*), sum(val) from {src}.stab_ss_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 108)
+
+            ExtSrcEnv.stop_sqlserver_instance(ver)
+            try:
+                # Bounded wait until the container's port is really closed
+                # (docker stop returns after the process exits; guard against
+                # a lingering listener race).
+                deadline = time.time() + 30
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        cfg.host, cfg.port):
+                    time.sleep(0.5)
+
+                for _ in range(self._STAB_UNREACHABLE_Q):
+                    tdSql.error(
+                        f"select count(*) from {src}.stab_ss_t",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+
+                # Source must still be in the catalog after repeated failures
+                tdSql.query(
+                    "select count(*) from information_schema.ins_ext_sources "
+                    f"where source_name = '{src}'"
+                )
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 1)
+
+                # taosd must still serve local queries (no crash)
+                tdSql.query("select server_version()")
+                tdSql.checkRows(1)
+            finally:
+                started = ExtSrcEnv.start_sqlserver_instance(ver)
+            if not started:
+                raise AssertionError(
+                    f"SQL Server {ver} did not become ready after restart")
+
+            # Recovery — the same source must answer correctly again
+            tdSql.query(f"select count(*), sum(val) from {src}.stab_ss_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 108)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass

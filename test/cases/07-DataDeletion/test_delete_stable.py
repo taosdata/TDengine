@@ -1,14 +1,18 @@
 
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -207,14 +211,123 @@ class TestDeleteStable:
             tdSql.execute(f'delete from {tbname} where t1 = 0')
             tdSql.query(f'select {col_name} from {tbname}')
             tdSql.checkRows(tb_num*row_num)
+    def column_filter_predicate(self,column_name,column_type,base_data):
+        if 'binary' in column_type.lower():
+            return f'''{column_name} ="{base_data['binary']}"'''
+        elif 'nchar' in column_type.lower():
+            return f'''{column_name} ="{base_data['nchar']}"'''
+        elif column_type.lower() in ('float','double'):
+            # Exact equality on a float/double column is unreliable: the value is round-tripped
+            # through decimal text (both when inserted and when embedded in this predicate), and
+            # base_data's magnitude can be large enough (see FLOAT_MIN/MAX, DOUBLE_MIN/MAX in
+            # setup_class) that the parsed value differs from the original by more than machine
+            # epsilon, so `= value` matches nothing. Use a tolerant BETWEEN instead, consistent
+            # with the approximate comparison delete_one_row already uses for these types.
+            v = base_data[column_type]
+            eps = max(abs(v) * 1e-6, 1e-6)
+            lo, hi = v - eps, v + eps
+            return f'{column_name} BETWEEN {lo} AND {hi}'
+        else:
+            return f'{column_name} = {base_data[column_type]}'
+
+    def non_matching_value(self,column_type,base_data):
+        # A value guaranteed to differ from base_data[column_type], used to plant a probe row that
+        # a column-filter predicate built from base_data must never match.
+        ct = column_type.lower()
+        bounds = {
+            'tinyint': (constant.TINYINT_MIN, constant.TINYINT_MAX),
+            'smallint': (constant.SMALLINT_MIN, constant.SMALLINT_MAX),
+            'int': (constant.INT_MIN, constant.INT_MAX),
+            'bigint': (constant.BIGINT_MIN, constant.BIGINT_MAX),
+            'tinyint unsigned': (constant.TINYINT_UN_MIN, constant.TINYINT_UN_MAX),
+            'smallint unsigned': (constant.SMALLINT_UN_MIN, constant.SMALLINT_UN_MAX),
+            'int unsigned': (constant.INT_UN_MIN, constant.INT_MAX),
+            'bigint unsigned': (constant.BIGINT_UN_MIN, constant.BIGINT_UN_MAX),
+        }
+        if ct in bounds:
+            lo, hi = bounds[ct]
+            return lo if base_data[ct] != lo else hi
+        if ct == 'bool':
+            return 1 - base_data['bool']
+        if ct in ('float', 'double'):
+            return 0.0 if base_data[ct] != 0.0 else 1.0
+        if 'binary' in ct or 'nchar' in ct:
+            return 'non_matching_probe'
+        raise ValueError(f'unsupported column_type: {column_type}')
+
+    def insert_non_matching_row(self,column_type,tbname,ts,base_data):
+        val = self.non_matching_value(column_type,base_data)
+        if 'binary' in column_type.lower() or 'nchar' in column_type.lower():
+            tdSql.execute(f'''insert into {tbname} values({ts},"{val}")''')
+        else:
+            tdSql.execute(f'insert into {tbname} values({ts},{val})')
+
     def delete_error(self,tbname,column_name,column_type,base_data):
-        for error_list in ['',f'ts = {self.ts} and',f'ts = {self.ts} or']:
-            if 'binary' in column_type.lower():
-                tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['binary']}"''')
-            elif 'nchar' in column_type.lower():
-                tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['nchar']}"''')
-            else:
-                tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
+        predicate = self.column_filter_predicate(column_name,column_type,base_data)
+        # An ordinary column filter is supported on its own and combined with the time range using
+        # AND, but OR across the two categories is still rejected.
+        tdSql.error(f'delete from {tbname} where ts = {self.ts} or {predicate}')
+        # Only simple comparisons against a constant are accepted.
+        tdSql.error(f'delete from {tbname} where {column_name} = {column_name}')
+
+    def delete_by_column(self,dbname,tbname,column_name,column_type,base_data,row_num,tb_num):
+        # insert_base_data gives every row in a subtable the same column value, so on their own
+        # they cannot tell "deleted only the matching rows" apart from "deleted everything". Add
+        # one non-matching probe row per subtable so matched < total and the assertions below
+        # actually exercise column-filter precision, not just presence of the feature.
+        probe_ts = self.ts + row_num
+        for j in range(tb_num):
+            self.insert_non_matching_row(column_type,f'{tbname}_{j}',probe_ts,base_data)
+
+        predicate = self.column_filter_predicate(column_name,column_type,base_data)
+        tdSql.query(f'select {column_name} from {tbname} where {predicate}')
+        matched = tdSql.getRows()
+        tdSql.query(f'select {column_name} from {tbname}')
+        total = tdSql.getRows()
+        # sanity check on the test setup itself: if this ever fails, the probe row above stopped
+        # being distinguishable from base_data and the assertions below would silently degenerate
+        # back into "delete everything", same as the bug this test is guarding against.
+        tdSql.checkNotEqual(matched, total)
+
+        tdSql.execute(f'delete from {tbname} where {predicate}')
+        tdSql.query(f'select {column_name} from {tbname}')
+        tdSql.checkRows(total - matched)
+        # the deleted rows must be exactly the matching ones
+        tdSql.query(f'select {column_name} from {tbname} where {predicate}')
+        tdSql.checkRows(0)
+        # the non-matching probe row must survive
+        tdSql.query(f'select {column_name} from {tbname} where ts={probe_ts}')
+        tdSql.checkRows(tb_num)
+
+        tdSql.execute(f'flush database {dbname}')
+        tdSql.execute('reset query cache')
+        tdSql.query(f'select {column_name} from {tbname}')
+        tdSql.checkRows(total - matched)
+
+        # remove the probe row and restore the uniform base rows so downstream steps in
+        # delete_data_stb see the same row count they would without this probe.
+        tdSql.execute(f'delete from {tbname} where ts={probe_ts}')
+        for j in range(tb_num):
+            self.insert_base_data(column_type,f'{tbname}_{j}',row_num,base_data)
+
+        # Combine the column filter with a time range via AND: with every row now sharing the same
+        # column value again, restricting to ts >= self.ts+1 must delete only rows [1, row_num) and
+        # leave the ts==self.ts row behind, proving the AND actually narrows by both conditions
+        # instead of the column filter alone deleting everything that matches it.
+        if row_num > 1:
+            tdSql.execute(f'delete from {tbname} where ts >= {self.ts+1} and {predicate}')
+            tdSql.query(f'select {column_name} from {tbname}')
+            tdSql.checkRows(tb_num)
+            tdSql.query(f'select {column_name} from {tbname} where ts={self.ts}')
+            tdSql.checkRows(tb_num)
+
+            tdSql.execute(f'flush database {dbname}')
+            tdSql.execute('reset query cache')
+            tdSql.query(f'select {column_name} from {tbname}')
+            tdSql.checkRows(tb_num)
+
+            for j in range(tb_num):
+                self.insert_base_data(column_type,f'{tbname}_{j}',row_num,base_data)
     def delete_data_stb(self):
         tdSql.execute(f'create database if not exists {self.dbname}')
         tdSql.execute(f'use {self.dbname}')
@@ -224,6 +337,7 @@ class TestDeleteStable:
                 tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags(1)')
                 self.insert_base_data(col_type,f'{self.stbname}_{i}',self.rowNum,self.base_data)
             self.delete_error(self.stbname,col_name,col_type,self.base_data)
+            self.delete_by_column(self.dbname,self.stbname,col_name,col_type,self.base_data,self.rowNum,self.tbnum)
             self.delete_one_row(self.stbname,col_type,col_name,self.base_data,self.rowNum,self.dbname,self.tbnum)
             self.delete_all_data(self.stbname,col_type,self.rowNum,self.base_data,self.dbname,self.tbnum)
             self.delete_rows(self.dbname,self.stbname,col_name,col_type,self.base_data,self.rowNum,self.tbnum)
@@ -276,6 +390,7 @@ class TestDeleteStable:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

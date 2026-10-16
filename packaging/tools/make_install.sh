@@ -1,7 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install TAOS time-series database on linux systems. The operating system
-# is required to use systemd to manage services at boot
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 #set -x
@@ -364,7 +376,9 @@ function install_lib() {
 
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
-      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*"; do
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
       for src in "${install_main_dir}/driver"/${pattern}; do
         [ -e "${src}" ] || continue
         ${csudo}rm -f "${src}" || :
@@ -381,7 +395,9 @@ function install_lib() {
 
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
-      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*"; do
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
       for src in "${binary_dir}/build/lib"/${pattern}; do
         [ -e "${src}" ] || continue
         ${csudo}cp -RfL "${src}" "${install_main_dir}/driver/" &&
@@ -427,7 +443,9 @@ function install_lib() {
 
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*" \
-      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*"; do
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
       for link_path in "${dir}"/${pattern}; do
         [ -L "${link_path}" ] || continue
         resolved=$(readlink -f "${link_path}" 2>/dev/null || true)
@@ -550,6 +568,11 @@ function install_lib() {
 
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaosnative.dylib \
       ${install_main_dir}/driver/libtaosnative.${verNumber}.dylib && ${csudo}chmod 777 ${install_main_dir}/driver/*
+
+    # libtaos re-exports @loader_path/libtaosnative.dylib. Keep that name
+    # beside the versioned payload; a link in /usr/local/lib is insufficient.
+    ${csudo}ln -sf "libtaosnative.${verNumber}.dylib" \
+      "${install_main_dir}/driver/libtaosnative.dylib"
 
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib \
       ${lib_link_dir}/libtaos.1.dylib > /dev/null 2>&1 || :
@@ -709,7 +732,7 @@ function install_connector() {
   if find ${source_dir}/src/connector/go -mindepth 1 -maxdepth 1 | read; then
     ${csudo}cp -r ${source_dir}/src/connector/go ${install_main_dir}/connector || :
   else
-    echo "WARNING: go connector not found, please check if want to use it!"
+    echo "WARNING: go connector not found, skipping it!"
   fi
   ${csudo}cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector || :
   ${csudo}cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &>/dev/null && ${csudo}chmod 777 ${install_main_dir}/connector/*.jar || echo &>/dev/null || :

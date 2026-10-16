@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 # AVRO compatibility import module for taosBackup
 # Builds a static library that reads taosdump AVRO backup files
 
@@ -31,6 +46,16 @@ DEP_ext_snappy(compatAvro)
 # system library so the build works in the CI container where liblzma-devel
 # is not installed.
 DEP_ext_xz(compatAvro)
+
+# libavro.a's codec.c calls zlib (crc32/deflate/inflate), so libz.a has to sit
+# *after* libavro.a on the link line of whoever pulls the archive in.
+# It must therefore be declared here, next to the archive's own dependency
+# macros: a ${ext_zlib_libs} entry in taosdump's CMakeLists does not work.
+# CMake emits taosdump's direct libraries first and appends compatAvro's
+# interface expansion ($<LINK_ONLY:libavro.a>, ...) afterwards, so the direct
+# entry lands *before* libavro.a and the linker still reports the undefined
+# crc32/deflate/inflate references.
+DEP_ext_zlib(compatAvro)
 
 # Hide symbols to avoid conflicts with Arrow's bundled snappy/zstd
 if(NOT WIN32)

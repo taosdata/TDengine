@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -198,7 +200,8 @@ typedef enum {
   SDB_TXN_LOG = 50,  // compact persistent log of terminal (COMMITTED/ROLLEDBACK/ZOMBIE) non-replicated txns
   SDB_TXN_SEQ = 51,
   SDB_EXT_SOURCE = 52,  // federated query: external data source metadata
-  SDB_MAX = 53
+  SDB_BACKUP = 53,      // cluster-level backup records (SHOW BACKUPS history)
+  SDB_MAX = 54
 } ESdbType;
 
 typedef struct SSdbRaw {

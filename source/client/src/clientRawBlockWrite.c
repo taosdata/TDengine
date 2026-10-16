@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,7 @@
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientRawBlockWrite.h"
+#include "clientTmq.h"
 #include "nodes.h"
 #include "osMemPool.h"
 #include "osMemory.h"
@@ -258,7 +261,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   // target cluster reconstructs the inheritance. The names on the wire are the
   // *source* cluster's full names (acctId.db.table); re-stamp each with the target
   // acctId + target db (inheritance is same-db only, so parents share the child's
-  // db). suids are source-local and intentionally dropped — the target mnode
+  // db). suids are source-local and intentionally dropped  -  the target mnode
   // re-resolves names to its own suids on CREATE.
   pReq.numParents = req.numParents;
   pReq.ownColStart = req.ownColStart;
@@ -355,7 +358,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   STableMeta* pTableMeta = NULL;
   code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-    uInfo(LOG_ID_TAG " stable %s not exist, ignore drop", LOG_ID_VALUE, req.name);
+    uInfo(LOG_ID_TAG " stable %s does not exist, ignore drop", LOG_ID_VALUE, req.name);
     code = TSDB_CODE_SUCCESS;
     taosMemoryFreeClear(pTableMeta);
     goto end;
@@ -457,7 +460,7 @@ static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precis
   // org table cannot has composite primary key
   if (pTableMeta->tableInfo.numOfColumns > 1 && pTableMeta->schema[1].flags & COL_IS_KEY) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    uError("virtual table's column:\"%s\"'s reference can not from table with composite key", colName);
+    uError("virtual table's column:\"%s\"'s reference cannot be from a table with a composite primary key", colName);
     goto end;
   }
 
@@ -471,7 +474,7 @@ static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precis
   const SSchema* pRefCol = getNormalColSchema(pTableMeta, colName);
   if (NULL == pRefCol) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    uError("virtual table's column:\"%s\"'s reference column:\"%s\" not exist", pSchemaName, colName);
+    uError("virtual table's column:\"%s\"'s reference column:\"%s\" does not exist", pSchemaName, colName);
     goto end;
   }
 
@@ -485,7 +488,7 @@ static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precis
 
   if (!isSameRefDataType(pType, &refType)) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
-    uError("virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match, %d %d %d %d",
+    uError("virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type do not match, %d %d %d %d",
             pSchemaName, colName, pType->type, pType->bytes, refType.type, refType.bytes);
     goto end;
   }
@@ -547,7 +550,7 @@ static int32_t checkColRefForAlter(SCatalog* pCatalog, SRequestConnInfo* conn, i
   const SSchema* pSchema = getNormalColSchema(pTableMetaSrc, colNameSrc);
   if (NULL == pSchema) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    uError("virtual table's column:\"%s\" not exist", colNameSrc);
+    uError("virtual table's column:\"%s\" does not exist", colNameSrc);
     goto end;
   }
 
@@ -703,7 +706,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
       toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.stbName, &sName);
       code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
       if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-        uInfo(LOG_ID_TAG " super table %s not exist, ignore create child table %s", LOG_ID_VALUE,
+        uInfo(LOG_ID_TAG " super table %s does not exist, ignore create child table %s", LOG_ID_VALUE,
               pCreateReq->ctb.stbName, pCreateReq->name);
         code = TSDB_CODE_SUCCESS;
         taosMemoryFreeClear(pTableMeta);
@@ -856,13 +859,12 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
     toName(pTscObj->acctId, pRequest->pDb, pDropReq->name, &pName);
-    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo);
-    PROCESS_TABLE_NOT_EXIST(code, pDropReq->name)
+    RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo));
     STableMeta* pTableMeta = NULL;
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       code = TSDB_CODE_SUCCESS;
-      uInfo(LOG_ID_TAG " table %s not exist, ignore drop", LOG_ID_VALUE, pDropReq->name);
+      uInfo(LOG_ID_TAG " table %s does not exist, ignore drop", LOG_ID_VALUE, pDropReq->name);
       taosMemoryFreeClear(pTableMeta);
       continue;
     }
@@ -1371,20 +1373,45 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
   return taos_write_raw_block_with_fields_with_reqid(taos, rows, pData, tbname, NULL, 0, reqid);
 }
 
-static void* getRawDataFromRes(void* pRetrieve) {
-  if (pRetrieve == NULL) {
+int32_t tmqGetRawDataFromRes(void* pRetrieve, uint32_t retrieveLen, void** ppRawData) {
+  if (pRetrieve == NULL || ppRawData == NULL) {
     uError("invalid parameter in %s", __func__);
-    return NULL;
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppRawData = NULL;
+  if (retrieveLen < sizeof(int64_t)) {
+    uError("invalid retrieve response length:%u in %s", retrieveLen, __func__);
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
   void* rawData = NULL;
+  uint32_t headerLen = 0;
+  bool validateBlock = false;
   // deal with compatibility
   if (*(int64_t*)pRetrieve == RETRIEVE_TABLE_RSP_VERSION) {
+    if (retrieveLen < sizeof(SRetrieveTableRsp)) return TSDB_CODE_TMQ_INVALID_MSG;
+    headerLen = sizeof(SRetrieveTableRsp);
+    validateBlock = true;
     rawData = ((SRetrieveTableRsp*)pRetrieve)->data;
-  } else if (*(int64_t*)pRetrieve == RETRIEVE_TABLE_RSP_TMQ_VERSION ||
-             *(int64_t*)pRetrieve == RETRIEVE_TABLE_RSP_TMQ_RAW_VERSION) {
+  } else if (*(int64_t*)pRetrieve == RETRIEVE_TABLE_RSP_TMQ_VERSION) {
+    if (retrieveLen < sizeof(SRetrieveTableRspForTmq)) return TSDB_CODE_TMQ_INVALID_MSG;
+    headerLen = sizeof(SRetrieveTableRspForTmq);
+    validateBlock = true;
     rawData = ((SRetrieveTableRspForTmq*)pRetrieve)->data;
+  } else if (*(int64_t*)pRetrieve == RETRIEVE_TABLE_RSP_TMQ_RAW_VERSION) {
+    if (retrieveLen < sizeof(SRetrieveTableRspForTmq)) return TSDB_CODE_TMQ_INVALID_MSG;
+    headerLen = sizeof(SRetrieveTableRspForTmq);
+    rawData = ((SRetrieveTableRspForTmq*)pRetrieve)->data;
+  } else {
+    uError("invalid retrieve response version:%" PRId64 " in %s", *(int64_t*)pRetrieve, __func__);
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
-  return rawData;
+  int32_t code = validateBlock ? tmqValidateRawDataBlock(rawData, retrieveLen - headerLen) : TSDB_CODE_SUCCESS;
+  if (rawData == NULL || code != TSDB_CODE_SUCCESS) {
+    uError("invalid raw data block in %s, code:0x%x(%s)", __func__, code, tstrerror(code));
+    return code == TSDB_CODE_SUCCESS ? TSDB_CODE_TMQ_INVALID_MSG : code;
+  }
+  *ppRawData = rawData;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
@@ -1595,10 +1622,10 @@ static int32_t  decodeRawData(SDecoder* decoder, void* data, uint32_t dataLen, _
   }
   int8_t dataVersion = *(int8_t*)data;
   if (dataVersion >= MQ_DATA_RSP_VERSION) {
-    data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
     if (dataLen < sizeof(int8_t) + sizeof(int32_t)) {
       return TSDB_CODE_INVALID_PARA;
     }
+    data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
     dataLen -= sizeof(int8_t) + sizeof(int32_t);
   }
 
@@ -1788,8 +1815,10 @@ static int32_t tmqWriteRawCommon(TAOS* taos, void* data, uint32_t dataLen,
       RAW_NULL_CHECK(pSW);
       void* pRetrieve = taosArrayGetP(rspObj.dataRsp.blockData, rspObj.resIter);
       RAW_NULL_CHECK(pRetrieve);
-      void* rawData = getRawDataFromRes(pRetrieve);
-      RAW_NULL_CHECK(rawData);
+      int32_t* retrieveLen = taosArrayGet(rspObj.dataRsp.blockDataLen, rspObj.resIter);
+      RAW_NULL_CHECK(retrieveLen);
+      void* rawData = NULL;
+      RAW_RETURN_CHECK(tmqGetRawDataFromRes(pRetrieve, (uint32_t)*retrieveLen, &rawData));
 
       uTrace(LOG_ID_TAG " write raw %s block[%d] tbname:%s, schemaCols:%d", LOG_ID_VALUE,
              withMeta ? "metadata" : "data", rspObj.resIter, tbName, pSW->nCols);
@@ -1802,9 +1831,8 @@ static int32_t tmqWriteRawCommon(TAOS* taos, void* data, uint32_t dataLen,
         pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, pName.tname, strlen(pName.tname));
       }
       STableMeta* pTableMeta = NULL;
-      code = processCacheMeta(pVgHash, pNameHash, pMetaHash, pCreateReqDst, pCatalog, &conn, &pName,
-                              &pTableMeta, pSW, rawData, retry);
-      PROCESS_TABLE_NOT_EXIST(code, tbName)
+      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, pCreateReqDst, pCatalog, &conn, &pName,
+                              &pTableMeta, pSW, rawData, retry));
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindData(pQuery, pTableMeta, rawData, pCreateReqDst, pSW, pSW->nCols, true, err, ERR_MSG_LEN, true);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1897,8 +1925,10 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
       RAW_NULL_CHECK(tbName);
       void* pRetrieve = taosArrayGetP(rspObj.dataRsp.blockData, rspObj.resIter);
       RAW_NULL_CHECK(pRetrieve);
-      void* rawData = getRawDataFromRes(pRetrieve);
-      RAW_NULL_CHECK(rawData);
+      int32_t* retrieveLen = taosArrayGet(rspObj.dataRsp.blockDataLen, rspObj.resIter);
+      RAW_NULL_CHECK(retrieveLen);
+      void* rawData = NULL;
+      RAW_RETURN_CHECK(tmqGetRawDataFromRes(pRetrieve, (uint32_t)*retrieveLen, &rawData));
 
       uTrace(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
       SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
@@ -1907,9 +1937,8 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
 
       // find schema data info
       STableMeta* pTableMeta = NULL;
-      code = processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
-                                        NULL, retry);
-      PROCESS_TABLE_NOT_EXIST(code, tbName)
+      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
+                                        NULL, retry));
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindRawData(pVgroupHash, pStmt->pVgDataBlocks, pTableMeta, rawData);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2037,7 +2066,7 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
     rspObj->dataRsp.rawData = NULL;
     raw->raw_len = rspObj->dataRsp.len;
     raw->raw_type = rspObj->resType;
-    uDebug("tmq get raw raw:%p", raw);
+    uDebug("tmq get raw:%p", raw);
   } else {
     uError("tmq get raw error type:%d", *(int8_t*)res);
     code = TSDB_CODE_TMQ_INVALID_MSG;
@@ -2153,6 +2182,11 @@ static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLe
     RAW_NULL_CHECK(len);
     void* tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
     RAW_NULL_CHECK(tmpBuf);
+    if (*len < (int32_t)sizeof(SMqRspHead)) {
+      code = TSDB_CODE_TMQ_INVALID_MSG;
+      lino = __LINE__;
+      goto end;
+    }
     SMqMetaRsp metaRsp = {0};
     tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), *len - sizeof(SMqRspHead));
     RAW_RETURN_CHECK(tDecodeMqMetaRsp(&metaCoder, &metaRsp));

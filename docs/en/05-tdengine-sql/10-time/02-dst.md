@@ -44,7 +44,7 @@ Relative to standard time, each region sets its local time based on its time zon
 
 Daylight Saving Time (DST) is a system that advances the time by one hour to make better use of daylight and save energy. It usually starts in spring and ends in autumn. The specific start and end times of DST vary by region. The following explanation uses Berlin time as an example to illustrate DST and its effects.
 
-![DST Berlin](../../assets/dst-01.png)
+![DST Berlin](../../assets/dst-01.webp)
 
 According to this rule, you can see:
 
@@ -95,7 +95,7 @@ Undefined behavior refers to specific code or operations that do not have a clea
 
 We use the following table to show the impact of DST on writing and querying.
 
-![DST Table](../../assets/dst-02.png)
+![DST Table](../../assets/dst-02.webp)
 
 ### Table Explanation
 
@@ -286,7 +286,7 @@ To avoid unnecessary impacts of DST on querying and writing in TDengine, it is r
 
   - Explorer: When using the Explorer page for SQL queries, users can configure the client time zone to display in RFC3339 format.
 
-    ![Explorer DST](../../assets/dst-03.png)
+    ![Explorer DST](../../assets/dst-03.webp)
 
 ## Reference Documents
 

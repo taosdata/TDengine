@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -163,6 +165,7 @@ typedef struct SMStbCursor SMStbCursor;
 
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
 int             metaUpgrade(SVnode* pVnode, SMeta** ppMeta);
+int32_t         metaRebuildVTableStats(SMeta* pMeta);
 void            metaClose(SMeta** pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
 TXN*            metaGetTxn(SMeta* pMeta);
@@ -213,6 +216,8 @@ int32_t       metaResumeCtbCursor(SMCtbCursor* pCtbCur, int8_t first);
 void          metaPauseCtbCursor(SMCtbCursor* pCtbCur);
 void          metaCloseCtbCursor(SMCtbCursor* pCtbCur);
 tb_uid_t      metaCtbCursorNext(SMCtbCursor* pCtbCur);
+// Returns an error code separately from the UID; a zero UID means end of iteration.
+int32_t       metaCtbCursorNextChecked(SMCtbCursor* pCtbCur, tb_uid_t* pUid);
 SMStbCursor*  metaOpenStbCursor(SMeta* pMeta, tb_uid_t uid);
 void          metaCloseStbCursor(SMStbCursor* pStbCur);
 tb_uid_t      metaStbCursorNext(SMStbCursor* pStbCur);
@@ -224,10 +229,24 @@ void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
 int32_t       metaFlagCache(SVnode* pVnode);
 
-int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList);
-int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray *pUids, SArray *pVersions);
+// maxUids > 0 bounds the result set: more than maxUids qualifying children causes the scan
+// to stop and return TSDB_CODE_TXN_TOO_MANY_DDL_OPS (the bound is checked before pushing,
+// so exactly maxUids matches still succeed and the successful return carries at most maxUids
+// entries). maxUids is a ceiling of the txn budget share, not an exact allowance - being
+// conservative there is fine. maxUids <= 0 means unlimited (the non-txn path) - 0 is a
+// "no limit" sentinel, not "must match nothing".
+int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList, int32_t maxUids);
+// Pre-scan the child tables matched by a WHERE-based bulk tag update (action
+// TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL).  pUids/pVersions collect the matched uids and
+// their pre-txn versions (for rollback).  pNames, when non-NULL, collects the matched table
+// names (char[TSDB_TABLE_NAME_LEN] elements) so the caller can take per-table txn locks -
+// vnodeTxnLockTable keys on the full table name, which is not derivable from a uid alone.
+int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray *pUids, SArray *pVersions,
+                                       SArray *pNames);
 int64_t metaGetTbNum(SMeta* pMeta);
 void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags, int64_t txnId);
+int32_t metaGetTableUidsByNames(void* pVnode, const SArray* pTbNames, SArray* pUids, int64_t txnId);
+int32_t metaGetTableInfosByNames(void* pVnode, const SArray* pTbNames, SArray* pInfos, int64_t txnId);
 
 int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, 
                  int32_t numOfExpr, SStorageAPI* api, uint64_t uid, 
@@ -336,11 +355,11 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter);
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
 int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback);
-// metaSnapshot.c — txn.meta batched snapshot read/write (§44 lazy COMMIT/ROLLBACK)
+// metaSnapshot.c  -  txn.meta batched snapshot read/write (section 44 lazy COMMIT/ROLLBACK)
 //   metaSnapTxnMetaRead: emits one SNAP_DATA_TXN_META block containing all txn.meta entries.
 //                          On *ppData==NULL with code==0 there are no entries (stream done).
 //   metaSnapTxnMetaWrite: bulk-applies a SNAP_DATA_TXN_META payload via
-//                          metaTxnMetaUpsert (idempotent — safe on retry).
+//                          metaTxnMetaUpsert (idempotent  -  safe on retry).
 int32_t metaSnapTxnMetaRead(SMeta* pMeta, uint8_t** ppData);
 int32_t metaSnapTxnMetaWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData);
 // STsdbSnapReader ========================================
@@ -570,12 +589,19 @@ struct SVnode {
   // Batch Metadata Transaction
   SHashObj*     pTxnHash;       // key: int64_t txnId, value: SVnodeTxnEntry
   SHashObj*     pTxnTableLock;  // key: tableName (char*), value: int64_t txnId
-  SHashObj*     pTxnMetaCache;   // key: int64_t txnId, value: int8_t (ETxnMetaStatus) — thread-safe cache
+  SHashObj*     pTxnMetaCache;   // key: int64_t txnId, value: int8_t (ETxnMetaStatus)  -  thread-safe cache
   TdThreadMutex txnMutex;       // protects pTxnHash and pTxnTableLock
   int64_t       maxSeenTerm;    // max Raft term seen (for fencing)
   SVATaskID     vacuumTask;     // async vacuum task on SCAN_TASK_ASYNC pool
   int8_t        vacuumRunning;  // atomic flag: 1 = a txn vacuum task is queued or running
-  int32_t txnPendingCount;  // atomic: total entries in pTxnHash + pTxnMetaCache; 0 → no visibility filtering needed
+  int32_t txnPendingCount;  // atomic: total entries in pTxnHash + pTxnMetaCache; 0 -> no visibility filtering needed
+
+  TdThreadMutex backupSnapMutex;
+  SVSnapReader *pBackupSnapReader;
+  int64_t       backupSnapChainId;
+  int64_t       backupSnapBackupId;
+  int64_t       backupSnapIndex;
+  int64_t       backupSnapLastActivityMs;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
@@ -638,7 +664,7 @@ enum {
   // SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
   SNAP_DATA_BSE = 15,
-  // Batch-meta-txn (§44 lazy COMMIT/ROLLBACK): replicate txn.meta so that
+  // Batch-meta-txn (section 44 lazy COMMIT/ROLLBACK): replicate txn.meta so that
   // a follower joining via full snapshot can resume vacuum of large-txn
   // shadow entries instead of leaking PRE_* status forever. Reader emits
   // these AFTER SNAP_DATA_META so that the meta entries referenced by each
@@ -692,10 +718,10 @@ int32_t vHashPut(SVHashTable* ht, void* obj);
 int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
 int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
-// vnodeTxn.c — Batch metadata transaction (shadow-in-B+tree model)
+// vnodeTxn.c  -  Batch metadata transaction (shadow-in-B+tree model)
 // DDL within a transaction writes directly to B+ tree with txnId/txnStatus set.
 // EMetaTxnStatus (defined in tdef.h): NORMAL, PRE_CREATE, PRE_ALTER, PRE_DROP, COMMITTED, ROLLEDBACK.
-// COMMIT: promotes shadow entries (clear txnId→0, txnStatus→NORMAL; physically delete PRE_DROP).
+// COMMIT: promotes shadow entries (clear txnId -> 0, txnStatus -> NORMAL; physically delete PRE_DROP).
 // ROLLBACK: undoes shadow entries (delete PRE_CREATE; restore PRE_DROP/PRE_ALTER to NORMAL).
 
 int32_t vnodeTxnInit(SVnode* pVnode);
@@ -738,14 +764,14 @@ int32_t vnodeTxnCheckDeleteConflict(SVnode* pVnode, tb_uid_t uid);
 // Mark txn as containing a DROP STB with children; forces lazy/vacuum COMMIT path.
 int32_t vnodeTxnMarkBulkDrop(SVnode* pVnode, int64_t txnId);
 
-// metaTable2.c — mark existing entry with txnId/txnStatus/txnOrigVer in-place
+// metaTable2.c  -  mark existing entry with txnId/txnStatus/txnOrigVer in-place
 int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer);
-// metaTable2.c — rollback ALTER: delete new version entry, restore pUidIdx to old version
+// metaTable2.c  -  rollback ALTER: delete new version entry, restore pUidIdx to old version
 int32_t metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion);
-// metaEntry2.c — rollback child table tag ALTER: restore pTagIdx + pCtbIdx to old version
+// metaEntry2.c  -  rollback child table tag ALTER: restore pTagIdx + pCtbIdx to old version
 int32_t metaRollbackChildTableTags(SMeta* pMeta, int64_t uid, int64_t prevVersion, int64_t newVersion);
 
-// metaEntry2.c — scan all entries with txnId != 0 (for VNode startup rebuild)
+// metaEntry2.c  -  scan all entries with txnId != 0 (for VNode startup rebuild)
 typedef struct SMetaTxnScanEntry {
   tb_uid_t uid;
   int64_t  txnId;
@@ -754,11 +780,11 @@ typedef struct SMetaTxnScanEntry {
 } SMetaTxnScanEntry;
 int32_t metaScanTxnEntries(SMeta* pMeta, SArray** ppResult);
 
-// metaEntry2.c — txn.idx CRUD (small B+ tree for O(k) startup rebuild)
+// metaEntry2.c  -  txn.idx CRUD (small B+ tree for O(k) startup rebuild)
 int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer);
 int32_t metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid);
 
-// metaEntry2.c — txn.meta CRUD (lazy COMMIT/ROLLBACK finalization record)
+// metaEntry2.c  -  txn.meta CRUD (lazy COMMIT/ROLLBACK finalization record)
 // beginWalIndex: WAL index of first DDL in this txn. Written at txn begin (TXN_META_NONE),
 // preserved through COMMIT/ROLLBACK upsert. Used at crash recovery to restore WAL keepVersion.
 #pragma pack(push, 1)
@@ -773,13 +799,13 @@ int32_t metaTxnMetaDelete(SMeta* pMeta, int64_t txnId);
 int32_t metaTxnMetaGet(SMeta* pMeta, int64_t txnId, STxnMetaVal* pVal);
 int32_t metaScanTxnMetaEntries(SMeta* pMeta, SArray** ppResult);
 
-// metaEntry2.c — visibility helper: check if txn is finalized (O(1) hash lookup)
+// metaEntry2.c  -  visibility helper: check if txn is finalized (O(1) hash lookup)
 int8_t metaGetTxnMetaStatus(SMeta* pMeta, int64_t txnId);
 
-// vnodeTxn.c — rebuild in-memory txn state from B+ tree (called at VNode startup)
+// vnodeTxn.c  -  rebuild in-memory txn state from B+ tree (called at VNode startup)
 int32_t vnodeTxnRebuildFromMeta(SVnode* pVnode);
 
-// vnodeTxn.c — lazy vacuum: process finalized txn entries in batches
+// vnodeTxn.c  -  lazy vacuum: process finalized txn entries in batches
 int32_t vnodeTxnVacuumBatch(SVnode* pVnode, int32_t maxOps);
 
 #ifdef __cplusplus

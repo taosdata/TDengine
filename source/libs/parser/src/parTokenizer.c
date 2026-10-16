@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -50,6 +52,8 @@ static SKeyword keywordTable[] = {
     {"AS",                   TK_AS},
     {"ASC",                  TK_ASC},
     {"ASOF",                 TK_ASOF},
+    {"BACKUP",               TK_BACKUP},
+    {"BACKUPS",              TK_BACKUPS},
     {"BALANCE",              TK_BALANCE},
     {"BASE",                 TK_BASE},
     {"BATCH_SCAN",           TK_BATCH_SCAN},
@@ -95,6 +99,7 @@ static SKeyword keywordTable[] = {
     {"COUNT_WINDOW",         TK_COUNT_WINDOW},
     {"CREATE",               TK_CREATE},
     {"CREATEDB",             TK_CREATEDB},
+    {"CROSS",                TK_CROSS},
     {"CURRENT",              TK_CURRENT},
     {"CURRENT_USER",         TK_CURRENT_USER},
     {"DATABASE",             TK_DATABASE},
@@ -155,6 +160,8 @@ static SKeyword keywordTable[] = {
     {"MACHINES",             TK_MACHINES},
     {"GROUP",                TK_GROUP},
     {"HASH_JOIN",            TK_HASH_JOIN},
+    {"MERGE_JOIN",           TK_MERGE_JOIN},
+    {"JOIN_ALGO",            TK_JOIN_ALGO},
     {"HAVING",               TK_HAVING},
     {"HOST",                 TK_HOST},
     {"IF",                   TK_IF},
@@ -164,6 +171,7 @@ static SKeyword keywordTable[] = {
     {"IGNORE_NODATA_TRIGGER", TK_IGNORE_NODATA_TRIGGER},
     {"IMPORT",               TK_IMPORT},
     {"IN",                   TK_IN},
+    {"INCREMENTAL",          TK_INCREMENTAL},
     {"INDEX",                TK_INDEX},
     {"INDEXES",              TK_INDEXES},
     {"INHERITS",             TK_INHERITS},
@@ -415,6 +423,7 @@ static SKeyword keywordTable[] = {
     {"WINDOW_OPEN",          TK_WINDOW_OPEN},
     {"WINDOW_CLOSE",         TK_WINDOW_CLOSE},
     {"WINDOW_OFFSET",        TK_WINDOW_OFFSET},
+    {"WINDOW_TIME",          TK_WINDOW_TIME},
     {"WIN_OPTIMIZE_BATCH",   TK_WIN_OPTIMIZE_BATCH},
     {"WIN_OPTIMIZE_SINGLE",  TK_WIN_OPTIMIZE_SINGLE},
     {"WITH",                 TK_WITH},
@@ -441,6 +450,7 @@ static SKeyword keywordTable[] = {
     {"_TWEND",               TK_TWEND},
     {"_TWDURATION",          TK_TWDURATION},
     {"_TWROWNUM",            TK_TWROWNUM},
+    {"_EVENT_CONDITION_PATH", TK_TEVENT_CONDITION_PATH},
     {"_TPREV_LOCALTIME",     TK_TPREV_LOCALTIME},
     {"_TNEXT_LOCALTIME",     TK_TNEXT_LOCALTIME},
     {"_TLOCALTIME",          TK_TLOCALTIME},
@@ -516,6 +526,7 @@ static SKeyword keywordTable[] = {
     {"IDLE_TIMEOUT",         TK_IDLE_TIMEOUT},
     {"IDLE",                 TK_IDLE},
     {"RESUME",               TK_RESUME},
+    {"RESTART",              TK_RESTART},
     {"_TIDLESTART",          TK_TIDLESTART},
     {"_TIDLEEND",            TK_TIDLEEND},
     {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},
@@ -700,9 +711,9 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId, char* dupQuoteChar) {
     case '!': {
       if (z[1] != '=') {
         *tokenId = TK_NK_ILLEGAL;
-        return 2;
+        return 1;
       } else {
-        *tokenId = TK_NK_NE;
+        *tokenId = TK_NK_BANG_NE;
         return 2;
       }
     }
@@ -993,7 +1004,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
   if ('.' == str[*i + t0.n]) {
     len = tGetToken(&str[*i + t0.n + 1], &type, NULL);
 
-    // only id、string and ? are valid
+    // only id,string and ? are valid
     if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) ||
         ((TK_NK_STRING != type) && (TK_NK_ID != type) && (TK_NK_QUESTION != type))) {
       t0.type = TK_NK_ILLEGAL;

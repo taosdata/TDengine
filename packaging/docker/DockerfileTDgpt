@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 ARG ARCH=amd64
 FROM tdengine/tdgpt-env-${ARCH}:1.1 AS tdgpt
 
@@ -13,14 +28,35 @@ COPY ${pkgFile} /tmp/
 RUN set -eux; \
     TDGPT_INSTALL_DIR=/tmp/tdgpt-installer; \
     mkdir -p "${TDGPT_INSTALL_DIR}"; \
-    tar -zxf /tmp/"${pkgFile}" --strip-components=1 --directory="${TDGPT_INSTALL_DIR}"; \
+    tar -xf /tmp/"${pkgFile}" --strip-components=1 --directory="${TDGPT_INSTALL_DIR}"; \
     cd "${TDGPT_INSTALL_DIR}"; \
     /bin/bash install.sh; \
     rm -rf /tmp/*
 
 WORKDIR /root
-EXPOSE 6035 6036 6037 6038 6039 6061 6062 8387
+EXPOSE 6035 6036 6037 6038 6039 6061 6062
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+FROM tdengine/tdgpt-lite-env-${ARCH}:1.1 AS tdgpt_lite
+
+ARG pkgFile
+
+COPY entrypoint-lite.sh /usr/local/bin/entrypoint-lite.sh
+RUN chmod +x /usr/local/bin/entrypoint-lite.sh
+
+ENV INSTALL_VENV=False
+COPY ${pkgFile} /tmp/
+RUN set -eux; \
+    TDGPT_INSTALL_DIR=/tmp/tdgpt-installer; \
+    mkdir -p "${TDGPT_INSTALL_DIR}"; \
+    tar -xf /tmp/"${pkgFile}" --strip-components=1 --directory="${TDGPT_INSTALL_DIR}"; \
+    cd "${TDGPT_INSTALL_DIR}"; \
+    /bin/bash install.sh; \
+    rm -rf /tmp/*
+
+WORKDIR /root
+EXPOSE 6035 6036 6037 6038 6039
+ENTRYPOINT ["/usr/local/bin/entrypoint-lite.sh"]
 
 FROM tdgpt AS tdgpt_full
 

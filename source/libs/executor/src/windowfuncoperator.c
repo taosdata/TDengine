@@ -1,13 +1,15 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
@@ -34,8 +36,10 @@ typedef struct SWindowFuncOperatorInfo {
   SExprSupp          scalarSup;
   SExprSupp          funcSupp;
   SNodeList         *pAggFuncs;
+  SWindowInputPool  *pInputPool;
   SWindowInputStore *pInputStore;
   SResultRow        *pAggRow;
+  SResultRow        *pCsumRow;
   int32_t           *pOutputSrcSlots;
   int32_t            numOfOutputSrcSlots;
   int32_t            nextRow;
@@ -45,7 +49,19 @@ typedef struct SWindowFuncOperatorInfo {
   int32_t            peerEnd;
   int64_t            denseRank;
   bool               inputBuilt;
+  bool               hasCsumAggs;
+  bool               hasNonCsumAggs;
+  bool               csumPrefixValid;
+  int32_t            csumPrefixPartitionStart;
+  int32_t            csumPrefixEnd;
+  SOperatorInfo     *pOperator;  // owner needed by the info-only row-state cleanup callback
 } SWindowFuncOperatorInfo;
+
+typedef enum EWinFuncAggSelection {
+  WIN_FUNC_AGGS_ALL,
+  WIN_FUNC_AGGS_CSUM,
+  WIN_FUNC_AGGS_NON_CSUM,
+} EWinFuncAggSelection;
 
 typedef struct SWindowInputPage {
   int32_t pageId;
@@ -53,14 +69,21 @@ typedef struct SWindowInputPage {
   int32_t rows;
 } SWindowInputPage;
 
-struct SWindowInputStore {
+struct SWindowInputPool {
   SDiskbasedBuf *pBuf;
-  SSDataBlock   *pTemplate;
-  SSDataBlock   *pPageBlocks[2];
-  SArray        *pPages;
-  int32_t        totalRows;
   int32_t        pageSize;
-  int32_t        currentPageIndexes[2];
+};
+
+struct SWindowInputStore {
+  SWindowInputPool *pPool;  // borrowed; owner outlives this store
+  SSDataBlock      *pTemplate;
+  SSDataBlock      *pPageBlocks[2];
+  SArray           *pPages;
+  int32_t           totalRows;
+  int32_t           currentPageIndexes[2];
+#if defined(BUILD_TEST)
+  bool failNextDirectoryCommit;
+#endif
 };
 
 static int64_t winMaxI64(int64_t lhs, int64_t rhs) { return lhs > rhs ? lhs : rhs; }
@@ -320,9 +343,57 @@ int32_t winCalcOutputBatchEnd(int64_t totalRows, int64_t startRow, int64_t capac
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t winInputStoreCreate(const SSDataBlock *pTemplate, int32_t pageSize, int64_t inMemBufSize, const char *id,
-                            SWindowInputStore **ppStore) {
-  if (pTemplate == NULL || pageSize <= 0 || ppStore == NULL) {
+int32_t winInputPoolCreate(int32_t pageSize, int64_t inMemBufSize, const char *id, SWindowInputPool **ppPool) {
+  if (pageSize <= 0 || inMemBufSize <= 0 || ppPool == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  *ppPool = NULL;
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_NO_DISKSPACE;
+    return terrno;
+  }
+
+  SWindowInputPool *pPool = taosMemoryCalloc(1, sizeof(SWindowInputPool));
+  QUERY_CHECK_NULL(pPool, code, lino, _end, terrno);
+
+  code = createDiskbasedBuf(&pPool->pBuf, pageSize, inMemBufSize, id, tsTempDir);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pPool->pageSize = pageSize;
+  *ppPool = pPool;
+  return TSDB_CODE_SUCCESS;
+
+_end:
+  winInputPoolDestroy(pPool);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+void winInputPoolDestroy(SWindowInputPool *pPool) {
+  if (pPool == NULL) {
+    return;
+  }
+
+  destroyDiskbasedBuf(pPool->pBuf);
+  taosMemoryFreeClear(pPool);
+}
+
+int32_t winInputPoolGetPageSize(const SWindowInputPool *pPool) { return pPool == NULL ? 0 : pPool->pageSize; }
+
+SDiskbasedBufStatis winInputPoolGetStatis(const SWindowInputPool *pPool) {
+  SDiskbasedBufStatis statis = {0};
+  if (pPool != NULL && pPool->pBuf != NULL) {
+    statis = getDBufStatis(pPool->pBuf);
+  }
+  return statis;
+}
+
+int32_t winInputStoreCreate(const SSDataBlock *pTemplate, SWindowInputPool *pPool, SWindowInputStore **ppStore) {
+  if (pTemplate == NULL || pPool == NULL || pPool->pBuf == NULL || ppStore == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -330,17 +401,10 @@ int32_t winInputStoreCreate(const SSDataBlock *pTemplate, int32_t pageSize, int6
   int32_t lino = 0;
 
   *ppStore = NULL;
-  if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_DISKSPACE;
-    return terrno;
-  }
-
   SWindowInputStore *pStore = taosMemoryCalloc(1, sizeof(SWindowInputStore));
   QUERY_CHECK_NULL(pStore, code, lino, _end, terrno);
 
-  code = createDiskbasedBuf(&pStore->pBuf, pageSize, inMemBufSize, id, tsTempDir);
-  QUERY_CHECK_CODE(code, lino, _end);
-
+  pStore->pPool = pPool;
   pStore->pPages = taosArrayInit(4, sizeof(SWindowInputPage));
   QUERY_CHECK_NULL(pStore->pPages, code, lino, _end, terrno);
 
@@ -348,7 +412,6 @@ int32_t winInputStoreCreate(const SSDataBlock *pTemplate, int32_t pageSize, int6
   QUERY_CHECK_CODE(code, lino, _end);
   winFuncMarkBlockMaterialized(pStore->pTemplate);
 
-  pStore->pageSize = pageSize;
   pStore->currentPageIndexes[0] = -1;
   pStore->currentPageIndexes[1] = -1;
   *ppStore = pStore;
@@ -367,12 +430,36 @@ void winInputStoreDestroy(SWindowInputStore *pStore) {
     return;
   }
 
-  destroyDiskbasedBuf(pStore->pBuf);
+  if (pStore->pPages != NULL && pStore->pPool != NULL && pStore->pPool->pBuf != NULL) {
+    int32_t pageCount = taosArrayGetSize(pStore->pPages);
+    for (int32_t pageIndex = 0; pageIndex < pageCount; ++pageIndex) {
+      SWindowInputPage *pInputPage = taosArrayGet(pStore->pPages, pageIndex);
+      if (pInputPage == NULL) {
+        qError("%s failed to access input page directory at index %d", __func__, pageIndex);
+        continue;
+      }
+      int32_t code = dBufRecyclePageById(pStore->pPool->pBuf, pInputPage->pageId);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed to recycle input page %d since %s", __func__, pInputPage->pageId, tstrerror(code));
+      }
+    }
+  }
+
   blockDataDestroy(pStore->pTemplate);
   blockDataDestroy(pStore->pPageBlocks[0]);
   blockDataDestroy(pStore->pPageBlocks[1]);
   taosArrayDestroy(pStore->pPages);
   taosMemoryFreeClear(pStore);
+}
+
+static void winInputStoreRollbackPage(SWindowInputStore *pStore, void *pPage, int32_t pageId) {
+  if (pPage != NULL) {
+    releaseBufPage(pStore->pPool->pBuf, pPage);
+  }
+  int32_t code = dBufRecyclePageById(pStore->pPool->pBuf, pageId);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed to roll back input page %d since %s", __func__, pageId, tstrerror(code));
+  }
 }
 
 int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock) {
@@ -389,7 +476,7 @@ int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock)
 
   while (start < pBlock->info.rows) {
     int32_t stop = 0;
-    code = blockDataSplitRows(pBlock, pBlock->info.hasVarCol, start, &stop, pStore->pageSize);
+    code = blockDataSplitRows(pBlock, pBlock->info.hasVarCol, start, &stop, pStore->pPool->pageSize);
     QUERY_CHECK_CODE(code, lino, _end);
 
     SSDataBlock *pPageBlock = NULL;
@@ -397,7 +484,7 @@ int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock)
     QUERY_CHECK_CODE(code, lino, _end);
 
     int32_t pageId = -1;
-    void   *pPage = getNewBufPage(pStore->pBuf, &pageId);
+    void   *pPage = getNewBufPage(pStore->pPool->pBuf, &pageId);
     if (pPage == NULL) {
       blockDataDestroy(pPageBlock);
       code = terrno;
@@ -405,9 +492,10 @@ int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock)
     }
 
     int32_t size =
-        blockDataGetSize(pPageBlock) + sizeof(int32_t) + taosArrayGetSize(pPageBlock->pDataBlock) * sizeof(int32_t);
-    if (size > getBufPageSize(pStore->pBuf)) {
-      releaseBufPage(pStore->pBuf, pPage);
+        blockDataGetSize(pPageBlock) + sizeof(int32_t) +
+        taosArrayGetSize(pPageBlock->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
+    if (size > getBufPageSize(pStore->pPool->pBuf)) {
+      winInputStoreRollbackPage(pStore, pPage, pageId);
       blockDataDestroy(pPageBlock);
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _end);
@@ -415,19 +503,36 @@ int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock)
 
     code = blockDataToBuf(pPage, pPageBlock);
     if (code != TSDB_CODE_SUCCESS) {
-      releaseBufPage(pStore->pBuf, pPage);
+      winInputStoreRollbackPage(pStore, pPage, pageId);
       blockDataDestroy(pPageBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     setBufPageDirty(pPage, true);
-    releaseBufPage(pStore->pBuf, pPage);
+    releaseBufPage(pStore->pPool->pBuf, pPage);
 
+    void *p = NULL;
+#if defined(BUILD_TEST)
+    if (pStore->failNextDirectoryCommit) {
+      pStore->failNextDirectoryCommit = false;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      SWindowInputPage inputPage = {.pageId = pageId, .startRow = pStore->totalRows, .rows = pPageBlock->info.rows};
+      p = taosArrayPush(pStore->pPages, &inputPage);
+      code = p == NULL ? terrno : TSDB_CODE_SUCCESS;
+    }
+#else
     SWindowInputPage inputPage = {.pageId = pageId, .startRow = pStore->totalRows, .rows = pPageBlock->info.rows};
-    void            *p = taosArrayPush(pStore->pPages, &inputPage);
+    p = taosArrayPush(pStore->pPages, &inputPage);
+    code = p == NULL ? terrno : TSDB_CODE_SUCCESS;
+#endif
     blockDataDestroy(pPageBlock);
-    QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+    if (code != TSDB_CODE_SUCCESS) {
+      winInputStoreRollbackPage(pStore, NULL, pageId);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
 
-    pStore->totalRows += inputPage.rows;
+    SWindowInputPage *pCommittedPage = p;
+    pStore->totalRows += pCommittedPage->rows;
     start = stop + 1;
   }
 
@@ -443,6 +548,31 @@ int32_t winInputStoreGetRows(const SWindowInputStore *pStore) { return pStore ==
 int32_t winInputStoreGetPageCount(const SWindowInputStore *pStore) {
   return pStore == NULL || pStore->pPages == NULL ? 0 : taosArrayGetSize(pStore->pPages);
 }
+
+#if defined(BUILD_TEST)
+int32_t winInputPoolTestGetRegisteredPageCount(const SWindowInputPool *pPool) {
+  return pPool == NULL || pPool->pBuf == NULL ? 0 : taosArrayGetSize(getDataBufPagesIdList(pPool->pBuf));
+}
+
+int32_t winInputStoreTestGetPageId(const SWindowInputStore *pStore, int32_t pageIndex, int32_t *pPageId) {
+  if (pStore == NULL || pPageId == NULL || pageIndex < 0 || pageIndex >= winInputStoreGetPageCount(pStore)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SWindowInputPage *pInputPage = taosArrayGet(pStore->pPages, pageIndex);
+  if (pInputPage == NULL) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  *pPageId = pInputPage->pageId;
+  return TSDB_CODE_SUCCESS;
+}
+
+void winInputStoreTestFailNextDirectoryCommit(SWindowInputStore *pStore) {
+  if (pStore != NULL) {
+    pStore->failNextDirectoryCommit = true;
+  }
+}
+#endif
 
 static int32_t winInputStoreGetBlockSlot(SWindowInputStore *pStore, int32_t pageIndex, int32_t slot,
                                          SSDataBlock **ppBlock) {
@@ -466,14 +596,14 @@ static int32_t winInputStoreGetBlockSlot(SWindowInputStore *pStore, int32_t page
       return terrno;
     }
 
-    void *pPage = getBufPage(pStore->pBuf, pPageInfo->pageId);
+    void *pPage = getBufPage(pStore->pPool->pBuf, pPageInfo->pageId);
     if (pPage == NULL) {
       return terrno;
     }
 
     blockDataCleanup(pStore->pPageBlocks[slot]);
     int32_t code = blockDataFromBuf(pStore->pPageBlocks[slot], pPage);
-    releaseBufPage(pStore->pBuf, pPage);
+    releaseBufPage(pStore->pPool->pBuf, pPage);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -552,14 +682,6 @@ static int32_t winInputStoreGetPageForRow(SWindowInputStore *pStore, int32_t glo
   return TSDB_CODE_OUT_OF_RANGE;
 }
 
-SDiskbasedBufStatis winInputStoreGetStatis(const SWindowInputStore *pStore) {
-  SDiskbasedBufStatis statis = {0};
-  if (pStore != NULL && pStore->pBuf != NULL) {
-    statis = getDBufStatis(pStore->pBuf);
-  }
-  return statis;
-}
-
 static void destroyWindowFuncOperatorInfo(void *param) {
   SWindowFuncOperatorInfo *pInfo = (SWindowFuncOperatorInfo *)param;
   if (pInfo == NULL) {
@@ -568,13 +690,25 @@ static void destroyWindowFuncOperatorInfo(void *param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   winInputStoreDestroy(pInfo->pInputStore);
+  winInputPoolDestroy(pInfo->pInputPool);
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
   cleanupExprSupp(&pInfo->funcSupp);
   nodesDestroyList(pInfo->pAggFuncs);
   taosMemoryFreeClear(pInfo->pAggRow);
+  taosMemoryFreeClear(pInfo->pCsumRow);
   taosMemoryFreeClear(pInfo->pOutputSrcSlots);
   taosMemoryFreeClear(param);
+}
+
+static void cleanupWindowFuncRowState(void *param) {
+  SWindowFuncOperatorInfo *pInfo = (SWindowFuncOperatorInfo *)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL) {
+    return;
+  }
+
+  cleanupResultRowFunctionState(&pInfo->pOperator->exprSupp, pInfo->pAggRow);
+  cleanupResultRowFunctionState(&pInfo->pOperator->exprSupp, pInfo->pCsumRow);
 }
 
 static bool winFuncIsResultSlot(const SWindowFuncOperatorInfo *pInfo, int32_t slotId) {
@@ -1082,6 +1216,14 @@ static int32_t winFuncSameOrderKeys(SWindowInputStore *pStore, const SNodeList *
   return TSDB_CODE_SUCCESS;
 }
 
+#if defined(BUILD_TEST)
+int32_t winFuncTestSameOrderKeys(SWindowInputStore *pStore,
+                                 const SNodeList *pOrderKeys, int32_t lhs,
+                                 int32_t rhs, bool *pSame) {
+  return winFuncSameOrderKeys(pStore, pOrderKeys, lhs, rhs, pSame);
+}
+#endif
+
 static int32_t winFuncFindPeerRange(SWindowInputStore *pStore, const SNodeList *pOrderKeys, int32_t partitionStart,
                                     int32_t partitionEnd, int32_t row, int32_t *pPeerStart, int32_t *pPeerEnd) {
   int32_t peerStart = row;
@@ -1488,15 +1630,90 @@ static void winFuncNormalizeAggResultRows(SOperatorInfo *pOperator, SResultRow *
   pRow->numOfRows = pRow->numOfRows > 0 ? 1 : 0;
 }
 
-static void winFuncCleanupAggRow(SOperatorInfo *pOperator, SResultRow *pRow) {
+static bool winFuncIsCsumAgg(const SqlFunctionCtx *pCtx) {
+  return fmGetFuncTypeFromId(pCtx->functionId) == FUNCTION_TYPE_CSUM;
+}
+
+static bool winFuncAggSelected(const SqlFunctionCtx *pCtx, EWinFuncAggSelection selection) {
+  return selection == WIN_FUNC_AGGS_ALL ||
+         (winFuncIsCsumAgg(pCtx) == (selection == WIN_FUNC_AGGS_CSUM));
+}
+
+static void winFuncCleanupSelectedAggs(SOperatorInfo *pOperator, SResultRow *pRow,
+                                       EWinFuncAggSelection selection, bool restoreResultInfo) {
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
     SqlFunctionCtx *pCtx = &pOperator->exprSupp.pCtx[i];
+    if (!winFuncAggSelected(pCtx, selection)) {
+      continue;
+    }
+    SResultRowEntryInfo *pSaved = pCtx->resultInfo;
     pCtx->resultInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
     if (pCtx->needCleanup && pCtx->fpSet.cleanup != NULL) {
       pCtx->fpSet.cleanup(pCtx);
       pCtx->needCleanup = false;
     }
+    if (restoreResultInfo) {
+      pCtx->resultInfo = pSaved;
+    }
   }
+}
+
+static void winFuncCleanupAggRow(SOperatorInfo *pOperator, SResultRow *pRow) {
+  winFuncCleanupSelectedAggs(pOperator, pRow, WIN_FUNC_AGGS_ALL, false);
+}
+
+static void winFuncCleanupCsumRow(SOperatorInfo *pOperator, SResultRow *pRow) {
+  // CSUM currently has no cleanup callback. Preserve resultInfo while switching rows
+  // so future stateful CSUM variants cannot clean the wrong result row.
+  winFuncCleanupSelectedAggs(pOperator, pRow, WIN_FUNC_AGGS_CSUM, true);
+}
+
+static void winFuncSelectAggs(SOperatorInfo *pOperator, SResultRow *pRow, EWinFuncAggSelection selection) {
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SqlFunctionCtx *pCtx = &pOperator->exprSupp.pCtx[i];
+    pCtx->resultInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
+    pCtx->resultInfo->complete = !winFuncAggSelected(pCtx, selection);
+  }
+}
+
+static int32_t winFuncInitCsumAggs(SOperatorInfo *pOperator, SResultRow *pRow) {
+  winFuncSelectAggs(pOperator, pRow, WIN_FUNC_AGGS_CSUM);
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SqlFunctionCtx *pCtx = &pOperator->exprSupp.pCtx[i];
+    pCtx->resultInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
+    if (!winFuncIsCsumAgg(pCtx)) {
+      continue;
+    }
+    if (!pCtx->resultInfo->initialized) {
+      int32_t code = pCtx->fpSet.init(pCtx, pCtx->resultInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t winFuncCopySelectedAggs(SOperatorInfo *pOperator, SResultRow *pRow, SSDataBlock *pRes,
+                                       EWinFuncAggSelection selection) {
+  pRow->numOfRows = 1;
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SqlFunctionCtx *pCtx = &pOperator->exprSupp.pCtx[i];
+    if (!winFuncAggSelected(pCtx, selection)) {
+      continue;
+    }
+
+    SResultRowEntryInfo *pEntryInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
+    if (pEntryInfo->numOfRes > 1) {
+      pEntryInfo->numOfRes = 1;
+    }
+    int32_t code = copyResultrowToDataBlock(&pOperator->exprSupp.pExprInfo[i], 1, pRow, pCtx, pRes,
+                                            &pOperator->exprSupp.rowEntryInfoOffset[i], pOperator->pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t winFuncApplyAggOnFramePages(SOperatorInfo *pOperator, SWindowFuncOperatorInfo *pInfo, int32_t start,
@@ -1554,7 +1771,7 @@ static int32_t winFuncApplyAggOnFramePages(SOperatorInfo *pOperator, SWindowFunc
 }
 
 static int32_t winFuncCalcOneFrame(SOperatorInfo *pOperator, SWindowFuncOperatorInfo *pInfo, SSDataBlock *pRes,
-                                   int32_t start, int32_t end) {
+                                   int32_t start, int32_t end, EWinFuncAggSelection selection) {
   if (pOperator->exprSupp.numOfExprs == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1570,6 +1787,9 @@ static int32_t winFuncCalcOneFrame(SOperatorInfo *pOperator, SWindowFuncOperator
   code = setResultRowInitCtx(pRow, pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs,
                              pOperator->exprSupp.rowEntryInfoOffset);
   QUERY_CHECK_CODE(code, lino, _end);
+  if (selection != WIN_FUNC_AGGS_ALL) {
+    winFuncSelectAggs(pOperator, pRow, selection);
+  }
 
   bool hasRepeatScanFunc = false;
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
@@ -1586,18 +1806,97 @@ static int32_t winFuncCalcOneFrame(SOperatorInfo *pOperator, SWindowFuncOperator
   code = winFuncApplyAggOnFramePages(pOperator, pInfo, start, end, MAIN_SCAN);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  doUpdateNumOfRows(pOperator->exprSupp.pCtx, pRow, pOperator->exprSupp.numOfExprs,
-                    pOperator->exprSupp.rowEntryInfoOffset);
-  winFuncNormalizeAggResultRows(pOperator, pRow);
-  code = copyResultrowToDataBlock(pOperator->exprSupp.pExprInfo, pOperator->exprSupp.numOfExprs, pRow,
-                                  pOperator->exprSupp.pCtx, pRes, pOperator->exprSupp.rowEntryInfoOffset,
-                                  pOperator->pTaskInfo);
+  if (selection != WIN_FUNC_AGGS_ALL) {
+    code = winFuncCopySelectedAggs(pOperator, pRow, pRes, selection);
+  } else {
+    doUpdateNumOfRows(pOperator->exprSupp.pCtx, pRow, pOperator->exprSupp.numOfExprs,
+                      pOperator->exprSupp.rowEntryInfoOffset);
+    winFuncNormalizeAggResultRows(pOperator, pRow);
+    code = copyResultrowToDataBlock(pOperator->exprSupp.pExprInfo, pOperator->exprSupp.numOfExprs, pRow,
+                                    pOperator->exprSupp.pCtx, pRes, pOperator->exprSupp.rowEntryInfoOffset,
+                                    pOperator->pTaskInfo);
+  }
   QUERY_CHECK_CODE(code, lino, _end);
-
-  pRes->info.rows += 1;
   clearResultRowInitFlag(pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs);
 
 _end:
+  return code;
+}
+
+static void winFuncClassifyAggs(const SOperatorInfo *pOperator, bool *pHasCsumAggs, bool *pHasNonCsumAggs) {
+  *pHasCsumAggs = false;
+  *pHasNonCsumAggs = false;
+  if (pOperator == NULL || pOperator->exprSupp.pCtx == NULL || pOperator->exprSupp.numOfExprs <= 0) {
+    return;
+  }
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    if (winFuncIsCsumAgg(&pOperator->exprSupp.pCtx[i])) {
+      *pHasCsumAggs = true;
+    } else {
+      *pHasNonCsumAggs = true;
+    }
+    if (*pHasCsumAggs && *pHasNonCsumAggs) {
+      break;
+    }
+  }
+}
+
+static void winFuncBindResultRow(SOperatorInfo *pOperator, SResultRow *pRow) {
+  if (pRow == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    pOperator->exprSupp.pCtx[i].resultInfo =
+        getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
+  }
+}
+
+static void winFuncInvalidateCsumPrefix(SOperatorInfo *pOperator, SWindowFuncOperatorInfo *pInfo,
+                                        int32_t partitionStart) {
+  pInfo->csumPrefixValid = false;
+  pInfo->csumPrefixPartitionStart = partitionStart;
+  pInfo->csumPrefixEnd = partitionStart - 1;
+  if (pInfo->pCsumRow != NULL) {
+    winFuncCleanupCsumRow(pOperator, pInfo->pCsumRow);
+    resetResultRow(pInfo->pCsumRow, pInfo->aggSup.resultRowSize - sizeof(SResultRow));
+  }
+}
+
+static int32_t winFuncCalcCsumPrefix(SOperatorInfo *pOperator, SWindowFuncOperatorInfo *pInfo, SSDataBlock *pRes,
+                                     int32_t partitionStart, int32_t end) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SResultRow *pRow = pInfo->pCsumRow;
+  QUERY_CHECK_NULL(pRow, code, lino, _end, terrno);
+
+  // The optimized CSUM frame is UNBOUNDED PRECEDING ... CURRENT ROW, and rows
+  // are emitted in window order, so end is monotonic within a partition. Keep
+  // the rollback check defensive in case traversal order changes in the future.
+  if (!pInfo->csumPrefixValid || pInfo->csumPrefixPartitionStart != partitionStart ||
+      end < pInfo->csumPrefixEnd) {
+    winFuncInvalidateCsumPrefix(pOperator, pInfo, partitionStart);
+    code = winFuncInitCsumAggs(pOperator, pRow);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pInfo->csumPrefixValid = true;
+  }
+
+  if (end > pInfo->csumPrefixEnd) {
+    winFuncSelectAggs(pOperator, pRow, WIN_FUNC_AGGS_CSUM);
+    code = winFuncApplyAggOnFramePages(pOperator, pInfo, pInfo->csumPrefixEnd + 1, end, MAIN_SCAN);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pInfo->csumPrefixEnd = end;
+  }
+
+  code = winFuncCopySelectedAggs(pOperator, pRow, pRes, WIN_FUNC_AGGS_CSUM);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    // The entry invalidation clears the old prefix. This rollback clears any
+    // state created by the current initialization or accumulation attempt.
+    winFuncInvalidateCsumPrefix(pOperator, pInfo, partitionStart);
+  }
+  winFuncBindResultRow(pOperator, pInfo->pAggRow);
   return code;
 }
 
@@ -1802,6 +2101,28 @@ static int32_t winFuncCalcPeerGroup(SWindowInputStore *pStore, const SNodeList *
   return TSDB_CODE_SUCCESS;
 }
 
+// The input page of a window function must be able to hold one complete row, because
+// blockDataSplitRows() refuses to produce a sub-block smaller than a single row.  A
+// block's rowSize sums each column's DECLARED width, and a BLOB column's declared width is
+// only the 4-byte length-header placeholder, so a row carrying a large BLOB could never fit
+// the page and the query failed with an internal error.  Count BLOB columns at their real
+// maximum instead; every other var-length type is already declared at its maximum.
+static int32_t winInputRowSize(const SSDataBlock *pBlock) {
+  int32_t rowSize = pBlock->info.rowSize;
+  if (!pBlock->info.hasVarCol) {
+    return rowSize;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (size_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData *pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol != NULL && IS_STR_DATA_BLOB(pCol->info.type)) {
+      rowSize += TSDB_MAX_BLOB_LEN;
+    }
+  }
+  return rowSize;
+}
+
 static int32_t winFuncBuildInput(SOperatorInfo *pOperator) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -1823,9 +2144,15 @@ static int32_t winFuncBuildInput(SOperatorInfo *pOperator) {
     if (pInfo->pInputStore == NULL) {
       uint32_t pageSize = 0;
       int64_t  bufSize = 0;
-      code = getBufferPgSize(pBlock->info.rowSize, &pageSize, &bufSize);
+      code = getBufferPgSize(winInputRowSize(pBlock), &pageSize, &bufSize);
       QUERY_CHECK_CODE(code, lino, _end);
-      code = winInputStoreCreate(pBlock, pageSize, bufSize, pOperator->pTaskInfo->id.str, &pInfo->pInputStore);
+      code = winInputPoolCreate(pageSize, bufSize, pOperator->pTaskInfo->id.str, &pInfo->pInputPool);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = winInputStoreCreate(pBlock, pInfo->pInputPool, &pInfo->pInputStore);
+      if (code != TSDB_CODE_SUCCESS) {
+        winInputPoolDestroy(pInfo->pInputPool);
+        pInfo->pInputPool = NULL;
+      }
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1871,6 +2198,9 @@ static int32_t winFuncOpenPartition(SWindowFuncOperatorInfo *pInfo, SWindowFuncP
   pInfo->peerStart = row;
   pInfo->peerEnd = row;
   pInfo->denseRank = 0;
+  pInfo->csumPrefixValid = false;
+  pInfo->csumPrefixPartitionStart = 0;
+  pInfo->csumPrefixEnd = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1918,9 +2248,23 @@ static int32_t winFuncBuildResultBatch(SOperatorInfo *pOperator) {
     code = winFuncCalcFrame(pInfo, pWindowNode, pInfo->partitionStart, pInfo->partitionEnd, row, &range);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = winFuncCalcOneFrame(pOperator, pInfo, pRes, pInfo->partitionStart + range.start,
-                               pInfo->partitionStart + range.end);
+    int32_t frameStart = pInfo->partitionStart + range.start;
+    int32_t frameEnd = pInfo->partitionStart + range.end;
+    if (pInfo->hasCsumAggs && frameStart == pInfo->partitionStart) {
+      if (pInfo->hasNonCsumAggs) {
+        code = winFuncCalcOneFrame(pOperator, pInfo, pRes, frameStart, frameEnd, WIN_FUNC_AGGS_NON_CSUM);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      code = winFuncCalcCsumPrefix(pOperator, pInfo, pRes, pInfo->partitionStart, frameEnd);
+    } else {
+      // CSUM frames are parser-constrained to start at the partition boundary;
+      // this path therefore does not share the CSUM prefix cache.
+      code = winFuncCalcOneFrame(pOperator, pInfo, pRes, frameStart, frameEnd, WIN_FUNC_AGGS_ALL);
+    }
     QUERY_CHECK_CODE(code, lino, _end);
+    if (pOperator->exprSupp.numOfExprs > 0) {
+      pRes->info.rows += 1;
+    }
 
     code = winFuncCalcDedicated(pInfo, pWindowNode, pRes, pInfo->partitionStart, pInfo->partitionEnd, row, dstRow,
                                 &range, pInfo->peerStart - pInfo->partitionStart,
@@ -2051,6 +2395,11 @@ int32_t createWindowFuncOperatorInfo(SOperatorInfo *downstream, SWindowFuncPhysi
 
     pInfo->pAggRow = taosMemoryCalloc(1, pInfo->aggSup.resultRowSize);
     QUERY_CHECK_NULL(pInfo->pAggRow, code, lino, _error, terrno);
+    winFuncClassifyAggs(pOperator, &pInfo->hasCsumAggs, &pInfo->hasNonCsumAggs);
+    if (pInfo->hasCsumAggs) {
+      pInfo->pCsumRow = taosMemoryCalloc(1, pInfo->aggSup.resultRowSize);
+      QUERY_CHECK_NULL(pInfo->pCsumRow, code, lino, _error, terrno);
+    }
   }
 
   SPhysiNode *pChildNode = (SPhysiNode *)nodesListGetNode(pWindowNode->node.pChildren, 0);
@@ -2063,8 +2412,10 @@ int32_t createWindowFuncOperatorInfo(SOperatorInfo *downstream, SWindowFuncPhysi
 
   setOperatorInfo(pOperator, "WindowFuncOperator", QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
+  pInfo->pOperator = pOperator;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, winFuncNext, NULL, destroyWindowFuncOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorRowStateCleanupFn(pOperator, cleanupWindowFuncRowState);
 
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);

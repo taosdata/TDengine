@@ -98,6 +98,11 @@
 // metaData remove some by tickduan                   
 #define MetaDataByteLength 2  // original is 28 bytes
 #define MetaDataByteLength_double 2 // original is 36 bytes
+
+//Upper bound of the quantization interval count accepted from a compressed payload. The encoder
+//derives it from max_quant_intervals (500 by default in setDefaulParams(), overridable through
+//tdszInit), so this leaves ample headroom while still rejecting obviously malformed payloads.
+#define MAX_QUANTIZATION_INTERVALS (1 << 24)
 	
 #define numOfBufferedSteps 1 //the number of time steps in the buffer	
 

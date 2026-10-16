@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -168,7 +170,7 @@ int32_t taosSetTerminalMode() {
 
   if (-1 == tcsetattr(0, TCSANOW, &newtio)) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
-    (void)fprintf(stderr, "Fail to set terminal properties!\n");
+    (void)fprintf(stderr, "Failed to set terminal properties!\n");
     return terrno;
   }
 
@@ -202,7 +204,7 @@ int32_t taosResetTerminalMode() {
 #else
   if (-1 == tcsetattr(0, TCSANOW, &oldtio)) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
-    (void)fprintf(stderr, "Fail to reset the terminal properties!\n");
+    (void)fprintf(stderr, "Failed to reset the terminal properties!\n");
     return terrno;
   }
 #endif
@@ -443,12 +445,8 @@ void* taosLoadDllFunc(void* handle, const char* funcName) {
   void *fptr = dlsym(handle, funcName);
 #endif
 
-  if (handle == NULL) {
-    if (errno != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-    } else {
-      terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
-    }
+  if (fptr == NULL) {
+    terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
   }
 
   return fptr;

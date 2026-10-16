@@ -6,38 +6,56 @@ taos> select (select 1);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tb1);
+ (select f1 from tb1) |
+=======================
+                    1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tb1 order by ts, f1 limit 1);
+ (select f1 from tb1 order by ts, f1 limit 1) |
+===============================================
+                                            1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select count(*) from tb1);
+ (select count(*) from tb1) |
+=============================
+                          1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select null from tb1);
+ (select null from tb1) |
+=========================
+ NULL                   |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select * from tb1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tb1);
+  (select 2 from tb1)  |
+========================
+                     2 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select avg(f1) from tb1);
+ (select avg(f1) from tb1) |
+============================
+                         1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select last(*) from tb1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tb1 partition by f1);
+ (select max(f1) from tb1 partition by f1) |
+============================================
+                                         1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select a.ts from tb1 a join tb1 b on a.ts = b.ts);
+ (select a.ts from tb1 a join tb1 b on a.ts = b.ts) |
+=====================================================
+ 2025-12-01 00:00:00.000 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select sum(f1) from tb1 interval(1d));
+ (select sum(f1) from tb1 interval(1d)) |
+=========================================
+                                      1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tb1 union select f1 from tb1);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
@@ -3101,37 +3119,43 @@ taos> select (select 1);
 DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tb2);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb2 order by ts, f1 limit 1);
+ (select f1 from tb2 order by ts, f1 limit 1) |
+===============================================
+                                            2 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select count(*) from tb2);
+ (select count(*) from tb2) |
+=============================
+                          2 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select null from tb2);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select * from tb2);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tb2);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select avg(f1) from tb2);
+ (select avg(f1) from tb2) |
+============================
+                       2.5 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select last(*) from tb2);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tb2 partition by f1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select a.ts from tb2 a join tb2 b on a.ts = b.ts);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select sum(f1) from tb2 interval(1d));
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb2 union select f1 from tb2);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
@@ -5837,37 +5861,43 @@ taos> select (select 1);
 DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tb3);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb3 order by ts, f1 limit 1);
+ (select f1 from tb3 order by ts, f1 limit 1) |
+===============================================
+                                            4 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select count(*) from tb3);
+ (select count(*) from tb3) |
+=============================
+                          3 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select null from tb3);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select * from tb3);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tb3);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select avg(f1) from tb3);
+ (select avg(f1) from tb3) |
+============================
+                         5 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select last(*) from tb3);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tb3 partition by f1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select a.ts from tb3 a join tb3 b on a.ts = b.ts);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select sum(f1) from tb3 interval(1d));
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb3 union select f1 from tb3);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
@@ -8723,38 +8753,56 @@ taos> select (select 1);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tba);
+ (select f1 from tba) |
+=======================
+                    0 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tba order by ts, f1 limit 1);
+ (select f1 from tba order by ts, f1 limit 1) |
+===============================================
+                                            0 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select count(*) from tba);
+ (select count(*) from tba) |
+=============================
+                          1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select null from tba);
+ (select null from tba) |
+=========================
+ NULL                   |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select * from tba);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tba);
+  (select 2 from tba)  |
+========================
+                     2 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select avg(f1) from tba);
+ (select avg(f1) from tba) |
+============================
+                         0 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select last(*) from tba);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tba partition by f1);
+ (select max(f1) from tba partition by f1) |
+============================================
+                                         0 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select a.ts from tba a join tba b on a.ts = b.ts);
+ (select a.ts from tba a join tba b on a.ts = b.ts) |
+=====================================================
+ 2025-12-01 00:00:00.000 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select sum(f1) from tba interval(1d));
+ (select sum(f1) from tba interval(1d)) |
+=========================================
+                                      0 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tba union select f1 from tba);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
@@ -11762,38 +11810,56 @@ taos> select (select 1);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tbb);
+ (select f1 from tbb) |
+=======================
+                    1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tbb order by ts, f1 limit 1);
+ (select f1 from tbb order by ts, f1 limit 1) |
+===============================================
+                                            1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select count(*) from tbb);
+ (select count(*) from tbb) |
+=============================
+                          1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select null from tbb);
+ (select null from tbb) |
+=========================
+ NULL                   |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select * from tbb);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tbb);
+  (select 2 from tbb)  |
+========================
+                     2 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select avg(f1) from tbb);
+ (select avg(f1) from tbb) |
+============================
+                         1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select last(*) from tbb);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tbb partition by f1);
+ (select max(f1) from tbb partition by f1) |
+============================================
+                                         1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select a.ts from tbb a join tbb b on a.ts = b.ts);
+ (select a.ts from tbb a join tbb b on a.ts = b.ts) |
+=====================================================
+ 2025-12-02 00:00:00.000 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select sum(f1) from tbb interval(1d));
+ (select sum(f1) from tbb interval(1d)) |
+=========================================
+                                      1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tbb union select f1 from tbb);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
@@ -14856,38 +14922,56 @@ taos> select (select 1);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tbe);
+ (select f1 from tbe) |
+=======================
+ NULL                 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tbe order by ts, f1 limit 1);
+ (select f1 from tbe order by ts, f1 limit 1) |
+===============================================
+ NULL                                         |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select count(*) from tbe);
+ (select count(*) from tbe) |
+=============================
+                          0 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select null from tbe);
+ (select null from tbe) |
+=========================
+ NULL                   |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select * from tbe);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tbe);
+  (select 2 from tbe)  |
+========================
+ NULL                  |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select avg(f1) from tbe);
+ (select avg(f1) from tbe) |
+============================
+ NULL                      |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select last(*) from tbe);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tbe partition by f1);
+ (select max(f1) from tbe partition by f1) |
+============================================
+ NULL                                      |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select a.ts from tbe a join tbe b on a.ts = b.ts);
+ (select a.ts from tbe a join tbe b on a.ts = b.ts) |
+=====================================================
+ NULL                                               |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select sum(f1) from tbe interval(1d));
+ (select sum(f1) from tbe interval(1d)) |
+=========================================
+ NULL                                   |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from tbe union select f1 from tbe);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 
@@ -16576,37 +16660,43 @@ taos> select (select 1);
 DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select f1 from st1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from st1 order by ts, f1 limit 1);
+ (select f1 from st1 order by ts, f1 limit 1) |
+===============================================
+                                            1 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select count(*) from st1);
+ (select count(*) from st1) |
+=============================
+                          6 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select null from st1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select * from st1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from st1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select avg(f1) from st1);
+ (select avg(f1) from st1) |
+============================
+                       3.5 |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select (select last(*) from st1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from st1 partition by f1);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select a.ts from st1 a join st1 b on a.ts = b.ts);
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select sum(f1) from st1 interval(1d));
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from st1 union select f1 from st1);
 
 DB error: Current sql does not support subquery as expr [0x800026A7] 

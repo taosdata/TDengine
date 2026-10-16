@@ -1,4 +1,21 @@
 /*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/*
  * Runtime-pluggable accelerated L2 compression backends.
  *
  * Stock zlib / zstd / lz4 are statically linked into util at build time and
@@ -13,7 +30,7 @@
  * The whole translation unit compiles to an empty object when the build
  * option is off, so callers don't need any #ifdef around tcompressionAccelInit().
  *
- * See docs/zh/26-tdinternal/11-compress.md for the operator-facing contract.
+ * See docs/zh/15-internals/08-compress.md for the operator-facing contract.
  */
 
 #ifdef TD_BUILD_WITH_ACCEL_COMPRESS
@@ -65,15 +82,18 @@ static SLz4Accel  g_lz4Accel;
 
 // ---- Wrappers (signatures match l2*Impl_* in tcompression.c) ---------------
 //
-// Defensive bounds checks mirror the L2 dispatch contract (callers always pass
-// outputSize > inputSize + 1 and compressedSize > 1). Without them, an
+// Bounds checks guard the size arithmetic below. L2 dispatch callers are
+// expected to pass outputSize > inputSize + 1 and compressedSize > 1, but an
 // out-of-spec caller or an accel library returning a wrong size that we then
-// re-feed here would underflow `outputSize - 1` / `compressedSize - 1` into
+// re-feed here could underflow `outputSize - 1` / `compressedSize - 1` into
 // ULONG_MAX / SIZE_MAX and turn the subsequent codec call or fallback memcpy
-// into a buffer overrun. The stock implementations in tcompression.c rely on
-// the same invariants but skip the checks; this dispatch lives behind dlopen
-// and is the more exposed surface, so we harden it here (gemini-code-assist
-// security review on PR #35367).
+// into a buffer overrun. The wrappers therefore reject inputSize < 0,
+// outputSize <= 1, and compressedSize <= 0, and refuse a verbatim fallback
+// that would not fit in the output buffer, returning TSDB_CODE_INVALID_PARA.
+// The stock implementations in tcompression.c rely on the same invariants but
+// skip the checks; this dispatch lives behind dlopen and is the more exposed
+// surface, so we harden it here (gemini-code-assist security review on
+// PR #35367).
 
 static int32_t accelCompress_zlib(const char *const input, const int32_t inputSize, char *const output,
                                   int32_t outputSize, const char type, int8_t lvl) {
@@ -218,6 +238,10 @@ static void *symOrLog(void *h, const char *codec, const char *sym) {
 }
 
 static void tryLoadZlibAccel(const char *path) {
+  if (g_zlibAccel.handle != NULL) {
+    return;  // already loaded on an earlier tsCompressInit() call
+  }
+
   void *h = openLibOrLog("zlib", path);
   if (h == NULL) return;
 
@@ -236,6 +260,10 @@ static void tryLoadZlibAccel(const char *path) {
 }
 
 static void tryLoadZstdAccel(const char *path) {
+  if (g_zstdAccel.handle != NULL) {
+    return;  // already loaded on an earlier tsCompressInit() call
+  }
+
   void *h = openLibOrLog("zstd", path);
   if (h == NULL) return;
 
@@ -254,6 +282,10 @@ static void tryLoadZstdAccel(const char *path) {
 }
 
 static void tryLoadLz4Accel(const char *path) {
+  if (g_lz4Accel.handle != NULL) {
+    return;  // already loaded on an earlier tsCompressInit() call
+  }
+
   void *h = openLibOrLog("lz4", path);
   if (h == NULL) return;
 
@@ -272,9 +304,13 @@ static void tryLoadLz4Accel(const char *path) {
 }
 
 // Resolve "<dir>/<basename>" without overflowing the destination buffer.
+// A trailing '/' on <dir> is tolerated (no doubled separator is emitted), so
+// operators may set TAOS_COMPRESS_ACCEL with or without the trailing slash.
 // Returns 0 on success, -1 on overflow (with the buffer left empty).
 static int joinDirAndName(char *dst, size_t dstSize, const char *dir, const char *base) {
-  int n = snprintf(dst, dstSize, "%s/%s", dir, base);
+  size_t      dirLen = strlen(dir);
+  const char *sep    = (dirLen > 0 && dir[dirLen - 1] == '/') ? "" : "/";
+  int         n      = snprintf(dst, dstSize, "%s%s%s", dir, sep, base);
   if (n < 0 || (size_t)n >= dstSize) {
     dst[0] = '\0';
     return -1;
@@ -321,7 +357,7 @@ void tcompressionAccelInit(void) {
   }
 }
 
-#else  // !TD_BUILD_WITH_ACCEL_COMPRESS — no-op stub so callers stay simple
+#else  // !TD_BUILD_WITH_ACCEL_COMPRESS  -  no-op stub so callers stay simple
 
 void tcompressionAccelInit(void) {}
 

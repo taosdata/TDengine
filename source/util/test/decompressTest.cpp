@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #define ALLOW_FORBID_FUNC
 #include <gtest/gtest.h>
 #include <stdlib.h>
@@ -29,7 +46,7 @@ TEST(utilTest, DISABLED_decompress_ts_test) {
 
 #ifdef __AVX512VL__
   memset(decompOutput, 0, 10 * 8);
-  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), 10,
+  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), len, 10,
                               reinterpret_cast<char* const>(decompOutput), false);
 
   for (int32_t i = 0; i < 10; ++i) {
@@ -60,7 +77,7 @@ TEST(utilTest, DISABLED_decompress_ts_test) {
 
 #ifdef __AVX512VL__
   memset(decompOutput, 0, 10 * 8);
-  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), 7,
+  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), len1, 7,
                               reinterpret_cast<char* const>(decompOutput), false);
 
   for (int32_t i = 0; i < 7; ++i) {
@@ -75,7 +92,7 @@ TEST(utilTest, DISABLED_decompress_ts_test) {
 
 #ifdef __AVX512VL__
   memset(decompOutput, 0, 10 * 8);
-  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), 1,
+  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), len2, 1,
                               reinterpret_cast<char* const>(decompOutput), false);
 
   for (int32_t i = 0; i < 1; ++i) {
@@ -114,7 +131,7 @@ TEST(utilTest, DISABLED_decompress_perf_test) {
   st = taosGetTimestampUs();
 #ifdef __AVX512VL__
   for (int32_t k = 0; k < 10000; ++k) {
-    tsDecompressTimestampAvx512(px, num, pOutput, false);
+    tsDecompressTimestampAvx512(px, len, num, pOutput, false);
   }
 #endif
 

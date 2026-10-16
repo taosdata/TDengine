@@ -14,7 +14,7 @@ TDengine is equipped with a visual data management tool—taosExplorer. With tao
 
 The diagram below shows the system architecture of the zero-code integration platform.
 
-![Zero-code data connectors](../../assets/no-code-ingestion-01.png)
+![Zero-code data connectors](../../assets/no-code-ingestion-01.webp)
 
 ## Supported Data Sources
 
@@ -56,7 +56,7 @@ Only unstructured data sources need this step. Currently, MQTT and Kafka data so
 
 #### Sample Data
 
-![Sample data](../../assets/no-code-ingestion-02.png)
+![Sample data](../../assets/no-code-ingestion-02.webp)
 
 As shown in the image, the textarea input box contains the sample data, which can be obtained in three ways:
 
@@ -96,7 +96,7 @@ The following nested JSON data can automatically parse fields `groupid`, `data_v
 {"groupid": 170001, "data": { "voltage": "221V", "current": 12.3 }, "ts": "2023-12-18T22:12:00", "inuse": true, "location": [{"province": "beijing", "city":"chaoyang", "street": "datun"}]}
 ```
 
-![JSON parsing](../../assets/no-code-ingestion-03.png)
+![JSON parsing](../../assets/no-code-ingestion-03.webp)
 
 2. **Regex Regular Expressions**
 
@@ -106,7 +106,7 @@ You can use **named capture groups** in regular expressions to extract multiple 
 (?<ip>\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)\s-\s-\s\[(?<ts>\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s\+\d{4})\]\s"(?<method>[A-Z]+)\s(?<url>[^\s"]+).*(?<status>\d{3})\s(?<length>\d+)
 ```
 
-![Regex parsing](../../assets/no-code-ingestion-04.png)
+![Regex parsing](../../assets/no-code-ingestion-04.webp)
 
 3. **UDT Custom Parsing Scripts**
 
@@ -140,7 +140,7 @@ let v3 = data["voltage"].split(",");
 
 The final parsing result is shown below:
 
-![Parsed results](../../assets/no-code-ingestion-05.png)
+![Parsed results](../../assets/no-code-ingestion-05.webp)
 
 ### Extraction or Splitting
 
@@ -286,7 +286,7 @@ Below, using MQTT data source as an example, we explain how to create a task of 
 - If the MQTT broker has enabled user authentication, enter the username and password of the MQTT broker in the authentication section;
 - If the MQTT broker has enabled SSL encryption, you can turn on the SSL certificate switch on the page and upload the CA's certificate, as well as the client's certificate and private key files;
 
-1. In the "Collection Configuration" section, you can select the version of the MQTT protocol, currently supporting 3.1, 3.1.1, 5.0; when configuring the Client ID, be aware that if multiple tasks are created for the same MQTT broker, the Client IDs should be different to avoid conflicts, which could cause the tasks to not run properly; when configuring the topic and QoS, use the format `<topic name>::<QoS>`, where the QoS values range from 0, 1, 2, representing at most once, at least once, exactly once; after configuring the above information, you can click the "Check Connectivity" button to check the configurations, if the connectivity check fails, please modify according to the specific error tips returned on the page;
+1. In the "Collection Configuration" section, you can select the version of the MQTT protocol, currently supporting 3.1.1 and 5.0 (legacy MQTT 3.1 is not supported); when configuring the Client ID, be aware that if multiple tasks are created for the same MQTT broker, the Client IDs should be different to avoid conflicts, which could cause the tasks to not run properly; when configuring the topic and QoS, use the format `<topic name>::<QoS>`, where the QoS values range from 0, 1, 2, representing at most once, at least once, exactly once; after configuring the above information, you can click the "Check Connectivity" button to check the configurations, if the connectivity check fails, please modify according to the specific error tips returned on the page;
 1. During the process of syncing data from the MQTT broker, taosX also supports extracting, filtering, and mapping operations on the fields in the message body. In the text box under "Payload Transformation", you can directly input a sample of the message body, or import it by uploading a file, and in the future, it will also support retrieving sample messages directly from the configured server;
 1. For extracting fields from the message body, currently, two methods are supported: JSON and regular expressions. For simple key/value formatted JSON data, you can directly click the extract button to display the parsed field names; for complex JSON data, you can use JSON Path to extract the fields of interest; when using regular expressions to extract fields, ensure the correctness of the regular expressions;
 1. After the fields in the message body are parsed, you can set filtering rules based on the parsed field names, and only data that meets the filtering rules will be written into TDengine, otherwise, the message will be ignored; for example, you can configure a filtering rule as voltage > 200, meaning only data with a voltage greater than 200V will be synced to TDengine;

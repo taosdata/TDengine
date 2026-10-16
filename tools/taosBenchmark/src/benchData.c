@@ -1,13 +1,18 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software
- * Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdio.h>
@@ -296,7 +301,7 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
     // check valid
     if (g_arguments->prepared_rand < g_arguments->reqPerReq) {
         infoPrint(
-                  "in stmt mode, batch size(%u) can not larger than prepared "
+                  "in stmt mode, batch size(%u) cannot be larger than prepared "
                   "sample data size(%" PRId64
                   "), restart with larger prepared_rand or batch size will be "
                   "auto set to %" PRId64 "\n",
@@ -401,8 +406,23 @@ static int generateSampleFromCsv(char *buffer, char* file, FILE* fp, int32_t len
             continue;
         }
 
+        // the csv line is external input: it must fit into one row slot,
+        // otherwise the following slots (and the end of the sample buffer)
+        // would be overwritten
+        size_t lineLen = strlen(line);
+        if (length <= 0 || lineLen >= (size_t)length) {
+            errorPrint("csv line is too long, line len=%d, max allowed=%d, "
+                    "file=%s\n", (int32_t)lineLen, length - 1,
+                    (file != NULL) ? file : "(file stream)");
+            if (needClose) {
+                fclose(fp);
+            }
+            tmfree(line);
+            return -1;
+        }
+
         int64_t offset = ((int64_t)getRows) * length;
-        memcpy(buffer + offset, line, readLen + 1);
+        memcpy(buffer + offset, line, lineLen + 1);
         getRows++;
 
         if (getRows == size) {

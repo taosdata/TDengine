@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """misc handlers: encapsulates miscellaneous tool business logic"""
 
 import numpy as np
@@ -33,6 +48,19 @@ def handle_build_batch_env(request):
 
     if data is None or ts is None or windows is None:
         msg = "'data', 'ts', and 'window' are required fields in the payload."
+        AppLogger.error(msg)
+        return {"msg": msg, "rows": -1}
+
+    MAX_WINDOWS = 1000
+    if not isinstance(windows, list) or len(windows) > MAX_WINDOWS:
+        msg = f"'window' must be a list with at most {MAX_WINDOWS} entries, "
+        msg += f"got {len(windows) if isinstance(windows, list) else type(windows).__name__}"
+
+        AppLogger.error(msg)
+        return {"msg": msg, "rows": -1}
+
+    if not (10 <= len(data) <= 40000):
+        msg = f"data length must be in [10, 40000], got {len(data)}"
         AppLogger.error(msg)
         return {"msg": msg, "rows": -1}
 

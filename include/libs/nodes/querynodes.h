@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,13 +24,14 @@ extern "C" {
 #endif
 
 #include "nodes.h"
+#include "osTimezone.h"
 #include "tmsg.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
 #include "ttypes.h"
 #include "streamMsg.h"
 // SExtTableMeta is defined in extConnector.h; only a pointer is stored here,
-// so a forward declaration is sufficient and avoids a nodes → extconnector
+// so a forward declaration is sufficient and avoids a nodes  ->  extconnector
 // header dependency.
 typedef struct SExtTableMeta SExtTableMeta;
 
@@ -108,6 +111,8 @@ typedef struct SColumnNode {
       uint8_t reserve : 6;
     };
   };
+  char refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];   // external schema (SQL Server); empty otherwise
   char refDbName[TSDB_DB_NAME_LEN];
   char refTableName[TSDB_TABLE_NAME_LEN];
   char refColName[TSDB_COL_NAME_LEN];
@@ -116,14 +121,21 @@ typedef struct SColumnNode {
 typedef struct SColumnRefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
-  int8_t    refType;                                      // 0=internal, 1=external (DS §6.2.8)
+  int8_t    refType;                                      // 0=internal, 1=external (DS section 6.2.8)
   char      refDbName[TSDB_DB_NAME_LEN];
   char      refTableName[TSDB_TABLE_NAME_LEN];
   char      refColName[TSDB_COL_NAME_LEN];
   // [FG-9] Extended for federated query 4-segment path: source.db.table.col
   // Non-empty refSourceName indicates an external (4-segment path) reference.
   char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
+  char      refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema segment (5-segment path); empty otherwise
   SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
+  SNode*    pFilterCond;        // MySQL/PostgreSQL external-column filter, or NULL
+  // Own (extension) column declaration of a virtual child table: set when the col_ref
+  // carries an explicit type (`name TYPE FROM db.tb.col`), meaning the column is not
+  // defined in the vstb schema. Only valid in CREATE VTABLE specific_column_ref_list.
+  bool      hasDataType;
+  SDataType dataType;
 } SColumnRefNode;
 
 typedef struct STargetNode {
@@ -136,9 +148,17 @@ typedef struct STargetNode {
 #define VALUE_FLAG_IS_DURATION    (1 << 0)
 #define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
 #define VALUE_FLAG_VAL_UNSET      (1 << 2)
+// Set on remote scalar result nodes whose runtime type becomes QUERY_NODE_VALUE
+// while the allocation still owns the trailing pRemotePlan field.
+#define VALUE_FLAG_REMOTE_PLAN      (1 << 3)
 // When set on a TSDB_DATA_TYPE_BINARY SValueNode, datum.p is a raw SQL fragment
 // (unquoted, unescaped) to be emitted verbatim into the remote SQL string.
 #define VALUE_FLAG_RAW_SQL_FRAG   (1 << 4)
+#define VALUE_FLAG_DEFERRED_QSTART    (1 << 5)
+#define VALUE_FLAG_DEFERRED_QEND      (1 << 6)
+#define VALUE_FLAG_DEFERRED_QDURATION (1 << 7)
+#define VALUE_FLAG_DEFERRED_QUERY_TIME \
+  (VALUE_FLAG_DEFERRED_QSTART | VALUE_FLAG_DEFERRED_QEND | VALUE_FLAG_DEFERRED_QDURATION)
 
 #define IS_DURATION_VAL(_flag)    ((_flag)&VALUE_FLAG_IS_DURATION)
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
@@ -169,7 +189,65 @@ typedef struct SValueNode {
 typedef struct SRemoteValueNode {
   SValueNode val;
   int32_t    subQIdx;
+  // v2 pushdown: render mode + subquery logic plan for server-side rendering.
+  // pRemotePlan is non-NULL only for ORIG_TYPE_2B and points to the
+  // stage3-attached logic subtree; DIRECT_SQL
+  // inlines val.literal (original SQL).  Owned here; freed in nodesDestroyNode;
+  // cloned/serialized alongside the node.
+  EFqSubqRenderMode renderMode;
+  SNode*            pRemotePlan;
 } SRemoteValueNode;
+
+// IDs are allocated within one root semantic analysis and survive node copies.
+// Scope/binding/expression/table-reference IDs start at 1; parameter/template
+// IDs start at 0 and are local to their owning template/root plan respectively.
+typedef struct SOuterRefNode {
+  SExprNode node;
+  int32_t   scopeId;
+  int64_t   bindingId;
+  int64_t   tableRefId;  // Zero denotes an aggregate-result binding.
+  char      tableAlias[TSDB_TABLE_NAME_LEN];
+  char      colName[TSDB_COL_NAME_LEN];
+} SOuterRefNode;
+
+typedef struct SCorrelationParamNode {
+  SExprNode node;
+  int32_t   paramId;  // Internal parameter, never a STMT placeholder.
+} SCorrelationParamNode;
+
+typedef enum ECorrelationSourceKind {
+  CORRELATION_SOURCE_LOGICAL = 1,
+  CORRELATION_SOURCE_BLOCK,
+  CORRELATION_SOURCE_INHERITED,
+} ECorrelationSourceKind;
+
+typedef struct SCorrelationParamBindingNode {
+  ENodeType              type;
+  int32_t                paramId;
+  SDataType              dataType;
+  ECorrelationSourceKind sourceKind;
+  int32_t                scopeId;
+  int64_t                bindingId;
+  int64_t                tableRefId;
+  int64_t                sourceBlockId;     // -1 unless sourced from a block.
+  int16_t                sourceSlotId;      // -1 unless sourced from a block.
+  int32_t                inheritedParamId;  // -1 unless sourced from a parameter.
+  // Owned Column/OuterRef dependency for column retention and slot remapping.
+  // Block sources use Column; inherited sources have no local dependency (NULL).
+  // Aggregate sources reference their result, never re-evaluate the aggregate.
+  SNode*                 pSource;
+} SCorrelationParamBindingNode;
+
+typedef struct SCorrelatedSubqueryNode {
+  SExprNode             node;
+  int32_t               templateId;
+  int64_t               exprId;
+  int32_t               scopeId;        // Scope of the inner query block.
+  int32_t               parentScopeId;  // Scope containing this expression.
+  SNodeList*            pParamBindings;  // Owned parameter-source binding nodes.
+  char*                 pSubquerySql;    // Owned original SELECT, without ().
+  // No result slot or mutable per-invocation state belongs to this expression.
+} SCorrelatedSubqueryNode;
 
 #define VALUELIST_FLAG_VAL_UNSET      (1 << 0)
 
@@ -189,6 +267,17 @@ typedef struct SRemoteValueListNode {
   STypeMod   filterValueTypeMod;
   int32_t    subQIdx;
   uint64_t   streamGen;  // generation when hash was last built (stream mode)
+  // DS section5.3.7.1.3: pre-rendered inner SELECT SQL for same-source IN (subquery).
+  // Non-NULL only for MySQL/PG same-source IN subqueries; allows nodesRemotePlanToSQL
+  // to emit  col IN (SELECT ...)  without a runtime resolve context.
+  // Heap-allocated; owned by this node; freed in nodesDestroyNode.
+  char*      inSubquerySql;
+  // v2 pushdown: render mode + subquery logic plan (server-side rendering for
+  // ORIG_TYPE_2B).  pRemotePlan non-NULL only for ORIG_TYPE_2B and points to
+  // the stage3-attached logic subtree; DIRECT_SQL inlines
+  // inSubquerySql.  Owned here.
+  EFqSubqRenderMode renderMode;
+  SNode*            pRemotePlan;
 } SRemoteValueListNode;
 
 typedef struct SRemoteRowNode {
@@ -198,6 +287,17 @@ typedef struct SRemoteRowNode {
   bool       hasValue;
   bool       hasNull;
   int32_t    subQIdx;
+  // Pre-rendered original subquery SQL for same-source ALL/ANY/SOME/scalar
+  // pushdown.  When the optimizer decides the comparison subquery is fully
+  // pushable, nodesRemotePlanToSQL emits  expr op [ALL|ANY] (pSubquerySql)
+  // directly.  Heap-allocated; owned by this node; freed in nodesDestroyNode.
+  char*      pSubquerySql;
+  // v2 pushdown: render mode + subquery logic plan (server-side rendering for
+  // ORIG_TYPE_2B).  pRemotePlan is the stage3-attached logic subtree to render
+  // inside the quantified predicate; DIRECT_SQL inlines
+  // pSubquerySql.  Owned here.
+  EFqSubqRenderMode renderMode;
+  SNode*            pRemotePlan;
 } SRemoteRowNode;
 
 typedef SRemoteValueNode SRemoteZeroRowsNode;
@@ -205,6 +305,7 @@ typedef SRemoteValueNode SRemoteZeroRowsNode;
 
 #define REMOTE_TABLE_FLAG_VAL_UNSET      (1 << 0)
 #define REMOTE_TABLE_FLAG_RES_ALLOCED    (1 << 1)
+#define REMOTE_TABLE_FLAG_EXT_PART_KEYS_MATCH (1 << 2)
 
 typedef struct SRemoteTableNode {
   ENodeType  type;
@@ -230,16 +331,30 @@ typedef enum EHintOption {
   HINT_WIN_OPTIMIZE_BATCH,
   HINT_WIN_OPTIMIZE_SINGLE,
   HINT_SMALLDATA_SCAN_SORT,
+  HINT_FAST_INTERVAL,
+  HINT_EX_INTERVAL,
+  HINT_MERGE_JOIN,
+  HINT_JOIN_ALGO,
+  HINT_SPLIT_SCAN,
 } EHintOption;
+
+// A Hint parameter keeps the original token type and text for later consumers.
+// value is heap allocated and owned by the containing SHintNode.
+typedef struct SHintParam {
+  uint32_t type;
+  char*    value;
+} SHintParam;
 
 typedef struct SHintNode {
   ENodeType   type;
   EHintOption option;
-  void*       value;
+  // SArray<SHintParam>; owned by this node and NULL when no parameters exist.
+  SArray* pParams;
 } SHintNode;
 
-#define OPERATOR_FLAG_NEGATIVE_OP                (1 << 0)
-#define OPERATOR_FLAG_XNODE_TEXT_BLOB            (1 << 1)
+#define OPERATOR_FLAG_NEGATIVE_OP      (1 << 0)
+#define OPERATOR_FLAG_BANG_NE          (1 << 1)  // original source was !=, not <>
+#define OPERATOR_FLAG_XNODE_TEXT_BLOB  (1 << 1)
 #define OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE (1 << 2)
 
 typedef struct SOperatorNode {
@@ -364,7 +479,6 @@ typedef struct SRealTableNode {
   SVgroupsInfo*      pVgroupList;
   char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   double             ratio;
-  SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
   int8_t             stbRewrite;
   SArray*            pTsmas;
@@ -374,8 +488,8 @@ typedef struct SRealTableNode {
   bool               asSingleTable; // only used in stream calc query
   // External table path fields (3-segment or 4-segment path)
   SNode*             pExtTableNode;                      // translated external table node (enterprise only)
-  int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.schema.tbl; 4 = src.schema.db.tbl
-  char               extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=schema/mid
+  int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.mid0.tbl; 4 = src.mid0.mid1.tbl
+  char               extSeg[3][TSDB_EXT_SOURCE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=mid0 (db or schema); [2]=mid1 (schema; 4-seg only)
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -430,6 +544,7 @@ typedef struct SVirtualTableNode {
   SVgroupsInfo*      pVgroupList;
   SNodeList*         refTables;
   SArray*            pExtSourceNames;  // SArray<char*> external source names (super table path)
+  bool               hasFilterCond;  // any child column or referenced leaf has a saved external filter
 } SVirtualTableNode;
 
 typedef struct SViewNode {
@@ -438,7 +553,6 @@ typedef struct SViewNode {
   SVgroupsInfo*      pVgroupList;
   char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   double             ratio;
-  SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
 } SViewNode;
 
@@ -452,7 +566,7 @@ typedef struct SExtTableNode {
   char                  sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external data source name
   char                  schemaName[TSDB_DB_NAME_LEN];    // PG schema name; empty for MySQL/InfluxDB
   SExtTableMeta*        pExtMeta;                    // external table raw metadata (Catalog cache ref)
-  // --- connection info (Parser fills from SParseMetaCache → SExtSourceInfo) ---
+  // --- connection info (Parser fills from SParseMetaCache  ->  SExtSourceInfo) ---
   int8_t                sourceType;                  // EExtSourceType
   char                  srcHost[TSDB_EXT_SOURCE_HOST_LEN];
   int32_t               srcPort;
@@ -468,6 +582,15 @@ typedef struct SExtTableNode {
   int32_t               tsPrimaryColIdx;             // index of the timestamp primary key column (-1 = not found)
   // --- remote table name (original case from remote INFORMATION_SCHEMA) ---
   char                  remoteTableName[TSDB_TABLE_NAME_LEN];  // actual table name on remote (preserves case)
+  // --- subquery DIRECT_SQL eligibility (set by parser) ---
+  // true  = the source name was supplied explicitly in the user's path
+  //         (e.g. "src.tbl" / "src.schema.tbl") - the raw subquery SQL carries a
+  //         TDengine source-name qualifier that the remote DB cannot resolve, so
+  //         the subquery MUST be re-rendered (transform mode) to strip it.
+  // false = the source name came from the active USE <source> context (the user
+  //         wrote a bare table or db.tbl) - the raw subquery SQL has no source
+  //         qualifier and may be inlined verbatim (DIRECT_SQL).
+  bool                  srcNameFromPath;
 } SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024
@@ -499,6 +622,7 @@ typedef enum EJoinAlgorithm {
   JOIN_ALGO_UNKNOWN = 0,
   JOIN_ALGO_MERGE,
   JOIN_ALGO_HASH,
+  JOIN_ALGO_THETA,
 } EJoinAlgorithm;
 
 typedef enum EDynQueryType {
@@ -514,10 +638,12 @@ typedef struct SJoinTableNode {
   STableNode   table;  // QUERY_NODE_JOIN_TABLE
   EJoinType    joinType;
   EJoinSubType subType;
+  SNodeList*   pWindowTime;
   SNode*       pWindowOffset;
   SNode*       pJLimit;
   SNode*       addPrimCond;
   bool         hasSubQuery;
+  bool         isCrossJoin;
   bool         isLowLevelJoin;
   bool         leftNoOrderedSubQuery;
   bool         rightNoOrderedSubQuery;
@@ -594,6 +720,12 @@ typedef struct SEventWindowNode {
   SNode*    pTrueForLimit;
 } SEventWindowNode;
 
+typedef struct SEventStartLeafNode {
+  ENodeType type;      // QUERY_NODE_EVENT_START_LEAF
+  SNode*    pCond;     // search_condition
+  SNode*    pTrueFor;  // QUERY_NODE_TRUE_FOR, QUERY_NODE_VALUE, or NULL
+} SEventStartLeafNode;
+
 typedef enum ETrueForType {
   TRUE_FOR_DURATION_ONLY = 0,
   TRUE_FOR_COUNT_ONLY = 1,
@@ -645,7 +777,7 @@ typedef struct SExternalWindowNode {
   SNodeList*  pAggFuncList;
   STimeWindow timeRange;
   SNode*      pTimeRange;
-  void*       timezone;
+  void*       timezone;  // borrowed timezone_t handle
   SNode*      pSubquery;
   SNode*      pFill;
   char        aliasName[TSDB_COL_NAME_LEN];
@@ -830,6 +962,9 @@ typedef struct SSelectStmt {
   bool            isDistinct;
   STimeWindow     timeRange;
   SNode*          pTimeRange; // STimeRangeNode for create stream
+  bool            timeRangeParamDependent;
+  bool            interpRangeParamDependent;
+  bool            deferredFillAllowNoTimeRange;
   SNodeList*      pProjectionList;
   SNodeList*      pProjectionBindList;
   SNode*          pFromTable;
@@ -862,6 +997,7 @@ typedef struct SSelectStmt {
   int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
   bool            isSubquery;
+  bool            implicitPartitionHaving;
   bool            hasAggFuncs;
   bool            hasRepeatScanFuncs;
   bool            hasIndefiniteRowsFunc;
@@ -887,9 +1023,15 @@ typedef struct SSelectStmt {
   bool            groupSort;
   bool            tagScan;
   bool            joinContains;
+  bool            hasWhereCond;
   bool            mixSysTableAndActualTable;
   bool            hasScalarExpr;
   bool            windowScalarMode;
+  // FQ: when this SELECT is the inner statement of a subquery expression
+  // (IN/EXISTS/scalar/ALL/ANY/SOME), this holds the user's ORIGINAL subquery
+  // SQL substring (inner query without outer parentheses), captured at parse
+  // time from SRawExprNode.  Heap-allocated; owned by this node.
+  char*           pOrigSubquerySql;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -901,6 +1043,8 @@ typedef struct SSetOperator {
   EQuantifyType    quantify;
   SNodeList*       pSubQueries;   // non table subqueries
   SNodeList*       pProjectionList;
+  // Flattened operands for a consecutive chain using this node's opType.
+  SNodeList*       pOperands;
   SNode*           pLeft;
   SNode*           pRight;
   SNodeList*       pOrderByList;  // SOrderByExprNode
@@ -910,7 +1054,24 @@ typedef struct SSetOperator {
   ETimeLineMode    timeLineResMode;
   bool             timeLineFromOrderBy;
   bool             joinContains;
+  // FQ: original subquery SQL substring when this set-operator is the inner
+  // statement of a subquery expression.  See SSelectStmt.pOrigSubquerySql.
+  char*            pOrigSubquerySql;
 } SSetOperator;
+
+static inline int32_t setOperatorChildCount(const SSetOperator* pSet) {
+  if (pSet == NULL) return 0;
+  if (pSet->pOperands != NULL) return pSet->pOperands->length;
+  return (pSet->pLeft != NULL ? 1 : 0) + (pSet->pRight != NULL ? 1 : 0);
+}
+
+static inline SNode* setOperatorChildAt(const SSetOperator* pSet, int32_t index) {
+  if (pSet == NULL || index < 0) return NULL;
+  if (pSet->pOperands != NULL) return nodesListGetNode(pSet->pOperands, index);
+  if (index == 0) return pSet->pLeft;
+  if (index == 1) return pSet->pRight;
+  return NULL;
+}
 
 typedef enum ESqlClause {
   SQL_CLAUSE_FROM = 1,
@@ -926,6 +1087,40 @@ typedef enum ESqlClause {
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;
 
+typedef struct SCorrelationTableRef {
+  int64_t tableRefId;  // Identifies a FROM instance, not the catalog table UID.
+  int32_t scopeId;
+  char    tableAlias[TSDB_TABLE_NAME_LEN];
+} SCorrelationTableRef;
+
+typedef struct SCorrelationBinding {
+  int64_t   bindingId;
+  int32_t   scopeId;
+  int64_t   tableRefId;   // Zero for an aggregate result.
+  int64_t   aggregateId;  // Zero for a table column.
+  col_id_t  colId;
+  SDataType dataType;
+} SCorrelationBinding;
+
+typedef struct SCorrelationAggregate {
+  int64_t    aggregateId;
+  ESqlClause clause;  // Checked in the aggregate's owning scope.
+  SNode*     pExpr;   // Owned complete aggregate expression.
+} SCorrelationAggregate;
+
+// Owned by one translation context (P02), never shared mutable runtime state.
+// All identities are stable values; AST addresses and currLevel are not keys.
+typedef struct SCorrelationScope {
+  int32_t    scopeId;
+  int32_t    parentScopeId;  // Zero at the root.
+  ESqlClause clause;        // Clause in the parent containing this query block.
+  int64_t    exprId;        // Zero at the root.
+  SArray*    pTableRefs;     // Owned SCorrelationTableRef entries.
+  SArray*    pBindings;      // Owned SCorrelationBinding entries.
+  SArray*    pFreeBindings;  // Owned ancestor SCorrelationBinding entries.
+  SArray*    pAggregates;    // Owned SCorrelationAggregate entries/expressions.
+} SCorrelationScope;
+
 typedef struct SDeleteStmt {
   ENodeType   type;        // QUERY_NODE_DELETE_STMT
   SNode*      pFromTable;  // FROM clause
@@ -933,7 +1128,8 @@ typedef struct SDeleteStmt {
   SNode*      pCountFunc;  // count the number of rows affected
   SNode*      pFirstFunc;  // the start timestamp when the data was actually deleted
   SNode*      pLastFunc;   // the end timestamp when the data was actually deleted
-  SNode*      pTagCond;    // pWhere divided into pTagCond and timeRange
+  SNode*      pTagCond;       // pWhere divided into pTagCond, pColumnFilter and timeRange
+  SNode*      pColumnFilter;  // ordinary(non-pk, non-tag) column filter, NULL if not used
   STimeWindow timeRange;
   uint8_t     precision;
   bool        deleteZeroRows;
@@ -1049,6 +1245,7 @@ typedef struct SQuery {
   int8_t          precision;
   bool            haveResultSet;
   bool            showRewrite;
+  int8_t          xnodeDsnOutputMode;
   bool            stableQuery;
   SNode*          pPrevRoot;
   SNode*          pRoot;
@@ -1097,12 +1294,33 @@ bool nodesIsBitwiseOp(const SOperatorNode* pOp);
 
 bool nodesExprHasColumn(SNode* pNode);
 bool nodesExprsHasColumn(SNodeList* pList);
+bool nodesExprHasCorrelation(SNode* pNode);
+bool nodesExprsHasCorrelation(SNodeList* pList);
+
+// Validate and normalize a DDL filter in place, returning the timestamp primary-key column index.
+int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,
+                                    timezone_t timezone, void* charsetCxt, char* pMsg, int32_t msgLen,
+                                    int32_t* pTsPrimaryKeyIndex);
+
+// Revalidate a saved filter against current metadata without changing the saved JSON.
+// A non-relational source without a filter succeeds with a timestamp index of -1.
+int32_t nodesValidateExternalFilterCurrentMeta(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                               const char* pFilterCondJson, int32_t filterCondLen, timezone_t timezone,
+                                               void* charsetCxt, char* pMsg, int32_t msgLen,
+                                               int32_t* pTsPrimaryKeyIndex);
+
+// Restore saved timestamp strings for remote SQL, or all original literals for SHOW CREATE replay.
+int32_t nodesRestoreExternalFilterLiterals(SNode** ppFilterCond, bool forDdl);
 
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+// Convert a literal into datum/typeData; callers retain responsibility for resType and translate.
+int32_t nodesConvertValueLiteral(SValueNode* pValue, SDataType targetType, void* charsetCxt, bool strict);
+// Release nested resources owned by a value node without freeing its storage.
+void    nodesClearValueNode(SValueNode* pValue);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeDurationValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
@@ -1131,13 +1349,13 @@ int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
 SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
 
-// nodesRenderCorrelatedExistsBody — render the body SQL of a correlated EXISTS
+// nodesRenderCorrelatedExistsBody  -  render the body SQL of a correlated EXISTS
 // subquery that can be pushed down to an external data source.
 //
 // pInnerSelect : the inner SSelectStmt (FROM table must be SRealTableNode with
 //                pExtTableNode set).
 // sourceType   : EExtSourceType value (determines SQL dialect: MySQL/PG/Influx).
-// ppSQL        : OUT — heap-allocated SQL string; caller must taosMemoryFree().
+// ppSQL        : OUT  -  heap-allocated SQL string; caller must taosMemoryFree().
 //
 // Column references in the WHERE clause are rendered as "tableName"."colName"
 // so that the generated SQL is self-contained and can be embedded in a correlated
@@ -1148,6 +1366,17 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
                                         int8_t             sourceType,
                                         char**             ppSQL);
 
+// nodesRenderInSubqueryBody - render the body SQL of an uncorrelated IN (subquery)
+// for same-source MySQL/PG pushdown.
+//
+// pInnerSelect : the inner SSelectStmt (single projection, FROM an ext table).
+// sourceType   : EExtSourceType value (MySQL or PostgreSQL).
+// ppSQL        : OUT - heap-allocated SQL string; caller must taosMemoryFree().
+//
+// Returns TSDB_CODE_SUCCESS on success or an error code.
+int32_t nodesRenderInSubqueryBody(const SSelectStmt* pInnerSelect,
+                                  int8_t             sourceType,
+                                  char**             ppSQL);
 #ifdef __cplusplus
 }
 #endif

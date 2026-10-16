@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -100,6 +102,13 @@ typedef struct {
   int   we_offs;
   char  wordPos[1025];
 } wordexp_t;
+
+// Windows has no WRDE_NOCMD, and the wordexp shim above ignores its flags argument entirely, so
+// there is nothing here for the value to suppress. It is defined as 0 so that the shared callers
+// which do pass it (taosExpandDir, tfsFormatDir) compile unchanged -- it is not an unused
+// placeholder.
+#define WRDE_NOCMD 0
+
 int  wordexp(char *words, wordexp_t *pwordexp, int flags);
 void wordfree(wordexp_t *pwordexp);
 
@@ -154,6 +163,9 @@ char *strsep(char **stringp, const char *delim);
 #endif
 
 #define DEFAULT_UNICODE_ENCODEC "UCS-4LE"
+// Multibyte charset assumed when no charset context is configured. Paired
+// with DEFAULT_UNICODE_ENCODEC as the two sides of the default conversion.
+#define DEFAULT_MBS_ENCODEC "UTF-8"
 
 #define DEFAULT_COMP(x, y)       \
   do {                           \

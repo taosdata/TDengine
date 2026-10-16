@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,6 +22,8 @@
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <random>
@@ -193,6 +197,7 @@ TEST(dataSinkTest, test_name) {
   int32_t code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
   ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
   blockDataDestroy(pBlock);
+  destroyDataSinkMgr();
 }
 
 TEST(dataSinkTest, putStreamDataCacheTest) {
@@ -883,6 +888,7 @@ TEST(dataSinkTest, testWriteFileSize) {
   blockDataDestroy(pBlock);
 
   destroyStreamDataCache(pCache);
+  destroyDataSinkMgr();
 }
 
 TEST(dataSinkTest, readReusedFileBlockOnce) {
@@ -1232,6 +1238,7 @@ class DataSinkMemoryLimitGuard {
 };
 
 struct ScopedCacheWriteRecord {
+  TdFilePtr file = nullptr;
   int64_t offset = 0;
   int64_t size = 0;
 };
@@ -1244,6 +1251,7 @@ int64_t captureScopedCacheWrite(TdFilePtr pFile, const void* pBuffer, int64_t co
   int64_t written = taosPWriteFile(pFile, pBuffer, count, offset);
   gScopedCacheWriteStub->set(taosPWriteFile, captureScopedCacheWrite);
   ScopedCacheWriteRecord record;
+  record.file = pFile;
   record.offset = offset;
   record.size = count;
   gScopedCacheWrites.push_back(record);
@@ -1295,6 +1303,41 @@ class ScopedDataSinkEnvironment {
 };
 
 int64_t ScopedDataSinkEnvironment::nextId_ = 10000;
+
+TEST(dataSinkTest, AlignedWindowReadsProjectedColumnsWithoutTimestampFiltering) {
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, TSDB_CODE_SUCCESS);
+  using Block = std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)>;
+  Block source(createScopedBlock({1000, 1001, 1002}, {10, 11, 12}), blockDataDestroy);
+  ASSERT_NE(source, nullptr);
+  auto* timestamp = static_cast<SColumnInfoData*>(taosArrayGet(source->pDataBlock, 0));
+  auto* value = static_cast<SColumnInfoData*>(taosArrayGet(source->pDataBlock, 1));
+  colDataSetNULL(value, 1);
+  // Cached projections can reorder columns while the task retains its original timestamp slot.
+  std::swap(*timestamp, *value);
+  ASSERT_EQ(putStreamDataCache(env.cache, 1, 1000, 1002, source.get(), 0, 2), TSDB_CODE_SUCCESS);
+
+  void* iterator = nullptr;
+  ASSERT_EQ(getStreamDataCache(env.cache, 1, 1000, 1002, &iterator), TSDB_CODE_SUCCESS);
+  SSDataBlock*  output = nullptr;
+  const int32_t code = getNextStreamDataCache(&iterator, &output);
+  Block         result(output, blockDataDestroy);
+  EXPECT_EQ(iterator, nullptr);
+  if (iterator != nullptr) cancelStreamDataCacheIterate(&iterator);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->info.rows, 3);
+  value = static_cast<SColumnInfoData*>(taosArrayGet(result->pDataBlock, 0));
+  timestamp = static_cast<SColumnInfoData*>(taosArrayGet(result->pDataBlock, 1));
+  EXPECT_EQ(value->info.type, TSDB_DATA_TYPE_INT);
+  EXPECT_EQ(timestamp->info.type, TSDB_DATA_TYPE_TIMESTAMP);
+  EXPECT_EQ(*reinterpret_cast<int32_t*>(colDataGetData(value, 0)), 10);
+  EXPECT_TRUE(colDataIsNull_s(value, 1));
+  EXPECT_EQ(*reinterpret_cast<int32_t*>(colDataGetData(value, 2)), 12);
+  for (int32_t row = 0; row < 3; ++row) {
+    EXPECT_EQ(*reinterpret_cast<TSKEY*>(colDataGetData(timestamp, row)), 1000 + row);
+  }
+}
 
 int32_t failArrayEnsureCapacity(SArray*, size_t) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1984,9 +2027,447 @@ TEST(dataSinkTest, RetiredManagerReleaseDoesNotReadFreedState) {
   env.cache = replacement;
 }
 
+class LegacySpillFixture : public testing::Test {
+ protected:
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env{DATA_CLEAN_EXPIRED};
+  SSlidingTaskDSMgr*        task = nullptr;
+  SSlidingGrpMgr*           group = nullptr;
+  std::string               renamed;
+  void                      SetUp() override {
+    ASSERT_EQ(env.code, 0);
+    setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
+    SSDataBlock* block = createScopedBlock({100, 101, 102}, {10, 11, 12});
+    ASSERT_NE(block, nullptr);
+    colDataSetNULL(static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 1)), 0);
+    const int32_t code = putStreamDataCache(env.cache, 1, 100, 102, block, 0, 2);
+    blockDataDestroy(block);
+    ASSERT_EQ(code, 0);
+    task = static_cast<SSlidingTaskDSMgr*>(env.cache);
+    int64_t gid = 1;
+    auto    entry = static_cast<SSlidingGrpMgr**>(taosHashGet(task->pSlidingGrpList, &gid, sizeof(gid)));
+    ASSERT_NE(entry, nullptr);
+    group = *entry;
+  }
+  void checkFileBlockBoundary(int64_t remaining) {
+    SSDataBlock* block = createScopedBlock({103, 104}, {13, 14});
+    ASSERT_NE(block, nullptr);
+    const int32_t code = putStreamDataCache(env.cache, 1, 103, 104, block, 0, 1);
+    blockDataDestroy(block);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(taosArrayGetSize(group->winDataInMem), 2);
+    setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + DS_FILE_BLOCK_SIZE + 1024 * 1024);
+    auto          first = static_cast<SSlidingWindowInMem*>(taosArrayGetP(group->winDataInMem, 0));
+    const int64_t oldSize = sizeof(SSlidingWindowInMem) + first->dataLen;
+    const int64_t newSize = DS_FILE_BLOCK_SIZE - remaining;
+    auto          padded = static_cast<SSlidingWindowInMem*>(taosMemoryRealloc(first, newSize));
+    ASSERT_NE(padded, nullptr);
+    memset(reinterpret_cast<char*>(padded) + oldSize, 0, newSize - oldSize);
+    padded->dataLen = newSize - sizeof(SSlidingWindowInMem);
+    taosArraySet(group->winDataInMem, 0, &padded);
+    atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, newSize - oldSize);
+    EXPECT_EQ(moveSlidingGrpMemCache(task, group), 0);
+    ASSERT_EQ(taosArrayGetSize(group->winDataInMem), 1);
+    ASSERT_EQ(taosArrayGetSize(group->blocksInFile), 1);
+    auto info = static_cast<SBlocksInfoFile*>(taosArrayGet(group->blocksInFile, 0));
+    EXPECT_EQ(info->dataLen, newSize);
+    EXPECT_EQ(moveSlidingGrpMemCache(task, group), 0);
+    EXPECT_EQ(taosArrayGetSize(group->winDataInMem), 0);
+    EXPECT_EQ(taosArrayGetSize(group->blocksInFile), 2);
+    EXPECT_EQ(read(), 0);
+  }
+  void TearDown() override {
+    if (!renamed.empty()) taosRemoveFile(renamed.c_str());
+  }
+  int32_t read(TSKEY start = 101, TSKEY end = 102) {
+    SResultIter result = {};
+    result.cleanMode = DATA_CLEAN_EXPIRED;
+    result.groupData = group;
+    result.pFileMgr = task->pFileMgr;
+    result.reqStartTime = start;
+    result.reqEndTime = end;
+    SSDataBlock* block = nullptr;
+    int32_t      code = readDataFromFile(&result, &block, 0);
+    if (code == 0 && block != nullptr) {
+      EXPECT_EQ(block->info.rows, 2);
+      auto col = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 1));
+      EXPECT_FALSE(colDataIsNull_s(col, 0));
+      EXPECT_EQ(*reinterpret_cast<int32_t*>(colDataGetData(col, 0)), 11);
+    }
+    taosArrayDestroyEx(result.tmpBlocksInMem, [](void* item) { blockDataDestroy(*static_cast<SSDataBlock**>(item)); });
+    return code;
+  }
+};
+
+TEST_F(LegacySpillFixture, FullFileBlockStopsBeforeNextWindow) { checkFileBlockBoundary(0); }
+
+TEST_F(LegacySpillFixture, FileBlockWithLessThanHeaderRemainingStopsBeforeNextWindow) { checkFileBlockBoundary(8); }
+
+TEST_F(LegacySpillFixture, PrivateFileAndNullableRangeRoundTrip) {
+  ASSERT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  ASSERT_NE(task->pFileMgr, nullptr);
+  EXPECT_EQ(read(), 0);
+  int64_t dev1 = 0, ino1 = 0, dev2 = 0, ino2 = 0;
+  ASSERT_EQ(taosDevInoFile(task->pFileMgr->writeFilePtr, &dev1, &ino1), 0);
+  ASSERT_EQ(taosDevInoFile(task->pFileMgr->readFilePtr, &dev2, &ino2), 0);
+  EXPECT_EQ(dev1, dev2);
+  EXPECT_EQ(ino1, ino2);
+}
+
+TEST_F(LegacySpillFixture, MissingReadDoesNotCreate) {
+  ASSERT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  const std::string name = task->pFileMgr->fileName;
+  ASSERT_EQ(taosRemoveFile(name.c_str()), 0);
+  EXPECT_NE(read(), 0);
+  EXPECT_FALSE(taosCheckExistFile(name.c_str()));
+  EXPECT_EQ(task->pFileMgr->readFilePtr, nullptr);
+}
+
+TEST_F(LegacySpillFixture, ReplacementReadDoesNotPublishAnotherIdentity) {
+  ASSERT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  const std::string name = task->pFileMgr->fileName;
+  renamed = name + ".saved";
+  ASSERT_EQ(taosRenameFile(name.c_str(), renamed.c_str()), 0);
+  ASSERT_GT(taosCopyFile(renamed.c_str(), name.c_str()), 0);
+  EXPECT_NE(read(), 0);
+  EXPECT_EQ(task->pFileMgr->readFilePtr, nullptr);
+}
+
+Stub*   gSpillIoStub = nullptr;
+int64_t shortSpillRead(TdFilePtr file, void* buffer, int64_t count, int64_t offset) {
+  gSpillIoStub->reset(taosPReadFile);
+  const int64_t actual = taosPReadFile(file, buffer, count, offset);
+  gSpillIoStub->set(taosPReadFile, shortSpillRead);
+  terrno = 0;
+  return actual > 0 ? actual - 1 : actual;
+}
+int64_t shortSpillWritev(TdFilePtr, const TaosIOVec* iov, int32_t count) {
+  int64_t size = 0;
+  for (int32_t i = 0; i < count; ++i) size += iov[i].iov_len;
+  terrno = 0;
+  return size - 1;
+}
+SArray* gSpillIndex = nullptr;
+void*   failSpillIndexPush(SArray* array, const void* item, int32_t count) {
+  if (array == gSpillIndex) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  }
+  gSpillIoStub->reset(taosArrayAddBatch);
+  void* result = taosArrayAddBatch(array, item, count);
+  gSpillIoStub->set(taosArrayAddBatch, failSpillIndexPush);
+  return result;
+}
+
+TEST_F(LegacySpillFixture, ShortReadWithZeroErrnoIsAnError) {
+  ASSERT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  Stub stub;
+  gSpillIoStub = &stub;
+  stub.set(taosPReadFile, shortSpillRead);
+  EXPECT_NE(read(), 0);
+  stub.reset(taosPReadFile);
+  gSpillIoStub = nullptr;
+  EXPECT_EQ(taosArrayGetSize(group->blocksInFile), 1);
+  EXPECT_EQ(read(), 0);
+}
+
+TEST_F(LegacySpillFixture, SkippedWindowLengthStillMustFitFileBytes) {
+  ASSERT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  auto          info = static_cast<SBlocksInfoFile*>(taosArrayGet(group->blocksInFile, 0));
+  const int64_t invalid = INT64_MAX;
+  ASSERT_EQ(taosPWriteFile(task->pFileMgr->writeFilePtr, &invalid, sizeof(invalid),
+                           info->groupOffset + offsetof(SSlidingWindowInMem, dataLen)),
+            sizeof(invalid));
+  EXPECT_NE(read(200, 201), 0);
+  EXPECT_EQ(taosArrayGetSize(group->blocksInFile), 1);
+}
+
+TEST_F(LegacySpillFixture, ShortWritePreservesMemoryUntilRetry) {
+  Stub stub;
+  stub.set(taosWritevFile, shortSpillWritev);
+  EXPECT_NE(moveSlidingGrpMemCache(task, group), 0);
+  stub.reset(taosWritevFile);
+  ASSERT_EQ(taosArrayGetSize(group->winDataInMem), 1);
+  EXPECT_EQ(taosArrayGetSize(group->blocksInFile), 0);
+  EXPECT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  EXPECT_EQ(read(), 0);
+}
+
+TEST_F(LegacySpillFixture, IndexFailurePreservesMemoryUntilRetry) {
+  group->blocksInFile = taosArrayInit(1, sizeof(SBlocksInfoFile));
+  ASSERT_NE(group->blocksInFile, nullptr);
+  Stub stub;
+  gSpillIoStub = &stub;
+  gSpillIndex = group->blocksInFile;
+  stub.set(taosArrayAddBatch, failSpillIndexPush);
+  EXPECT_NE(moveSlidingGrpMemCache(task, group), 0);
+  stub.reset(taosArrayAddBatch);
+  gSpillIoStub = nullptr;
+  gSpillIndex = nullptr;
+  ASSERT_EQ(taosArrayGetSize(group->winDataInMem), 1);
+  EXPECT_EQ(taosArrayGetSize(group->blocksInFile), 0);
+  EXPECT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  EXPECT_EQ(read(), 0);
+}
+
+TEST_F(LegacySpillFixture, TruncatedWindowHeaderIsRejected) {
+  ASSERT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  auto info = static_cast<SBlocksInfoFile*>(taosArrayGet(group->blocksInFile, 0));
+  info->dataLen = sizeof(SSlidingWindowInMem) - 1;
+  EXPECT_EQ(read(), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(taosArrayGetSize(group->blocksInFile), 1);
+}
+
+TEST_F(LegacySpillFixture, InvalidSecondWindowReleasesTemporaryDecodedBlocks) {
+  SSDataBlock* block = createScopedBlock({103, 104}, {13, 14});
+  ASSERT_NE(block, nullptr);
+  const int32_t code = putStreamDataCache(env.cache, 1, 103, 104, block, 0, 1);
+  blockDataDestroy(block);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(taosArrayGetSize(group->winDataInMem), 2);
+  const auto    first = static_cast<SSlidingWindowInMem*>(taosArrayGetP(group->winDataInMem, 0));
+  const int64_t secondOffset = sizeof(SSlidingWindowInMem) + first->dataLen;
+  ASSERT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  auto          info = static_cast<SBlocksInfoFile*>(taosArrayGet(group->blocksInFile, 0));
+  const int64_t invalid = -1;
+  ASSERT_EQ(taosPWriteFile(task->pFileMgr->writeFilePtr, &invalid, sizeof(invalid),
+                           info->groupOffset + secondOffset + offsetof(SSlidingWindowInMem, dataLen)),
+            sizeof(invalid));
+  EXPECT_EQ(read(101, 104), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(taosArrayGetSize(group->blocksInFile), 1);
+}
+
+std::vector<std::string> gSpillRemovedFiles;
+int32_t                  captureSpillRemove(const char* name) {
+  gSpillRemovedFiles.emplace_back(name);
+  gSpillIoStub->reset(taosRemoveFile);
+  int32_t result = taosRemoveFile(name);
+  gSpillIoStub->set(taosRemoveFile, captureSpillRemove);
+  return result;
+}
+int64_t shortScopedSpillWrite(TdFilePtr, const void*, int64_t count, int64_t) {
+  terrno = 0;
+  return count - 1;
+}
+
+TEST(dataSinkTest, ScopedSpillFailureRetainsDataAndDeletesOnlyNewFile) {
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  SStreamCacheScope scopeA = makeScope(42, 1000, 1);
+  SStreamCacheScope scopeB = makeScope(42, 2000, 2);
+  for (int pass = 0; pass < 2; ++pass) {
+    const auto   scope = pass == 0 ? &scopeA : &scopeB;
+    SSDataBlock* block = createScopedBlock({100, 101}, {10, 11});
+    ASSERT_NE(block, nullptr);
+    setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
+    int32_t code = putStreamDataCacheScoped(env.cache, scope, 100, 101, block, 0, 1);
+    blockDataDestroy(block);
+    ASSERT_EQ(code, 0);
+    Stub stub;
+    gSpillIoStub = &stub;
+    gSpillRemovedFiles.clear();
+    stub.set(taosPWriteFile, shortScopedSpillWrite);
+    stub.set(taosRemoveFile, captureSpillRemove);
+    setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1);
+    EXPECT_NE(moveMemCacheAllList(), 0);
+    stub.reset(taosPWriteFile);
+    stub.reset(taosRemoveFile);
+    gSpillIoStub = nullptr;
+    EXPECT_EQ(gSpillRemovedFiles.size(), pass == 0 ? 1U : 0U);
+    for (const auto& name : gSpillRemovedFiles) EXPECT_FALSE(taosCheckExistFile(name.c_str()));
+    EXPECT_EQ((std::vector<int32_t>{10, 11}), readScope(env.cache, *scope));
+    EXPECT_EQ(moveMemCacheAllList(), 0);
+    EXPECT_EQ((std::vector<int32_t>{10, 11}), readScope(env.cache, scopeA));
+  }
+  destroyScope(&scopeA);
+  destroyScope(&scopeB);
+}
+
+TEST(dataSinkTest, ScopedSpillRejectsShortReadAndMalformedBlockBeforeDecode) {
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  SStreamCacheScope      scope = makeScope(42, 1000, 1);
+  ScopedCacheWriteRecord record;
+  ASSERT_EQ(putAndSpillScopedBlock(env.cache, &scope, {100, 101}, {10, 11}, &record), 0);
+  ASSERT_NE(record.file, nullptr);
+  auto expectReadError = [&]() {
+    void* iter = nullptr;
+    EXPECT_EQ(getStreamDataCacheScoped(env.cache, &scope, TSKEY_MIN, TSKEY_MAX, &iter), 0);
+    SSDataBlock* block = nullptr;
+    EXPECT_NE(getNextStreamDataCache(&iter, &block), 0);
+    EXPECT_EQ(block, nullptr);
+    blockDataDestroy(block);
+    releaseDataResult(&iter);
+  };
+  Stub stub;
+  gSpillIoStub = &stub;
+  stub.set(taosPReadFile, shortSpillRead);
+  expectReadError();
+  stub.reset(taosPReadFile);
+  gSpillIoStub = nullptr;
+  int32_t actualLength = 0;
+  ASSERT_EQ(taosPReadFile(record.file, &actualLength, sizeof(actualLength), record.offset + sizeof(int32_t)),
+            sizeof(actualLength));
+  const int32_t invalidLength = INT32_MAX;
+  ASSERT_EQ(taosPWriteFile(record.file, &invalidLength, sizeof(invalidLength), record.offset + sizeof(int32_t)),
+            sizeof(invalidLength));
+  expectReadError();
+  ASSERT_EQ(taosPWriteFile(record.file, &actualLength, sizeof(actualLength), record.offset + sizeof(int32_t)),
+            sizeof(actualLength));
+  EXPECT_EQ((std::vector<int32_t>{10, 11}), readScope(env.cache, scope));
+  destroyScope(&scope);
+}
+
+extern "C" char gDataSinkFilePath[PATH_MAX];
+class SpillDirectoryGuard {
+ public:
+  SpillDirectoryGuard() : original(gDataSinkFilePath) {}
+  ~SpillDirectoryGuard() { tstrncpy(gDataSinkFilePath, original.c_str(), PATH_MAX); }
+  std::string original;
+};
+
+TEST(dataSinkTest, SpillCreationChecksCapacityAndPreservesLiteralDirectoryName) {
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  SpillDirectoryGuard guard;
+  const std::string   dir = guard.original + "literal%%-" + std::to_string(taosGetTimestampNs());
+  tstrncpy(gDataSinkFilePath, dir.c_str(), PATH_MAX);
+  char      shortName[2] = {};
+  TdFilePtr file = nullptr;
+  EXPECT_NE(createStreamDataSinkFile(shortName, sizeof(shortName), &file), 0);
+  EXPECT_EQ(file, nullptr);
+  char          name[FILENAME_MAX] = {};
+  const int32_t code = createStreamDataSinkFile(name, sizeof(name), &file);
+  EXPECT_EQ(code, 0);
+  if (file != nullptr) {
+    EXPECT_EQ(std::string(name).find(dir), 0U);
+    EXPECT_EQ(taosWriteFile(file, "data", 4), 4);
+    taosCloseFile(&file);
+    EXPECT_EQ(taosRemoveFile(name), 0);
+  }
+  taosRemoveDir(dir.c_str());
+}
+
+TdFilePtr failPrivateSpillOpen(const char*, int32_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+TEST_F(LegacySpillFixture, FileCreationFailurePreservesMemoryUntilRetry) {
+  Stub stub;
+  stub.set(taosOpenPrivateFile, failPrivateSpillOpen);
+  EXPECT_EQ(moveSlidingGrpMemCache(task, group), TSDB_CODE_OUT_OF_MEMORY);
+  stub.reset(taosOpenPrivateFile);
+  EXPECT_EQ(task->pFileMgr, nullptr);
+  EXPECT_EQ(taosArrayGetSize(group->winDataInMem), 1);
+  EXPECT_EQ(moveSlidingGrpMemCache(task, group), 0);
+  EXPECT_EQ(read(), 0);
+}
+
+std::string gSpillCollisionPath;
+int32_t     gSpillOpenCount = 0;
+TdFilePtr   collideFirstPrivateOpen(const char* path, int32_t flags) {
+  gSpillIoStub->reset(taosOpenPrivateFile);
+  if (++gSpillOpenCount == 1) {
+    gSpillCollisionPath = path;
+    TdFilePtr collision = taosOpenPrivateFile(path, flags);
+    EXPECT_NE(collision, nullptr);
+    if (collision != nullptr) {
+      EXPECT_EQ(taosWriteFile(collision, "sentinel", 8), 8);
+      taosCloseFile(&collision);
+    }
+  }
+  TdFilePtr result = taosOpenPrivateFile(path, flags);
+  gSpillIoStub->set(taosOpenPrivateFile, collideFirstPrivateOpen);
+  return result;
+}
+TEST(dataSinkTest, SpillNameCollisionRetriesWithoutOverwriting) {
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  Stub stub;
+  gSpillIoStub = &stub;
+  gSpillOpenCount = 0;
+  gSpillCollisionPath.clear();
+  stub.set(taosOpenPrivateFile, collideFirstPrivateOpen);
+  char      name[FILENAME_MAX] = {};
+  TdFilePtr file = nullptr;
+  EXPECT_EQ(createStreamDataSinkFile(name, sizeof(name), &file), 0);
+  stub.reset(taosOpenPrivateFile);
+  gSpillIoStub = nullptr;
+  EXPECT_EQ(gSpillOpenCount, 2);
+  EXPECT_NE(gSpillCollisionPath, name);
+  taosCloseFile(&file);
+  taosRemoveFile(name);
+  TdFilePtr collision = taosOpenPrivateFile(gSpillCollisionPath.c_str(), TD_FILE_READ);
+  EXPECT_NE(collision, nullptr);
+  char data[8] = {};
+  if (collision != nullptr) EXPECT_EQ(taosReadFile(collision, data, sizeof(data)), sizeof(data));
+  EXPECT_EQ(std::string(data, sizeof(data)), "sentinel");
+  taosCloseFile(&collision);
+  EXPECT_EQ(taosRemoveFile(gSpillCollisionPath.c_str()), 0);
+}
+
+int32_t gSpillRestartSequence = 0;
+void    restartingSpillTmpPath(const char* directory, const char* prefix, char* path) {
+  snprintf(path, PATH_MAX, "%s/%s%s-%d-%d", directory, TD_TMP_FILE_PREFIX, prefix, taosGetPId(),
+              ++gSpillRestartSequence);
+}
+
+TEST(dataSinkTest, SpillCreationSucceedsWithMoreThan32FilesFromPreviousProcess) {
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  SpillDirectoryGuard guard;
+  struct Files {
+    std::string directory;
+    TdFilePtr   file = nullptr;
+    ~Files() {
+      taosCloseFile(&file);
+      taosRemoveDir(directory.c_str());
+    }
+  } files;
+  files.directory = guard.original + "restart-" + std::to_string(taosGetTimestampNs());
+  ASSERT_EQ(taosEnsurePrivateDir(files.directory.c_str()), 0);
+  tstrncpy(gDataSinkFilePath, files.directory.c_str(), PATH_MAX);
+  gSpillRestartSequence = 0;
+  std::vector<std::string> oldFiles;
+  for (int32_t i = 0; i < 40; ++i) {
+    char temporary[PATH_MAX] = {};
+    restartingSpillTmpPath(".", "stream", temporary);
+    oldFiles.emplace_back(files.directory + "/" + (temporary + 2));
+    files.file = taosOpenPrivateFile(oldFiles.back().c_str(), TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+    ASSERT_NE(files.file, nullptr);
+    ASSERT_EQ(taosWriteFile(files.file, "sentinel", 8), 8);
+    ASSERT_EQ(taosCloseFile(&files.file), 0);
+  }
+
+  // Reuse the PID and restart the process-local sequence with the old files still present.
+  gSpillRestartSequence = 0;
+  Stub stub;
+  stub.set(taosGetTmpfilePath, restartingSpillTmpPath);
+  char name[PATH_MAX] = {};
+  EXPECT_EQ(createStreamDataSinkFile(name, sizeof(name), &files.file), 0);
+  stub.reset(taosGetTmpfilePath);
+  EXPECT_NE(files.file, nullptr);
+  taosCloseFile(&files.file);
+  for (const auto& oldFile : oldFiles) {
+    EXPECT_NE(oldFile, name);
+    files.file = taosOpenPrivateFile(oldFile.c_str(), TD_FILE_READ);
+    ASSERT_NE(files.file, nullptr);
+    char data[8] = {};
+    EXPECT_EQ(taosReadFile(files.file, data, sizeof(data)), sizeof(data));
+    EXPECT_EQ(std::string(data, sizeof(data)), "sentinel");
+    ASSERT_EQ(taosCloseFile(&files.file), 0);
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+  const char* testConfigDir = std::getenv("TAOS_TEST_CONFIG_DIR");
+  if (testConfigDir != nullptr && testConfigDir[0] != '\0') {
+    taos_options(TSDB_OPTION_CONFIGDIR, testConfigDir);
+  }
   taos_init();
   const bool runAllTests = argc == 1;
   ::testing::InitGoogleTest(&argc, argv);

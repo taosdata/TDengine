@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
@@ -22,6 +37,7 @@ class TestStableAlterTag:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -433,6 +449,56 @@ class TestStableAlterTag:
         tdSql.checkData(4, 0, "t2")
         tdSql.checkData(4, 1, "VARCHAR")
         tdSql.checkData(4, 2, 4)
+
+        tdLog.info(f"========== step3 rename tag exception cases")
+        # a child table does not own the tag schema, so it cannot rename tags
+        tdSql.error(
+            f"alter table db.ctb rename tag t3 t4",
+            expectErrInfo="Invalid alter table statement",
+            fullMatched=False,
+        )
+        # renaming a tag that does not exist
+        tdSql.error(f"alter table db.stb rename tag no_such_tag t9")
+        # the new tag name must not collide with an existing tag or column
+        tdSql.error(f"alter table db.stb rename tag t3 t2")
+        tdSql.error(f"alter table db.stb rename tag t3 c1")
+        # illegal new tag names
+        tdSql.error(f"alter table db.stb rename tag t3 {'x' * 200}")
+        tdSql.error(f"alter table db.stb rename tag t3 select")
+        tdSql.error(f"alter table db.stb rename tag t3")
+        # ALTER STABLE is an equivalent spelling and behaves the same
+        tdSql.execute(f"alter stable db.stb rename tag t3 t1")
+        tdSql.query(f"describe db.stb")
+        tdSql.checkData(3, 0, "t1")
+        # renaming back and forth leaves the tag values intact
+        tdSql.query(f"select * from db.stb")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 3, 101)
+        tdSql.checkData(0, 4, 123)
+
+        tdLog.info(f"========== step4 rename a JSON tag")
+        # A JSON tag can be renamed even though ADD/DROP/MODIFY TAG are rejected on it
+        # (ONLY_ONE_JSON_TAG): those change the tag set, while a rename only changes the display
+        # name. The document is keyed by its inner JSON keys, so it survives untouched.
+        tdSql.execute(f"create stable db.stbj (ts timestamp, c1 int) tags (jt json)")
+        tdSql.execute(f"create table db.ctbj using db.stbj tags('{{\"m\":9,\"n\":\"y\"}}')")
+        tdSql.execute(f"insert into db.ctbj values(now, 1)")
+        tdSql.execute(f"alter stable db.stbj rename tag jt jt2")
+        tdSql.query(f"describe db.stbj")
+        tdSql.checkData(2, 0, "jt2")
+        # the whole document and per-key extraction both still resolve under the new name
+        tdSql.query(f"select jt2->'m', jt2->'n' from db.ctbj")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "9.000000000")
+        tdSql.checkData(0, 1, '"y"')
+        tdSql.error(f"select jt from db.ctbj")
+        # ADD/DROP TAG remain rejected on a table whose only tag is JSON
+        # (TSDB_CODE_PAR_ONLY_ONE_JSON_TAG, "Only one tag if there is a json tag"): a regression
+        # that lets a JSON tag share the tag set with other tags would silently lose the document.
+        tdSql.error(f"alter stable db.stbj add tag t9 int",
+                    expectErrInfo="Only one tag if there is a json tag", fullMatched=False)
+        tdSql.error(f"alter stable db.stbj drop tag jt2",
+                    expectErrInfo="Only one tag if there is a json tag", fullMatched=False)
 
     def TagAdd(self):
         tdLog.info(f"======================== dnode1 start")

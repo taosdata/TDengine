@@ -1,13 +1,20 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
     
 #include "restoreMeta.h"
 #include "storageTaos.h"
@@ -21,6 +28,7 @@
 #include "ttypes.h"
 #include "osString.h"
 #include "bckProgress.h"
+#include <ctype.h>
 
 //
 // -------------------------------------- UTIL -----------------------------------------
@@ -523,11 +531,14 @@ typedef struct {
     int     serverTagCount;
     char    serverTagNames[BCK_MAX_VTAG][65];
     int8_t  serverTagTypes[BCK_MAX_VTAG];
-    // current child accumulator (rows are sorted by table_name in the binary file)
+    // current child accumulator (rows are sorted by table_name in the binary file);
+    // name-based so that per-child own (extension) tags are carried as well
     char    curTbname[TSDB_TABLE_NAME_LEN];
     bool    hasAccum;
-    char    tagValues[BCK_MAX_VTAG][512];
-    bool    tagSet[BCK_MAX_VTAG];
+    bool    curTruncated;  // a tag value of the current child was truncated — skip it
+    char    accumNames[BCK_MAX_VTAG][65];
+    char    accumValues[BCK_MAX_VTAG][512];
+    int     accumCount;
     // stats
     int64_t successCnt;
     int64_t failedCnt;
@@ -581,24 +592,41 @@ static int extractBareIdent(const char *p, char *out, int outSz) {
 }
 
 //
-// Read a variable-length (VARCHAR or NCHAR) value from a binary block column into outBuf.
-// For NCHAR, UCS4 is converted to UTF-8. Returns false if NULL.
+// Read one variable-length (VARCHAR or NCHAR) cell from a binary block column into outBuf.
+// For NCHAR, UCS4 is converted to UTF-8. Returns false if NULL. pSrcLen (optional) returns
+// the true source length of the cell (UTF-8 bytes for NCHAR, raw varLen otherwise) so callers
+// that must preserve full fidelity — e.g. per-child own (extension) tags, which may carry long
+// JSON values — can detect truncation (srcLen >= outBufSz) and warn instead of silently losing
+// data.
 //
 static bool readBlockVarColStr(int8_t colType, void *colDataPtr,
                                int row, int blockRows,
-                               char *outBuf, int outBufSz) {
+                               char *outBuf, int outBufSz, int32_t *pSrcLen, bool *pConvFailed) {
     int32_t *offsets = (int32_t *)colDataPtr;
     int32_t  off     = offsets[row];
-    if (off < 0) { outBuf[0] = '\0'; return false; }
+    if (pConvFailed) *pConvFailed = false;
+    if (off < 0) { outBuf[0] = '\0'; if (pSrcLen) *pSrcLen = 0; return false; }
     char    *varData = (char *)colDataPtr + blockRows * sizeof(int32_t);
     uint16_t varLen  = *(uint16_t *)(varData + off);
     char    *payload = varData + off + sizeof(uint16_t);
     if (colType == TSDB_DATA_TYPE_NCHAR) {
         int32_t utf8Len = taosUcs4ToMbs((TdUcs4 *)payload, (int32_t)varLen, outBuf, NULL);
-        if (utf8Len < 0) utf8Len = 0;
+        if (utf8Len < 0) {
+            // conversion failed: the value is unrecoverable, so force the caller's loss
+            // detection (srcLen >= outBufSz) unconditionally — varLen is a UCS4 unit count
+            // and would under-report vs. the UTF-8 byte length the check is calibrated to.
+            // Flag the true cause via pConvFailed so the caller can log it distinctly;
+            // the buffer content is undefined on failure, so clear it.
+            if (pSrcLen) *pSrcLen = outBufSz;
+            if (pConvFailed) *pConvFailed = true;
+            outBuf[0] = '\0';
+            return true;
+        }
+        if (pSrcLen) *pSrcLen = utf8Len;
         if (utf8Len >= outBufSz) utf8Len = outBufSz - 1;
         outBuf[utf8Len] = '\0';
     } else {
+        if (pSrcLen) *pSrcLen = varLen;
         int n = (varLen < outBufSz - 1) ? varLen : outBufSz - 1;
         memcpy(outBuf, payload, n);
         outBuf[n] = '\0';
@@ -607,31 +635,156 @@ static bool readBlockVarColStr(int8_t colType, void *colDataPtr,
 }
 
 //
+// Map a tag type string (from DESCRIBE or an inline own-tag declaration) to the data
+// type used for value quoting. String-like types are quoted; numeric/bool types are
+// listed explicitly and emitted unquoted. An unrecognized string defaults to VARCHAR
+// (quoted): quoting an unknown value only fails that one statement, whereas emitting
+// an unrecognized string type unquoted would produce invalid SQL.
+//
+// Prefix match that only succeeds at a word boundary: `s` must start with `kw` and the
+// next character (if any) must not extend an identifier, so "INT" does not match "INT64"
+// and "JSON" does not match "JSONB" — those fall through to the quoted-VARCHAR default.
+#define TAG_TYPE_MATCH(s, kw) \
+    (strncasecmp((s), (kw), strlen(kw)) == 0 && !isalnum((unsigned char)(s)[strlen(kw)]))
+
+static int8_t vtabTagTypeFromStr(const char *typeStr) {
+    if (TAG_TYPE_MATCH(typeStr, "NCHAR")) return TSDB_DATA_TYPE_NCHAR;
+    if (TAG_TYPE_MATCH(typeStr, "VARCHAR") ||
+        TAG_TYPE_MATCH(typeStr, "BINARY")) return TSDB_DATA_TYPE_VARCHAR;
+    if (TAG_TYPE_MATCH(typeStr, "JSON")) return TSDB_DATA_TYPE_JSON;
+    if (TAG_TYPE_MATCH(typeStr, "BOOL") ||
+        TAG_TYPE_MATCH(typeStr, "TINYINT") ||
+        TAG_TYPE_MATCH(typeStr, "SMALLINT") ||
+        TAG_TYPE_MATCH(typeStr, "INT") ||
+        TAG_TYPE_MATCH(typeStr, "BIGINT") ||
+        TAG_TYPE_MATCH(typeStr, "FLOAT") ||
+        TAG_TYPE_MATCH(typeStr, "DOUBLE") ||
+        TAG_TYPE_MATCH(typeStr, "TIMESTAMP")) return TSDB_DATA_TYPE_INT;
+    logWarn("vtabTagTypeFromStr: unrecognized tag type '%s', treating as VARCHAR (quoted)",
+            typeStr);
+    return TSDB_DATA_TYPE_VARCHAR;
+}
+
+//
+// Parse the USING tag list of a CREATE VTABLE child skeleton:
+//   CREATE VTABLE `db`.`tb` (<col refs>) USING `db`.`vstb` (`t1`, `own_tag` NCHAR(16))
+// Entries are backtick-quoted names; an own (extension) tag additionally carries an
+// inline type, captured into types[] (empty string for vstb tags).
+// Returns the entry count, or 0 when the list was not parsed to its closing ')' —
+// a partially parsed list is NOT authoritative (it would silently drop the uncaptured
+// tags), so the caller then falls back to the DESCRIBE vstb ordering.
+//
+static int parseVtbSkeletonTags(const char *sql, char names[][65], char types[][64], int maxN) {
+    const char *p = strstr(sql, " USING ");
+    if (!p) return 0;
+    p += strlen(" USING ");
+
+    // skip the vstb identifier: `db`.`name` | `name` | plain
+    while (*p == ' ') p++;
+    if (*p == '`') {
+        const char *end = strchr(p + 1, '`');
+        if (!end) return 0;
+        p = end + 1;
+        if (p[0] == '.' && p[1] == '`') {
+            end = strchr(p + 2, '`');
+            if (!end) return 0;
+            p = end + 1;
+        }
+    } else {
+        while (*p && *p != ' ' && *p != '(') p++;
+    }
+    while (*p == ' ') p++;
+    if (*p != '(') return 0;
+    p++;
+
+    int count = 0;
+    while (*p && count < maxN) {
+        while (*p == ' ') p++;
+        if (*p == ')') break;
+        if (*p != '`') return 0;  // unexpected form: bail out to the legacy path
+        const char *end = strchr(p + 1, '`');
+        if (!end) return 0;
+        int nameLen = (int)(end - (p + 1));
+        if (nameLen > 64) nameLen = 64;
+        memcpy(names[count], p + 1, nameLen);
+        names[count][nameLen] = '\0';
+        types[count][0] = '\0';
+        p = end + 1;
+        while (*p == ' ') p++;
+
+        if (*p != ',' && *p != ')') {
+            // inline type of an own (extension) tag, e.g. NCHAR(16); sized to fit any
+            // real declaration (DECIMAL(38,10), NCHAR(65531), ...) so the capture cannot
+            // silently truncate — an oversized/garbage type falls through to the
+            // quoted-VARCHAR default at classification time
+            char tbuf[64];
+            int  tl = 0, depth = 0;
+            while (*p && tl < (int)sizeof(tbuf) - 1) {
+                if (*p == '(') {
+                    depth++;
+                } else if (*p == ')') {
+                    if (depth == 0) break;
+                    depth--;
+                } else if (*p == ',' && depth == 0) {
+                    break;
+                }
+                tbuf[tl++] = *p++;
+            }
+            while (tl > 0 && tbuf[tl - 1] == ' ') tl--;  // trim trailing spaces
+            tbuf[tl] = '\0';
+            memcpy(types[count], tbuf, tl + 1);
+        }
+        count++;
+
+        while (*p == ' ') p++;
+        if (*p == ',') { p++; continue; }
+        if (*p == ')') break;
+        return 0;  // malformed entry
+    }
+    // The loop also exits on end-of-string or count == maxN; only a list terminated
+    // by ')' was parsed completely. Anything else returns 0 (caller falls back to
+    // the DESCRIBE vstb ordering) rather than silently dropping the unparsed tags.
+    if (*p != ')') return 0;
+    return count;
+}
+
+//
 // Append a tag value to a SQL buffer with proper quoting based on tag type.
 // String/JSON types are single-quoted; numeric/bool types are unquoted.
-// Returns number of chars written.
+// Returns the number of chars written, or -1 when the value did not fit completely —
+// a truncated value (cut-off number, unterminated quote) must never be emitted, so
+// the caller treats -1 as a failure and skips the child table.
 //
 static int appendVtabTagValue(char *buf, int bufRemain, int8_t tagType, const char *val) {
+    // snprintf returns the would-be length, which exceeds the buffer on truncation —
+    // clamp to what actually fit so the caller's position never runs past the buffer.
     if (!val || val[0] == '\0') {
-        return snprintf(buf, bufRemain, "NULL");
+        int n = snprintf(buf, bufRemain, "NULL");
+        if (n < 0) n = 0;
+        return (n < bufRemain) ? n : -1;
     }
     bool needsQuote = (tagType == TSDB_DATA_TYPE_VARCHAR ||
                        tagType == TSDB_DATA_TYPE_BINARY  ||
                        tagType == TSDB_DATA_TYPE_NCHAR   ||
                        tagType == TSDB_DATA_TYPE_JSON);
     if (!needsQuote) {
-        return snprintf(buf, bufRemain, "%s", val);
+        int n = snprintf(buf, bufRemain, "%s", val);
+        if (n < 0) n = 0;
+        return (n < bufRemain) ? n : -1;
     }
-    int pos = 0;
-    if (pos < bufRemain - 1) buf[pos++] = '\'';
-    for (int i = 0; val[i] && pos < bufRemain - 3; i++) {
+    int  pos = 0;
+    bool fit = true;
+    if (pos < bufRemain - 1) buf[pos++] = '\''; else fit = false;
+    int i = 0;
+    for (; val[i] && pos < bufRemain - 3; i++) {
         unsigned char _b = (unsigned char)val[i];
         if (_b == '\'' || _b == '\\') buf[pos++] = '\\';
         buf[pos++] = (char)_b;
     }
-    if (pos < bufRemain - 1) buf[pos++] = '\'';
+    if (val[i]) fit = false;  // stopped before the end of the value
+    if (pos < bufRemain - 1) buf[pos++] = '\''; else fit = false;
     if (pos < bufRemain)     buf[pos]   = '\0';
-    return pos;
+    return fit ? pos : -1;
 }
 
 //
@@ -639,6 +792,16 @@ static int appendVtabTagValue(char *buf, int bufRemain, int8_t tagType, const ch
 //
 static void emitVtbChild(VtbRestoreCtx *ctx) {
     if (!ctx->hasAccum || ctx->curTbname[0] == '\0') return;
+
+    // A truncated tag value (e.g. a long JSON own tag) was detected while reading the
+    // backup data — emitting it would silently restore a corrupted value, so fail this
+    // child instead of writing the truncated value into the statement.
+    if (ctx->curTruncated) {
+        logError("vtable child '%s' (vstb %s) skipped: tag value truncated in backup data",
+                 ctx->curTbname, ctx->vstbName);
+        ctx->failedCnt++;
+        return;
+    }
 
     // Find the matching skeleton by the unquoted child table name
     VtbChildSkeleton *sk = NULL;
@@ -655,27 +818,80 @@ static void emitVtbChild(VtbRestoreCtx *ctx) {
         return;
     }
 
-    // Build " TAGS (v1, v2, ...)" suffix
+    // Build " TAGS (v1, v2, ...)" suffix. The skeleton's USING tag list is authoritative
+    // for names and order: vstb tags followed by the child's own (extension) tags, which
+    // are declared with inline types (e.g. `ext_city` NCHAR(16)).
+    char skTagNames[BCK_MAX_VTAG][65];
+    char skTagTypes[BCK_MAX_VTAG][64];
+    int  skTagCount = parseVtbSkeletonTags(sk->renamedSql, skTagNames, skTagTypes, BCK_MAX_VTAG);
+
     char tagsSuffix[4096];
     int  pos = snprintf(tagsSuffix, sizeof(tagsSuffix), " TAGS (");
-    for (int t = 0; t < ctx->serverTagCount; t++) {
+    int  nTags = (skTagCount > 0) ? skTagCount : ctx->serverTagCount;
+    bool suffixOk = true;
+    for (int t = 0; t < nTags; t++) {
         if (t > 0 && pos < (int)sizeof(tagsSuffix) - 2) {
             tagsSuffix[pos++] = ',';
             tagsSuffix[pos++] = ' ';
         }
-        const char *v = ctx->tagSet[t] ? ctx->tagValues[t] : NULL;
-        pos += appendVtabTagValue(tagsSuffix + pos, (int)sizeof(tagsSuffix) - pos,
-                                  ctx->serverTagTypes[t], v);
+        const char *tagName = (skTagCount > 0) ? skTagNames[t] : ctx->serverTagNames[t];
+        int8_t      tagType = TSDB_DATA_TYPE_INT;
+        if (skTagCount > 0 && skTagTypes[t][0] != '\0') {
+            tagType = vtabTagTypeFromStr(skTagTypes[t]);  // own tag: inline type
+        } else {
+            for (int s = 0; s < ctx->serverTagCount; s++) {
+                if (strcasecmp(ctx->serverTagNames[s], tagName) == 0) {
+                    tagType = ctx->serverTagTypes[s];
+                    break;
+                }
+            }
+        }
+        const char *v = NULL;
+        for (int a = 0; a < ctx->accumCount; a++) {
+            if (strcasecmp(ctx->accumNames[a], tagName) == 0) {
+                v = ctx->accumValues[a];
+                break;
+            }
+        }
+        // Guard the fixed suffix buffer: vstb tags plus own (extension) tags can exceed
+        // sizeof(tagsSuffix). Never call appendVtabTagValue without enough room left,
+        // or a negative bufRemain would overflow the stack.
+        int remain = (int)sizeof(tagsSuffix) - pos;
+        if (remain < 8) {  // smallest value is "NULL" (4 chars) plus the closing ')'
+            logWarn("vtable child '%s': TAGS suffix buffer full at tag '%s'; child will be skipped",
+                    ctx->curTbname, tagName);
+            suffixOk = false;
+            break;
+        }
+        int wrote = appendVtabTagValue(tagsSuffix + pos, remain, tagType, v);
+        if (wrote < 0) {  // value truncated — a partial value must never be emitted
+            logWarn("vtable child '%s': value of tag '%s' does not fit TAGS suffix buffer; child will be skipped",
+                    ctx->curTbname, tagName);
+            suffixOk = false;
+            break;
+        }
+        pos += wrote;
     }
-    if (pos < (int)sizeof(tagsSuffix) - 2) {
-        tagsSuffix[pos++] = ')';
-        tagsSuffix[pos]   = '\0';
+    if (pos > (int)sizeof(tagsSuffix) - 2) suffixOk = false;  // no room for ')'
+    if (!suffixOk) {
+        // A partial TAGS clause would silently drop or truncate tag values — fail this
+        // child (same convention as the curTruncated path) instead of emitting a
+        // broken statement.
+        logError("vtable child '%s' (vstb %s) skipped: TAGS suffix exceeds %d-byte buffer",
+                 ctx->curTbname, ctx->vstbName, (int)sizeof(tagsSuffix));
+        ctx->failedCnt++;
+        return;
     }
+    tagsSuffix[pos++] = ')';
+    tagsSuffix[pos]   = '\0';
 
-    // Final SQL: renamedSkeleton + TAGS suffix
-    char *fullSql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN + 128);
+    // Final SQL: renamedSkeleton + TAGS suffix.
+    // renamedSql can be up to TSDB_MAX_SQL_LEN and tagsSuffix up to its own sizeof, so the
+    // combined buffer must hold both or snprintf would silently cut the statement short
+    // (defeating the truncation detection applied to tagsSuffix above).
+    char *fullSql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN + (int)sizeof(tagsSuffix));
     if (!fullSql) { ctx->failedCnt++; return; }
-    snprintf(fullSql, TSDB_MAX_SQL_LEN + 128, "%s%s", sk->renamedSql, tagsSuffix);
+    snprintf(fullSql, TSDB_MAX_SQL_LEN + (int)sizeof(tagsSuffix), "%s%s", sk->renamedSql, tagsSuffix);
 
     logDebug("restore vtable child sql: %s", fullSql);
     TAOS_RES *res = taos_query(ctx->conn, fullSql);
@@ -757,29 +973,57 @@ static int vtbTagBlockCallback(void *userData,
             return TSDB_CODE_BCK_USER_CANCEL;
         }
 
-        readBlockVarColStr(fieldInfos[0].type, colData[0], row, blockRows, tbName,  sizeof(tbName));
-        readBlockVarColStr(fieldInfos[1].type, colData[1], row, blockRows, tagName, sizeof(tagName));
-        readBlockVarColStr(fieldInfos[2].type, colData[2], row, blockRows, tagVal,  sizeof(tagVal));
+        readBlockVarColStr(fieldInfos[0].type, colData[0], row, blockRows, tbName,  sizeof(tbName), NULL, NULL);
+        readBlockVarColStr(fieldInfos[1].type, colData[1], row, blockRows, tagName, sizeof(tagName), NULL, NULL);
+        int32_t tagSrcLen = 0;
+        bool    convFailed = false;
+        readBlockVarColStr(fieldInfos[2].type, colData[2], row, blockRows, tagVal,  sizeof(tagVal), &tagSrcLen, &convFailed);
+        // Own (extension) tags — especially JSON tags — can exceed the fixed tagVal buffer and
+        // be silently truncated above, corrupting the restored value. Treat truncation as a
+        // failure: mark the child so emitVtbChild() skips it instead of writing the
+        // truncated value into the TAGS clause.
+        bool valTruncated = (tagSrcLen > 0 && tagSrcLen >= (int32_t)sizeof(tagVal));
+        if (convFailed) {
+            logError("vtb tag value of '%s' on child '%s': UCS4->UTF-8 conversion failed; "
+                     "value unrecoverable, child will be skipped", tagName, tbName);
+        } else if (valTruncated) {
+            logWarn("vtb tag value of '%s' on child '%s' truncated: source len %d >= buffer %d; child will be skipped",
+                    tagName, tbName, tagSrcLen, (int32_t)sizeof(tagVal));
+        }
 
         if (tbName[0] == '\0') continue;
 
         // Table name changed: emit the previous accumulated child
         if (ctx->hasAccum && strcmp(tbName, ctx->curTbname) != 0) {
             emitVtbChild(ctx);
-            memset(ctx->tagValues, 0, sizeof(ctx->tagValues));
-            memset(ctx->tagSet,    0, sizeof(ctx->tagSet));
+            memset(ctx->accumNames,  0, sizeof(ctx->accumNames));
+            memset(ctx->accumValues, 0, sizeof(ctx->accumValues));
+            ctx->accumCount   = 0;
+            ctx->curTruncated = false;
         }
 
         snprintf(ctx->curTbname, sizeof(ctx->curTbname), "%s", tbName);
         ctx->hasAccum = true;
+        if (valTruncated) ctx->curTruncated = true;
 
-        // Index tag value by server tag order
-        for (int t = 0; t < ctx->serverTagCount; t++) {
-            if (strcasecmp(ctx->serverTagNames[t], tagName) == 0) {
-                snprintf(ctx->tagValues[t], sizeof(ctx->tagValues[t]), "%s", tagVal);
-                ctx->tagSet[t] = true;
-                break;
+        // Accumulate the (tag_name, tag_value) pair; emitVtbChild maps values onto the
+        // skeleton's USING tag list by name (vstb tags + per-child own tags).
+        int a = 0;
+        for (; a < ctx->accumCount; a++) {
+            if (strcasecmp(ctx->accumNames[a], tagName) == 0) break;
+        }
+        if (a >= BCK_MAX_VTAG) {
+            logWarn("too many tags on vtable child '%s', tag '%s' dropped", tbName, tagName);
+            // Mark the row truncated so emitVtbChild() skips this child entirely; otherwise
+            // the dropped tag would be replayed as NULL (name missing from the accum lists),
+            // silently corrupting NOT-NULL-ish tag values on the target side.
+            ctx->curTruncated = true;
+        } else {
+            if (a == ctx->accumCount) {
+                snprintf(ctx->accumNames[a], sizeof(ctx->accumNames[a]), "%s", tagName);
+                ctx->accumCount++;
             }
+            snprintf(ctx->accumValues[a], sizeof(ctx->accumValues[a]), "%s", tagVal);
         }
     }
 
@@ -822,17 +1066,7 @@ static int queryVstbTagInfo(TAOS *conn, const char *dbName, const char *vstbName
         memcpy(typeStr, (char *)row[1], typeLen);
         typeStr[typeLen] = '\0';
 
-        if (strncasecmp(typeStr, "NCHAR", 5) == 0) {
-            types[tagCnt] = TSDB_DATA_TYPE_NCHAR;
-        } else if (strncasecmp(typeStr, "VARCHAR", 7) == 0 ||
-                   strncasecmp(typeStr, "BINARY",  6) == 0) {
-            types[tagCnt] = TSDB_DATA_TYPE_VARCHAR;
-        } else if (strncasecmp(typeStr, "JSON",    4) == 0) {
-            types[tagCnt] = TSDB_DATA_TYPE_JSON;
-        } else {
-            // Numeric or bool: treated as unquoted (use INT as a generic marker)
-            types[tagCnt] = TSDB_DATA_TYPE_INT;
-        }
+        types[tagCnt] = vtabTagTypeFromStr(typeStr);
         tagCnt++;
     }
     taos_free_result(res);
@@ -854,8 +1088,12 @@ static char** findVtagFiles(const char *dbName, const char *vstbName, int *count
         return NULL;
     }
 
-    char prefix[TSDB_TABLE_NAME_LEN + 16];
-    snprintf(prefix, sizeof(prefix), "%s_data", vstbName);
+    // vtag files embed the percent-encoded vstb name; scan with encoded prefix
+    char encStb[TSDB_TABLE_NAME_LEN * 3 + 1] = {0};
+    const char *encStbName = bckNameEncode(vstbName, encStb, sizeof(encStb));
+    if (encStbName == NULL) encStbName = vstbName;
+    char prefix[TSDB_TABLE_NAME_LEN * 3 + 16];
+    snprintf(prefix, sizeof(prefix), "%s_data", encStbName);
     int prefixLen = (int)strlen(prefix);
 
     int   capacity = 8;
@@ -1979,9 +2217,12 @@ static char** findTagFiles(const char *dbName, const char *stbName, int *count) 
         return NULL;
     }
 
-    // prefix: {stbName}_data
-    char prefix[TSDB_TABLE_NAME_LEN + 16];
-    snprintf(prefix, sizeof(prefix), "%s_data", stbName);
+    // prefix: {enc(stbName)}_data  (tag files embed the percent-encoded name)
+    char encStb[TSDB_TABLE_NAME_LEN * 3 + 1] = {0};
+    const char *encStbName = bckNameEncode(stbName, encStb, sizeof(encStb));
+    if (encStbName == NULL) encStbName = stbName;
+    char prefix[TSDB_TABLE_NAME_LEN * 3 + 16];
+    snprintf(prefix, sizeof(prefix), "%s_data", encStbName);
     int prefixLen = strlen(prefix);
 
     TdDirEntryPtr entry;
@@ -2124,9 +2365,15 @@ static bool stbTagFilesHaveSpecMatch(const char *dbName, const char *stbName) {
 // otherwise be logged for no functional reason.
 static bool stbExistsOnServer(const char *targetDb, const char *stbName) {
     char sql[TSDB_TABLE_FNAME_LEN + 64];
+    char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
+    char escStb[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
+    const char *eDb = bckSqlEscape(targetDb, escDb, sizeof(escDb));
+    const char *eStb = bckSqlEscape(stbName, escStb, sizeof(escStb));
+    if (eDb == NULL) eDb = targetDb;
+    if (eStb == NULL) eStb = stbName;
     snprintf(sql, sizeof(sql),
              "SELECT count(*) FROM information_schema.ins_stables "
-             "WHERE db_name='%s' AND stable_name='%s'", targetDb, stbName);
+             "WHERE db_name='%s' AND stable_name='%s'", eDb, eStb);
     int32_t cnt = 0;
     if (queryValueInt(sql, 0, &cnt) != TSDB_CODE_SUCCESS) return true;  // unsure -> don't skip
     return cnt > 0;
@@ -2394,10 +2641,17 @@ int validateSpecTablesForRestore(const char *dbName) {
                 char *us = strstr(en, "_data");
                 if (!us) continue;
                 int stbLen = (int)(us - en);
-                if (stbLen <= 0 || stbLen >= TSDB_TABLE_NAME_LEN) continue;
-                char stbName[TSDB_TABLE_NAME_LEN];
-                memcpy(stbName, en, stbLen);
-                stbName[stbLen] = '\0';
+                if (stbLen <= 0 || stbLen >= BCK_NAME_ENC_STEM_MAX) continue;
+                // Tag files embed the percent-encoded stb name; decode it.
+                // The encoded stem can exceed TSDB_TABLE_NAME_LEN ("%XX"
+                // expansion), so decode via a worst-case sized buffer first.
+                char encStb[BCK_NAME_ENC_STEM_MAX];
+                memcpy(encStb, en, stbLen);
+                encStb[stbLen] = '\0';
+                if (bckNameDecodeInPlace(encStb, sizeof(encStb)) == NULL) continue;
+                char stbName[TSDB_TABLE_NAME_LEN] = {0};
+                strncpy(stbName, encStb, TSDB_TABLE_NAME_LEN - 1);
+                stbName[TSDB_TABLE_NAME_LEN - 1] = '\0';
 
                 // Add the STB name itself (might not be in stb.sql for edge cases)
                 collectorAdd(&c, stbName);
@@ -2547,8 +2801,12 @@ static char** getBackupStbNames(const char *dbName, int *code) {
     *code = TSDB_CODE_SUCCESS;
 
     char *outPath = argOutPath();
+    // The on-disk db directory embeds the percent-encoded database name.
+    char encDb[MAX_PATH_LEN] = {0};
+    const char *encDbName = bckNameEncode(dbName, encDb, sizeof(encDb));
+    if (encDbName == NULL) encDbName = dbName;
     char dbDir[MAX_PATH_LEN];
-    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, dbName);
+    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, encDbName);
 
     TdDirPtr dir = taosOpenDir(dbDir);
     if (dir == NULL) {
@@ -2586,12 +2844,11 @@ static char** getBackupStbNames(const char *dbName, int *code) {
                 }
                 names = tmp;
             }
-            // extract stb name (remove .csv)
+            // extract stb name (remove .csv) and decode the percent-encoded stem.
+            // The encoded stem can exceed TSDB_TABLE_NAME_LEN ("%XX" expansion),
+            // so decode via the worst-case safe helper.
             char stbName[TSDB_TABLE_NAME_LEN] = {0};
-            int stbNameLen = nameLen - 4;
-            if (stbNameLen >= TSDB_TABLE_NAME_LEN) stbNameLen = TSDB_TABLE_NAME_LEN - 1;
-            memcpy(stbName, entryName, stbNameLen);
-            stbName[stbNameLen] = '\0';
+            if (bckNameDecodeFileStem(entryName, stbName, sizeof(stbName)) != 0) continue;
             names[count++] = taosStrdup(stbName);
         }
     }

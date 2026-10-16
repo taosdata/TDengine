@@ -1,4 +1,20 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+from collections import Counter
 
 
 class TestFilterOperator:
@@ -20,12 +36,14 @@ class TestFilterOperator:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-8-19 Simon Guan Migrated from tsim/parser/condition.sim
             - 2025-8-19 Simon Guan Migrated from tsim/query/complex_where.sim
             - 2025-8-19 Simon Guan Migrated from tsim/parser/where.sim
+            - 2026-09-11 Verify unconditional subquery Join Cartesian results
 
         """
 
@@ -327,11 +345,36 @@ class TestFilterOperator:
         tdSql.query(f"select * from stb1 where c7 < 'nuLl';")
         tdSql.query(f"select * from stb1 where c8 < 'nuLl';")
         tdSql.query(f"select * from stb1 where c9 > 'nuLl';")
-        tdSql.error(
+        tdSql.query("select * from stb1 where c7=true")
+        tdSql.checkRows(14)
+        left_rows = list(tdSql.queryResult)
+        tdSql.query("select * from stb1 where c1 > 30")
+        tdSql.checkRows(16)
+        right_rows = list(tdSql.queryResult)
+        tdSql.query(
             f"select * from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b;"
         )
-        tdSql.error(
+        tdSql.checkRows(224)
+        # Unconditional comma joins preserve every pair, including duplicates.
+        tdSql.checkEqual(
+            Counter(tuple(row) for row in tdSql.queryResult),
+            Counter(tuple(left) + tuple(right) for left in left_rows for right in right_rows),
+        )
+        tdSql.query(
             f"select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 or b.c1 < 60;"
+        )
+        # 14 left rows x 12 right rows below 60, plus timestamp matches for 61 and 62.
+        tdSql.checkRows(170)
+        tdSql.query(
+            f"select b.c1, count(*) from (select * from stb1 where c7=true) a, "
+            f"(select * from stb1 where c1 > 30) b "
+            f"where (a.ts=b.ts and a.c1 > 50) or b.c1 < 60 group by b.c1 order by b.c1;"
+        )
+        tdSql.checkEqual(
+            list(tdSql.queryResult),
+            [(31, 14), (32, 14), (33, 14), (34, 14),
+             (41, 14), (42, 14), (43, 14), (44, 14),
+             (51, 14), (52, 14), (53, 14), (54, 14), (61, 1), (62, 1)],
         )
         tdSql.query(
             f"select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and ((a.c1 > 50 and a.c1 < 60) or (b.c2 > 60));"
@@ -2214,8 +2257,12 @@ class TestFilterOperator:
         tdSql.checkRows(0)
 
         tdLog.info(f'"join test"')
-        tdSql.error(
-            f"select * from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts =tb2_1.ts;"
+        tdSql.query(
+            f"select tb1.ts from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts=tb2_1.ts order by 1;"
+        )
+        tdSql.checkEqual(
+            list(tdSql.queryResult),
+            [(f"2021-05-05 18:19:{second:02d}",) for second in range(8)],
         )
         tdSql.query(
             f"select tb1.ts from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts > '2021-05-05 18:19:03.000' and tb2_1.ts < '2021-05-05 18:19:06.000' order by ts;"
@@ -2359,9 +2406,25 @@ class TestFilterOperator:
         tdSql.checkData(2, 0, "2021-05-05 18:19:27")
 
         tdLog.info(f'"column&join test"')
-        tdSql.error(
-            f"select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.c1 > 0;"
+        tdSql.query(
+            f"select count(*) from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.c1 > 0;"
         )
+        tdSql.checkData(0, 0, 88)
+        # Compute the join result independently from the two source tables.
+        tdSql.query("select ts, c1 from tb1")
+        left_rows = list(tdSql.queryResult)
+        tdSql.query("select ts from tb2_1")
+        right_rows = list(tdSql.queryResult)
+        expected = Counter(
+            (left_ts, c1, right_ts)
+            for left_ts, c1 in left_rows
+            for (right_ts,) in right_rows
+            if left_ts == right_ts or (c1 is not None and c1 > 0)
+        )
+        tdSql.query("select tb1.ts, tb1.c1, tb2_1.ts from tb1, tb2_1 "
+                    "where tb1.ts=tb2_1.ts or tb1.c1 > 0")
+        tdSql.checkEqual(Counter(tuple(row) for row in tdSql.queryResult), expected)
+
 
         tdLog.info(f'"ts&tbname test"')
         tdSql.query(f"select count(*) from stb1 where ts > 0 or tbname like 'tb%';")
@@ -2379,9 +2442,10 @@ class TestFilterOperator:
         tdSql.checkData(1, 0, "2021-05-05 18:19:12")
 
         tdLog.info(f'"ts&join test"')
-        tdSql.error(
-            f"select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts > 0;"
+        tdSql.query(
+            f"select count(*) from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts > 0;"
         )
+        tdSql.checkData(0, 0, 88)
         tdSql.query(
             f"select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts and (tb1.ts > '2021-05-05 18:19:05.000' or tb1.ts < '2021-05-05 18:19:03.000' or tb1.ts > 0);"
         )

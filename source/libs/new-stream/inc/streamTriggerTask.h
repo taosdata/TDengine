@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,7 @@
 #define TDENGINE_TSTREAM_H
 
 #include "common/tmsg.h"
+#include "osTimezone.h"
 #include "streamRecalcTracker.h"
 #include "streamTaskStats.h"
 #include "streamTriggerMerger.h"
@@ -136,9 +139,13 @@ typedef struct SSTriggerVirtTableInfo {
   int64_t tbUid;
   int64_t tbVer;
   int32_t vgId;
+  char    tbName[TSDB_TABLE_NAME_LEN];
   SArray *pTrigColRefs;  // SArray<SSTriggerTableColRef>
   SArray *pCalcColRefs;  // SArray<SSTriggerTableColRef>
   SArray *tbGids;        // SArray<int64_t>
+  // True after trigger and calculation column references are built for this table.
+  // Reset whenever either reference array is discarded and rebuilt.
+  bool    colRefsInitialized;
 } SSTriggerVirtTableInfo;
 
 typedef struct SSTriggerOrigTableInfo {
@@ -160,9 +167,18 @@ typedef struct SSTriggerNotifyWindow {
   STimeWindow range;
   int64_t     wrownum;
   bool        forceWinOpen;
+  bool        winOpenEmitted;
+  int32_t     eventTreeNodeIdx;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
 } SSTriggerNotifyWindow;
+
+typedef struct SEventLeafStreak {
+  int32_t count;
+  TSKEY   firstTs;
+  TSKEY   lastTs;
+  TSKEY   prevTsBeforeFirst;
+} SEventLeafStreak;
 
 typedef TRINGBUF(SSTriggerWindow) TriggerWindowBuf;
 
@@ -192,8 +208,8 @@ typedef struct SSTriggerNestedPeerSource {
   int32_t sourceIndex;
   int32_t subSourceIndex;
 
-  const SSDataBlock        *pSliceBlock;
-  SSDataBlock              *pOutputBlock;  // borrowed alias to pVtableMerger output
+  SSTriggerNewTimestampSorter *pSorter;
+  SSDataBlock                 *pOutputBlock;  // borrowed WAL slice, sorter output, or vtable merger output
   SSTriggerNewVtableMerger *pVtableMerger;
   SArray                   *pTrigColRefs;  // owned SArray<SSTriggerTableColRef>
   int32_t                   rowIndex;
@@ -240,8 +256,8 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t                          extReaderTaskId;
   TD_DLIST_NODE(SSTriggerRealtimeGroup);
 
-  SSHashObj *pWalMetas;  // SSHashObj<vgId, SObjList<SSTriggerMetaData>>
-  SObjList   tableUids;  // SObjList<{uid, vgId}>, tables having data to check
+  SSHashObj *pWalMetas;  // Virtual: reader key; non-virtual: vgId
+  SObjList   tableUids;  // Virtual: slice ref; non-virtual: {uid, vgId}
   int64_t    oldThreshold;
   int64_t    newThreshold;
 
@@ -252,11 +268,15 @@ typedef struct SSTriggerRealtimeGroup {
       char                 *pFirstSubWinOpenNotify;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
-      // streak state (start/end, always scalar — sub-event + start/end is rejected at parse time)
+      // streak state (start/end, always scalar  -  sub-event + start/end is rejected at parse time)
       int32_t startCondCount;
       TSKEY   startCondFirstTs;
       int32_t endCondCount;
       TSKEY   endCondFirstTs;
+      SArray *activePath;       // SArray<int32_t>, envelope..leaf
+      SArray *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
+      SArray *leafStreaks;      // SArray<SEventLeafStreak>, one per event-tree leaf
+      int32_t activeLeaf;       // leaf array index, -1 when no active leaf
     };
     int64_t totalCount;  // for count window trigger
   };
@@ -278,6 +298,7 @@ typedef struct SSTriggerRealtimeGroup {
   // Idle trigger fields
   int64_t lastRecvTimeMono;                        // last receive time (monotonic clock ms)
   int64_t lastRecvTimeWall;                        // last receive time (wall clock ns)
+  int64_t idleEventTimeWall;                       // idle event time (wall clock ns)
   uint8_t idleState;                               // 0=ACTIVE, 1=IDLE
   TD_DLIST_NODE(SSTriggerRealtimeGroup) idleNode;  // for groupsToCheckIdle list
 } SSTriggerRealtimeGroup;
@@ -300,6 +321,12 @@ typedef struct SSTriggerHistoryGroup {
       SSTriggerNotifyWindow parentWindow;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
+      int32_t               endCondCount;
+      TSKEY                 endCondFirstTs;
+      SArray               *activePath;       // SArray<int32_t>, envelope..leaf
+      SArray               *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
+      SArray               *leafStreaks;      // SArray<SEventLeafStreak>, one per event-tree leaf
+      int32_t               activeLeaf;       // leaf array index, -1 when no active leaf
     };
   };
 
@@ -350,7 +377,16 @@ typedef struct SSTriggerWalProgress {
   SArray                   *pVersions;       // SArray<int64_t>
   SSDataBlock              *pTrigBlock;
   SSDataBlock              *pCalcBlock;
+  int32_t                   pendingPulls;    // in-flight pull counter for this WAL reader
+  ESTriggerPullType         pullType;         // in-flight pull type for diagnostics
 } SSTriggerWalProgress;
+
+typedef enum ESTriggerReaderWatermarkState {
+  STRIGGER_READER_WATERMARK_ACTIVE = 0,
+  STRIGGER_READER_WATERMARK_IDLE = 1,
+  STRIGGER_READER_WATERMARK_FAILED = 2,
+  STRIGGER_READER_WATERMARK_REMOVED = 3,
+} ESTriggerReaderWatermarkState;
 
 typedef struct SStreamReaderProgressSnapshot {
   int64_t taskId;
@@ -382,9 +418,20 @@ typedef enum EStreamTriggerDebugGauge {
   STREAM_TRIGGER_GAUGE_TABLE_UID_POOL = 1ULL << 14,
   STREAM_TRIGGER_GAUGE_WINDOW_POOL = 1ULL << 15,
   STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL = 1ULL << 16,
+  STREAM_TRIGGER_GAUGE_POOL_MEMORY = 1ULL << 17,
+  STREAM_TRIGGER_GAUGE_RECALC_MEMORY = 1ULL << 18,
 } EStreamTriggerDebugGauge;
 
+typedef struct SStreamTriggerRecalcMemory {
+  int64_t requestCount;
+  int64_t requestBytes;
+  int64_t versionHashBytes;
+  int64_t readyQueueBytes;
+  int64_t totalBytes;
+} SStreamTriggerRecalcMemory;
+
 typedef struct SStreamTriggerDebugGauges {
+  SStreamTriggerRecalcMemory recalcMemory;
   int64_t  realtimeSessionCount;
   int64_t  historySessionCount;
   int64_t  activeRecalcCount;
@@ -409,11 +456,13 @@ typedef struct SStreamTriggerDebugGauges {
   int64_t  calcParamPoolUsed;
   int64_t  calcParamPoolCapacity;
   int64_t  calcParamPoolBytes;
+  int64_t  poolMemoryBytes;
   int32_t  historyProgressPct;
   uint64_t validMask;
 } SStreamTriggerDebugGauges;
 
 typedef struct SStreamTriggerCommonDebugGauges {
+  SStreamTriggerRecalcMemory recalcMemory;
   int64_t  activeRecalcCount;
   int64_t  pendingRecalcRequestCount;
   int32_t  historyProgressPct;
@@ -421,6 +470,7 @@ typedef struct SStreamTriggerCommonDebugGauges {
 } SStreamTriggerCommonDebugGauges;
 
 typedef struct SStreamTriggerRealtimeDebugGauges {
+  SStreamTriggerRecalcMemory recalcMemory;
   bool     present;
   int64_t  pendingPullRetryCount;
   int64_t  pendingCalcRetryCount;
@@ -445,6 +495,7 @@ typedef struct SStreamTriggerRealtimeDebugGauges {
 } SStreamTriggerRealtimeDebugGauges;
 
 typedef struct SStreamTriggerHistoryDebugGauges {
+  SStreamTriggerRecalcMemory recalcMemory;
   bool     present;
   int64_t  pendingPullRetryCount;
   int64_t  pendingCalcRetryCount;
@@ -460,12 +511,21 @@ typedef struct SStreamTriggerHistoryDebugGauges {
  * driver. Sibling of SSTriggerWalProgress; lives in SSTriggerRealtimeContext
  * .pReaderExtProgress as SSHashObj<int64_t taskId, SSTriggerExtProgress*>.
  * P0 only defines the struct; producer/consumer is added in P3.
- * See DS §6.2.2 for full field semantics. */
+ * See DS section 6.2.2 for full field semantics. */
 typedef struct SSTriggerExtProgress {
   SStreamTaskAddr *pTaskAddr;            // EXT reader task address
+  SStreamTaskAddr  retiredTaskAddr;
+  struct SSTriggerExtProgress *pNextRetired;
+  bool            retired;
   SSHashObj       *triggerSideUidMaxTs;  // SSHashObj<int64_t uid, int64_t maxTs>;
                                          // trigger-side watermark map; sent on
                                          // every PULL so reader never stores it.
+  SSHashObj       *recoveryCheckpointMaxTs;  // SSHashObj<int64_t uid, int64_t maxTs>;
+                                             // checkpoint-safe completed cutoff; restored
+                                             // during recovery and advanced only by bootstrap
+                                             // or successful calc completion, never by META_EXT scans.
+  SSHashObj       *recoveryCheckpointGroupMaxTs;  // SSHashObj<(registryEntryId, virtualGid), int64_t maxTs>;
+                                                   // per-group cutoff used for virtual external bindings.
   SSHashObj       *pUidWindow;           // SSHashObj<int64_t uid, SExtUidWindow>;
                                          // uid -> {skey,ekey} collected from the latest
                                          // META_EXT response; sent with DATA_EXT pull;
@@ -484,6 +544,16 @@ typedef struct SSTriggerExtProgress {
                                          // groupId (which may merge several uids) instead of
                                          // by raw uid.  Persists for the lifetime of this
                                          // progress (not cleared per-request like pUidWindow).
+  SSHashObj       *pLastTsUidToGid;      // SSHashObj<int64_t uid, int64_t groupId>;
+                                         // one entry per uid reported by the LAST_TS_EXT
+                                         // bootstrap.  The META scan filters with
+                                         // "ts > maxTs", so a reader whose remote rows all
+                                         // predate that cutoff never reports a uid through
+                                         // META_EXT and pUidToGid stays empty; the bootstrap
+                                         // is then the only reader-confirmed uid set (and is
+                                         // authoritative even for partial SERIES conditions,
+                                         // unlike a reconstructed Influx tagset key).  Used
+                                         // by stRealtimeContextEnsureVirtualExtCalcUidWindow.
   SSDataBlock     *pTrigDataBlock;       // owned data block returned by DATA_EXT/META_DATA_EXT;
                                          // borrowed by pSlices during trigger-side checks;
                                          // freed in stExtProgressDestroy and on next trigger
@@ -494,6 +564,12 @@ typedef struct SSTriggerExtProgress {
   int64_t          lastTsNs;             // driver-internal heuristic only;
                                          // NOT persisted, NOT in heartbeat,
                                          // undefined for InfluxDB multi-uid.
+  int64_t          deploymentGeneration; // generation confirmed by external reader deployment.
+  int64_t          inFlightDeploymentGeneration; // generation attached to the current in-flight pull.
+  int64_t          lastSuccessfulPullTsNs; // timestamp of the latest non-stale successful pull.
+  int32_t          pendingPulls;         // independent in-flight counter for this EXT reader.
+  int32_t          pendingCalcPulls;     // in-flight CALC_DATA_EXT counter for this EXT reader.
+  int8_t           watermarkState;       // ESTriggerReaderWatermarkState.
   void            *pullReq;              // in-flight pull request handle, or NULL
   ESTriggerPullType pullType;            // last in-flight pull type; used when
                                          // reader returns NO_DATA without payload.
@@ -522,10 +598,50 @@ typedef struct SSTriggerVTablePatchItem {
   ETableBlockType op;
 } SSTriggerVTablePatchItem;
 
+// External terminal references are intentionally kept out of pOrigTableCols:
+// that map drives vnode/WAL reader deployment and therefore has no source
+// identity. The registry is populated while VTABLE_INFO is collected; mnode
+// later completes sourceType and assigns the stable deployment identity.
+typedef struct SSTriggerExtOrigTableBinding {
+  int64_t  bindingId;
+  int64_t  virtualUid;
+  int64_t  virtualGid;
+  col_id_t virtualColId;
+  int8_t   kind;
+  int32_t  virtualSlot;
+  int32_t  resultColumnSlot;
+  char     externalColumn[TSDB_COL_NAME_LEN];
+} SSTriggerExtOrigTableBinding;
+
+#define STRIGGER_EXT_SOURCE_TYPE_UNRESOLVED (-1)
+
+typedef struct SSTriggerExtOrigTableRef {
+  int64_t registryEntryId;  // zero until source metadata assigns the registry entry
+  int8_t  refType;
+  int8_t  sourceType;       // STRIGGER_EXT_SOURCE_TYPE_UNRESOLVED until mnode lookup completes
+  int64_t sourceConfigVersion;
+  SStreamTaskAddr readerTaskAddr;
+  int32_t         acceptedBindingCount;
+  bool            readerCleanupPending;  // Reader address retained for deferred management cleanup.
+  SArray         *pReaderCleanupAddrs;   // SArray<SStreamTaskAddr>, deferred cleanup addresses.
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    dbName[TSDB_DB_NAME_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  int32_t tagCondLen;
+  char   *tagCondJson;
+  char   *canonicalKey;
+  SArray *bindings;  // SArray<SSTriggerExtOrigTableBinding>
+} SSTriggerExtOrigTableRef;
+
 typedef struct SSTriggerVTablePatchContext {
   SSHashObj *pPatchItems;          // SSHashObj<vtbUid, SSTriggerVTablePatchItem>
   SArray    *pVirTableInfoRsp;     // SArray<VTableInfo>
   SSHashObj *pOrigTableCols;       // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigColumnInfo>*>
+  SArray    *pExtOrigTableRefs;    // SArray<SSTriggerExtOrigTableRef>
+  SArray    *pExtRegistryPatchIds; // SArray<int64_t>
+  SArray    *pExtCleanupRefs;      // SArray<SSTriggerExtOrigTableRef>
+  bool       extRegistryPatchPrepared;
 } SSTriggerVTablePatchContext;
 
 struct SSTriggerRealtimeContext {
@@ -540,7 +656,8 @@ struct SSTriggerRealtimeContext {
   ESTriggerContextStatus     status;
 
   SSHashObj                  *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
-  SSHashObj                  *pReaderExtProgress;  // SSHashObj<int64_t taskId, SSTriggerExtProgress*>; NULL until P3 producer is introduced (DS §6.1.3)
+  SSHashObj                  *pReaderExtProgress;  // SSHashObj<int64_t taskId, SSTriggerExtProgress*>; NULL until P3 producer is introduced (DS section 6.1.3)
+  SSTriggerExtProgress        *pRetiredExtProgress;
   int32_t                     curReaderIdx;
   bool                        catchUp;  // whether all readers have caught up the latest wal data
   bool                        continueToFetch;
@@ -550,6 +667,7 @@ struct SSTriggerRealtimeContext {
   SSDataBlock *pDeleteBlock;
   SSDataBlock *pTableBlock;
   SArray      *pTempSlices;  // SSArray<{gid, uid, startIdx, endIdx}>
+  SArray      *pStaleExtDataBlocks;  // SArray<SSDataBlock*>; owns EXT blocks still borrowed by pSlices after rebind
   SSHashObj   *pRanges;      // SSHashObj<gid, STimeWindow>
 
   SSHashObj *pGroups;  // SSHashObj<gid, SSTriggerRealtimeGroup*>
@@ -580,11 +698,13 @@ struct SSTriggerRealtimeContext {
   SSTriggerCalcParam          *pCurParam;
   int64_t                      curParamRows;
   int64_t                      lastSentWinEnd;
+  bool                         calcWalPulled;
   SObjList                     pAllCalcTableUids;  // SObjList<{uid, vgId}>
   SObjList                     pCalcTableUids;     // SObjList<{uid, vgId}>
   SSTriggerNewTimestampSorter *pCalcSorter;
   SSTriggerNewVtableMerger    *pCalcMerger;
-  void                        *pNestedCalcBatch;  // SStagedNestedCalcBatch, owned while %%trows pull is in flight
+  SSDataBlock                 *pExtCalcFilterBlock;  // Reused filtered EXT calc block for unordered source rows.
+  void                        *pNestedCalcMaterialization;  // SRealtimeNestedCalcMaterialization
   // these fields are shared by all groups and do not need to reset for each group
   STimeWindow           periodWindow;  // for period trigger
   SSTriggerCalcRequest *pCalcReq;
@@ -595,18 +715,20 @@ struct SSTriggerRealtimeContext {
   SObjPool              tableUidPool;   // SObjPool<{uid, vgId}>
   SObjPool              windowPool;     // SObjPool<SSTriggerWindow>
   SObjPool              calcParamPool;  // SObjPool<SSTriggerCalcParam>
+  int64_t               lastCalcParamPoolShrinkMonoUs;
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
 
   SList   retryPullReqs;  // SList<SSTriggerPullRequest*>
-  SList   retryCalcReqs;  // SList<SSTriggerCalcRequest*>
   SList   dropTableReqs;  // SList<SSTriggerDropRequest*>
   int32_t dropReqIndex;
 
   bool    haveReadCheckpoint;
   bool    boundDetermined;
   bool    recovering;
+  bool    extCheckpointRecovered;
+  bool    needAlignWalForExtTrigger;  // Mixed WAL/EXT trigger data must pull WAL rows before checking groups.
   int64_t lastCheckpointTime;
 
   // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
@@ -614,7 +736,7 @@ struct SSTriggerRealtimeContext {
 };
 
 typedef struct SSTriggerTsdbProgress {
-  SStreamTaskAddr          *pTaskAddr;  // reader task address
+  SStreamTaskAddr           taskAddr;   // reader task address (owned copy)
   SSTriggerPullRequestUnion pullReq;
   SArray                   *reqCids;     // SArray<col_id_t>
   SArray                   *pMetadatas;  // SArray<SSDataBlock*>
@@ -663,6 +785,7 @@ typedef struct SSTriggerHistoryContext {
 
   // these fields are shared by all groups and do not need to be destroyed
   bool                    reenterCheck;
+  int64_t                 checkedGroupGid;
   int32_t                 tbIter;
   SSTriggerVirtTableInfo *pCurVirTable;   // only for virtual tables
   SSTriggerTableMeta     *pCurTableMeta;  // only for non-virtual tables
@@ -671,6 +794,7 @@ typedef struct SSTriggerHistoryContext {
   SSTriggerCalcParam     *pParamToFetch;
   STimeWindow             paramCalcRange;
   SSTriggerCalcRequest   *pCalcReq;
+  SArray                 *pNestedCalcRanges;  // SArray<SHistoryNestedCalcRange>
   int64_t                 lastSentWinEnd;
   // these fields are shared by all groups and need to be destroyed
   SSTriggerTimestampSorter *pSorter;
@@ -679,12 +803,12 @@ typedef struct SSTriggerHistoryContext {
   SArray                   *pInitWindows;   // for sliding trigger and session window trigger
   SArray                   *pNotifyParams;  // SArray<SSTriggerCalcParam>
   SObjPool                  calcParamPool;  // SObjPool<SSTriggerCalcParam>
+  int64_t                   lastCalcParamPoolShrinkMonoUs;
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
 
   SList retryPullReqs;  // SList<SSTriggerPullRequest*>
-  SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 
 } SSTriggerHistoryContext;
 
@@ -716,6 +840,7 @@ void    stDestroyNestedPendingCalcNode(SListNode **ppNode);
 
 typedef struct SSTriggerCalcSlot {
   SSTriggerCalcRequest req;  // keep in the first place
+  uint64_t             generation;
   TD_DLIST_NODE(SSTriggerCalcSlot);
 } SSTriggerCalcSlot;
 
@@ -723,6 +848,29 @@ typedef struct SSTriggerCalcNode {
   SArray *pSlots;  // SArray<SSTriggerCalcSlot>
   TD_DLIST(SSTriggerCalcSlot) idleSlots;
 } SSTriggerCalcNode;
+
+typedef struct SStreamEventTreeNode {
+  char        *path;
+  int32_t      parent;
+  int32_t      firstChild;
+  int32_t      childCount;
+  int32_t      firstLeaf;
+  int32_t      leafCount;
+  bool         isLeaf;
+  SNode       *pCond;  // borrowed from the AST used to build this tree
+  STrueForInfo trueFor;
+} SStreamEventTreeNode;
+
+typedef struct SStreamEventTree {
+  SArray *nodes;   // SArray<SStreamEventTreeNode>, index 0 is envelope
+  SArray *leaves;  // SArray<int32_t>, pre-order leaf node indexes
+  int32_t maxDepth;
+} SStreamEventTree;
+
+typedef struct SSTriggerGroupRunning {
+  int32_t runningRequests;
+  bool    runnerInitialized[];
+} SSTriggerGroupRunning;
 
 typedef struct SSTriggerRecalcRequest {
   int64_t     gid;
@@ -757,9 +905,14 @@ typedef struct SStreamTriggerTask {
   SStreamTriggerCommonDebugGauges   commonDebugGauges;
   SStreamTriggerRealtimeDebugGauges realtimeDebugGauges;
   SStreamTriggerHistoryDebugGauges  historyDebugGauges;
+  int64_t                           realtimeDebugGaugesAtMonoUs;
+  int64_t                           commonDebugGaugesAtMonoUs;
+  bool                              commonDebugGaugesSampled;
 
   // trigger options
   EStreamTriggerType triggerType;
+  timezone_t         timezone;        // task-owned; SInterval.timezone borrows this handle for time triggers
+  int8_t             firstDayOfWeek;  // task-owned time context, including nested time windows
   union {
     SInterval interval;  // for sliding window
     int64_t   gap;       // for session window
@@ -777,11 +930,12 @@ typedef struct SStreamTriggerTask {
     struct {  // for event window
       SNode       *pStartCond;
       SNode       *pEndCond;
-      SNodeList   *pStartCondCols;
-      SNodeList   *pEndCondCols;
-      STrueForInfo eventTrueForInfo;
-      STrueForInfo startTrueForInfo;  // start condition consecutive-streak limit
-      STrueForInfo endTrueForInfo;    // end condition consecutive-streak limit
+      SNodeList        *pStartCondCols;
+      SNodeList        *pEndCondCols;
+      STrueForInfo      eventTrueForInfo;
+      SStreamEventTree *pEventTree;
+      STrueForInfo      startTrueForInfo;  // start condition consecutive-streak limit
+      STrueForInfo      endTrueForInfo;    // end condition consecutive-streak limit
     };
   };
   int32_t trigTsIndex;
@@ -820,12 +974,13 @@ typedef struct SStreamTriggerTask {
   int32_t    histCalcPkIndex;
   int64_t    histStateSlotId;
   SArray     *pHistStateSlotIds;  // SArray<int16_t>
-  SNode     *histTriggerFilter;
-  SNode     *histStateExpr;
-  SNodeList *histStateExprs;
-  SNode     *histStartCond;
-  SNode     *histEndCond;
-  SNodeList *histStartCondCols;
+  SNode            *histTriggerFilter;
+  SNode            *histStateExpr;
+  SNodeList        *histStateExprs;
+  SStreamEventTree *pHistEventTree;
+  SNode            *histStartCond;
+  SNode            *histEndCond;
+  SNodeList        *histStartCondCols;
   SNodeList *histEndCondCols;
   // notify options
   ESTriggerEventType calcEventType;
@@ -862,6 +1017,7 @@ typedef struct SStreamTriggerTask {
   bool       virTableInfoReady;
   SArray    *pVirTableInfoRsp;  // SArray<VTableInfo>
   SSHashObj *pOrigTableCols;    // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigColumnInfo>*>
+  SArray    *pExtOrigTableRefs; // SArray<SSTriggerExtOrigTableRef>
 
   // boundary between realtime and history
   SSHashObj           *pHistoryCutoffTime;
@@ -872,7 +1028,7 @@ typedef struct SStreamTriggerTask {
   SRWLatch   calcPoolLock;
   SRWLatch   calcDataCacheIterLock;
   SArray    *pCalcNodes;       // SArray<SSTriggerCalcNode>
-  SSHashObj *pGroupRunning;    // SSHashObj<gid, bool[]>
+  SSHashObj *pGroupRunning;    // SSHashObj<(sessionId, gid), SSTriggerGroupRunning>
   SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
 
   SRWLatch   recalcRequestLock;
@@ -950,9 +1106,15 @@ int64_t            streamTaskGetMonotonicUs(void);
 // helper function in trigger task
 // check whether the state data equals to the zeroth state
 int32_t     stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual);
+SSTriggerReaderDataKey stTriggerTaskInternalReaderDataKey(int64_t suid, int64_t uid, int32_t vgId);
 STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts);
 void        stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow);
 void        stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow);
+int32_t     stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t *pLen, int32_t version);
+int32_t     stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t len);
+int32_t     stTriggerTaskValidateExtHistory(const SStreamTriggerTask *pTask);
+int32_t     stTriggerTaskMergeExtRegistryPatch(SSTriggerRealtimeContext *pContext);
+int32_t     stTriggerTaskPrepareExtRegistryPatch(SSTriggerRealtimeContext *pContext);
 SStreamProgressRange stTriggerTaskProgressRangeFromClosed(STimeWindow range);
 
 #ifdef __cplusplus

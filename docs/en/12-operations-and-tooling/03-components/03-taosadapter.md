@@ -14,7 +14,7 @@ The connectors of TDengine in various languages communicate with TDengine throug
 
 The architecture diagram is as follows:
 
-![taosAdapter architecture](../../assets/taosadapter-01.png)
+![taosAdapter architecture](../../assets/taosadapter-01.webp)
 
 ## Feature List
 
@@ -504,7 +504,7 @@ You can use any client that supports the HTTP protocol to write data to TDengine
 
 ## Installation
 
-taosAdapter is part of the TDengine server software. If you are using TDengine server, you do not need any additional steps to install taosAdapter. If you need to deploy taosAdapter separately from the TDengine server, you should install the complete TDengine on that server to install taosAdapter. If you need to compile taosAdapter from source code, you can refer to the [Build taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD.md) document.
+taosAdapter is part of the TDengine server software. If you are using TDengine server, you do not need any additional steps to install taosAdapter. If you need to deploy taosAdapter separately from the TDengine server, you should install the complete TDengine on that server to install taosAdapter. If you need to compile taosAdapter from source code, you can refer to the [Build taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/README.md) document.
 
 After the installation is complete, you can start the taosAdapter service using the command `systemctl start taosadapter`.
 
@@ -605,6 +605,12 @@ The configuration parameters for the connection pool are as follows:
 - **`pool.idleTimeout`**: Connection idle timeout, default is never timeout. It is recommended to keep the default setting.
 - **`pool.waitTimeout`**: Timeout for obtaining a connection from the pool, default is set to 60 seconds. If a connection is not obtained within the timeout period, HTTP status code 503 will be returned. This parameter is available starting from version 3.3.3.0.
 - **`pool.maxWait`**: The maximum number of requests waiting to get a connection in the pool, default is 0, which means no limit. When the number of queued requests exceeds this value, new requests will return HTTP status code 503. This parameter is available starting from version 3.3.3.0.
+
+### Query Result Set Configuration
+
+taosAdapter can automatically release query result sets that stay idle for a long time on the WebSocket interface (`/ws`), preventing result sets from being retained when a client stops fetching data, for example after a client-side query timeout.
+
+- **`queryResult.idleTimeout`**: Idle timeout for query result sets, default is 1 hour. This configuration applies to result sets created by the `query` action and by stmt/stmt2 `use_result` on the `/ws` interface. The idle timer starts from the last fetch of a result set (or from its creation if it has never been fetched) and is reset on every fetch. A result set that stays idle longer than this duration is released automatically; afterwards, fetch requests for its id fail with a "result is nil" error. Set to 0 to disable this cleanup. This configuration does not affect the RESTful interface, which returns all results within the request.
 
 ### HTTP Response Code Configuration
 
@@ -1311,6 +1317,7 @@ Configuration Parameters and their corresponding environment variables:
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `queryResult.idleTimeout`             | `TAOS_ADAPTER_QUERY_RESULT_IDLE_TIMEOUT`              |
 | `register.description`                | `TAOS_ADAPTER_REGISTER_DESCRIPTION`                   |
 | `register.duration`                   | `TAOS_ADAPTER_REGISTER_DURATION`                      |
 | `register.expire`                     | `TAOS_ADAPTER_REGISTER_EXPIRE`                        |
@@ -2230,6 +2237,8 @@ Starting from version **3.3.6.10**, the `adapter_c_interface` table has been add
 </details>
 
 Starting from version **3.3.6.29**/**3.3.8.3**, the `adapter_request_limit` table has been added to record taosAdapter query request throttling metrics:
+
+Note: The `adapter_request_limit` table is created on demand. taosKeeper creates this table in the monitoring database and writes data to it only when the query request concurrency limit feature is enabled (`request.queryLimitEnable = true`, which is `false` by default) and taosAdapter has processed at least one limited query request since startup. Otherwise, this table does not exist.
 
 <details>
 <summary>Details</summary>

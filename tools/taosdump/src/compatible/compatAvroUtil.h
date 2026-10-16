@@ -1,12 +1,18 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef COMPAT_AVRO_UTIL_H_
@@ -91,8 +97,12 @@ void avroFreeFileList(char **list);
 char *avroReadFolderStbName(const char *dirPath);
 
 // Get the AVRO table description from server via DESCRIBE.
+// `maxCols` is the number of AvroColDes slots actually allocated in `tableDes`
+// (see avroAllocTableDes).  The row count of DESCRIBE is server-supplied, so
+// the fill stops with an error instead of writing past the allocation when the
+// server reports more columns/tags than the caller reserved.
 int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
-                    AvroTableDes *tableDes, bool colOnly);
+                    AvroTableDes *tableDes, int maxCols, bool colOnly);
 
 // Check if a directory is a normal-table folder (contains avro-ntb files
 // but no avro-tbtags files, or ends with special marker).

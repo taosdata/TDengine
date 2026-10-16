@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import importlib
 import os
 import queue
@@ -843,8 +858,8 @@ class TaosTestFrame:
 
         client_version = self._taopy_version
         filePath = f"{rootPath}/v{client_version}/enterprise"
-        fileName = f"TDengine-enterprise-client-{client_version}-Linux-x64.tar.gz"
-        pkgDir = f"TDengine-enterprise-client-{client_version}"
+        fileName = f"tdengine-tsdb-enterprise-client-{client_version}-linux-x64.tar.xz"
+        pkgDir = f"tdengine-tsdb-enterprise-client-{client_version}"
         docker_tmp = f"/tmp/"
         install_cmds = [f"mkdir -p /tmp/"]
         if self._opts.client_pkg is None:
@@ -853,7 +868,7 @@ class TaosTestFrame:
             install_cmds.append(f"cp {self._opts.client_pkg} {docker_tmp}")
             fileName = os.path.basename(self._opts.client_pkg)
             pkgDir = fileName[: -len("-Linux-x64.tar.gz")]
-        install_cmds.append(f"cd {docker_tmp} && tar xzf {fileName} && cd {pkgDir} && ./install_client.sh && pip3 install connector/python")
+        install_cmds.append(f"cd {docker_tmp} && tar -xf {fileName} && cd {pkgDir} && ./install_client.sh && pip3 install connector/python")
         for shell_cmd in install_cmds:
             print(shell_cmd)
             cmd = "docker exec {} sh -c ' {}' ".format(self._get_frame_container_name(), shell_cmd)

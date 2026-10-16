@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -75,7 +77,21 @@ typedef struct TdFile *TdFilePtr;
 #define TD_FILE_STREAM        0x0100  // Only support taosFprintfFile, taosGetLineFile, taosEOFFile
 #define TD_FILE_WRITE_THROUGH 0x0200
 #define TD_FILE_CLOEXEC       0x0400
+#define TD_FILE_NOFOLLOW      0x0800  // Do not follow a symbolic link at the path (Linux/macOS only)
+#define TD_FILE_SHARE_READ    0x1000  // Let other users read the created file instead of owner-only (Linux/macOS only)
 
+// Create with TD_FILE_CREATE | TD_FILE_EXCL and TD_FILE_READ and/or TD_FILE_WRITE,
+// or open an existing file with flags == TD_FILE_READ; all other flags are rejected.
+// The target must be a regular file. POSIX requires effective-UID ownership and
+// creates files with mode 0600. Windows accepts the current user, SYSTEM,
+// Administrators, or an Authz-verified administrator as owner. New Windows files
+// have a protected DACL granting full control only to the current user, SYSTEM,
+// and Administrators, with Administrators as owner when elevated, otherwise the
+// current user. Opening existing files does not reset their DACL.
+// Only the final component is checked for links; callers are responsible for the parent path.
+TdFilePtr taosOpenPrivateFile(const char *path, int32_t flags);
+// Succeed only if path is a unix socket (not a link) owned by the effective UID; always succeeds on Windows.
+int32_t   taosCheckPrivateSocket(const char *path);
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions);
 TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 
@@ -147,6 +163,19 @@ bool    lastErrorIsFileNotExist();
 
 int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
 
+#ifdef WINDOWS
+// Wide-char path variants: interpret the path as UTF-8 on Windows (via wide
+// Win32 APIs) so non-ASCII (e.g. CJK) names round-trip correctly.  On POSIX
+// the paths are already UTF-8 byte strings, so these delegate to the plain
+// APIs.
+TdFilePtr taosOpenFileW(const char *path, int32_t tdFileOptions);
+int32_t   taosRemoveFileW(const char *path);
+int32_t   taosRenameFileW(const char *oldName, const char *newName);
+int32_t   taosStatFileW(const char *path, int64_t *size, int64_t *mtime, int64_t *atime);
+bool      taosCheckAccessFileW(const char *pathname, int32_t mode);
+bool      taosCheckExistFileW(const char *pathname);
+#endif
+
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \
   do {                                                                    \
@@ -160,6 +189,15 @@ int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
     while (0)
 #else
 #define STUB_RAND_NETWORK_ERR(status)
+#endif
+
+#if defined(TAOS_OS_WIDE_PATH) && defined(WINDOWS)
+#define taosOpenFile        taosOpenFileW
+#define taosRemoveFile      taosRemoveFileW
+#define taosRenameFile      taosRenameFileW
+#define taosStatFile        taosStatFileW
+#define taosCheckAccessFile taosCheckAccessFileW
+#define taosCheckExistFile  taosCheckExistFileW
 #endif
 
 #ifdef __cplusplus

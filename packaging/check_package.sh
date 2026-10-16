@@ -1,7 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install database on linux systems. The operating system
-# is required to use systemd to manage services at boot
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 #set -x
@@ -90,7 +102,7 @@ function kill_process() {
 function check_file() {
     #check file whether exists
     if [ ! -e $1/$2 ];then
-        echo -e "$1/$2 \033[31mnot exists\033[0m!quit"
+        echo -e "$1/$2 \033[31mdoes not exist\033[0m! quit"
         fin_result=$fin_result"\033[31m$temp_version\033[0m test failed!\n"
         echo -e $fin_result
         exit 8
@@ -116,7 +128,7 @@ function check_link() {
             exit 8
         fi
     else
-        echo -e "$1 \033[31mnot exists\033[0m!quit"
+        echo -e "$1 \033[31mdoes not exist\033[0m! quit"
         fin_result=$fin_result"\033[31m$temp_version\033[0m test failed!\n"
         echo -e $fin_result
         exit 8

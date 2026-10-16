@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "parTestUtil.h"
 
 using namespace std;
@@ -5,6 +22,23 @@ using namespace std;
 namespace ParserTest {
 
 class ParserXnodeTest : public ParserDdlTest {};
+
+TEST_F(ParserXnodeTest, restartXnode) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_RESTART_XNODE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_RESTART_XNODE);
+
+    SMRestartXnodeReq req = {0};
+    ASSERT_EQ(tDeserializeSMRestartXnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
+              TSDB_CODE_SUCCESS);
+    tFreeSMRestartXnodeReq(&req);
+  });
+
+  run("RESTART XNODE");
+}
 
 TEST_F(ParserXnodeTest, taskDsnSqlEscapesAreDecoded) {
   login("root");
@@ -188,6 +222,65 @@ TEST_F(ParserXnodeTest, emptyTaskIoIsRejected) {
   for (const string& statement : statements) {
     run(statement, TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
   }
+}
+
+TEST_F(ParserXnodeTest, showXnodeDsnOutputModeIsPropagated) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT);
+    ASSERT_EQ(pQuery->xnodeDsnOutputMode, XNODE_DSN_OUTPUT_ENCRYPTED);
+  });
+
+  run("SHOW XNODE TASKS WITH ENCRYPTED WHERE id = 1");
+  run("show xnode jobs with encrypted where task_id = 1");
+
+  runParseOnly("SHOW XNODE AGENTS WITH ENCRYPTED", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODES WITH ENCRYPTED", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE TASKS WHERE id = 1 WITH ENCRYPTED", TSDB_CODE_PAR_SYNTAX_ERROR);
+}
+
+// parseXnodeDsnOutputMode only recognizes "encrypted"; any other bare identifier after WITH must
+// be rejected rather than silently falling back to the default output mode.
+TEST_F(ParserXnodeTest, showXnodeRejectsUnknownDsnOutputMode) {
+  login("root");
+  useDb("root", "test");
+
+  runParseOnly("SHOW XNODE TASKS WITH FOO", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE TASKS WITH ENCRYPT", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE TASKS WITH ENCRYPTEDX", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE TASKS WITH FOO WHERE id = 1", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE JOBS WITH FOO", TSDB_CODE_PAR_SYNTAX_ERROR);
+}
+
+// The default (no WITH clause) path must stay untouched.
+TEST_F(ParserXnodeTest, showXnodeDefaultsToPlainDsnOutputMode) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    ASSERT_EQ(pQuery->xnodeDsnOutputMode, XNODE_DSN_OUTPUT_DEFAULT);
+  });
+
+  run("SHOW XNODE TASKS");
+  run("SHOW XNODE JOBS WHERE task_id = 1");
+  run("SHOW XNODE AGENTS");
+  run("SHOW XNODES");
+}
+
+TEST_F(ParserXnodeTest, showXnodeDsnOutputModeSurvivesAstClone) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    ASSERT_EQ(pQuery->xnodeDsnOutputMode, XNODE_DSN_OUTPUT_ENCRYPTED);
+  });
+
+  runClonedAst("SHOW XNODE TASKS WITH ENCRYPTED");
 }
 
 TEST_F(ParserXnodeTest, createOptionFailuresReleaseInputsOnce) {

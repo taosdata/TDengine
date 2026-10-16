@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -27,6 +31,9 @@ from .common import *
 from datetime import datetime
 from enum import Enum
 from new_test_framework.utils import clusterComCheck
+
+
+TSDB_CODE_PAR_TABLE_NOT_EXIST = 0x2603
 
 
 class StreamTableType(Enum):
@@ -554,18 +561,23 @@ class StreamUtil:
     def dropAllStreamsAndDbs(self):
         streamNum = 0
         dbList = tdSql.query("show databases", row_tag=True)
-        for r in range(len(dbList)):
-            dbname = dbList[r][0]
-            if dbname != "information_schema" and dbname != "performance_schema":
-                streamList = tdSql.query(f"show {dbname}.streams", row_tag=True)
-                for r in range(len(streamList)):
-                    streamNum = streamNum + 1
-                    streamName = streamList[r][0]
-                    tdSql.execute(f"drop stream {dbname}.{streamList[r][0]}")
-                tdLog.info(f"drop database {dbname}")
-                tdSql.execute(f"drop database {dbname}")
+        userDbs = [
+            row[0]
+            for row in dbList
+            if row[0] not in ("information_schema", "performance_schema")
+        ]
 
-        tdLog.info(f"drop {len(dbList)} databases, {streamNum} streams")
+        for dbname in userDbs:
+            streamList = tdSql.query(f"show {dbname}.streams", row_tag=True)
+            for streamRow in streamList:
+                streamNum += 1
+                tdSql.execute(f"drop stream {dbname}.{streamRow[0]}")
+
+        for dbname in userDbs:
+            tdLog.info(f"drop database {dbname}")
+            tdSql.execute(f"drop database {dbname}")
+
+        tdLog.info(f"drop {len(userDbs)} databases, {streamNum} streams")
 
     def prepareChildTables(
         self,
@@ -1422,12 +1434,34 @@ class StreamItem:
 
 # wait for expected rows
 def waitForRows(sql, expectedRows, waitSeconds=60):
-    for loop in range(waitSeconds):
-        tdSql.query(sql)
-        if tdSql.queryRows == expectedRows:
-            tdLog.info(f"got {expectedRows} rows as expected")
-            return
-        time.sleep(1)
+    deadline = time.monotonic() + waitSeconds
+    last_error = None
+    while time.monotonic() < deadline:
+        try:
+            tdSql.query(sql)
+            last_error = None
+            if tdSql.queryRows == expectedRows:
+                tdLog.info(f"got {expectedRows} rows as expected")
+                return
+        except taos.error.ProgrammingError as error:
+            # Stream sink tables are created asynchronously.  A Trigger task can
+            # be Running before its sink table becomes visible on a loaded node.
+            if (
+                not isinstance(error.errno, int)
+                or (error.errno & 0xFFFF) != TSDB_CODE_PAR_TABLE_NOT_EXIST
+            ):
+                raise
+            last_error = error
+
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(1, remaining))
+
+    if last_error is not None:
+        tdLog.exit(
+            f"waitForRows: result table was not created after {waitSeconds}s, "
+            f"last error: {last_error}, sql: {sql}"
+        )
     tdLog.exit(f"waitForRows: expect {expectedRows} rows, got {tdSql.queryRows} after {waitSeconds}s, sql: {sql}")
 
 

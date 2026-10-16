@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -66,7 +68,7 @@ void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
-static void initKeywordsTableOnce() {
+void initKeywordsTableOnce() {
   static once_flag once;
   call_once(once, []() {
     int32_t code = qInitKeywordsTable();
@@ -302,6 +304,11 @@ class ParserTestBaseImpl {
     pCxt->async = async;
     pCxt->svrVer = "3.0.0.0";
     pCxt->pCatalog = (SCatalog*)&g_dummyCatalog;  // non-NULL dummy catalog for privilege checks
+    // Non-NULL transporter so that normal/virtual-normal table RENAME COLUMN /
+    // RENAME TAG reaches the (stubbed) catalogChkColRefByPriv mnode round trip
+    // instead of failing closed with "catalog or transporter is not set". The
+    // stub simulates an mnode with no privilege rule referencing the column.
+    pCxt->pTransporter = (void*)&g_dummyCatalog;
   }
 
   void doParse(SParseContext* pCxt, SQuery** pQuery) {
@@ -594,7 +601,7 @@ class ParserTestBaseImpl {
     reset(expect, checkStage, TEST_INTERFACE_ASYNC_API);
     try {
       unique_ptr<SParseContext, function<void(SParseContext*)> > cxt(new SParseContext(), destoryParseContext);
-      setParseContext(sql, cxt.get());
+      setParseContext(sql, cxt.get(), true);
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                  MockCatalogService::destoryCatalogReq);

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
 #include "mndDef.h"
@@ -32,7 +35,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->createUser));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->ownerId));
 
-  // flags (appended after ownerId; absent in sver < 9 — guarded by tDecodeIsEnd).
+  // flags (appended after ownerId; absent in sver < 9  -  guarded by tDecodeIsEnd).
   // extSpecs has no separate encoding here: it lives solely in pObj->pCreate
   // and is carried by the tSerializeSCMCreateStreamReqImpl call above (JSON).
   TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pObj->flags));
@@ -53,6 +56,12 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
     TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->end));
     TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->requestTimeMs));
   }
+  // batch-meta-txn (stream phase 2): appended after the recalc block. Persisting these is
+  // required for correctness across a leader transfer - see DS 5.2. Streams
+  // written before this change decode as txnId=0/txnStatus=NORMAL via
+  // tDecodeIsEnd, i.e. not owned by any txn.
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->txnId));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->txnStatus));
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -118,6 +127,19 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
     }
   }
 
+  // batch-meta-txn (stream phase 2): txn markers are appended after the recalc
+  // block, so they get their own end-guard. They must NOT sit inside the recalc
+  // guard above: a stream persisted before this change still has the recalc
+  // fields (recalcRevision + recalcNum) to decode, so tDecodeIsEnd is false when
+  // that block is entered, and once the recalc fields are consumed the decoder
+  // is at the buffer end - decoding txnId from there returns OUT_OF_RANGE and
+  // every pre-upgrade stream fails to load. A separate guard decodes them only
+  // when the writer actually appended them.
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->txnId));
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->txnStatus));
+  }
+
 _exit:
 
   tEndDecode(pDecoder);
@@ -144,6 +166,17 @@ void freeSMqConsumerEp(void* data) {
   pConsumerEp->vgs = NULL;
   taosArrayDestroy(pConsumerEp->offsetRows);
   pConsumerEp->offsetRows = NULL;
+}
+
+static void freeVgDnodeId(void* data) {
+  if (data == NULL) {
+    return;
+  }
+  SArray **ppDnodeIds = (SArray **)data;
+  if (ppDnodeIds == NULL || *ppDnodeIds == NULL) {
+    return;
+  }
+  taosArrayDestroy(*ppDnodeIds);
 }
 
 static void *tDecodeSMqVgEp(const void *buf, int32_t *vgId, int8_t sver) {
@@ -514,6 +547,9 @@ int32_t tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub) {
 
   pSubObj->unassignedVgs = taosArrayInit(0, sizeof(int32_t));
   MND_TMQ_NULL_CHECK(pSubObj->unassignedVgs);
+  pSubObj->vgDnodeId = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  MND_TMQ_NULL_CHECK(pSubObj->vgDnodeId);
+  taosHashSetFreeFp(pSubObj->vgDnodeId, freeVgDnodeId);
   *ppSub = pSubObj;
   pSubObj = NULL;
 
@@ -560,6 +596,28 @@ int32_t tCloneSubscribeObj(SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub) {
   }
   pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, NULL);
   MND_TMQ_NULL_CHECK(pSubNew->unassignedVgs);
+  pSubNew->vgDnodeId = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  MND_TMQ_NULL_CHECK(pSubNew->vgDnodeId);
+  taosHashSetFreeFp(pSubNew->vgDnodeId, freeVgDnodeId);
+  void *pVgIter = NULL;
+  while (1) {
+    pVgIter = taosHashIterate(pSub->vgDnodeId, pVgIter);
+    if (pVgIter == NULL) {
+      break;
+    }
+    int32_t *pVgId = (int32_t *)taosHashGetKey(pVgIter, NULL);
+    SArray **ppDnodeIds = (SArray **)pVgIter;
+    MND_TMQ_NULL_CHECK(pVgId);
+    MND_TMQ_NULL_CHECK(ppDnodeIds);
+    SArray *pDnodeIdsNew = taosArrayDup(*ppDnodeIds, NULL);
+    MND_TMQ_NULL_CHECK(pDnodeIdsNew);
+    if (taosHashPut(pSubNew->vgDnodeId, pVgId, sizeof(int32_t), &pDnodeIdsNew, sizeof(SArray*)) != 0) {
+      taosArrayDestroy(pDnodeIdsNew);
+      code = terrno;
+      lino = __LINE__;
+      goto END;
+    }
+  }
   
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
   MND_TMQ_CONDITION_CHECK(pSub->offsetRows == NULL || pSubNew->offsetRows != NULL, terrno);
@@ -578,6 +636,8 @@ void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
   pSub->unassignedVgs = NULL;
   taosArrayDestroy(pSub->offsetRows);
   pSub->offsetRows = NULL;
+  taosHashCleanup(pSub->vgDnodeId);
+  pSub->vgDnodeId = NULL;
 }
 
 int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
@@ -610,6 +670,30 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
     tlen += taosEncodeFixedI32(buf, *vgId);
   }
   tlen += taosEncodeString(buf, pSub->dbName);
+  int32_t vgDnodeNum = taosHashGetSize(pSub->vgDnodeId);
+  tlen += taosEncodeFixedI32(buf, vgDnodeNum);
+  pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pSub->vgDnodeId, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+    int32_t *pVgId = (int32_t *)taosHashGetKey(pIter, NULL);
+    SArray **ppDnodeIds = (SArray **)pIter;
+    if (pVgId == NULL || ppDnodeIds == NULL || *ppDnodeIds == NULL) {
+      return -1;
+    }
+    int32_t dnodeNum = taosArrayGetSize(*ppDnodeIds);
+    tlen += taosEncodeFixedI32(buf, *pVgId);
+    tlen += taosEncodeFixedI32(buf, dnodeNum);
+    for (int32_t i = 0; i < dnodeNum; ++i) {
+      int32_t *pDnodeId = (int32_t *)taosArrayGet(*ppDnodeIds, i);
+      if (pDnodeId == NULL) {
+        return -1;
+      }
+      tlen += taosEncodeFixedI32(buf, *pDnodeId);
+    }
+  }
 
   tlen += tEncodeOffRows(buf, pSub->offsetRows);
   return tlen;
@@ -629,28 +713,35 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
 
   pSub->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pSub->consumerHash == NULL) {
-    return NULL;
+    goto END;
   }
   taosHashSetFreeFp(pSub->consumerHash, freeSMqConsumerEp);
 
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp consumerEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &consumerEp, sver);
+    if (buf == NULL) {
+      freeSMqConsumerEp(&consumerEp);
+      goto END;
+    }
     if (taosHashPut(pSub->consumerHash, &consumerEp.consumerId, sizeof(int64_t), &consumerEp, sizeof(SMqConsumerEp)) !=
-        0)
-      return NULL;
+        0) {
+      mError("failed to store subscribe consumer, consumerId:%" PRId64, consumerEp.consumerId);
+      freeSMqConsumerEp(&consumerEp);
+      goto END;
+    }
   }
 
   int32_t len = 0;
   buf = taosDecodeFixedI32(buf, &len);
   pSub->unassignedVgs = taosArrayInit(len, sizeof(int32_t));
   if (pSub->unassignedVgs == NULL) {
-    return NULL;
+    goto END;
   }
   for (int32_t i = 0; i < len; i++) {
     int32_t* vgId = taosArrayReserve(pSub->unassignedVgs, 1);
     if (vgId == NULL) {
-      return NULL;
+      goto END;
     }
     if (sver <= 3) {
       buf = tDecodeSMqVgEp(buf, vgId, sver);
@@ -661,10 +752,50 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
 
   buf = taosDecodeStringTo(buf, pSub->dbName);
 
+  pSub->vgDnodeId = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pSub->vgDnodeId == NULL) {
+    goto END;
+  }
+  taosHashSetFreeFp(pSub->vgDnodeId, freeVgDnodeId);
+  if (sver > 4) {
+    int32_t vgDnodeNum = 0;
+    buf = taosDecodeFixedI32(buf, &vgDnodeNum);
+    for (int32_t i = 0; i < vgDnodeNum; ++i) {
+      int32_t vgId = 0;
+      int32_t dnodeNum = 0;
+      SArray *pDnodeIds = NULL;
+      buf = taosDecodeFixedI32(buf, &vgId);
+      buf = taosDecodeFixedI32(buf, &dnodeNum);
+      pDnodeIds = taosArrayInit(dnodeNum, sizeof(int32_t));
+      if (pDnodeIds == NULL) {
+        mError("failed to decode subscribe vg dnode ids, vgId:%d dnodeNum:%d", vgId, dnodeNum);
+        goto END;
+      }
+      for (int32_t j = 0; j < dnodeNum; ++j) {
+        int32_t *pDnodeId = taosArrayReserve(pDnodeIds, 1);
+        if (pDnodeId == NULL) {
+          mError("failed to decode subscribe dnode id, vgId:%d dnodeIndex:%d", vgId, j);
+          taosArrayDestroy(pDnodeIds);
+          goto END;
+        }
+        buf = taosDecodeFixedI32(buf, pDnodeId);
+      }
+      if (taosHashPut(pSub->vgDnodeId, &vgId, sizeof(int32_t), &pDnodeIds, sizeof(SArray*)) != 0) {
+        mError("failed to store subscribe vg dnode ids, vgId:%d dnodeNum:%d", vgId, dnodeNum);
+        taosArrayDestroy(pDnodeIds);
+        goto END;
+      }
+    }
+  }
+
   if (sver > 1) {
     buf = tDecodeOffRows(buf, &pSub->offsetRows, sver);
   }
   return (void *)buf;
+
+END:
+  tDeleteSubscribeObj(pSub);
+  return NULL;
 }
 
 int32_t mndInitConfigObj(SConfigItem *pItem, SConfigObj *pObj) {
@@ -804,8 +935,22 @@ int32_t tEncodeSConfigObj(SEncoder *pEncoder, const SConfigObj *pObj) {
 
 int32_t tDecodeSConfigObj(SDecoder *pDecoder, SConfigObj *pObj) {
   TAOS_CHECK_RETURN(tStartDecode(pDecoder));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->name));
-  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, (int32_t *)&pObj->dtype));
+  // pObj->name is the fixed CFG_NAME_MAX_LEN array of the sdb row, not a caller-owned buffer that
+  // is guaranteed to hold the whole message: bind this decode to the destination so a raw that
+  // carries a longer name is rejected instead of overflowing into pObj->dtype / the value union
+  // and the heap past the row (tDecodeCStrTo only checks the length against the source).
+  TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, pObj->name, CFG_NAME_MAX_LEN));
+
+  int32_t dtype = 0;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &dtype));
+  // No producer emits a dtype outside ECfgDataType, and neither the value switch below nor the
+  // consumers of SConfigObj (mndCfgActionUpdate, initConfigArrayFromSdb) have a default branch,
+  // so an out-of-range value would be stored as-is by a crafted raw. Reject it here.
+  if (dtype < CFG_DTYPE_NONE || dtype > CFG_DTYPE_TIMEZONE) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+  pObj->dtype = (ECfgDataType)dtype;
+
   switch (pObj->dtype) {
     case CFG_DTYPE_NONE:
       break;

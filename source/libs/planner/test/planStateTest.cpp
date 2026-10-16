@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -73,4 +75,56 @@ TEST_F(PlanStateTest, smallDataScanSortHint) {
   // uses a per-vnode Table Merge Scan as the order source.  With the hint, that
   // merge scan must be replaced by a plain Table Scan plus an inserted Sort.
   run("SELECT /*+ smalldata_scan_sort() */ MAX(c1), MIN(c1) FROM st1 STATE_WINDOW(c2)");
+}
+
+TEST_F(PlanStateTest, partitionFirstStateWindowHint) {
+  useDb("root", "test");
+
+  run("SELECT tag1, _wstart, COUNT(*) FROM st1 PARTITION BY tag1 STATE_WINDOW(c1)");
+  ASSERT_FALSE(findPlanNode("PhysiPartition"));
+  ASSERT_TRUE(findPlanNode("PhysiTableMergeScan"));
+
+  run("SELECT /*+ partition_first() */ tag1, _wstart, COUNT(*) FROM st1 "
+      "PARTITION BY tag1 STATE_WINDOW(c1)");
+  ASSERT_TRUE(findPlanNode("PhysiPartition"));
+  ASSERT_TRUE(findPlanNode("PhysiTableMergeScan"));
+  ASSERT_TRUE(planNodeAppearsAbove("PhysiPartition", "PhysiTableMergeScan"));
+
+  run("SELECT /*+ partition_first() */ tbname, _wstart, COUNT(*) FROM st1 "
+      "PARTITION BY tbname STATE_WINDOW(c1)");
+  ASSERT_TRUE(findPlanNode("PhysiPartition"));
+  ASSERT_TRUE(findPlanNode("PhysiTableMergeScan"));
+  ASSERT_TRUE(planNodeAppearsAbove("PhysiPartition", "PhysiTableMergeScan"));
+
+  run("SELECT c1, _wstart, COUNT(*) FROM st1 PARTITION BY c1 STATE_WINDOW(c2)");
+  ASSERT_TRUE(findPlanNode("PhysiPartition"));
+  ASSERT_TRUE(findPlanNode("PhysiTableMergeScan"));
+  ASSERT_TRUE(planNodeAppearsAbove("PhysiPartition", "PhysiTableMergeScan"));
+
+  run("SELECT /*+ partition_first() */ c1, _wstart, COUNT(*) FROM st1 "
+      "PARTITION BY c1 STATE_WINDOW(c2)");
+  ASSERT_TRUE(findPlanNode("PhysiPartition"));
+  ASSERT_TRUE(findPlanNode("PhysiTableMergeScan"));
+  ASSERT_TRUE(planNodeAppearsAbove("PhysiPartition", "PhysiTableMergeScan"));
+
+  run("SELECT /*+ partition_first() */ tag1, c1, _wstart, COUNT(*) FROM st1 "
+      "PARTITION BY tag1, c1 STATE_WINDOW(c2)");
+  ASSERT_TRUE(findPlanNode("PhysiPartition"));
+  ASSERT_TRUE(findPlanNode("PhysiTableMergeScan"));
+  ASSERT_TRUE(planNodeAppearsAbove("PhysiPartition", "PhysiTableMergeScan"));
+
+  run("SELECT /*+ sort_for_group() */ c1, _wstart, COUNT(*) FROM st1 "
+      "PARTITION BY c1 STATE_WINDOW(c2)");
+  ASSERT_TRUE(findPlanNode("PhysiSort"));
+  ASSERT_FALSE(findPlanNode("PhysiPartition"));
+  ASSERT_TRUE(planContains("\"NumOfGroupKeys\":\"1\""));
+
+  run("SELECT /*+ sort_for_group() */ c1, ts, _wstart, COUNT(*) FROM st1 "
+      "PARTITION BY c1, ts STATE_WINDOW(c2)");
+  ASSERT_TRUE(findPlanNode("PhysiSort"));
+  ASSERT_FALSE(findPlanNode("PhysiPartition"));
+  ASSERT_TRUE(planContains("\"NumOfGroupKeys\":\"2\""));
+
+  run("SELECT /*+ partition_first() */ tag1, COUNT(*) FROM st1 PARTITION BY tag1");
+  ASSERT_FALSE(findPlanNode("PhysiPartition"));
 }

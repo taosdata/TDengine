@@ -15,7 +15,7 @@ MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在�
 
 在数据写入页面中点击 **+新增数据源** 按钮进入新增数据源页面，如下图所示：
 
-![Common-zh00-EnterDataSourcePage.png](../../assets/kinghist-01.png "进入新增数据源页面")
+![Common-zh00-EnterDataSourcePage.webp](../../assets/kinghist-01.webp "进入新增数据源页面")
 
 ### 配置基本信息
 
@@ -27,13 +27,13 @@ MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在�
 
 **目标数据库** 是必填项，可以先点击右侧的 **+创建数据库** 按钮创建一个新的数据库。
 
-![mysql-01.png](../../assets/mysql-01.png "选择数据源类型为 MySQL")
+![mysql-01.webp](../../assets/mysql-01.webp "选择数据源类型为 MySQL")
 
 ### 配置连接信息
 
 在 **连接配置** 区域填写 *`源 MySQL 数据库的连接信息`*，如下图所示：
 
-![mysql-02.png](../../assets/mysql-02.png "填写源 MySQL数据库的连接信息")
+![mysql-02.webp](../../assets/mysql-02.webp "填写源 MySQL数据库的连接信息")
 
 ### 配置认证信息
 
@@ -41,16 +41,22 @@ MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在�
 
 **密码** 输入源 MySQL 数据库中上方用户的登录密码。
 
-![ mysql-03.png](../../assets/mysql-03.png "配置认证信息")  
+![ mysql-03.webp](../../assets/mysql-03.webp "配置认证信息")  
 
 ### 配置连接选项
 
 **字符集** 设置连接的字符集。默认字符集为 utf8mb4。MySQL 5.5.3 支持此功能。如果需要连接到旧版本，建议改为 utf8。
 可选项有 utf8、utf8mb4、utf16、utf32、gbk、big5、latin1、ascii。
 
+**双竖线字符串连接**（`pipes_as_concat`）控制是否在当前连接的 SQL 模式中追加 `PIPES_AS_CONCAT`。开启时，`||` 表示字符串连接；关闭时，不额外启用该模式，也不会移除服务器会话中已有的模式，因此 `||` 的实际含义取决于最终的会话 SQL 模式。默认开启，以保持现有 MySQL 数据同步任务的行为。修改此选项可能改变已有 SQL 查询的结果。
+
+**禁止存储引擎替换**（`no_engine_substitution`）控制是否在当前连接的 SQL 模式中追加 `NO_ENGINE_SUBSTITUTION`，以禁止 MySQL 在指定存储引擎不可用时自动替换存储引擎。关闭时不会移除服务器会话中已有的同名模式。默认开启。
+
+Apache Doris 提供兼容 MySQL 协议的端口，taosX 使用 MySQL 驱动连接该端口。驱动默认在连接初始化时向会话 SQL 模式追加 `PIPES_AS_CONCAT` 和 `NO_ENGINE_SUBSTITUTION`，但 Doris 不支持这两种模式，因此连接会在执行同步查询前失败。同步 Doris 数据时，将上述两个选项均设置为 **关闭**（`false`），使驱动不再追加这两种模式，然后点击 **检查连通性**。其他兼容 MySQL 协议的数据库应根据其兼容性要求设置，不建议修改已有任务的配置。
+
 **SSL 模式** 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。默认值是 PREFERRED。可选项有 DISABLED、PREFERRED、REQUIRED。
 
-![ mysql-04.png](../../assets/mysql-04.png "配置连接选项")
+![配置 MySQL 连接选项](../../assets/mysql-04.webp "配置连接选项")
   
 然后点击 **检查连通性** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 MySQL 数据库的数据。
 
@@ -80,7 +86,7 @@ MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在�
 
 **延迟时长** 与 **查询间隔** 配合使用。在实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会在时间间隔 + 延迟时长的时间点触发查询。例如：时间间隔为 3600s，延迟时长为 60 秒，那么查询任务会在 09:01 时触发查询源数据库中 08:00 - 09:00 时间段的数据。
 
-![ mysql-05.png](../../assets/mysql-05.png "配置数据采集")
+![ mysql-05.webp](../../assets/mysql-05.webp "配置数据采集")
 
 ### 配置数据映射
 
@@ -96,7 +102,7 @@ MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在�
 
 点击 **预览**，可以查看映射的结果。
 
-![mysql-06.png](../../assets/mysql-01.png)
+![mysql-06.webp](../../assets/mysql-01.webp)
 
 ### 配置高级选项
 

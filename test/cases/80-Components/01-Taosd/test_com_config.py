@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -181,12 +185,62 @@ class TestAlterConfig:
         tdSql.execute("alter dnode 1 'rpcQueueMemoryAllowed' '15242880'")
         tdSql.execute("alter dnode 1 'syncLogBufferMemoryAllowed' '115728640'")
 
+    def alter_restart_required_case(self):
+        """Add test case for the "reboot" marker column on configs that need a
+        process restart to take effect
+        """
+        # numOfRpcThreads needs a restart before an altered value is effective.
+        # Read the current value rather than assuming a default, so this case
+        # stays correct regardless of what numOfCores computed it to at startup.
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 6, "false")
+        old_value = int(tdSql.getData(0, 2))
+        new_value = str(old_value + 1)
+
+        tdSql.execute(f"alter dnode 1 'numOfRpcThreads' '{new_value}'")
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 2, new_value)
+        tdSql.checkData(0, 6, "true")
+
+        # altering back to the value the running dnode is actually using clears the
+        # marker again, since no restart is needed anymore
+        tdSql.execute(f"alter dnode 1 'numOfRpcThreads' '{old_value}'")
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 2, old_value)
+        tdSql.checkData(0, 6, "false")
+
+        # diverging again re-flags it, ready for the restart below to clear it for good
+        tdSql.execute(f"alter dnode 1 'numOfRpcThreads' '{new_value}'")
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 6, "true")
+
+        # restarting the dnode process clears the pending-restart marker
+        tdDnodes.stop(1)
+        time.sleep(3)
+        tdDnodes.start(1)
+        time.sleep(10)
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 6, "false")
+
     def alter_timezone_case(self):
         tdSql.execute("alter local 'timezone UTC'")
         tdSql.execute("alter all dnodes 'timezone UTC'")
         # forbidden to alter one dnode timezone
         tdSql.error("alter dnode 1 'timezone UTC'")
-        
+        # The single-dnode scope check runs before the value is validated.
+        tdSql.error("alter dnode 1 'timezone' 'UTF-8'", expectedErrno=0x0119)
+        # The mnode rejects invalid values before persisting either spelling.
+        for sql in (
+            "alter all dnodes 'timezone' 'UTF-8'",
+            "alter all dnodes 'timezone UTF-8'",
+        ):
+            tdSql.error(
+                sql,
+                expectedErrno=0x26B2,
+                expectErrInfo="Invalid timezone: UTF-8",
+                fullMatched=False,
+            )
+
         tdSql.query("show local variables like 'timezone'")
         tdSql.checkData(0, 1, "UTC (UTC, +0000)")
         tdSql.query("show dnode 1 variables like 'timezone'")
@@ -223,6 +277,7 @@ class TestAlterConfig:
         self.alterBypassFlag()
         # TS-5007
         self.alter_err_case()
+        self.alter_restart_required_case()
         self.alter_dnode_1_case()
 
         #TS-6363
@@ -282,13 +337,15 @@ class TestAlterConfig:
         3. Verify alter bypass flag config
         4. Verify alter audit config
         5. Verify alter config on dnode 1
-        6. Verify alter timezone config
-        7. Verify alter memPoolReservedSizeMB config
-        8. Verify dismatch config refresh
+        6. Verify the "reboot" marker column for configs pending a restart
+        7. Verify alter timezone config
+        8. Verify alter memPoolReservedSizeMB config
+        9. Verify dismatch config refresh
 
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

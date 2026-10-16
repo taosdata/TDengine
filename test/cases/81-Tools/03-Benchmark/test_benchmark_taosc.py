@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool,sc
@@ -287,9 +291,33 @@ class TestTaoscAutoCreateTableJson:
         print("do taosc all types same min max ....... [passed]")
 
     #
+    # ------------------- helpers -------------
+    #
+    def dropDbAndWait(self, dbName, timeout=60):
+        """Drop the database and wait until it disappears from the catalog.
+
+        The json files of the retry cases set "drop": "yes" and drop then
+        recreate the very same database name. DROP DATABASE is asynchronous:
+        right after it returns the name may still be in dropping state, and an
+        immediate CREATE DATABASE IF NOT EXISTS for that name can be rejected.
+        That leaves the database dropped and the following assertions fail.
+        Drop it here and wait for it to disappear, so that the benchmark only
+        has to (re)create it.
+        """
+        tdSql.execute("drop database if exists %s" % dbName)
+        tdSql.checkRowsLoop(
+            0,
+            "select name from information_schema.ins_databases where name = '%s'" % dbName,
+            loopCount=timeout,
+            waitTime=1,
+        )
+
+    #
     # ------------------- test_taosc_insert_retry_json_global.py ----------------
     #
     def do_taosc_insert_retry_json_global(self):
+        self.dropDbAndWait("test")
+
         binPath = etool.benchMarkFile()
         cmd = "%s -f %s/json/taosc_insert_retry-global.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
@@ -309,6 +337,8 @@ class TestTaoscAutoCreateTableJson:
     # ------------------- test_taosc_insert_retry_json_stb.py ----------------
     #
     def do_taosc_insert_retry_json_stb(self):
+        self.dropDbAndWait("test")
+
         binPath = etool.benchMarkFile()
         cmd = "%s -f %s/json/taosc_insert_retry-stb.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
@@ -373,6 +403,7 @@ class TestTaoscAutoCreateTableJson:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

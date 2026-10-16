@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import math
 import os
@@ -96,6 +111,7 @@ class TestQuantifiedSubQuery6b2:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -105,6 +121,40 @@ class TestQuantifiedSubQuery6b2:
 
         self.prepareData()
         self.execCase()
+
+    def test_invalid_subquery_cleanup(self):
+        """Reject invalid nested subqueries without double-freeing metadata
+
+        1. Check the expected parser error for nested quantified subqueries.
+        2. Check valid query results after each rejected statement.
+
+        Catalog:
+            - Querying:SubQuery
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Added metadata cleanup regression coverage
+
+        """
+        self.do_invalid_subquery_cleanup()
+
+    def do_invalid_subquery_cleanup(self):
+        self.prepareData()
+        query = "select (select f1 < any (select f1 from tb3)) from tb3"
+        for prefix in ("", "explain ", "explain verbose true ",
+                       "explain analyze verbose true "):
+            tdSql.error(prefix + query, expectedErrno=0x26A6)
+            tdSql.query("select f1 from tb3 where f1 < any "
+                        "(select f1 from tb3) order by f1")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 4)
+            tdSql.checkData(1, 0, 5)
+        print("invalid nested subquery cleanup ................ [ passed ]")
      
     def prepareData(self):
         tdLog.info("create database db1")
@@ -182,4 +232,3 @@ class TestQuantifiedSubQuery6b2:
         self.rmoveSqlTmpFiles()
 
         return True
-

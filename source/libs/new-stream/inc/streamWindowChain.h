@@ -1,13 +1,18 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TDENGINE_STREAM_WINDOW_CHAIN_H
@@ -66,6 +71,8 @@ typedef struct {
   int64_t          leafEventTypes;
   int64_t          leafNotifyEventTypes;
   int64_t          maxDelayNs;
+  timezone_t       timezone; /* Borrowed from the trigger task. */
+  int8_t           firstDayOfWeek;
   const SNodeList *pEventStartCondCols; /* Borrowed from the trigger task. */
   const SNodeList *pEventEndCondCols;   /* Borrowed from the trigger task. */
 } SWindowChainPolicy;
@@ -115,7 +122,8 @@ bool    stWindowChainGetInputRetentionRange(const SWindowChainState *pState, STi
 bool    stWindowChainGetFirstOpenCountLeafRange(const SWindowChainState *pState, STimeWindow *pRange);
 bool    stWindowChainCanRepairCountDisorder(const SWindowChainState *pState, const STimeWindow *pRange);
 void    stWindowChainSuppressOpenCountLeafBefore(SWindowChainState *pState, TSKEY firstUnaffectedStart);
-int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int64_t gid, const STimeWindow *pScanRange,
+int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int64_t gid,
+                                             const SWindowChainPolicy *pPolicy, const STimeWindow *pScanRange,
                                              const STimeWindow *pCalcRange, SRecalcImpactDomain *pDomain);
 int32_t stCloneRecalcImpactDomain(const SRecalcImpactDomain *pSrc, SRecalcImpactDomain *pDst);
 int32_t stUnionRecalcImpactDomains(const SRecalcImpactDomain *pLeft, const SRecalcImpactDomain *pRight,

@@ -1,14 +1,20 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software
- * Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include <time.h>
 #include <bench.h>
 #include "benchLog.h"
@@ -102,7 +108,8 @@ static tmq_list_t * buildTopicList() {
 }
 
 static int32_t data_msg_process(TAOS_RES* msg, tmqThreadInfo* pInfo, int32_t msgIndex) {
-  char* buf = (char*)calloc(1, 64*1024+8);
+  const int32_t buffSize = 64 * 1024 + 8;
+  char* buf = (char*)calloc(1, buffSize);
   if (NULL == buf) {
       errorPrint("consumer id %d calloc memory fail.\n", pInfo->id);
       return 0;
@@ -130,7 +137,16 @@ static int32_t data_msg_process(TAOS_RES* msg, tmqThreadInfo* pInfo, int32_t msg
     int32_t     numOfFields = taos_field_count(msg);
     const char* tbName = tmq_get_table_name(msg);
 
-    taos_print_row(buf, row, fields, numOfFields);
+    // the row is rendered by the server-declared schema, the destination
+    // size is always passed so that an over-long row is truncated instead of
+    // overwriting the heap
+    int32_t len = taos_print_row_with_size(buf, (uint32_t)buffSize, row, fields,
+                                           numOfFields);
+    if (len < 0 || len >= buffSize - 1) {
+      errorPrint("consumer id %d, row %d is too long to be printed, "
+                 "len=%d, buffer size=%d, truncated.\n",
+                 pInfo->id, totalRows, len, buffSize);
+    }
 
     if (pInfo->fpOfRowsFile) {
         fprintf(pInfo->fpOfRowsFile, "tbname:%s, rows[%d]:\n%s\n", (tbName != NULL ? tbName : "null table"), totalRows, buf);

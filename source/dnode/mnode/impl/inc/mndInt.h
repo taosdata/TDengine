@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -154,7 +156,7 @@ typedef struct {
   // get their own rollback); value = ms timestamp of the last rollback initiation.  A 1-hour
   // cooldown suppresses duplicates while giving TRN_POLICY_RETRY enough time to succeed.
   // GC: stale entries (cooldown elapsed) are evicted inside mndTxnTimeoutScanImpl, which runs
-  //     every MND_TXN_PULLUP_INTERVAL_SEC seconds — the map does not grow without bound.
+  //     every MND_TXN_PULLUP_INTERVAL_SEC seconds  -  the map does not grow without bound.
   // In-memory only: MNode failover resets this map, and the new leader re-triggers as needed.
   SHashObj        *pOrphanRollbackTs;
   // In-memory map of mystery orphan txns: txnId found in no SDB (GC'd, invalid, or never committed).

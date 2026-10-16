@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import subprocess
 import sys
 import os
@@ -230,6 +245,11 @@ class BeforeTest:
             }]
         }
         dnode_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taos_config.yaml'))
+        # Apply the CI default before copying configs for nodes and case overrides.
+        ci_memory_reserve = os.environ.get("CI_MIN_RESERVED_MEMORY_MB")
+        if ci_memory_reserve is not None:
+            dnode_config_template["minReservedMemorySize"] = ci_memory_reserve
+            tdLog.info(f"CI dnode default: minReservedMemorySize={ci_memory_reserve} MB")
         adapter_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taosadapter_config.yaml'))
         taoskeeper_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taoskeeper_config.yaml'))
         servers = []
@@ -256,6 +276,7 @@ class BeforeTest:
                 data_path = [os.path.join(work_dir, f"dnode{i+1}", "data")]
             dnode_config = copy.deepcopy(dnode_config_template)
             dnode_config.pop("port", None)
+            dnode_config["serverPort"] = str(port_base + i * 100)
             dnode_config["mqttPort"] = mqttport_base + i * 100
             dnode_config["dataDir"] = data_path
             dnode_config["logDir"] = log_path

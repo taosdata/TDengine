@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -597,10 +599,30 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
     opts.format = TMIN(opts.format, leaderOpts.format);
   }
 
+  // Remember the negotiated format before any MEDIUM override below. A MEDIUM decision is only
+  // usable together with a non-empty follower file list, so this value is the fallback when the
+  // file list turns out to be empty.
+  ETsdbRepFmt origFormat = opts.format;
+
   // If FSM is incomplete, use MEDIUM mode for efficient partial file recovery
   if (pSnap->state == SYNC_FSM_STATE_INCOMPLETE) {
     opts.format = TSDB_SNAP_REP_FMT_MEDIUM;
     tsdbInfo("vgId:%d, snap prep: FSM incomplete, switching to MEDIUM format", TD_VID(pVnode));
+  } else if (tsSnapshotMediumOnLag && pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY &&
+             pSnap->lastApplyIndex >= 0) {
+    // snapshotMediumOnLag: a follower that owns committed data (lastApplyIndex >= 0, i.e. the
+    // follower is neither new nor empty) but has fallen behind used to be replicated row by row
+    // (NORMAL). With this parameter enabled the follower asks for file-level MEDIUM replication
+    // instead, so only the file delta is transferred. Notes:
+    //   1) only the REPLY side can drive the leader's mode, and only the REPLY side carries the
+    //      follower file list that the leader needs to open its MEDIUM reader, see
+    //      vnodeSnapReaderDealWithSnapInfo();
+    //   2) an empty follower (lastApplyIndex < 0) still uses RAW, an INCOMPLETE FSM is handled by
+    //      the branch above;
+    //   3) if the resulting file list turns out to be empty, the decision is reverted below.
+    opts.format = TSDB_SNAP_REP_FMT_MEDIUM;
+    tsdbInfo("vgId:%d, snap prep: snapshotMediumOnLag enabled, switching to MEDIUM format. lastApplyIndex:%" PRId64,
+             TD_VID(pVnode), (int64_t)pSnap->lastApplyIndex);
   }
 
   // Build file list for MEDIUM mode
@@ -611,6 +633,17 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
     if (code2 == 0 && mediumFileList.nFiles > 0) {
       mediumFileListLen = tSerializeSMediumSnapFileList(NULL, 0, &mediumFileList);
       if (mediumFileListLen < 0) mediumFileListLen = 0;
+    }
+
+    if (mediumFileListLen == 0) {
+      // MEDIUM replication cannot start without a follower file list: the leader opens its MEDIUM
+      // reader from the SNAP_DATA_MEDIUM TLV of this reply (vnodeSnapshot.c, SNAP_DATA_MEDIUM case)
+      // and aborts the snapshot when that TLV is missing. Fall back to the negotiated format so
+      // that the snapshot still completes, i.e. the behaviour degrades to the one used before the
+      // MEDIUM decision was taken.
+      opts.format = origFormat;
+      tsdbWarn("vgId:%d, snap prep: medium file list is empty, fall back to format:%d", TD_VID(pVnode),
+               origFormat);
     }
   }
 

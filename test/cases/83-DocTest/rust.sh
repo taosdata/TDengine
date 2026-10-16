@@ -1,5 +1,20 @@
 #!/bin/bash
 
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set -e
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,6 +28,15 @@ else
   source "${_REPO_ROOT}/tools/cicd/tsdb-test-pipeline/ci/setup_internal_mirrors.sh"
 fi
 setup_internal_mirrors
+
+_COMMUNITY_DIR="$(cd "${_SCRIPT_DIR}/../../.." && pwd)"
+_RUST_EXAMPLES_DIR="${_COMMUNITY_DIR}/docs/examples/rust"
+
+cleanup_rust_targets() {
+    rm -rf "${_RUST_EXAMPLES_DIR}/nativeexample/target" \
+        "${_RUST_EXAMPLES_DIR}/restexample/target"
+}
+trap cleanup_rust_targets EXIT
 
 cargo_run_retry() {
     local max=3 attempt
@@ -33,7 +57,7 @@ taosadapter >>/dev/null 2>&1 &
 
 sleep 5
 
-cd ../../docs/examples/rust/nativeexample
+cd "${_RUST_EXAMPLES_DIR}/nativeexample"
 
 cargo_run_retry run --example bind_tags
 cargo_run_retry run --example bind

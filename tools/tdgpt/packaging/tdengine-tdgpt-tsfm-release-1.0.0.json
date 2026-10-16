@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "release": "1.0.0",
+  "runtimes": [
+    {"kind": "runtime", "name": "tsfm_runtime", "version": "1.0.0", "platform": "linux", "arch": "x64", "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz", "size": 578639183, "sha256": "f08c32f166680b944b7aa5d30af9511a09e19352110d053b058dfb31e31e67d1"},
+    {"kind": "runtime", "name": "tsfm_runtime", "version": "1.0.0", "platform": "linux", "arch": "arm64", "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz", "size": 474845460, "sha256": "cfcbdad1f1eb0ebc828c36b34345136de7296128e846c35a91589d77d624e6d4"},
+    {"kind": "runtime", "name": "tsfm_runtime", "version": "1.0.0", "platform": "windows", "arch": "x64", "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-windows-x64.zip", "size": 550476561, "sha256": "d490287bf8f46184205324e182f76c81730a3ed225b5b508a4325282fcd10325"}
+  ],
+  "models": [
+    {"kind": "model", "name": "chronos", "model_id": "amazon/chronos-bolt-base", "model_version": "chronos-bolt-base", "version": "1.0.0", "file": "tdengine-tdgpt-model-chronos-bolt-base.zip", "size": 768324240, "sha256": "1e831352cb335315bfb61d72b3c79bd9d0034b8799bc221370683f7726ace028", "required_runtime": "1.0.0", "note": "Amazon Chronos-Bolt base model"},
+    {"kind": "model", "name": "moirai", "model_id": "Salesforce/moirai-moe-1.0-R-small", "model_version": "moirai-moe-1.0-r-small", "version": "1.0.0", "file": "tdengine-tdgpt-model-moirai-moe-1-0-r-small.zip", "size": 433629526, "sha256": "9f8eeb78b701ece610cca08ace97f3ff96b9ee762c7e8232474a86fd5571c96b", "required_runtime": "1.0.0", "note": "Salesforce Moirai-MoE 1.0 R small model"},
+    {"kind": "model", "name": "moment", "model_id": "AutonLab/MOMENT-1-base", "model_version": "moment-1-base", "version": "1.0.0", "file": "tdengine-tdgpt-model-moment-1-base.zip", "size": 421135114, "sha256": "63f7a78b608948e513813fa68589314d26e125d786f0c695814ce596fc18cb7d", "required_runtime": "1.0.0", "note": "AutonLab MOMENT-1 base model"},
+    {"kind": "model", "name": "tdtsfm", "model_id": "tdengine/tdtsfm-v1.0", "model_version": "tdtsfm-v1.0", "version": "1.0.0", "file": "tdengine-tdgpt-model-tdtsfm-v1-0.zip", "size": 312452533, "sha256": "295b3183c762f9e77524bc5f75ed2c2562222fc2fb48716e69c1e23af2ab6861", "required_runtime": "1.0.0", "note": "TDengine time-series foundation model v1.0"},
+    {"kind": "model", "name": "timemoe", "model_id": "Maple728/TimeMoE-200M", "model_version": "timemoe-200m", "version": "1.0.0", "file": "tdengine-tdgpt-model-timemoe-200m.zip", "size": 706597807, "sha256": "bdafee48c88f0143b3e817dfca79dff864dfb15a17ef06a724e46ddb91fe8a04", "required_runtime": "1.0.0", "note": "Maple728 TimeMoE 200M model"},
+    {"kind": "model", "name": "timesfm", "model_id": "google/timesfm-2.5-200m-pytorch", "model_version": "timesfm-2.5-200m-pytorch", "version": "1.0.0", "file": "tdengine-tdgpt-model-timesfm-2-5-200m-pytorch.zip", "size": 858845526, "sha256": "a3e793d7f0188704189fbe0ebabd3ad80c86162471d831f3a39301776cbb6f20", "required_runtime": "1.0.0", "note": "Google TimesFM 2.5 200M PyTorch model"}
+  ]
+}

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -54,8 +56,11 @@ extern "C" {
 #define EXPLAIN_SORT_FORMAT "Sort"
 #define EXPLAIN_GROUP_SORT_FORMAT "Group Sort"
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
+#define EXPLAIN_INTERVAL_FORMAT_WITH_MODE "Interval on Column %s mode=%s"
 #define EXPLAIN_MERGE_INTERVAL_FORMAT "Merge Interval on Column %s"
+#define EXPLAIN_MERGE_INTERVAL_FORMAT_WITH_MODE "Merge Interval on Column %s mode=%s"
 #define EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT "Merge Aligned Interval on Column %s"
+#define EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT_WITH_MODE "Merge Aligned Interval on Column %s mode=%s"
 #define EXPLAIN_EXTERNAL_FORMAT "External on Column %s"
 #define EXPLAIN_FEDERATED_SCAN_FORMAT "Federated Scan on %s.%s (%s)"
 #define EXPLAIN_MERGE_EXTERNAL_FORMAT "Merge External on Column %s"
@@ -223,10 +228,11 @@ typedef struct SQueryExplainRowInfo {
 } SQueryExplainRowInfo;
 
 typedef struct SExplainPlanCtx {
-  int32_t      rootGroupId;
-  int32_t      groupNum;
-  int32_t      groupDoneNum;
-  SHashObj    *groupHash;     // Hash<SExplainGroup>
+  int32_t          rootGroupId;
+  int32_t          groupNum;
+  int32_t          groupDoneNum;
+  SHashObj        *groupHash;              // Hash<SExplainGroup>
+  const SNodeList *pCorrelationTemplates;  // Borrowed from the current query plan.
 } SExplainPlanCtx;
 
 typedef struct SExplainCtx {

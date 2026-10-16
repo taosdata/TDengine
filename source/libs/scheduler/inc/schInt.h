@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -59,7 +61,6 @@ typedef enum {
 
 #define SCH_DEFAULT_TASK_TIMEOUT_USEC 30000000
 #define SCH_MAX_TASK_TIMEOUT_USEC     300000000
-#define SCH_DEFAULT_MAX_RETRY_NUM     12
 #define SCH_MIN_AYSNC_EXEC_NUM        3
 #define SCH_DEFAULT_RETRY_TOTAL_ROUND 3
 #define SCH_DEFAULT_TASK_CAPACITY_NUM 1000
@@ -273,6 +274,7 @@ typedef struct SSchJobAttr {
   bool         needFetch;
   bool         needFlowCtrl;
   bool         localExec;
+  bool         inlineTaskLaunch;
 } SSchJobAttr;
 
 typedef struct {
@@ -286,6 +288,7 @@ typedef struct SSchJob {
   uint64_t         queryId;
   uint64_t         seriesId;
   SSchJobAttr      attr;
+  int8_t          execDispatched;
   void*            parent;
   int32_t          subJobId;
   int32_t          subJobExecIdx;
@@ -323,7 +326,11 @@ typedef struct SSchJob {
   bool                 fetched;
   bool                 noMoreRetry;
   int64_t              resNumOfRows;  // from int32_t to int64_t
+  // Objects touched by a bulk DDL, accumulated across per-vgroup responses. Surfaced via
+  // SExecResult::numTouchedObjects for the client's per-object txn DDL accounting.
+  int32_t              resNumTouchedObjects;
   SSchResInfo          userRes;
+  void (*cbParamFreeFp)(void*);
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
@@ -333,6 +340,14 @@ typedef struct SSchJob {
   int64_t              phaseStartTime; // When current phase started (ms)
   int64_t              txnId;          // batch meta txn ID for same-txn visibility
   int8_t               firstDayOfWeek; /* 0-6, resolved by client before dispatch */
+  SCorrelationExecution correlation;
+  SArray              *pCorrelationParamDefs;
+  SArray              *pCorrelationParamValues;
+  char                *pCorrelationTemplates;
+  uint32_t             correlationTemplatesLen;
+  char                *pCorrelationTimeInit;
+  uint32_t             correlationTimeInitLen;
+  SArray              *pExternalSubquerySources;  // Owned SDownstreamSourceNode* entries on the parent job.
 } SSchJob;
 
 typedef struct SSchTaskCtx {
@@ -635,6 +650,7 @@ void     schCleanClusterHb(void *pTrans);
 int32_t  schLaunchTask(SSchJob *job, SSchTask *task);
 int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType, void *param);
+int32_t  schBuildSubJobEndpoints(SSchTask *task, SArray** ppRes, SSchJob* target);
 int32_t  schAcquireJob(int64_t refId, SSchJob **ppJob);
 int32_t  schReleaseJob(int64_t refId);
 int32_t  schReleaseJobEx(int64_t refId, int32_t *released);
@@ -722,6 +738,8 @@ int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, bool resetRetry
 int32_t  schNotifyJobAllTasks(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
 int32_t  schFailedTaskNeedRetry(SSchTask *pTask, SSchJob *pJob, int32_t rspCode);
 int32_t  schGetTaskCurrentNodeAddr(SSchTask *pTask, SSchJob *pJob, SQueryNodeAddr **ppAddr);
+// Returns true only for a pure VNode scan that may run on a follower replica.
+bool     schTaskAllowFollowerRead(const SSchJob *pJob, const SSchTask *pTask);
 int32_t  schLaunchJobImpl(SSchJob *pJob);
 
 extern SSchDebug gSCHDebug;

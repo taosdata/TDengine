@@ -1,13 +1,20 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
     
 #include "bckArgs.h"
 #include "bckLog.h"
@@ -119,10 +126,13 @@ char ** getDBNormalTableNames(const char *dbName, int *code) {
         argBuildInClause("table_name", inClause, sizeof(inClause));
         snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
     }
+    char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
+    const char *eDb = bckSqlEscape(dbName, escDb, sizeof(escDb));
+    if (eDb == NULL) eDb = dbName;
     snprintf(sql, sizeof(sql),
              "SELECT table_name FROM information_schema.ins_tables "
              "WHERE db_name='%s' AND stable_name IS NULL"
-             " AND type NOT LIKE 'VIRTUAL%%'%s ORDER BY table_name", dbName, specFilter);
+             " AND type NOT LIKE 'VIRTUAL%%'%s ORDER BY table_name", eDb, specFilter);
     TAOS *conn = NULL;
     TAOS_RES *res = queryWithRetry(sql, &conn, code);
     if (res == NULL) return NULL;
@@ -166,10 +176,13 @@ char ** getDBVirtualTableNames(const char *dbName, int *code) {
     *code = TSDB_CODE_FAILED;
 
     char sql[512];
+    char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
+    const char *eDb = bckSqlEscape(dbName, escDb, sizeof(escDb));
+    if (eDb == NULL) eDb = dbName;
     snprintf(sql, sizeof(sql),
              "SELECT table_name FROM information_schema.ins_tables "
              "WHERE db_name='%s' AND (type='VIRTUAL_NORMAL_TABLE' OR type='VIRTUAL_CHILD_TABLE') "
-             "ORDER BY table_name", dbName);
+             "ORDER BY table_name", eDb);
     TAOS *conn = NULL;
     TAOS_RES *res = queryWithRetry(sql, &conn, code);
     if (res == NULL) return NULL;
@@ -217,10 +230,13 @@ int getDBNormalTableCount(const char *dbName, int32_t *outCount) {
         snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
     }
     char sql[1024];
+    char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
+    const char *eDb = bckSqlEscape(dbName, escDb, sizeof(escDb));
+    if (eDb == NULL) eDb = dbName;
     snprintf(sql, sizeof(sql), 
              "SELECT count(*) FROM information_schema.ins_tables "
              "WHERE db_name='%s' AND stable_name IS NULL"
-             " AND type NOT LIKE 'VIRTUAL%%'%s", dbName, specFilter);
+             " AND type NOT LIKE 'VIRTUAL%%'%s", eDb, specFilter);
     return queryValueInt(sql, 0, outCount);
 }
 

@@ -1,7 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install database on linux systems. The operating system
-# is required to use systemd to manage services at boot
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 # set -x
@@ -25,7 +37,6 @@ productName="TDengine"
 emailName="taosdata.com"
 uninstallScript="rm${PREFIX}"
 historyFile="${PREFIX}_history"
-tarName="package.tar.gz"
 
 adapterName="${PREFIX}adapter"
 benchmarkName="${PREFIX}Benchmark"
@@ -511,7 +522,7 @@ function set_ipAsFqdn() {
   echo -e -n "${GREEN}$iplist${NC}"
   echo
   echo
-  echo -e -n "${GREEN}Notes: if IP is used as the node name, data can NOT be migrated to other machine directly${NC}:"
+  echo -e -n "${GREEN}Notes: if IP is used as the node name, data cannot be migrated to another machine directly${NC}:"
   read localFqdn
   while true; do
     if [ ! -z "$localFqdn" ]; then
@@ -942,10 +953,6 @@ function updateProduct() {
   fi
 
   # Start to update
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
 
   if echo $osinfo | grep -qwi "centos"; then
     rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
@@ -953,7 +960,6 @@ function updateProduct() {
     dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
   fi
 
-  tar -zxf ${tarName}
   # install_jemalloc
 
   echo "Start to update ${productName}..."
@@ -1044,11 +1050,6 @@ function updateProduct() {
 
 function installProduct() {
   # Start to install
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
-  tar -zxf ${tarName}
 
   echo "Start to install ${productName}..."
 
@@ -1133,7 +1134,6 @@ function installProduct() {
 
   cd $script_dir
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 
 
   if grep -q "export PATH=\$bin_link_dir:\$PATH" ~/.bashrc; then

@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import datetime
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
@@ -26,6 +41,9 @@ def get_sys_table_count(db_name):
     )
     return tdSql.getRows()
 
+NUM_INFO_DB_TABLES = 61  # number of system tables in information_schema
+NUM_PERF_DB_TABLES = 6  # number of system tables in performance_schema
+
 class TestUnionBugs:
 
     def setup_class(cls):
@@ -40,11 +58,11 @@ class TestUnionBugs:
         4. Use order by pseudo columns tbname, _wstart in union query
         5. Use number column in order by clause in union query
         6. Check error when order by column is not in select columns in union query
-        
 
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: https://jira.taosdata.com:18080/browse/TS-6660
 
         History:
@@ -146,11 +164,11 @@ class TestUnionBugs:
         2. Insert data into 3 subtables 1 rows each
         3. Use union operator to combine the result from 3 subtables
         4. Use order by pseudo columns tbname, _wstart in union query
-        
 
         Since: v3.0.0.0
 
         Labels: order by,pseudo function,set operator,integration,functional
+
         Jira: TS-7311
 
         History:
@@ -224,10 +242,11 @@ class TestUnionBugs:
         2. Insert data into 3 subtables 1 rows each
         3. Use union operator to combine the result from 3 subtables
         4. Use normal functions abs(), ltrim(), lower() in order by clause in union query
-        
+
         Since: v3.0.0.0
 
         Labels: normal function,order by,set operator,integration,functional
+
         Jira: TS-7311
 
         History:
@@ -324,6 +343,7 @@ class TestUnionBugs:
         Since: v3.8.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: https://jira.taosdata.com:18080/browse/TD-38544
 
         History:
@@ -766,19 +786,20 @@ class TestUnionBugs:
 
     def test_union_bugs(self):
         """Operator union bugs
-        
+
         1. JIRA TD-5630: Support UNION ALL operation for time-series data query
         2. JIRA TD-33137: Fix UNION ALL query bugs
         3. Add test case for nodes match node in UNION ALL query
-        
+
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-12-21 Alex Duan Migrated from uncatalog/system-test/2-query/test_union.py
- 
+
         """
         tdSql.prepare()
         self.check_TS_5630()

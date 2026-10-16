@@ -1,5 +1,18 @@
-# encoding:utf-8
-# pylint: disable=c0103
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """flask restful api test module"""
 
 import math
@@ -56,7 +69,26 @@ class RestfulTest(TestCase):
         self.assertEqual(res["protocol"], 1.0)
 
         d = res["details"]
-        self.assertEqual(len(d), 6)
+        self.assertEqual(len(d), 7)
+
+    def test_clustering_all_noise(self):
+        """test clustering api returns an empty centers list for all noise"""
+        response = self.client.post(
+            "/clustering",
+            json={
+                "algo": "dbscan",
+                "data": [[0], [10], [20]],
+                "params": {"eps": 0.1, "min_samples": 2},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json
+        self.assertEqual(result["rows"], 3)
+        self.assertEqual(result["labels"], [-1, -1, -1])
+        self.assertEqual(result["n_clusters"], 0)
+        self.assertEqual(result["n_noise"], 3)
+        self.assertEqual(result["centers"], [])
 
     def test_forecast(self):
         """test forecast api"""

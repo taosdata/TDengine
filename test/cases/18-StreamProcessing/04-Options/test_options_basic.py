@@ -1,4 +1,20 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
+import pytest
 from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
 
@@ -19,6 +35,7 @@ class TestStreamOptionsBasic:
         Since: v3.3.3.7
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -55,6 +72,63 @@ class TestStreamOptionsBasic:
         # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  [fail]  对超期的数据仍然进行了计算
         
         tdStream.checkAll(streams)
+
+    @pytest.mark.parametrize("fill_history", [True, False], ids=["history", "realtime"])
+    def test_pre_filter_time_range(self, fill_history):
+        """PRE_FILTER applies timestamp bounds before creating stream windows.
+
+        1. Insert rows below, on and above the timestamp filter boundaries.
+        2. Process the rows through history scanning or realtime WAL reading.
+        3. Check timestamp, value and tag predicates all exclude invalid rows.
+
+        Catalog:
+            - Streams:04-Options
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-09-11 Created
+        """
+        tdStream.dropAllStreamsAndDbs()
+        tdStream.ensureSnode()
+        tdSql.prepare(dbname="sdb_pre_filter_time", vgroups=1)
+        tdSql.execute("create stable stb (ts timestamp, v int) tags(kind int)")
+        tdSql.execute("create table c1 using stb tags(1)")
+        tdSql.execute("create table c2 using stb tags(2)")
+        insert_sql = (
+            "insert into c1 values "
+            "(1788220800999, 1000) (1788220801000, 10) "
+            "(1788220801001, -100) (1788220801999, 20) "
+            "(1788220802000, 1000) c2 values (1788220801000, 99)"
+        )
+        if fill_history:
+            tdSql.execute(insert_sql)
+
+        history_option = "fill_history | " if fill_history else ""
+        tdSql.execute(
+            "create stream s_time_filter count_window(1) from stb "
+            "partition by tbname "
+            f"stream_options({history_option}pre_filter("
+            "kind = 1 and ts >= 1788220801000 and ts < 1788220802000 and v > 0)) "
+            "into dst as select _twstart ts, max(v) v from %%trows"
+        )
+        tdStream.checkStreamStatus("s_time_filter")
+        if not fill_history:
+            tdSql.execute(insert_sql)
+
+        tdSql.checkResultsByFunc(
+            sql="select cast(ts as bigint), v from dst order by ts",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, 1788220801000)
+            and tdSql.compareData(0, 1, 10)
+            and tdSql.compareData(1, 0, 1788220801999)
+            and tdSql.compareData(1, 1, 20),
+            retry=30,
+        )
 
     class Basic0(StreamCheckItem):
         def __init__(self):

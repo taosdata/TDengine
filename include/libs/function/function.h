@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -134,6 +136,7 @@ typedef struct SResultDataInfo {
 
 typedef struct SInputColumnInfoData {
   int32_t           totalRows;        // total rows in current columnar data
+  int32_t           smaSourceRows;    // physical rows represented by the current SMA block
   int32_t           startRowIndex;    // handle started row index
   int64_t           numOfRows;        // the number of rows needs to be handled
   bool              blankFill;        // fill blank data to block for empty table
@@ -260,6 +263,8 @@ typedef struct SqlFunctionCtx {
   uint32_t             order;          // data block scanner order: asc|desc
   uint8_t              isPseudoFunc;   // denote current function is pseudo function or not [added for perf reason]
   uint8_t              isNotNullFunc;  // not return null value.
+  bool                 isDistinctFunc;  // DISTINCT variant; cached at ctx creation because the
+                                        // cleanup path runs after the plan node may be freed
   uint8_t              scanFlag;       // record current running step, default: 0
   int16_t              functionId;     // function id
   char                *pOutput;        // final result output buffer, point to sdata->data
@@ -279,6 +284,7 @@ typedef struct SqlFunctionCtx {
   struct SSDataBlock  *pSrcBlock;
   struct SSDataBlock  *pDstBlock;  // used by indefinite rows function to set selectivity
   SSerializeDataHandle saveHandle;
+  struct SDiskbasedBuf *pDistinctBuf;
   int32_t              exprIdx;
   char                *udfName;
   SFunctionStateStore *pStore;

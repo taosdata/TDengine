@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,6 +23,17 @@ extern "C" {
 #endif
 
 #ifdef WINDOWS
+typedef struct SPrivateFileSecurity {
+  TOKEN_USER         *user;
+  PACL                acl;
+  SECURITY_DESCRIPTOR descriptor;
+  SECURITY_ATTRIBUTES attributes;
+} SPrivateFileSecurity;
+
+int32_t taosInitPrivateFileSecurity(SPrivateFileSecurity *security);
+void    taosFreePrivateFileSecurity(SPrivateFileSecurity *security);
+int32_t taosCheckPrivateFileHandle(HANDLE handle, bool directory, PSID owner);
+
 typedef struct WindowsTimezoneObj {
   // UTC offset in seconds, using POSIX `timezone` convention: east-negative, west-positive.
   // Examples: UTC+8 (East 8) = -28800, UTC-8 (West 8) = +28800.

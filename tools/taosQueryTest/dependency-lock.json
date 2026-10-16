@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "dependencies": [
+    {"name": "native-tdengine-c-connector", "version": "3.4.3", "source": "TDengine build"},
+    {"name": "toolscJson", "version": "1.7.17", "source": "TDengine build"},
+    {"name": "libuv", "version": "1.48.0", "source": "TDengine build"}
+  ]
+}

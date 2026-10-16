@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #define _DEFAULT_SOURCE
 #include "tpagedbuf.h"
 #include "crypt.h"
@@ -18,14 +35,24 @@ typedef struct SPageDiskInfo {
   int32_t length;
 } SPageDiskInfo, SFreeListItem;
 
+typedef struct SPageDiskReservation {
+  int64_t offset;
+  size_t  freeIndex;
+  bool    fromFree;
+} SPageDiskReservation;
+
 struct SPageInfo {
   SListNode* pn;  // point to list node struct. it is NULL when the page is evicted from the in-memory buffer
+  SPageInfo* pPrevFree;
+  SPageInfo* pNextFree;
   void*      pData;
   int64_t    offset;
   int32_t    pageId;
+  int32_t    idListIndex;
   int32_t    length : 29;
   bool       used : 1;   // set current page is in used
   bool       dirty : 1;  // set current buffer page is dirty or not
+  bool       recycled : 1;
 };
 
 struct SDiskbasedBuf {
@@ -38,7 +65,8 @@ struct SDiskbasedBuf {
   char*      prefix;      // file name prefix
   int32_t    pageSize;    // current used page size
   int32_t    inMemPages;  // numOfPages that are allocated in memory
-  SList*     freePgList;  // free page list
+  SPageInfo* pFreePageHead;
+  SPageInfo* pFreePageTail;
   SArray*    pIdList;     // page id list
   SSHashObj* all;
   SList*     lruList;
@@ -51,13 +79,14 @@ struct SDiskbasedBuf {
   char*               id;           // for debug purpose
   bool                printStatis;  // Print statistics info when closing this buffer.
   SDiskbasedBufStatis statis;
+#if defined(BUILD_TEST)
+  bool                dbgFailNextFlushWrite;
+  bool                dbgShortNextFlushWrite;
+#endif
 
-  // Symmetric encryption of spilled pages (SM4-CBC). Enabled iff encryptBuf is
-  // non-NULL. The key is randomly generated per buffer instance, kept only in
-  // memory and never persisted, so residual temp files are unreadable after a
-  // crash.
-  char  encryptKey[ENCRYPT_KEY_LEN + 1];
-  char* encryptBuf;  // staging buffer for encrypt/decrypt
+  // One context owns the memory-only key and work buffers for this spill file.
+  // Encryption is enabled iff the context is non-NULL.
+  SSpillCryptCtx* pCryptCtx;
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
@@ -93,9 +122,7 @@ static char* doCompressData(void* data, int32_t srcSize, int32_t* dst, SDiskbase
   }
 
   *dst = tsCompressString(data, srcSize, 1, pBuf->assistBuf, srcSize, ONE_STAGE_COMP, NULL, 0);
-
-  memcpy(data, pBuf->assistBuf, *dst);
-  return data;
+  return pBuf->assistBuf;
 }
 
 static int32_t doDecompressData(void* data, int32_t srcSize, int32_t* dst, SDiskbasedBuf* pBuf) {  // do nothing
@@ -115,27 +142,67 @@ static int32_t doDecompressData(void* data, int32_t srcSize, int32_t* dst, SDisk
   ;
 }
 
-static uint64_t allocateNewPositionInFile(SDiskbasedBuf* pBuf, size_t size) {
-  if (pBuf->pFree == NULL) {
-    return pBuf->nextPos;
-  } else {
-    int32_t offset = -1;
-
-    size_t num = taosArrayGetSize(pBuf->pFree);
-    for (int32_t i = 0; i < num; ++i) {
-      SFreeListItem* pi = taosArrayGet(pBuf->pFree, i);
-      if (pi->length >= size) {
-        offset = pi->offset;
-        pi->offset += (int32_t)size;
-        pi->length -= (int32_t)size;
-
-        return offset;
-      }
-    }
-
-    // no available recycle space, allocate new area in file
-    return pBuf->nextPos;
+static void removeFreeListItem(SArray* pFreeList, size_t index) {
+  size_t last = taosArrayGetSize(pFreeList) - 1;
+  if (index != last) {
+    SFreeListItem* pItem = taosArrayGet(pFreeList, index);
+    SFreeListItem* pLast = taosArrayGet(pFreeList, last);
+    *pItem = *pLast;
   }
+  taosArrayPop(pFreeList);
+}
+
+static int32_t prepareDiskReservation(
+    SDiskbasedBuf* pBuf, int32_t size,
+    SPageDiskReservation* pReservation) {
+  if (size <= 0 || pReservation == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pReservation = (SPageDiskReservation){0};
+  size_t i = 0;
+  while (i < taosArrayGetSize(pBuf->pFree)) {
+    SFreeListItem* pFree = taosArrayGet(pBuf->pFree, i);
+    if (pFree == NULL || pFree->length <= 0) {
+      removeFreeListItem(pBuf->pFree, i);
+      continue;
+    }
+    if (pFree->length >= size) {
+      pReservation->offset = pFree->offset;
+      pReservation->freeIndex = i;
+      pReservation->fromFree = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    ++i;
+  }
+
+  if (pBuf->nextPos > INT64_MAX - (uint64_t)size) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  pReservation->offset = (int64_t)pBuf->nextPos;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t commitDiskReservation(
+    SDiskbasedBuf* pBuf, const SPageDiskReservation* pReservation,
+    int32_t size) {
+  if (!pReservation->fromFree) {
+    pBuf->nextPos += (uint64_t)size;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFreeListItem* pFree =
+      taosArrayGet(pBuf->pFree, pReservation->freeIndex);
+  if (pFree == NULL || pFree->offset != pReservation->offset ||
+      pFree->length < size) {
+    return TSDB_CODE_APP_ERROR;
+  }
+  pFree->offset += size;
+  pFree->length -= size;
+  if (pFree->length == 0) {
+    removeFreeListItem(pBuf->pFree, pReservation->freeIndex);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -149,154 +216,160 @@ static uint64_t allocateNewPositionInFile(SDiskbasedBuf* pBuf, size_t size) {
 
 static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + sizeof(SFilePage); }
 
-// On-disk layout of an encrypted page:
-//   [4-byte plaintext length][CBC ciphertext padded to 16 bytes].
-// The plaintext length is the post-compression size, needed to strip the
-// padding before decompression.
-#define PAGE_ENC_HDR_LEN ((int32_t)sizeof(int32_t))
-
-static FORCE_INLINE bool pageEncryptEnabled(void) {
-  return (tsiEncryptScope & DND_CS_QUERY_SPILL) != 0;
+// The encrypted page image layout and its size relation are owned by crypt
+// (taosSpillCryptEncodedLen); the stored plaintext length is the
+// post-compression size, needed to strip the padding before decompression.
+// Maximum encoded size of one encrypted page image; 0 for out-of-range
+// page sizes, which then rejects every positive on-disk length.
+static int32_t pageEncryptedDataCap(int32_t pageSize) {
+  int32_t encodedLen = 0;
+  if (taosSpillCryptEncodedLen((int32_t)getAllocPageSize(pageSize),
+                               &encodedLen) != TSDB_CODE_SUCCESS) {
+    return 0;
+  }
+  return encodedLen;
 }
 
-// Size of one 16-aligned page image, the unit of each encryptBuf region.
-static FORCE_INLINE int32_t pageAlignedCap(int32_t pageSize) {
-  return (int32_t)ALIGN_NUM(getAllocPageSize(pageSize), 16);
-}
-
-// Staging buffer holds
-//     [4B len][ciphertext region (alignCap)][plaintext region (alignCap)]
-// so that CBC source and result never overlap (matching the WAL/TDB usage of
-// CBC_Encrypt). Each region holds a 16-aligned page image.
-//   cap = PAGE_ENC_HDR_LEN + 2 * pageAlignedCap(pageSize)
-// e.g. pageSize=4096 -> alignCap=4112 -> cap = 4 + 2*4112 = 8228 bytes.
-static int32_t pageEncryptBufCap(int32_t pageSize) {
-  return PAGE_ENC_HDR_LEN + 2 * pageAlignedCap(pageSize);
-}
-
-static void genPageEncryptKey(char* key) {
-  // OS-native CSPRNG: /dev/urandom on Linux/macOS, CryptGenRandom on Windows.
-  taosSafeRandBytes((uint8_t*)key, ENCRYPT_KEY_LEN);
-  key[ENCRYPT_KEY_LEN] = 0;
-}
-
-static void pageInitCryptOpts(SDiskbasedBuf* pBuf, SCryptOpts* opts,
-                              int32_t len, char* source, char* result) {
-  opts->len = len;
-  opts->source = source;
-  opts->result = result;
-  opts->unitLen = 16;
-  opts->pOsslAlgrName = TSDB_ENCRYPT_ALGR_SM4_NAME;
-  // Binary key may contain 0x00, so copy all bytes; tstrncpy/strncpy would
-  // truncate at the first null and silently weaken the key.
-  memcpy(opts->key, pBuf->encryptKey, ENCRYPT_KEY_LEN);
-}
-
-// Encrypt `len` bytes from `src` into pBuf->encryptBuf. On success sets
+// Encrypt `len` bytes from `src` into the shared crypt context. On success sets
 // *ppOut/*pOutLen to the on-disk image ([hdr][cipher]).
 static int32_t pageEncrypt(SDiskbasedBuf* pBuf, const char* src, int32_t len,
                            char** ppOut, int32_t* pOutLen) {
-  int32_t alignCap = pageAlignedCap(pBuf->pageSize);
-  int32_t alignedLen = ENCRYPTED_LEN(len);  // pad to CBC block (== ALIGN_NUM 16)
+  int32_t alignCap = ENCRYPTED_LEN((int32_t)getAllocPageSize(pBuf->pageSize));
+  int32_t alignedLen = ENCRYPTED_LEN(len);  // pad to CBC block
 
-  // Each encryptBuf region is alignCap bytes. By construction len (the
-  // compressed size) never exceeds it; guard defensively so a future change
-  // can never overflow the staging buffer.
+  // By construction len (the compressed size) never exceeds one page image.
   if (len < 0 || alignedLen > alignCap) {
     uError("%s failed at line:%d, bad len:%d, alignedLen:%d, alignCap:%d, "
            "buf id:%s", __func__, __LINE__, len, alignedLen, alignCap, pBuf->id);
     return TSDB_CODE_INVALID_PARA;
   }
 
-  char* out = pBuf->encryptBuf + PAGE_ENC_HDR_LEN;               // ciphertext
-  char* stage = pBuf->encryptBuf + PAGE_ENC_HDR_LEN + alignCap;  // padded src
-  memcpy(stage, src, len);
-  if (alignedLen > len) {
-    memset(stage + len, 0, alignedLen - len);
-  }
-
-  SCryptOpts opts = {0};
-  pageInitCryptOpts(pBuf, &opts, alignedLen, stage, out);
-  int32_t encLen = CBC_Encrypt(&opts);
-  if (encLen != alignedLen) {
-    // CBC_Encrypt sets terrno on failure; fall back to a definite error so a
-    // length mismatch with terrno unset can never be reported as success.
-    int32_t code = (terrno != TSDB_CODE_SUCCESS) ? terrno :
-                                                   TSDB_CODE_INTERNAL_ERROR;
-    uError("%s failed at line:%d, CBC_Encrypt returned:%d expected:%d, "
-           "because %s, buf id:%s", __func__, __LINE__, encLen, alignedLen,
-           tstrerror(code), pBuf->id);
+  int32_t code =
+      taosEncryptSpillBlock(pBuf->pCryptCtx, src, len, ppOut, pOutLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError(
+        "%s failed at line:%d, encrypt spill block failed because %s, buf "
+        "id:%s",
+        __func__, __LINE__, tstrerror(code), pBuf->id);
     return code;
   }
 
-  *(int32_t*)pBuf->encryptBuf = len;  // store plaintext length in the header
-  *ppOut = pBuf->encryptBuf;
-  *pOutLen = PAGE_ENC_HDR_LEN + alignedLen;
   return TSDB_CODE_SUCCESS;
 }
 
-// Decrypt an on-disk image of `total` bytes already read into pBuf->encryptBuf;
-// writes the recovered plaintext into `dst` and returns its length.
-static int32_t pageDecrypt(SDiskbasedBuf* pBuf, void* dst, int32_t total,
-                           int32_t* pPlainLen) {
-  // total/plainLen are derived from the on-disk image, which may be truncated
-  // or corrupted; treat any inconsistency as file corruption rather than a
-  // caller-side bad parameter.
-  if (total <= PAGE_ENC_HDR_LEN) {
-    uError("%s failed at line:%d, on-disk image too short, total:%d hdr:%d, "
-           "buf id:%s", __func__, __LINE__, total, PAGE_ENC_HDR_LEN, pBuf->id);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-  int32_t plainLen = *(int32_t*)pBuf->encryptBuf;
-  int32_t alignedLen = total - PAGE_ENC_HDR_LEN;
-  // plainLen comes from the untrusted on-disk header, so it must fit both the
-  // decrypted region (alignedLen) and the dst page payload capacity
-  // (pageSize + sizeof(SFilePage)). A corrupted/truncated header must never
-  // overflow dst: alignedLen may round up past dstCap (e.g. 4112 vs 4100).
+// Decrypt an on-disk image of `total` bytes at `pEncrypted`; writes the
+// recovered plaintext into `dst` and returns its length. Truncated or
+// corrupted images are rejected by taosDecryptSpillBlock.
+static int32_t pageDecrypt(SDiskbasedBuf* pBuf, const char* pEncrypted,
+                           void* dst, int32_t total, int32_t* pPlainLen) {
   int32_t dstCap = pBuf->pageSize + (int32_t)sizeof(SFilePage);
-  if (plainLen < 0 || plainLen > alignedLen || plainLen > dstCap) {
-    uError("%s failed at line:%d, bad plainLen:%d, alignedLen:%d, dstCap:%d, "
-           "total:%d, buf id:%s", __func__, __LINE__, plainLen, alignedLen, dstCap,
-           total, pBuf->id);
-    return TSDB_CODE_FILE_CORRUPTED;
+  char*   pPlain = NULL;
+  int32_t code = taosDecryptSpillBlock(pBuf->pCryptCtx, pEncrypted, total,
+                                       &pPlain, pPlainLen);
+  if (code != TSDB_CODE_SUCCESS || *pPlainLen > dstCap) {
+    uError(
+        "%s failed at line:%d, decrypt spill block failed because %s, buf "
+        "id:%s",
+        __func__, __LINE__,
+        tstrerror(code == TSDB_CODE_SUCCESS ? TSDB_CODE_FILE_CORRUPTED : code),
+        pBuf->id);
+    return code == TSDB_CODE_SUCCESS ? TSDB_CODE_FILE_CORRUPTED : code;
   }
 
-  char* cipher = pBuf->encryptBuf + PAGE_ENC_HDR_LEN;
-  char* stage = cipher + pageAlignedCap(pBuf->pageSize);
-
-  SCryptOpts opts = {0};
-  pageInitCryptOpts(pBuf, &opts, alignedLen, cipher, stage);
-  int32_t decLen = CBC_Decrypt(&opts);
-  if (decLen != alignedLen) {
-    uError("%s failed at line:%d, CBC_Decrypt returned:%d expected:%d, buf id:%s",
-           __func__, __LINE__, decLen, alignedLen, pBuf->id);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-
-  memcpy(dst, stage, plainLen);
-  *pPlainLen = plainLen;
+  memcpy(dst, pPlain, *pPlainLen);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t doFlushBufPageImpl(SDiskbasedBuf* pBuf, int64_t offset, const char* pData, int32_t size) {
+  int64_t startUs = taosGetTimestampUs();
   int64_t ret = taosLSeekFile(pBuf->pFile, offset, SEEK_SET);
   if (ret < 0) {
     return terrno;
   }
 
-  ret = (int32_t)taosWriteFile(pBuf->pFile, pData, size);
-  if (ret != size) {
+#if defined(BUILD_TEST)
+  if (pBuf->dbgFailNextFlushWrite) {
+    pBuf->dbgFailNextFlushWrite = false;
+    terrno = TSDB_CODE_APP_ERROR;
     return terrno;
   }
 
-  // extend the file
-  if (pBuf->fileSize < offset + size) {
-    pBuf->fileSize = offset + size;
+  if (pBuf->dbgShortNextFlushWrite) {
+    pBuf->dbgShortNextFlushWrite = false;
+    terrno = TSDB_CODE_SUCCESS;
+    ret = size - 1;
+  } else
+#endif
+  {
+    ret = (int32_t)taosWriteFile(pBuf->pFile, pData, size);
+  }
+  if (ret != size) {
+    // A successful short write does not set terrno.
+    return ret < 0 ? terrno : TSDB_CODE_APP_ERROR;
   }
 
+  pBuf->statis.flushUs += taosGetTimestampUs() - startUs;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t flushDirtyPage(SDiskbasedBuf* pBuf, SPageInfo* pPage,
+                              const char* pData, int32_t size,
+                              int64_t* pOffset) {
+  bool needsNewPosition = !HAS_DATA_IN_DISK(pPage) ||
+                          pPage->length < size;
+  bool recycleOldPosition = HAS_DATA_IN_DISK(pPage) &&
+                            pPage->length < size;
+  if (recycleOldPosition) {
+    size_t freeItems = taosArrayGetSize(pBuf->pFree);
+    int32_t code = taosArrayEnsureCap(pBuf->pFree, freeItems + 1);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  SPageDiskReservation reservation = {0};
+  int64_t offset = pPage->offset;
+  if (needsNewPosition) {
+    int32_t code = prepareDiskReservation(pBuf, size, &reservation);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    offset = reservation.offset;
+  }
+
+  int32_t code = doFlushBufPageImpl(pBuf, offset, pData, size);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (needsNewPosition) {
+    code = commitDiskReservation(pBuf, &reservation, size);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  if (recycleOldPosition) {
+    SPageDiskInfo oldPosition = {
+        .length = pPage->length,
+        .offset = pPage->offset,
+    };
+    if (taosArrayPush(pBuf->pFree, &oldPosition) == NULL) {
+      int32_t code = terrno == TSDB_CODE_SUCCESS
+                         ? TSDB_CODE_APP_ERROR
+                         : terrno;
+      uError("failed to recycle old disk extent, offset:%" PRId64
+             ", length:%d, buf id:%s, since %s",
+             oldPosition.offset, oldPosition.length, pBuf->id,
+             tstrerror(code));
+      return code;
+    }
+  }
+
+  if (pBuf->fileSize < (uint64_t)offset + (uint64_t)size) {
+    pBuf->fileSize = (uint64_t)offset + (uint64_t)size;
+  }
   pBuf->statis.flushBytes += size;
   pBuf->statis.flushPages += 1;
-
+  *pOffset = offset;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -323,7 +396,7 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
   // Encrypt after compression (and only on the write path). The on-disk image
   // carries the plaintext length so the padding can be stripped on read.
-  if (pBuf->encryptBuf != NULL && t != NULL && pg->dirty) {
+  if (pBuf->pCryptCtx != NULL && t != NULL && pg->dirty) {
     char*   enc = NULL;
     int32_t encLen = 0;
     int32_t code = pageEncrypt(pBuf, t, size, &enc, &encLen);
@@ -336,34 +409,11 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     size = encLen;
   }
 
-  // this page is flushed to disk for the first time
   if (pg->dirty) {
-    if (!HAS_DATA_IN_DISK(pg)) {
-      offset = allocateNewPositionInFile(pBuf, size);
-      pBuf->nextPos += size;
-
-      int32_t code = doFlushBufPageImpl(pBuf, offset, t, size);
-      if (code != TSDB_CODE_SUCCESS) {
-        return NULL;
-      }
-    } else {
-      // length becomes greater, current space is not enough, allocate new place, otherwise, do nothing
-      if (pg->length < size) {
-        // 1. add current space to free list
-        SPageDiskInfo dinfo = {.length = pg->length, .offset = offset};
-        if (NULL == taosArrayPush(pBuf->pFree, &dinfo)) {
-          return NULL;
-        }
-
-        // 2. allocate new position, and update the info
-        offset = allocateNewPositionInFile(pBuf, size);
-        pBuf->nextPos += size;
-      }
-
-      int32_t code = doFlushBufPageImpl(pBuf, offset, t, size);
-      if (code != TSDB_CODE_SUCCESS) {
-        return NULL;
-      }
+    int32_t code = flushDirtyPage(pBuf, pg, t, size, &offset);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      return NULL;
     }
   } else {  // NOTE: the size may be -1, the this recycle page has not been flushed to disk yet.
     size = pg->length;
@@ -392,6 +442,9 @@ static char* flushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   }
 
   char* p = doFlushBufPage(pBuf, pg);
+  if (p == NULL) {
+    return NULL;
+  }
   CLEAR_BUF_PAGE_IN_MEM_FLAG(pg);
 
   pg->dirty = false;
@@ -400,6 +453,7 @@ static char* flushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
 // load file block data in disk
 static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
+  int64_t startUs = taosGetTimestampUs();
   if (pg->offset < 0 || pg->length <= 0) {
     uError("failed to load buf page from disk, offset:%" PRId64 ", length:%d, %s", pg->offset, pg->length, pBuf->id);
     return TSDB_CODE_INVALID_PARA;
@@ -416,14 +470,21 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   // When encrypted, read the on-disk image into the staging buffer; otherwise
   // read straight into the page payload.
   void* readDst = pPage;
-  if (pBuf->encryptBuf != NULL) {
-    // Reading into the staging buffer: pg->length must not exceed its capacity.
-    if (pg->length > pageEncryptBufCap(pBuf->pageSize)) {
-      uError("invalid on-disk page length at line:%d, length:%d cap:%d, buf id:%s",
-             __LINE__, pg->length, pageEncryptBufCap(pBuf->pageSize), pBuf->id);
+  if (pBuf->pCryptCtx != NULL) {
+    int32_t encryptedDataCap = pageEncryptedDataCap(pBuf->pageSize);
+    if (pg->length > encryptedDataCap) {
+      uError(
+          "invalid on-disk page length at line:%d, length:%d cap:%d, buf id:%s",
+          __LINE__, pg->length, encryptedDataCap, pBuf->id);
       return TSDB_CODE_FILE_CORRUPTED;
     }
-    readDst = (void*)pBuf->encryptBuf;
+    char*   pEncrypted = NULL;
+    int32_t code =
+        taosPrepareSpillBlockRead(pBuf->pCryptCtx, pg->length, &pEncrypted);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    readDst = pEncrypted;
   }
   ret = taosReadFile(pBuf->pFile, readDst, pg->length);
   if (ret != pg->length) {
@@ -433,8 +494,8 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
   // length of the (post-decrypt) data fed to decompression
   int32_t dataLen = pg->length;
-  if (pBuf->encryptBuf != NULL) {
-    int32_t code = pageDecrypt(pBuf, pPage, pg->length, &dataLen);
+  if (pBuf->pCryptCtx != NULL) {
+    int32_t code = pageDecrypt(pBuf, readDst, pPage, pg->length, &dataLen);
     if (code != TSDB_CODE_SUCCESS) {
       uError("failed to decrypt buf page from disk, offset:%" PRId64
              ", length:%d, buf id:%s", pg->offset, pg->length, pBuf->id);
@@ -446,7 +507,11 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   pBuf->statis.loadPages += 1;
 
   int32_t fullSize = 0;
-  return doDecompressData(pPage, dataLen, &fullSize, pBuf);
+  int32_t code = doDecompressData(pPage, dataLen, &fullSize, pBuf);
+  if (code == TSDB_CODE_SUCCESS) {
+    pBuf->statis.loadUs += taosGetTimestampUs() - startUs;
+  }
+  return code;
 }
 
 static SPageInfo* registerNewPageInfo(SDiskbasedBuf* pBuf, int32_t pageId) {
@@ -463,13 +528,25 @@ static SPageInfo* registerNewPageInfo(SDiskbasedBuf* pBuf, int32_t pageId) {
   ppi->length = -1;
   ppi->used = true;
   ppi->pn = NULL;
+  ppi->pPrevFree = NULL;
+  ppi->pNextFree = NULL;
   ppi->dirty = false;
+  ppi->recycled = false;
 
   SPageInfo** pRet = taosArrayPush(pBuf->pIdList, &ppi);
   if (NULL == pRet) {
     taosMemoryFree(ppi);
     return NULL;
   }
+  ptrdiff_t index = pRet - (SPageInfo**)pBuf->pIdList->pData;
+  if (index < 0 || index > INT32_MAX) {
+    taosArrayPop(pBuf->pIdList);
+    pBuf->numOfPages -= 1;
+    taosMemoryFree(ppi);
+    terrno = TSDB_CODE_OUT_OF_RANGE;
+    return NULL;
+  }
+  ppi->idListIndex = (int32_t)index;
   return *pRet;
 }
 
@@ -494,18 +571,21 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
 static char* evictBufPage(SDiskbasedBuf* pBuf) {
   SListNode* pn = getEldestUnrefedPage(pBuf);
   if (pn == NULL) {  // no available buffer pages now, return.
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   terrno = 0;
-  pn = tdListPopNode(pBuf->lruList, pn);
-
   SPageInfo* d = *(SPageInfo**)pn->data;
+  char* pData = flushBufPage(pBuf, d);
+  if (pData == NULL) {
+    return NULL;
+  }
 
+  pn = tdListPopNode(pBuf->lruList, pn);
   d->pn = NULL;
   taosMemoryFreeClear(pn);
-
-  return flushBufPage(pBuf, d);
+  return pData;
 }
 
 static int32_t lruListPushFront(SList* pList, SPageInfo* pi) {
@@ -552,8 +632,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int64_t inMem
   }
   pPBuf->fileSize = 0;
   pPBuf->pFree = taosArrayInit(4, sizeof(SFreeListItem));
-  pPBuf->freePgList = tdListNew(POINTER_BYTES);
-  if (pPBuf->pFree == NULL || pPBuf->freePgList == NULL) {
+  if (pPBuf->pFree == NULL) {
     code = terrno;
     goto _error;
   }
@@ -594,16 +673,13 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int64_t inMem
   //  qDebug("QInfo:0x%"PRIx64 ", create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
   //  pPBuf->pageSize, pPBuf->inMemPages, pPBuf->path);
 
-  // Set up per-buffer symmetric encryption of spilled pages when enabled. The
-  // random key lives only in this struct and is wiped on destroy, making any
-  // residual temp file unreadable after a crash.
-  if (pageEncryptEnabled()) {
-    pPBuf->encryptBuf = taosMemoryMalloc(pageEncryptBufCap(pagesize));
-    if (pPBuf->encryptBuf == NULL) {
-      code = terrno;
+  // Preserve the existing eager allocation point for paged-buffer encryption.
+  if (taosSpillCryptEnabled()) {
+    code = taosCreateSpillCryptCtx(&pPBuf->pCryptCtx,
+                                   (int32_t)getAllocPageSize(pagesize));
+    if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
-    genPageEncryptKey(pPBuf->encryptKey);
   }
 
   *pBuf = pPBuf;
@@ -619,6 +695,9 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
   char* availablePage = NULL;
   if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
     availablePage = evictBufPage(pBuf);
+    if (availablePage != NULL) {
+      pBuf->statis.evictPages += 1;
+    }
     if (availablePage == NULL) {
       uWarn("no available buf pages, current:%d, max:%d, reason: %s, %s", listNEles(pBuf->lruList), pBuf->inMemPages,
             terrstr(), pBuf->id)
@@ -633,6 +712,11 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
 
 void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
   pBuf->statis.getPages += 1;
+  if (pBuf->statis.getPages % 100000 == 0) {
+    uInfo("paged buffer progress id:%s get:%d inmem:%" PRId64 " disk:%" PRId64 " lru:%" PRId64,
+          pBuf->id, pBuf->statis.getPages, pBuf->statis.inMemPages, pBuf->statis.diskPages,
+          pBuf->statis.lruMoves);
+  }
 
   char* availablePage = doExtractPage(pBuf);
   if (availablePage == NULL) {
@@ -641,19 +725,31 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
 
   SPageInfo* pi = NULL;
   int32_t    code = 0;
-  if (listNEles(pBuf->freePgList) != 0) {
-    SListNode* pItem = tdListPopHead(pBuf->freePgList);
-    pi = *(SPageInfo**)pItem->data;
-    pi->used = true;
+  if (pBuf->pFreePageHead != NULL) {
+    pi = pBuf->pFreePageHead;
+    if (pBuf->pFreePageTail == NULL || pBuf->pFreePageHead->pPrevFree != NULL ||
+        !pi->recycled || pi->used || pi->dirty || pi->pData != NULL || pi->pn != NULL) {
+      taosMemoryFree(availablePage);
+      terrno = TSDB_CODE_APP_ERROR;
+      return NULL;
+    }
     *pageId = pi->pageId;
-    taosMemoryFreeClear(pItem);
     code = lruListPushFront(pBuf->lruList, pi);
     if (TSDB_CODE_SUCCESS != code) {
-      taosMemoryFree(pi);
       taosMemoryFree(availablePage);
       terrno = code;
       return NULL;
     }
+    pBuf->pFreePageHead = pi->pNextFree;
+    if (pBuf->pFreePageHead == NULL) {
+      pBuf->pFreePageTail = NULL;
+    } else {
+      pBuf->pFreePageHead->pPrevFree = NULL;
+    }
+    pi->pPrevFree = NULL;
+    pi->pNextFree = NULL;
+    pi->used = true;
+    pi->recycled = false;
   } else {  // create a new pageinfo
     // register new id in this group
     *pageId = (++pBuf->allocateId);
@@ -697,7 +793,8 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
   return (void*)(GET_PAYLOAD_DATA(pi));
 }
 
-void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
+static void* getBufPageImpl(SDiskbasedBuf* pBuf, int32_t id,
+                            bool updateLru) {
   if (id < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     uError("invalid page id:%d, %s", id, pBuf->id);
@@ -714,20 +811,26 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
   }
 
   if (BUF_PAGE_IN_MEM(*pi)) {  // it is in memory
+    pBuf->statis.inMemPages += 1;
     // no need to update the LRU list if only one page exists
     if (pBuf->numOfPages == 1) {
       (*pi)->used = true;
       return (void*)(GET_PAYLOAD_DATA(*pi));
     }
 
+    // The back-pointer check validates the buffer's own bookkeeping, so it
+    // runs for every accessor; only the LRU refresh is optional.
     SPageInfo** pInfo = (SPageInfo**)((*pi)->pn->data);
     if (*pInfo != *pi) {
       terrno = TSDB_CODE_APP_ERROR;
-      uError("inconsistently data in paged buffer, pInfo:%p, pi:%p, %s", *pInfo, *pi, pBuf->id);
+      uError("inconsistently data in paged buffer, pInfo:%p, pi:%p, %s",
+             *pInfo, *pi, pBuf->id);
       return NULL;
     }
-
-    lruListMoveToFront(pBuf->lruList, (*pi));
+    if (updateLru) {
+      lruListMoveToFront(pBuf->lruList, (*pi));
+      pBuf->statis.lruMoves += 1;
+    }
     (*pi)->used = true;
 
 #ifdef BUF_PAGE_DEBUG
@@ -735,6 +838,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 #endif
     return (void*)(GET_PAYLOAD_DATA(*pi));
   } else {  // not in memory
+    pBuf->statis.diskPages += 1;
 
     (*pi)->pData = doExtractPage(pBuf);
 
@@ -770,6 +874,14 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 #endif
     return (void*)(GET_PAYLOAD_DATA(*pi));
   }
+}
+
+void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
+  return getBufPageImpl(pBuf, id, true);
+}
+
+void* getBufPageNoLRU(SDiskbasedBuf* pBuf, int32_t id) {
+  return getBufPageImpl(pBuf, id, false);
 }
 
 void releaseBufPage(SDiskbasedBuf* pBuf, void* page) {
@@ -831,6 +943,13 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   // print the statistics information
   {
     SDiskbasedBufStatis* ps = &pBuf->statis;
+    if (ps->flushPages > 0 || ps->loadPages > 0) {
+      uInfo("paged buffer stats id:%s pages:%d inmem:%d get:%d release:%d evict:%d flush:%d/%" PRId64
+            "B/%" PRId64 "us load:%d/%" PRId64 "B/%" PRId64 "us",
+            pBuf->id, pBuf->numOfPages, listNEles(pBuf->lruList), ps->getPages, ps->releasePages,
+            ps->evictPages, ps->flushPages, ps->flushBytes, ps->flushUs, ps->loadPages, ps->loadBytes,
+            ps->loadUs);
+    }
     if (ps->loadPages == 0) {
       uDebug("Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages)", ps->getPages,
              ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f, ps->loadPages);
@@ -861,7 +980,6 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosArrayDestroy(pBuf->pIdList);
 
   pBuf->lruList = tdListFree(pBuf->lruList);
-  pBuf->freePgList = tdListFree(pBuf->freePgList);
 
   taosArrayDestroy(pBuf->emptyDummyIdList);
   taosArrayDestroy(pBuf->pFree);
@@ -870,9 +988,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
   taosMemoryFreeClear(pBuf->id);
   taosMemoryFreeClear(pBuf->assistBuf);
-  // Wipe the encryption key before freeing so it never lingers in freed memory.
-  memset(pBuf->encryptKey, 0, sizeof(pBuf->encryptKey));
-  taosMemoryFreeClear(pBuf->encryptBuf);
+  taosDestroySpillCryptCtx(&pBuf->pCryptCtx);
   taosMemoryFreeClear(pBuf);
 }
 
@@ -888,6 +1004,10 @@ int32_t getBufPageSize(const SDiskbasedBuf* pBuf) { return pBuf->pageSize; }
 
 int32_t getNumOfInMemBufPages(const SDiskbasedBuf* pBuf) { return pBuf->inMemPages; }
 
+int32_t getNumOfResidentBufPages(const SDiskbasedBuf* pBuf) {
+  return pBuf == NULL ? 0 : listNEles(pBuf->lruList);
+}
+
 bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf) { return pBuf->fileSize == 0; }
 
 void setBufPageDirty(void* pPage, bool dirty) {
@@ -899,29 +1019,148 @@ int32_t setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp) {
   pBuf->comp = comp;
   if (comp && (pBuf->assistBuf == NULL)) {
     pBuf->assistBuf = taosMemoryMalloc(pBuf->pageSize + 2);  // EXTRA BYTES
-    if (pBuf->assistBuf) {
+    if (pBuf->assistBuf == NULL) {
       return terrno;
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {
-  SPageInfo* ppi = getPageInfoFromPayload(pPage);
-
-  int32_t code = tdListAppend(pBuf->freePgList, &ppi);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+static int32_t recycleBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* ppi, bool allowUsed) {
+  if (pBuf == NULL || ppi == NULL || ppi->recycled || (!allowUsed && ppi->used)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if ((pBuf->pFreePageHead == NULL) != (pBuf->pFreePageTail == NULL) ||
+      (pBuf->pFreePageHead != NULL && pBuf->pFreePageHead->pPrevFree != NULL) ||
+      (pBuf->pFreePageTail != NULL && pBuf->pFreePageTail->pNextFree != NULL) ||
+      ppi->pPrevFree != NULL || ppi->pNextFree != NULL) {
+    return TSDB_CODE_APP_ERROR;
+  }
+  if ((ppi->pData == NULL) != (ppi->pn == NULL) || (ppi->pData == NULL && (ppi->used || ppi->dirty))) {
+    return TSDB_CODE_APP_ERROR;
+  }
+  if (ppi->pn != NULL && *(SPageInfo**)ppi->pn->data != ppi) {
+    return TSDB_CODE_APP_ERROR;
   }
 
   ppi->used = false;
   ppi->dirty = false;
+  ppi->recycled = true;
 
-  // add this pageinfo into the free page info list
-  SListNode* pNode = tdListPopNode(pBuf->lruList, ppi->pn);
-  taosMemoryFreeClear(ppi->pData);
-  taosMemoryFreeClear(pNode);
-  ppi->pn = NULL;
+  if (ppi->pData != NULL) {
+    SListNode* pNode = tdListPopNode(pBuf->lruList, ppi->pn);
+    taosMemoryFreeClear(ppi->pData);
+    taosMemoryFreeClear(pNode);
+    ppi->pn = NULL;
+  }
+
+  if (pBuf->pFreePageTail == NULL) {
+    pBuf->pFreePageHead = ppi;
+    ppi->pPrevFree = NULL;
+  } else {
+    ppi->pPrevFree = pBuf->pFreePageTail;
+    pBuf->pFreePageTail->pNextFree = ppi;
+  }
+  pBuf->pFreePageTail = ppi;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {
+  if (pPage == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return recycleBufPageInfo(pBuf, getPageInfoFromPayload(pPage), true);
+}
+
+int32_t dBufRecyclePageById(SDiskbasedBuf* pBuf, int32_t pageId) {
+  if (pBuf == NULL || pageId < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SPageInfo** ppInfo = tSimpleHashGet(pBuf->all, &pageId, sizeof(pageId));
+  if (ppInfo == NULL || *ppInfo == NULL) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  return recycleBufPageInfo(pBuf, *ppInfo, false);
+}
+
+int32_t dBufRemovePageById(SDiskbasedBuf* pBuf, int32_t pageId) {
+  if (pBuf == NULL || pageId < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SPageInfo** ppInfo = tSimpleHashGet(pBuf->all, &pageId, sizeof(pageId));
+  if (ppInfo == NULL || *ppInfo == NULL) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  SPageInfo* pInfo = *ppInfo;
+  if (pInfo->used) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pInfo->pn != NULL && *(SPageInfo**)pInfo->pn->data != pInfo) {
+    return TSDB_CODE_APP_ERROR;
+  }
+  if (pInfo->recycled) {
+    if (pBuf->pFreePageHead == NULL || pBuf->pFreePageTail == NULL ||
+        pBuf->pFreePageHead->pPrevFree != NULL || pInfo->pPrevFree == pInfo ||
+        (pInfo->pPrevFree == NULL && pBuf->pFreePageHead != pInfo) ||
+        (pInfo->pPrevFree != NULL && pInfo->pPrevFree->pNextFree != pInfo) ||
+        (pInfo->pNextFree != NULL && pInfo->pNextFree->pPrevFree != pInfo)) {
+      return TSDB_CODE_APP_ERROR;
+    }
+  }
+  int32_t last = taosArrayGetSize(pBuf->pIdList) - 1;
+  if (pInfo->idListIndex < 0 || pInfo->idListIndex > last ||
+      taosArrayGetP(pBuf->pIdList, pInfo->idListIndex) != pInfo) {
+    return TSDB_CODE_APP_ERROR;
+  }
+  int32_t    code = tSimpleHashRemove(pBuf->all, &pageId, sizeof(pageId));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (pInfo->pn != NULL) {
+    SListNode* pNode = tdListPopNode(pBuf->lruList, pInfo->pn);
+    taosMemoryFreeClear(pInfo->pData);
+    taosMemoryFreeClear(pNode);
+    pInfo->pn = NULL;
+  } else if (pInfo->recycled) {
+    if (pInfo->pPrevFree == NULL) {
+      pBuf->pFreePageHead = pInfo->pNextFree;
+      if (pBuf->pFreePageHead != NULL) {
+        pBuf->pFreePageHead->pPrevFree = NULL;
+      }
+    } else {
+      pInfo->pPrevFree->pNextFree = pInfo->pNextFree;
+    }
+    if (pInfo->pNextFree != NULL) {
+      pInfo->pNextFree->pPrevFree = pInfo->pPrevFree;
+    }
+    if (pBuf->pFreePageTail == pInfo) {
+      pBuf->pFreePageTail = pInfo->pPrevFree;
+    }
+  }
+  if (pInfo->idListIndex != last) {
+    SPageInfo* pLast = taosArrayGetP(pBuf->pIdList, last);
+    memcpy(taosArrayGet(pBuf->pIdList, pInfo->idListIndex), &pLast, sizeof(pLast));
+    pLast->idListIndex = pInfo->idListIndex;
+  }
+  taosArrayPop(pBuf->pIdList);
+  pBuf->numOfPages -= 1;
+  pBuf->totalBufSize -= pBuf->pageSize;
+
+  // Return the disk extent only after the page has been removed from every live
+  // index. If insertion into the free-list fails, the extent is leaked safely
+  // rather than being reused while a stale page reference remains reachable.
+  if (pInfo->offset >= 0 && pInfo->length > 0 && pBuf->pFree != NULL) {
+    SFreeListItem extent = {.offset = pInfo->offset, .length = pInfo->length};
+    if (taosArrayPush(pBuf->pFree, &extent) == NULL) {
+      uError("failed to recycle disk extent, pageId:%d", pageId);
+      taosMemoryFree(pInfo);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  taosMemoryFree(pInfo);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -943,6 +1182,20 @@ int64_t dbgReadDiskbasedBufFile(SDiskbasedBuf* pBuf, char* out, int64_t cap) {
   }
   return taosReadFile(pBuf->pFile, out, size);
 }
+
+#if defined(BUILD_TEST)
+void dbgFailNextDiskbasedBufFlushWrite(SDiskbasedBuf* pBuf) {
+  if (pBuf != NULL) {
+    pBuf->dbgFailNextFlushWrite = true;
+  }
+}
+
+void dbgShortNextDiskbasedBufFlushWrite(SDiskbasedBuf* pBuf) {
+  if (pBuf != NULL) {
+    pBuf->dbgShortNextFlushWrite = true;
+  }
+}
+#endif
 
 SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf) { return pBuf->statis; }
 
@@ -999,7 +1252,8 @@ void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosArrayClear(pBuf->pIdList);
 
   tdListEmpty(pBuf->lruList);
-  tdListEmpty(pBuf->freePgList);
+  pBuf->pFreePageHead = NULL;
+  pBuf->pFreePageTail = NULL;
 
   taosArrayClear(pBuf->emptyDummyIdList);
   taosArrayClear(pBuf->pFree);

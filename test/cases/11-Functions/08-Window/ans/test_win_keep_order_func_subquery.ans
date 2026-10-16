@@ -944,16 +944,16 @@ taos> select max(current) from (select ts, current, voltage from keeporderdb.met
 
 taos> select unique(current) from keeporderdb.meters order by _wstart limit 2;
 
-DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658]
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query [0x80002658]
 taos> select unique(current) from keeporderdb.meters order by _wstart limit 2;
 
-DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658]
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query [0x80002658]
 taos> select unique(current) from keeporderdb.t1 order by _wstart limit 2;
 
-DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658]
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query [0x80002658]
 taos> select unique(current) from keeporderdb.t1 order by _wstart limit 2;
 
-DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658]
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query [0x80002658]
 taos> select unique(current) from keeporderdb.meters group by tbname order by _wstart limit 2;;
 
 DB error: Function 'unique' is not supported in group query [0x8000264F]
@@ -990,19 +990,19 @@ taos> select unique(current) from (select ts, current, voltage from keeporderdb.
 DB error: Function 'unique' is not supported in window query [0x8000264F]
 taos> select mode(current) from keeporderdb.meters order by _wstart limit 2;
 
-DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query [0x80002658] 
 taos> select mode(current) from keeporderdb.meters order by _wstart limit 2;
 
-DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query [0x80002658] 
 taos> select mode(current) from keeporderdb.t1 order by _wstart limit 2;
 
-DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query [0x80002658] 
 taos> select mode(current) from keeporderdb.t1 order by _wstart limit 2;
 
-DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query [0x80002658] 
 taos> select mode(current) from keeporderdb.meters group by tbname order by _wstart limit 2;;
 
-DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in a window query [0x80002658] 
 taos> select mode(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 100);
     mode(current)     |
 =======================

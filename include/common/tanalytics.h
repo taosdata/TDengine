@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -39,7 +41,9 @@ extern "C" {
 #define ANALY_ANOMALY_WINDOW_MIN_ROWS    10
 #define ANALY_IMPUTATION_INPUT_MAX_ROWS  8192
 #define ANALY_IMPUTATION_INPUT_MIN_ROWS  10
-#define ANALY_CORRELATION_INPUT_MAX_ROWS 10240
+#define ANALY_IMPUTATION_OUTPUT_MAX_ROWS 16384
+#define ANALY_GENERIC_INPUT_MAX_ROWS     10240
+#define ANALY_GENERIC_OUTPUT_MAX_ROWS    20480
 #define ANALY_DEFAULT_TIMEOUT            60  // 60sec
 #define ANALY_MAX_TIMEOUT                1200
 #define ANALY_MAX_IMPUT_ROWS             2048

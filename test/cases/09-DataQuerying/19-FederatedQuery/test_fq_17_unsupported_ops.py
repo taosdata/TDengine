@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_17_unsupported_ops.py
 
@@ -27,8 +42,11 @@ methods substitute the real names at runtime.
 
   _QUERY_CASES — SELECT / query-like statements that must fail.
   _STMT_CASES  — Non-query statements (DML / DDL) that must fail.
+  _JOIN_CASES  — Same-source and cross-source joins that must succeed.
 
-Each entry:  (case_id, sql_template, expected_errno)
+Entry format:  ``_QUERY_CASES`` / ``_STMT_CASES`` use
+``(case_id, sql_template, expected_errno)``; ``_JOIN_CASES`` uses
+``(case_id, sql_template, expected_rows)``.
 
 Minimal data setup
 ------------------
@@ -38,8 +56,8 @@ A dedicated database is created in each external system with a single
     (not EXT_TABLE_NOT_EXIST).
   * Write / stream / topic tests just need a live connection — the write
     guard fires before any table lookup.
-  * Parser-level errors (non-ts JOIN, TAGS, correlated subquery) need no
-    real data at all.
+  * Parser-level TAGS errors and planner-level correlated-subquery errors need
+    no real data at all.
 
 Catalog: - Query:FederatedLocal
 Since: v3.4.0.0
@@ -53,7 +71,6 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     TSDB_CODE_PAR_SYNTAX_ERROR,
-    TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
     TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     TSDB_CODE_EXT_WRITE_DENIED,
@@ -94,6 +111,13 @@ _QUERY_CASES = [
     # WHERE TBNAME on InfluxDB
     ("uq-03-i", "SELECT COUNT(*) FROM {I}.orders WHERE tbname = 'orders'",
      TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+    # SELECT tbname / GROUP BY tbname / WHERE tbname on SQL Server
+    ("uq-01-s", "SELECT tbname FROM {S}.orders ORDER BY ts",
+     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+    ("uq-02-s", "SELECT tbname, COUNT(*) FROM {S}.orders GROUP BY tbname",
+     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+    ("uq-03-s", "SELECT COUNT(*) FROM {S}.orders WHERE tbname = 'orders'",
+     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
 
     # -- TAGS keyword on relational sources (FQ-LOCAL-s03) ------------------
     # TAGS is a TDengine super-table concept; MySQL/PG/InfluxDB have no
@@ -104,22 +128,8 @@ _QUERY_CASES = [
      TSDB_CODE_PAR_SYNTAX_ERROR),
     ("uq-04-i", "SELECT tags FROM {I}.orders",
      TSDB_CODE_PAR_SYNTAX_ERROR),
-
-    # -- Non-timestamp JOIN (parser-level, no table lookup needed) ----------
-    # TDengine JOIN must use timestamp-equality or ASOF/WINDOW semantics.
-    # Any JOIN with a non-ts ON-condition is rejected before table lookup.
-    ("uq-05-m", "SELECT a.ts FROM {M}.orders a JOIN {M}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
-    ("uq-05-p", "SELECT a.ts FROM {P}.orders a JOIN {P}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
-    ("uq-05-i", "SELECT a.time FROM {I}.orders a JOIN {I}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
-    # Cross-source non-ts JOIN (MySQL ↔ PostgreSQL)
-    ("uq-06-mp", "SELECT a.ts FROM {M}.orders a JOIN {P}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
-    # Cross-source non-ts JOIN (MySQL ↔ InfluxDB)
-    ("uq-06-mi", "SELECT a.ts FROM {M}.orders a JOIN {I}.orders b ON a.id = b.id",
-     TSDB_CODE_PAR_NOT_SUPPORT_JOIN),
+    ("uq-04-s", "SELECT tags FROM {S}.orders",
+     TSDB_CODE_PAR_SYNTAX_ERROR),
 
     # -- Correlated subquery (planner-level, no table lookup needed) --------
     # EXISTS correlated subquery not supported on external sources
@@ -136,6 +146,28 @@ _QUERY_CASES = [
      "SELECT id FROM {M}.orders o WHERE NOT EXISTS "
      "(SELECT 1 FROM {M}.orders b WHERE b.id = o.id)",
      TSDB_CODE_PAR_INVALID_EXPR_SUBQ),
+    ("uq-07-s",
+     "SELECT id FROM {S}.orders o WHERE EXISTS "
+     "(SELECT 1 FROM {S}.orders b WHERE b.id = o.id)",
+     TSDB_CODE_PAR_INVALID_EXPR_SUBQ),
+    ("uq-08-s",
+     "SELECT id FROM {S}.orders o WHERE NOT EXISTS "
+     "(SELECT 1 FROM {S}.orders b WHERE b.id = o.id)",
+     TSDB_CODE_PAR_INVALID_EXPR_SUBQ),
+]
+
+# Ordinary-column equi-joins are supported for external sources. Keep these
+# separate from _QUERY_CASES because that list is reserved for error cases.
+_JOIN_CASES = [
+    ("uq-05-m", "SELECT a.ts FROM {M}.orders a JOIN {M}.orders b ON a.id = b.id", 3),
+    ("uq-05-p", "SELECT a.ts FROM {P}.orders a JOIN {P}.orders b ON a.id = b.id", 3),
+    ("uq-05-i", "SELECT a.time FROM {I}.orders a JOIN {I}.orders b ON a.id = b.id", 3),
+    ("uq-05-s", "SELECT a.ts FROM {S}.orders a JOIN {S}.orders b ON a.id = b.id", 3),
+    ("uq-06-mp", "SELECT a.ts FROM {M}.orders a JOIN {P}.orders b ON a.id = b.id", 3),
+    ("uq-06-mi", "SELECT a.ts FROM {M}.orders a JOIN {I}.orders b ON a.id = b.id", 3),
+    ("uq-06-ms", "SELECT a.ts FROM {M}.orders a JOIN {S}.orders b ON a.id = b.id", 3),
+    ("uq-06-ps", "SELECT a.ts FROM {P}.orders a JOIN {S}.orders b ON a.id = b.id", 3),
+    ("uq-06-is", "SELECT a.time FROM {I}.orders a JOIN {S}.orders b ON a.id = b.id", 3),
 ]
 
 # ---------------------------------------------------------------------------
@@ -150,12 +182,16 @@ _STMT_CASES = [
      TSDB_CODE_EXT_WRITE_DENIED),
     ("us-01-i", "INSERT INTO {I}.orders VALUES (1704067200000, 1, 100.0)",
      TSDB_CODE_EXT_WRITE_DENIED),
+    ("us-01-s", "INSERT INTO {S}.orders VALUES (1704067200000, 1, 100.0)",
+     TSDB_CODE_EXT_WRITE_DENIED),
     # Overwrite-style INSERT (same-timestamp "update" semantics) also denied
     ("us-02-m", "INSERT INTO {M}.orders VALUES (1704067200000, 99, 999.0)",
      TSDB_CODE_EXT_WRITE_DENIED),
     ("us-02-p", "INSERT INTO {P}.orders VALUES (1704067200000, 99, 999.0)",
      TSDB_CODE_EXT_WRITE_DENIED),
     ("us-02-i", "INSERT INTO {I}.orders VALUES (1704067200000, 99, 999.0)",
+     TSDB_CODE_EXT_WRITE_DENIED),
+    ("us-02-s", "INSERT INTO {S}.orders VALUES (1704067200000, 99, 999.0)",
      TSDB_CODE_EXT_WRITE_DENIED),
 
     # -- DELETE denied (FQ-LOCAL-026) ---------------------------------------
@@ -165,6 +201,8 @@ _STMT_CASES = [
      TSDB_CODE_EXT_WRITE_DENIED),
     ("us-03-i", "DELETE FROM {I}.orders WHERE id = 1",
      TSDB_CODE_EXT_WRITE_DENIED),
+    ("us-03-s", "DELETE FROM {S}.orders WHERE id = 1",
+     TSDB_CODE_EXT_WRITE_DENIED),
 
     # -- CREATE TABLE denied (FQ-LOCAL-027) ---------------------------------
     # DDL write attempt on external namespace → same write-denial code
@@ -173,6 +211,8 @@ _STMT_CASES = [
     ("us-04-p", "CREATE TABLE {P}.new_table (ts TIMESTAMP, v INT)",
      TSDB_CODE_EXT_WRITE_DENIED),
     ("us-04-i", "CREATE TABLE {I}.new_table (ts TIMESTAMP, v INT)",
+     TSDB_CODE_EXT_WRITE_DENIED),
+    ("us-04-s", "CREATE TABLE {S}.new_table (ts TIMESTAMP, v INT)",
      TSDB_CODE_EXT_WRITE_DENIED),
 
     # -- CREATE STREAM denied (FQ-LOCAL-022) --------------------------------
@@ -188,6 +228,10 @@ _STMT_CASES = [
      "CREATE STREAM fq17_s05i TRIGGER AT_ONCE INTO fq17_o05i "
      "AS SELECT COUNT(*) FROM {I}.orders INTERVAL(1m)",
      TSDB_CODE_EXT_STREAM_NOT_SUPPORTED),
+    ("us-05-s",
+     "CREATE STREAM fq17_s05s TRIGGER AT_ONCE INTO fq17_o05s "
+     "AS SELECT COUNT(*) FROM {S}.orders INTERVAL(1m)",
+     TSDB_CODE_EXT_STREAM_NOT_SUPPORTED),
 
     # -- CREATE TOPIC denied (FQ-LOCAL-023) ---------------------------------
     ("us-06-m", "CREATE TOPIC fq17_t06m AS SELECT * FROM {M}.orders",
@@ -195,6 +239,8 @@ _STMT_CASES = [
     ("us-06-p", "CREATE TOPIC fq17_t06p AS SELECT * FROM {P}.orders",
      TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED),
     ("us-06-i", "CREATE TOPIC fq17_t06i AS SELECT * FROM {I}.orders",
+     TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED),
+    ("us-06-s", "CREATE TOPIC fq17_t06s AS SELECT * FROM {S}.orders",
      TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED),
 
     # -- Reserved source type (FQ-LOCAL-032) --------------------------------
@@ -217,9 +263,11 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
     _SRC_M         = "fq17_src_m"
     _SRC_P         = "fq17_src_p"
     _SRC_I         = "fq17_src_i"
+    _SRC_S         = "fq17_src_s"
     _MYSQL_DB      = "fq17_m"
     _PG_DB         = "fq17_p"
     _INFLUX_BUCKET = "fq17_i"
+    _SQLSERVER_DB  = "fq17_s"
 
     _class_setup_done = False
     _sql_retry_patched = False
@@ -326,7 +374,7 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def teardown_class(self):
-        self._cleanup_src(self._SRC_M, self._SRC_P, self._SRC_I)
+        self._cleanup_src(self._SRC_M, self._SRC_P, self._SRC_I, self._SRC_S)
         try:
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), self._MYSQL_DB)
         except Exception:
@@ -339,13 +387,17 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
             ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), self._INFLUX_BUCKET)
         except Exception:
             pass
+        try:
+            ExtSrcEnv.sqlserver_drop_db(self._SQLSERVER_DB)
+        except Exception:
+            pass
         # Clean up any stray stream/topic objects left by failed assertions
-        for s in ["fq17_s05m", "fq17_s05p", "fq17_s05i"]:
+        for s in ["fq17_s05m", "fq17_s05p", "fq17_s05i", "fq17_s05s"]:
             try:
                 tdSql.execute(f"DROP STREAM IF EXISTS {s}")
             except Exception:
                 pass
-        for t in ["fq17_t06m", "fq17_t06p", "fq17_t06i"]:
+        for t in ["fq17_t06m", "fq17_t06p", "fq17_t06i", "fq17_t06s"]:
             try:
                 tdSql.execute(f"DROP TOPIC IF EXISTS {t}")
             except Exception:
@@ -411,6 +463,21 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         ])
         self._mk_influx_real(i_src, database=i_bkt)
 
+        # -- SQL Server ------------------------------------------------------
+        s_src = self._SRC_S
+        s_db  = self._SQLSERVER_DB
+        self._cleanup_src(s_src)
+        ExtSrcEnv.sqlserver_create_db(s_db)
+        ExtSrcEnv.sqlserver_exec(s_db, [
+            "IF OBJECT_ID('dbo.orders') IS NOT NULL DROP TABLE dbo.orders",
+            "CREATE TABLE dbo.orders (ts datetime2(3) NOT NULL PRIMARY KEY, id INT, amount FLOAT)",
+            "INSERT INTO dbo.orders VALUES "
+            "('2024-01-01 00:00:00.000', 1, 100.0),"
+            "('2024-01-01 00:01:00.000', 2, 200.0),"
+            "('2024-01-01 00:02:00.000', 3, 300.0)",
+        ])
+        self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
+
         TestFq17UnsupportedOps._class_setup_done = True
 
     # -------------------------------------------------------------------
@@ -421,7 +488,8 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         return (sql_template
                 .replace("{M}", self._SRC_M)
                 .replace("{P}", self._SRC_P)
-                .replace("{I}", self._SRC_I))
+                .replace("{I}", self._SRC_I)
+                .replace("{S}", self._SRC_S))
 
     # -------------------------------------------------------------------
     # Test 1: unsupported query statements
@@ -435,13 +503,34 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         checked via tdSql.error().
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         """
         for case_id, sql_tpl, errno in _QUERY_CASES:
             sql = self._expand(sql_tpl)
             tdLog.debug(f"[{case_id}] {sql}")
             tdSql.error(sql, expectedErrno=errno)
+
+    def test_fq_ordinary_column_joins(self):
+        """Ordinary-column equi-joins succeed for same-source and cross-source FQ.
+
+        Expand each same-source and cross-source ordinary-column join case and verify
+        that the returned row count matches its expected value.
+
+        Catalog:
+            - Query:FederatedLocal
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+        """
+        for case_id, sql_tpl, expected_rows in _JOIN_CASES:
+            sql = self._expand(sql_tpl)
+            tdLog.debug(f"[{case_id}] {sql}")
+            tdSql.query(sql)
+            tdSql.checkRows(expected_rows)
 
     # -------------------------------------------------------------------
     # Test 2: unsupported non-query statements
@@ -455,7 +544,9 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         checked via tdSql.error().
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         """
         for case_id, sql_tpl, errno in _STMT_CASES:

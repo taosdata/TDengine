@@ -151,7 +151,7 @@ taosx run \
 taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 ```
 
-5. 通过 --transform 或 -T 配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。暂无法通过 taosExplorer 进行设置。配置说明如下：
+5. 通过 `--transform` 或 `-T` 配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。创建或编辑支持的 taosExplorer 数据写入任务时，也可通过[转换参数](../../08-data-ingest-and-delivery/01-no-code-ingestion/02-migrate.md#转换参数)进行配置。命令行配置说明如下：
 
   ```shell
   1.AddTag，为表添加 TAG。设置示例：-T add-tag:<tag1>=<value1>。
@@ -442,6 +442,12 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 
 :::
 
+### 可选构建特性
+
+为减小默认二进制文件体积，默认构建的 taosX 不包含 Swagger UI 和 OpenTelemetry。默认 HTTP 服务仍在 `/api-doc/openapi.json` 提供 OpenAPI 文档。
+
+使用 `--features swagger-ui` 构建以在 `/swagger-ui/` 提供 Swagger UI。使用 `--features otel` 构建，并通过 `--otel` 或 `ENABLE_OTEL=true` 启动 taosX，以启用 OpenTelemetry 导出。
+
 ### 配置
 
 `taosX` 支持通过配置文件进行配置。在 Linux 上，默认配置文件路径是 `/etc/taos/taosx.toml`，在 Windows 上，默认配置文件路径是 `C:\\TDengine\\cfg\\taosx.toml`，包含以下配置项：
@@ -459,6 +465,7 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 - `serve.ssl_ca`：是 SSL/TLS 根证书。
 - `serve.request_timeout`：全局接口 API 超时时间。
 - `serve.grpc`：是 `taosX` gRPC 服务监听地址，默认值为 `0.0.0.0:6055`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
+- `serve.xnode_dsn_private_key_file`：XNODE DSN 保护使用的共享私钥文件（PKCS#8 PEM 格式，RSA-2048）的本地路径，用于解密 `xnoded` 下发的运行时 DSN 密文。默认为空，表示未配置私钥；修改后须重启服务生效，详见 [安全加固指南 · XNODE DSN 保护](../../11-security-guide/08-security-hardening.md#xnode-dsn-protection)。
 - `rest_api_threads`：rest api 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
 - `grpc_threads`：grpc 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
 - `scheduler_threads`：scheduler 任务服务的运行时线程数。默认线程数为`当前服务器内核*2`。
@@ -527,6 +534,14 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 
 # number of threads used for scheduler service, default to 0 (means cores * 2)
 #scheduler_threads = 0
+
+# Local path of the shared RSA-2048 private key file (PKCS#8 PEM)
+# used to decrypt XNODE DSN runtime envelopes delivered from xnoded.
+# Empty (default) means no private key configured; only plaintext DSN values
+# produced while protection is disabled can be processed in that case.
+# Not re-loadable at runtime; restart taosX after changing this value or
+# replacing the key file.
+#xnode_dsn_private_key_file = "/etc/taos/xnode-dsn-private.pem"
 
 [monitor]
 # FQDN of taosKeeper service, no default value
@@ -624,6 +639,39 @@ Linux 下 `journalctl` 查看日志的命令如下：
 ```bash
 journalctl -u taosx [-f]
 ```
+
+3. 查看归档与缓存文件
+
+数据接入任务中，处理策略为“归档”的异常数据会写入归档文件；目标库连接异常且处理策略为“缓存”的数据会写入缓存文件，待目标库恢复后自动重写入库。两类文件默认都位于 `${data_dir}/tasks/:id/` 目录下。使用 `taosx archive` 子命令可以直接查看这些文件的内容，无需依赖 DuckDB、pandas 等外部工具：
+
+```shell
+taosx archive [OPTIONS] <FILES>...
+```
+
+- `<FILES>...`：要查看的归档/缓存文件，支持一次传入多个。
+- `-o, --output <DIR>`：将文件中每一帧数据拆分为独立的标准 Parquet 文件，输出到指定目录；有多个输入文件时，每个文件输出到独立的子目录。需要使用外部工具做 SQL 聚合分析时可使用该选项。
+- `--limit <N>`：每个文件打印前 N 行样本，默认为 20；0 表示只打印摘要。
+
+默认输出每个文件的摘要信息：文件格式版本、帧数、总行数、schema 数量、按失败原因（`_taosx_error_` 列）聚合的行数统计 top 20（缓存文件无此列时跳过该项），以及前 N 行样本（文件包含多个 schema 时按 schema 分组打印）。
+
+使用举例：
+
+```shell
+# 查看归档文件摘要与前 20 行样本
+taosx archive /var/lib/taos/taosx/tasks/123/archive/xxx
+
+# 只打印摘要
+taosx archive --limit 0 /path/to/archive-file
+
+# 拆分为标准 Parquet 文件，供外部工具分析
+taosx archive -o /tmp/frames /path/to/archive-file
+```
+
+注意事项：
+
+- 归档/缓存文件当前采用带版本号的帧容器格式（v1），旧版本生成的文件为 legacy 格式，两种格式均可正常读取。
+- 文件损坏时，命令会自动尝试打捞其中可读的数据并打印告警；无法打捞到任何完整数据时以非零退出码报错。多个输入文件中任一文件最终失败，进程即以非零退出码退出。
+- 归档文件按“每个文件中每种失败原因仅保留首个批次”去重，不包含全部失败行；失败行总量以任务监控指标为准。
 
 ### 从旧版本升级
 
@@ -781,7 +829,7 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 完成插件开发后，编译环境需要和目标运行环境兼容，将编译好的插件动态库复制到插件目录下，taosX 启动后，系统首次使用插件时初始化加载插件。可以在 explorer 的 kafka 或者 mqtt 数据接入配置页面中，检查是否加载成功。如下图，如果加载成功，则在解析器选择列表中展示出来。
 
-![插件示例](../../assets/taosx-01.png)
+![插件示例](../../assets/taosx-01.webp)
 
 插件目录在 `taosx.toml` 配置文件中复用 plugins 配置，追加`/parsers`作为插件安装路径，默认值在 UNIX 环境下为 `/usr/local/taos/plugins/parsers`，在 Windows 下为 `C:\TDengine\plugins\parsers`。
 
@@ -789,7 +837,7 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 :::warning
 
-本节描述的当前插件 ABI 约定从 `v3.4.1.15` 开始支持，不支持更早版本的 taosExplorer 和 taosX。若需要为旧版本开发或维护插件，请使用 [TDengine 3.4.0 taosX 数据解析插件文档](https://docs.taosdata.com/3.4.0/reference/components/taosx/#taosx-%E6%95%B0%E6%8D%AE%E8%A7%A3%E6%9E%90%E6%8F%92%E4%BB%B6) 中的 ABI 约定。
+本节描述的当前插件 ABI 约定从 `v3.4.1.15` 开始支持，不支持更早版本的 taosExplorer 和 taosX。若需要为旧版本开发或维护插件，请使用 [TDengine 3.4.0 taosX 数据解析插件文档](#legacy-parser-abi) 中的 ABI 约定。
 
 :::
 
@@ -891,6 +939,87 @@ ParserMutateStatus parser_mutate(
 - 出现其他错误时返回 `PARSER_MUTATE_ERROR`。
 
 #### 5. 释放解析器
+
+释放解析器对象内存。
+
+**函数签名**： void parser_free(void* parser);
+
+void* parser：parser_new 生成的对象指针。
+
+### 旧版解析插件 ABI 归档 {#legacy-parser-abi}
+
+:::warning
+
+以下内容归档自 TDengine v3.4.0 文档，仅用于维护 v3.4.1.15 之前的 taosX/taosExplorer 插件，不适用于上文当前 ABI。保留历史 API 描述；新插件请使用上文当前 ABI。
+
+:::
+
+#### 1. 获取插件名称 {#legacy-parser-api-1}
+
+获取插件名，用于前端显示。
+
+**函数签名**：const char* parser_name()
+
+**返回值**：字符串。
+
+#### 2. 获取插件版本 {#legacy-parser-api-2}
+
+插件版本，方便问题定位。
+
+**函数签名**：const char* parser_version()
+
+**返回值**：字符串。
+
+#### 3. 配置解析器 {#legacy-parser-api-3}
+
+将一个字符串参数解析为一个配置对象，仅插件内部使用。
+
+**函数签名**：parser_resp_t parser_new(char* ctx, uint32_t len);
+
+char* ctx：用户自定义配置字符串。
+
+uint32_t len：该字符串的二进制长度（不含 `\0`）。
+
+**返回值**：
+
+``` c
+struct parser_resp_t {
+  int e;    // 0 if success.
+  void* p;  // Success if contains.
+}
+```
+
+当创建对象失败时，e 不为 0。
+
+当创建成功时，e = 0，p 为解析器对象。
+
+#### 4. 解析数据 {#legacy-parser-api-4}
+
+**函数签名**：
+
+对输入 payload 进行解析，返回结果为 JSON 格式 [u8] 。返回的 JSON 将使用默认的 JSON 解析器进行完全解码（展开根数组和所有的对象）。
+
+``` c
+const char* parser_mutate(
+  void* parser,
+  const uint8_t* in_ptr, uint32_t in_len,
+  uint8_t** out_ptr, uint32_t* out_len
+);
+```
+
+`void* parser`：parser_new 生成的对象指针;
+
+`const uint8_t* in_ptr`：输入 Payload 的指针;
+
+`uint32_t in_len`：输入 Payload 的 bytes 长度（不含 `\0`）;
+
+`uint8_t** out_ptr`：用于接收输出 JSON 数据地址的指针。调用方传入指针变量的地址，插件通过 `*out_ptr` 写回数据地址；当 `*out_ptr` 为 NULL 时，表示没有输出。
+
+`uint32_t * out_len`：输出 JSON 字符串长度。
+
+**返回值**：当调用成功时，返回值为 NULL。
+
+#### 5. 释放解析器 {#legacy-parser-api-5}
 
 释放解析器对象内存。
 

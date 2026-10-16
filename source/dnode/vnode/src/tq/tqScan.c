@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -401,7 +403,7 @@ end:
 // The cache (STxnCacheSlot) owns the SArray and its SWalContCopy elements;
 // this handle must NOT free or destroy them.  Pass pMsgs=NULL to clear.
 static void tqHandleResetTxnPending(STqHandle* pHandle, SArray* pMsgs, int64_t nextFetchVer) {
-  // Drop the old borrow — do NOT free contents or destroy the array.
+  // Drop the old borrow  -  do NOT free contents or destroy the array.
   pHandle->pTxnPendingMsgs = pMsgs;
   pHandle->txnPendingIdx = 0;
   pHandle->txnPendingFetchVer = nextFetchVer;
@@ -451,12 +453,11 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
           }
 
           pHead = &(pHandle->pWalReader->pHead->head);
-
           // txn-atomic CDC: skip individual DDL entries that belong to a transaction.
-          // They are part of a BEGIN…COMMIT block and will be delivered atomically by
+          // They are part of a BEGIN...COMMIT block and will be delivered atomically by
           // STxnWalManager when TXN_COMMIT is processed below.  Delivering them here
           // would cause double-delivery (PRE_CREATE then NORMAL) to the consumer.
-          // TXN_COMMIT and TXN_ROLLBACK are not skipped — they trigger the atomic delivery
+          // TXN_COMMIT and TXN_ROLLBACK are not skipped  -  they trigger the atomic delivery
           // path (COMMIT) or are skipped cleanly (ROLLBACK).
           if (WAL_IS_TXN_MSG(pHead) &&
               pHead->msgType != TDMT_VND_TXN_COMMIT &&
@@ -480,7 +481,7 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
               }
               // TXN_COMMIT: fetch cached message sequence from manager.
               // Cache is fully populated at startup (eager load) and by the live producer.
-              // If a slot is not ready, hold the offset and retry the next poll — the producer
+              // If a slot is not ready, hold the offset and retry the next poll  -  the producer
               // will write the slot before this consumer can advance past this TXN_COMMIT.
               // After TXN_NOT_READY_MAX_RETRIES consecutive missed polls, treat as lost/corrupted.
 #define TXN_NOT_READY_MAX_RETRIES 10
@@ -512,7 +513,7 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
                 goto END;
               }
               if (r == 0 || pMsgs == NULL || taosArrayGetSize(pMsgs) == 0) {
-                // rolledBack or empty txn — skip and reset retry counter
+                // rolledBack or empty txn  -  skip and reset retry counter
                 pHandle->txnNotReadyRetries = 0;
                 offset++;
                 code = -1;
@@ -532,7 +533,6 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
             code = -1;
             continue;
           }
-
           if (tqProcessMetaForStbSub(pTq, pHandle, pHead)) {
             code = 0;
             goto END;
@@ -846,7 +846,8 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
       SColumnInfoData colInfo =
           createColumnInfoData(pSrc->pSchema[i].type, pSrc->pSchema[i].bytes, pSrc->pSchema[i].colId);
       if (extSrc != NULL) {
-        decimalFromTypeMod(extSrc[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
+        extractTypeFromTypeMod(pSrc->pSchema[i].type, extSrc[i].typeMod, &colInfo.info.precision, &colInfo.info.scale,
+                               NULL);
       }
       code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != 0) {
@@ -903,12 +904,34 @@ static int32_t tqDoSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SC
 
   if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
     if (COL_VAL_IS_VALUE(pColVal)) {
-      char val[65535 + 2] = {0};
-      if (pColVal->value.pData != NULL) {
-        (void)memcpy(varDataVal(val), pColVal->value.pData, pColVal->value.nData);
+      if (pColumnInfoData->info.bytes < (int32_t)VARSTR_HEADER_SIZE) {
+        tqError("column:%d has invalid schema bytes:%d for variable type:%d", pColumnInfoData->info.colId,
+                pColumnInfoData->info.bytes, pColumnInfoData->info.type);
+        return TSDB_CODE_INVALID_PARA;
       }
-      varDataSetLen(val, pColVal->value.nData);
-      code = colDataSetVal(pColumnInfoData, rowIndex, val, false);
+
+      uint32_t maxDataLen = (uint32_t)(pColumnInfoData->info.bytes - (int32_t)VARSTR_HEADER_SIZE);
+      if (pColVal->value.nData > maxDataLen) {
+        tqWarn("column:%d value is rejected because data length:%" PRIu32
+               " exceeds schema payload length:%" PRIu32 ", type:%d",
+               pColumnInfoData->info.colId, pColVal->value.nData, maxDataLen, pColumnInfoData->info.type);
+        return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+      }
+
+      const char* data = (const char*)pColVal->value.pData;
+      if (data == NULL && pColVal->value.nData != 0) {
+        tqError("column:%d has null data with nonzero length:%" PRIu32 ", type:%d",
+                pColumnInfoData->info.colId, pColVal->value.nData, pColumnInfoData->info.type);
+        return TSDB_CODE_INVALID_PARA;
+      }
+
+      if (pColumnInfoData->varmeta.offset[rowIndex] > 0) {
+        tqDebug("column:%d row:%d reset stale var data offset:%d", pColumnInfoData->info.colId, rowIndex,
+                pColumnInfoData->varmeta.offset[rowIndex]);
+      }
+      pColumnInfoData->varmeta.offset[rowIndex] = -1;
+      code = varColSetVarData(pColumnInfoData, rowIndex, data == NULL ? "" : data,
+                              (int32_t)pColVal->value.nData, false);
     } else {
       colDataSetNULL(pColumnInfoData, rowIndex);
     }
@@ -1032,13 +1055,15 @@ static int32_t tqProcessSubmitCol(SArray*         pCols,
   return code;
 }
 
-static int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData) {
+static int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData, bool* pSchemaChanged) {
   int32_t vgId = pReader->pWalReader->pWal->cfg.vgId;
   int32_t sversion = pSubmitTbData->sver;
   int64_t suid = pSubmitTbData->suid;
   int64_t uid = pSubmitTbData->uid;
+  *pSchemaChanged = false;
   if ((suid != 0 && pReader->cachedSchemaSuid != suid) || (suid == 0 && pReader->cachedSchemaUid != uid) ||
       (pReader->cachedSchemaVer != sversion)) {
+    *pSchemaChanged = true;
     tDeleteSchemaWrapper(pReader->pSchemaWrapper);
     taosMemoryFreeClear(pReader->extSchema);
     taosMemoryFreeClear(pReader->pTSchema);
@@ -1061,6 +1086,62 @@ static int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData) {
   return TSDB_CODE_SUCCESS;
 }
 
+// The byte width of the output block columns comes from the schema that was known when the
+// subscription was created, so a schema change afterwards (e.g. another varchar length) has to be
+// propagated to the projected columns before the rows of this submit are written into the block.
+// Only the projected columns are visited (the colId -> slot mapping built by buildCol2SlotId()),
+// instead of walking every column of the schema: for a wide table with a narrow projection the
+// latter issued one hash lookup per schema column for every submitted data block, which is a
+// reachable degradation for sparse column-format consumption (4096 columns, ts+c1 projected).
+// The refresh runs once per detected schema version change in tqRetrieveCols(), before the block
+// grows; schema changes are rare, so it is effectively free.
+static int32_t tqSyncProjectedColBytes(STqReader* pReader, const SSubmitTbData* pSubmitTbData,
+                                       SSDataBlock* pBlock, SHashObj* pCol2SlotId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t line = 0;
+
+  if (pReader == NULL || pReader->pTSchema == NULL || pSubmitTbData == NULL || pBlock == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  void* pSlotIter = NULL;
+  while ((pSlotIter = taosHashIterate(pCol2SlotId, pSlotIter)) != NULL) {
+    const col_id_t* pColId = (const col_id_t*)taosHashGetKey(pSlotIter, NULL);
+    if (pColId == NULL) {
+      continue;
+    }
+
+    const STColumn* pSchemaCol = tTSchemaSearchColumn(pReader->pTSchema, *pColId);
+    if (pSchemaCol == NULL) {  // projected column is not part of the current schema
+      continue;
+    }
+
+    int16_t          slotId   = *(int16_t*)pSlotIter;
+    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, slotId);
+    if (pColData == NULL) {
+      code = (terrno != TSDB_CODE_SUCCESS) ? terrno : TSDB_CODE_TMQ_INVALID_MSG;
+      line = __LINE__;
+      break;  // the iteration lock is released right below
+    }
+
+    if (pColData->info.bytes != pSchemaCol->bytes) {
+      tqDebug("uid:%" PRId64 " schema version:%d column:%d slot:%d update block bytes:%d to:%d",
+              pSubmitTbData->uid, pSubmitTbData->sver, *pColId, slotId, pColData->info.bytes, pSchemaCol->bytes);
+      if (pBlock->info.rowSize != 0) {
+        pBlock->info.rowSize += pSchemaCol->bytes - pColData->info.bytes;
+      }
+      pColData->info.bytes = pSchemaCol->bytes;
+    }
+  }
+  // the current entry stays locked until the iteration is cancelled
+  taosHashCancelIterate(pCol2SlotId, pSlotIter);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("%s failed at line:%d, uid:%" PRId64 ", msg:%s", __func__, line, pSubmitTbData->uid, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t tqRetrieveCols(STqReader* pReader, SSDataBlock* pBlock, SHashObj* pCol2SlotId) {
   if (pReader == NULL || pBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -1081,22 +1162,32 @@ static int32_t tqRetrieveCols(STqReader* pReader, SSDataBlock* pBlock, SHashObj*
     numOfRows = taosArrayGetSize(pSubmitTbData->aRowP);
   }
 
-  code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + numOfRows);
+  bool schemaChanged = false;
+  code = tqCheckSchema(pReader, pSubmitTbData, &schemaChanged);
   TSDB_CHECK_CODE(code, line, END);
 
-  code = tqCheckSchema(pReader, pSubmitTbData);
+  // A schema version change is rare, so the projected column widths are refreshed exactly once,
+  // before blockDataEnsureCapacity() sizes the block. This keeps info.bytes/rowSize consistent with
+  // the current schema without comparing the projection with the schema for every submitted data
+  // block (in practice only varchar widths change).
+  if (schemaChanged) {
+    code = tqSyncProjectedColBytes(pReader, pSubmitTbData, pBlock, pCol2SlotId);
+    TSDB_CHECK_CODE(code, line, END);
+  }
+
+  code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + numOfRows);
   TSDB_CHECK_CODE(code, line, END);
 
   // convert and scan one block
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
     SArray* pCols = pSubmitTbData->aCol;
     code = tqProcessSubmitCol(pCols, pBlock, pCol2SlotId, pSubmitTbData->pBlobSet);
-    TSDB_CHECK_CODE(code, line, END);
   } else {
-    SArray*         pRows = pSubmitTbData->aRowP;
+    SArray* pRows = pSubmitTbData->aRowP;
     code = tqProcessSubmitRow(pRows, pBlock, pCol2SlotId, pReader, pSubmitTbData->pBlobSet);
-    TSDB_CHECK_CODE(code, line, END);
   }
+  TSDB_CHECK_CODE(code, line, END);
+
   pBlock->info.rows += numOfRows;
 END:
   if (code != 0) {
@@ -2049,7 +2140,7 @@ static bool tqFilterForStbSub(STQ* pTq, STqHandle* pHandle, SSubmitTbData* pSubm
   STqExecHandle* pExec = &pHandle->execHandle;
   STqReader* pReader = pExec->pTqReader;
   if (taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t)) == NULL) {
-    tqInfo("iterator submit block in hash continue for stb sub, progress:%d/%d, total queried tables:%d, uid:%" PRId64,
+    tqDebug("iterator submit block in hash continue for stb sub, progress:%d/%d, total queried tables:%d, uid:%" PRId64,
             pReader->nextBlk, (int32_t)taosArrayGetSize(pReader->submit.aSubmitTbData), (int32_t)taosHashGetSize(pReader->tbIdHash), pSubmitTbData->uid);
     ret = true;
   }
@@ -2082,7 +2173,17 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
   TSDB_CHECK_NULL(pSchemas, code, lino, END, terrno);
   
   code = tqRetrieveTaosxBlock(pReader, pRsp, pBlocks, pSchemas, pSubmitTbData, rawList, pHandle->fetchMeta);
-  TSDB_CHECK_CODE(code, lino, END);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("consumer:0x%" PRIx64 " vgId:%d failed to retrieve taosx block, QID:0x%" PRIx64
+            ", wal version:%" PRId64 ", block:%d/%d, uid:%" PRId64 ", suid:%" PRId64
+            ", schema version:%d, flags:0x%x, fetch meta:%d, raw data:%d, code:0x%x(%s)",
+            pHandle->consumerId, pTq->pVnode->config.vgId, pRequest->reqId, version, pReader->nextBlk,
+            (int32_t)taosArrayGetSize(pReader->submit.aSubmitTbData), pSubmitTbData->uid, pSubmitTbData->suid,
+            pSubmitTbData->sver, pSubmitTbData->flags, pHandle->fetchMeta, pRequest->rawData, code,
+            tstrerror(code));
+    lino = __LINE__;
+    goto END;
+  }
   bool tmp = (pSubmitTbData->flags & pRequest->sourceExcluded) != 0;
   TSDB_CHECK_CONDITION(!tmp, code, lino, END, TSDB_CODE_SUCCESS);
 
@@ -2548,7 +2649,7 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
         taosMemoryFree(pTmpHead);
 
         if (matched) {
-          // Found a matching meta msg — ship it.
+          // Found a matching meta msg  -  ship it.
           // pHandle->pWalReader->pHead has NOT been updated; build the response
           // directly from btMetaRsp / taosxRsp paths used below.
           // For non-batch mode, send a single-meta response immediately.
@@ -2585,7 +2686,7 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
         }
       }
     txnPendingDone:
-      // All pending msgs consumed — free the queue and advance fetchVer.
+      // All pending msgs consumed  -  free the queue and advance fetchVer.
       if (pHandle->pTxnPendingMsgs != NULL && pHandle->txnPendingIdx >= taosArrayGetSize(pHandle->pTxnPendingMsgs)) {
         int64_t nextVer = pHandle->txnPendingFetchVer;
         tqHandleClearTxnPending(pHandle);
@@ -2838,4 +2939,3 @@ static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const 
 
   return 0;
 }
-

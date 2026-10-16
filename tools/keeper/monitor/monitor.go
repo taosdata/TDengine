@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package monitor
 
 import (
@@ -20,13 +35,22 @@ func StartMonitor(identity string, conf *config.Config, reporter *api.Reporter) 
 	if len(identity) == 0 {
 		hostname, err := os.Hostname()
 		if err != nil {
-			logger.Errorf("can not get hostname, error:%s", err)
+			logger.Errorf("cannot get hostname, error:%s", err)
 		}
 		if len(hostname) > 40 {
 			hostname = hostname[:40]
 		}
 		identity = fmt.Sprintf("%s:%d", hostname, conf.Port)
 	}
+
+	// both derive only from the identity, which is fixed for this monitor
+	var kn string
+	if len(identity) <= util.MAX_TABLE_NAME_LEN {
+		kn = util.ToValidTableName(identity)
+	} else {
+		kn = util.GetMd5HexStr(identity)
+	}
+	escapedIdentity := util.EscapeTruncRunes(identity, api.IdentifyChars)
 
 	systemStatus := make(chan SysStatus)
 	_ = pool.GoroutinePool.Submit(func() {
@@ -54,15 +78,8 @@ func StartMonitor(identity string, conf *config.Config, reporter *api.Reporter) 
 				reporter.GetTotalRep().Store(0)
 			}
 
-			var kn string
-			if len(identity) <= util.MAX_TABLE_NAME_LEN {
-				kn = util.ToValidTableName(identity)
-			} else {
-				kn = util.GetMd5HexStr(identity)
-			}
-
 			sql := fmt.Sprintf("insert into `km_%s` using keeper_monitor tags ('%s') values ( now, "+
-				" %f, %f, %d)", kn, identity, cpuPercent, memPercent, totalReport)
+				" %f, %f, %d)", kn, escapedIdentity, cpuPercent, memPercent, totalReport)
 			conn, err := db.NewConnectorWithDb(conf.TDengine.Username, conf.TDengine.Password, conf.TDengine.Host,
 				conf.TDengine.Port, conf.Metrics.Database.Name, conf.TDengine.Usessl)
 			if err != nil {

@@ -327,7 +327,7 @@ Return result
         [
             "c3",
             "BLOB",
-            4194304
+            16777216
         ]
     ],
     "data": [
@@ -343,6 +343,7 @@ Return result
 ```
 
 - `010100000000000000000059400000000000005940` is the [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/) format for `point(100 100)`
+- The length shown in `column_meta` for a `BLOB` column is returned by the server; refer to the actual response
 
 #### Errors
 
@@ -498,6 +499,18 @@ Return value:
 }
 ```
 
+:::warning
+The username and password appear in plaintext in the URL and may be retained in access logs, reverse proxy logs, or browser history. In production environments, use HTTPS and prefer [Basic authentication](#http-request-format) or [token authentication](#token-authentication).
+:::
+
+In addition to `/rest/login`, taosAdapter also provides a 2.x-compatible helper endpoint for generating Basic credentials:
+
+```shell
+curl http://<fqdn>:<port>/genauth/<username>/<password>/<key>
+```
+
+This endpoint returns the Basic authentication string in the `username:password` form (the `key` parameter is currently unused and is kept only for compatibility with the historical URL format). It does not verify the username or password and does not produce any server-side state; the credentials likewise travel in plaintext via the URL, so the same security considerations as `/rest/login` apply. New code is advised not to rely on this endpoint; compute Basic credentials locally in the client or use [token authentication](#token-authentication) instead.
+
 ## Usage Example
 
 - Query all records of table d1001 in the demo database:
@@ -579,6 +592,39 @@ Return value:
       "rows": 1
   }
   ```
+
+## Query the vgroup IDs of Multiple Tables
+
+```text
+POST /rest/sql/:db/vgid
+```
+
+Returns the IDs of the vgroups that host multiple tables in the specified database in a single call, which is useful for clients that need to route requests directly by data shard. The request BODY is a JSON array of strings, each element being a table name; the HTTP request format and authentication are the same as for [`/rest/sql`](#http-request-format). This endpoint wraps the C API `taos_get_tables_vgId`, and connectors in various languages also provide corresponding wrappers.
+
+Example:
+
+```shell
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+  -H "Content-Type: application/json" \
+  -d '["d1001", "d1002"]' \
+  h1.taosdata.com:6041/rest/sql/demo/vgid
+```
+
+Return value:
+
+```json
+{
+  "code": 0,
+  "vgIDs": [2, 3]
+}
+```
+
+Description:
+
+- code: (`int`) 0 indicates success.
+- vgIDs: (`int[]`) The vgroup IDs, in one-to-one correspondence with the table names in the request. The array length equals the number of requested tables. The vgroup ID is computed from the hash range of the table name; the existence of the table is not verified.
+
+If the request fails (for example, the database does not exist), the entire request is treated as an error and a non-zero `code` together with a `desc` error description is returned; no partially successful result is returned.
 
 ## Differences between REST API in TDengine 2.x and 3.0
 

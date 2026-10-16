@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -45,7 +47,7 @@
 #define ENV_JSON_FALSE_CHECK(c)                     \
   do {                                              \
     if (!c) {                                       \
-      tscError("faild to add item to JSON object"); \
+      tscError("failed to add item to JSON object"); \
       code = TSDB_CODE_TSC_FAIL_GENERATE_JSON;      \
       goto _end;                                    \
     }                                               \
@@ -520,7 +522,7 @@ void destroyTscObj(void *pObj) {
 
   tSimpleHashCleanup(pTscObj->pTxnVgSet);
   pTscObj->pTxnVgSet = NULL;
-  // §34.2 #2: clean up pTxnTableMeta if connection closes with active txn
+  // section 34.2 #2: clean up pTxnTableMeta if connection closes with active txn
   if (pTscObj->pTxnTableMeta) {
     void *pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
     while (pIter) {
@@ -531,7 +533,7 @@ void destroyTscObj(void *pObj) {
     taosHashCleanup(pTscObj->pTxnTableMeta);
     pTscObj->pTxnTableMeta = NULL;
   }
-  // pTxnSuidMap values are char[] copied inline by the hash — no per-entry free needed.
+  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed.
   taosHashCleanup(pTscObj->pTxnSuidMap);
   pTscObj->pTxnSuidMap = NULL;
   (void)taosThreadMutexDestroy(&pTscObj->mutex);
@@ -641,7 +643,8 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->phaseStartTime = 0;
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
-  (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
+  (*pRequest)->body.resInfo.charsetCxt =
+      taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt);
   (*pRequest)->body.resInfo.timezone = (void *)pTscObj->optionInfo.timezone;
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;
@@ -818,6 +821,7 @@ void doDestroyRequest(void *p) {
   // when the request object is destroyed, otherwise LeakSanitizer will report
   // catalog async response result leaks.
   catalogFreeMetaData(&pRequest->parseMeta);
+  extCapSessionOverlayDestroy(&pRequest->extSessionOverlay);
   TAOS_MEMSET(&pRequest->parseMeta, 0, sizeof(pRequest->parseMeta));
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
@@ -1164,7 +1168,7 @@ void taos_init_imp(void) {
   const char *logName = CUS_PROMPT "log";
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
   if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
+    (void)printf(" WARNING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
     SET_ERROR_MSG("Create %s failed:%s. configDir=%s", logName, strerror(ERRNO), configDir);
     tscInitRes = terrno;
     return;

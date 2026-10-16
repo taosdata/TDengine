@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,6 +23,99 @@
 
 static int32_t metaEncodeSColRefBase(SEncoder *pCoder, const SColRef *pColRef);
 static int32_t metaDecodeSColRefBase(SDecoder *pDecoder, SColRef *pColRef);
+static int32_t metaCloneColRef(const SColRefWrapper *pSrc, SColRefWrapper *pDst);
+
+// vchild own (extension) schema section. Appended at the very end of the entry for
+// TSDB_VIRTUAL_CHILD_TABLE only; older entries end earlier and the decoder
+// tDecodeIsEnd-guards the read, leaving the own schema empty.
+static int32_t metaEncodeVChildOwnSchema(SEncoder *pCoder, const SMetaEntry *pME) {
+  const SVChildOwnSchema *pOwn = &pME->own;
+
+  // Same consistency guard as metaCloneVChildOwnSchema: the counts must be backed by
+  // their arrays; a structurally inconsistent entry (corrupt load / partial init) must
+  // fail loudly here instead of dereferencing NULL in the loops below.
+  if ((pOwn->nOwnCols > 0 && (pOwn->pOwnColSchemas == NULL || pOwn->pOwnColRefs == NULL)) ||
+      (pOwn->nOwnTags > 0 && pOwn->pOwnTagSchemas == NULL)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pOwn->nOwnCols));
+  for (int32_t i = 0; i < pOwn->nOwnCols; i++) {
+    TAOS_CHECK_RETURN(tEncodeSSchema(pCoder, &pOwn->pOwnColSchemas[i]));
+    TAOS_CHECK_RETURN(metaEncodeSColRefBase(pCoder, &pOwn->pOwnColRefs[i]));
+  }
+
+  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pOwn->nOwnTags));
+  for (int32_t i = 0; i < pOwn->nOwnTags; i++) {
+    TAOS_CHECK_RETURN(tEncodeSSchema(pCoder, &pOwn->pOwnTagSchemas[i]));
+  }
+
+  // Own-column ext (typeMod) sub-section, appended at the very end. Written only when at least
+  // one own column carries COL_HAS_TYPE_MOD (e.g. decimal); mirrors metaEncodeExtSchema. Older
+  // readers stop after nOwnTags (tEndDecode); older entries have no bytes here so the decoder
+  // tDecodeIsEnd-guards the read (see metaDecodeVChildOwnSchema).
+  if (schemasHasTypeMod(pOwn->pOwnColSchemas, pOwn->nOwnCols)) {
+    for (int32_t i = 0; i < pOwn->nOwnCols; i++) {
+      STypeMod typeMod = (pOwn->pOwnColExtSchemas != NULL) ? pOwn->pOwnColExtSchemas[i].typeMod : 0;
+      TAOS_CHECK_RETURN(tEncodeI32v(pCoder, typeMod));
+    }
+  }
+
+  return 0;
+}
+
+static int32_t metaDecodeVChildOwnSchema(SDecoder *pCoder, SMetaEntry *pME) {
+  SVChildOwnSchema *pOwn = &pME->own;
+
+  TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pOwn->nOwnCols));
+  if (pOwn->nOwnCols < 0 || pOwn->nOwnCols > TSDB_MAX_COLUMNS) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pOwn->nOwnCols > 0) {
+    pOwn->pOwnColSchemas = (SSchema *)tDecoderMalloc(pCoder, (int64_t)pOwn->nOwnCols * sizeof(SSchema));
+    if (pOwn->pOwnColSchemas == NULL) {
+      return terrno;
+    }
+    pOwn->pOwnColRefs = (SColRef *)tDecoderMalloc(pCoder, (int64_t)pOwn->nOwnCols * sizeof(SColRef));
+    if (pOwn->pOwnColRefs == NULL) {
+      return terrno;
+    }
+    for (int32_t i = 0; i < pOwn->nOwnCols; i++) {
+      TAOS_CHECK_RETURN(tDecodeSSchema(pCoder, &pOwn->pOwnColSchemas[i]));
+      TAOS_CHECK_RETURN(metaDecodeSColRefBase(pCoder, &pOwn->pOwnColRefs[i]));
+    }
+  }
+
+  TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pOwn->nOwnTags));
+  if (pOwn->nOwnTags < 0 || pOwn->nOwnTags > TSDB_MAX_COLUMNS) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pOwn->nOwnTags > 0) {
+    pOwn->pOwnTagSchemas = (SSchema *)tDecoderMalloc(pCoder, (int64_t)pOwn->nOwnTags * sizeof(SSchema));
+    if (pOwn->pOwnTagSchemas == NULL) {
+      return terrno;
+    }
+    for (int32_t i = 0; i < pOwn->nOwnTags; i++) {
+      TAOS_CHECK_RETURN(tDecodeSSchema(pCoder, &pOwn->pOwnTagSchemas[i]));
+    }
+  }
+
+  // Own-column ext (typeMod) sub-section: only present for entries written after this field was
+  // added, and only when some own column has COL_HAS_TYPE_MOD. Both guards are required --
+  // tDecodeIsEnd handles older entries that have no bytes here; schemasHasTypeMod handles newer
+  // entries whose own columns happen to carry no typeMod (writer omits the sub-section).
+  if (!tDecodeIsEnd(pCoder) && schemasHasTypeMod(pOwn->pOwnColSchemas, pOwn->nOwnCols)) {
+    pOwn->pOwnColExtSchemas = (SExtSchema *)tDecoderMalloc(pCoder, (int64_t)pOwn->nOwnCols * sizeof(SExtSchema));
+    if (pOwn->pOwnColExtSchemas == NULL) {
+      return terrno;
+    }
+    for (int32_t i = 0; i < pOwn->nOwnCols; i++) {
+      TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pOwn->pOwnColExtSchemas[i].typeMod));
+    }
+  }
+
+  return 0;
+}
 
 bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
   for (int32_t i = 0; i < nCols; i++) {
@@ -89,9 +184,7 @@ int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   return 0;
 }
 
-static int32_t metaEncodeColRefEntryTail(SEncoder *pCoder, const SMetaEntry *pME) {
-  const SColRefWrapper *pw = &pME->colRef;
-
+static int32_t metaEncodeColRefEntryTail(SEncoder *pCoder, const SColRefWrapper *pw) {
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
   for (int32_t i = 0; i < pw->nCols; i++) {
     TAOS_CHECK_RETURN(tEncodeSColRefExt(pCoder, &pw->pColRef[i]));
@@ -104,6 +197,14 @@ static int32_t metaEncodeColRefEntryTail(SEncoder *pCoder, const SMetaEntry *pME
   return 0;
 }
 
+static int32_t metaEncodeColRefFilterCondTail(SEncoder *pCoder, const SColRefWrapper *pWrapper) {
+  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pWrapper->nCols));
+  for (int32_t i = 0; i < pWrapper->nCols; ++i) {
+    TAOS_CHECK_RETURN(tEncodeSColRefFilterCond(pCoder, &pWrapper->pColRef[i]));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
   bool                  hasExtSchema = false;
   const SSchemaWrapper* pSchWrapper = metaGetEntryRowSchema((const SMetaEntry*)pME);
@@ -114,7 +215,7 @@ static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
 
   hasExtSchema = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
   if (hasExtSchema && pSchWrapper->nCols > 0) {
-    pME->pExtSchemas = (SExtSchema*)tDecoderMalloc(pDecoder, sizeof(SExtSchema) * pSchWrapper->nCols);
+    pME->pExtSchemas = (SExtSchema*)tDecoderMalloc(pDecoder, (int64_t)pSchWrapper->nCols * sizeof(SExtSchema));
     if (pME->pExtSchemas == NULL) {
       return terrno;
     }
@@ -163,6 +264,8 @@ static int32_t metaEncodeSColRefBase(SEncoder *pCoder, const SColRef *pColRef) {
 static int32_t metaDecodeSColRefBase(SDecoder *pDecoder, SColRef *pColRef) {
   pColRef->tagCondLen = 0;
   pColRef->tagCondJson = NULL;
+  pColRef->filterCondLen = 0;
+  pColRef->filterCondJson = NULL;
   pColRef->refType = 0;
   pColRef->refSourceName[0] = '\0';
   pColRef->refSchemaName[0] = '\0';
@@ -247,7 +350,7 @@ static int32_t metaDecodeSColRefExt(SDecoder *pDecoder, SColRef *p, const char *
                p->tagCondLen, tmpLen);
         return TSDB_CODE_INVALID_MSG;
       }
-      p->tagCondJson = (char *)tDecoderMalloc(pDecoder, p->tagCondLen + 1);
+      p->tagCondJson = (char *)tDecoderMalloc(pDecoder, (int64_t)p->tagCondLen + 1);
       if (p->tagCondJson == NULL) {
         TAOS_CHECK_RETURN(terrno);
       }
@@ -267,7 +370,7 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
     return 0;
   }
   uDebug("decode cols:%d", pWrapper->nCols);
-  pWrapper->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColRef));
+  pWrapper->pColRef = (SColRef *)tDecoderMalloc(pDecoder, (int64_t)pWrapper->nCols * sizeof(SColRef));
   if (pWrapper->pColRef == NULL) {
     return terrno;
   }
@@ -283,7 +386,7 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nTagRefs));
     if (pWrapper->nTagRefs > 0) {
-      pWrapper->pTagRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nTagRefs * sizeof(SColRef));
+      pWrapper->pTagRef = (SColRef *)tDecoderMalloc(pDecoder, (int64_t)pWrapper->nTagRefs * sizeof(SColRef));
       if (pWrapper->pTagRef == NULL) {
         return terrno;
       }
@@ -298,9 +401,7 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   return 0;
 }
 
-static int32_t metaDecodeColRefEntryTail(SDecoder *pDecoder, SMetaEntry *pME) {
-  SColRefWrapper *pWrapper = &pME->colRef;
-
+static int32_t metaDecodeColRefEntryTail(SDecoder *pDecoder, SColRefWrapper *pWrapper) {
   if (!tDecodeIsEnd(pDecoder)) {
     int32_t nColExts = 0;
     TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &nColExts));
@@ -324,23 +425,94 @@ static int32_t metaDecodeColRefEntryTail(SDecoder *pDecoder, SMetaEntry *pME) {
   return 0;
 }
 
+static int32_t metaDecodeColRefFilterCondTail(SDecoder *pDecoder, SColRefWrapper *pWrapper) {
+  int32_t         nFilterConds = 0;
+  TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &nFilterConds));
+  if (nFilterConds != pWrapper->nCols) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  for (int32_t i = 0; i < nFilterConds; ++i) {
+    SColRef *pColRef = &pWrapper->pColRef[i];
+    uint8_t *pBuf = NULL;
+    TAOS_CHECK_RETURN(tDecodeSColRefFilterCondRaw(pDecoder, pColRef, &pBuf));
+    if (pColRef->filterCondLen > 0) {
+      pColRef->filterCondJson = tDecoderMalloc(pDecoder, (int64_t)pColRef->filterCondLen + 1);
+      if (NULL == pColRef->filterCondJson) {
+        return terrno;
+      }
+      memcpy(pColRef->filterCondJson, pBuf, pColRef->filterCondLen);
+      pColRef->filterCondJson[pColRef->filterCondLen] = '\0';
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static FORCE_INLINE int32_t metatInitDefaultSColRefWrapper(SDecoder *pDecoder, SColRefWrapper *pRef,
                                                             SSchemaWrapper *pSchema) {
   pRef->nCols = pSchema->nCols;
-  if ((pRef->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pRef->nCols * sizeof(SColRef))) == NULL) {
+  if ((pRef->pColRef = (SColRef *)tDecoderMalloc(pDecoder, (int64_t)pRef->nCols * sizeof(SColRef))) == NULL) {
     return terrno;
   }
 
   for (int32_t i = 0; i < pRef->nCols; i++) {
     SColRef  *pColRef = &pRef->pColRef[i];
     SSchema  *pColSchema = &pSchema->pSchema[i];
+    memset(pColRef, 0, sizeof(*pColRef));
     pColRef->id = pColSchema->colId;
     pColRef->hasRef = false;
   }
   return 0;
 }
 
+static int32_t metaCloneVChildOwnSchema(const SVChildOwnSchema *pSrc, SVChildOwnSchema *pDst) {
+  if (pSrc->nOwnCols > 0 && pSrc->pOwnColSchemas && pSrc->pOwnColRefs) {
+    pDst->nOwnCols = pSrc->nOwnCols;
+    pDst->pOwnColSchemas = (SSchema *)taosMemoryCalloc(pSrc->nOwnCols, sizeof(SSchema));
+    if (NULL == pDst->pOwnColSchemas) {
+      return terrno;
+    }
+    memcpy(pDst->pOwnColSchemas, pSrc->pOwnColSchemas, pSrc->nOwnCols * sizeof(SSchema));
+
+    if (pSrc->pOwnColExtSchemas != NULL) {
+      pDst->pOwnColExtSchemas = (SExtSchema *)taosMemoryCalloc(pSrc->nOwnCols, sizeof(SExtSchema));
+      if (NULL == pDst->pOwnColExtSchemas) {
+        return terrno;
+      }
+      memcpy(pDst->pOwnColExtSchemas, pSrc->pOwnColExtSchemas, pSrc->nOwnCols * sizeof(SExtSchema));
+    }
+
+    SColRefWrapper srcRefs = {.nCols = pSrc->nOwnCols, .pColRef = pSrc->pOwnColRefs};
+    SColRefWrapper dstRefs = {0};
+    int32_t code = metaCloneColRef(&srcRefs, &dstRefs);
+    pDst->pOwnColRefs = dstRefs.pColRef;
+    TAOS_CHECK_RETURN(code);
+  }
+  if (pSrc->nOwnTags > 0 && pSrc->pOwnTagSchemas) {
+    pDst->nOwnTags = pSrc->nOwnTags;
+    pDst->pOwnTagSchemas = (SSchema *)taosMemoryCalloc(pSrc->nOwnTags, sizeof(SSchema));
+    if (NULL == pDst->pOwnTagSchemas) {
+      return terrno;
+    }
+    memcpy(pDst->pOwnTagSchemas, pSrc->pOwnTagSchemas, pSrc->nOwnTags * sizeof(SSchema));
+  }
+  return 0;
+}
+
+static void metaCloneVChildOwnSchemaFree(SVChildOwnSchema *pOwn) {
+  if (pOwn) {
+    tFreeSColRefArray(pOwn->pOwnColRefs, pOwn->nOwnCols);
+    taosMemoryFreeClear(pOwn->pOwnColSchemas);
+    taosMemoryFreeClear(pOwn->pOwnColRefs);
+    taosMemoryFreeClear(pOwn->pOwnColExtSchemas);
+    taosMemoryFreeClear(pOwn->pOwnTagSchemas);
+  }
+}
+
 static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) {
+  if ((pSrc->nCols > 0 && NULL == pSrc->pColRef) || (pSrc->nTagRefs > 0 && NULL == pSrc->pTagRef)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   if (pSrc->nCols > 0) {
     pDst->nCols = pSrc->nCols;
     pDst->version = pSrc->version;
@@ -350,10 +522,10 @@ static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) 
     }
     for (int32_t i = 0; i < pSrc->nCols; i++) {
       pDst->pColRef[i] = pSrc->pColRef[i];
-      // The source tagCondJson points into the decoder arena which is released
-      // after cloning; clear it before any allocation so a partial-failure
-      // cleanup never frees a shallow (arena) pointer.
+      // Condition strings point into the decoder arena. Clear both shallow
+      // pointers before allocating so partial-failure cleanup stays valid.
       pDst->pColRef[i].tagCondJson = NULL;
+      pDst->pColRef[i].filterCondJson = NULL;
       if (pSrc->pColRef[i].tagCondLen > 0 && pSrc->pColRef[i].tagCondJson) {
         pDst->pColRef[i].tagCondJson = taosStrdup(pSrc->pColRef[i].tagCondJson);
         if (NULL == pDst->pColRef[i].tagCondJson) {
@@ -361,6 +533,14 @@ static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) 
         }
       } else {
         pDst->pColRef[i].tagCondLen = 0;
+      }
+      if (pSrc->pColRef[i].filterCondLen > 0 && pSrc->pColRef[i].filterCondJson) {
+        pDst->pColRef[i].filterCondJson = taosStrdup(pSrc->pColRef[i].filterCondJson);
+        if (NULL == pDst->pColRef[i].filterCondJson) {
+          return terrno;
+        }
+      } else {
+        pDst->pColRef[i].filterCondLen = 0;
       }
     }
   }
@@ -373,6 +553,7 @@ static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) 
     for (int32_t i = 0; i < pSrc->nTagRefs; i++) {
       pDst->pTagRef[i] = pSrc->pTagRef[i];
       pDst->pTagRef[i].tagCondJson = NULL;
+      pDst->pTagRef[i].filterCondJson = NULL;
       if (pSrc->pTagRef[i].tagCondLen > 0 && pSrc->pTagRef[i].tagCondJson) {
         pDst->pTagRef[i].tagCondJson = taosStrdup(pSrc->pTagRef[i].tagCondJson);
         if (NULL == pDst->pTagRef[i].tagCondJson) {
@@ -380,6 +561,14 @@ static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) 
         }
       } else {
         pDst->pTagRef[i].tagCondLen = 0;
+      }
+      if (pSrc->pTagRef[i].filterCondLen > 0 && pSrc->pTagRef[i].filterCondJson) {
+        pDst->pTagRef[i].filterCondJson = taosStrdup(pSrc->pTagRef[i].filterCondJson);
+        if (NULL == pDst->pTagRef[i].filterCondJson) {
+          return terrno;
+        }
+      } else {
+        pDst->pTagRef[i].filterCondLen = 0;
       }
     }
   }
@@ -412,7 +601,7 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
 
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->version));
   uDebug("dencode cols:%d", pWrapper->nCols);
-  pWrapper->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColCmpr));
+  pWrapper->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, (int64_t)pWrapper->nCols * sizeof(SColCmpr));
   if (pWrapper->pColCmpr == NULL) {
     return terrno;
   }
@@ -431,7 +620,7 @@ static FORCE_INLINE int32_t metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, 
   if (pDecoder == NULL) {
     pCmpr->pColCmpr = taosMemoryCalloc(1, pCmpr->nCols * sizeof(SColCmpr));
   } else {
-    pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pCmpr->nCols * sizeof(SColCmpr));
+    pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, (int64_t)pCmpr->nCols * sizeof(SColCmpr));
   }
 
   if (pCmpr->pColCmpr == NULL) {
@@ -465,11 +654,13 @@ static void metaCloneColRefFree(SColRefWrapper *pColRef) {
     if (pColRef->pColRef) {
       for (int32_t i = 0; i < pColRef->nCols; i++) {
         taosMemoryFreeClear(pColRef->pColRef[i].tagCondJson);
+        taosMemoryFreeClear(pColRef->pColRef[i].filterCondJson);
       }
     }
     if (pColRef->pTagRef) {
       for (int32_t i = 0; i < pColRef->nTagRefs; i++) {
         taosMemoryFreeClear(pColRef->pTagRef[i].tagCondJson);
+        taosMemoryFreeClear(pColRef->pTagRef[i].filterCondJson);
       }
     }
     taosMemoryFreeClear(pColRef->pColRef);
@@ -491,7 +682,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   bool hasNtbTag = (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_NORMAL_TABLE) &&
                    (pME->ntbEntry.schemaTag.nCols > 0 || pME->ntbEntry.schemaTag.version > 0);
   // Validate the trailer invariant BEFORE tStartEncode: a NULL pTags in this state means a
-  // malformed entry (e.g. a crafted create req). Rejecting up front keeps the coder balanced —
+  // malformed entry (e.g. a crafted create req). Rejecting up front keeps the coder balanced --
   // an early return mid-encode would abort the whole meta txn with a partial entry.
   if (hasNtbTag && pME->ntbEntry.pTags == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -501,7 +692,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->version));
 
   // Batch meta txn: set bit 6 on type to signal txnId/txnStatus follow at the end.
-  // For non-txn entries (txnId == 0), type is encoded as-is — zero disk overhead.
+  // For non-txn entries (txnId == 0), type is encoded as-is  -  zero disk overhead.
   int8_t encType = (pME->txnId != 0 && pME->type > 0) ? TABLE_TYPE_SET_TXN(pME->type) : pME->type;
   if (hasNtbTag) encType = TABLE_TYPE_SET_NTB_TAG(encType);
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, encType));
@@ -542,7 +733,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     } else if (pME->type == TSDB_TSMA_TABLE) {
       TAOS_CHECK_RETURN(tEncodeTSma(pCoder, pME->smaEntry.tsma));
     } else {
-      metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
+      metaError("meta/entry: invalid table type: %" PRId8 " encode failed.", pME->type);
       return TSDB_CODE_INVALID_PARA;
     }
     if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
@@ -593,7 +784,10 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   }
   if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_RETURN(tEncodeSSeriesWrapper(pCoder, &pME->series));
-    TAOS_CHECK_RETURN(metaEncodeColRefEntryTail(pCoder, pME));
+    TAOS_CHECK_RETURN(metaEncodeColRefEntryTail(pCoder, &pME->colRef));
+  }
+  if (pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    TAOS_CHECK_RETURN(metaEncodeVChildOwnSchema(pCoder, pME));
   }
 
   // Normal/virtual-normal owned tags: trailing trailer, signaled by NTB_TAG bit (bit 5).
@@ -605,6 +799,15 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schemaTag));
     TAOS_CHECK_RETURN(tEncodeTag(pCoder, (const STag *)pME->ntbEntry.pTags));
   }
+  if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    TAOS_CHECK_RETURN(metaEncodeColRefFilterCondTail(pCoder, &pME->colRef));
+  }
+  if (pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    // Keep the existing own-schema layout intact; append external reference details here.
+    SColRefWrapper ownRefs = {.nCols = pME->own.nOwnCols, .pColRef = pME->own.pOwnColRefs};
+    TAOS_CHECK_RETURN(metaEncodeColRefEntryTail(pCoder, &ownRefs));
+    TAOS_CHECK_RETURN(metaEncodeColRefFilterCondTail(pCoder, &ownRefs));
+  }
 
   tEndEncode(pCoder);
   return 0;
@@ -612,15 +815,20 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
 
 int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
+  // Reset the vchild own (extension) schema: pME may be reused across decodes (e.g. a
+  // table-meta cursor) while its previous own pointers were already freed together with
+  // the old decoder, so a stale nOwnCols would otherwise dangle on non-vchild entries or
+  // on old-format vchild entries whose encoded form ends before the own section.
+  memset(&pME->own, 0, sizeof(pME->own));
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->version));
   TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->type));
 
-  // Batch meta txn: check bit 6 — if set, txnId + txnStatus are appended at the end.
+  // Batch meta txn: check bit 6  -  if set, txnId + txnStatus are appended at the end.
   bool hasTxn = TABLE_TYPE_HAS_TXN(pME->type);
   if (hasTxn) {
     pME->type = TABLE_TYPE_CLR_TXN(pME->type);
   }
-  // Normal/virtual-normal owned tags: check bit 5 — if set, schemaTag + pTags are appended.
+  // Normal/virtual-normal owned tags: check bit 5  -  if set, schemaTag + pTags are appended.
   bool hasNtbTag = TABLE_TYPE_HAS_NTB_TAG(pME->type);
   if (hasNtbTag) {
     pME->type = TABLE_TYPE_CLR_NTB_TAG(pME->type);
@@ -669,7 +877,7 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
       }
       TAOS_CHECK_RETURN(tDecodeTSma(pCoder, pME->smaEntry.tsma, true));
     } else {
-      metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
+      metaError("meta/entry: invalid table type: %" PRId8 " decode failed.", pME->type);
       return TSDB_CODE_INVALID_PARA;
     }
     if (pME->type == TSDB_SUPER_TABLE) {
@@ -761,14 +969,19 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
       TAOS_CHECK_RETURN(tDecodeSSeriesWrapper(pCoder, &pME->series));
     }
     if (!tDecodeIsEnd(pCoder)) {
-      TAOS_CHECK_RETURN(metaDecodeColRefEntryTail(pCoder, pME));
+      TAOS_CHECK_RETURN(metaDecodeColRefEntryTail(pCoder, &pME->colRef));
+    }
+  }
+  if (pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(metaDecodeVChildOwnSchema(pCoder, pME));
     }
   }
 
   // Normal/virtual-normal owned tags: decode schemaTag + pTags when bit 5 was set.
   if (hasNtbTag) {
     // The encoder only sets the bit for normal/virtual-normal tables; any other type
-    // carrying bit 5 means corrupted data — decoding the trailer into ntbEntry would
+    // carrying bit 5 means corrupted data  -  decoding the trailer into ntbEntry would
     // write through the union and corrupt the entry. Mirror the encoder's type guard.
     if (pME->type != TSDB_NORMAL_TABLE && pME->type != TSDB_VIRTUAL_NORMAL_TABLE) {
       metaError("meta/entry: NTB_TAG bit set on unexpected table type: %" PRId8 " decode failed.", pME->type);
@@ -776,6 +989,15 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
     TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->ntbEntry.schemaTag));
     TAOS_CHECK_RETURN(tDecodeTag(pCoder, (STag **)&pME->ntbEntry.pTags));
+  }
+  if ((pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) &&
+      !tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_RETURN(metaDecodeColRefFilterCondTail(pCoder, &pME->colRef));
+  }
+  if (pME->type == TSDB_VIRTUAL_CHILD_TABLE && !tDecodeIsEnd(pCoder)) {
+    SColRefWrapper ownRefs = {.nCols = pME->own.nOwnCols, .pColRef = pME->own.pOwnColRefs};
+    TAOS_CHECK_RETURN(metaDecodeColRefEntryTail(pCoder, &ownRefs));
+    TAOS_CHECK_RETURN(metaDecodeColRefFilterCondTail(pCoder, &ownRefs));
   }
 
   tEndDecode(pCoder);
@@ -881,6 +1103,7 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
   metaCloneColCmprFree(&(*ppEntry)->colCmpr);
   taosMemoryFreeClear((*ppEntry)->pExtSchemas);
   metaCloneColRefFree(&(*ppEntry)->colRef);
+  metaCloneVChildOwnSchemaFree(&(*ppEntry)->own);
   tFreeSSeriesWrapper(&(*ppEntry)->series);
 
   taosMemoryFreeClear(*ppEntry);
@@ -993,7 +1216,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     // owned tags (normal/virtual-normal table with tags). The tag schema version is copied even
     // when the schema is empty (all tags dropped): it stays monotonic so alter responses never
     // look stale to the client catalog. pTags may hold an empty STag in that state (kept so the
-    // entry's tag trailer stays encodable) — clone it whenever present.
+    // entry's tag trailer stays encodable)  -  clone it whenever present.
     (*ppEntry)->ntbEntry.schemaTag.version = pEntry->ntbEntry.schemaTag.version;
     if (pEntry->ntbEntry.schemaTag.nCols > 0) {
       code = metaCloneSchema(&pEntry->ntbEntry.schemaTag, &(*ppEntry)->ntbEntry.schemaTag);
@@ -1033,6 +1256,13 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     if (code) {
       metaCloneEntryFree(ppEntry);
       return code;
+    }
+    if (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+      code = metaCloneVChildOwnSchema(&pEntry->own, &(*ppEntry)->own);
+      if (code) {
+        metaCloneEntryFree(ppEntry);
+        return code;
+      }
     }
     if (pEntry->series.nSeries > 0) {
       (*ppEntry)->series.nSeries = pEntry->series.nSeries;

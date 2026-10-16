@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -8,6 +10,9 @@
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <gtest/gtest.h>
@@ -30,6 +35,48 @@ extern "C" {
 #include "vnodeInt.h"
 }
 
+extern "C" int32_t mmDispatchStreamHbMsg(SDispatchWorkerPool* pPool, void* pParam, int32_t* pWorkerIdx);
+
+TEST(MgmtMnodeStreamHbDispatchTest, RejectsMissingOrShortHeader) {
+  SRpcMsg             msg = {};
+  int32_t             workerIdx = -1;
+  SStreamMsgGrpHeader header = {};
+  msg.pCont = &header;
+  for (int32_t length : {0, 1, static_cast<int32_t>(sizeof(header)) - 1}) {
+    msg.contLen = length;
+    workerIdx = -1;
+    ASSERT_EQ(mmDispatchStreamHbMsg(nullptr, &msg, &workerIdx), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(workerIdx, -1);
+  }
+
+  msg.pCont = nullptr;
+  msg.contLen = 0;
+  workerIdx = -1;
+  EXPECT_EQ(mmDispatchStreamHbMsg(nullptr, &msg, &workerIdx), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(workerIdx, -1);
+}
+
+TEST(MgmtMnodeStreamHbDispatchTest, RejectsInvalidGroupAndAcceptsValidHeader) {
+  SStreamMsgGrpHeader header = {};
+  SRpcMsg             msg = {};
+  msg.pCont = &header;
+  msg.contLen = sizeof(header);
+  int32_t workerIdx = -1;
+
+  for (int32_t gid : {-1, STREAM_MAX_GROUP_NUM}) {
+    header.streamGid = gid;
+    workerIdx = -1;
+    EXPECT_EQ(mmDispatchStreamHbMsg(nullptr, &msg, &workerIdx), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(workerIdx, -1);
+  }
+
+  SDispatchWorkerPool pool = {};
+  pool.num = 3;
+  header.streamGid = STREAM_MAX_GROUP_NUM - 1;
+  EXPECT_EQ(mmDispatchStreamHbMsg(&pool, &msg, &workerIdx), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(workerIdx, header.streamGid % pool.num);
+}
+
 namespace {
 
 constexpr auto kWaitTimeout = std::chrono::seconds(5);
@@ -47,7 +94,10 @@ struct ReaderSideEffectCounts {
   int32_t destroyTask;
   int32_t createTask;
   int32_t resetScan;
+  int32_t                  finishGroupRead;
+  EQueryTableScanResetMode resetMode = QUERY_TABLE_SCAN_RESET_FRESH;
   int32_t setTaskId;
+  int32_t                  configureGroupOutput;
   int32_t updateOperator;
   int32_t setStreamGen;
   int32_t setScalarExtra;
@@ -66,6 +116,7 @@ int32_t                   gCleanupSignals = 0;
 int32_t                   gHandlerCalls = 0;
 SArray*                   gReaderCalcInfos = nullptr;
 ReaderSideEffectCounts    gReaderSideEffects = {};
+int32_t                   gReuseReaderResetCode = TSDB_CODE_SUCCESS;
 
 ObservedItem* findByHandle(void* handle) {
   for (auto& item : gItems) {
@@ -107,6 +158,7 @@ class MgmtMnodeWorkerTest : public ::testing::Test {
       gCleanupSignals = 0;
       gHandlerCalls = 0;
       gReaderSideEffects = {};
+      gReuseReaderResetCode = TSDB_CODE_SUCCESS;
     }
     gReaderCalcInfos = nullptr;
 
@@ -374,11 +426,175 @@ TEST_F(MgmtMnodeWorkerTest, VnodeFetchMatchesMnodeAdmissionBeforeReaderSideEffec
   EXPECT_EQ(0, gReaderSideEffects.destroyTask);
   EXPECT_EQ(0, gReaderSideEffects.createTask);
   EXPECT_EQ(0, gReaderSideEffects.resetScan);
+  EXPECT_EQ(0, gReaderSideEffects.finishGroupRead);
   EXPECT_EQ(0, gReaderSideEffects.setTaskId);
+  EXPECT_EQ(0, gReaderSideEffects.configureGroupOutput);
   EXPECT_EQ(0, gReaderSideEffects.updateOperator);
   EXPECT_EQ(0, gReaderSideEffects.setStreamGen);
   EXPECT_EQ(0, gReaderSideEffects.setScalarExtra);
   EXPECT_EQ(0, gReaderSideEffects.executeTask);
+}
+
+TEST_F(MgmtMnodeWorkerTest, VnodeReuseFetchPassesReaderReuseResetMode) {
+  STableScanPhysiNode scan = {};
+  scan.scan.node.type = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  SSubplan calcAst = {};
+  calcAst.pNode = &scan.scan.node;
+
+  SStreamTriggerReaderCalcInfo calcInfo = {};
+  calcInfo.calcAst = &calcAst;
+  calcInfo.pTaskInfo = reinterpret_cast<qTaskInfo_t>(static_cast<uintptr_t>(0x5001));
+  calcInfo.requiresContextPolicy = false;
+  gReaderCalcInfos = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(gReaderCalcInfos, nullptr);
+  SStreamTriggerReaderCalcInfo* pCalcInfo = &calcInfo;
+  ASSERT_NE(taosArrayPush(gReaderCalcInfos, &pCalcInfo), nullptr);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  SResFetchReq           request = {};
+  request.queryId = 11;
+  request.taskId = 22;
+  request.execId = 0;
+  request.reset = true;
+  request.reuseReader = true;
+  request.pStRtFuncInfo = &runtime;
+  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(size, 0);
+
+  SRpcMsg msg = {};
+  msg.msgType = TDMT_STREAM_FETCH;
+  msg.contLen = size;
+  msg.pCont = rpcMallocCont(size);
+  ASSERT_NE(msg.pCont, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(msg.pCont, size, &request, false, false), size);
+  msg.info.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(0x5002));
+  {
+    std::lock_guard<std::mutex> lock(gMutex);
+    gItems.push_back({msg.info.handle, msg.pCont, TSDB_CODE_SUCCESS, 0, 0});
+  }
+
+  SVnode     vnode = {};
+  SQueueInfo queueInfo = {};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeProcessStreamReaderMsg(&vnode, &msg, &queueInfo));
+  rpcFreeCont(msg.pCont);
+  msg.pCont = nullptr;
+  tDestroyStRtFuncInfo(&calcInfo.rtInfo.funcInfo);
+
+  std::lock_guard<std::mutex> lock(gMutex);
+  EXPECT_EQ(1, gReaderSideEffects.resetScan);
+  EXPECT_EQ(2, gReaderSideEffects.finishGroupRead);
+  EXPECT_EQ(QUERY_TABLE_SCAN_RESET_REUSE_READER, gReaderSideEffects.resetMode);
+  EXPECT_EQ(1, gReaderSideEffects.configureGroupOutput);
+  EXPECT_EQ(0, gReaderSideEffects.destroyTask);
+  EXPECT_EQ(0, gReaderSideEffects.createTask);
+}
+
+TEST_F(MgmtMnodeWorkerTest, VnodeReuseFetchFallsBackToFreshResetForUnsupportedScan) {
+  SSystemTableScanPhysiNode scan = {};
+  scan.scan.node.type = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
+  SSubplan calcAst = {};
+  calcAst.pNode = &scan.scan.node;
+
+  SStreamTriggerReaderCalcInfo calcInfo = {};
+  calcInfo.calcAst = &calcAst;
+  calcInfo.pTaskInfo = reinterpret_cast<qTaskInfo_t>(static_cast<uintptr_t>(0x5001));
+  calcInfo.requiresContextPolicy = false;
+  gReaderCalcInfos = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(gReaderCalcInfos, nullptr);
+  SStreamTriggerReaderCalcInfo* pCalcInfo = &calcInfo;
+  ASSERT_NE(taosArrayPush(gReaderCalcInfos, &pCalcInfo), nullptr);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  SResFetchReq           request = {};
+  request.queryId = 11;
+  request.taskId = 22;
+  request.execId = 0;
+  request.reset = true;
+  request.reuseReader = true;
+  request.pStRtFuncInfo = &runtime;
+  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(size, 0);
+
+  SRpcMsg msg = {};
+  msg.msgType = TDMT_STREAM_FETCH;
+  msg.contLen = size;
+  msg.pCont = rpcMallocCont(size);
+  ASSERT_NE(msg.pCont, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(msg.pCont, size, &request, false, false), size);
+  msg.info.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(0x5004));
+  {
+    std::lock_guard<std::mutex> lock(gMutex);
+    gItems.push_back({msg.info.handle, msg.pCont, TSDB_CODE_SUCCESS, 0, 0});
+    gReuseReaderResetCode = TSDB_CODE_INVALID_PARA;
+  }
+
+  SVnode     vnode = {};
+  SQueueInfo queueInfo = {};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeProcessStreamReaderMsg(&vnode, &msg, &queueInfo));
+  rpcFreeCont(msg.pCont);
+  msg.pCont = nullptr;
+  tDestroyStRtFuncInfo(&calcInfo.rtInfo.funcInfo);
+
+  std::lock_guard<std::mutex> lock(gMutex);
+  EXPECT_EQ(1, gReaderSideEffects.resetScan);
+  EXPECT_EQ(QUERY_TABLE_SCAN_RESET_FRESH, gReaderSideEffects.resetMode);
+  EXPECT_EQ(1, gReaderSideEffects.configureGroupOutput);
+  EXPECT_EQ(0, gReaderSideEffects.destroyTask);
+  EXPECT_EQ(0, gReaderSideEffects.createTask);
+  EXPECT_EQ(1, gReaderSideEffects.executeTask);
+}
+
+TEST_F(MgmtMnodeWorkerTest, VnodeReuseFetchWithoutExistingResettableTaskFailsBeforeSideEffects) {
+  STableScanPhysiNode scan = {};
+  scan.scan.node.type = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  SSubplan calcAst = {};
+  calcAst.pNode = &scan.scan.node;
+
+  SStreamTriggerReaderCalcInfo calcInfo = {};
+  calcInfo.calcAst = &calcAst;
+  calcInfo.pTaskInfo = nullptr;
+  calcInfo.requiresContextPolicy = false;
+  gReaderCalcInfos = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(gReaderCalcInfos, nullptr);
+  SStreamTriggerReaderCalcInfo* pCalcInfo = &calcInfo;
+  ASSERT_NE(taosArrayPush(gReaderCalcInfos, &pCalcInfo), nullptr);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  SResFetchReq           request = {};
+  request.queryId = 11;
+  request.taskId = 22;
+  request.execId = 0;
+  request.reset = true;
+  request.reuseReader = true;
+  request.pStRtFuncInfo = &runtime;
+  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(size, 0);
+
+  SRpcMsg msg = {};
+  msg.msgType = TDMT_STREAM_FETCH;
+  msg.contLen = size;
+  msg.pCont = rpcMallocCont(size);
+  ASSERT_NE(msg.pCont, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(msg.pCont, size, &request, false, false), size);
+  msg.info.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(0x5003));
+  {
+    std::lock_guard<std::mutex> lock(gMutex);
+    gItems.push_back({msg.info.handle, msg.pCont, TSDB_CODE_SUCCESS, 0, 0});
+  }
+
+  SVnode     vnode = {};
+  SQueueInfo queueInfo = {};
+  EXPECT_NE(TSDB_CODE_SUCCESS, vnodeProcessStreamReaderMsg(&vnode, &msg, &queueInfo));
+  rpcFreeCont(msg.pCont);
+  msg.pCont = nullptr;
+
+  std::lock_guard<std::mutex> lock(gMutex);
+  EXPECT_EQ(0, gReaderSideEffects.initStorage);
+  EXPECT_EQ(0, gReaderSideEffects.destroyTask);
+  EXPECT_EQ(0, gReaderSideEffects.createTask);
+  EXPECT_EQ(0, gReaderSideEffects.resetScan);
+  EXPECT_EQ(0, gReaderSideEffects.executeTask);
+  EXPECT_EQ(0, gReaderSideEffects.configureGroupOutput);
 }
 
 }  // namespace
@@ -459,15 +675,31 @@ int32_t __wrap_qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void*, SReadHan
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t __wrap_qResetTableScan(qTaskInfo_t, SReadHandle*) {
+bool __wrap_qNeedReset(qTaskInfo_t pTaskInfo) { return pTaskInfo != nullptr; }
+
+void __wrap_qFinishReaderGroupRead(qTaskInfo_t) {
+  std::lock_guard<std::mutex> lock(gMutex);
+  ++gReaderSideEffects.finishGroupRead;
+}
+
+int32_t __wrap_qResetTableScan(qTaskInfo_t, SReadHandle*, EQueryTableScanResetMode mode) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.resetScan;
-  return TSDB_CODE_SUCCESS;
+  gReaderSideEffects.resetMode = mode;
+  return mode == QUERY_TABLE_SCAN_RESET_REUSE_READER ? gReuseReaderResetCode : TSDB_CODE_SUCCESS;
 }
 
 int32_t __wrap_qSetTaskId(qTaskInfo_t, uint64_t, uint64_t) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.setTaskId;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t __wrap_qEnableReaderGroupOutput(qTaskInfo_t, bool requested, bool* pEnabled) {
+  std::lock_guard<std::mutex> lock(gMutex);
+  ++gReaderSideEffects.configureGroupOutput;
+  EXPECT_FALSE(requested);
+  *pEnabled = false;
   return TSDB_CODE_SUCCESS;
 }
 

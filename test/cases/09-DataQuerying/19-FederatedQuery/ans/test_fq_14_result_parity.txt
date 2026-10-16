@@ -245,11 +245,11 @@ RESULT
 ---
 ### whr-39 NEG
 SQL: SELECT id FROM {tbl} WHERE label->'key' = 'val' ORDER BY time
-ERROR -0x7fffd9ae: Only tag can be json type
+ERROR -0x7fffd9ae: Only tags can be of the JSON type
 ---
 ### whr-40 NEG
 SQL: SELECT id FROM {tbl} WHERE label CONTAINS 'north'
-ERROR -0x7fffd9ae: Only tag can be json type
+ERROR -0x7fffd9ae: Only tags can be of the JSON type
 ---
 ### whr-41 POS
 SQL: SELECT a.id, a.val FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time WHERE a.val > 20 ORDER BY a.id
@@ -288,8 +288,8 @@ RESULT
 3|30
 ---
 ### whr-47 NEG
-SQL: SELECT id, val FROM {tbl} t1 WHERE val > (SELECT AVG(val) FROM {tbl} t2 WHERE t2.label = t1.label) ORDER BY time
-ERROR -0x7fffd95a: Not supported subquery as expr
+SQL: SELECT id, val FROM {tbl} t1 WHERE val > ANY (SELECT val FROM {tbl} t2 WHERE t2.label = t1.label) ORDER BY time
+ERROR -0x7fffd95a: Correlated subqueries are only supported as scalar expression subqueries
 ---
 ### whr-48 NEG
 SQL: SELECT id FROM {tbl} t1 WHERE EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.val > 30) ORDER BY time
@@ -1394,9 +1394,9 @@ RESULT
 ### grp-11 POS
 SQL: SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC
 RESULT
+east|1
 north|2
 south|2
-east|1
 ---
 ### grp-12 POS
 SQL: SELECT label, COUNT(*), SUM(val), AVG(score) FROM {tbl} WHERE val >= 20 GROUP BY label ORDER BY label
@@ -1479,6 +1479,13 @@ RESULT
 east|50
 north|40
 south|60
+---
+### grp-23 POS
+SQL: SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC, label
+RESULT
+north|2
+south|2
+east|1
 ---
 ### cast-01 POS
 SQL: SELECT id, CAST(val AS DOUBLE) FROM {tbl} ORDER BY time
@@ -1999,49 +2006,92 @@ RESULT
 40
 50
 ---
-### join-01 NEG
+### join-01 POS
 SQL: SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10|north
+2|20|south
+3|30|north
+4|40|south
+5|50|east
 ---
-### join-02 NEG
+### join-02 POS
 SQL: SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.id = b.id AND b.val > 30 ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|NULL
+2|NULL
+3|NULL
+4|40
+5|50
 ---
-### join-03 NEG
+### join-03 POS
 SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.id = b.id AND a.val < 30 ORDER BY b.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10
+2|20
+NULL|30
+NULL|40
+NULL|50
 ---
-### join-04 NEG
+### join-04 POS
 SQL: SELECT a.id AS aid, b.id AS bid FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.id = b.id + 3 ORDER BY a.id, b.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+NULL|3
+NULL|4
+NULL|5
+1|NULL
+2|NULL
+3|NULL
+4|1
+5|2
 ---
-### join-05 NEG
+### join-05 POS
 SQL: SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {tbl} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {tbl} WHERE id >= 4) b ORDER BY a.id, b.id
-ERROR -0x7fffda00: syntax error near "cross join (select id from fq_parity_local.parity_t where id >= 4) b order by a.id, b.id"
+RESULT
+1|4
+1|5
+2|4
+2|5
 ---
-### join-06 NEG
+### join-06 POS
 SQL: SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id GROUP BY a.label ORDER BY a.label
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+east|1|50
+north|2|40
+south|2|60
 ---
-### join-07 NEG
+### join-07 POS
 SQL: SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id INNER JOIN {tbl} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10|north
+2|20|south
+3|30|north
 ---
-### join-08 NEG
+### join-08 POS
 SQL: SELECT a.id, a.val FROM {tbl} a LEFT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
 ---
-### join-09 NEG
+### join-09 POS
 SQL: SELECT a.id, a.val FROM {tbl} a LEFT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY a.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
 ---
-### join-10 NEG
+### join-10 POS
 SQL: SELECT b.id, b.val FROM {tbl} a RIGHT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY b.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
 ---
-### join-11 NEG
+### join-11 POS
 SQL: SELECT b.id, b.val FROM {tbl} a RIGHT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY b.id
-ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+RESULT
 ---
 ### join-12 POS
 SQL: SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time ORDER BY a.id
@@ -2139,6 +2189,115 @@ RESULT
 1|10|north
 2|20|south
 3|30|north
+---
+### join-25 POS
+SQL: SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.time = b.time AND b.val > 30 ORDER BY a.id
+RESULT
+1|NULL
+2|NULL
+3|NULL
+4|40
+5|50
+---
+### join-26 POS
+SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time AND a.val < 30 ORDER BY b.id
+RESULT
+1|10
+2|20
+NULL|30
+NULL|40
+NULL|50
+---
+### join-27 POS
+SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time WHERE a.val < 30 ORDER BY b.id
+RESULT
+1|10
+2|20
+---
+### join-28 POS
+SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time WHERE b.val > 20 ORDER BY b.id
+RESULT
+3|30
+4|40
+5|50
+---
+### join-29 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl}) a JOIN (SELECT time, id, val FROM {tbl}) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-30 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY time DESC) a JOIN {tbl} b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-31 POS
+SQL: SELECT a.id, b.val FROM {tbl} a JOIN (SELECT time, id, val FROM {tbl} ORDER BY time DESC) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-32 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY time) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY time) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-33 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY val DESC) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY time) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-34 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY val DESC LIMIT 3) a JOIN {tbl} b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+3|30
+4|40
+5|50
+---
+### join-35 POS
+SQL: SELECT a.id, b.val FROM {tbl} a JOIN (SELECT time, id, val FROM {tbl} ORDER BY val LIMIT 2) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id
+RESULT
+1|10
+2|20
+---
+### join-36 POS
+SQL: SELECT a.id, b.val FROM (SELECT time, id, val FROM {tbl} ORDER BY time DESC LIMIT 2) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY time DESC LIMIT 2) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.time DESC LIMIT 2
+RESULT
+5|50
+4|40
+---
+### join-37 POS
+SQL: SELECT a.id, b.id FROM (SELECT time, id, val FROM {tbl} ORDER BY val DESC LIMIT 3) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY val DESC LIMIT 3) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id
+RESULT
+3|3
+4|4
+5|5
+---
+### join-38 POS
+SQL: SELECT a.id, b.id FROM (SELECT time, id, val FROM {tbl} ORDER BY TIMETRUNCATE(time, 1m)) a JOIN (SELECT time, id, val FROM {tbl} ORDER BY val DESC) b ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id LIMIT 3
+RESULT
+1|1
+2|2
+3|3
 ---
 ### asof-01 POS
 SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time >= b.time ORDER BY a.time
@@ -2368,23 +2527,68 @@ RESULT
 ---
 ### win-05 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NULL) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+NULL
+20
+NULL
+30
+NULL
+40
+NULL
+50
 ---
 ### win-06 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+0
+20
+0
+30
+0
+40
+0
+50
 ---
 ### win-07 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(PREV) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+10
+20
+20
+30
+30
+40
+40
+50
 ---
 ### win-08 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+20
+20
+30
+30
+40
+40
+50
+50
 ---
 ### win-09 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+15
+20
+25
+30
+35
+40
+45
+50
 ---
 ### win-10 POS
 SQL: SELECT label, COUNT(*) AS cnt FROM {tbl} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart
@@ -2580,7 +2784,17 @@ RESULT
 ---
 ### win-32 POS
 SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEAR) ORDER BY _wstart
-ERROR -0x7fffd954: FILL NEAR mode is not supported in window query
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|10
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|20
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|30
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|40
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|50
 ---
 ### win-33 POS
 SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart
@@ -2770,6 +2984,48 @@ RESULT
 2024-01-01 00:03:30|40
 2024-01-01 00:04:00|50
 2024-01-01 00:04:30|50
+---
+### win-56 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL)) w) FILL(NULL) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|1|10
+2024-01-01 00:00:30|1|20
+2024-01-01 00:01:00|1|20
+2024-01-01 00:01:30|1|30
+2024-01-01 00:02:00|1|30
+2024-01-01 00:02:30|1|40
+2024-01-01 00:03:00|1|40
+2024-01-01 00:03:30|1|50
+2024-01-01 00:04:00|1|50
+2024-01-01 00:04:30|NULL|NULL
+---
+### win-57 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL)) w) FILL(VALUE, 0, 0) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|1|10
+2024-01-01 00:00:30|1|20
+2024-01-01 00:01:00|1|20
+2024-01-01 00:01:30|1|30
+2024-01-01 00:02:00|1|30
+2024-01-01 00:02:30|1|40
+2024-01-01 00:03:00|1|40
+2024-01-01 00:03:30|1|50
+2024-01-01 00:04:00|1|50
+2024-01-01 00:04:30|0|0
+---
+### win-58 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL)) w) FILL(PREV) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|1|10
+2024-01-01 00:00:30|1|20
+2024-01-01 00:01:00|1|20
+2024-01-01 00:01:30|1|30
+2024-01-01 00:02:00|1|30
+2024-01-01 00:02:30|1|40
+2024-01-01 00:03:00|1|40
+2024-01-01 00:03:30|1|50
+2024-01-01 00:04:00|1|50
+2024-01-01 00:04:30|1|50
 ---
 ### regex-01 POS
 SQL: SELECT val FROM {tbl} WHERE label MATCH '^n' ORDER BY val
@@ -3231,13 +3487,14 @@ RESULT
 4|POLYGON ((0.000000 0.000000, 10.000000 0.000000, 10.000000 10.000000, 0.000000 10.000000, 0.000000 0.000000))
 5|POLYGON ((0.000000 0.000000, 10.000000 0.000000, 10.000000 10.000000, 0.000000 10.000000, 0.000000 0.000000))
 ---
-### enc-01 NEG
+### enc-01 POS
 SQL: SELECT MD5(label) FROM {tbl} WHERE id = 1
-ERROR -0x7fffd7fe: Invalid parameter data type : md5
+RESULT
+d48007b225b757cd77cbd30d66390b23
 ---
 ### enc-02 NEG
 SQL: SELECT AES_ENCRYPT(label, 'mykeystring12345') FROM {tbl} WHERE id = 1
-ERROR -0x7fffd7fe: Invalid parameter data type : aes_encrypt
+ERROR -0x7ffffd01: Internal error
 ---
 ### enc-03 POS
 SQL: SELECT AES_DECRYPT(AES_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1
@@ -3296,9 +3553,10 @@ SQL: SELECT TO_TIMESTAMP(ts_str, 'YYYY-MM-DD HH24:mi:ss') FROM {tbl} WHERE id = 
 RESULT
 2024-01-01 00:00:00
 ---
-### tochar-03 NEG
+### tochar-03 POS
 SQL: SELECT TO_UNIXTIMESTAMP(time) FROM {tbl} WHERE id = 1
-ERROR -0x7fffd7fe: Invalid parameter data type : to_unixtimestamp
+RESULT
+1704067200000
 ---
 ### interp-01 POS
 SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(1m) FILL(linear)
@@ -3349,8 +3607,9 @@ NULL
 50
 ---
 ### interp-05 POS
-SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:01:30.000') FILL(linear) SURROUND(1)
-ERROR -0x7fffda00: syntax error near "surround(1)"
+SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:01:30.000') FILL(prev) SURROUND(1m, NULL)
+RESULT
+20
 ---
 ### interp-06 POS
 SQL: SELECT _IROWTS, interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(1m) FILL(linear)
@@ -3465,11 +3724,11 @@ RESULT
 ---
 ### json-01 NEG
 SQL: SELECT label->'k' FROM {tbl} WHERE id = 1
-ERROR -0x7fffd9ae: Only tag can be json type
+ERROR -0x7fffd9ae: Only tags can be of the JSON type
 ---
 ### json-02 NEG
 SQL: SELECT id FROM {tbl} WHERE label CONTAINS 'num'
-ERROR -0x7fffd9ae: Only tag can be json type
+ERROR -0x7fffd9ae: Only tags can be of the JSON type
 ---
 ### json-03 POS
 SQL: SELECT id FROM {tbl} WHERE label LIKE '%orth%' ORDER BY time
@@ -3477,9 +3736,10 @@ RESULT
 1
 3
 ---
-### json-04 NEG
+### json-04 POS
 SQL: SELECT TO_JSON(label) FROM {tbl} WHERE id = 1
-ERROR -0x7fffd7fe: Invalid parameter data type : to_json
+RESULT
+null
 ---
 ### grpconcat-01 POS
 SQL: SELECT id, GROUP_CONCAT(label, ',') AS g FROM {tbl} GROUP BY id ORDER BY id

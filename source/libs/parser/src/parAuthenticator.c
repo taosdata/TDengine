@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,6 +26,7 @@ typedef struct SAuthCxt {
   int32_t          errCode;
   bool             macNruGuaranteed;
   bool             macNwdGuaranteed;
+  bool             allowExternalQuery;
 } SAuthCxt;
 
 typedef struct SSelectAuthCxt {
@@ -62,9 +65,9 @@ static int32_t macCheckBySecLvl(SAuthCxt* pCxt, int8_t secLvl, bool checkNWD) {
  *
  * Uses a 3-layer fast-path strategy to avoid expensive metadata fetches
  * in the common case where MAC is not actively used:
- *   Layer 1: User-level — if user's security range covers all levels, skip entirely.
- *   Layer 2: (DB-level — handled in checkAuthByOwner for PRIV_DB_USE, zero extra cost.)
- *   Layer 3: Table-level — fetch table meta from cache only when needed.
+ *   Layer 1: User-level  -  if user's security range covers all levels, skip entirely.
+ *   Layer 2: (DB-level  -  handled in checkAuthByOwner for PRIV_DB_USE, zero extra cost.)
+ *   Layer 3: Table-level  -  fetch table meta from cache only when needed.
  *
  * @param pCxt      Auth context
  * @param dbName    Database name
@@ -75,24 +78,24 @@ static int32_t macCheckBySecLvl(SAuthCxt* pCxt, int8_t secLvl, bool checkNWD) {
 static int32_t macCheckTableAccess(SAuthCxt* pCxt, const char* dbName, const char* tableName, bool checkNWD) {
   SParseContext* pParseCxt = pCxt->pParseCxt;
 
-  // Fast-path: MAC not yet activated cluster-wide — skip all checks
+  // Fast-path: MAC not yet activated cluster-wide  -  skip all checks
   if (!pParseCxt->macMode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Layer 1: User-level fast-path — skip if user's security range guarantees MAC pass
+  // Layer 1: User-level fast-path  -  skip if user's security range guarantees MAC pass
   if (pCxt->macNruGuaranteed && (!checkNWD || pCxt->macNwdGuaranteed)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Layer 3: Table-level — fetch secLvl from metadata cache
+  // Layer 3: Table-level  -  fetch secLvl from metadata cache
   SName name = {0};
   toName(pParseCxt->acctId, dbName, tableName, &name);
   STableMeta* pTableMeta = NULL;
   int32_t     code = getTargetMetaImpl(pParseCxt, pCxt->pMetaCache, &name, &pTableMeta, true);
   if (TSDB_CODE_SUCCESS == code && pTableMeta != NULL) {
     int8_t secLvl = pTableMeta->secLvl;
-    taosMemoryFree(pTableMeta);
+    queryFreeTableMeta(pTableMeta);
     return macCheckBySecLvl(pCxt, secLvl, checkNWD);
   }
   return TSDB_CODE_SUCCESS;
@@ -146,7 +149,7 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
           return code;
         }
 #ifdef TD_ENTERPRISE
-        // Layer 2 MAC: DB-level NRU check — piggybacked on already-fetched SDbCfgInfo
+        // Layer 2 MAC: DB-level NRU check  -  piggybacked on already-fetched SDbCfgInfo
         // Only for DB_USE to avoid blocking admin ops (ALTER/DROP by SYSSEC)
         // Skip when MAC is not yet activated cluster-wide
         if (pParseCxt->macMode && pAuthInfo->privType == PRIV_DB_USE && dbCfgInfo.securityLevel > 0 &&
@@ -408,12 +411,70 @@ _return:
 }
 #endif
 
+#ifdef TD_ENTERPRISE
+static int32_t authIsExtSource(SAuthCxt* pCxt, const char* sourceName, bool* pIsExternal) {
+  *pIsExternal = false;
+  if (!tsFederatedQueryEnable || sourceName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+  SExtSourceInfo* pInfo = NULL;
+  int32_t code = getExternalSourceInfoImpl(pCxt->pParseCxt, pCxt->pMetaCache, sourceName, &pInfo);
+  *pIsExternal = TSDB_CODE_SUCCESS == code && NULL != pInfo &&
+                 strcmp(pInfo->source_name, sourceName) == 0;
+  freeExtSourceInfo(pInfo);
+  return code == TSDB_CODE_EXT_SOURCE_NOT_FOUND ? TSDB_CODE_SUCCESS : code;
+}
+
+static int32_t authIsExternalTable(SAuthCxt* pCxt, SRealTableNode* pTable, bool* pIsExternal) {
+  *pIsExternal = false;
+  if (!tsFederatedQueryEnable || !pCxt->allowExternalQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTable->numPathSegments >= 3 || pTable->extSeg[0][0] != '\0') {
+    *pIsExternal = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTable->numPathSegments == 1 && pCxt->pParseCxt->currentExtSource[0] != '\0') {
+    *pIsExternal = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTable->numPathSegments == 2) {
+    return authIsExtSource(pCxt, pTable->table.dbName, pIsExternal);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool authIsExternalSeries(SNodeList* pSeriesList, const char* tableName) {
+  if (!tsFederatedQueryEnable) {
+    return false;
+  }
+  SNode* pNode = NULL;
+  FOREACH(pNode, pSeriesList) {
+    SSeriesDeclNode* pSeries = (SSeriesDeclNode*)pNode;
+    if (pSeries->sourceName[0] != '\0' && strcasecmp(pSeries->alias, tableName) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+#endif
+
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   SSelectAuthCxt* pCxt = pContext;
   SAuthCxt*       pAuthCxt = pCxt->pAuthCxt;
   bool            isView = false;
   bool            isAudit = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
+#ifdef TD_ENTERPRISE
+    bool isExternal = false;
+    pAuthCxt->errCode = authIsExternalTable(pAuthCxt, (SRealTableNode*)pNode, &isExternal);
+    if (TSDB_CODE_SUCCESS != pAuthCxt->errCode) {
+      return DEAL_RES_ERROR;
+    }
+    if (isExternal) {
+      return DEAL_RES_CONTINUE;
+    }
+#endif
     SNode*      pTagCond = NULL;
     // SArray*     pPrivCols = NULL;
     STableNode* pTable = (STableNode*)pNode;
@@ -436,7 +497,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
       // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SELECT.
       // Reuse secLvl from this already-fetched table meta to avoid extra metadata round-trips.
       if (pAuthCxt->pParseCxt->macMode && macCheckBySecLvl(pAuthCxt, pTableMeta->secLvl, false) != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(pTableMeta);
+        queryFreeTableMeta(pTableMeta);
         pAuthCxt->errCode = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
         return DEAL_RES_ERROR;
       }
@@ -444,14 +505,14 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
         isAudit = true;
       } else if (!pTableMeta->isAudit && (pTableMeta->ownerId == pAuthCxt->pParseCxt->userId)) {
         // owner has all privileges on the table he owns except audit table
-        taosMemoryFree(pTableMeta);
+        queryFreeTableMeta(pTableMeta);
         return DEAL_RES_CONTINUE;
       }
       if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
         isView = true;
       }
     }
-    taosMemoryFree(pTableMeta);
+    queryFreeTableMeta(pTableMeta);
 #endif
     if (!isView) {
       pAuthCxt->errCode =
@@ -491,9 +552,9 @@ static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t authSetOperator(SAuthCxt* pCxt, SSetOperator* pSetOper) {
-  int32_t code = authQuery(pCxt, pSetOper->pLeft);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = authQuery(pCxt, pSetOper->pRight);
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOper) && TSDB_CODE_SUCCESS == code; ++i) {
+    code = authQuery(pCxt, setOperatorChildAt(pSetOper, i));
   }
   return code;
 }
@@ -569,7 +630,7 @@ static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) 
   // return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ, &pTagCond);
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
 #ifdef TD_ENTERPRISE
-  // MAC NRU: table-level check — user.maxSecLevel must be >= table.securityLevel
+  // MAC NRU: table-level check  -  user.maxSecLevel must be >= table.securityLevel
   PAR_ERR_RET(macCheckTableAccess(pCxt, pStmt->dbName, pStmt->tableName, false));
 #endif
   return authObjPrivileges(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_SHOW_CREATE, PRIV_OBJ_TBL);
@@ -597,7 +658,7 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   int32_t code = authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
 #ifdef TD_ENTERPRISE
-  // Per FS §4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
+  // Per FS section 4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
   // of MAC activation state. SECURITY_LEVEL = 0 is equivalent to the default and always allowed.
   if (TSDB_CODE_SUCCESS == code) {
     if (pStmt->pOptions && pStmt->pOptions->securityLevel > 0) {
@@ -613,7 +674,7 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
 }
 
 // Check SELECT privilege on the source table of every column/tag reference in a def list.
-static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs) {
+static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs, SNodeList* pSeriesList) {
   SNode* pCol = NULL;
   FOREACH(pCol, pDefs) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
@@ -622,6 +683,18 @@ static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs) {
     }
     SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
+#ifdef TD_ENTERPRISE
+      if (authIsExternalSeries(pSeriesList, pOptions->refTable)) {
+        continue;
+      }
+      STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
+      if (tsFederatedQueryEnable) {
+        PAR_ERR_RET(disambiguateThreeSegColOptions(&cxt, pOptions));
+        if (pOptions->refType == 1) {
+          continue;
+        }
+      }
+#endif
       PAR_ERR_RET(checkTableSelectAuth(pCxt, pOptions->refDb, pOptions->refTable));
     }
   }
@@ -631,8 +704,8 @@ static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs) {
 static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
-  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pCols));
-  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pTags));
+  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pCols, pStmt->pSeriesList));
+  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pTags, pStmt->pSeriesList));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -647,6 +720,18 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
       if (NULL == pColRef) {
         PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
+#ifdef TD_ENTERPRISE
+      if (authIsExternalSeries(pStmt->pSeriesList, pColRef->refTableName)) {
+        continue;
+      }
+      STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
+      if (tsFederatedQueryEnable) {
+        PAR_ERR_RET(disambiguateThreeSegColRef(&cxt, pColRef));
+        if (pColRef->refType == 1) {
+          continue;
+        }
+      }
+#endif
       PAR_ERR_RET(checkTableSelectAuth(pCxt, pColRef->refDbName, pColRef->refTableName));
     }
   }
@@ -657,6 +742,18 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
         continue;
       }
       SColumnRefNode* pTagRef = (SColumnRefNode*)pNode;
+#ifdef TD_ENTERPRISE
+      if (authIsExternalSeries(pStmt->pSeriesList, pTagRef->refTableName)) {
+        continue;
+      }
+      STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
+      if (tsFederatedQueryEnable) {
+        PAR_ERR_RET(disambiguateThreeSegColRef(&cxt, pTagRef));
+        if (pTagRef->refType == 1) {
+          continue;
+        }
+      }
+#endif
       PAR_ERR_RET(checkTableSelectAuth(pCxt, pTagRef->refDbName, pTagRef->refTableName));
     }
   }
@@ -838,12 +935,16 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
     PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
     int32_t code = checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
     // reference alters additionally read the source table: require SELECT on it (mirrors
-    // authAlterVTable — the ALTER TABLE form of the same statements must not bypass it)
+    // authAlterVTable  -  the ALTER TABLE form of the same statements must not bypass it)
     if (TSDB_CODE_SUCCESS == code &&
         (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
          pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF ||
          pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
-         pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)) {
+         pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)
+#ifdef TD_ENTERPRISE
+        && !(tsFederatedQueryEnable && pStmt->refType == 1)
+#endif
+    ) {
       PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));
       code = checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL, NULL);
     }
@@ -879,10 +980,14 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
 
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL));
-  if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
+  if ((pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
-      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF) {
+      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)
+#ifdef TD_ENTERPRISE
+      && !(tsFederatedQueryEnable && pStmt->refType == 1)
+#endif
+  ) {
     PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));
     if (checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL, NULL)) {
       return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
@@ -1055,7 +1160,7 @@ static int32_t authShowCreateStream(SAuthCxt* pCxt, SShowCreateStreamStmt* pStmt
 static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
   int32_t code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_DB_CREATE);
 #ifdef TD_ENTERPRISE
-  // Per FS §4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
+  // Per FS section 4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
   // of MAC activation state. SECURITY_LEVEL = 0 is equivalent to the default and always allowed.
   if (TSDB_CODE_SUCCESS == code) {
     if (pStmt->pOptions && pStmt->pOptions->securityLevel > 0) {
@@ -1098,6 +1203,22 @@ static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {
 }
 
 static int32_t authUseDatabase(SAuthCxt* pCxt, SUseDatabaseStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+  if (tsFederatedQueryEnable) {
+    SName name = {0};
+    char dbFName[TSDB_DB_FNAME_LEN] = {0};
+    SDbCfgInfo dbCfg = {0};
+    PAR_ERR_RET(tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName)));
+    PAR_ERR_RET(tNameGetFullDbName(&name, dbFName));
+    if (NULL == pCxt->pMetaCache || getDbCfgFromCache(pCxt->pMetaCache, dbFName, &dbCfg) != TSDB_CODE_SUCCESS) {
+      bool isExternal = false;
+      PAR_ERR_RET(authIsExtSource(pCxt, pStmt->dbName, &isExternal));
+      if (isExternal) {
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+#endif
   return authObjPrivileges(pCxt, ((SUseDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
 }
 
@@ -1149,6 +1270,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
 #ifdef TD_ENTERPRISE
   switch (nodeType(pStmt)) {
+    case QUERY_NODE_EXPLAIN_STMT:
+      return authQuery(pCxt, ((SExplainStmt*)pStmt)->pQuery);
     case QUERY_NODE_SET_OPERATOR:
       return authSetOperator(pCxt, (SSetOperator*)pStmt);
     case QUERY_NODE_SELECT_STMT:
@@ -1364,6 +1487,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_SCANS_STMT:
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+    case QUERY_NODE_SHOW_BACKUPS_STMT:
+    case QUERY_NODE_CREATE_BACKUP_STMT:  // cluster-level, enforced in mnode via backupRestore grant
+    case QUERY_NODE_KILL_BACKUP_STMT:
       return TSDB_CODE_SUCCESS;
     default:
       break;
@@ -1373,12 +1499,18 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
 }
 
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+  SNode* pAuthRoot = pQuery->pRoot;
+  if (QUERY_NODE_EXPLAIN_STMT == nodeType(pAuthRoot)) {
+    pAuthRoot = ((SExplainStmt*)pAuthRoot)->pQuery;
+  }
   SAuthCxt cxt = {
       .pParseCxt = pParseCxt,
       .pMetaCache = pMetaCache,
       .errCode = TSDB_CODE_SUCCESS,
       .macNruGuaranteed = (pParseCxt->maxSecLevel >= SECURITY_LEVEL_TOP_SECRET),
       .macNwdGuaranteed = (pParseCxt->minSecLevel == 0),
+      .allowExternalQuery = QUERY_NODE_SELECT_STMT == nodeType(pAuthRoot) ||
+                            QUERY_NODE_SET_OPERATOR == nodeType(pAuthRoot),
   };
 #ifdef TD_ENTERPRISE
   if (pParseCxt->sodInitial) {

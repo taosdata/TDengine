@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies, Inc.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 """Tags on virtual NORMAL tables (CREATE VTABLE ... TAGS) — full query coverage.
@@ -2569,6 +2573,334 @@ class TestVtableNormalTags:
                     "TAGS (r INT FROM src0.city);")
 
     # ==================================================================
+    # 7. RENAME TAG — ALTER TABLE ... RENAME TAG on the owned tags of a
+    # normal / virtual-normal table. The rename keeps colId, so tag values,
+    # tag-refs and the STag payload all survive; only the display name changes.
+    # ==================================================================
+
+    def test_rename_owned_tag_on_normal_table(self):
+        """RENAME TAG: an owned tag of a plain normal table is renamed.
+
+        The value is preserved (colId is unchanged), the old name stops resolving, and DESC / SHOW CREATE show the new
+        name. Renaming back restores the original name with the value still intact.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: normal_table, tag, alter, rename
+
+        Jira: None
+
+        History:
+            - 2026-08-24 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_rn (ts TIMESTAMP, v INT);")
+        tdSql.execute(f"INSERT INTO ntb_rn VALUES ({TS0}, 11);")
+        tdSql.execute("ALTER TABLE ntb_rn ADD TAG owner VARCHAR(16);")
+        tdSql.execute("ALTER TABLE ntb_rn SET TAG owner = 'alice';")
+        self._check_values("SELECT owner, v FROM ntb_rn;", [('alice', 11)], "rename: pre-rename value")
+
+        tdSql.execute("ALTER TABLE ntb_rn RENAME TAG owner holder;")
+        # value follows the colId, not the name
+        self._check_values("SELECT holder, v FROM ntb_rn;", [('alice', 11)], "rename: value survives rename")
+        # the old name is gone
+        tdSql.error("SELECT owner FROM ntb_rn;")
+        rows = self._rows("DESC ntb_rn;")
+        tag_names = [r[0] for r in rows if r[3] == 'TAG']
+        assert tag_names == ['holder'], f"rename: DESC should show only 'holder', got {tag_names}"
+        tdSql.query("SHOW CREATE TABLE ntb_rn;")
+        create_sql = str(tdSql.getData(0, 1))
+        assert 'holder' in create_sql and 'owner' not in create_sql, \
+            f"rename: SHOW CREATE should carry the new tag name only: {create_sql}"
+
+        # rename back: still the same tag, same value
+        tdSql.execute("ALTER TABLE ntb_rn RENAME TAG holder owner;")
+        self._check_values("SELECT owner, v FROM ntb_rn;", [('alice', 11)], "rename: renamed back")
+        tdLog.info("  PASS: RENAME TAG on a normal table preserves the tag value")
+
+    def test_rename_owned_tag_and_tag_ref_on_virtual_normal_table(self):
+        """RENAME TAG: on a virtual normal table both tag forms rename.
+
+        An owned tag keeps its value, and a tag-ref keeps following its source table (the colRef slot is re-stamped with
+        the new name so the planner still resolves it). SHOW CREATE reflects both new names.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: virtual, tag, tag_ref, alter, rename
+
+        Jira: None
+
+        History:
+            - 2026-08-24 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE VTABLE vntb_rn (ts TIMESTAMP, val INT FROM src0.val) "
+                      "TAGS (owner VARCHAR(16) = 'bob', rcity NCHAR(20) FROM src0.city);")
+        self._check_values("SELECT DISTINCT owner, rcity FROM vntb_rn;", [('bob', 'beijing')],
+                           "rename(vntb): pre-rename owned + ref")
+
+        tdSql.execute("ALTER TABLE vntb_rn RENAME TAG owner keeper;")
+        tdSql.execute("ALTER TABLE vntb_rn RENAME TAG rcity town;")
+        # owned tag keeps its value; tag-ref still resolves through to src0.city
+        self._check_values("SELECT DISTINCT keeper, town FROM vntb_rn;", [('bob', 'beijing')],
+                           "rename(vntb): owned value + tag-ref both survive")
+        tdSql.error("SELECT owner FROM vntb_rn;")
+        tdSql.error("SELECT rcity FROM vntb_rn;")
+
+        rows = self._rows("DESC vntb_rn;")
+        tag_names = sorted(r[0] for r in rows if r[3] == 'TAG')
+        assert tag_names == ['keeper', 'town'], f"rename(vntb): DESC tags {tag_names}"
+        # the tag-ref's source binding is untouched by the rename
+        ref = [r[4] for r in rows if r[0] == 'town']
+        assert ref and 'src0' in ref[0] and 'city' in ref[0], \
+            f"rename(vntb): tag-ref source should still be src0.city, got {ref}"
+
+        tdSql.query("SHOW CREATE TABLE vntb_rn;")
+        create_sql = str(tdSql.getData(0, 1))
+        for expect in ('keeper', 'town'):
+            assert expect in create_sql, f"rename(vntb): SHOW CREATE missing {expect}: {create_sql}"
+        # filtering and grouping work under the new names
+        self._check_values("SELECT DISTINCT keeper FROM vntb_rn WHERE town = 'beijing';", [('bob',)],
+                           "rename(vntb): filter by renamed tag-ref")
+        tdLog.info("  PASS: RENAME TAG on a virtual normal table (owned + tag-ref)")
+
+    def test_tag_access_survives_column_alter(self):
+        """A column-level ALTER must keep the owned-tag schema in the client's cached meta.
+
+        Every vnode meta response for a normal / virtual-normal table has to carry the owned-tag
+        schema. When ADD / MODIFY / RENAME / DROP COLUMN responded with the row schema only, the
+        client catalog replaced its cached meta with a tag-less one — ctgWriteTbMetaToCache only
+        skips an update when sversion, tversion and rversion are all non-regressing, and a column
+        ALTER advances sversion while reporting tversion 0 — after which the *same connection*
+        failed every tag access with "Invalid tag name: <tag>" until some later RPC refreshed the
+        cache. The create path and the tag-alter paths already appended the schema; the four
+        column-alter paths did not.
+
+        Catalog:
+            - NormalTable
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: normal_table, virtual_table, tag, alter, regression
+
+        Jira: None
+
+        History:
+            - 2026-09-14 Created: regression for the tag-less column-ALTER meta response
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_col_alt (ts TIMESTAMP, c1 INT, c2 NCHAR(20)) TAGS (tg INT = 7);")
+        tdSql.execute(f"INSERT INTO ntb_col_alt VALUES ({TS0}, 1, 'v');")
+        self._check_values("SELECT tg FROM ntb_col_alt;", [(7,)], "baseline tag read")
+
+        # ADD COLUMN advances the row schema version and used to drop the tag from the response
+        tdSql.execute("ALTER TABLE ntb_col_alt ADD COLUMN c3 INT;")
+        self._check_values("SELECT tg FROM ntb_col_alt;", [(7,)], "tag read after ADD COLUMN")
+        tdSql.execute("ALTER TABLE ntb_col_alt RENAME TAG tg tg_a;")
+        self._check_values("SELECT tg_a FROM ntb_col_alt;", [(7,)], "RENAME TAG after ADD COLUMN")
+
+        # MODIFY COLUMN (variable-length column resize)
+        tdSql.execute("ALTER TABLE ntb_col_alt MODIFY COLUMN c2 NCHAR(30);")
+        self._check_values("SELECT tg_a FROM ntb_col_alt;", [(7,)], "tag read after MODIFY COLUMN")
+
+        # RENAME COLUMN followed immediately by a tag operation is the sequence that broke
+        tdSql.execute("ALTER TABLE ntb_col_alt RENAME COLUMN c3 c3_new;")
+        self._check_values("SELECT tg_a FROM ntb_col_alt;", [(7,)], "tag read after RENAME COLUMN")
+        tdSql.execute("ALTER TABLE ntb_col_alt RENAME TAG tg_a tg_b;")
+        self._check_values("SELECT tg_b FROM ntb_col_alt;", [(7,)], "RENAME TAG after RENAME COLUMN")
+
+        # DROP COLUMN, then the tag must still be fully usable: read, SET and DROP
+        tdSql.execute("ALTER TABLE ntb_col_alt DROP COLUMN c3_new;")
+        self._check_values("SELECT tg_b FROM ntb_col_alt;", [(7,)], "tag read after DROP COLUMN")
+        tdSql.execute("ALTER TABLE ntb_col_alt SET TAG tg_b = 8;")
+        self._check_values("SELECT tg_b FROM ntb_col_alt;", [(8,)], "SET TAG after DROP COLUMN")
+        tdSql.execute("ALTER TABLE ntb_col_alt DROP TAG tg_b;")
+        rows = self._rows("DESC ntb_col_alt;")
+        assert not [r for r in rows if r[3] == 'TAG'], f"tag should be dropped, got {rows}"
+        tdLog.info("  PASS: tag stays reachable across ADD / MODIFY / RENAME / DROP COLUMN")
+
+        # virtual normal table: the owned tag and the tag-ref must both survive a column rename
+        tdSql.execute("CREATE VTABLE vntb_col_alt (ts TIMESTAMP, v INT FROM src0.val) "
+                      "TAGS (own_t INT = 3, ref_t NCHAR(20) FROM src0.city);")
+        tdSql.execute("ALTER TABLE vntb_col_alt RENAME COLUMN v v_new;")
+        self._check_values("SELECT DISTINCT own_t, ref_t FROM vntb_col_alt;", [(3, 'beijing')],
+                           "tag read after RENAME COLUMN (virtual normal table)")
+
+    def test_tag_access_survives_colref_alter(self):
+        """A colRef-level ALTER must keep the owned-tag schema in the cached meta
+
+        metaAlterTableColumnRef (ALTER COLUMN ... SET <src>) and metaRemoveTableColumnRef
+        (ALTER COLUMN ... SET NULL) advance the row schema version and rversion, so
+        ctgWriteTbMetaToCache accepts their response; when that response carried the row schema
+        and the colRef only, the client cache was replaced by a tag-less meta and any later tag
+        access on the same connection failed with "Invalid tag name". These two paths plus
+        metaAddTableSeries were the remaining ones missing the owned-tag append.
+
+        The probe is a *same-connection* tag operation right after the ALTER (SET TAG below
+        resolves the tag through the client-cached meta, and the vnode backstop re-checks it). A
+        DESCRIBE/SHOW CREATE probe would not work here: they refetch the full meta and would
+        repopulate the cache, masking the very regression this case is about.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: virtual_table, tag, alter, colref, regression
+
+        Jira: None
+
+        History:
+            - 2026-09-14 Created: regression for the tag-less colRef-ALTER meta response
+            - 2026-09-15 Fixed: the row assertion after SET NULL projected the tag from a column
+              that no longer has a source, so it could only ever see 0 rows; the same-connection
+              SET TAG is the probe (it raises on a tag-less cached meta) and the tag value is
+              asserted once the column is rebound below
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE VTABLE vntb_ref_alt (ts TIMESTAMP, v INT FROM src0.val) "
+                      "TAGS (own_t INT = 5);")
+        self._check_values("SELECT DISTINCT own_t FROM vntb_ref_alt;", [(5,)], "baseline tag read")
+
+        # drop the source binding -> v becomes an own column (REMOVE COLUMN REF). The table then has
+        # no source rows, so there is nothing to project the tag from; the regression probe is the
+        # tag operation itself: SET TAG resolves own_t against the client-cached meta (the vnode
+        # backstop re-checks it), so a tag-less cached meta fails right here with "Invalid tag
+        # name" and tdSql.execute raises. The value is asserted after the column is rebound below.
+        tdSql.execute("ALTER VTABLE vntb_ref_alt ALTER COLUMN v SET NULL;")
+        tdSql.execute("ALTER TABLE vntb_ref_alt SET TAG own_t = 6;")
+        self._check_count("SELECT COUNT(*) FROM vntb_ref_alt;", 0,
+                          "no source rows while the column is unbound")
+
+        # point the column at a source again (ALTER COLUMN REF) -> rows come back
+        tdSql.execute("ALTER VTABLE vntb_ref_alt ALTER COLUMN v SET src0.val;")
+        self._check_values("SELECT DISTINCT own_t FROM vntb_ref_alt;", [(6,)],
+                           "tag read after ALTER COLUMN SET src")
+
+        # the owned tag is still fully manageable, not just readable
+        tdSql.execute("ALTER TABLE vntb_ref_alt RENAME TAG own_t own_t2;")
+        self._check_values("SELECT DISTINCT own_t2 FROM vntb_ref_alt;", [(6,)],
+                           "RENAME TAG after colRef alter")
+
+    def test_rename_tag_negative(self):
+        """RENAME TAG errors: unknown old tag, a new name colliding with an existing tag or column.
+
+        Including renaming a tag to its own name, renaming a tag through RENAME COLUMN
+        (and a column through RENAME TAG), and RENAME TAG on a child table (tags belong to the
+        super table).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: virtual, normal_table, tag, alter, rename, negative
+
+        Jira: None
+
+        History:
+            - 2026-08-24 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_rn_err (ts TIMESTAMP, c1 INT);")
+        tdSql.execute("ALTER TABLE ntb_rn_err ADD TAG t1 INT;")
+        tdSql.execute("ALTER TABLE ntb_rn_err ADD TAG t2 INT;")
+
+        tdSql.error("ALTER TABLE ntb_rn_err RENAME TAG nosuch x;")   # old tag does not exist
+        tdSql.error("ALTER TABLE ntb_rn_err RENAME TAG t1 t2;")      # collides with another tag
+        tdSql.error("ALTER TABLE ntb_rn_err RENAME TAG t1 t1;")      # collides with itself
+        tdSql.error("ALTER TABLE ntb_rn_err RENAME TAG t1 c1;")      # collides with a data column
+        # the two RENAME forms are not interchangeable: a tag is not a column and vice versa
+        tdSql.error("ALTER TABLE ntb_rn_err RENAME COLUMN t1 x;")
+        tdSql.error("ALTER TABLE ntb_rn_err RENAME TAG c1 x;")
+        # a child table has no tags of its own — they live on the super table
+        tdSql.error("ALTER TABLE src0 RENAME TAG city town;")
+        # the tags are untouched by all of the above
+        rows = self._rows("DESC ntb_rn_err;")
+        tag_names = sorted(r[0] for r in rows if r[3] == 'TAG')
+        assert tag_names == ['t1', 't2'], f"rename(negative): tags should be unchanged, got {tag_names}"
+        tdLog.info("  PASS: RENAME TAG negative cases")
+
+    def test_rename_tag_then_drop_and_readd(self):
+        """RENAME TAG interop with ADD/DROP/SET TAG.
+
+        After a rename, SET TAG works under the new name, DROP TAG removes it by the new name, and re-adding the
+        *original* name yields a fresh tag (a new colId) whose value starts NULL rather than resurrecting the old one.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: normal_table, tag, alter, rename
+
+        Jira: None
+
+        History:
+            - 2026-08-24 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_rn_cyc (ts TIMESTAMP, v INT);")
+        tdSql.execute(f"INSERT INTO ntb_rn_cyc VALUES ({TS0}, 5);")
+        tdSql.execute("ALTER TABLE ntb_rn_cyc ADD TAG t1 INT;")
+        tdSql.execute("ALTER TABLE ntb_rn_cyc SET TAG t1 = 7;")
+        tdSql.execute("ALTER TABLE ntb_rn_cyc RENAME TAG t1 t1_new;")
+        # SET TAG under the new name
+        tdSql.execute("ALTER TABLE ntb_rn_cyc SET TAG t1_new = 9;")
+        self._check_values("SELECT t1_new, v FROM ntb_rn_cyc;", [(9, 5)], "rename: SET TAG after rename")
+        # DROP by the new name, then re-add the original name -> new colId, value NULL
+        tdSql.execute("ALTER TABLE ntb_rn_cyc DROP TAG t1_new;")
+        tdSql.execute("ALTER TABLE ntb_rn_cyc ADD TAG t1 INT;")
+        self._check_values("SELECT t1, v FROM ntb_rn_cyc;", [(None, 5)],
+                           "rename: re-added original name starts NULL")
+        tdLog.info("  PASS: RENAME TAG interop with SET / DROP / re-ADD")
+
+    def test_rename_json_tag(self):
+        """RENAME TAG on a JSON tag.
+
+        The value is keyed by the inner JSON key, not by the tag's display name, so the rename leaves it intact and
+        `->` extraction keeps working under the new name. Regression guard: the rename path must NOT rebuild the STag
+        payload — probing a JSON STag with a {.cid = ...} STagVal leaves pKey uninitialised and crashed the vnode
+        (and then crashed again on every WAL replay, making the vnode unrecoverable).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: normal_table, tag, json, alter, rename
+
+        Jira: None
+
+        History:
+            - 2026-08-25 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_rn_json (ts TIMESTAMP, v INT) TAGS (jt JSON = '{\"a\":1,\"b\":\"x\"}');")
+        tdSql.execute(f"INSERT INTO ntb_rn_json VALUES ({TS0}, 7);")
+        self._check_values("SELECT jt->'a', v FROM ntb_rn_json;", [("1.000000000", 7)], "json rename: pre-rename")
+
+        tdSql.execute("ALTER TABLE ntb_rn_json RENAME TAG jt jt2;")
+        rows = self._rows("DESC ntb_rn_json;")
+        tag_names = [r[0] for r in rows if r[3] == 'TAG']
+        assert tag_names == ['jt2'], f"json rename: DESC tags {tag_names}"
+        # the whole JSON document and per-key extraction both survive the rename
+        self._check_values("SELECT jt2->'a', jt2->'b', v FROM ntb_rn_json;", [("1.000000000", '"x"', 7)],
+                           "json rename: value and -> extraction survive")
+        tdSql.error("SELECT jt FROM ntb_rn_json;")
+        # renaming back leaves the document untouched
+        tdSql.execute("ALTER TABLE ntb_rn_json RENAME TAG jt2 jt;")
+        self._check_values("SELECT jt->'a', v FROM ntb_rn_json;", [("1.000000000", 7)], "json rename: renamed back")
+        tdLog.info("  PASS: RENAME TAG on a JSON tag preserves the document")
+
+    # ==================================================================
     # RESTART PERSISTENCE — the bit-5 trailer + monotonic schemaTag.version
     # must re-decode correctly after a taosd restart.
     # ==================================================================
@@ -2660,6 +2992,53 @@ class TestVtableNormalTags:
         self._check_values("SELECT t2, v FROM ntb_rst;", [('post', 1)], "restart: re-add tag after drop-all")
         tdLog.info("  PASS: restart after drop-all-tags + re-add")
 
+    def test_restart_renamed_tag_persists(self):
+        """Restart: a renamed owned tag and a renamed tag-ref keep their new names after a taosd restart.
+
+        The rename is written to the on-disk tag trailer (schema) and, for the tag-ref,
+        to the colRef slot, so both re-decode under the new name with values intact.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: virtual, normal_table, persistence, restart, tag, tag_ref, rename
+
+        Jira: None
+
+        History:
+            - 2026-08-24 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_rn_rst (ts TIMESTAMP, v INT);")
+        tdSql.execute(f"INSERT INTO ntb_rn_rst VALUES ({TS0}, 3);")
+        tdSql.execute("ALTER TABLE ntb_rn_rst ADD TAG t1 INT;")
+        tdSql.execute("ALTER TABLE ntb_rn_rst SET TAG t1 = 21;")
+        tdSql.execute("ALTER TABLE ntb_rn_rst RENAME TAG t1 t1_kept;")
+        tdSql.execute("CREATE VTABLE vntb_rn_rst (ts TIMESTAMP, val INT FROM src0.val) "
+                      "TAGS (own INT = 4, rc NCHAR(20) FROM src0.city);")
+        tdSql.execute("ALTER TABLE vntb_rn_rst RENAME TAG own own_kept;")
+        tdSql.execute("ALTER TABLE vntb_rn_rst RENAME TAG rc rc_kept;")
+        # a renamed JSON tag must also re-decode from the on-disk trailer under its new name
+        tdSql.execute("CREATE TABLE ntb_rn_rst_json (ts TIMESTAMP, v INT) TAGS (jt JSON = '{\"a\":1}');")
+        tdSql.execute(f"INSERT INTO ntb_rn_rst_json VALUES ({TS0}, 6);")
+        tdSql.execute("ALTER TABLE ntb_rn_rst_json RENAME TAG jt jt_kept;")
+
+        self._restart_dnode()
+        tdSql.execute(f"USE {DB};")
+        self._check_values("SELECT t1_kept, v FROM ntb_rn_rst;", [(21, 3)],
+                           "restart: renamed owned tag on normal table")
+        self._check_values("SELECT DISTINCT own_kept, rc_kept FROM vntb_rn_rst;", [(4, 'beijing')],
+                           "restart: renamed owned tag + tag-ref on virtual normal table")
+        # pre-rename names must not come back after the reload
+        tdSql.error("SELECT t1 FROM ntb_rn_rst;")
+        tdSql.error("SELECT rc FROM vntb_rn_rst;")
+        self._check_values("SELECT jt_kept->'a', v FROM ntb_rn_rst_json;", [("1.000000000", 6)],
+                           "restart: renamed JSON tag re-decodes with its document")
+        tdSql.error("SELECT jt FROM ntb_rn_rst_json;")
+        tdLog.info("  PASS: restart preserves renamed tags")
+
     def test_auth_tag_ref_source_select(self):
         """Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE tag/col refs, ALTER ADD TAG ... FROM, and ALTER SET TAG x = db.tb.tag; granting READ on the source db lets them through, and revoking it denies them again (covers authColDefRefs + the authAlterTable ref-alter branch).
 
@@ -2749,6 +3128,307 @@ class TestVtableNormalTags:
             tdSql.connect(user="root", password="taosdata")
             tdSql.execute(f"DROP DATABASE IF EXISTS {DB_PRIV};")
             tdSql.execute(f"DROP USER IF EXISTS {USER};")
+
+    def test_rename_tag_priv_restrict(self):
+        """Column-level/Tag-level RESTRICT: renaming a tag that has been granted to another user is denied.
+
+        Verify that RENAME TAG is blocked when the tag has column-level privileges.
+
+        Catalog:
+            - NormalTable
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: normal_table, virtual_table, tag, rename, privilege, restrict
+
+        Jira: TD-30817
+
+        History:
+            - 2026-09-03 Created
+        """
+        DB_PRIV = "td_vntb_tags_priv_restrict"
+        USER = "u_rename_tag"
+
+        def _grant(sql):
+            # GRANT is enterprise-only: on a community build the very first GRANT fails here and
+            # this test's deny/grant flows are untestable — skip visibly rather than pass vacuously.
+            # Only GRANT is wrapped in the skip decision: any other statement that fails (RENAME,
+            # CREATE, ...) must fail the test loudly instead of being misread as "GRANT unsupported".
+            try:
+                tdSql.execute(sql)
+            except Exception as e:
+                if "not supported" in str(e) or "command not found" in str(e):
+                    pytest.skip(f"GRANT not supported on this build, cannot test RENAME TAG privilege gate: {e}")
+                raise
+
+        try:
+            tdSql.execute(f"DROP DATABASE IF EXISTS {DB_PRIV};")
+            tdSql.execute(f"DROP USER IF EXISTS {USER};")
+            tdSql.execute(f"CREATE USER {USER} PASS 'Taosdata_123';")
+            tdSql.execute(f"CREATE DATABASE {DB_PRIV} KEEP 36500;")
+            tdSql.execute(f"USE {DB_PRIV};")
+
+            # Normal table with owned tag
+            tdSql.execute("CREATE TABLE ntb_restrict (ts TIMESTAMP, v INT) TAGS (tag1 INT = 10, tag2 NCHAR(20) = 'test');")
+            tdSql.execute(f"INSERT INTO ntb_restrict VALUES ({TS0}, 1);")
+
+            # Virtual normal table with owned tag and tag-ref
+            # (tag-ref source must be a child table: a stable + child pair, like the shared src_stb/srcN fixtures)
+            tdSql.execute(f"CREATE STABLE src_restrict_stb (ts TIMESTAMP, val INT) TAGS (city NCHAR(20), code INT);")
+            tdSql.execute(f"CREATE TABLE src_restrict USING src_restrict_stb TAGS ('beijing', 100);")
+            tdSql.execute(f"INSERT INTO src_restrict VALUES ({TS0}, 5);")
+            tdSql.execute("CREATE VTABLE vntb_restrict (ts TIMESTAMP, v INT FROM src_restrict.val) "
+                         "TAGS (own_tag INT = 20, ref_tag NCHAR(20) FROM src_restrict.city);")
+
+            # Grant column-level privilege on normal table tag
+            _grant(f"GRANT SELECT(tag1) ON {DB_PRIV}.ntb_restrict TO {USER};")
+
+            # Attempt to rename tag1 should fail (column is referenced by privilege).
+            # Assert the privilege-specific message rather than merely "an error": this path is
+            # reached over the TDMT_MND_CHECK_COL_REF_BY_PRIV round trip, and a regression there
+            # (e.g. a policy-hash key that never matches) would otherwise be masked by any other
+            # failure the rename could raise.
+            tdSql.error("ALTER TABLE ntb_restrict RENAME TAG tag1 tag1_new;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdLog.info("  PASS: RENAME TAG denied when tag has column-level privilege (normal table)")
+
+            # Renaming tag2 (no privilege) should succeed
+            tdSql.execute("ALTER TABLE ntb_restrict RENAME TAG tag2 tag2_new;")
+            tdSql.query("SELECT tag2_new FROM ntb_restrict;")
+            tdSql.checkData(0, 0, 'test')
+
+            # Revoke the privilege and retry rename
+            tdSql.execute(f"REVOKE SELECT(tag1) ON {DB_PRIV}.ntb_restrict FROM {USER};")
+            tdSql.execute("ALTER TABLE ntb_restrict RENAME TAG tag1 tag1_renamed;")
+            tdSql.query("SELECT tag1_renamed FROM ntb_restrict;")
+            tdSql.checkData(0, 0, 10)
+            tdLog.info("  PASS: RENAME TAG succeeds after privilege revoked (normal table)")
+
+            # Grant privilege on virtual normal table's owned tag
+            _grant(f"GRANT SELECT(own_tag) ON {DB_PRIV}.vntb_restrict TO {USER};")
+            tdSql.error("ALTER TABLE vntb_restrict RENAME TAG own_tag own_tag_new;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdLog.info("  PASS: RENAME TAG denied when owned tag has privilege (virtual normal table)")
+
+            # Move the privilege to the tag-ref (GRANT is idempotent per table: revoke first,
+            # otherwise "Already have this privilege" aborts the script)
+            tdSql.execute(f"REVOKE SELECT(own_tag) ON {DB_PRIV}.vntb_restrict FROM {USER};")
+            _grant(f"GRANT SELECT(ref_tag) ON {DB_PRIV}.vntb_restrict TO {USER};")
+            tdSql.error("ALTER TABLE vntb_restrict RENAME TAG ref_tag ref_tag_new;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdLog.info("  PASS: RENAME TAG denied when tag-ref has privilege (virtual normal table)")
+
+            # Revoke privileges and verify rename succeeds
+            tdSql.execute(f"REVOKE SELECT(ref_tag) ON {DB_PRIV}.vntb_restrict FROM {USER};")
+            tdSql.execute("ALTER TABLE vntb_restrict RENAME TAG own_tag own_tag_renamed;")
+            tdSql.execute("ALTER TABLE vntb_restrict RENAME TAG ref_tag ref_tag_renamed;")
+            tdSql.query("SELECT own_tag_renamed, ref_tag_renamed FROM vntb_restrict;")
+            tdSql.checkData(0, 0, 20)
+            tdSql.checkData(0, 1, 'beijing')
+            tdLog.info("  PASS: RENAME TAG succeeds after privileges revoked (virtual normal table)")
+
+            # A role grant must be caught as well, and must surface the role-specific code: the
+            # RPC reply carries whichever code mndCheckColRefByPriv returned, so this is where the
+            # user/role split is observable on the vnode path. Roles are enterprise-only, so a
+            # failure to create one skips just this sub-case instead of the whole test.
+            role_ready = False
+            try:
+                tdSql.execute("DROP ROLE IF EXISTS r_rename_tag;")
+                tdSql.execute("CREATE ROLE r_rename_tag;")
+                role_ready = True
+            except Exception as e:
+                tdLog.info(f"  skip role RESTRICT on a normal table: roles unsupported ({e})")
+            if role_ready:
+                tdSql.execute("CREATE TABLE ntb_restrict_role (ts TIMESTAMP, v INT) TAGS (rtag INT = 1);")
+                _grant(f"GRANT SELECT(rtag) ON {DB_PRIV}.ntb_restrict_role TO r_rename_tag;")
+                tdSql.error("ALTER TABLE ntb_restrict_role RENAME TAG rtag rtag_new;",
+                            expectErrInfo="referenced by role privilege", fullMatched=False)
+                tdSql.execute(f"REVOKE SELECT(rtag) ON {DB_PRIV}.ntb_restrict_role FROM r_rename_tag;")
+                tdSql.execute("ALTER TABLE ntb_restrict_role RENAME TAG rtag rtag_ok;")
+                tdSql.execute("DROP ROLE r_rename_tag;")
+                tdLog.info("  PASS: RENAME TAG denied by a role privilege, allowed after revoke")
+
+            # A table-level grant carries no column list (cols == NULL means "all columns"), so it
+            # authorizes by object rather than by name and must not block the rename. Getting this
+            # wrong would make every rename on any granted table fail.
+            tdSql.execute("CREATE TABLE ntb_restrict_tbl (ts TIMESTAMP, v INT) TAGS (ttag INT = 2);")
+            _grant(f"GRANT SELECT ON {DB_PRIV}.ntb_restrict_tbl TO {USER};")
+            tdSql.execute("ALTER TABLE ntb_restrict_tbl RENAME TAG ttag ttag_ok;")
+            tdSql.execute(f"REVOKE SELECT ON {DB_PRIV}.ntb_restrict_tbl FROM {USER};")
+            tdLog.info("  PASS: table-level grant does not block RENAME TAG")
+
+            # Long-name regression: the policy hash is keyed by
+            # "<objType>.<acctId>.<db>.<table>", so an undersized key buffer truncates the name,
+            # the lookup silently never matches, and the rename is allowed while the privilege
+            # still points at the old name.
+            long_tb = "n" + "l" * 180
+            tdSql.execute(f"CREATE TABLE {long_tb} (ts TIMESTAMP, v INT) TAGS (ltag INT = 3);")
+            _grant(f"GRANT SELECT(ltag) ON {DB_PRIV}.{long_tb} TO {USER};")
+            tdSql.error(f"ALTER TABLE {long_tb} RENAME TAG ltag ltag_new;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdSql.execute(f"REVOKE SELECT(ltag) ON {DB_PRIV}.{long_tb} FROM {USER};")
+            tdSql.execute(f"ALTER TABLE {long_tb} RENAME TAG ltag ltag_ok;")
+            tdLog.info("  PASS: a long table name does not bypass the RESTRICT check")
+
+            tdLog.info("  PASS: RENAME TAG privilege RESTRICT check")
+        finally:
+            tdSql.connect(user="root", password="taosdata")
+            tdSql.execute(f"DROP DATABASE IF EXISTS {DB_PRIV};")
+            tdSql.execute(f"DROP USER IF EXISTS {USER};")
+            try:
+                tdSql.execute("DROP ROLE IF EXISTS r_rename_tag;")
+            except Exception as e:
+                tdLog.info(f"  skip role cleanup: roles unsupported ({e})")
+
+    def test_rename_column_priv_restrict(self):
+        """Column-level RESTRICT: renaming a column that has been granted to another user is denied.
+
+        Verify that RENAME COLUMN is blocked when the column has column-level privileges.
+
+        Catalog:
+            - NormalTable
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: normal_table, virtual_table, column, rename, privilege, restrict
+
+        Jira: TD-30817
+
+        History:
+            - 2026-09-03 Created
+        """
+        DB_PRIV = "td_vntb_cols_priv_restrict"
+        USER = "u_rename_col"
+
+        def _grant(sql):
+            # GRANT is enterprise-only: on a community build the very first GRANT fails here and
+            # this test's deny/grant flows are untestable — skip visibly rather than pass vacuously.
+            # Only GRANT is wrapped in the skip decision: any other statement that fails (RENAME,
+            # CREATE, ...) must fail the test loudly instead of being misread as "GRANT unsupported".
+            try:
+                tdSql.execute(sql)
+            except Exception as e:
+                if "not supported" in str(e) or "command not found" in str(e):
+                    pytest.skip(f"GRANT not supported on this build, cannot test RENAME COLUMN privilege gate: {e}")
+                raise
+
+        try:
+            tdSql.execute(f"DROP DATABASE IF EXISTS {DB_PRIV};")
+            tdSql.execute(f"DROP USER IF EXISTS {USER};")
+            tdSql.execute(f"CREATE USER {USER} PASS 'Taosdata_123';")
+            tdSql.execute(f"CREATE DATABASE {DB_PRIV} KEEP 36500;")
+            tdSql.execute(f"USE {DB_PRIV};")
+
+            # Normal table with data columns
+            tdSql.execute("CREATE TABLE ntb_col_restrict (ts TIMESTAMP, c1 INT, c2 NCHAR(20), c3 DOUBLE) TAGS (tag1 INT = 10);")
+            tdSql.execute(f"INSERT INTO ntb_col_restrict VALUES ({TS0}, 1, 'test', 1.5);")
+
+            # Virtual normal table with owned columns and column-refs
+            tdSql.execute(f"CREATE TABLE src_col_restrict (ts TIMESTAMP, val INT, name NCHAR(20)) TAGS (city NCHAR(20) = 'beijing');")
+            tdSql.execute(f"INSERT INTO src_col_restrict VALUES ({TS0}, 5, 'foo');")
+            tdSql.execute("CREATE VTABLE vntb_col_restrict (ts TIMESTAMP, own_col INT FROM src_col_restrict.val, "
+                         "ref_col INT FROM src_col_restrict.val) "
+                         "TAGS (tag1 INT = 20);")
+
+            # Grant column-level privilege on normal table column
+            _grant(f"GRANT SELECT(c1) ON {DB_PRIV}.ntb_col_restrict TO {USER};")
+
+            # Attempt to rename c1 should fail (column is referenced by privilege). Assert the
+            # privilege-specific message rather than merely "an error", so a regression in the
+            # mnode round trip (TDMT_MND_CHECK_COL_REF_BY_PRIV) cannot be masked by some other
+            # failure of the rename.
+            tdSql.error("ALTER TABLE ntb_col_restrict RENAME COLUMN c1 c1_new;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdLog.info("  PASS: RENAME COLUMN denied when column has column-level privilege (normal table)")
+
+            # Renaming c2 (no privilege) should succeed
+            tdSql.execute("ALTER TABLE ntb_col_restrict RENAME COLUMN c2 c2_new;")
+            tdSql.query("SELECT c2_new FROM ntb_col_restrict;")
+            tdSql.checkData(0, 0, 'test')
+
+            # Revoke the privilege and retry rename
+            tdSql.execute(f"REVOKE SELECT(c1) ON {DB_PRIV}.ntb_col_restrict FROM {USER};")
+            tdSql.execute("ALTER TABLE ntb_col_restrict RENAME COLUMN c1 c1_renamed;")
+            tdSql.query("SELECT c1_renamed FROM ntb_col_restrict;")
+            tdSql.checkData(0, 0, 1)
+            tdLog.info("  PASS: RENAME COLUMN succeeds after privilege revoked (normal table)")
+
+            # Grant privilege on virtual normal table's owned column
+            _grant(f"GRANT SELECT(own_col) ON {DB_PRIV}.vntb_col_restrict TO {USER};")
+            tdSql.error("ALTER TABLE vntb_col_restrict RENAME COLUMN own_col own_col_new;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdLog.info("  PASS: RENAME COLUMN denied when owned column has privilege (virtual normal table)")
+
+            # Move the privilege to the column-ref (GRANT is idempotent per table: revoke first,
+            # otherwise "Already have this privilege" aborts the script)
+            tdSql.execute(f"REVOKE SELECT(own_col) ON {DB_PRIV}.vntb_col_restrict FROM {USER};")
+            _grant(f"GRANT SELECT(ref_col) ON {DB_PRIV}.vntb_col_restrict TO {USER};")
+            tdSql.error("ALTER TABLE vntb_col_restrict RENAME COLUMN ref_col ref_col_new;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdLog.info("  PASS: RENAME COLUMN denied when column-ref has privilege (virtual normal table)")
+
+            # Revoke privileges and verify rename succeeds
+            tdSql.execute(f"REVOKE SELECT(ref_col) ON {DB_PRIV}.vntb_col_restrict FROM {USER};")
+            tdSql.execute("ALTER TABLE vntb_col_restrict RENAME COLUMN own_col own_col_renamed;")
+            tdSql.execute("ALTER TABLE vntb_col_restrict RENAME COLUMN ref_col ref_col_renamed;")
+            tdSql.query("SELECT own_col_renamed, ref_col_renamed FROM vntb_col_restrict;")
+            tdSql.checkData(0, 0, 5)
+            tdSql.checkData(0, 1, 5)
+            tdLog.info("  PASS: RENAME COLUMN succeeds after privileges revoked (virtual normal table)")
+
+            # The RPC must report the role-specific code for a role grant, exactly as the inline
+            # super-table scan does. Roles are enterprise-only: skip just this sub-case when they
+            # cannot be created.
+            role_ready = False
+            try:
+                tdSql.execute("DROP ROLE IF EXISTS r_rename_col;")
+                tdSql.execute("CREATE ROLE r_rename_col;")
+                role_ready = True
+            except Exception as e:
+                tdLog.info(f"  skip role RESTRICT on a normal table: roles unsupported ({e})")
+            if role_ready:
+                tdSql.execute("CREATE TABLE ntb_col_role (ts TIMESTAMP, rc1 INT, rc2 INT) TAGS (rt INT = 1);")
+                _grant(f"GRANT SELECT(rc1) ON {DB_PRIV}.ntb_col_role TO r_rename_col;")
+                tdSql.error("ALTER TABLE ntb_col_role RENAME COLUMN rc1 rc1_new;",
+                            expectErrInfo="referenced by role privilege", fullMatched=False)
+                # an unreferenced column on the same table still goes through the same round trip
+                tdSql.execute("ALTER TABLE ntb_col_role RENAME COLUMN rc2 rc2_ok;")
+                tdSql.execute(f"REVOKE SELECT(rc1) ON {DB_PRIV}.ntb_col_role FROM r_rename_col;")
+                tdSql.execute("ALTER TABLE ntb_col_role RENAME COLUMN rc1 rc1_ok;")
+                tdSql.execute("DROP ROLE r_rename_col;")
+                tdLog.info("  PASS: RENAME COLUMN denied by a role privilege, allowed after revoke")
+
+            # A table-level grant has no column list, so it must not be mistaken for a column
+            # reference; otherwise no rename on a granted table would ever succeed.
+            tdSql.execute("CREATE TABLE ntb_col_tbl (ts TIMESTAMP, tc1 INT, tc2 INT) TAGS (tt INT = 2);")
+            _grant(f"GRANT SELECT ON {DB_PRIV}.ntb_col_tbl TO {USER};")
+            tdSql.execute("ALTER TABLE ntb_col_tbl RENAME COLUMN tc1 tc1_ok;")
+            tdSql.execute("ALTER TABLE ntb_col_tbl RENAME TAG tt tt_ok;")
+            tdSql.execute(f"REVOKE SELECT ON {DB_PRIV}.ntb_col_tbl FROM {USER};")
+            tdLog.info("  PASS: table-level grant does not block RENAME COLUMN / RENAME TAG")
+
+            # Long-name regression for the RPC path: a truncated policy-hash key makes the lookup
+            # never match, silently disabling the check for long table names.
+            long_col_tb = "c" + "l" * 180
+            tdSql.execute(f"CREATE TABLE {long_col_tb} (ts TIMESTAMP, lc1 INT, lc2 INT) TAGS (lt INT = 3);")
+            _grant(f"GRANT SELECT(lc1) ON {DB_PRIV}.{long_col_tb} TO {USER};")
+            tdSql.error(f"ALTER TABLE {long_col_tb} RENAME COLUMN lc1 lc1_new;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdSql.execute(f"REVOKE SELECT(lc1) ON {DB_PRIV}.{long_col_tb} FROM {USER};")
+            tdSql.execute(f"ALTER TABLE {long_col_tb} RENAME COLUMN lc1 lc1_ok;")
+            tdLog.info("  PASS: a long table name does not bypass the RESTRICT check")
+
+            tdLog.info("  PASS: RENAME COLUMN privilege RESTRICT check")
+        finally:
+            tdSql.connect(user="root", password="taosdata")
+            tdSql.execute(f"DROP DATABASE IF EXISTS {DB_PRIV};")
+            tdSql.execute(f"DROP USER IF EXISTS {USER};")
+            try:
+                tdSql.execute("DROP ROLE IF EXISTS r_rename_col;")
+            except Exception as e:
+                tdLog.info(f"  skip role cleanup: roles unsupported ({e})")
 
     @classmethod
     def teardown_class(cls):

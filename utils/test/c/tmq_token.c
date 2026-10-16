@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -41,7 +43,30 @@ void create_topic() {
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create token token1 from user root enable 0 ttl 1");
+  pRes = taos_query(pConn, "drop token if exists token1");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop user if exists tmq_token_user");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create user tmq_token_user pass 'Token123!'");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(
+      pConn, "grant use on database tmq_token to tmq_token_user");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(
+      pConn, "grant subscribe on topic tmq_token.t1 to tmq_token_user");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(
+      pConn, "create token token1 from user tmq_token_user enable 0 ttl 1");
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = taos_fetch_row(pRes);
   if (row != NULL && *row != NULL) {
@@ -49,6 +74,19 @@ void create_topic() {
     token = strdup((char *)(*row));
     ASSERT(token != NULL);
   }
+  taos_free_result(pRes);
+
+  taos_close(pConn);
+}
+
+void drop_user() {
+  printf("drop user\n");
+  TAOS_RES* pRes;
+  TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn != NULL);
+
+  pRes = taos_query(pConn, "drop user tmq_token_user");
+  ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
   taos_close(pConn);
@@ -175,6 +213,7 @@ int main(int argc, char* argv[]) {
 
     taosThreadJoin(thread2, NULL);
     taosThreadClear(&thread2);
+    drop_user();
   }
   code = tsem2_destroy(&sem);
   ASSERT(code == 0);

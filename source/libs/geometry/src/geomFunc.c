@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -175,7 +177,10 @@ int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnI
       code = terrno;
       goto _exit;
     }
-    int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(rawInput), ucs4Bytes, varDataVal(ncharBuf), NULL);
+    // WKT syntax is ASCII (POINT/LINESTRING/coords), so charset-insensitive.
+    int32_t mbsLen =
+        taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)varDataVal(rawInput),
+                                        ucs4Bytes, varDataVal(ncharBuf));
     if (mbsLen < 0) {
       code = TSDB_CODE_FAILED;
       goto _exit;

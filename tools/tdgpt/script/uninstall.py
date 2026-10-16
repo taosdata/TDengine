@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 TDgpt Windows uninstallation script.
 """
@@ -166,26 +182,54 @@ class WindowsUninstaller:
                     f"Failed to terminate PID from {pid_file.name}: {exc}"
                 )
 
-    def uninstall_service(self) -> None:
+    def uninstall_service(self) -> bool:
         self.print_info("Uninstalling Windows service...")
         service_script = self.install_dir / "bin" / "taosanode_service.py"
         python_exe = self.venvs_dir / "venv" / "Scripts" / "python.exe"
 
         if not service_script.exists() or not python_exe.exists():
-            self.print_info(
-                "Service wrapper or Python runtime is missing, skip service uninstall."
+            query = subprocess.run(
+                ["sc", "query", "Taosanode"], capture_output=True, timeout=30, check=False
             )
-            return
+            if query.returncode != 0:
+                self.print_info("Taosanode service is already absent.")
+                return True
+            result = subprocess.run(
+                ["sc", "delete", "Taosanode"], capture_output=True, timeout=30, check=False
+            )
+            if result.returncode == 0:
+                self.print_info("Removed remaining Taosanode service registration.")
+                return True
+            self.print_error("Service wrapper or Python runtime is missing; cannot verify service removal.")
+            return False
 
         try:
-            subprocess.run(
+            result = subprocess.run(
                 [str(python_exe), str(service_script), "uninstall-service"],
                 capture_output=True,
                 timeout=120,
                 check=False,
             )
+            if result.returncode == 0:
+                return True
+            detail = (result.stderr or result.stdout or "unknown error").strip()
+            query = subprocess.run(
+                ["sc", "query", "Taosanode"],
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+            if query.returncode != 0:
+                self.print_warning(
+                    "Taosanode uninstall command returned "
+                    f"{result.returncode}, but the service is absent: {detail}"
+                )
+                return True
+            self.print_error(f"Taosanode service uninstall failed: {detail}")
+            return False
         except Exception as exc:
-            self.print_warning(f"Service uninstall command failed: {exc}")
+            self.print_error(f"Service uninstall command failed: {exc}")
+            return False
 
     def remove_files(self) -> None:
         self.print_info("Removing packaged files...")
@@ -252,6 +296,7 @@ class WindowsUninstaller:
             ("venvs", self.venvs_dir),
             ("data", self.install_dir / "data"),
             ("model", self.install_dir / "model"),
+            ("model_venvs", self.install_dir / "model_venvs"),
         ):
             if path.exists():
                 lines.append(f"  [OK] {name}")
@@ -276,7 +321,9 @@ class WindowsUninstaller:
         self.print_info("=" * 60)
 
         self.stop_services()
-        self.uninstall_service()
+        if not self.uninstall_service():
+            self.print_error("Uninstall aborted because the Taosanode service remains registered.")
+            return False
         self.remove_files()
         self.append_uninstall_summary()
         self.print_success(f"{APP_DISPLAY_NAME} uninstall flow completed.")

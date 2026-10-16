@@ -1,14 +1,18 @@
 #!/bin/bash
 
-# Find the process ID (PID) of the running tdtsfm-server.py script
-script_file="tdtsfm-server.py"
-pid=$(pgrep -f ${script_file})
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-# If the process is found, kill it
-if [ -n "$pid" ]; then
-  echo "Stopping ${script_file} with PID $pid"
-  kill -9 $pid
-  echo "${script_file} stopped"
-else
-  echo "${script_file} is not running"
-fi
+exec "$(dirname "$0")/stop-model.sh" tdtsfm

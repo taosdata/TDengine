@@ -29,7 +29,7 @@ TDengine can efficiently read data from Kafka and write it into TDengine, enabli
 
 When there are multiple broker addresses, add a **+Add Broker** button at the bottom right of the connection settings to add bootstrap-server and service port pairs.
 
-![Configure connection information](../../assets/no-code-ingestion-kafka-01.png)
+![Configure connection information](../../assets/no-code-ingestion-kafka-01.webp)
 
 ### Configure SASL Authentication Mechanism
 
@@ -39,19 +39,19 @@ If the server has enabled SASL authentication, you need to enable SASL here and 
 
 Select the `PLAIN` authentication mechanism and enter the username and password:
 
-![Configure plain authentication](../../assets/no-code-ingestion-kafka-02.png)
+![Configure plain authentication](../../assets/no-code-ingestion-kafka-02.webp)
 
 #### SCRAM (SCRAM-SHA-256) Authentication
 
 Select the `SCRAM-SHA-256` authentication mechanism and enter the username and password:
 
-![Configure SCRAM authentication](../../assets/no-code-ingestion-kafka-03.png)
+![Configure SCRAM authentication](../../assets/no-code-ingestion-kafka-03.webp)
 
 #### GSSAPI Authentication
 
 Select `GSSAPI`, which will use the [RDkafka client](https://github.com/confluentinc/librdkafka) to invoke the GSSAPI applying Kerberos authentication mechanism:
 
-![Configure GSSAPI authentication](../../assets/no-code-ingestion-kafka-04.png)
+![Configure GSSAPI authentication](../../assets/no-code-ingestion-kafka-04.webp)
 
 The required information includes:
 
@@ -83,7 +83,7 @@ If an error occurs: "Server xxxx not found in kerberos database", you need to co
 
 If the server has enabled SSL encryption authentication, SSL needs to be enabled here and related content configured.
 
-![Configure SSL certificate](../../assets/no-code-ingestion-kafka-05.png)
+![Configure SSL certificate](../../assets/no-code-ingestion-kafka-05.webp)
 
 ### Configure Collection Information
 
@@ -109,7 +109,7 @@ In **Character Encoding**, configure the encoding format of the message body. Af
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![Configure collection settings](../../assets/no-code-ingestion-kafka-06.png)
+![Configure collection settings](../../assets/no-code-ingestion-kafka-06.webp)
 
 ### Configure Payload Parsing
 
@@ -142,11 +142,11 @@ or
 
 The parsing results are shown as follows:
 
-![Payload parsing results](../../assets/no-code-ingestion-kafka-07.png)
+![Payload parsing results](../../assets/no-code-ingestion-kafka-07.webp)
 
 Click the **magnifying glass icon** to view the preview parsing results.
 
-![Preview parsing results](../../assets/no-code-ingestion-kafka-08.png)
+![Preview parsing results](../../assets/no-code-ingestion-kafka-08.webp)
 
 #### Field Splitting
 
@@ -156,11 +156,11 @@ Click **Add** to add more extraction rules.
 
 Click **Delete** to delete the current extraction rule.
 
-![Extract or split from column](../../assets/no-code-ingestion-kafka-09.png)
+![Extract or split from column](../../assets/no-code-ingestion-kafka-09.webp)
 
 Click the **magnifying glass icon** to view the preview extraction/splitting results.
 
-![Preview results](../../assets/no-code-ingestion-kafka-10.png)
+![Preview results](../../assets/no-code-ingestion-kafka-10.webp)
 
 #### Data Filtering
 
@@ -170,11 +170,11 @@ Click **Add** to add more filtering rules.
 
 Click **Delete** to delete the current filtering rule.
 
-![Data filtering conditions](../../assets/no-code-ingestion-kafka-11.png)
+![Data filtering conditions](../../assets/no-code-ingestion-kafka-11.webp)
 
 Click the **magnifying glass icon** to view the preview filtering results.
 
-![Preview filtering results](../../assets/no-code-ingestion-kafka-12.png)
+![Preview filtering results](../../assets/no-code-ingestion-kafka-12.webp)
 
 #### Table Mapping
 
@@ -182,11 +182,11 @@ In the **Target Supertable** dropdown, select a target supertable, or click the 
 
 In the **Mapping** section, fill in the name of the subtable in the target supertable, for example: `t_{id}`. Fill in the mapping rules as required, where mapping supports setting default values.
 
-![Configure table mapping](../../assets/no-code-ingestion-kafka-13.png)
+![Configure table mapping](../../assets/no-code-ingestion-kafka-13.webp)
 
 Click **Preview** to view the results of the mapping.
 
-![Preview mapping results](../../assets/no-code-ingestion-kafka-14.png)
+![Preview mapping results](../../assets/no-code-ingestion-kafka-14.webp)
 
 ### Configure Advanced Options
 

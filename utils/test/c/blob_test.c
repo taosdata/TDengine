@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -383,7 +385,7 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
       struct timeval tv;
       taosGetTimeOfDay(&tv);
       ts[j] = tv.tv_sec * 1000LL + tv.tv_usec / 1000 + j;
-      current[j] = (float)taosRand() / RAND_MAX_TEMP * 30;
+      current[j] = (float)((double)taosRand() / RAND_MAX_TEMP * 30);
       voltage[j] = taosRand() % 300;
       // phase[j] = (char *)malloc(20 * sizeof(char));
 

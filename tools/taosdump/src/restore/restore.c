@@ -1,13 +1,20 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
     
 #include "restore.h"
 #include "restoreMeta.h"
@@ -157,6 +164,11 @@ static char** scanBackupDatabases(int *count) {
 
         if (!hasDbSql) continue;
 
+        // Decode the percent-encoded db directory name back to the real database name.
+        char decDb[TSDB_DB_NAME_LEN] = {0};
+        const char *dec = bckNameDecode(entryName, decDb, sizeof(decDb));
+        if (dec == NULL) dec = entryName;
+
         if (*count >= capacity) {
             capacity *= 2;
             char **tmp = (char **)taosMemoryRealloc(names, (capacity + 1) * sizeof(char *));
@@ -167,7 +179,7 @@ static char** scanBackupDatabases(int *count) {
             }
             names = tmp;
         }
-        names[*count] = taosStrdup(entryName);
+        names[*count] = taosStrdup(dec);
         (*count)++;
     }
     names[*count] = NULL;
@@ -273,7 +285,7 @@ int restoreMain() {
         // table's source columns — can live in a different database, and the
         // restore order here comes from raw readdir(), which is filesystem-
         // dependent.  Without this two-pass split, a cross-database stream
-        // fails with "Database not exist" whenever the referencing database is
+        // fails with "Database does not exist" whenever the referencing database is
         // restored before the referenced one.
         if (extMetaOnly) {
             for (int i = 0; backDB[i] != NULL && code == TSDB_CODE_SUCCESS; i++) {

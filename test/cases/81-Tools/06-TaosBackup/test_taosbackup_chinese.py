@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -54,6 +58,37 @@ import subprocess
 
 from new_test_framework.utils import tdLog, tdSql, etool
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Cross-platform fixture: a backup produced by a FIXED Windows taosBackup and
+# committed under data/.  The restore here runs on whatever platform the CI
+# worker is on (typically Linux); it must succeed and yield byte-identical
+# Chinese / special-char identifiers and NCHAR content.  This guards the two
+# historical Windows bugs:
+#   1. Windows LZ4-only compression: the engine maps zlib/zstd/xz slots to LZ4,
+#      so the .dat columns must be labelled LZ4 or Linux fails to decompress.
+#   2. bckToUtf8 double-encoding: DDL / identifiers used to be re-encoded from
+#      UTF-8 as if they were ANSI(GBK), corrupting every Chinese name.
+# The fixture dir layout is exactly what `taosdump -i <dir>` expects (one
+# sub-directory per database).
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_WIN_BCK_DIR = os.path.join(_HERE, "data", "windows_backup_cn")
+
+# Expected content of the Windows-produced fixture (verified once on Linux):
+_WIN_BCK_DBS = ["nchar_big", "db monitor", "db@monitor", "db#test"]
+#   nchar_big: 1 NTB `t1`(ts, remark NCHAR(50)), 5000 Chinese NCHAR rows.
+#     Row ts=1700000001000 -> remark '数据管道在边缘节点完成预处理并上报云端时序数据库'
+_NCHAR_BIG_ROWS = 5000
+_NCHAR_BIG_SAMPLE_TS = 1700000001000
+_NCHAR_BIG_SAMPLE_REMARK = "数据管道在边缘节点完成预处理并上报云端时序数据库"
+#   db monitor: NTB `table name`(ts, `col name` NCHAR(20), `区域 代码` INT), 2 rows.
+_DB_MONITOR_ROWS = 2
+#   db@monitor: NTB `tbl@sensor`(ts, `val@1` INT, `tag@cn` NCHAR(10)), 2 rows.
+_DB_AT_ROWS = 2
+_DB_AT_ROW0_VAL = 100
+_DB_AT_ROW0_TAG = "cn-val"
+#   db#test: STB `tbl(v1)_传感器`(ts, `c#1` INT, `描述` NCHAR(20)) TAGS(`t#region` NCHAR(8))
+_DB_HASH_STB = "tbl(v1)_传感器"
+
 
 class TestTaosBackupChinese:
 
@@ -73,10 +108,97 @@ class TestTaosBackupChinese:
             tdLog.exit(f"Command failed (rc={result.returncode}): {command}")
         return result.returncode
 
+    def execArgs(self, argv):
+        """Run a command as an argv list WITHOUT a shell.
+
+        Windows cmd.exe cannot transport identifiers that contain cmd
+        metacharacters (`< > | & % "`).  POSIX shlex.quote() single-quotes
+        are not understood by cmd.exe, so `-D '<db>'` is re-parsed as
+        redirection/pipes and the command never reaches taosdump
+        (`> was unexpected at this time.`).  Passing the arguments as a
+        list makes Python build the command line itself (CreateProcess on
+        Windows, execvp on POSIX), so such names arrive verbatim in the
+        child's argv on every platform.
+        """
+        tdLog.info(" ".join(argv))
+        result = subprocess.run(
+            argv, shell=False, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+        if result.stdout:
+            for line in result.stdout.splitlines():
+                tdLog.info(line)
+        if result.returncode != 0:
+            tdLog.exit(f"Command failed (rc={result.returncode}): {' '.join(argv)}")
+        return result.returncode
+
     def makeDir(self, path):
         if os.path.exists(path):
             shutil.rmtree(path)
         os.makedirs(path)
+
+    def _encNameLen(self, name):
+        """Length of bckNameEncode(name) as taosdump writes it on disk.
+
+        Mirrors bckNameCharUnsafe() in bckName.c: only these ASCII chars are
+        percent-encoded to '%XX' (3 bytes each) - '<' '>' ':' '"' '/' '\\' '|'
+        '?' '*' '%' and control chars (0x00-0x1F).  Everything else (letters,
+        digits, space, '.', '-', '_', '@', '#', '(', ')', multibyte UTF-8) is
+        passed through unchanged.
+        """
+        unsafe = set('<>:"/\\|?*%')
+        n = 0
+        for ch in name:
+            o = ord(ch)
+            if o < 0x20 or ch in unsafe:
+                n += 3
+            else:
+                n += 1
+        return n
+
+    def _boundaryNames(self, tmpdir):
+        """Pick max-length DB / table names that fit the OS path ceiling.
+
+        taosdump writes data files as:
+            {abspath(tmpdir)}/<encoded-DB>/_ntb_data0/<encoded-TB>.dat.tmp
+        Windows caps the full path at MAX_PATH=260 (taosdump has no
+        long-path manifest), whereas Linux/macOS allow up to PATH_MAX.
+        Sizing the table name from the *real absolute* tmpdir keeps this
+        test green on every platform: the DB is kept at its 63-char max and
+        the table name is shortened only as much as the platform needs.
+
+        Returns (db, tb) where tb contains one '\\' so encoding is exercised.
+        """
+        db = "L" * 55 + ":" + "D" * 7        # 63 chars: engine max is 63
+        enc_db = self._encNameLen(db)        # ':' -> %3A
+        # Fixed path scaffolding around the table file:
+        #   <abs>/<db>/_ntb_data0/<tb>.dat.tmp
+        prefix = (len(os.path.abspath(tmpdir)) + 1 + enc_db + 1
+                  + len("_ntb_data0") + 1 + len(".dat.tmp"))
+        if sys.platform.startswith("win"):
+            ceiling = 260
+        else:
+            ceiling = 4096
+        # How many encoded bytes the table-name segment may occupy.
+        enc_tb_room = ceiling - prefix
+        # Keep a safety margin (drive letter, trailing NUL, any separator).
+        enc_tb_room -= 8
+        if enc_tb_room < 16:
+            tdLog.exit(f"too little path room for boundary table name: {enc_tb_room}")
+        # tb = T*.. + '\\' + U*.. ; encoding makes '\\' 1 byte -> 3 bytes.
+        # enc_len = (len(tb)-1) + 3.  We target enc_len == enc_tb_room (max).
+        target_enc = min(enc_tb_room, 193)   # engine max encodable buffer
+        tbl_len = target_enc - 2             # backslash adds 2 encoded bytes
+        if tbl_len > 192:
+            tbl_len = 192                    # engine max legal table name
+        if tbl_len < 8:
+            tdLog.exit(f"too little room for boundary table name: {tbl_len}")
+        # Split so '\\' sits near the middle: T.. \ U..
+        half = (tbl_len - 1) // 2
+        tb = "T" * half + "\\" + "U" * (tbl_len - 1 - half)
+        tdLog.info(f"boundary names: db={len(db)} tb={len(tb)} "
+                   f"(encoded {self._encNameLen(tb)}) path-room={enc_tb_room}")
+        return db, tb
 
     def dbFound(self, dbname):
         tdSql.query("select name from information_schema.ins_databases")
@@ -511,38 +633,320 @@ class TestTaosBackupChinese:
     # ──────────── Test 5: TDengine identifier rejection / acceptance ─────────
 
     def do_rejected_identifiers(self):
-        """
-        Verify TDengine's actual acceptance/rejection rules for special chars.
-
-        ACTUALLY REJECTED by TDengine (with backtick quoting):
-          • dot (.)  → error 0x80002617 "name cannot contain '.'"
-
-        ACCEPTED by TDengine (despite being Windows-illegal as filenames):
-          • colon (:)   — accepted; taosBackup creates dirs like "db:name/" which
-                          would fail on Windows NTFS.  Windows handling is a known
-                          limitation: such databases should not be created on Windows.
-          • asterisk (*), question mark (?), pipe (|), angle brackets (< >) —
-                          also accepted by TDengine but Windows-illegal as filenames.
-
-        This test only asserts the one character TDengine actually rejects (dot),
-        so the assertion is reliable across all TDengine versions.
-        """
-        def expect_error(sql, description):
-            try:
-                tdSql.execute(sql)
-                tdLog.exit(
-                    f"Expected TDengine to reject `{description}` but it succeeded"
-                )
-            except Exception:
-                pass  # expected
-
         # dot is the only character rejected by TDengine's SQL parser
-        expect_error(
+        tdSql.error(
             "create database `db.dot` keep 3649",
-            "db name with dot"
+            expectedErrno=0x80002617,
+        )
+        tdLog.info("do_rejected_identifiers ...................... [passed]")
+
+    # ──── Test 6: all Windows-illegal filter chars in identifiers ──────
+
+    def do_special_chars_illegal(self):
+        """
+        Every ASCII character that is illegal in Windows file names, but
+        accepted by TDengine when backtick-quoted, is embedded in the
+        DB / STB / CTB / NTB names.  taosBackup percent-encodes these name
+        components when building file/directory names, so a backup must
+        round-trip with no data loss on every platform.
+
+        Filtered characters (all 10):  < > : " / \\ | ? * %
+        """
+        # all 10 chars TDengine accepts (backtick-quoted) but Windows forbids
+        sc = "<>" + ":" + '"' + "/" + "\\" + "|" + "?" + "*" + "%"
+
+        db  = "sp" + sc + "db"
+        stb = "st" + sc + "tb"
+        ct1 = "ct" + sc + "1"
+        ct2 = "ct" + sc + "2"
+        nt  = "nt" + sc + "b"
+        tmpdir = "./taosbackuptest/tmpdir_special_illegal"
+
+        tdSql.execute(f"drop database if exists `{db}`")
+        tdSql.execute(f"create database `{db}` keep 3649")
+
+        tdSql.execute(
+            f"create table `{db}`.`{stb}`("
+            f"ts timestamp, v int, n nchar(64)) tags(region nchar(20))"
+        )
+        tdSql.execute(f"create table `{db}`.`{ct1}` using `{db}`.`{stb}` tags('华北')")
+        tdSql.execute(
+            f"insert into `{db}`.`{ct1}` values"
+            f"(1640000000000, 1, 'row-1 特殊')"
+            f"(1640000001000, 2, 'row-2')"
+        )
+        tdSql.execute(f"create table `{db}`.`{ct2}` using `{db}`.`{stb}` tags('华东')")
+        tdSql.execute(
+            f"insert into `{db}`.`{ct2}` values(1640000000000, 10, 'row-10')"
+        )
+        tdSql.execute(f"create table `{db}`.`{nt}`(ts timestamp, v int)")
+        tdSql.execute(
+            f"insert into `{db}`.`{nt}` values"
+            f"(1640000000000, 100)(1640000001000, 200)"
         )
 
-        tdLog.info("do_rejected_identifiers ...................... [passed]")
+        bin_ = self.binPath()
+        self.makeDir(tmpdir)
+
+        # The db name contains cmd.exe metacharacters (`< > : " / \ | ? * %`),
+        # so it must be passed as an argv list (no shell): shlex.quote() emits
+        # POSIX single quotes that Windows cmd.exe does not understand.
+        self.execArgs([bin_, "-D", db, "-o", tmpdir, "-T", "1"])
+
+        tdSql.execute(f"drop database `{db}`")
+        assert not self.dbFound(db), f"db `{db}` should be gone before restore"
+
+        self.execArgs([bin_, "-i", tmpdir, "-T", "1"])
+
+        assert self.dbFound(db), f"db `{db}` not found after restore"
+
+        # STB: 2 CTBs x (2 + 1) rows = 3
+        tdSql.query(f"select count(*) from `{db}`.`{stb}`")
+        tdSql.checkData(0, 0, 3)
+
+        # CTB1 name round-tripped (db.ct1 resolves) and data intact
+        tdSql.query(f"select v, n from `{db}`.`{ct1}` order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, "row-1 特殊")
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(1, 1, "row-2")
+
+        # tags restored for both CTBs
+        tdSql.query(f"select distinct region from `{db}`.`{stb}`")
+        tdSql.checkRows(2)
+
+        # NTB data intact
+        tdSql.query(f"select count(*) from `{db}`.`{nt}`")
+        tdSql.checkData(0, 0, 2)
+        tdSql.query(f"select v from `{db}`.`{nt}` order by ts")
+        tdSql.checkData(0, 0, 100)
+        tdSql.checkData(1, 0, 200)
+
+        tdSql.execute(f"drop database if exists `{db}`")
+        tdLog.info("do_special_chars_illegal ..................... [passed]")
+
+    # ──────────── Test 7: boundary and encoding edge identifiers ────────────
+
+    def do_boundary(self):
+        """Max-length DB / table names and literal '%HH' round-trip."""
+        tmpdir = "./taosbackuptest/tmpdir_boundary"
+
+        # max-length names sized from the real absolute path (see _boundaryNames)
+        long_db, long_tbl = self._boundaryNames(tmpdir)
+        tdSql.execute(f"drop database if exists `{long_db}`")
+        tdSql.execute(f"create database `{long_db}` vgroups 1")
+        tdSql.execute(f"create table `{long_db}`.`{long_tbl}`(ts timestamp, v int)")
+        tdSql.execute(f"insert into `{long_db}`.`{long_tbl}` values(1640000000000, 42)")
+
+        # literal '%2A' in a name exercises the '%' -> '%25' escaping round-trip
+        pct_tbl = "a%2Ab"
+        tdSql.execute(f"create table `{long_db}`.`{pct_tbl}`(ts timestamp, v int)")
+        tdSql.execute(f"insert into `{long_db}`.`{pct_tbl}` values(1640000000000, 43)")
+
+        bin_ = self.binPath()
+        self.makeDir(tmpdir)
+
+        # argv list (no shell): long_db contains ':' and long_tbl contains '\'
+        self.execArgs([bin_, "-D", long_db, "-o", tmpdir, "-T", "1"])
+
+        tdSql.execute(f"drop database `{long_db}`")
+        assert not self.dbFound(long_db), "long_db should be gone before restore"
+
+        self.execArgs([bin_, "-i", tmpdir, "-T", "1"])
+
+        assert self.dbFound(long_db), "long_db not found after restore"
+
+        tdSql.query(f"select v from `{long_db}`.`{long_tbl}`")
+        tdSql.checkData(0, 0, 42)
+        tdSql.query(f"select v from `{long_db}`.`{pct_tbl}`")
+        tdSql.checkData(0, 0, 43)
+
+        tdSql.execute(f"drop database if exists `{long_db}`")
+        tdLog.info("do_boundary .................................. [passed]")
+
+    # ──────── Test 7b: Windows reserved device names as identifiers ────────
+
+    def do_reserved_devs(self):
+        """Windows reserved device names (CON/PRN/... any case) as identifiers."""
+        tmpdir = "./taosbackuptest/tmpdir_reserved_devs"
+
+        reserved_devs = [
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5",
+            "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5",
+            "LPT6", "LPT7", "LPT8", "LPT9",
+            "con", "nul", "cOm3", "lPt9",
+        ]
+
+        # vgroups are limited: first name is the DB, the rest are table names
+        db = reserved_devs[0]
+        tbls = reserved_devs[1:]
+
+        tdSql.execute(f"drop database if exists `{db}`")
+        tdSql.execute(f"create database `{db}` vgroups 1")
+        for i, tb in enumerate(tbls):
+            tdSql.execute(f"create table `{db}`.`{tb}`(ts timestamp, v int)")
+            tdSql.execute(f"insert into `{db}`.`{tb}` values(1640000000000, {i + 1})")
+
+        bin_ = self.binPath()
+        self.makeDir(tmpdir)
+
+        self.execArgs([bin_, "-D", db, "-o", tmpdir, "-T", "1"])
+
+        tdSql.execute(f"drop database `{db}`")
+        assert not self.dbFound(db), f"db `{db}` should be gone before restore"
+
+        self.execArgs([bin_, "-i", tmpdir, "-T", "1"])
+
+        assert self.dbFound(db), f"db `{db}` not found after restore"
+
+        for i, tb in enumerate(tbls):
+            tdSql.query(f"select v from `{db}`.`{tb}`")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i + 1)
+
+        tdSql.execute(f"drop database if exists `{db}`")
+        tdLog.info("do_reserved_devs .............................. [passed]")
+
+    # ─────────── Test 8: restore Windows-produced binary fixture ────────────
+
+    def do_windows_backup_cn_restore(self):
+        """
+        Restore a BINARY (.dat) backup that was produced by a FIXED Windows
+        taosBackup and committed under data/windows_backup_cn/.
+
+        Rationale / history:
+          On Windows the engine is built WITHOUT zstd/zlib/xz, so its
+          compressL2Dict substitutes LZ4 for those slots.  Older taosdump
+          wrote the *schema-declared* algorithm (e.g. zstd for NCHAR) into the
+          .dat while actually compressing with LZ4.  A Linux restore then ran
+          the real zstd decoder on an LZ4 stream and failed with 0x80000120.
+          The fix normalises the recorded algorithm to what the platform really
+          runs (LZ4 on Windows), so this fixture's NCHAR columns are labelled
+          LZ4 and must decompress cleanly on Linux/macOS.
+
+          A second historical bug (bckToUtf8) double-encoded UTF-8 identifiers
+          as if they were ANSI/GBK, corrupting Chinese table/column/file names.
+          It was removed, so every identifier in this fixture is clean UTF-8.
+
+          This test therefore does NOT run a backup — it only restores the
+          committed fixture and asserts the full content round-tripped:
+            - all 4 databases exist
+            - nchar_big  : 5000 Chinese NCHAR(50) rows (LZ4-compressed block)
+            - db monitor : NTB with Chinese column name `区域 代码`
+            - db@monitor : NTB with '@' special chars in table/column names
+            - db#test    : STB with Chinese name `tbl(v1)_传感器` + column
+                           `描述` NCHAR(20) + tag `t#region` NCHAR(8)
+        """
+        # Fixture directory must exist (data/ is committed to the repo)
+        assert os.path.isdir(_WIN_BCK_DIR), (
+            f"Windows backup fixture dir not found: {_WIN_BCK_DIR}"
+        )
+
+        # Drop any stale databases first so restore starts from a clean slate
+        for db in _WIN_BCK_DBS:
+            tdSql.execute(f"drop database if exists `{db}`")
+
+        tdLog.info(f"Restoring Windows-produced fixture from {_WIN_BCK_DIR}")
+        bin_ = self.binPath()
+        restore_proc = subprocess.run(
+            [bin_, "-i", _WIN_BCK_DIR],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            encoding='utf-8', errors='replace'
+        )
+        output = restore_proc.stdout or ""
+        for line in output.splitlines():
+            tdLog.info(line)
+        tdLog.info(f"taosdump restore rc={restore_proc.returncode}")
+        if restore_proc.returncode != 0 or "SUCCESS" not in output:
+            tdLog.exit(
+                f"Windows fixture restore failed rc={restore_proc.returncode}; "
+                f"see full taosdump output above (lines={len(output.splitlines())})"
+            )
+
+        # --- all 4 databases exist ---
+        for db in _WIN_BCK_DBS:
+            assert self.dbFound(db), f"db `{db}` not found after Windows fixture restore"
+        tdLog.info("  4 databases created ........................ [passed]")
+
+        # --- nchar_big: 5000 Chinese NCHAR(50) rows, sample content exact ---
+        tdSql.query(f"select count(*) from nchar_big.t1")
+        tdSql.checkData(0, 0, _NCHAR_BIG_ROWS)
+        tdSql.query(
+            f"select remark from nchar_big.t1 where ts = {_NCHAR_BIG_SAMPLE_TS}"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, _NCHAR_BIG_SAMPLE_REMARK)
+        tdLog.info(f"  nchar_big: {_NCHAR_BIG_ROWS} rows + sample ............ [passed]")
+
+        # --- db monitor: Chinese column name `区域 代码` restored ---
+        tdSql.query(f"select count(*) from `db monitor`.`table name`")
+        tdSql.checkData(0, 0, _DB_MONITOR_ROWS)
+        tdSql.query(
+            f"select `col name` from `db monitor`.`table name` "
+            f"where ts = 1640000000000"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "space name")
+        # Chinese column name is addressable after restore
+        tdSql.query(
+            f"select `区域 代码` from `db monitor`.`table name` limit 1"
+        )
+        tdSql.checkRows(1)
+        tdLog.info("  db monitor: NTB + `区域 代码` ................. [passed]")
+
+        # --- db@monitor: '@' in db/table/column names ---
+        tdSql.query(f"select count(*) from `db@monitor`.`tbl@sensor`")
+        tdSql.checkData(0, 0, _DB_AT_ROWS)
+        tdSql.query(
+            f"select `val@1`, `tag@cn` from `db@monitor`.`tbl@sensor` "
+            f"order by ts limit 1"
+        )
+        tdSql.checkData(0, 0, _DB_AT_ROW0_VAL)
+        tdSql.checkData(0, 1, _DB_AT_ROW0_TAG)
+        tdLog.info("  db@monitor: '@' names + data .................. [passed]")
+
+        # --- db#test: Chinese STB / column / tag names ---
+        tdSql.query("select stable_name from information_schema.ins_stables "
+                    "where db_name='db#test'")
+        stb_names = [row[0] for row in tdSql.queryResult]
+        assert _DB_HASH_STB in stb_names, (
+            f"STB `{_DB_HASH_STB}` missing after Windows fixture restore"
+        )
+        # Chinese data-column names survive in the catalog (`描述` NCHAR col)
+        tdSql.query(
+            "select col_name from information_schema.ins_columns "
+            "where db_name='db#test' and table_name='%s' and table_type='SUPER_TABLE'"
+            % _DB_HASH_STB
+        )
+        col_names = [row[0] for row in tdSql.queryResult]
+        assert "ts" in col_names, "`ts` col missing"
+        assert "c#1" in col_names, "`c#1` col missing"
+        assert "描述" in col_names, "Chinese col `描述` missing"
+        # Chinese tag name (+ its value) survived in ins_tags
+        tdSql.query(
+            "select tag_name, tag_value from information_schema.ins_tags "
+            "where db_name='db#test' and stable_name='%s'"
+            % _DB_HASH_STB
+        )
+        tag_rows = tdSql.queryResult
+        assert len(tag_rows) >= 1, "tag rows missing for db#test"
+        tag_map = {row[0]: row[1] for row in tag_rows}
+        assert "t#region" in tag_map, "Chinese tag `t#region` missing"
+        # Chinese column is usable in a real query (projection must parse cleanly)
+        tdSql.query(
+            f"select `描述` from `db#test`.`{_DB_HASH_STB}` limit 1"
+        )
+        tdSql.checkRows(0)
+        tdLog.info("  db#test: Chinese STB/col/tag names .......... [passed]")
+
+        # Cleanup
+        for db in _WIN_BCK_DBS:
+            tdSql.execute(f"drop database if exists `{db}`")
+
+        tdLog.info("do_windows_backup_cn_restore ................. [passed]")
 
     # ──────────────────────────── entry point ────────────────────────────────
 
@@ -555,14 +959,23 @@ class TestTaosBackupChinese:
         3. Mixed Chinese + ASCII identifiers (hyphens, underscores in names).
         4. ASCII special characters valid on both Linux and Windows file
            systems: '@', '#', '()', space.
-        5. Verify TDengine rejects '.' and other Windows-illegal chars so
-           taosBackup is never exposed to them.
+        5. ALL Windows-illegal ASCII filter characters (< > : " / \\ | ? * %)
+           embedded in DB / STB / CTB / NTB names, percent-encoded by
+           taosBackup, backed up and restored with data verified intact.
+        6. Boundary cases: max-length names with special chars, literal
+           '%HH' sequences; Windows reserved device names as DB + table names.
+        7. Verify TDengine rejects '.' (the only character its parser rejects).
+        8. Restore a BINARY (.dat) backup produced by a fixed Windows
+           taosBackup (committed under data/windows_backup_cn/) and verify all
+           Chinese / special-char identifiers + NCHAR content round-trip.
 
         Windows notes: taosBackup uses DB/table names as directory/file names.
-        Characters illegal in Windows paths (\\  :  *  ?  "  <  >) are
-        rejected by TDengine's parser, so backup is protected on that side.
-        Characters that are legal on Windows (space, '@', '#', '()', '-')
-        are explicitly tested end-to-end.
+        Characters illegal in Windows paths (< > : " / \\ | ? * %) are
+        percent-encoded by taosBackup, so they round-trip on Windows as well.
+        Control characters (0x00-0x1F) are also encoded by the same logic but
+        cannot be reliably created through the SQL transport (the CLI /
+        terminal layer swallows or reinterprets them), so they are covered by
+        the bckNameTests unit test instead.
 
         Since: v3.0.0.0
 
@@ -571,14 +984,20 @@ class TestTaosBackupChinese:
         Jira: None
 
         History:
-            - 2026-03-12 Created for Chinese / Unicode / special-char coverage
+            - 2026-03-12 AlexDuan Created for Chinese / Unicode / special-char coverage
+            - 2026-09-03 AlexDuan Added Windows-produced binary fixture restore
+              (do_windows_backup_cn_restore, data/windows_backup_cn)
 
         """
         self.do_chinese_stb()
         self.do_chinese_parquet()
         self.do_chinese_mixed_ascii()
         self.do_special_chars_path()
+        self.do_special_chars_illegal()
+        self.do_boundary()
+        self.do_reserved_devs()
         self.do_rejected_identifiers()
+        self.do_windows_backup_cn_restore()
 
         # cleanup
         for db in (
@@ -587,7 +1006,7 @@ class TestTaosBackupChinese:
             "db@monitor",
             "db#test",
             "db monitor",
-        ):
+        ) + tuple(_WIN_BCK_DBS):
             tdSql.execute(f"drop database if exists `{db}`")
         os.system("rm -rf ./taosbackuptest/")
 

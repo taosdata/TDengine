@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -451,6 +453,66 @@ _exit:
   return code;
 }
 
+// Encodes a single-point old-shape SDeleteRes (one uid, skey==ekey) and proposes it as an
+// independent write, with no client response attached (info.noResp). Used by
+// vnodePreProcessDeleteMsg to fan a column-filter DELETE's N matched rows out into N
+// independent Raft-committed point-deletes, so every consumer of the WAL -- apply, the stream
+// engine's WAL reader, TMQ, taosX raw replay -- only ever sees exact single-point delete ranges,
+// with no protocol extension and no changes required in any of them.
+static int32_t vnodeProposeSplitDeletePoint(SVnode *pVnode, const SDeleteRes *pBase, uint64_t uid, int64_t skey,
+                                            int64_t ekey, int64_t affectedRows) {
+  int32_t    code = 0;
+  int32_t    size, ret;
+  SEncoder   coder = {0};
+  SDeleteRes sub = *pBase;
+  sub.pSplitPoints = NULL;
+  sub.skey = skey;
+  sub.ekey = ekey;
+  sub.affectedRows = affectedRows;
+
+  SArray *oneUid = taosArrayInit(1, sizeof(uint64_t));
+  if (NULL == oneUid) return terrno;
+  if (NULL == taosArrayPush(oneUid, &uid)) {
+    code = terrno;
+    taosArrayDestroy(oneUid);
+    return code;
+  }
+  sub.uidList = oneUid;
+
+  tEncodeSize(tEncodeDeleteRes, &sub, size, ret);
+  uint8_t *pCont = rpcMallocCont(size + sizeof(SMsgHead));
+  if (NULL == pCont) {
+    taosArrayDestroy(oneUid);
+    return terrno;
+  }
+  ((SMsgHead *)pCont)->contLen = size + sizeof(SMsgHead);
+  ((SMsgHead *)pCont)->vgId = TD_VID(pVnode);
+
+  tEncoderInit(&coder, pCont + sizeof(SMsgHead), size);
+  if (tEncodeDeleteRes(&coder, &sub) != 0) {
+    vError("vgId:%d %s failed to encode split delete point uid:%" PRIu64, TD_VID(pVnode), __func__, uid);
+    tEncoderClear(&coder);
+    taosArrayDestroy(oneUid);
+    rpcFreeCont(pCont);
+    return terrno != 0 ? terrno : TSDB_CODE_INTERNAL_ERROR;
+  }
+  tEncoderClear(&coder);
+  taosArrayDestroy(oneUid);
+
+  SRpcMsg subMsg = {0};
+  subMsg.msgType = TDMT_VND_DELETE;
+  subMsg.contLen = size + sizeof(SMsgHead);
+  subMsg.pCont = pCont;
+  subMsg.info.noResp = 1;
+
+  bool isWeak = false;
+  if (vnodeProposeMsg(pVnode, &subMsg, isWeak) < 0) {
+    code = (terrno != 0) ? terrno : TSDB_CODE_INTERNAL_ERROR;
+  }
+  rpcFreeCont(subMsg.pCont);
+  return code;
+}
+
 static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
@@ -470,6 +532,46 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   if (code) goto _exit;
 
   res.ctimeMs = taosGetTimestampMs();
+
+  // A DELETE with an ordinary column filter arrives here as N matched-row points
+  // (res.pSplitPoints), computed once by the scan above. Split it into N independent, old-shape
+  // SDeleteRes proposals -- one Raft-committed point-delete per matched row -- instead of bundling
+  // all N into one message. The first N-1 points are proposed here directly (best-effort: log and
+  // move on if one fails, partial completion is accepted); the last point rides through the
+  // existing single-proposal path below. affectedRows on that final message is the count of points
+  // actually proposed successfully (including the last one itself), not the naive total, so a
+  // partial failure is reflected in what the client sees rather than silently overreported.
+  int32_t numSplitPoints = taosArrayGetSize(res.pSplitPoints);
+  if (numSplitPoints > 0) {
+    int64_t succeededPoints = 1;  // the last point always rides through below; count it up front
+    for (int32_t i = 0; i < numSplitPoints - 1; i++) {
+      SDeleteInterval *pPt = (SDeleteInterval *)taosArrayGet(res.pSplitPoints, i);
+      int32_t subCode = vnodeProposeSplitDeletePoint(pVnode, &res, pPt->uid, pPt->skey, pPt->ekey, 1);
+      if (subCode) {
+        vError("vgId:%d %s failed to propose split delete point %d/%d uid:%" PRIu64 " skey:%" PRId64
+               " ekey:%" PRId64 " since %s",
+               TD_VID(pVnode), __func__, i + 1, numSplitPoints, pPt->uid, pPt->skey, pPt->ekey, tstrerror(subCode));
+      } else {
+        succeededPoints++;
+      }
+    }
+
+    SDeleteInterval *pLast = (SDeleteInterval *)taosArrayGetLast(res.pSplitPoints);
+    SArray          *lastUid = taosArrayInit(1, sizeof(uint64_t));
+    if (NULL == lastUid || NULL == taosArrayPush(lastUid, &pLast->uid)) {
+      code = terrno;
+      taosArrayDestroy(lastUid);
+      taosArrayDestroy(res.uidList);
+      taosArrayDestroy(res.pSplitPoints);
+      goto _exit;
+    }
+    taosArrayDestroy(res.uidList);
+    res.uidList = lastUid;
+    res.skey = pLast->skey;
+    res.ekey = pLast->ekey;
+    res.affectedRows = succeededPoints;
+  }
+
   // malloc and encode
   tEncodeSize(tEncodeDeleteRes, &res, size, ret);
   pCont = rpcMallocCont(size + sizeof(SMsgHead));
@@ -488,6 +590,7 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   pMsg->contLen = size + sizeof(SMsgHead);
 
   taosArrayDestroy(res.uidList);
+  taosArrayDestroy(res.pSplitPoints);
 
 _exit:
   return code;
@@ -623,9 +726,9 @@ _exit:
 
 // Extract txnId from the encoded message body so that walWriteImpl can mark the WAL
 // entry with WAL_IS_TXN_MSG.  SRpcHandleInfo.txnId is NOT transmitted over the RPC
-// wire — only STransMsgHead fields (traceId, qid, seqNum, ...) are.  We must read
+// wire  -  only STransMsgHead fields (traceId, qid, seqNum, ...) are.  We must read
 // txnId from the message body before handing the message to syncPropose / WAL.
-// This runs before Raft consensus, so overhead (< 1 µs per DDL) is negligible compared
+// This runs before Raft consensus, so overhead (< 1 micros per DDL) is negligible compared
 // to the Raft round-trip (milliseconds).
 static txn_id_t vnodeExtractTxnId(SRpcMsg *pMsg) {
   void    *body    = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -1034,10 +1137,18 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       /* TQ */
 #if defined(USE_TQ) || defined(USE_STREAM)
     case TDMT_VND_TMQ_SUBSCRIBE:
+      // if (!pVnode->restored) {
+      //   vWarn("vgId:%d, skip tmq subscribe during restore, ver:%" PRId64, TD_VID(pVnode), ver);
+      //   break;
+      // }
       code = tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
     case TDMT_VND_TMQ_DELETE_SUB:
+      // if (!pVnode->restored) {
+      //   vWarn("vgId:%d, skip tmq subscribe during restore, ver:%" PRId64, TD_VID(pVnode), ver);
+      //   break;
+      // }
       code = tqProcessDeleteSubReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
@@ -1057,6 +1168,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_COMMIT:
       needCommit = true;
       break;
+#ifdef TD_ENTERPRISE
+    case TDMT_VND_SYNC_COMMIT:
+      code = vnodeProcessSyncCommitReq(pVnode, pMsg);
+      TSDB_CHECK_CODE(code, lino, _err);
+      break;
+#endif
     case TDMT_VND_CREATE_INDEX:
       vnodeProcessCreateIndexReq(pVnode, ver, pReq, len, pRsp);
       break;
@@ -1150,20 +1267,40 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return qWorkerPreprocessQueryMsg(pVnode->pQuery, pMsg, (TDMT_SCH_QUERY == pMsg->msgType), &qType);
 }
 
+static bool vnodeAllowFollowerRead(SVnode *pVnode, SRpcMsg *pMsg) {
+  if (!tsEnableFollowerRead || !syncIsReadyForReplicaRead(pVnode->sync)) {
+    return false;
+  }
+
+  SSubQueryMsg queryMsg = {0};
+  if (tDeserializeSSubQueryMsg(pMsg->pCont, pMsg->contLen, &queryMsg) < 0) {
+    return false;
+  }
+
+  bool allow = queryMsg.allowFollowerRead;
+  tFreeSSubQueryMsg(&queryMsg);
+  return allow;
+}
+
+static bool vnodeAllowFollowerFetch(SVnode *pVnode, SRpcMsg *pMsg) {
+  if (!tsEnableFollowerRead || !syncIsReadyForReplicaRead(pVnode->sync)) {
+    return false;
+  }
+
+  SResFetchReq fetchReq = {0};
+  if (tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &fetchReq) < 0) {
+    return false;
+  }
+
+  bool allow = fetchReq.allowFollowerRead;
+  tDestroySResFetchReq(&fetchReq);
+  return allow;
+}
+
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   const STraceId *trace = &pMsg->info.traceId;
   vDebug("vgId:%d, msg:%s, %p in vnode query queue is processing, %" PRIx64 ":%" PRIx64, 
     pVnode->config.vgId, TMSG_INFO(pMsg->msgType), pMsg, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
-
-  if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
-    return 0;
-  }
-
-  if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !pVnode->restored) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
-    return 0;
-  }
 
   SReadHandle handle = {0};
   handle.vnode = pVnode;
@@ -1175,7 +1312,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 
   switch (pMsg->msgType) {
     case TDMT_SCH_QUERY:
-      if (!syncIsReadyForRead(pVnode->sync)) {
+      if (!syncIsReadyForRead(pVnode->sync) && !vnodeAllowFollowerRead(pVnode, pMsg)) {
         pMsg->code = (terrno) ? terrno : TSDB_CODE_SYN_NOT_LEADER;
         redirected = true;
       }
@@ -1209,8 +1346,10 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
        pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME ||
        pMsg->msgType == TDMT_VND_VSUBTABLES_META || pMsg->msgType == TDMT_VND_VSTB_REF_DBS ||
        pMsg->msgType == TDMT_VND_CHECK_HAS_CTB ||
-       pMsg->msgType == TDMT_VND_VTB_TAG_COND) &&
-      !syncIsReadyForRead(pVnode->sync)) {
+       pMsg->msgType == TDMT_VND_CHECK_STB_ALTER_NAME ||
+      pMsg->msgType == TDMT_VND_VTB_TAG_COND) &&
+      !syncIsReadyForRead(pVnode->sync) &&
+      !(pMsg->msgType == TDMT_SCH_FETCH && vnodeAllowFollowerFetch(pVnode, pMsg))) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -1220,7 +1359,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_SCH_MERGE_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_FETCH_RSP:
-      return qWorkerProcessRspMsg(pVnode, pVnode->pQuery, pMsg, 0);
+      return qWorkerProcessRspMsg(pVnode, pVnode->pQuery, pMsg, NULL, 0);
     // case TDMT_SCH_CANCEL_TASK:
     //   return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_DROP_TASK:
@@ -1246,6 +1385,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetVStbRefDbs(pVnode, pMsg);
     case TDMT_VND_CHECK_HAS_CTB:
       return vnodeProcessCheckHasCtbReq(pVnode, pMsg);
+    case TDMT_VND_CHECK_STB_ALTER_NAME:
+      return vnodeProcessCheckStbAlterNameReq(pVnode, pMsg);
     case TDMT_VND_VTB_TAG_COND:
       return vnodeGetVTbTagCond(pVnode, pMsg, true);
     case TDMT_VND_QUERY_SCAN_PROGRESS:
@@ -1657,7 +1798,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 
     // Batch meta txn: write to B+ tree with PRE_CREATE status (shadow-in-B+tree model).
     // The entry is physically created but invisible to non-txn queries (filtered by txnStatus).
-    // COMMIT clears txnId/txnStatus → visible. ROLLBACK deletes entry.
+    // COMMIT clears txnId/txnStatus  ->  visible. ROLLBACK deletes entry.
     if (pCreateReq->txnId != 0) {
       // Register txn entry in VNode (for tracking, table locking, etc.)
       int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pCreateReq->txnId, ver);
@@ -2159,7 +2300,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   }
 
   // Batch meta txn: write ALTER to B+ tree with PRE_ALTER status (shadow-in-B+tree model).
-  // The ALTER creates a new version of the entry. On COMMIT, clear status → visible.
+  // The ALTER creates a new version of the entry. On COMMIT, clear status  ->  visible.
   // On ROLLBACK, restore old version.
   if (vAlterTbReq.txnId != 0) {
     int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId, ver);
@@ -2170,12 +2311,13 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     }
 
     // Lock and track affected tables.
-    // For MULTI_TABLE_TAG_VAL, vAlterTbReq.tbName is empty — the actual child tables
+    // For MULTI_TABLE_TAG_VAL, vAlterTbReq.tbName is empty  -  the actual child tables
     // are in vAlterTbReq.tables[]. We must lock/track/mark each child individually.
     tb_uid_t alterUid = 0;
     int64_t  alterPrevVer = -1;
     SArray  *pAffectedUids = NULL;
     SArray  *pAffectedVers = NULL;
+    SArray  *pAffectedNames = NULL;
 
     if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
       int32_t nTables = taosArrayGetSize(vAlterTbReq.tables);
@@ -2242,35 +2384,84 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       // Child table tag update via WHERE clause: pre-scan affected children
       pAffectedUids = taosArrayInit(16, sizeof(tb_uid_t));
       pAffectedVers = taosArrayInit(16, sizeof(int64_t));
-      if (pAffectedUids == NULL || pAffectedVers == NULL) {
+      pAffectedNames = taosArrayInit(16, TSDB_TABLE_NAME_LEN);
+      if (pAffectedUids == NULL || pAffectedVers == NULL || pAffectedNames == NULL) {
         vAlterTbRsp.code = terrno;
         taosArrayDestroy(pAffectedUids);
         taosArrayDestroy(pAffectedVers);
+        taosArrayDestroy(pAffectedNames);
         tDecoderClear(&dc);
         goto _exit;
       }
-      int32_t scanCode = metaPreScanChildTableTagUpdate(pVnode->pMeta, &vAlterTbReq, pAffectedUids, pAffectedVers);
+      int32_t scanCode =
+          metaPreScanChildTableTagUpdate(pVnode->pMeta, &vAlterTbReq, pAffectedUids, pAffectedVers, pAffectedNames);
       if (scanCode != 0) {
         vError("vgId:%d, txn alter child table tags: metaPreScanChildTableTagUpdate failed, code:0x%x", TD_VID(pVnode),
                scanCode);
         vAlterTbRsp.code = scanCode;
         taosArrayDestroy(pAffectedUids);
         taosArrayDestroy(pAffectedVers);
+        taosArrayDestroy(pAffectedNames);
         tDecoderClear(&dc);
         goto _exit;
       }
-      // Lock and track each affected child table
+      // Lock and track each affected child table.
+      // The lock must be taken for every matched child, exactly as the MULTI_TABLE_TAG_VAL
+      // path above does: without it two txns can both mark the same children PRE_ALTER and
+      // overwrite each other's recorded pre-txn version, making the rollback value
+      // indeterminate. Any child held by another txn fails the whole statement; locks
+      // already taken here stay with this txn and are released when it ends.
       int32_t nAffected = taosArrayGetSize(pAffectedUids);
+      // Report the real reach back to the client so it can charge txnDdlCount per object;
+      // the client charges 1 for this statement until it sees this value.
+      //
+      // Contract: numTouched is only meaningful when vAlterTbRsp.code == TSDB_CODE_SUCCESS.
+      // It is assigned here, before the lock/track loop and before metaAlterTable, so a failure
+      // raised in that loop leaves it holding the pre-scan count even though nothing was
+      // applied. The sole consumer (schRemote.c, TDMT_VND_ALTER_TABLE_RSP) checks rsp.code
+      // before accumulating, so the stale value is never read today. Do not "fix" this by
+      // zeroing on failure: a failure in the mark/upsert loop further down happens AFTER
+      // metaAlterTable succeeded, where nAffected is the accurate figure.
+      vAlterTbRsp.numTouched = nAffected;
       for (int32_t i = 0; i < nAffected; i++) {
-        tb_uid_t uid = *(tb_uid_t *)TARRAY_GET_ELEM(pAffectedUids, i);
-        int64_t  prevVer = *(int64_t *)taosArrayGet(pAffectedVers, i);
-        int32_t  trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, uid, prevVer);
+        tb_uid_t    uid = *(tb_uid_t *)TARRAY_GET_ELEM(pAffectedUids, i);
+        int64_t     prevVer = *(int64_t *)taosArrayGet(pAffectedVers, i);
+        const char *childName = (const char *)taosArrayGet(pAffectedNames, i);
+
+        char childNameFull[TSDB_TABLE_FNAME_LEN];
+        int32_t nameLen = snprintf(childNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, childName);
+        if (nameLen < 0 || nameLen >= TSDB_TABLE_FNAME_LEN) {
+          // Truncation would silently lock a wrong (prefix-colliding) name; fail the
+          // statement instead of proceeding with a corrupted lock key.
+          vError("vgId:%d, txn alter child table name too long: %s (db:%s)", TD_VID(pVnode), childName,
+                 pVnode->config.dbname);
+          vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
+          taosArrayDestroy(pAffectedUids);
+          taosArrayDestroy(pAffectedVers);
+          taosArrayDestroy(pAffectedNames);
+          tDecoderClear(&dc);
+          goto _exit;
+        }
+        int32_t lockCode = vnodeTxnLockTable(pVnode, childNameFull, vAlterTbReq.txnId);
+        if (lockCode != TSDB_CODE_SUCCESS) {
+          vError("vgId:%d, txn alter child table %s: vnodeTxnLockTable failed, code:0x%x", TD_VID(pVnode), childName,
+                 lockCode);
+          vAlterTbRsp.code = lockCode;
+          taosArrayDestroy(pAffectedUids);
+          taosArrayDestroy(pAffectedVers);
+          taosArrayDestroy(pAffectedNames);
+          tDecoderClear(&dc);
+          goto _exit;
+        }
+
+        int32_t trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, uid, prevVer);
         if (trackCode != 0) {
           vError("vgId:%d, txn alter child table uid:%" PRId64 ": vnodeTxnTrackAlter failed, code:0x%x", TD_VID(pVnode),
                  uid, trackCode);
           vAlterTbRsp.code = trackCode;
           taosArrayDestroy(pAffectedUids);
           taosArrayDestroy(pAffectedVers);
+          taosArrayDestroy(pAffectedNames);
           tDecoderClear(&dc);
           goto _exit;
         }
@@ -2356,6 +2547,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     }
     taosArrayDestroy(pAffectedUids);
     taosArrayDestroy(pAffectedVers);
+    taosArrayDestroy(pAffectedNames);
     // Return new schema to client for same-txn visibility (pTxnTableMeta update)
     if (NULL != vMetaRsp.pSchemas) {
       vnodeUpdateMetaRsp(pVnode, &vMetaRsp);
@@ -2377,6 +2569,15 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
         conflictCode = vnodeTxnCheckConflict(pVnode, pTable->tbName, TXN_CONFLICT_OP_ALTER);
       }
     } else {
+      // Known gap for TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL (SET TAG ... WHERE):
+      // tbName is the SUPER table, so this checks the super table's own txn status and
+      // not the children the statement actually rewrites. A non-txn bulk WHERE update
+      // therefore still slips past a txn holding those children. Naming a child
+      // directly IS blocked (the txn locks each matched child), so the exposure is
+      // limited to bulk-vs-bulk. Resolving it needs the conflict check to run against
+      // the pre-scanned child set on this path too; deferred rather than done here
+      // because the pre-scan resolves the predicate against uncommitted shadow state
+      // and would need the same visibility rules as the read path.
       conflictCode = vnodeTxnCheckConflict(pVnode, vAlterTbReq.tbName, TXN_CONFLICT_OP_ALTER);
     }
     if (conflictCode != TSDB_CODE_SUCCESS) {
@@ -2490,7 +2691,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
 
       // metaDropTable2 handles txnId internally:
-      //   - Same-txn undo (CREATE→DROP or CREATE→ALTER→DROP): physically delete + cleanup txn.idx
+      //   - Same-txn undo (CREATE -> DROP or CREATE -> ALTER -> DROP): physically delete + cleanup txn.idx
       //   - Normal txn DROP: mark PRE_DROP + update txn.idx
       ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);
       if (ret < 0) {
@@ -2499,7 +2700,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
               pDropTbReq->txnId, terrno);
       } else {
         // Track dropped UID for TMQ notification at COMMIT.
-        // vnodeTxnTrackDrop reconciles same-txn CREATE→DROP (removes from created list).
+        // vnodeTxnTrackDrop reconciles same-txn CREATE -> DROP (removes from created list).
         int32_t trackCode = vnodeTxnTrackDrop(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
         if (trackCode != 0) {
           vError("vgId:%d, txn drop table %s: vnodeTxnTrackDrop failed, code:0x%x", TD_VID(pVnode), pDropTbReq->name,
@@ -2927,7 +3128,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
   SMetaEntry *pEntry = NULL;
   code = metaFetchEntryByUid(pVnode->pMeta, pSubmitTbData->suid, &pEntry);
   if (code) {
-    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+    vError("vgId:%d, table uid:%" PRId64 " does not exist, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   if (pEntry->type != TSDB_SUPER_TABLE) {
@@ -2986,7 +3187,7 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, int64_t uid, STableMetaR
   SMetaEntry *pEntry = NULL;
   code = metaFetchEntryByUid(pVnode->pMeta, uid, &pEntry);
   if (code) {
-    vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), uid, __LINE__);
+    vError("vgId:%d, table uid:%" PRId64 " does not exist, line:%d", TD_VID(pVnode), uid, __LINE__);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   if (pEntry->type != TSDB_NORMAL_TABLE) {
@@ -3033,7 +3234,7 @@ static int32_t buildExistTableInStreamRsp(SVnode *pVnode, SSubmitTbData *pSubmit
   if (pSubmitTbData->pCreateTbReq->flags & TD_CREATE_NORMAL_TB_IN_STREAM) {
     code = buildExistNormalTalbeRsp(pVnode, pSubmitTbData->uid, &pCreateTbRsp->pMeta);
     if (code) {
-      vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
+      vError("vgId:%d, table uid:%" PRId64 " does not exist, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
       return code;
     }
     pCreateTbRsp->code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
@@ -3162,7 +3363,7 @@ static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSub
   if (pTbData->suid == 0) {
     code = buildExistNormalTalbeRsp(pVnode, pTbData->uid, &pCreateTbRsp->pMeta);
     if (code) {
-      vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pTbData->uid, __LINE__);
+      vError("vgId:%d, table uid:%" PRId64 " does not exist, line:%d", TD_VID(pVnode), pTbData->uid, __LINE__);
     }
   } else {
     code = buildExistSubTalbeRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
@@ -3202,14 +3403,14 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     }
 
     // batch meta txn: block INSERT only on PRE_CREATE (invisible tables)
-    // PRE_DROP tables allow INSERT — snapshot isolation: table still visible until COMMIT.
+    // PRE_DROP tables allow INSERT  -  snapshot isolation: table still visible until COMMIT.
     // If the txn commits (DROP finalized), this INSERT data is deleted with the table.
     // If the txn rolls back, the table and INSERT data are both preserved.
     if (metaHasPendingTxnEntries(pVnode->pMeta)) {
       void   *pTxnVal = NULL;
       int32_t txnValLen = 0;
       // Serialize with async vacuum thread which holds metaWLock while writing
-      // pTxnIdx / pTbDb pages — without metaRLock here, a concurrent tdb page split
+      // pTxnIdx / pTbDb pages  -  without metaRLock here, a concurrent tdb page split
       // or rebalance from vacuum could leave us reading torn pager state (s106 race).
       metaRLock(pVnode->pMeta);
       int32_t getRc = tdbTbGet(pVnode->pMeta->pTxnIdx, &pTbData->uid, sizeof(pTbData->uid), &pTxnVal, &txnValLen);
@@ -3774,7 +3975,7 @@ static SArray *vnodePrepareSubmitTb(SVnode *pVnode, SAuditRecord *record, STSche
     tbData.uid = merTb.me.uid;
     metaReaderClear(&merTb);
   } else if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-    vTrace("vgId:%d, %s table not exist", TD_VID(pVnode), tbName);
+    vTrace("vgId:%d, %s table does not exist", TD_VID(pVnode), tbName);
 
     tbData.uid = tGenIdPI64();
     tbData.flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
@@ -3946,14 +4147,13 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
   vTrace("vgId:%d, get audit stable entry, uid:%" PRId64 ", suid:% " PRId64 ", version:%" PRId64 ", api:%p",
          TD_VID(pVnode), merStb.me.uid, merStb.me.ctbEntry.suid, merStb.me.version, merStb.pAPI);
 
-  // 死锁修复：merStb 是用 META_READER_LOCK 初始化的，初始化时已经持有 meta 的读锁，
-  // 该读锁要到 metaReaderClear 才释放。下面的 vnodeGetTableSchema 内部会再创建一个
-  // 带锁的 SMetaReader，并在 meta cache 未命中时由 metaGetInfo() 把读锁升级为写锁去
-  // 刷新缓存。若此处 merStb 仍持有外层读锁（同一线程），写锁请求将永远无法满足，
-  // 造成同线程自死锁（pthread_rwlock 不可重入）。
-  // 这里其实只需要超级表的 uid，拿到后立即释放 merStb 的读锁，消除锁嵌套即可。
+  // Avoid a deadlock: META_READER_LOCK initializes merStb while holding the meta read lock, which is
+  // released only by metaReaderClear. vnodeGetTableSchema creates another locked SMetaReader and, on a
+  // cache miss, metaGetInfo upgrades its read lock to refresh the cache. If merStb still holds the outer
+  // read lock in this thread, the write-lock request can never succeed because pthread_rwlock is not reentrant.
+  // Only the supertable uid is needed here, so release merStb's read lock immediately to avoid lock nesting.
   int64_t stbUid = merStb.me.uid;
-  metaReaderClear(&merStb);  // 在调用 vnodeGetTableSchema 之前先释放 meta 读锁，避免锁嵌套
+  metaReaderClear(&merStb);  // Release the meta read lock before vnodeGetTableSchema to avoid lock nesting.
   vTrace("vgId:%d, released audit stable meta reader lock before schema lookup, stbUid:%" PRId64, TD_VID(pVnode),
          stbUid);
 
@@ -4219,7 +4419,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
              pVnode->config.szCache, req.pages, tstrerror(terrno));
       return terrno;
     } else {
-      vInfo("vgId:%d, vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
+      vInfo("vgId:%d, vnode pages are changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
       pVnode->config.szCache = req.pages;
     }
   }
@@ -4348,7 +4548,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 
     int64_t uid = mr.me.uid;
 
-    // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP → conflict)
+    // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP  ->  conflict)
     {
       int32_t conflictCode = vnodeTxnCheckConflict(pVnode, name, TXN_CONFLICT_OP_DROP);
       if (conflictCode != TSDB_CODE_SUCCESS) {
@@ -4406,7 +4606,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
     for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
       uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
 
-      // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP → conflict)
+      // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP  ->  conflict)
       code = vnodeTxnCheckDeleteConflict(pVnode, uid);
       if (code) goto _err;
 
@@ -4420,7 +4620,9 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
   }
 
   tDecoderClear(pCoder);
+  // Null the pointer: the _err path below frees it too, and tEncodeSVDeleteRsp can still jump there.
   taosArrayDestroy(pRes->uidList);
+  pRes->uidList = NULL;
 
   SVDeleteRsp rsp = {.affectedRows = pRes->affectedRows};
   int32_t     ret = 0;
@@ -4448,6 +4650,14 @@ _err:
     taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
   }
   */
+
+  // vnodeHandleWriteMsg's single-replica fast path builds the client-facing response from the
+  // global terrno, not from this function's return value (see vnodeProcessBatchDeleteReq's
+  // "terrno = code" convention just above in this file for the same reason). Without this, any
+  // failure here -- a txn conflict, a storage error -- silently turns into a success response
+  // whenever the write completes synchronously instead of through the async commit callback.
+  terrno = code;
+  taosArrayDestroy(pRes->uidList);
 
   return code;
 }
@@ -4621,7 +4831,7 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
   pRsp->contLen = contLen;
 
   vInfo(
-      "vgId:%d, suceed to process vnode-arb-check-sync req rsp.code:%s, arbToken:%s, member0Token:%s, "
+      "vgId:%d, successfully processed vnode-arb-check-sync req rsp.code:%s, arbToken:%s, member0Token:%s, "
       "member1Token:%s",
       TD_VID(pVnode), tstrerror(syncRsp.errCode), syncRsp.arbToken, syncRsp.member0Token, syncRsp.member1Token);
 

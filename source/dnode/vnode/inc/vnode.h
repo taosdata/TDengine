@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -78,8 +80,9 @@ void    vnodeStop(SVnode *pVnode);
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 int32_t vnodeSetWalKeepVersion(SVnode *pVnode, int64_t keepVersion);
-void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables);
+void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, SVnodeTableNums *pNums);
 int8_t    vnodeGetSecurityLevel(void *pVnode);
+int8_t    vnodeGetTsdbPrecision(void *pVnode);
 bool      vnodeHasPendingTxnEntries(void *pVnode);
 int32_t   vnodeGetTableList(void *pVnode, int8_t type, SArray *pList);
 int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
@@ -87,6 +90,9 @@ int32_t   vnodeIsCatchUp(SVnode *pVnode);
 ESyncRole vnodeGetRole(SVnode *pVnode);
 int32_t   vnodeGetArbToken(SVnode *pVnode, char *outToken);
 int32_t   vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo);
+int32_t   vnodeGetLastCacheStats(void *pVnode, SLastCacheStats *pStats);
+void      vnodeSetDnodeId(int32_t dnodeId);
+int32_t   vnodeGetDnodeId(void);
 
 int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm);
 
@@ -114,12 +120,18 @@ int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
+// Lets a preprocess hook (e.g. vnodeSvr.c's vnodePreProcessDeleteMsg) propose additional,
+// independent write messages beyond the one write-queue item it was called for.
+int32_t vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak);
 
 int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
+int32_t vnodeProcessBackupSnapReq(SVnode *pVnode, SRpcMsg *pMsg);
+void    vnodeCloseBackupSnap(SVnode *pVnode);
+void    vnodeCheckBackupSnapTimeout(SVnode *pVnode);
 
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
@@ -196,9 +208,15 @@ typedef struct STsdbReader STsdbReader;
 #define CACHESCAN_RETRIEVE_TYPE_SINGLE 0x2
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
+#define CACHESCAN_RETRIEVE_BATCH_ALL   0x10
 
 int32_t  tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
                          SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
+/** Open/activate one group; ranges are copied. Release the previous block before activation. */
+int32_t  tsdbReaderOpenGroup2(void *vnode, SQueryTableDataCond *cond, const STableScanRange *ranges, int32_t numTables,
+                              SSDataBlock *output, void **reader, const char *id, SHashObj **ignoreTables);
+// Atomic per-field sampling; safe during suspend or a held clean block, not after close.
+int32_t  tsdbReaderActivateGroup2(void *reader, const STableScanRange *ranges, int32_t numTables);
 int32_t  tsdbSetTableList2(void *pReader, const void *pTableList, int32_t num);
 int32_t  tsdbReaderSetId(void *pReader, const char *idstr);
 void     tsdbReaderClose2(void *pReader);
@@ -399,6 +417,9 @@ struct SVnodeCfg {
   int8_t      allowDrop;
   int8_t      secureDelete;
   int8_t      securityLevel;
+  // runtime only, never persisted: set when the loaded config predates the
+  // persisted virtual-table counters, requesting a one-time rebuild at open
+  bool        rebuildVTableStats;
 };
 
 #define TABLE_ROLLUP_ON         ((int8_t)0x1)

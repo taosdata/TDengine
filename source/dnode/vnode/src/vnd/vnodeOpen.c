@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -90,7 +92,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
       vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
     } else {
       vError("vgId:%d, vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
-             ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
+             ", newDbId:%" PRId64 "(%s) at cluster:%" PRId64 ", code:%s",
              oldInfo.config.vgId, dir, oldInfo.config.dbId, oldInfo.config.dbname,
              oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
              info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
@@ -460,6 +462,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   pVnode->disableWrite = false;
   pVnode->closing = 0;
   pVnode->vacuumRunning = 0;
+  (void)taosThreadMutexInit(&pVnode->backupSnapMutex, NULL);
 
   if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
     vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
@@ -491,6 +494,25 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   vInfo("vgId:%d, start to upgrade meta", TD_VID(pVnode));
   if (!mounted && metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
+  }
+
+  if (pVnode->config.rebuildVTableStats) {
+    vInfo("vgId:%d, rebuild virtual table stats since vnode config predates persisted vtable counters",
+          TD_VID(pVnode));
+    if (metaRebuildVTableStats(pVnode->pMeta) == 0) {
+      pVnode->config.rebuildVTableStats = false;
+      if (!mounted) {
+        info.config.rebuildVTableStats = false;
+        info.config.vndStats.numOfVTables = pVnode->config.vndStats.numOfVTables;
+        info.config.vndStats.numOfVCTables = pVnode->config.vndStats.numOfVCTables;
+        if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
+          vError("vgId:%d, failed to save vnode info after virtual table stats rebuild since %s", TD_VID(pVnode),
+                 tstrerror(terrno));
+        }
+      }
+    } else {
+      vError("vgId:%d, failed to rebuild virtual table stats since %s", TD_VID(pVnode), tstrerror(terrno));
+    }
   }
 
   // init txn manager and rebuild in-memory txn state from B+ tree
@@ -555,11 +577,13 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   TAOS_UNUSED(ret);
 
   // open query
-  vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
-  if (vnodeQueryOpen(pVnode)) {
-    vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+  if (pVnode->msgCb.mgmt != NULL) {
+    vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
+    if (vnodeQueryOpen(pVnode)) {
+      vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
   // sma required the tq is initialized before the vnode open
@@ -617,10 +641,12 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   }
 
   // open sync
-  vInfo("vgId:%d, start to open sync, changeVersion:%d", TD_VID(pVnode), info.config.syncCfg.changeVersion);
-  if (vnodeSyncOpen(pVnode, dir, info.config.syncCfg.changeVersion)) {
-    vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
+  if (pVnode->msgCb.mgmt != NULL) {
+    vInfo("vgId:%d, start to open sync, changeVersion:%d", TD_VID(pVnode), info.config.syncCfg.changeVersion);
+    if (vnodeSyncOpen(pVnode, dir, info.config.syncCfg.changeVersion)) {
+      vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
   }
 
   if (rollback) {
@@ -657,6 +683,7 @@ _err:
 
 void vnodePreClose(SVnode *pVnode) {
   streamRemoveVnodeLeader(pVnode->config.vgId);
+  vnodeCloseBackupSnap(pVnode);
   vnodeSyncPreClose(pVnode);
   vnodeQueryPreClose(pVnode);
 }
@@ -679,7 +706,9 @@ void vnodeClose(SVnode *pVnode) {
     if (atomic_load_8(&pVnode->vacuumRunning)) {
       vnodeAWait(&pVnode->vacuumTask);
     }
-    vnodeSyncClose(pVnode);
+    if (pVnode->sync != 0) {
+      vnodeSyncClose(pVnode);
+    }
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
     if (pVnode->pTxnWalMgr) {
@@ -701,6 +730,7 @@ void vnodeClose(SVnode *pVnode) {
       vError("vgId:%d, failed to destroy semaphore", TD_VID(pVnode));
     }
     (void)taosThreadCondDestroy(&pVnode->poolNotEmpty);
+    (void)taosThreadMutexDestroy(&pVnode->backupSnapMutex);
     (void)taosThreadMutexDestroy(&pVnode->mutex);
     (void)taosThreadMutexDestroy(&pVnode->lock);
     taosMemoryFree(pVnode);

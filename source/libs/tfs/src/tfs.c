@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -596,7 +598,7 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
   int32_t   dirLen = 0;
   char      tmp[PATH_MAX] = {0};
 
-  code = wordexp(idir, &wep, 0);
+  code = wordexp(idir, &wep, WRDE_NOCMD);
   if (code != 0) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(code));
   }

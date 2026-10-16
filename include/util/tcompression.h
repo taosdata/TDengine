@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -70,24 +72,22 @@ extern "C" {
 #define HEAD_ALGO(x) x / 2
 
 #ifdef TD_TSZ
-extern bool lossyFloat;
-extern bool lossyDouble;
 void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
                     int32_t ifAdtFse, const char *compressor);
 
 void tsCompressExit();
 
-int32_t tsCompressFloatLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsCompressFloatLossyImp(const char *const input, const int32_t nelements, char *const output, int32_t outputSize);
 int32_t tsDecompressFloatLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements,
                                   char *const output);
-int32_t tsCompressDoubleLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsCompressDoubleLossyImp(const char *const input, const int32_t nelements, char *const output, int32_t outputSize);
 int32_t tsDecompressDoubleLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements,
                                    char *const output);
 
 static FORCE_INLINE int32_t tsCompressFloatLossy(const char *const input, int32_t inputSize, const int32_t nelements,
                                                  char *const output, int32_t outputSize, char algorithm,
                                                  char *const buffer, int32_t bufferSize) {
-  return tsCompressFloatLossyImp(input, nelements, output);
+  return tsCompressFloatLossyImp(input, nelements, output, outputSize);
 }
 
 static FORCE_INLINE int32_t tsDecompressFloatLossy(const char *const input, int32_t compressedSize,
@@ -99,7 +99,7 @@ static FORCE_INLINE int32_t tsDecompressFloatLossy(const char *const input, int3
 static FORCE_INLINE int32_t tsCompressDoubleLossy(const char *const input, int32_t inputSize, const int32_t nelements,
                                                   char *const output, int32_t outputSize, char algorithm,
                                                   char *const buffer, int32_t bufferSize) {
-  return tsCompressDoubleLossyImp(input, nelements, output);
+  return tsCompressDoubleLossyImp(input, nelements, output, outputSize);
 }
 
 static FORCE_INLINE int32_t tsDecompressDoubleLossy(const char *const input, int32_t compressedSize,
@@ -151,6 +151,7 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
                            int32_t nBuf);
 // for internal usage
 int32_t getWordLength(char type);
+int32_t tsCheckCompressAlg(uint32_t cmprAlg);
 
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t ninput, const int32_t nelements,
                                char *const output, const char type);
@@ -158,8 +159,8 @@ int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *out
 int32_t tsDecompressDoubleImpAvx2(const char *input, int32_t nelements, char *output);
 int32_t tsDecodeDoubleBssAvx2(const char *input, int32_t nelements, char *output);
 int32_t tsDecompressTimestampAvx2(const char *input, int32_t nelements, char *output, bool bigEndian);
-int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
-                                    bool bigEndian);
+int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t ninput, const int32_t nelements,
+                                    char *const output, bool bigEndian);
 
 /*************************************************************************
  *                  REGULAR COMPRESSION 2

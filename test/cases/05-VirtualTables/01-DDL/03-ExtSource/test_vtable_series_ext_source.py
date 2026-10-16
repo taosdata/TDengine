@@ -1,7 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
-###################################################################
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 """DDL tests for the InfluxDB-only SERIES feature on virtual tables.
 
@@ -34,7 +44,7 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table,
-    create_influx_measurement)
+    create_sqlserver_table, create_influx_measurement)
 
 # --- names ---
 _LOCAL_DB = "vseries_local"
@@ -43,6 +53,8 @@ _INF_SRC  = "vseries_inf_src"
 _INF_SRC_GROWTH = "vseries_inf_src_growth"
 _PG_DB    = "vseries_pg"
 _PG_SRC   = "vseries_pg_src"
+_SS_DB    = "vseries_ss"
+_SS_SRC   = "vseries_ss_src"
 
 # Nanosecond timestamps (InfluxDB line protocol precision = ns).
 _T0 = 1700000000000000000
@@ -91,6 +103,20 @@ def _write_pg_setup_data():
         ["('2024-01-01 00:00:00', 1)"])
 
 
+def _write_ss_setup_data():
+    """Second non-Influx source (SQL Server) for the SERIES rejection path.
+
+    SERIES is InfluxDB-only; SQL Server has no series semantics either, so the
+    same negative DDL must be rejected for a SQL Server reference as well
+    (TS 5.2.2 (d), FQSS-VTBL).
+    """
+    create_remote_db("sqlserver", _SS_DB)
+    create_sqlserver_table(
+        _SS_DB, "r",
+        "ts datetime2(3) NOT NULL PRIMARY KEY, v INTEGER",
+        ["('2024-01-01 00:00:00.000', 1)"])
+
+
 # ===========================================================================
 
 class TestVtableSeriesExtSource:
@@ -103,10 +129,12 @@ class TestVtableSeriesExtSource:
         ExtSrcEnv.ensure_qnode()
         _write_setup_data()
         _write_pg_setup_data()
+        _write_ss_setup_data()
         create_ext_source(_INF_SRC, "influxdb", _INF_DB)
         create_ext_source(_PG_SRC, "postgresql", _PG_DB)
+        create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
 
     @classmethod
@@ -115,6 +143,7 @@ class TestVtableSeriesExtSource:
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC_GROWTH}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_PG_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SS_SRC}")
 
     def setup_method(self, method):
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -415,6 +444,12 @@ class TestVtableSeriesExtSource:
             "CREATE VTABLE v_e1 (ts timestamp, v int FROM s1.v) "
             f"SERIES s1 AS {_PG_SRC}.{_PG_DB}.r (v='1')")
 
+        """E1b: the same is rejected for a SQL Server source (no series
+        semantics there either; four-segment path form)."""
+        tdSql.error(
+            "CREATE VTABLE v_e1b (ts timestamp, v int FROM s1.v) "
+            f"SERIES s1 AS {_SS_SRC}.{_SS_DB}.dbo.r (v='1')")
+
         """E2: m2 has tags host+region; pinning only host is rejected."""
         tdSql.error(
             "CREATE VTABLE v_e2 (ts timestamp, v bigint FROM s1.v) "
@@ -532,7 +567,9 @@ class TestVtableSeriesExtSource:
         Since: v3.4.2.0
 
         """
-        self._ensure_evolve_baseline_vtable()    # original source caches {device}
+        # Create both baselines before InfluxDB adds the zone tag.
+        self._ensure_evolve_baseline_vtable()
+        self._ensure_evolve_baseline_vstb()
         self._grow_evolve_tags_once()            # InfluxDB tags -> {device, zone}
         self._ensure_growth_source()             # fresh source sees current tags
         tdSql.execute("DROP VTABLE IF EXISTS v_f1")
@@ -540,9 +577,6 @@ class TestVtableSeriesExtSource:
             "CREATE VTABLE v_f1 (ts timestamp, value double FROM s1.value) "
             f"SERIES s1 AS {_INF_SRC_GROWTH}.{_INF_DB}.m_evolve (device='d1')")
 
-        self._ensure_evolve_baseline_vtable()   # original source caches {device}
-        self._grow_evolve_tags_once()
-        self._ensure_growth_source()
         tdSql.execute("DROP VTABLE IF EXISTS v_f2")
         tdSql.execute(
             "CREATE VTABLE v_f2 (ts timestamp, value double FROM s1.value) "
@@ -556,14 +590,10 @@ class TestVtableSeriesExtSource:
         _check_count("SELECT count(*) FROM v_f2", 1)
         tdSql.execute("DROP VTABLE v_f2")
 
-        self._ensure_evolve_baseline_vtable()
-        self._grow_evolve_tags_once()
         tdSql.query("SELECT count(*) FROM v_f_base")
         tdSql.checkData(0, 0, 2)
         tdSql.execute("DROP VTABLE IF EXISTS v_f_base")
 
-        self._ensure_evolve_baseline_vstb()
-        self._grow_evolve_tags_once()
         tdSql.query("SELECT count(*) FROM vc_f_base")
         tdSql.checkData(0, 0, 2)
         tdSql.query("SELECT count(*) FROM stb_f_base")

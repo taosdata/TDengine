@@ -1,13 +1,18 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software
- * Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <bench.h>
@@ -768,7 +773,7 @@ int createDatabaseTaosc(SDataBase* database) {
         vgroups = getVgroupsNative(conn, database);
         if (vgroups <= 0) {
             closeBenchConn(conn);
-            errorPrint("Database %s's vgroups is %d\n",
+            errorPrint("Database %s's vgroups are %d\n",
                         database->dbName, vgroups);
             return -1;
         }
@@ -805,12 +810,20 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
 
     if (stbInfo->useTagTableName) {
         char *firstComma = strchr(tagStart, ',');
-        if (firstComma == NULL && tagStart >= firstComma) {
+        if (firstComma == NULL) {
             errorPrint("Invalid tag data format: %s\n", tagStart);
             return -1;
         }
-        size_t nameLen = firstComma - tagStart;
-        strncpy(tableName, tagStart, nameLen);
+        // the first field of the tags csv line is the child table name, it
+        // must not exceed the size of the destination buffer
+        size_t nameLen = (size_t)(firstComma - tagStart);
+        if (nameLen == 0 || nameLen >= TSDB_TABLE_NAME_LEN) {
+            errorPrint("invalid table name length %d in tag data, "
+                    "valid range is [1, %d]\n",
+                    (int32_t)nameLen, TSDB_TABLE_NAME_LEN - 1);
+            return -1;
+        }
+        (void)memcpy(tableName, tagStart, nameLen);
         tableName[nameLen] = '\0';
         tagsForSQL = firstComma + 1;
     } else {
@@ -938,6 +951,12 @@ static void *createTable(void *sarg) {
             char tbName[TSDB_TABLE_NAME_LEN] = {0};
             len = generateChildTblName(len, pThreadInfo->buffer,
                                        database, stbInfo, i, tagData, w, ttl, tbName);
+            if (len < 0) {
+                errorPrint("generate child table name failed, tableSeq=%" PRIu64
+                           "\n", i);
+                g_fail = true;
+                goto create_table_end;
+            }
             if (stbInfo->useTagTableName) {
                 pThreadInfo->childNames[j] = strdup(tbName);
             }
@@ -1008,7 +1027,7 @@ static void *createTable(void *sarg) {
         uint64_t currentPrintTime = toolsGetTimestampMs();
         if (currentPrintTime - lastPrintTime > PRINT_STAT_INTERVAL) {
             float speed = (pThreadInfo->tables_created - lastTotalCreate) * 1000 / (currentPrintTime - lastPrintTime);
-            infoPrint("thread[%d] already created %" PRId64 " tables, peroid speed: %.0f tables/s\n",
+            infoPrint("thread[%d] already created %" PRId64 " tables, period speed: %.0f tables/s\n",
                        pThreadInfo->threadID, pThreadInfo->tables_created, speed);
             lastPrintTime   = currentPrintTime;
             lastTotalCreate = pThreadInfo->tables_created;
@@ -1621,7 +1640,22 @@ void loadChildTableInfo(threadInfo* pThreadInfo) {
     int64_t start = toolsGetTimestampUs();
     for(int64_t i = pThreadInfo->start_table_from; i < pThreadInfo->end_table_to; i++) {
         SChildTable *childTbl = stbInfo->childTblArray[i];
-        pos += sprintf(buf + pos, ",%s.%s", db, childTbl->name);
+        int remain = bufLen - pos;
+        int written = snprintf(buf + pos, remain, ",%s.%s", db, childTbl->name);
+        if (written < 0 || written >= remain) {
+            // the remaining space is not enough, flush the buffer and retry
+            if (pos > 0) {
+                taos_load_table_info(pThreadInfo->conn, buf);
+                pos = 0;
+            }
+            written = snprintf(buf, bufLen, ",%s.%s", db, childTbl->name);
+            if (written < 0 || written >= bufLen) {
+                errorPrint("child table %s.%s is too long to be loaded, "
+                        "ignore it\n", db, childTbl->name);
+                continue;
+            }
+        }
+        pos += written;
 
         if(pos >= bufLen - 256 || i + 1 == pThreadInfo->end_table_to) {
             taos_load_table_info(pThreadInfo->conn, buf);
@@ -1764,7 +1798,7 @@ int32_t submitStmt2(threadInfo * pThreadInfo, TAOS_STMT2_BINDV *bindv, int64_t *
                 if (i > 0) {
                     (void)snprintf(tip, sizeof(tip), " after retry %d", i);
                 }
-                errorPrint("finally faild execute submitStmt2()%s\n", tip);
+                errorPrint("finally failed to execute submitStmt2()%s\n", tip);
                 return -1;
             }
 
@@ -1774,8 +1808,8 @@ int32_t submitStmt2(threadInfo * pThreadInfo, TAOS_STMT2_BINDV *bindv, int64_t *
             infoPrint("stmt2 start retry submit i=%d  after sleep %d ms...\n", i++, stbInfo->trying_interval);
             code = reConnectStmt2(pThreadInfo, w);
             if (code != 0) {
-                // faild and try again
-                errorPrint("faild reConnectStmt2 and retry again for next i=%d \n", i);
+                // failed and try again
+                errorPrint("failed to reconnect Stmt2 and retry again for next i=%d \n", i);
                 connected = false;
             } else {
                 // succ
@@ -2321,7 +2355,7 @@ static void *syncWriteInterlace(void *sarg) {
         if (currentPrintTime - lastPrintTime > 30 * 1000) {
             infoPrint(
                     "thread[%d] has currently inserted rows: %" PRIu64
-                    ", peroid insert rate: %.3f rows/s \n",
+                    ", period insert rate: %.3f rows/s \n",
                     pThreadInfo->threadID, pThreadInfo->totalInsertRows,
                     (double)(pThreadInfo->totalInsertRows - lastTotalInsertRows) * 1000.0/(currentPrintTime - lastPrintTime));
             lastPrintTime = currentPrintTime;
@@ -3088,7 +3122,7 @@ void *syncWriteProgressive(void *sarg) {
             if (currentPrintTime - lastPrintTime > 30 * 1000) {
                 infoPrint(
                         "thread[%d] has currently inserted rows: "
-                        "%" PRId64 ", peroid insert rate: %.3f rows/s \n",
+                        "%" PRId64 ", period insert rate: %.3f rows/s \n",
                         pThreadInfo->threadID, pThreadInfo->totalInsertRows,
                         (double)(pThreadInfo->totalInsertRows - lastTotalInsertRows) * 1000.0/(currentPrintTime - lastPrintTime));
                 lastPrintTime = currentPrintTime;
@@ -3476,28 +3510,71 @@ static int64_t fillChildTblNameByLimitOffset(SDataBase *database,
                  stbInfo->childTblOffset);
     }
     debugPrint("cmd: %s\n", cmd);
-    TAOS_RES *res = taos_query(conn->taos, cmd);
-    int32_t   code = taos_errno(res);
+    TAOS_RES *res   = taos_query(conn->taos, cmd);
+    int32_t   code  = taos_errno(res);
     int64_t   count = 0;
+    int64_t   ret   = -1;
+    TAOS_ROW  row   = NULL;
     if (code) {
+        // "child_table_exists": "yes" only promises that an *existing* stable is
+        // reused; the stable is allowed to be absent (the caller then skips this
+        // super table, e.g. json/insert-drop-exist-auto-N00-stmt.json expects
+        // zero tables for every NY* prefix).  Report "no child tables" instead of
+        // a failure so one missing stable does not turn into a fatal error.
+        //
+        // Note: the result of a *failed* query must not be passed to
+        // taos_free_result() here.  The client may already have reclaimed the
+        // request object before taos_free_result() runs (sync-query completion
+        // race), and freeing it again aborts the process -- that is the
+        // "free(): double free detected in tcache 2" crash of
+        // test_benchmark_stmt.
         printErrCmdCodeStr(cmd, code, res);
         closeBenchConn(conn);
-        return -1;
+        return 0;
     }
-    TAOS_ROW row = NULL;
     while ((row = taos_fetch_row(res)) != NULL) {
+        // the server must not return more rows than the array it was asked
+        // for, otherwise the write through childTblArray[count] is out of
+        // bounds
+        if (count >= stbInfo->childTblCount) {
+            errorPrint("server returned more child table names than expected(%"
+                    PRId64 "), ignore the extra rows\n",
+                    stbInfo->childTblCount);
+            break;
+        }
         int *lengths = taos_fetch_lengths(res);
+        if (row[0] == NULL || lengths == NULL || lengths[0] <= 0
+                || lengths[0] >= TSDB_TABLE_NAME_LEN) {
+            errorPrint("server returned an invalid child table name, len=%d\n",
+                    (lengths == NULL) ? -1 : lengths[0]);
+            goto cleanup;
+        }
         char * childName = benchCalloc(1, lengths[0] + 1, true);
-        strncpy(childName, row[0], lengths[0]);
+        if (NULL == childName) {
+            errorPrint("%s", "failed to allocate memory for child table name\n");
+            goto cleanup;
+        }
+        (void)memcpy(childName, row[0], (size_t)lengths[0]);
         childName[lengths[0]] = '\0';
         stbInfo->childTblArray[count]->name = childName;
         debugPrint("stbInfo->childTblArray[%" PRId64 "]->name: %s\n",
                    count, stbInfo->childTblArray[count]->name);
         count++;
     }
+    ret = count;
+
+cleanup:
+    if (ret < 0) {
+        // the caller must never observe a partially filled childTblArray:
+        // the entries left as NULL would be dereferenced later on
+        for (int64_t i = 0; i < count; i++) {
+            tmfree(stbInfo->childTblArray[i]->name);
+            stbInfo->childTblArray[i]->name = NULL;
+        }
+    }
     taos_free_result(res);
     closeBenchConn(conn);
-    return count;
+    return ret;
 }
 
 static void preProcessArgument(SSuperTable *stbInfo) {
@@ -4416,7 +4493,7 @@ static int startMultiThreadInsertData(SDataBase* database, SSuperTable* stbInfo)
         }
     } else {
         if(nthreads == 0) {
-            errorPrint("argument thread_count can not be zero. %s.%s\n", database->dbName, stbInfo->stbName);
+            errorPrint("argument thread_count cannot be zero. %s.%s\n", database->dbName, stbInfo->stbName);
             return -1;
         }
         div = ntables / nthreads;
@@ -4641,7 +4718,13 @@ int insertTestProcess() {
                 }
 
                 // check fill child table count valid
-                if(fillChildTblName(database, stbInfo) <= 0) {
+                int64_t ntables = fillChildTblName(database, stbInfo);
+                if (ntables < 0) {
+                    errorPrint("failed to fill child table names, db:%s stb: %s\n",
+                            database->dbName, stbInfo->stbName);
+                    return -1;
+                }
+                if (0 == ntables) {
                     infoPrint(" warning fill childs table count is zero, db:%s stb: %s \n", database->dbName, stbInfo->stbName);
                 }
                 if (0 != prepareSampleData(database, stbInfo)) {

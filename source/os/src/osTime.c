@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -361,26 +363,21 @@ int32_t taosGetTimeOfDay(struct timeval *tv) {
   if (tv == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t code = 0;
-#ifdef WINDOWS
-  LARGE_INTEGER t;
-  FILETIME      f;
-
-  GetSystemTimeAsFileTime(&f);
-  t.QuadPart = f.dwHighDateTime;
-  t.QuadPart <<= 32;
-  t.QuadPart |= f.dwLowDateTime;
-
-  t.QuadPart -= TIMEEPOCH;
-  tv->tv_sec = t.QuadPart / 10000000;
-  tv->tv_usec = (t.QuadPart % 10000000) / 10;
+  struct timespec systemTime = {0};
+  int32_t code = taosClockGetTime(CLOCK_REALTIME, &systemTime);
+  if (code != 0) {
+    return code;
+  }
+  tv->tv_sec = systemTime.tv_sec;
+  tv->tv_usec = systemTime.tv_nsec / NANOSECOND_PER_USEC;
   return 0;
-#else
-  code = gettimeofday(tv, NULL);
-  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(ERRNO)) : 0;
-#endif
 }
 
+// Second-level helpers use time() instead of CLOCK_REALTIME for
+// performance. On Linux, time() returns the seconds the kernel cached at
+// the last tick through the vDSO without reading the hardware clock, so
+// it is about 10x faster. The cached value may lag CLOCK_REALTIME by up
+// to one tick, so near a second boundary it can be one second behind.
 int32_t taosTime(time_t *t) {
   if (t == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -638,6 +635,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
 #endif
 }
 
+// Uses time() for performance; see taosTime().
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
@@ -652,7 +650,7 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
         freq_init = TRUE;
     }
     QueryPerformanceCounter(&t);
-    // 转换为秒和纳秒
+     // Convert to seconds and nanoseconds.
     pTS->tv_sec = (time_t)(t.QuadPart / freq.QuadPart);
     pTS->tv_nsec = (long)(((t.QuadPart % freq.QuadPart) * 1000000000LL) / freq.QuadPart);
     return 0;

@@ -41,6 +41,8 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 | taos-jdbcdriver 版本 | 主要变化                                                                                                                                                                                                                                                                               | TDengine 版本 |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.9.2                | WebSocket 连接支持 `setTimezone`/`getTimezone` 接口，可在运行时动态设置连接时区。 | - |
+| 3.9.1                | 1. WebSocket 查询时间戳支持纳秒精度。<br/>2. WebSocket 连接支持 PreparedStatement 缓存（stmtCacheSize），复用已预编译语句提升写入性能。                                                                                                                                                                                                                              | -                  |
 | 3.9.0                | 优化参数绑定缓存和序列化，以提升 TDengine TSDB Enterprise `v3.4.1.16` 及更高版本的写入性能                                                                                                                                                                                                                              | -                  |
 | 3.8.4                | 1. 支持 taosadapter 的高可用（HA）端点发现。<br/>2. 连接前对端点进行乱序。<br/>3. 修复 WebSocket 连接属性初始化 Catalog。                                                                                                                                                                                                                           | -                  |
 | 3.8.3                | 修复数据订阅令牌认证错误地要求用户名的 bug                                                                                                                                                                                                                               | -                  |
@@ -282,7 +284,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_LOCALE [`locale`]：仅在使用 JDBC 原生连接时生效。客户端语言环境，默认值系统当前 locale。
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE [`timezone`]：
   - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持 POSIX 标准的部分规范，如 UTC-8(代表中国上海), GMT-8，Asia/Shanghai 这几种形式。
-  - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。
+  - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。建立连接后也可通过 `setTimezone` 接口在运行时修改时区，详见下文`设置时区`。
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE [`batchErrorIgnore`]：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
 ---
@@ -312,6 +314,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。
+- TSDBDriver.PROPERTY_KEY_STMT_CACHE_SIZE [`stmtCacheSize`]：PreparedStatement 缓存大小，缓存并复用已预编译的语句以提升重复写入性能。仅在使用 WebSocket 连接时生效。默认值为 5，高效写入模式（asyncWrite=stmt）下默认值为 2，设置为 0 表示关闭缓存。注意：缓存命中时驱动复用同一个语句对象，调用 `close()` 后不得再使用其引用；缓存的语句在空闲期间会占用服务端语句资源，高效写入模式下还会保活后台写入线程（每条缓存语句占用 backendWriteThreadNum 个线程）。
 
 ---
 
@@ -658,6 +661,20 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
   - **返回值**：包含所有客户端信息属性的 `Properties` 对象。
   - **异常**：操作失败抛出 `SQLException` 异常。
 
+#### 设置时区
+
+注：以下 abstract 类型接口会被具体实现类实现，因此建立连接后得到连接对象可以直接调用。仅 WebSocket 连接支持，原生连接和 REST 连接调用会抛出 `SQLFeatureNotSupportedException` 异常。
+
+- `abstract void setTimezone(String timezone) throws SQLException`
+  - **接口说明**：在运行时设置当前连接的时区。新时区从下一次执行的 SQL 开始生效，已经打开的结果集不受影响；`PreparedStatement` 中的 `LocalDateTime` 参数按绑定（bind）时刻的时区进行转换，`java.sql.Timestamp` 参数保留自身表示的绝对时刻。`setTimezone` 应在 `PreparedStatement` 开始绑定参数之前调用，绑定过程中修改时区属于使用错误，驱动不保证已绑定数据的时区解释。
+  - **参数说明**：
+    - `timezone`：IANA 时区名，例如 `Asia/Shanghai`；传入 `null` 或空串表示清除时区设置，回退到 JVM 默认时区。
+  - **异常**：时区名非法或设置失败抛出 `SQLException` 异常。
+- `abstract String getTimezone() throws SQLException`
+  - **接口说明**：获取当前连接设置的时区。
+  - **返回值**：IANA 时区名；未设置时区（使用 JVM 默认时区）时返回 `null`。
+  - **异常**：操作失败抛出 `SQLException` 异常。
+
 #### 无模式写入
 
 注：下面 abstract 类型接口会被具体实现类实现，因此建立连接后得到连接对象可以直接调用。
@@ -874,6 +891,27 @@ JDBC 驱动支持标准的 ResultSet 接口，以及对应的结果集元数据 
 #### 结果集
 
 JDBC 驱动支持标准的 ResultSet 接口，提供了用于读取结果集中元数据和数据的方法。
+
+:::note WebSocket 时间戳与时区
+
+对于 WebSocket 查询和 TMQ 消费结果中的 `TIMESTAMP` 列，绝对时间值与字符串显示使用不同的时区规则：
+
+- `getTimestamp()` 和不指定返回类型的 `getObject()` 返回的 `java.sql.Timestamp` 保留数据库中存储的绝对时刻，连接或消费时区不会改变其 `getTime()` 或 `toInstant()` 的值。
+- `getString()` 和 `getNString()` 按连接或消费时区格式化时间戳；未配置时区时，使用 JVM 默认时区。上述规则适用于按列编号和列名读取。
+- WebSocket 查询的 `getObject(..., String.class)` 与 `getString()` 使用相同的格式化规则。
+- `java.sql.Timestamp` 本身不保存时区，其 `toString()` 使用 JVM 默认时区。因此，`rs.getString("ts")` 与 `rs.getTimestamp("ts").toString()` 的结果可能不同。
+
+例如，数据库中存储的时刻为 `2024-01-01T00:00:00Z`，JVM 默认时区为 `UTC`，连接或消费时区为 `Asia/Tokyo` 时：
+
+| 调用 | 返回值 |
+| --- | --- |
+| `rs.getTimestamp("ts").getTime()` | `1704067200000` |
+| `rs.getTimestamp("ts").toString()` | `2024-01-01 00:00:00.0` |
+| `rs.getString("ts")` | `2024-01-01 09:00:00.0` |
+
+当 `getTimestamp()` 将 `VARCHAR` 或 `NCHAR` 列中的无时区日期时间字符串转换为时间戳时，WebSocket 查询和 TMQ 消费均按配置的连接或消费时区解析；未配置时区时，使用 JVM 默认时区。该解析规则不改变 `TIMESTAMP` 列返回的绝对时间值。
+
+:::
 
 - `ResultSetMetaData getMetaData() throws SQLException`
   - **接口说明**：获取此 ResultSet 对象的列的数量、类型和属性。
@@ -1325,6 +1363,8 @@ ParameterMetaData 提供了参数元数据接口：
 
 #### 扩展接口  
 
+**注意**：扩展接口已不推荐使用，仅为兼容存量代码保留。新代码请使用 JDBC 标准接口，配合本文档推荐的 SQL 形式（`tbname` 作为绑定列）即可完成参数绑定。
+
 - `void setTableName(String name) throws SQLException`
   - **接口说明**：设置当前操作的表名。
   - **参数说明**：
@@ -1451,7 +1491,7 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
   - **异常**：如果在提交过程中发生错误，将抛出 SQLException 异常。
 - `void close() throws SQLException`
   - **接口说明**：关闭消费者，释放资源。
-  - **异常**：如果在关闭过程中发生错误，将抛出 SQLException 异常。
+  - **异常**：对于原生连接，仅当本地消费者资源释放失败时抛出 `SQLException` 异常；该方法不会报告取消订阅或自动提交 offset 失败。WebSocket 连接遵循 WebSocket 连接器的关闭语义。
 - `void seek(TopicPartition partition, long offset) throws SQLException`
   - **接口说明**：将给定分区的偏移量设置到指定的位置。
   - **参数说明**：

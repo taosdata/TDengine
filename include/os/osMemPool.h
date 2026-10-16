@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef _TD_OS_MEMPOOL_H_
 #define _TD_OS_MEMPOOL_H_
 
@@ -36,6 +39,7 @@ typedef struct SMemPoolJob {
   uint64_t           clientId;
 
   int32_t            remainSession;
+  int32_t            refs;  // Starts at 1; access only through taosMemPoolRetainJob/ReleaseJob.
   
   int64_t            allocMemSize;
   int64_t            maxAllocMemSize;
@@ -129,6 +133,15 @@ void    taosAutoMemoryFree(void *ptr);
 int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, char *sessionId);
 void    taosMemPoolDestroySession(void* poolHandle, void* session);
 int32_t taosMemPoolCallocJob(uint64_t jobId, uint64_t cId, void** ppJob);
+// Retain and release references to a job returned by taosMemPoolCallocJob.
+// The initial reference count is 1. Each retain requires one release; never free pJob directly.
+// The last release frees the job and pJob must not be used afterwards.
+void    taosMemPoolRetainJob(void* pJob);
+void    taosMemPoolReleaseJob(void* pJob);
+// Reserve and release job quota as a pair. pJob must be a job returned by
+// taosMemPoolCallocJob; a successful reservation owns exactly size bytes.
+int32_t taosMemPoolReserveJobMemory(void* poolHandle, void* pJob, int64_t size);
+void    taosMemPoolReleaseJobMemory(void* poolHandle, void* pJob, int64_t size);
 void    taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg);
 void    taosMemPoolPrintStat(void* poolHandle, void* session, char* procName);
 int32_t taosMemPoolTryLockPool(void* poolHandle, bool readLock);

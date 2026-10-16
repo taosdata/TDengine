@@ -7,14 +7,14 @@ toc_max_heading_level: 4
 
 In modern Internet of Things (IoT) and Industrial Internet of Things (IIoT) applications, efficient data management is crucial for system performance and user experience. To address the real-time read and write demands in high concurrency environments, TDengine has designed a complete caching mechanism, including write cache, read cache, metadata cache, and file system cache. These caching mechanisms are closely integrated to optimize data query response speed and improve data writing efficiency, while ensuring data reliability and high system availability. By flexibly configuring cache parameters, TDengine offers users the best balance between performance and cost.
 
-For read-cache configuration steps and verification examples, see [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md). For parameter details, see [Databases](../05-tdengine-sql/02-ddl/01-database.md). For flush behavior and last-cache loading at the implementation level, see [Architecture: Cache and Persistence](./01-arch.md#cache-and-persistence).
+For read-cache configuration steps and verification examples, see [Read Cache](../05-tdengine-sql/04-data-query/09-cache-query.md). For parameter details, see [Databases](../05-tdengine-sql/02-ddl/01-database.md). For flush behavior and last-cache loading at the implementation level, see [Architecture: Cache and Persistence](./01-arch.md#cache-and-persistence).
 
 ## Cache Types Overview
 
 | Type | Role | Key parameters | Typical scenarios | See also |
 | --- | --- | --- | --- | --- |
 | Write cache | Prioritize newly written data in cache; batch-flush earliest data when the threshold is reached | `BUFFER`, `VGROUPS` | Recent read/write, write throughput | Below, [BUFFER](../05-tdengine-sql/02-ddl/01-database.md#buffer) |
-| Read cache | Cache the most recent subtable data to accelerate current-value queries | `CACHEMODEL`, `CACHESIZE` | `LAST`, `LAST_ROW` | [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md), below |
+| Read cache | Cache the most recent subtable data to accelerate current-value queries | `CACHEMODEL`, `CACHESIZE` | `LAST`, `LAST_ROW` | [Read Cache](../05-tdengine-sql/04-data-query/09-cache-query.md), below |
 | Metadata cache | Cache metadata previously accessed by the vnode | `PAGES`, `PAGESIZE` | Metadata access | Below, [PAGES](../05-tdengine-sql/02-ddl/01-database.md#pages) |
 | File system cache | WAL sequential appends rely on the file system cache; `fsync` controls when data is forced to disk | `WAL_LEVEL`, `WAL_FSYNC_PERIOD` | Write performance vs. durability | Below, [WAL_LEVEL](../05-tdengine-sql/02-ddl/01-database.md#wal_level) |
 
@@ -53,7 +53,25 @@ This design not only reduces query response latency but also effectively allevia
 
 Furthermore, TDengine's read cache mechanism can also be flexibly adjusted according to actual business scenarios. In scenarios where data access hotspots are concentrated on the latest records, this built-in cache can significantly enhance user experience, making the acquisition of key data faster and more efficient. Compared to traditional caching solutions, this seamlessly integrated caching strategy not only simplifies the development process but also provides higher performance assurance for users.
 
-For more detailed information about TDengine's read cache, see [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md). For `LAST` / `LAST_ROW` semantics, see [LAST](../05-tdengine-sql/04-data-query/03-function.md#last) and [LAST_ROW](../05-tdengine-sql/04-data-query/03-function.md#last_row). For LRU, lazy loading, and related mechanisms, see [Architecture: last/last_row Cache](./01-arch.md#lastlast_row-cache).
+For more detailed information about TDengine's read cache, see [Read Cache](../05-tdengine-sql/04-data-query/09-cache-query.md). For `LAST` / `LAST_ROW` semantics, see [LAST](../05-tdengine-sql/04-data-query/03-function.md#last) and [LAST_ROW](../05-tdengine-sql/04-data-query/03-function.md#last_row). For LRU, lazy loading, and related mechanisms, see [Architecture: last/last_row Cache](./01-arch.md#lastlast_row-cache).
+
+### Read Cache Engine Parameters
+
+When `CACHEMODEL` is not `none`, in addition to the in-memory LRU cache described above, each `vnode` also opens a dedicated RocksDB instance as a persistent last-cache engine. It serves `last`/`last_row` queries when the in-memory cache misses or after a restart. This engine's behavior can be tuned with the following dnode-level parameters (set in `taos.cfg`; see the [Configuration Parameter Scope Comparison Table](../12-operations-and-tooling/03-components/10-config-scope.md)):
+
+| Parameter | Default | Range | Description |
+| --- | --- | --- | --- |
+| `sLastCacheWriteBufferSize` | 8 (MB) | [1, 1048576] | Write-buffer size per memtable |
+| `sLastCacheMaxWriteBufferNumber` | 2 | [1, 64] | Maximum number of memtables that can coexist |
+| `sLastCacheBackgroundThreads` | 2 | [1, 256] | Number of flush/compaction background threads; each `vnode` owns its own thread pool of this size |
+| `sLastCacheBloomFilterBits` | 10 | [0, 32] | Bloom-filter bits per key, reducing unnecessary SST file reads on point lookups; 0 disables it |
+| `sLastCacheMaxOpenFiles` | -1 | [-1, 1048576] | Maximum number of open file descriptors; -1 means unlimited |
+| `sLastCacheCompressionType` | `none` | Depends on compression libraries linked at build time | Compression algorithm |
+| `sLastCacheOptionsOverride` | empty | Raw RocksDB options string | Overrides the parameters above; lowest priority, intended for advanced use |
+
+All of these parameters, except for the block-cache capacity controlled by `CACHESIZE`, are bound once into the underlying RocksDB `Options` when the database instance is opened. Changing them requires restarting the `dnode` (or at least reopening the affected `vnode`s), so they are marked as lazily applied (`_LAZY`) in the configuration system. The only setting that takes effect immediately, without a restart, is the block-cache capacity adjusted via `ALTER DATABASE ... CACHESIZE ...`: `CACHESIZE` is split evenly between the in-memory LRU cache and this RocksDB engine's block cache (each gets half), so total memory usage stays approximately `CACHESIZE` instead of doubling, and both are resized in place through RocksDB's capacity-resize API.
+
+You can observe this engine's runtime state per `vgroup` — including block-cache capacity and usage, memtable sizes, flush/compaction backlog, write-throttling rate, and SST file statistics — through the [`INS_LAST_CACHE_STATS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_last_cache_stats) system table, to verify the effect of a parameter change or to diagnose write/query latency issues.
 
 ## Metadata Cache
 

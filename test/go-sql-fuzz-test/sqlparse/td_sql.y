@@ -1,3 +1,18 @@
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 %{
 package sqlparser
 
@@ -931,6 +946,7 @@ func dataTypeFromTypeName(lexer yyLexer, name string) DataType {
 %token <token> WHERE
 %token <token> WINDOW_OPEN
 %token <token> WINDOW_CLOSE
+%token <token> WINDOW_TIME
 %token <token> WIN_OPTIMIZE_BATCH
 %token <token> WIN_OPTIMIZE_SINGLE
 %token <token> WITH
@@ -1149,6 +1165,7 @@ func dataTypeFromTypeName(lexer yyLexer, name string) DataType {
 %type <expr> partition_item
 %type <expr> range_opt
 %type <expr> window_offset_clause window_offset_literal
+%type <exprList> window_time_clause_opt
 %type <fillExpr> fill_opt interp_fill_opt fill_mode fill_position_mode fill_position_mode_extension interp_fill_mode fill_value
 %type <limitExpr> limit_clause_opt slimit_clause_opt jlimit_clause_opt
 %type <literal> duration_literal interval_sliding_duration_literal sliding_opt offset_opt extend_literal zeroth_literal signed_integer
@@ -5416,13 +5433,19 @@ asof_joined:
   }
 
 win_joined:
-  table_reference LEFT WINDOW JOIN table_reference join_on_clause_opt window_offset_clause jlimit_clause_opt
+  table_reference LEFT WINDOW JOIN table_reference join_on_clause_opt
+  window_time_clause_opt window_offset_clause jlimit_clause_opt
   {
-    $$ = SetJoinWindowOffsetAndLimit(NewJoinTableExpr(yylex, $1, $5, JoinTypeLeftWindow, $6), $7, $8)
+    join := NewJoinTableExpr(yylex, $1, $5, JoinTypeLeftWindow, $6)
+    join = SetJoinWindowTime(join, $7)
+    $$ = SetJoinWindowOffsetAndLimit(join, $8, $9)
   }
-  | table_reference RIGHT WINDOW JOIN table_reference join_on_clause_opt window_offset_clause jlimit_clause_opt
+  | table_reference RIGHT WINDOW JOIN table_reference join_on_clause_opt
+  window_time_clause_opt window_offset_clause jlimit_clause_opt
   {
-    $$ = SetJoinWindowOffsetAndLimit(NewJoinTableExpr(yylex, $1, $5, JoinTypeRightWindow, $6), $7, $8)
+    join := NewJoinTableExpr(yylex, $1, $5, JoinTypeRightWindow, $6)
+    join = SetJoinWindowTime(join, $7)
+    $$ = SetJoinWindowOffsetAndLimit(join, $8, $9)
   }
 
 join_on_clause_opt:
@@ -5440,6 +5463,17 @@ join_on_clause:
   ON search_condition
   {
     $$ = $2
+  }
+
+window_time_clause_opt:
+  /* empty */
+  %prec WINDOW_OFFSET
+  {
+    $$ = nil
+  }
+  | WINDOW_TIME NK_LP column_reference NK_COMMA column_reference NK_RP
+  {
+    $$ = []Expr{$3, $5}
   }
 
 window_offset_clause:

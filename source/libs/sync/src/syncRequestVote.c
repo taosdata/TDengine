@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -116,7 +118,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   bool hasVoted = raftStoreHasVoted(ths);
   bool grant =
-      (pMsg->term == currentTerm) && logOK && ((!hasVoted) || syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId));
+      (pMsg->term == currentTerm) && logOK && ((!hasVoted) || syncUtilSameIdStrict(&ths->raftStore.voteFor, &pMsg->srcId));
   sInfo("vgId:%d, grant:%d, hasVoted:%d, voteFor:0x%" PRIx64 ", srcId:0x%" PRIx64 ", logOK:%d, msg term:%" PRId64
         ", current term:%" PRId64,
         ths->vgId, grant, hasVoted, ths->raftStore.voteFor.addr, pMsg->srcId.addr, logOK, pMsg->term, currentTerm);

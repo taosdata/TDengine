@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -49,6 +51,11 @@
 #define SHELL_DEF_PKG_NUM                      100
 #define SHELL_FLOAT_WIDTH                      20
 #define SHELL_DOUBLE_WIDTH                     25
+
+// columns of the `show grants` result: version, expire_time, expired
+#define SHELL_GRANT_FIELD_CNT    3
+#define SHELL_GRANT_VERSION_LEN  64
+#define SHELL_GRANT_EXPIRE_LEN   32
 
 #define ERROR_CODE_DETAIL                                                                                           \
   "\r\n\r\nTo view possible causes and suggested actions for error codes, see \r\n\"Error Code Reference\" in the " \
@@ -150,6 +157,8 @@ bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
 int32_t getDsnEnv();
 void    shellExit();
 void trimStr(char *srcInfo, char *removeStr);
+void shellStripControlChars(char *str);
+bool shellStatementHoldsCredential(const char *command);
 
 // shellSubscribe.c
 int32_t shellSubscribe(char *command);

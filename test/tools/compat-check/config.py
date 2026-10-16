@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/config.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Global configuration for rolling upgrade test
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
 
@@ -69,6 +81,7 @@ MAX_CONSECUTIVE_RETRIES = 30   # 连续失败超过此次数 → 计为 1 次真
 RETRY_MAX_DURATION_S    = 150  # 单次 SQL 重试超过此秒数 → 也计为 1 次真正失败
 SUBSCRIBE_NO_DATA_TIMEOUT_S = 180  # 订阅：超过此秒数未收到任何数据判定不通过
 SUBSCRIBE_DRAIN_WAIT_S      = 60   # Phase 5 结束前等待订阅追上写入的最大时间（秒）
+SUBSCRIBE_READY_TIMEOUT_S   = 120  # Max seconds to wait for the subscriber handshake before Phase 5 starts
 
 # ==================== Upgrade ====================
 NODE_INSTALL_SLEEP_S  = 20    # STOP 后模拟安装新软件包的等待时间（秒）

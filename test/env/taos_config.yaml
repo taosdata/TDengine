@@ -1,22 +1,37 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 monitor: 0
 maxShellConns: 30000
 locale: en_US.UTF-8
 charset: UTF-8
 asyncLog: 0
 mDebugFlag: 135
-dDebugFlag: 131
+dDebugFlag: 135
 vDebugFlag: 135
 tqDebugFlag: 135
 cDebugFlag: 135
 stDebugFlag: 135
 smaDebugFlag: 135
-jniDebugFlag: 131
+jniDebugFlag: 135
 qDebugFlag: 135
 rpcDebugFlag: 135
-tmrDebugFlag: 131
-uDebugFlag: 131
-sDebugFlag: 131
-wDebugFlag: 131
+tmrDebugFlag: 135
+uDebugFlag: 135
+sDebugFlag: 135
+wDebugFlag: 135
 numOfLogLines: 100000000
 statusInterval: 1
 enableQueryHb: 1

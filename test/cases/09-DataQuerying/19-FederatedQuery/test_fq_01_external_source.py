@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_01_external_source.py
 
@@ -12,7 +27,10 @@ import os
 import re
 import tempfile
 import time
+from datetime import datetime, timezone
 from typing import Any, List, Optional, Sequence, Tuple, Union
+
+from taos.constants import FieldType
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -36,12 +54,20 @@ _P_PASS   = ExtSrcEnv.PG_PASS
 _P_DB     = "fq01_fw_pdb"
 _P_SCHEMA = "public"
 
+_S_HOST   = ExtSrcEnv.SQLSERVER_HOST
+_S_PORT   = ExtSrcEnv.SQLSERVER_PORT
+_S_USER   = ExtSrcEnv.SQLSERVER_USER
+_S_PASS   = ExtSrcEnv.SQLSERVER_PASS
+_S_DB     = "fq01_fw_sdb"
+_S_SCHEMA = ExtSrcEnv.SQLSERVER_SCHEMA
+
 _I_HOST  = ExtSrcEnv.INFLUX_HOST
 _I_PORT  = ExtSrcEnv.INFLUX_PORT
 _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
 _I_DB    = "fq01_fw_idb"
 
 _FW_TABLE = "src_t"
+_sqlserver = "sqlserver"
 _MASKED   = "******"
 _BASE_TS  = 1_704_067_200_000  # 2024-01-01T00:00:00Z in ms
 
@@ -102,6 +128,21 @@ def _q_count_step(negative: bool = False, count: int = 5) -> _QCountStep:
 
 def _clear_source_step() -> _ClearSourceStep:
     return _ClearSourceStep()
+
+def _sqlserver_exec_step(database: Optional[str], sqls: Union[str, Sequence[str]],
+                         marker_sql: str = "select 1"):
+    """Run side-effect SQL directly on SQL Server and return a marker query step."""
+    if isinstance(sqls, str):
+        statements = [sqls]
+    else:
+        statements = [str(s) for s in sqls]
+
+    def _step(src_type: str):
+        ExtSrcEnv.sqlserver_exec(database or _S_DB, statements)
+        return marker_sql
+
+    return _step
+
 
 def _connect(user: str, password: str) -> _ConnectStep:
     return _ConnectStep(user, password)
@@ -2457,6 +2498,166 @@ _CASES = [
             _clear_source_step(),
         ],
     ],
+    ## 001s — same basic lifecycle as 001m/001p/001i
+    ["001s", [_sqlserver], ["fq01_src001s"], "basic create / show (auto) / describe (auto) / query / drop", [
+            "drop external source if exists fq01_src001s",
+            f"create external source fq01_src001s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## 008s — ALTER TYPE is always denied
+    ["008s", [_sqlserver], ["fq01_src008s"], "ALTER TYPE is always denied; SQL Server attempts to change to another type", [
+            "drop external source if exists fq01_src008s",
+            f"create external source fq01_src008s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "alter external source fq01_src008s set type='mysql'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-001: DATABASE + SCHEMA both given
+    ["EXT001", [_sqlserver], ["fq01_ext001"], "FQSS-EXT-001 create with DATABASE and SCHEMA; SHOW/DESCRIBE/query/drop", [
+            "drop external source if exists fq01_ext001",
+            f"create external source fq01_ext001 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "select source_name, type from information_schema.ins_ext_sources where source_name='fq01_ext001'",
+            "describe fq01_ext001",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-002: DATABASE only — two-segment path needs the schema default
+    ["EXT002", [_sqlserver], ["fq01_ext002"], "FQSS-EXT-002 create with DATABASE only; short path reports missing schema", [
+            "drop external source if exists fq01_ext002",
+            f"create external source fq01_ext002 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}'",
+            f"select count(*) from fq01_ext002.{_FW_TABLE}",
+            f"select count(*) from fq01_ext002.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-003: SCHEMA only — two-segment path needs the database default
+    ["EXT003", [_sqlserver], ["fq01_ext003"], "FQSS-EXT-003 create with SCHEMA only; short path reports missing database", [
+            "drop external source if exists fq01_ext003",
+            f"create external source fq01_ext003 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' schema='{_S_SCHEMA}'",
+            f"select count(*) from fq01_ext003.{_FW_TABLE}",
+            f"select count(*) from fq01_ext003.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-004: neither DATABASE nor SCHEMA
+    ["EXT004", [_sqlserver], ["fq01_ext004"], "FQSS-EXT-004 create without namespace defaults; fully qualified path still works", [
+            "drop external source if exists fq01_ext004",
+            f"create external source fq01_ext004 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}'",
+            f"select count(*) from fq01_ext004.{_FW_TABLE}",
+            f"select count(*) from fq01_ext004.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-005: unknown TYPE value is rejected (no alias)
+    ["EXT005", [_sqlserver], ["fq01_ext005"], "FQSS-EXT-005 type='mssql' is an unknown type, not an alias", [
+            "drop external source if exists fq01_ext005",
+            f"create external source fq01_ext005 type='mssql' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext005'",
+    ]],
+
+    ## FQSS-EXT-006: OPTIONS whitelist persists and masks
+    ["EXT006", [_sqlserver], ["fq01_ext006"], "FQSS-EXT-006 OPTIONS whitelist (tls/timeout) visible in SHOW", [
+            "drop external source if exists fq01_ext006",
+            f"create external source fq01_ext006 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' "
+            f"options('tls_enabled'='false', 'trust_server_certificate'='true', 'connect_timeout_ms'='5000', 'read_timeout_ms'='5000')",
+            "select source_name, type, options from information_schema.ins_ext_sources where source_name='fq01_ext006'",
+            "describe fq01_ext006",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-007: unknown option key
+    ["EXT007", [_sqlserver], ["fq01_ext007"], "FQSS-EXT-007 unknown option key is rejected / not persisted", [
+            "drop external source if exists fq01_ext007",
+            f"create external source fq01_ext007 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('unknown_fw_opt'='1')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext007'",
+    ]],
+
+    ## FQSS-EXT-008: SHOW reports the type and masks the password
+    ["EXT008", [_sqlserver], ["fq01_ext008"], "FQSS-EXT-008 SHOW reports type='sqlserver' and masks the password", [
+            "drop external source if exists fq01_ext008",
+            f"create external source fq01_ext008 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "show external sources",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-009: DESCRIBE masks the password
+    ["EXT009", [_sqlserver], ["fq01_ext009"], "FQSS-EXT-009 DESCRIBE shows the definition with the masked password", [
+            "drop external source if exists fq01_ext009",
+            f"create external source fq01_ext009 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "describe fq01_ext009",
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-010: ALTER DATABASE takes effect for short paths
+    ["EXT010", [_sqlserver], ["fq01_ext010"], "FQSS-EXT-010 ALTER DATABASE re-resolves the short path", [
+            "drop external source if exists fq01_ext010",
+            f"create external source fq01_ext010 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            f"alter external source fq01_ext010 set database='fq01_fw_sdb2'",
+            _q_count_step(negative=True),
+            f"alter external source fq01_ext010 set database='{_S_DB}'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-011: ALTER SCHEMA re-resolves the short path
+    ["EXT011", [_sqlserver], ["fq01_ext011"], "FQSS-EXT-011 ALTER SCHEMA re-resolves the short path", [
+            "drop external source if exists fq01_ext011",
+            f"create external source fq01_ext011 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            f"alter external source fq01_ext011 set schema='dbo_none'",
+            _q_count_step(negative=True),
+            f"alter external source fq01_ext011 set schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-012: unreachable host — DDL succeeds, query fails
+    ["EXT012", [_sqlserver], ["fq01_ext012"], "FQSS-EXT-012 ALTER HOST to an unreachable address fails only at query time", [
+            "drop external source if exists fq01_ext012",
+            f"create external source fq01_ext012 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "alter external source fq01_ext012 set host='127.0.0.1' port=14330",
+            "select source_name, type from information_schema.ins_ext_sources where source_name='fq01_ext012'",
+            _q_count_step(negative=True),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-013: REFRESH picks up remote schema changes
+    ["EXT013", [_sqlserver], ["fq01_ext013"], "FQSS-EXT-013 REFRESH exposes a new remote column", [
+            "drop external source if exists fq01_ext013",
+            f"create external source fq01_ext013 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} ADD extra_col int NULL",
+                f"UPDATE dbo.{_FW_TABLE} SET extra_col = 7 WHERE val = 1",
+            ]),
+            f"select extra_col from fq01_ext013.{_FW_TABLE} where val = 1",
+            "refresh external source fq01_ext013",
+            f"select extra_col from fq01_ext013.{_FW_TABLE} where val = 1",
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} DROP COLUMN extra_col",
+            ]),
+            _clear_source_step(),
+    ]],
+
+    ## FQSS-EXT-014: DROP and IF EXISTS semantics
+    ["EXT014", [_sqlserver], ["fq01_ext014"], "FQSS-EXT-014 DROP removes the source; IF EXISTS is idempotent", [
+            "drop external source if exists fq01_ext014",
+            f"create external source fq01_ext014 type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "drop external source fq01_ext014",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext014'",
+            "drop external source if exists fq01_ext014",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_ext014'",
+    ]],
+
+
 ]
 
 
@@ -2465,13 +2666,8 @@ _CASES = [
 class TestFq01ExternalSource(FederatedQueryVersionedMixin):
     _fw_data_prepared = False
 
-    # Override parent updatecfgDict to also reset the client-side timezone to
-    # Asia/Shanghai (CST).  When the full suite is run, a preceding test class
-    # (e.g. fq_03 / fq_04) may have issued ALTER LOCAL "timezone" "UTC" which
-    # persists in the C library for the whole Python process.  Declaring
-    # clientCfg.timezone here causes before_test.get_taos_conn() to apply
-    # ALTER LOCAL "timezone" "Asia/Shanghai" at connection time, restoring the
-    # expected timezone so that taospy datetime values match the CST baseline.
+    # Reset the client-side timezone to Asia/Shanghai so datetime rendering
+    # stays aligned with the federated-query baselines.
     updatecfgDict = {
         "federatedQueryEnable": 1,
         "timezone": "Asia/Shanghai",
@@ -2490,10 +2686,6 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
-        # Drop any external sources left by other test files from a previous
-        # pytest session (external sources persist across taosd restarts via
-        # metadata).  Keep only sources whose names start with our own prefix
-        # so that SHOW EXTERNAL SOURCES results are not polluted.
         try:
             tdSql.query("show external sources", queryTimes=1)
             foreign = [
@@ -2544,6 +2736,18 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             f"insert into `{_FW_TABLE}` values {mysql_values}",
         ])
 
+        # ── SQL Server ──
+        ExtSrcEnv.sqlserver_create_db(_S_DB)
+        ExtSrcEnv.sqlserver_exec(_S_DB, [
+            f"IF OBJECT_ID('dbo.{_FW_TABLE}') IS NOT NULL DROP TABLE dbo.{_FW_TABLE}",
+            (
+                f"CREATE TABLE dbo.{_FW_TABLE} ("
+                "ts datetime2(3) NOT NULL, val int, score float, "
+                "name nvarchar(32), flag bit)"
+            ),
+            f"INSERT INTO dbo.{_FW_TABLE} (ts, val, score, name, flag) VALUES {mysql_values}",
+        ])
+
         ExtSrcEnv.pg_create_db_cfg(pg_cfg, _P_DB)
         ExtSrcEnv.pg_exec_cfg(pg_cfg, _P_DB, [
             f"drop table if exists {_P_SCHEMA}.{_FW_TABLE}",
@@ -2576,6 +2780,8 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             return f"{src_name}.{_M_DB}.{_FW_TABLE}"
         elif src_type == _pg:
             return f"{src_name}.{_P_SCHEMA}.{_FW_TABLE}"
+        elif src_type == _sqlserver:
+            return f"{src_name}.{_S_SCHEMA}.{_FW_TABLE}"
         else:  # influxdb
             return f"{src_name}.{_FW_TABLE}"
 
@@ -2606,15 +2812,36 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         return name.lower()
 
     @staticmethod
-    def _fw_fmt_cell(value: Any) -> str:
+    def _fw_fmt_cell(value: Any, is_timestamp: bool = False) -> str:
         if value is None:
             return "NULL"
+        if is_timestamp and isinstance(value, datetime) and value.tzinfo is None:
+            # The Python connector returns millisecond timestamps as local naive
+            # datetimes, while nanosecond values are converted below. Render both
+            # forms with the client-local offset so framework answers are stable.
+            return str(value.astimezone())
+        if is_timestamp and isinstance(value, int) and abs(value) >= 10**17:
+            seconds, nanos = divmod(value, 1_000_000_000)
+            return str(datetime.fromtimestamp(seconds, timezone.utc).astimezone().replace(microsecond=nanos // 1000))
         if isinstance(value, float):
             return f"{value:.12g}"
         return str(value)
 
-    def _fw_fmt_rows(self, rows: Sequence) -> List[str]:
-        return ["|".join(self._fw_fmt_cell(v) for v in row) for row in rows]
+    @staticmethod
+    def _fw_is_timestamp_column(field: Any) -> bool:
+        field_type = getattr(field, "type", None)
+        if field_type is None:
+            try:
+                field_type = field[1]
+            except (IndexError, KeyError, TypeError):
+                return False
+        return field_type == FieldType.C_TIMESTAMP
+
+    def _fw_fmt_rows(self, rows: Sequence, timestamp_cols: set[int]) -> List[str]:
+        return [
+            "|".join(self._fw_fmt_cell(value, index in timestamp_cols) for index, value in enumerate(row))
+            for row in rows
+        ]
 
     @staticmethod
     def _fw_drop_dynamic_columns(description, rows: Sequence):
@@ -2640,7 +2867,10 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         lines = []
         if description:
             lines.append("|".join(col[0] for col in description))
-        lines.extend(self._fw_fmt_rows(rows))
+        timestamp_cols = {
+            index for index, field in enumerate(description or []) if self._fw_is_timestamp_column(field)
+        }
+        lines.extend(self._fw_fmt_rows(rows, timestamp_cols))
         return lines
 
     @staticmethod
@@ -2965,7 +3195,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         )
 
     def _fw_compare_baseline(self, blocks: List[str]):
-        actual   = "\n".join(blocks) + "\n"
+        actual   = ExtSrcEnv.baseline_environment("\n".join(blocks) + "\n")
         # Normalise dynamic influxdb3 admin tokens (apiv3_...) to the stable
         # placeholder "test-token" so that the baseline comparison is stable
         # across test runs even though influxdb3 generates a new random token
@@ -3059,6 +3289,13 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
     def test_fq_ext_src_framework(self):
         # FQ_CASES="009,012" → only run CASE-009 and CASE-012
+        """Fq ext src framework
+
+        FQ_CASES="009,012" → only run CASE-009 and CASE-012
+
+        Since: v3.4.0.0
+
+        """
         _only = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None
         blocks: List[str] = []

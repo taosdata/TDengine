@@ -1,8 +1,25 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import random
 import uuid
 import time
 
 from new_test_framework.utils import tdLog, tdSql
+
+XNODED_CI_MOCK_MODE = "syntax"
 
 
 class TestXnode:
@@ -37,6 +54,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -61,6 +79,7 @@ class TestXnode:
         Since: v3.4.0.5
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -98,6 +117,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -124,6 +144,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -152,6 +173,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -242,6 +264,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -369,6 +392,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -418,6 +442,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -493,6 +518,7 @@ class TestXnode:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -531,6 +557,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -710,6 +737,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -796,6 +824,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -939,6 +968,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -973,6 +1003,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1143,6 +1174,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1334,6 +1366,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1400,6 +1433,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1423,6 +1457,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1462,6 +1497,7 @@ class TestXnode:
         Since: v3.4.0.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1506,6 +1542,7 @@ class TestXnode:
         Since: v3.4.0.3
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1539,6 +1576,7 @@ class TestXnode:
         Since: v3.4.0.10
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1647,6 +1685,7 @@ class TestXnode:
         Since: v3.4.0.12
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

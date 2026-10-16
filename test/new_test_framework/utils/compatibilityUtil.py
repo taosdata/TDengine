@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 import taos
@@ -236,7 +240,7 @@ class CompatibilityBase:
         
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
-            tdLog.info(f"{packageName} is not exists")
+            tdLog.info(f"{packageName} does not exist")
             tdLog.info(f"cd {packagePath} && wget {download_url}")
             os.system(f"cd {packagePath} && wget {download_url}")
         else: 
@@ -403,17 +407,24 @@ class CompatibilityBase:
         except TmqError as e:
             tdLog.exit(f"subscribe error: {e}")
         
+        # A None from poll() only means no new message within 1s, not that the
+        # topic has no data; under heavy load the first batch may take longer
+        # than 1s. We only consume the first batch to establish the
+        # first_consumer_rows baseline, so give it a 30s grace window to avoid
+        # a slow start recording too few rows and skewing later checks.
+        first_msg_deadline = time.time() + 30
         while True:
             message = consumer.poll(timeout=1.0)
             if message:
                 for block in message:
                     first_consumer_rows += block.nrows()
-            else:
-                tdLog.notice("message is null and break")
+                consumer.commit(message)
+                tdLog.info(f"topic:{select_topic} ,first consumer rows is {first_consumer_rows} in old version")
                 break
-            consumer.commit(message)
-            tdLog.debug(f"topic:{select_topic} ,first consumer rows is {first_consumer_rows} in old version")
-            break
+            tdLog.info("first message is null, keep waiting for first batch")
+            if time.time() > first_msg_deadline:
+                tdLog.info("no first message within 30s, break")
+                break
 
         consumer.close()
         
@@ -433,7 +444,7 @@ class CompatibilityBase:
             if os.system(cmd) == 0:
                 raise Exception("failed to execute system command. cmd: %s" % cmd)
         
-    def updateNewVersion(self, bPath, cPaths, upgrade):
+    def updateNewVersion(self, bPath, cPaths, upgrade, retry_times=30):
         tdLog.printNoPrefix("==========step2:update new version ")
         # upgrade only one dnode
         if upgrade == 0:
@@ -493,7 +504,7 @@ class CompatibilityBase:
             self.buildTaosd(bPath)
             tdLog.info(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
             os.system(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
-        self.checkstatus()
+        self.checkstatus(retry_times=retry_times)
 
     def checkTagSizeAndAlterStb(self,tdsql):
         tdsql.query("select * from information_schema.ins_tags where db_name = 'db_all_insert_mode'")
@@ -737,15 +748,30 @@ class CompatibilityBase:
         )
         consumer.subscribe([select_topic])
         consumer_rows = 0
+        # A None from poll() only means no new message within 1s, not that the
+        # subscription is drained. After a cold upgrade the first subscription
+        # must register the consumer and scan snapshots, so under heavy load
+        # the first batch may exceed 1s; breaking on a single empty poll would
+        # mistake the slow start for "0 rows". Instead: allow 30s for the
+        # first batch, then treat 10 consecutive empty polls (~10s of silence)
+        # as consumed.
+        silent_polls = 0
+        first_msg_deadline = time.time() + 30
         while True:
             message = consumer.poll(timeout=1.0)
             tdLog.info(f" null {message}")
             if message:
+                silent_polls = 0
                 for block in message:
                     consumer_rows += block.nrows()
                 tdLog.info(f"consumer rows is {consumer_rows}")
-            else:
+                continue
+            silent_polls += 1
+            if consumer_rows > 0 and silent_polls >= 10:
                 tdLog.info("consumer has completed and break")
+                break
+            if consumer_rows == 0 and time.time() > first_msg_deadline:
+                tdLog.info("consumer has completed and break (no first message within 30s)")
                 break
         consumer.close()
         tdsql.query(f"{topic_select_sql}")

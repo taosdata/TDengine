@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 """
@@ -57,7 +61,7 @@ class TestVtableSeriesSmoke:
         time.sleep(2)
 
         tdSql.execute(f"DROP DATABASE IF EXISTS {DB_NAME}")
-        tdSql.execute(f"CREATE DATABASE {DB_NAME}")
+        tdSql.execute(f"CREATE DATABASE {DB_NAME} PRECISION 'ns'")
         tdSql.execute(f"USE {DB_NAME}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {EXT_SOURCE}")
         tdSql.execute(
@@ -90,6 +94,13 @@ class TestVtableSeriesSmoke:
 
     # ------------------------------------------------------------------
     def test_series_pipeline_smoke(self):
+        """Series pipeline smoke
+
+        Series pipeline smoke
+
+        Since: v3.4.2.0
+
+        """
         tdLog.info("=== SERIES pipeline smoke test ===")
         tdSql.execute(f"USE {DB_NAME}")
 

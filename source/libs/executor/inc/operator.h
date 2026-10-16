@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,7 @@
 #define TDENGINE_OPERATOR_H
 
 #include <stddef.h>
+#include "streamjoinfilter.h"
 #include "tcommon.h"
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +36,7 @@ typedef struct SOperatorCostInfo {
   TSKEY  inputWaitElapsed;
   TSKEY  outputWaitElapsed;
   uint64_t inputRows;
+  uint32_t execDepth;  // nested public next-interface call depth
   TSKEY  startTs;   // helper variable to record the start time of the operator
   TSKEY  endTs;     // helper variable to record the end time of the operator
 } SOperatorCostInfo;
@@ -64,6 +68,10 @@ typedef struct SOperatorFpSet {
   __optr_state_fn_t       reloadStreamStateFn;
   __optr_reset_state_fn_t _resetFn;  // DO NOT invoke this function directly
   __optr_reset_state_fn_t resetStateFn;
+  // Releases per-result-row function state (DISTINCT dedup sets and their spill files). Invoked by
+  // destroyOperator() before cleanupExprSupp(), the only point where both the expression supp and
+  // the result rows are still valid.
+  __optr_close_fn_t rowStateCleanupFn;
 } SOperatorFpSet;
 
 enum {
@@ -96,6 +104,15 @@ typedef struct SOperatorInfo {
   SOperatorFpSet         fpSet;
   const void*            pPhyNode;
 } SOperatorInfo;
+
+// Root resolve initializes mapping from probeBlockId/probeSlot; module resolvers continue that mapping.
+// Resolve may remove ineligible descriptors without reading data. Only successful install transfers ownership.
+int32_t optrResolveStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilterSpec* pSpec, bool* pEligible);
+int32_t optrInstallStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilter** ppFilter);
+int32_t projectResolveStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilterSpec* pSpec, bool* pEligible);
+int32_t projectInstallStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilter** ppFilter);
+int32_t extWinResolveStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilterSpec* pSpec, bool* pEligible);
+int32_t extWinInstallStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilter** ppFilter);
 
 // operator creater functions
 // clang-format off
@@ -160,6 +177,8 @@ int32_t createRowsetSourceOperatorInfo(SPhysiNode* pPhyNode, SExecTaskInfo* pTas
 int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pInfo);
 
 int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pInfo);
+int32_t createThetaJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SThetaJoinPhysiNode* pJoinNode,
+                                    SExecTaskInfo* pTaskInfo, SOperatorInfo** pInfo);
 
 int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pInfo);
 
@@ -186,10 +205,6 @@ void    federatedScanResetForNewChild(SOperatorInfo* pOperator);
 int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrOut);
 int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut);
 
-// Stream-specific external window operators (stable implementation for streaming)
-int32_t createStreamExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrOut);
-int32_t createStreamMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut);
-
 // clang-format on
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
@@ -197,6 +212,7 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
                                    __optr_explain_fn_t explain, __optr_get_ext_fn_t nextExtFn, __optr_notify_fn_t notifyFn);
 void           setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn);
 void           setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t resetFn);
+void           setOperatorRowStateCleanupFn(SOperatorInfo* pOperator, __optr_close_fn_t cleanupFn);
 int32_t        optrDummyOpenFn(SOperatorInfo* pOperator);
 int32_t        appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
 void           setOperatorCompleted(SOperatorInfo* pOperator);
@@ -205,8 +221,14 @@ void           setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32
 int32_t        optrDefaultBufFn(SOperatorInfo* pOperator);
 int32_t        optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes);
 int32_t        optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
+int32_t        setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInput,
+                                 SOperatorParamType type);
+// Same fetch/validate/accounting sequence as getNextBlockFromDownstream, but
+// returns the code so a caller can tell a failure from an exhausted downstream.
+int32_t        getNextBlockFromDownstreamChecked(SOperatorInfo* pOperator,
+                                                 int32_t idx, bool clearParam,
+                                                 SSDataBlock** ppBlock);
 SSDataBlock*   getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx);
-SSDataBlock*   getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx);
 SSDataBlock*   getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOperator, int32_t idx);
 int64_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);
 

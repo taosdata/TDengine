@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TD_ASTRA
 #include <uv.h>
 #endif
@@ -769,6 +772,7 @@ static bool hasHint(SNodeList* pHintList, EHintOption hint) {
 bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SToken* paramList,
                        int32_t paramNum) {
   void* value = NULL;
+  int8_t algo = JOIN_ALGO_UNKNOWN;
   switch (opt) {
     case HINT_SKIP_TSMA:
     case HINT_BATCH_SCAN:
@@ -791,7 +795,37 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
       if (paramNum > 0 || hasHint(*ppHintList, HINT_SMALLDATA_TS_SORT)) return true;
       break;
     case HINT_HASH_JOIN:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN) || hasHint(*ppHintList, HINT_MERGE_JOIN) ||
+          hasHint(*ppHintList, HINT_JOIN_ALGO)) {
+        return true;
+      }
+      break;
+    case HINT_MERGE_JOIN:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN) || hasHint(*ppHintList, HINT_MERGE_JOIN) ||
+          hasHint(*ppHintList, HINT_JOIN_ALGO)) {
+        return true;
+      }
+      break;
+    case HINT_JOIN_ALGO:
+      if (paramNum != 1 || hasHint(*ppHintList, HINT_HASH_JOIN) || hasHint(*ppHintList, HINT_MERGE_JOIN) ||
+          hasHint(*ppHintList, HINT_JOIN_ALGO)) {
+        return true;
+      }
+      if (paramList[0].n == 4 && 0 == taosStrncasecmp(paramList[0].z, "HASH", 4)) {
+        algo = JOIN_ALGO_HASH;
+      } else if (paramList[0].n == 5 && 0 == taosStrncasecmp(paramList[0].z, "MERGE", 5)) {
+        algo = JOIN_ALGO_MERGE;
+      } else if (paramList[0].n == 5 && 0 == taosStrncasecmp(paramList[0].z, "THETA", 5)) {
+        algo = JOIN_ALGO_THETA;
+      } else {
+        return true;
+      }
+      value = taosMemoryMalloc(sizeof(algo));
+      if (NULL == value) {
+        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+        return true;
+      }
+      *(int8_t*)value = algo;
       break;
     case HINT_WIN_OPTIMIZE_BATCH:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_BATCH)) return true;
@@ -806,6 +840,7 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
   SHintNode* hint = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_HINT, (SNode**)&hint);
   if (!hint) {
+    taosMemoryFree(value);
     return true;
   }
   hint->option = opt;
@@ -908,6 +943,22 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         opt = HINT_HASH_JOIN;
         break;
+      case TK_MERGE_JOIN:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_MERGE_JOIN;
+        break;
+      case TK_JOIN_ALGO:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_JOIN_ALGO;
+        break;
       case TK_SKIP_TSMA:
         lastComma = false;
         if (0 != opt || inParamList) {
@@ -951,8 +1002,12 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         break;
       case TK_NK_ID:
+      case TK_MERGE:
+        // MERGE is a keyword token; only JOIN_ALGO accepts this algorithm parameter.
         lastComma = false;
         if (0 == opt || !inParamList) {
+          quit = true;
+        } else if (paramNum >= (int32_t)(sizeof(paramList) / sizeof(paramList[0]))) {
           quit = true;
         } else {
           paramList[paramNum++] = t0;
@@ -3456,12 +3511,12 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
         pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION;
       } else {
         // pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-        //                                         "not support alter column with option except compress");
+        //                                         "alter column with options other than compress is not supported");
         // return NULL;
       }
     } else {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                              "not support alter column with option except compress");
+                                              "alter column with options other than compress is not supported");
       CHECK_PARSER_STATUS(pCxt);
     }
   }
@@ -5646,7 +5701,7 @@ SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType
   CHECK_PARSER_STATUS(pCxt);
   if (resourceType != XNODE_TASK) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "Only support stop task, invalid resource type: %d", resourceType);
+                                            "only stop task is supported, invalid resource type: %d", resourceType);
     goto _err;
   }
   if (pIdOrName != NULL && pIdOrName->type != TK_NK_INTEGER && pIdOrName->type != TK_NK_STRING) {

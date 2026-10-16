@@ -1,8 +1,24 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import argparse
 import html
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -18,6 +34,32 @@ BUILD_BINARIES = ("taosd.exe", "taos.exe", "taosBenchmark.exe", "taosadapter.exe
 SERIAL_CTEST_PATTERN = "timerTest|cunit_test|pcre.*|example.*|clientTest|connectOptionsTest|tmqTest|taoscTest|cosTest|tcs_test|osFileTests|idxFstTest"
 CTEST_READY_TIMEOUT_SECONDS = 300
 GIT_LOCK_WAIT_SECONDS = 60
+
+
+def print_host_identity():
+    print(f"[windows-ci] hostname: {socket.gethostname()}", flush=True)
+    command = (
+        "$ErrorActionPreference = 'Stop'; "
+        "Get-NetIPAddress -AddressFamily IPv4 | "
+        "Where-Object { $_.IPAddress -notlike '127.*' } | "
+        "ForEach-Object { '[windows-ci] IPv4: {0} ({1})' -f $_.IPAddress, $_.InterfaceAlias }"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+        if result.stdout:
+            print(result.stdout.strip(), flush=True)
+        if result.returncode or not result.stdout.strip():
+            print("[windows-ci] unable to determine local IPv4 addresses; continuing", flush=True)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f"[windows-ci] unable to determine local IPv4 addresses: {error}; continuing", flush=True)
 
 
 def run(command, *, cwd=None, env=None, stdout=None, stderr=None):
@@ -47,8 +89,16 @@ def tail(path, lines=200):
 
 
 def stop_processes():
-    for name in ("taosd", "taos", "taosBenchmark", "taosadapter", "taoskeeper"):
-        subprocess.run(["taskkill", "/f", "/im", f"{name}.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    # Kill the server tree first, then catch UDF processes whose parent has exited.
+    for name in ("taosd", "taosudf", "taos", "taosBenchmark", "taosadapter", "taoskeeper"):
+        result = subprocess.run(
+            ["taskkill", "/f", "/t", "/im", f"{name}.exe"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, errors="replace", check=False,
+        )
+        # taskkill returns 128 when no matching process is running.
+        if result.returncode != 128:
+            print(f"[windows-ci] stop {name}.exe: exit={result.returncode}; {result.stdout.strip()}", flush=True)
 
 
 def stop_build_processes():
@@ -60,18 +110,20 @@ def remove_build_directory(debug_dir):
     if not debug_dir.exists():
         return
     print(f"[windows-ci] removing previous build directory: {debug_dir}")
-    stop_processes()
-    stop_build_processes()
-    subprocess.run(["attrib", "-R", str(debug_dir / "*"), "/S", "/D"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     last_error = None
     for attempt in range(1, 6):
+        # Repeat process cleanup in case a child was still starting on the last attempt.
+        stop_processes()
+        stop_build_processes()
+        subprocess.run(["attrib", "-R", str(debug_dir / "*"), "/S", "/D"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         try:
             shutil.rmtree(debug_dir)
             return
         except OSError as error:
             last_error = error
             print(f"[windows-ci] build cleanup attempt {attempt}/5 failed: {error}")
-            time.sleep(2)
+            if attempt < 5:
+                time.sleep(2)
     fail(f"unable to remove previous build directory after retries: {last_error}")
 
 
@@ -504,6 +556,7 @@ def main():
     parser.add_argument("--skip-build", action="store_true", default=os.environ.get("WIN_SKIP_BUILD", "").lower() in {"1", "true", "yes"})
     parser.add_argument("--skip-pytest", action="store_true", default=os.environ.get("WIN_SKIP_PYTEST", "").lower() in {"1", "true", "yes"})
     arguments = parser.parse_args()
+    print_host_identity()
     result = 1
     ctest_result = 1
     ctest_failures = []

@@ -1,6 +1,18 @@
-// Package logger provides structured loggers that observe SQL fuzzing events such as generation, parsing, execution, and errors.
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 //
-// Package logger 提供结构化日志器，用于观察 SQL fuzzing 过程中的生成、解析、执行与错误等事件。
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package logger
 
 import (

@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -2988,6 +2992,8 @@ class TDCom:
             # Capture output
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="ignore", shell=False)
             output = result.stdout.splitlines()
+            tdLog.info(f"[PIPELINE] taos -s: rc={result.returncode} "
+                       f"stdout_lines={len(output)} stderr={result.stderr[:200]!r}")
         except Exception as e:
             tdLog.error(f"Failed to run taos command: {e}")
             output = []
@@ -3105,7 +3111,7 @@ class TDCom:
                             fout.write(line)
                 os.system(f"rm -f {self.query_result_file}.raw")
             else:
-                os.system(
+                pipeline = (
                     f"taos -c {cfgPath} -f {inputfile} "
                     "| grep -v 'Query OK'|grep -v 'Copyright'| grep -Ev 'Welcome to the TDengine (TSDB )?Command' "
                     "| grep -v 'Exec cost:' "
@@ -3137,7 +3143,82 @@ class TDCom:
                     "| tr -d '\\r' "
                     f"> {self.query_result_file}"
                 )
+                self._run_result_pipeline(pipeline)
             return self.query_result_file
+
+    # Reports a sanitizer runtime (preloaded libasan/LSan, or an ASan build)
+    # prints on the stderr of the CLI that produced a result file.
+    _SANITIZER_MARKERS = (
+        "AddressSanitizer",
+        "LeakSanitizer",
+        "ThreadSanitizer",
+        "UndefinedBehaviorSanitizer",
+    )
+
+    def _run_result_pipeline(self, pipeline):
+        """Run the taos result pipeline and report what actually happened.
+
+        os.system() reports the status of the last stage only, so a CLI that
+        died half way through still looks like a clean run and the case fails
+        later with a bare "line count mismatch".  Run the pipeline under
+        ``bash -o pipefail`` instead, keep the stderr of every stage, and log
+        the real exit status next to the size of what was produced.  A
+        sanitizer runtime is worth calling out by name: it terminates the
+        process through _exit(), which skips the stdio flush, so the tail of a
+        redirected result file is silently lost.
+        """
+        err_file = os.path.join(tempfile.gettempdir(),
+                                f"taos_result_pipeline_{os.getpid()}.stderr")
+        rc = None
+        try:
+            with open(err_file, "w", encoding="utf-8", errors="replace") as err:
+                proc = subprocess.run(
+                    ["bash", "-c", f"set -o pipefail; {pipeline}"],
+                    stderr=err,
+                )
+            rc = proc.returncode
+            try:
+                with open(err_file, "r", encoding="utf-8", errors="replace") as f:
+                    stderr_text = f.read()
+            except OSError:
+                stderr_text = ""
+        except OSError as e:
+            tdLog.info(f"[PIPELINE] cannot run result pipeline ({e}), "
+                       f"falling back to os.system")
+            rc = os.system(pipeline)
+            stderr_text = ""
+        finally:
+            if os.path.exists(err_file):
+                os.remove(err_file)
+
+        size = lines = -1
+        try:
+            with open(self.query_result_file, "rb") as f:
+                data = f.read()
+            size = len(data)
+            lines = data.count(b"\n")
+        except OSError:
+            pass
+
+        tdLog.info(f"[PIPELINE] {self.query_result_file}: rc={rc} bytes={size} lines={lines}")
+
+        if any(marker in stderr_text for marker in self._SANITIZER_MARKERS):
+            # Keep this bounded: the runtime reports on every single CLI run,
+            # only the verdict and the leak summary carry information.
+            highlight = [
+                line.strip()
+                for line in stderr_text.splitlines()
+                if "ERROR:" in line or line.startswith("SUMMARY:")
+            ]
+            tdLog.info(
+                f"[PIPELINE] sanitizer runtime reported on the CLI stderr "
+                f"({len(stderr_text)} bytes); it ends the process with _exit(), "
+                f"which skips the stdio flush and can drop the tail of the "
+                f"result file: {' | '.join(highlight[:3])}"
+            )
+        elif stderr_text.strip():
+            head = "".join(stderr_text.splitlines(keepends=True)[:5])
+            tdLog.info(f"[PIPELINE] CLI stderr ({len(stderr_text)} bytes):\n{head}")
 
     def _get_numeric_compare_tolerance(self, token1, token2, float_tolerance):
         if float_tolerance > 0.0:
@@ -3169,6 +3250,11 @@ class TDCom:
         normalized = re.sub(r"cost=[0-9]+\.[0-9]+\.\.[0-9]+\.[0-9]+", "", normalized)
         normalized = re.sub(r"Planning Time: [0-9]+\.[0-9]+ ms", "", normalized)
         normalized = re.sub(r"Execution Time: [0-9]+\.[0-9]+ ms", "", normalized)
+        normalized = re.sub(
+            r"(Input Rows: [0-9]+, Calls: [0-9]+, Time:) [0-9]+\.[0-9]+ ms",
+            r"\1 ms",
+            normalized,
+        )
         normalized = re.sub(r"max_row_task=[0-9]+, ", "", normalized)
         return normalized.rstrip()
 
@@ -3355,6 +3441,7 @@ class TDCom:
                         f.write(f"\nstderr:\n{result.stderr}")
                 tdLog.info(f"Comparison failed: {err_msg}")
                 tdLog.info(f"Diff output saved to: {diff_file}")
+                self._log_mismatch_diagnosis(diff_file, file1, file2)
                 return False
             if result.stdout:
                 diff_file = os.path.splitext(file2)[0] + ".diff"
@@ -3362,6 +3449,7 @@ class TDCom:
                     f.write(f"--- {file1}\n+++ {file2}\n\n")
                     f.write(result.stdout)
                 tdLog.info(f"Diff output saved to: {diff_file}")
+                self._log_mismatch_diagnosis(diff_file, file1, file2)
                 return False
             elif result.stderr:
                 tdLog.info(f"{cmd} result.stderr: {result.stderr}")
@@ -3380,6 +3468,81 @@ class TDCom:
             for normalized_file in (normalized_file1, normalized_file2):
                 if normalized_file and os.path.exists(normalized_file):
                     os.remove(normalized_file)
+
+    # ------------------------------------------------------------------
+    # Failure diagnosis
+    #
+    # CI archives only sim/, build/, run.log.txt and case.txt per case, so the
+    # .diff file written above never reaches the reviewer -- all they get is
+    # "Line count mismatch: expected N lines, actual M lines", and that message
+    # cannot tell a genuine result difference apart from output that was lost
+    # while being written.  Print a bounded diagnosis into the case log so the
+    # archived log is conclusive on its own.
+    # ------------------------------------------------------------------
+    _DIAG_DIFF_HEAD_LINES = 40
+    _DIAG_TAIL_BYTES = 4096
+
+    def _log_mismatch_diagnosis(self, diff_file, expected_file, result_file):
+        """Log enough of a failed comparison for the case log to be conclusive."""
+        self._log_diff_head(diff_file)
+        self._log_truncation_hint(expected_file, result_file)
+
+    def _log_diff_head(self, diff_file):
+        try:
+            with open(diff_file, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+        except OSError as e:
+            tdLog.info(f"[DIAG] cannot read diff file {diff_file}: {e}")
+            return
+        if not lines:
+            return
+
+        head = lines[:self._DIAG_DIFF_HEAD_LINES]
+        added = sum(1 for ln in lines if ln.startswith("+") and not ln.startswith("+++"))
+        removed = sum(1 for ln in lines if ln.startswith("-") and not ln.startswith("---"))
+        tdLog.info(f"[DIAG] diff: +{added}/-{removed} lines, head "
+                   f"({len(head)}/{len(lines)} lines):")
+        for line in head:
+            tdLog.info("[DIAG]   " + line.rstrip("\r\n"))
+        if len(lines) > len(head):
+            tdLog.info(f"[DIAG]   ... ({len(lines) - len(head)} more lines)")
+
+    def _log_truncation_hint(self, expected_file, result_file):
+        """Flag a result file whose tail was lost rather than merely different.
+
+        A writer that terminates through _exit() never flushes stdio -- a
+        sanitizer runtime that is preloaded into the CLI and then reports a
+        leak on it does exactly that -- and leaves a result file that stops in
+        the middle of a line or right after the column header.  Say so
+        explicitly: the bare line-count message reads like a query or planning
+        difference instead.
+        """
+        try:
+            with open(result_file, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                size = f.tell()
+                if size == 0:
+                    tdLog.info("[DIAG] result file is empty")
+                    return
+                f.seek(max(0, size - self._DIAG_TAIL_BYTES))
+                tail = f.read()
+        except OSError as e:
+            tdLog.info(f"[DIAG] cannot read result file {result_file}: {e}")
+            return
+
+        last = tail.split(b"\n")[-1]
+        if not tail.endswith(b"\n"):
+            tdLog.info(f"[DIAG] RESULT TAIL LOOKS TRUNCATED: no trailing newline, "
+                       f"last partial line is {len(last)} bytes: {last[:120]!r}")
+        else:
+            tdLog.info(f"[DIAG] result ends on a complete line "
+                       f"(last line {len(last)} bytes, file {size} bytes)")
+        try:
+            exp_size = os.path.getsize(expected_file)
+            tdLog.info(f"[DIAG] sizes: expected={exp_size} actual={size} "
+                       f"(delta={size - exp_size:+d})")
+        except OSError:
+            pass
 
     def _normalize_diff_file(self, input_file):
         with open(input_file, "r", encoding="utf-8", newline="") as fin:
@@ -3410,9 +3573,15 @@ class TDCom:
             )
 
     def compare_testcase_result(
-        self, inputfile, expected_file, test_case, float_tolerance=0.0
+        self, inputfile, expected_file, test_case, float_tolerance=0.0,
+        result_transform=None,
     ):
         test_reulst_file = self.generate_query_result(inputfile, test_case)
+        if result_transform is not None:
+            with open(test_reulst_file, "r", encoding="utf-8", newline="") as result:
+                transformed = result_transform(result.read())
+            with open(test_reulst_file, "w", encoding="utf-8", newline="") as result:
+                result.write(transformed)
 
         if self.compare_result_files(
             expected_file, test_reulst_file, float_tolerance=float_tolerance

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,8 +32,19 @@
 #include "osMemory.h"
 #include "parser.h"
 #include "taoserror.h"
+#include "tlogKeyOp.h"
 #include "tmisce.h"
 #include "tname.h"
+// #include "mndDnode.h"
+// #include "mndVgroup.h"
+// #include "mndSnode.h"
+// #include "mndMnode.h"
+// #include "cmdnodes.h"
+// #include "mndExtSource.h"
+#include "extConnector.h"
+#include "extConnectorInt.h"
+#include "extTypeMap.h"
+#include "plannodes.h"
 
 #include "monitor.h"
 
@@ -466,7 +479,7 @@ static int32_t msmSTAddToSnodeMapImpl(int64_t streamId, SStmTaskStatus* pStatus,
 
   SStmSnodeStatus* pSnode = taosHashGet(mStreamMgmt.snodeMap, &pStatus->id.nodeId, sizeof(pStatus->id.nodeId));
   if (NULL == pSnode) {
-    mstsWarn("snode %d not exists in snodeMap anymore, may be dropped", pStatus->id.nodeId);
+    mstsWarn("snode %d no longer exists in snodeMap, may be dropped", pStatus->id.nodeId);
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
   } else {
     if (NULL == pSnode->streamTasks) {
@@ -490,6 +503,144 @@ _exit:
   return code;
 }
 
+static void msmFreeCopiedExtSpec(SStreamExtTriggerSpec* pSpec) {
+  if (pSpec == NULL) {
+    return;
+  }
+
+  tCleanupSStreamExtTriggerSpec(pSpec);
+  taosMemoryFree(pSpec);
+}
+
+static int32_t msmCopyExtSpecStringArray(const SArray* pSrc, SArray** ppDst) {
+  if (pSrc == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppDst = taosArrayDup(pSrc, NULL);
+  if (*ppDst == NULL) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t msmCopyExtSpecMappingArray(const SExtColTypeMapping* pSrc, int32_t count,
+                                          SExtColTypeMapping** ppDst) {
+  if (count <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pSrc == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  *ppDst = taosMemoryMalloc(sizeof(SExtColTypeMapping) * count);
+  if (*ppDst == NULL) {
+    return terrno;
+  }
+  memcpy(*ppDst, pSrc, sizeof(SExtColTypeMapping) * count);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t msmCopyExtSpecStringPtrArray(const SArray* pSrc, SArray** ppDst) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pSrc == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t num = taosArrayGetSize(pSrc);
+  *ppDst = taosArrayInit_s(POINTER_BYTES, num);
+  TSDB_CHECK_NULL(*ppDst, code, lino, _exit, terrno);
+  for (int32_t i = 0; i < num; ++i) {
+    char*  pExpr = taosArrayGetP(pSrc, i);
+    char** ppExpr = taosArrayGet(*ppDst, i);
+    if (pExpr != NULL) {
+      *ppExpr = taosStrdup(pExpr);
+      TSDB_CHECK_NULL(*ppExpr, code, lino, _exit, terrno);
+    }
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroyP(*ppDst, NULL);
+    *ppDst = NULL;
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t msmCopyExtSpecForDeploy(SStmTaskDeploy* pDeploy, SStmTaskToDeployExt* pExt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SStreamExtTriggerSpec* pSrc = pDeploy->msg.reader.pExtSpec;
+  SStreamExtTriggerSpec* pDst = taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec));
+  if (pDst == NULL) {
+    return terrno;
+  }
+
+  memcpy(pDst, pSrc, sizeof(SStreamExtTriggerSpec));
+  pDst->triggerColumns = NULL;
+  pDst->pColMappings = NULL;
+  pDst->calcColumns = NULL;
+  pDst->pCalcMappings = NULL;
+  pDst->prefilter = NULL;
+  pDst->triggerPrefilter = NULL;
+  pDst->tagCondJson = NULL;
+  pDst->partitionTagCols = NULL;
+  pDst->partitionTagExprs = NULL;
+
+  if (pSrc->prefilter != NULL) {
+    pDst->prefilter = taosStrdup(pSrc->prefilter);
+    if (pDst->prefilter == NULL) {
+      msmFreeCopiedExtSpec(pDst);
+      return terrno;
+    }
+  }
+
+  if (pSrc->triggerPrefilter != NULL) {
+    pDst->triggerPrefilter = taosStrdup(pSrc->triggerPrefilter);
+    if (pDst->triggerPrefilter == NULL) {
+      msmFreeCopiedExtSpec(pDst);
+      return terrno;
+    }
+  }
+
+  if (pSrc->tagCondJson != NULL) {
+    pDst->tagCondJson = taosStrdup(pSrc->tagCondJson);
+    if (pDst->tagCondJson == NULL) {
+      msmFreeCopiedExtSpec(pDst);
+      return terrno;
+    }
+  }
+
+  TAOS_CHECK_EXIT(msmCopyExtSpecStringArray(pSrc->triggerColumns, &pDst->triggerColumns));
+  TAOS_CHECK_EXIT(msmCopyExtSpecMappingArray(pSrc->pColMappings, pSrc->numColMappings, &pDst->pColMappings));
+  TAOS_CHECK_EXIT(msmCopyExtSpecStringArray(pSrc->calcColumns, &pDst->calcColumns));
+  TAOS_CHECK_EXIT(msmCopyExtSpecMappingArray(pSrc->pCalcMappings, pSrc->numCalcMappings, &pDst->pCalcMappings));
+
+  if (pSrc->partitionTagCols != NULL) {
+    pDst->partitionTagCols = taosArrayDup(pSrc->partitionTagCols, NULL);
+    if (pDst->partitionTagCols == NULL) {
+      msmFreeCopiedExtSpec(pDst);
+      return terrno;
+    }
+  }
+
+  TAOS_CHECK_EXIT(msmCopyExtSpecStringPtrArray(pSrc->partitionTagExprs, &pDst->partitionTagExprs));
+
+  pExt->deploy.msg.reader.pExtSpec = pDst;
+  pExt->deploy.msg.reader.ownsExtSpec = true;
+  pExt->ownsExtSpec = true;
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  msmFreeCopiedExtSpec(pDst);
+  return code;
+}
+
 
 
 static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pStream) {
@@ -497,8 +648,17 @@ static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pS
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SStmSnodeTasksDeploy snode = {0};
-  SStmTaskToDeployExt ext;
+  SStmTaskToDeployExt ext = {0};
   SStreamTask* pTask = &pDeploy->task;
+
+  ext.deploy = *pDeploy;
+  ext.deployed = false;
+  if (pDeploy->task.type == STREAM_READER_TASK && pDeploy->msg.reader.pExtSpec != NULL) {
+    code = msmCopyExtSpecForDeploy(pDeploy, &ext);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _return;
+    }
+  }
 
   while (true) {
     SStmSnodeTasksDeploy* pSnode = taosHashAcquire(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId));
@@ -506,8 +666,6 @@ static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pS
       snode.triggerList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
       TSDB_CHECK_NULL(snode.triggerList, code, lino, _return, terrno);
 
-      ext.deploy = *pDeploy;
-      ext.deployed = false;
       TSDB_CHECK_NULL(taosArrayPush(snode.triggerList, &ext), code, lino, _return, terrno);
 
       code = taosHashPut(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &snode, sizeof(snode));
@@ -534,9 +692,6 @@ static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pS
       }
     }
     
-    ext.deploy = *pDeploy;
-    ext.deployed = false;
-    
     if (NULL == taosArrayPush(pSnode->triggerList, &ext)) {
       taosWUnLockLatch(&pSnode->lock);
       TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
@@ -558,6 +713,10 @@ _return:
   }
 
   if (code) {
+    taosArrayDestroy(snode.triggerList);
+    if (ext.ownsExtSpec) {
+      msmFreeCopiedExtSpec(ext.deploy.msg.reader.pExtSpec);
+    }
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
     msttDebug("trigger task added to toDeploySnodeMap, tidx:%d", pTask->taskIdx);
@@ -571,7 +730,7 @@ static int32_t msmTDAddRunnerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pSt
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SStmSnodeTasksDeploy snode = {0};
-  SStmTaskToDeployExt ext;
+  SStmTaskToDeployExt ext = {0};
   SStreamTask* pTask = &pDeploy->task;
 
   while (true) {
@@ -637,8 +796,17 @@ static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj*
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SStmSnodeTasksDeploy snode = {0};
-  SStmTaskToDeployExt ext;
+  SStmTaskToDeployExt ext = {0};
   SStreamTask* pTask = &pDeploy->task;
+
+  ext.deploy = *pDeploy;
+  ext.deployed = false;
+  if (pDeploy->msg.reader.pExtSpec != NULL) {
+    code = msmCopyExtSpecForDeploy(pDeploy, &ext);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _return;
+    }
+  }
 
   while (true) {
     SStmSnodeTasksDeploy* pSnode =
@@ -647,8 +815,6 @@ static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj*
       snode.calcReaderList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
       TSDB_CHECK_NULL(snode.calcReaderList, code, lino, _return, terrno);
 
-      ext.deploy = *pDeploy;
-      ext.deployed = false;
       TSDB_CHECK_NULL(taosArrayPush(snode.calcReaderList, &ext), code, lino, _return, terrno);
 
       code = taosHashPut(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &snode,
@@ -660,6 +826,7 @@ static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj*
         goto _return;
       }
       taosArrayDestroy(snode.calcReaderList);
+      snode.calcReaderList = NULL;
       continue;
     }
 
@@ -672,8 +839,6 @@ static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj*
       }
     }
 
-    ext.deploy = *pDeploy;
-    ext.deployed = false;
     if (NULL == taosArrayPush(pSnode->calcReaderList, &ext)) {
       taosWUnLockLatch(&pSnode->lock);
       TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
@@ -686,6 +851,10 @@ static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj*
 
 _return:
   if (code) {
+    taosArrayDestroy(snode.calcReaderList);
+    if (ext.ownsExtSpec) {
+      msmFreeCopiedExtSpec(ext.deploy.msg.reader.pExtSpec);
+    }
     mstError("msmTDAddCalcReaderToSnodeMap failed at line %d, error:%s", lino, tstrerror(code));
   } else {
     msttDebug("EXT calc reader task added to toDeploySnodeMap, snodeId:%d tidx:%d", pTask->nodeId, pTask->taskIdx);
@@ -728,13 +897,13 @@ int32_t msmUpdateSnodeUpTs(SStmGrpCtx* pCtx) {
     pStatus = taosHashGet(mStreamMgmt.snodeMap, &pCtx->pReq->snodeId, sizeof(pCtx->pReq->snodeId));
     if (NULL == pStatus) {
       if (noExists) {
-        mstWarn("snode %d not exists in snodeMap, may be dropped, ignore it", pCtx->pReq->snodeId);
+        mstWarn("snode %d does not exist in snodeMap, may be dropped, ignore it", pCtx->pReq->snodeId);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NODE_NOT_EXISTS);
       }
 
       noExists = true;
       TAOS_CHECK_EXIT(msmSTAddSnodesToMap(pCtx->pMnode));
-      
+
       continue;
     }
 
@@ -771,7 +940,7 @@ void msmUpdateVgroupUpTs(SStmGrpCtx* pCtx, int32_t vgId) {
   int32_t  lino = 0;
   SStmVgroupStatus* pStatus = taosHashGet(mStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
   if (NULL == pStatus) {
-    mstDebug("vgroup %d not exists in vgroupMap, ignore update upTs", vgId);
+    mstDebug("vgroup %d does not exist in vgroupMap, ignore update upTs", vgId);
     return;
   }
 
@@ -1029,6 +1198,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->leaderSnodeId = pStream->mainSnodeId;
   pMsg->streamName = pInfo->streamName;
   pMsg->nodelayCreateSubtable = pStream->pCreate->nodelayCreateSubtable;
+  pMsg->timeConfig = pStream->pCreate->timeConfig;
 
   if (0 == pInfo->runnerNum) {
     mstsDebug("no runner task, skip set trigger's runner list, deployNum:%d", pInfo->runnerDeploys);
@@ -1084,6 +1254,8 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan* plan, SStrea
     pMsg->addOptions |= CALC_SLIDING_OVERLAP;
   }
   pMsg->outCols = pInfo->pCreate->outCols;
+  pMsg->outStbFullCols = pInfo->pCreate->outStbFullCols;
+  pMsg->outStbFullColCids = pInfo->pCreate->outStbFullColCids;
   pMsg->outTags = pInfo->pCreate->outTags;
   pMsg->outStbUid = pStream->pCreate->outStbUid;
   pMsg->outStbSversion = pStream->pCreate->outStbSversion;
@@ -1166,13 +1338,13 @@ int32_t msmIsSnodeAlive(SMnode* pMnode, int32_t snodeId, int64_t streamId, bool*
     pStatus = taosHashGet(mStreamMgmt.snodeMap, &snodeId, sizeof(snodeId));
     if (NULL == pStatus) {
       if (noExists) {
-        mstsError("snode %d not exists in snodeMap", snodeId);
+        mstsError("snode %d does not exist in snodeMap", snodeId);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       }
 
       noExists = true;
       TAOS_CHECK_EXIT(msmSTAddSnodesToMap(pMnode));
-      
+
       continue;
     }
 
@@ -1196,7 +1368,7 @@ int32_t msmRetrieveStaticSnodeId(SMnode* pMnode, SStreamObj* pStream) {
   int32_t mainSnodeId = atomic_load_32(&pStream->mainSnodeId);
   int32_t snodeId = mainSnodeId;
   int64_t streamId = pStream->pCreate->streamId;
-  
+
   while (true) {
     TAOS_CHECK_EXIT(msmIsSnodeAlive(pMnode, snodeId, streamId, &alive));
 
@@ -1385,7 +1557,7 @@ int32_t msmAssignTaskSnodeId(SMnode* pMnode, SStreamObj* pStream, bool isStatic)
       mstsDebug("msmAssignTaskSnodeId: federated stream picked snode=%d (least-ext-reader)", snodeId);
       goto _exit;
     }
-    mDebug("msmAssignTaskSnodeId: federated stream — no alive snode via least-ext-reader, fallback");
+    mDebug("msmAssignTaskSnodeId: federated stream - no alive snode via least-ext-reader, fallback");
   }
 
   snodeId = isStatic ? msmRetrieveStaticSnodeId(pMnode, pStream) : msmAssignRandomSnodeId(pMnode, streamId);
@@ -1464,7 +1636,9 @@ _exit:
   return code;
 }
 
-static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState, int32_t nodeId, SStmStatus* pInfo, int64_t streamId, SStreamExtTriggerSpec* pExtSpec, SStreamObj* pStream) {
+static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState, int32_t nodeId, SStmStatus* pInfo,
+                                        int64_t streamId, SStreamExtTriggerSpec* pExtSpec, bool ownsExtSpec,
+                                        SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -1493,13 +1667,14 @@ static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
   info.task.taskIdx = pState->id.taskIdx;
   TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, NULL, pInfo, true));
   info.msg.reader.pExtSpec = pExtSpec;  // P1 B5: carry ext spec to vnode for federated reads
+  info.msg.reader.ownsExtSpec = ownsExtSpec;
 
-  // External-source trigger readers (pExtSpec != NULL) run on snode, not on a vgroup.
-  // Route them through toDeploySnodeMap so msmGrpAddDeploySnodeTasks picks them up
-  // when the snode heartbeat arrives.  Normal trigger readers keep the vgroup path.
+  // External-source trigger readers (pExtSpec != NULL) run on snode, not on a
+  // vgroup. Route them through the snode reader deploy queue so heartbeat
+  // deployment installs reader tasks without replacing the stream trigger task.
 #ifdef TD_ENTERPRISE
   if (pExtSpec != NULL && pStream != NULL) {
-    TAOS_CHECK_EXIT(msmTDAddTriggerToSnodeMap(&info, pStream));
+    TAOS_CHECK_EXIT(msmTDAddCalcReaderToSnodeMap(&info, pStream));
     (void)atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
   } else {
     TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
@@ -1576,10 +1751,22 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
                   pStream->pCreate->triggerTblVgId, trigNodeId);
       }
 #endif
-      TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pState, trigNodeId, pInfo, streamId, pTrigExtSpec, pStream));
+      TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pState, trigNodeId, pInfo, streamId, pTrigExtSpec, false, pStream));
       break;
     }
     case TSDB_SUPER_TABLE: {
+#ifdef TD_ENTERPRISE
+      if (pTrigExtSpec != NULL) {
+        pInfo->trigReaders = taosArrayInit_s(sizeof(SStmTaskStatus), 1);
+        TSDB_CHECK_NULL(pInfo->trigReaders, code, lino, _exit, terrno);
+        pState = taosArrayGet(pInfo->trigReaders, 0);
+        int32_t trigNodeId = atomic_load_32(&pStream->mainSnodeId);
+        mstsDebug("msmTDAddTrigReaderTasks: EXT super-table trigger reader uses snodeId=%d for stream %" PRId64,
+                  trigNodeId, streamId);
+        TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pState, trigNodeId, pInfo, streamId, pTrigExtSpec, false, pStream));
+        break;
+      }
+#endif
       pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
       if (NULL == pDb) {
         code = terrno;
@@ -1601,7 +1788,7 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
         if (pVgroup->dbUid == pDb->uid && !pVgroup->isTsma) {
           pState = taosArrayReserve(pInfo->trigReaders, 1);
 
-          code = msmTDAddSingleTrigReader(pCtx, pState, pVgroup->vgId, pInfo, streamId, pTrigExtSpec, pStream);
+          code = msmTDAddSingleTrigReader(pCtx, pState, pVgroup->vgId, pInfo, streamId, pTrigExtSpec, false, pStream);
           if (code) {
             sdbRelease(pSdb, pVgroup);
             sdbCancelFetch(pSdb, pIter);
@@ -2021,7 +2208,7 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
 
     SArray** ppRes = taosHashGet(mStreamMgmt.toUpdateScanMap, key, sizeof(key));
     if (NULL == ppRes) {
-      msttError("lowest runner subplan ID:%d,%d can't get its child ID:%" PRId64 " addr", pPlan->id.groupId, pPlan->id.subplanId, key[1]);
+      msttError("lowest runner subplan ID:%d,%d cannot get its child ID:%" PRId64 " addr", pPlan->id.groupId, pPlan->id.subplanId, key[1]);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
 
@@ -2096,7 +2283,26 @@ int32_t msmUpdateRunnerPlans(SStmGrpCtx* pCtx, SArray* pRunners, SStreamObj* pSt
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   int32_t runnerNum = taosArrayGetSize(pRunners);
-  
+  SNodeList* pReaders = NULL;
+
+  // Cache sources are not Readers. Their unresolved Exchange references keep reuse disabled.
+  for (int32_t i = 0; runnerNum > 0 && i < taosArrayGetSize(pStream->pCreate->calcScanPlanList); ++i) {
+    SStreamCalcScan* pScan = taosArrayGet(pStream->pCreate->calcScanPlanList, i);
+    if (pScan->readFromCache) {
+      continue;
+    }
+    SNode* pReader = NULL;
+    TSDB_CHECK_NULL(pScan->scanPlan, code, lino, _exit, TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    TAOS_CHECK_EXIT(nodesStringToNode(pScan->scanPlan, &pReader));
+    TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pReaders, pReader));
+  }
+
+  // Preserve every Runner's complete child identities before endpoint updates erase them.
+  for (int32_t i = 0; i < runnerNum; ++i) {
+    SStmTaskDeploy* pDeploy = taosArrayGet(pRunners, i);
+    TAOS_CHECK_EXIT(qSetStreamBroadcastReuse(pDeploy->msg.runner.pPlan, pReaders));
+  }
+
   for (int32_t i = 0; i < runnerNum; ++i) {
     SStmTaskDeploy* pDeploy = taosArrayGet(pRunners, i);
     TAOS_CHECK_EXIT(msmUpdateRunnerPlan(pCtx, pRunners, i, pDeploy, pStream));
@@ -2107,6 +2313,8 @@ int32_t msmUpdateRunnerPlans(SStmGrpCtx* pCtx, SArray* pRunners, SStreamObj* pSt
   }
 
 _exit:
+
+  nodesDestroyList(pReaders);
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -2268,7 +2476,7 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
     }
 
     if (totalTaskNum != pDag->numOfSubplans) {
-      mstsError("totalTaskNum %d mis-match with numOfSubplans %d", totalTaskNum, pDag->numOfSubplans);
+      mstsError("totalTaskNum %d mismatch with numOfSubplans %d", totalTaskNum, pDag->numOfSubplans);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
 
@@ -2560,6 +2768,7 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
   SSdb   *pSdb = pCtx->pMnode->pSdb;
   SStmTaskStatus* pState = NULL;
   SDbObj* pDb = NULL;
+  SStreamExtTriggerSpec* pTrigExtSpec = msmGetTrigExtSpec(pStream);
   
   switch (pStream->pCreate->triggerTblType) {
     case TSDB_NORMAL_TABLE:
@@ -2572,6 +2781,16 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
       break;
     }
     case TSDB_SUPER_TABLE: {
+#ifdef TD_ENTERPRISE
+      if (pTrigExtSpec != NULL) {
+        pInfo->trigReaders = taosArrayInit_s(sizeof(SStmTaskStatus), 1);
+        TSDB_CHECK_NULL(pInfo->trigReaders, code, lino, _exit, terrno);
+        pInfo->trigReaderNum = 1;
+        mstsDebug("msmInitTrigReaderList: EXT super-table trigger readers set to 1 for stream %" PRId64,
+                  streamId);
+        break;
+      }
+#endif
       pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
       if (NULL == pDb) {
         code = terrno;
@@ -2668,6 +2887,10 @@ static int32_t msmDeployStreamTasks(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmS
   TAOS_CHECK_EXIT(
       mndStreamRecalcRestore(pStream, pStatus, pStatus->triggerTask->id.taskId, pStatus->triggerTask->id.seriousId));
 
+  // NOTE: this is an internal deployment milestone, not the operation's terminal state - the
+  // trans-level START/END/FAIL for op=stream-create already comes from mndTrans.c's generic
+  // KEYOP hook, so use STEP here to avoid emitting a second, duplicate phase=END record.
+  mstsInfo(KEYOP("stream-create", "STEP") "stream fully deployed, taskId:%" PRIx64, pStatus->triggerTask->id.taskId);
   mstLogSStmStatus("stream deployed", streamId, pStatus);
 
 _exit:
@@ -2707,6 +2930,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
 
       mstDestroySStmTaskToDeployExt(pExt);
       pExt->deployed = true;
+      (void)atomic_add_fetch_32(&pVg->deployed, 1);
     }
     
     taosWUnLockLatch(&pVg->lock);
@@ -2726,6 +2950,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
         
         mstDestroySStmTaskToDeployExt(pExt);
         pExt->deployed = true;
+        (void)atomic_add_fetch_32(&pSnode->triggerDeployed, 1);
       }
     }
 
@@ -2739,6 +2964,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
 
         mstDestroySStmTaskToDeployExt(pExt);
         pExt->deployed = true;
+        (void)atomic_add_fetch_32(&pSnode->runnerDeployed, 1);
       }
     }
 
@@ -2753,6 +2979,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
           }
           mstDestroySStmTaskToDeployExt(pExt);
           pExt->deployed = true;
+          (void)atomic_add_fetch_32(&pSnode->calcReaderDeployed, 1);
         }
       }
     }
@@ -3173,6 +3400,7 @@ static int32_t msmTDRemoveStream(int64_t streamId) {
         SStmTaskToDeployExt* pExt = taosArrayGet(pVg->taskList, i);
         if (pExt->deploy.task.streamId == streamId && !pExt->deployed) {
           pExt->deployed = true;
+          (void)atomic_add_fetch_32(&pVg->deployed, 1);
         }
       }
     }
@@ -3187,6 +3415,7 @@ static int32_t msmTDRemoveStream(int64_t streamId) {
           SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->triggerList, i);
           if (pExt->deploy.task.streamId == streamId && !pExt->deployed) {
             pExt->deployed = true;
+            (void)atomic_add_fetch_32(&pSnode->triggerDeployed, 1);
           }
         }
       }
@@ -3197,6 +3426,18 @@ static int32_t msmTDRemoveStream(int64_t streamId) {
           SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->runnerList, i);
           if (pExt->deploy.task.streamId == streamId && !pExt->deployed) {
             pExt->deployed = true;
+            (void)atomic_add_fetch_32(&pSnode->runnerDeployed, 1);
+          }
+        }
+      }
+
+      taskNum = taosArrayGetSize(pSnode->calcReaderList);
+      if (atomic_load_32(&pSnode->calcReaderDeployed) != taskNum) {
+        for (int32_t i = 0; i < taskNum; ++i) {
+          SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->calcReaderList, i);
+          if (pExt->deploy.task.streamId == streamId && !pExt->deployed) {
+            pExt->deployed = true;
+            (void)atomic_add_fetch_32(&pSnode->calcReaderDeployed, 1);
           }
         }
       }
@@ -3499,6 +3740,12 @@ int32_t msmGrpAddDeployTasks(SHashObj* pHash, SArray* pTasks, int32_t* deployed)
     }
 
     TAOS_CHECK_EXIT(msmGrpAddDeployTask(pHash, &pExt->deploy));
+    if (pExt->ownsExtSpec && pExt->deploy.task.type == STREAM_READER_TASK) {
+      mstDebug("transfer dynamic external reader spec to heartbeat deployment");
+      pExt->deploy.msg.reader.pExtSpec = NULL;
+      pExt->deploy.msg.reader.ownsExtSpec = false;
+      pExt->ownsExtSpec = false;
+    }
     pExt->deployed = true;
 
     (void)atomic_add_fetch_32(deployed, 1);
@@ -3621,7 +3868,7 @@ int32_t msmUpdateStreamLastActTs(int64_t streamId, int64_t currTs) {
   int32_t lino = 0;
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
-    mstsWarn("stream already not exists in streamMap, mapSize:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    mstsWarn("stream no longer exists in streamMap, mapSize:%d", taosHashGetSize(mStreamMgmt.streamMap));
     return TSDB_CODE_SUCCESS;
   }
   
@@ -3758,8 +4005,10 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
 
   int32_t triggerNum = taosArrayGetSize(pSnode->triggerList);
   int32_t runnerNum = taosArrayGetSize(pSnode->runnerList);
+  int32_t calcReaderNum = taosArrayGetSize(pSnode->calcReaderList);
   
-  if (atomic_load_32(&pSnode->triggerDeployed) <= 0 && atomic_load_32(&pSnode->runnerDeployed) <= 0) {
+  if (atomic_load_32(&pSnode->triggerDeployed) <= 0 && atomic_load_32(&pSnode->runnerDeployed) <= 0 &&
+      atomic_load_32(&pSnode->calcReaderDeployed) <= 0) {
     taosWUnLockLatch(&pSnode->lock);
     taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
     return;
@@ -3777,7 +4026,13 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
     pSnode->runnerList = NULL;
   }
 
-  if (NULL == pSnode->triggerList && NULL == pSnode->runnerList) {
+  if (atomic_load_32(&pSnode->calcReaderDeployed) == calcReaderNum) {
+    (void)atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, calcReaderNum);
+    taosArrayDestroyEx(pSnode->calcReaderList, mstDestroySStmTaskToDeployExt);
+    pSnode->calcReaderList = NULL;
+  }
+
+  if (NULL == pSnode->triggerList && NULL == pSnode->runnerList && NULL == pSnode->calcReaderList) {
     TAOS_UNUSED(taosHashRemove(mStreamMgmt.toDeploySnodeMap, &snodeId, sizeof(snodeId)));
     taosWUnLockLatch(&pSnode->lock);
     taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
@@ -3813,6 +4068,21 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
     
     pSnode->runnerDeployed = 0;
   }
+
+  if (atomic_load_32(&pSnode->calcReaderDeployed) > 0 && pSnode->calcReaderList) {
+    for (int32_t m = calcReaderNum - 1; m >= 0; --m) {
+      SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->calcReaderList, m);
+      if (!pExt->deployed) {
+        continue;
+      }
+
+      mstDestroySStmTaskToDeployExt(pExt);
+      (void)atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
+      taosArrayRemove(pSnode->calcReaderList, m);
+    }
+
+    pSnode->calcReaderDeployed = 0;
+  }
   
   taosWUnLockLatch(&pSnode->lock);
   taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
@@ -3829,6 +4099,14 @@ void msmClearStreamToDeployMaps(SStreamHbMsg* pHb) {
 }
 
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb) {
+  // SECURITY: this helper dereferences deployStm[gid]/actionStm[gid] as SHashObj (taosHashClear
+  // frees through them). Never index the fixed-size arrays with a group id that is out of range,
+  // even if a caller forgot to validate the wire-supplied gid.
+  if (pHb->streamGId < 0 || pHb->streamGId >= STREAM_MAX_GROUP_NUM) {
+    mstError("invalid stream gid %d, skip cleaning the stream grp ctx", pHb->streamGId);
+    return;
+  }
+
   int32_t tidx = streamGetThreadIdx(mStreamMgmt.threadNum, pHb->streamGId);
   if (mStreamMgmt.tCtx) {
     taosHashClear(mStreamMgmt.tCtx[tidx].actionStm[pHb->streamGId]);
@@ -4116,6 +4394,12 @@ void msmChkHandleTriggerOperations(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask, S
   SStmStatus* pStream = (SStmStatus*)pStatus->pStream;
   SArray*     pRecalcList = NULL;
 
+  // Use plain mstInfo (not msttInfo) here: pTask is typed SStmTaskStatusMsg*, but msttXxx
+  // blindly casts its implicit pTask to SStreamTask* - that cast is wrong for this function's
+  // parameter type, so avoid the macro entirely rather than copy the mismatch.
+  mstInfo(KEYOP("stream-trigger-fire", "START") "streamId:%" PRIx64 " taskId:%" PRIx64 " checking trigger operations",
+          pTask->streamId, pTask->taskId);
+
   TAOS_CHECK_EXIT(mndStreamRecalcBuildDispatch(pStream, &pRecalcList));
   if (taosArrayGetSize(pRecalcList) > 0) {
     TAOS_CHECK_EXIT(msmGrpAddActionRecalc(pCtx, pTask->streamId, pRecalcList));
@@ -4142,6 +4426,12 @@ _exit:
   if (code) {
     // IGNORE STOP STREAM BY ERROR
     msttError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    // This runs every heartbeat round, not once per trigger's lifetime, so STEP (not END) is the
+    // correct phase - "trigger firing" has no single terminal state to mark as END here.
+    mstInfo(KEYOP("stream-trigger-fire", "STEP") "streamId:%" PRIx64 " taskId:%" PRIx64
+                                                  " trigger operations handled, detailStatus:%d",
+            pTask->streamId, pTask->taskId, pTask->detailStatus);
   }
 }
 
@@ -4483,7 +4773,7 @@ _exit:
   if (code) {
     msttError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    msttDebug("new task recored to taskMap/streamMap, task status:%s", gStreamStatusStr[pTask->status]);
+    msttDebug("new task recorded to taskMap/streamMap, task status:%s", gStreamStatusStr[pTask->status]);
   }
 
   return code;
@@ -4591,7 +4881,7 @@ void msmRspAddTriggerUpdate(SMnode * pMnode, int64_t streamId, SStmGrpCtx* pCtx,
 
   SStmStatus* pStream = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStream) {
-    mstsDebug("stream already not exists in streamMap, ignore trigger update, streamRemain:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    mstsDebug("stream no longer exists in streamMap, ignore trigger update, streamRemain:%d", taosHashGetSize(mStreamMgmt.streamMap));
     return;
   }
 
@@ -4640,7 +4930,7 @@ void msmRspAddUserRecalc(SMnode * pMnode, int64_t streamId, SStmGrpCtx* pCtx, SS
 
   SStmStatus* pStream = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStream) {
-    mstsDebug("stream already not exists in streamMap, ignore trigger update, streamRemain:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    mstsDebug("stream no longer exists in streamMap, ignore trigger update, streamRemain:%d", taosHashGetSize(mStreamMgmt.streamMap));
     return;
   }
 
@@ -4792,14 +5082,14 @@ void msmWatchCheckStreamMap(SStmGrpCtx* pCtx) {
     
     trigReaderNum = taosArrayGetSize(pStatus->trigReaders);
     if (pStatus->trigReaderNum != trigReaderNum) {
-      mstsWarn("trigReaderNum %d mis-match with expected %d", trigReaderNum, pStatus->trigReaderNum);
+      mstsWarn("trigReaderNum %d mismatch with expected %d", trigReaderNum, pStatus->trigReaderNum);
       msmStopStreamByError(streamId, pStatus, TSDB_CODE_MND_STREAM_TASK_LOST, pCtx->currTs);
       continue;
     }
 
     calcReaderNum = MST_LIST_SIZE(pStatus->calcReaders);
     if (pStatus->calcReaderNum != calcReaderNum) {
-      mstsWarn("calcReaderNum %d mis-match with expected %d", calcReaderNum, pStatus->calcReaderNum);
+      mstsWarn("calcReaderNum %d mismatch with expected %d", calcReaderNum, pStatus->calcReaderNum);
       msmStopStreamByError(streamId, pStatus, TSDB_CODE_MND_STREAM_TASK_LOST, pCtx->currTs);
       continue;
     }
@@ -4813,7 +5103,7 @@ void msmWatchCheckStreamMap(SStmGrpCtx* pCtx) {
     for (int32_t i = 0; i < pStatus->runnerDeploys; ++i) {
       runnerNum = taosArrayGetSize(pStatus->runners[i]);
       if (runnerNum != pStatus->runnerNum) {
-        mstsWarn("runner deploy %d runnerNum %d mis-match with expected %d", i, runnerNum, pStatus->runnerNum);
+        mstsWarn("runner deploy %d runnerNum %d mismatch with expected %d", i, runnerNum, pStatus->runnerNum);
         msmStopStreamByError(streamId, pStatus, TSDB_CODE_MND_STREAM_TASK_LOST, pCtx->currTs);
         continue;
       }
@@ -4839,7 +5129,7 @@ int32_t msmWatchHandleEnding(SStmGrpCtx* pCtx, bool watchError) {
     taosHashClear(mStreamMgmt.snodeMap);
     taosHashClear(mStreamMgmt.taskMap);
     taosHashClear(mStreamMgmt.streamMap);
-    mstInfo("watch error happends, clear all maps");
+    mstInfo("watch error happens, clear all maps");
     goto _exit;
   }
 
@@ -4974,6 +5264,18 @@ int32_t msmCheckDeployTrigReader(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStmTask
     }
   }
 
+  if (!readerExists && pStatus->trigOReaders != NULL) {
+    int32_t origReaderNum = msmGetTrigOReaderSize(pStatus->trigOReaders);
+    for (int32_t i = 0; i < origReaderNum; ++i) {
+      SStmTaskStatus* pReader = msmGetTrigOReader(pStatus->trigOReaders, i);
+      if (pReader == NULL || STREAM_IS_REF_EXT_SOURCE(pReader->flags)) continue;
+      if (pReader->id.nodeId == vgId) {
+        readerExists = true;
+        break;
+      }
+    }
+  }
+
   if (!readerExists) {
     SArray* pReaderList = NULL;
     TAOS_CHECK_EXIT(msmEnsureGetOReaderList(streamId, pStatus, &pReaderList));
@@ -4989,7 +5291,7 @@ int32_t msmCheckDeployTrigReader(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStmTask
     if (mndAcquireStreamById(pCtx->pMnode, streamId, &pStream) == TSDB_CODE_SUCCESS && pStream != NULL) {
       pTrigExtSpec = msmGetTrigExtSpec(pStream);
     }
-    code = msmTDAddSingleTrigReader(pCtx, pState, vgId, pStatus, streamId, pTrigExtSpec, pStream);
+    code = msmTDAddSingleTrigReader(pCtx, pState, vgId, pStatus, streamId, pTrigExtSpec, false, pStream);
     mndReleaseStream(pCtx->pMnode, pStream);
     TAOS_CHECK_EXIT(code);
 
@@ -5023,6 +5325,7 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   SSHashObj* pVgs = NULL;
   SStreamMgmtReq* pMgmtReq = NULL;
   int8_t stopped = 0;
+  bool duplicatedReq = false;
 
   if (NULL == pCtx->pRsp->rsps.rspList) {
     pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
@@ -5039,11 +5342,9 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   }
 
   if (rsp.reqId == pStatus->lastTrigMgmtReqId) {
-    mstsDebug("duplicated trigger oreader deploy msg, will ignore it, reqId %" PRId64, rsp.reqId);
-    goto _exit;
+    duplicatedReq = true;
+    mstsDebug("duplicated trigger oreader deploy msg, replay reader info, reqId %" PRId64, rsp.reqId);
   }
-
-  atomic_store_64(&pStatus->lastTrigMgmtReqId, rsp.reqId); 
 
   stopped = atomic_load_8(&pStatus->stopped);
   if (stopped) {
@@ -5071,15 +5372,23 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   }
 
   int32_t vgNum = tSimpleHashGetSize(pVgs);
-  while (true) {
-    p = tSimpleHashIterate(pVgs, p, &iter);
-    if (NULL == p) {
-      break;
+  if (!duplicatedReq) {
+    while (true) {
+      p = tSimpleHashIterate(pVgs, p, &iter);
+      if (NULL == p) {
+        break;
+      }
+
+      code = msmCheckDeployTrigReader(pCtx, pStatus, pTask, *(int32_t*)p, vgNum);
+      if (code) {
+        // Partially registered readers must be cleaned up before another deployment attempt.
+        msmStopStreamByError(streamId, pStatus, code, pCtx->currTs);
+        TAOS_CHECK_EXIT(code);
+      }
     }
-    
-    TAOS_CHECK_EXIT(msmCheckDeployTrigReader(pCtx, pStatus, pTask, *(int32_t*)p, vgNum));
+    atomic_store_64(&pStatus->lastTrigMgmtReqId, rsp.reqId);
   }
-  
+
   vgNum = msmGetTrigOReaderSize(pStatus->trigOReaders);
   rsp.cont.readerList = taosArrayInit(vgNum, sizeof(SStreamTaskAddr));
   TSDB_CHECK_NULL(rsp.cont.readerList, code, lino, _exit, terrno);
@@ -5087,6 +5396,7 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   SStreamTaskAddr addr;
   for (int32_t i = 0; i < vgNum; ++i) {
     SStmTaskStatus* pOTask = msmGetTrigOReader(pStatus->trigOReaders, i);
+    if (pOTask == NULL || STREAM_IS_REF_EXT_SOURCE(pOTask->flags)) continue;
     addr.taskId = pOTask->id.taskId;
     addr.nodeId = pOTask->id.nodeId;
     addr.epset = mndGetVgroupEpsetById(pCtx->pMnode, pOTask->id.nodeId);
@@ -5095,7 +5405,6 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   }
 
 _exit:
-
   tFreeSStreamMgmtReq(pMgmtReq);
   taosMemoryFree(pMgmtReq);
 
@@ -5311,6 +5620,976 @@ _final:
   return finalCode;
 }
 
+static int32_t msmHandleTriggerExtSourceIdentity(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  int32_t         lookupCode = TSDB_CODE_SUCCESS;
+  int64_t         streamId = pTask->streamId;
+  SStreamMgmtReq *pMgmtReq = NULL;
+  SStreamExtSourceIdentityReq *pIdentityReq = NULL;
+  SStreamMgmtRsp  rsp = {0};
+
+  rsp.reqId = pTask->pMgmtReq->reqId;
+  rsp.header.msgType = STREAM_MSG_EXT_SOURCE_IDENTITY_INFO;
+  if (pCtx->pRsp->rsps.rspList == NULL) {
+    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
+    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
+  }
+
+  TSWAP(pTask->pMgmtReq, pMgmtReq);
+  rsp.task = *(SStreamTask*)pTask;
+  rsp.cont.pExtSourceIdentity = taosMemoryCalloc(1, sizeof(SStreamExtSourceIdentityRsp));
+  TSDB_CHECK_NULL(rsp.cont.pExtSourceIdentity, code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(tCloneSStreamExtSourceIdentityReq(pMgmtReq->cont.pExtSourceIdentity, &pIdentityReq));
+  rsp.cont.pExtSourceIdentity->req = *pIdentityReq;
+  taosMemoryFree(pIdentityReq);
+  pIdentityReq = NULL;
+
+#ifdef TD_ENTERPRISE
+  SExtSourceObj *pSource = mndAcquireExtSource(pCtx->pMnode, pMgmtReq->cont.pExtSourceIdentity->sourceName);
+  if (pSource == NULL) {
+    lookupCode = TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+    mstsWarn("external source identity lookup failed, source:%s, code:%s",
+             pMgmtReq->cont.pExtSourceIdentity->sourceName, tstrerror(lookupCode));
+  } else {
+    rsp.cont.pExtSourceIdentity->sourceType = pSource->type;
+    rsp.cont.pExtSourceIdentity->sourceConfigVersion = pSource->metaVersion;
+    mndReleaseExtSource(pCtx->pMnode, pSource);
+    mstsDebug("external source identity resolved, source:%s, type:%d, version:%" PRId64,
+              rsp.cont.pExtSourceIdentity->req.sourceName, rsp.cont.pExtSourceIdentity->sourceType,
+              rsp.cont.pExtSourceIdentity->sourceConfigVersion);
+  }
+#else
+  lookupCode = TSDB_CODE_OPS_NOT_SUPPORT;
+  mstsWarn("external source identity lookup is unavailable in community build, source:%s",
+           pMgmtReq->cont.pExtSourceIdentity->sourceName);
+#endif
+  rsp.cont.pExtSourceIdentity->code = lookupCode;
+
+_exit:
+  tFreeSStreamExtSourceIdentityReq(pIdentityReq);
+  taosMemoryFree(pIdentityReq);
+  tFreeSStreamMgmtReq(pMgmtReq);
+  taosMemoryFree(pMgmtReq);
+  if (code != TSDB_CODE_SUCCESS) {
+    rsp.code = code;
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  if (pCtx->pRsp->rsps.rspList != NULL) {
+    int32_t pushCode = taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp) == NULL ? terrno : TSDB_CODE_SUCCESS;
+    if (pushCode != TSDB_CODE_SUCCESS) {
+      tFreeSStreamMgmtRsp(&rsp);
+      msmHandleStreamTaskErr(pCtx, STM_ERR_PROCESSING_ERR, pTask);
+      return pushCode;
+    }
+  }
+  return code;
+}
+
+
+#ifdef TD_ENTERPRISE
+int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
+                                     const SStreamExtOrigTblReaderReq *pReq,
+                                     const SExtTableMeta *pMeta,
+                                     SStreamExtTriggerSpec **ppSpec,
+                                     SStreamExtOrigTblReaderRsp *pRsp);
+
+static void msmInitExtOrigTblReaderRsp(const SStreamExtOrigTblReaderReq *pReq, SStreamExtOrigTblReaderRsp *pRsp) {
+  pRsp->registryEntryId = pReq->registryEntryId;
+  pRsp->deploymentGeneration = pReq->deploymentGeneration;
+  pRsp->protocolVersion = pReq->protocolVersion;
+  pRsp->capabilities = pReq->capabilities;
+  pRsp->identity = pReq->identity;
+}
+
+static int32_t msmValidateExtOrigTblReaderCapabilities(int64_t streamId, const SStreamExtOrigTblReaderReq *pReq) {
+  if (pReq == NULL) return TSDB_CODE_INVALID_PARA;
+
+  bool patchRequested = (pReq->capabilities & STREAM_EXT_ORIGTBL_READER_CAP_PATCH) != 0;
+  if (patchRequested) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t required = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  if ((pReq->capabilities & required) != required) {
+    mstsWarn("external original reader capability missing, stream:%" PRId64 ", registry:%" PRId64
+             ", capabilities:%d, required:%d",
+             streamId, pReq->registryEntryId, pReq->capabilities, required);
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static SStmTaskStatus *msmFindExtOrigTblReader(SStmStatus *pStatus, int64_t registryEntryId) {
+  int32_t readerNum = msmGetTrigOReaderSize(pStatus == NULL ? NULL : pStatus->trigOReaders);
+  for (int32_t i = 0; i < readerNum; ++i) {
+    SStmTaskStatus *pReader = msmGetTrigOReader(pStatus->trigOReaders, i);
+    if (pReader != NULL && !pReader->extReaderCleaned && STREAM_IS_REF_EXT_SOURCE(pReader->flags) &&
+        pReader->id.uid == registryEntryId) {
+      return pReader;
+    }
+  }
+  return NULL;
+}
+
+/* Finds the tombstone of an external original reader whose cleanup already executed. Its registry id and
+ * task address are retained so that a retried cleanup request (the heartbeat re-sends every request that
+ * was not acknowledged) can return the same result again instead of failing with "not found". */
+static SStmTaskStatus *msmFindCleanedExtOrigTblReader(SStmStatus *pStatus, int64_t registryEntryId) {
+  int32_t readerNum = msmGetTrigOReaderSize(pStatus == NULL ? NULL : pStatus->trigOReaders);
+  for (int32_t i = 0; i < readerNum; ++i) {
+    SStmTaskStatus *pReader = msmGetTrigOReader(pStatus->trigOReaders, i);
+    if (pReader != NULL && pReader->extReaderCleaned && STREAM_IS_REF_EXT_SOURCE(pReader->flags) &&
+        pReader->id.uid == registryEntryId) {
+      return pReader;
+    }
+  }
+  return NULL;
+}
+
+static void msmFillExtOrigTblReaderAddr(SStmGrpCtx *pCtx, const SStmTaskStatus *pReader,
+                                        SStreamExtOrigTblReaderRsp *pRsp) {
+  pRsp->readerTaskAddr.taskId = pReader->id.taskId;
+  pRsp->readerTaskAddr.nodeId = pReader->id.nodeId;
+  if (pCtx != NULL && pCtx->pMnode != NULL) {
+    pRsp->readerTaskAddr.epset = mndGetDnodeEpsetById(pCtx->pMnode, pReader->id.nodeId);
+  }
+}
+
+static void msmRollbackExtOrigTblReaderDeploy(const SStmTaskStatus *pReader) {
+  if (pReader == NULL || mStreamMgmt.toDeploySnodeMap == NULL) {
+    return;
+  }
+
+  SStmSnodeTasksDeploy *pSnode =
+      taosHashAcquire(mStreamMgmt.toDeploySnodeMap, &pReader->id.nodeId, sizeof(pReader->id.nodeId));
+  if (pSnode == NULL) {
+    return;
+  }
+
+  bool removed = false;
+  taosWLockLatch(&pSnode->lock);
+  int32_t taskNum = pSnode->calcReaderList == NULL ? 0 : taosArrayGetSize(pSnode->calcReaderList);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SStmTaskToDeployExt *pExt = taosArrayGet(pSnode->calcReaderList, i);
+    if (pExt != NULL && pExt->deploy.task.taskId == pReader->id.taskId) {
+      mstDestroySStmTaskToDeployExt(pExt);
+      taosArrayRemove(pSnode->calcReaderList, i);
+      removed = true;
+      break;
+    }
+  }
+  taosWUnLockLatch(&pSnode->lock);
+  taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
+
+  if (removed) {
+    (void)atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
+    mstDebug("rollback external original reader deploy, task:%" PRId64 ", node:%d",
+             pReader->id.taskId, pReader->id.nodeId);
+  }
+}
+
+static void msmFillExtOrigTblReaderTask(int64_t streamId, const SStmTaskStatus *pReader, SStreamTask *pTask) {
+  pTask->type = pReader->type;
+  pTask->streamId = streamId;
+  pTask->taskId = pReader->id.taskId;
+  pTask->seriousId = pReader->id.seriousId;
+  pTask->flags = pReader->flags;
+  pTask->deployId = pReader->id.deployId;
+  pTask->nodeId = pReader->id.nodeId;
+  pTask->taskIdx = pReader->id.taskIdx;
+  pTask->status = pReader->status;
+}
+
+static int32_t msmQueueExtOrigTblReaderUndeploy(SStmGrpCtx *pCtx, int64_t streamId,
+                                                const SStmTaskStatus *pReader) {
+  if (pCtx == NULL || pCtx->pRsp == NULL || pReader == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pCtx->pRsp->undeploy.taskList == NULL) {
+    pCtx->pRsp->undeploy.taskList = taosArrayInit(1, sizeof(SStreamTaskUndeploy));
+    if (pCtx->pRsp->undeploy.taskList == NULL) return terrno;
+  }
+  SStreamTaskUndeploy undeploy = {0};
+  msmFillExtOrigTblReaderTask(streamId, pReader, &undeploy.task);
+  undeploy.undeployMsg.doCheckpoint = false;
+  undeploy.undeployMsg.doCleanup = true;
+  if (taosArrayPush(pCtx->pRsp->undeploy.taskList, &undeploy) == NULL) return terrno;
+  mstsDebug("queue external original reader cleanup, registry:%" PRId64 ", task:%" PRId64 ", node:%d",
+            pReader->id.uid, pReader->id.taskId, pReader->id.nodeId);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t msmQueueExtOrigTblReaderRedeploy(SStmGrpCtx *pCtx, SStmStatus *pStatus,
+                                                SStreamObj *pStream, SStmTaskStatus *pReader,
+                                                SStreamExtTriggerSpec **ppSpec) {
+#ifdef TD_ENTERPRISE
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int64_t streamId = pStream->pCreate->streamId;
+  bool    deployQueued = false;
+  SStmTaskDeploy info = {0};
+
+  msmFillExtOrigTblReaderTask(streamId, pReader, &info.task);
+  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, NULL, pStatus, true));
+  info.msg.reader.pExtSpec = *ppSpec;
+  info.msg.reader.ownsExtSpec = true;
+  TAOS_CHECK_EXIT(msmTDAddCalcReaderToSnodeMap(&info, pStream));
+  deployQueued = true;
+  (void)atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
+  TAOS_CHECK_EXIT(msmQueueExtOrigTblReaderUndeploy(pCtx, streamId, pReader));
+  pReader->status = STREAM_STATUS_UNDEPLOYED;
+  mstsDebug("queue external original reader patch, registry:%" PRId64 ", task:%" PRId64 ", node:%d",
+            pReader->id.uid, pReader->id.taskId, pReader->id.nodeId);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    if (deployQueued) {
+      msmRollbackExtOrigTblReaderDeploy(pReader);
+    }
+    mstsError("%s failed at line %d, registry:%" PRId64 ", error:%s", __FUNCTION__, lino,
+              pReader == NULL ? 0 : pReader->id.uid, tstrerror(code));
+  }
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+static void msmRemoveExtOrigTblReaderFromSnodeMap(int64_t streamId, const SStmTaskStatus *pReader) {
+  if (mStreamMgmt.snodeMap == NULL || pReader == NULL) return;
+  SStmSnodeStatus *pSnode =
+      taosHashGet(mStreamMgmt.snodeMap, &pReader->id.nodeId, sizeof(pReader->id.nodeId));
+  if (pSnode == NULL || pSnode->streamTasks == NULL) return;
+  SStmSnodeStreamStatus *pStream = taosHashGet(pSnode->streamTasks, &streamId, sizeof(streamId));
+  if (pStream == NULL || pReader->id.deployId < 0 || pReader->id.deployId >= MND_STREAM_RUNNER_DEPLOY_NUM) {
+    return;
+  }
+  SArray *pReaders = pStream->runners[pReader->id.deployId];
+  int32_t readerNum = pReaders == NULL ? 0 : taosArrayGetSize(pReaders);
+  for (int32_t i = 0; i < readerNum; ++i) {
+    SStmTaskStatus **ppStatus = taosArrayGet(pReaders, i);
+    if (ppStatus != NULL && *ppStatus == pReader) {
+      taosArrayRemove(pReaders, i);
+      break;
+    }
+  }
+  mstsDebug("remove external original reader from snode map, stream:%" PRId64 ", registry:%" PRId64
+            ", task:%" PRId64 ", node:%d",
+            streamId, pReader->id.uid, pReader->id.taskId, pReader->id.nodeId);
+}
+
+static int32_t msmCleanupExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, SStreamObj *pStream,
+                                          const SStreamExtOrigTblReaderReq *pReq,
+                                          SStreamExtOrigTblReaderRsp *pRsp) {
+  int64_t streamId = pStream->pCreate->streamId;
+  SStmTaskStatus *pReader = msmFindExtOrigTblReader(pStatus, pReq->registryEntryId);
+  if (pReader == NULL) {
+    // The cleanup may be a heartbeat retry of a request that already executed: the reader is no longer
+    // reachable by its registry id, but its tombstone still holds the address the trigger remembers.
+    // Replaying the same successful result lets the trigger acknowledge and stop re-sending it.
+    SStmTaskStatus *pCleaned = msmFindCleanedExtOrigTblReader(pStatus, pReq->registryEntryId);
+    if (pCleaned != NULL) {
+      msmFillExtOrigTblReaderAddr(pCtx, pCleaned, pRsp);
+      pRsp->acceptedTriggerBindingCount = 0;
+      pRsp->acceptedCalcBindingCount = 0;
+      pRsp->results = NULL;
+      pRsp->code = TSDB_CODE_SUCCESS;
+      mstsDebug("replay executed external original reader cleanup, registry:%" PRId64 ", task:%" PRId64
+                ", node:%d",
+                pReq->registryEntryId, pRsp->readerTaskAddr.taskId, pRsp->readerTaskAddr.nodeId);
+      return TSDB_CODE_SUCCESS;
+    }
+    pRsp->code = TSDB_CODE_INVALID_MSG;
+    mstsWarn("external original reader cleanup target not found, registry:%" PRId64,
+             pReq->registryEntryId);
+    return pRsp->code;
+  }
+  msmFillExtOrigTblReaderAddr(pCtx, pReader, pRsp);
+  int32_t code = msmQueueExtOrigTblReaderUndeploy(pCtx, streamId, pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRsp->code = code;
+    return code;
+  }
+  if (mStreamMgmt.taskMap != NULL) {
+    int64_t key[2] = {streamId, pReader->id.taskId};
+    code = taosHashRemove(mStreamMgmt.taskMap, key, sizeof(key));
+    if (code != TSDB_CODE_SUCCESS) {
+      pRsp->code = code;
+      return code;
+    }
+  }
+  msmRemoveExtOrigTblReaderFromSnodeMap(streamId, pReader);
+  // Keep the registry id and the task address as the tombstone for a retried cleanup (see above); the
+  // registry lookups skip this entry, so it cannot be mistaken for a live reader.
+  pReader->extReaderCleaned = 1;
+  pReader->status = STREAM_STATUS_UNDEPLOYED;
+  mstsDebug("cleanup external original reader, registry:%" PRId64 ", task:%" PRId64 ", node:%d",
+            pReq->registryEntryId, pRsp->readerTaskAddr.taskId, pRsp->readerTaskAddr.nodeId);
+  return TSDB_CODE_SUCCESS;
+}
+
+static void msmRollbackExtOrigTblReaderRuntime(int64_t streamId, SArray *pReaderList, int32_t readerListSize,
+                                               SStmTaskStatus *pReader, bool taskMapAdded, bool deployQueued) {
+  if (pReader == NULL) {
+    return;
+  }
+
+  int64_t taskId = pReader->id.taskId;
+  if (taskMapAdded && mStreamMgmt.taskMap != NULL) {
+    int64_t key[2] = {streamId, taskId};
+    int32_t code = taosHashRemove(mStreamMgmt.taskMap, key, sizeof(key));
+    mstsDebug("rollback external original reader task map, code:%d task:%" PRId64, code, taskId);
+  }
+
+  if (deployQueued) {
+    msmRollbackExtOrigTblReaderDeploy(pReader);
+  }
+
+  if (pReaderList != NULL && taosArrayGetSize(pReaderList) > readerListSize) {
+    taosArrayPopTailBatch(pReaderList, taosArrayGetSize(pReaderList) - readerListSize);
+    mstsDebug("rollback external original reader status, task:%" PRId64, taskId);
+  }
+}
+
+int32_t msmDeployExtOrigTblReaderFromMeta(SStmGrpCtx *pCtx, SStmStatus *pStatus, SStreamObj *pStream,
+                                           const SExtSourceObj *pSource,
+                                           const SStreamExtOrigTblReaderReq *pReq,
+                                           const SExtTableMeta *pMeta,
+                                           SStreamExtOrigTblReaderRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int64_t streamId = pStream->pCreate->streamId;
+  SStreamExtTriggerSpec *pSpec = NULL;
+  SArray *pReaderList = NULL;
+  SStmTaskStatus *pNewReader = NULL;
+  int32_t readerListSize = 0;
+  bool deployQueued = false;
+  bool taskMapAdded = false;
+
+  if (pCtx == NULL || pStatus == NULL || pStream == NULL || pSource == NULL || pReq == NULL || pMeta == NULL ||
+      pRsp == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  msmInitExtOrigTblReaderRsp(pReq, pRsp);
+  bool patchRequested = (pReq->capabilities & STREAM_EXT_ORIGTBL_READER_CAP_PATCH) != 0;
+  if (patchRequested && TARRAY_SIZE(pReq->bindings) == 0) {
+    return msmCleanupExtOrigTblReader(pCtx, pStatus, pStream, pReq, pRsp);
+  }
+  if (pReq->sourceConfigVersion != 0 && pReq->sourceConfigVersion != pSource->metaVersion) {
+    pRsp->code = TSDB_CODE_EXT_SOURCE_CHANGED;
+    mstsWarn("external reader source version mismatch, registry:%" PRId64 ", reqVersion:%" PRId64
+             ", sourceVersion:%" PRId64,
+             pReq->registryEntryId, pReq->sourceConfigVersion, pSource->metaVersion);
+    return pRsp->code;
+  }
+
+  SStmTaskStatus *pReader = msmFindExtOrigTblReader(pStatus, pReq->registryEntryId);
+  code = msmValidateExtOrigTblReaderCapabilities(streamId, pReq);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRsp->code = code;
+    goto _exit;
+  }
+  TAOS_CHECK_EXIT(msmBuildExtOrigTblReaderSpec(pSource, pReq, pMeta, &pSpec, pRsp));
+  pSpec->precision = pStream->pCreate->triggerPrec;
+  if (pReader != NULL) {
+    if (patchRequested) {
+      code = msmQueueExtOrigTblReaderRedeploy(pCtx, pStatus, pStream, pReader, &pSpec);
+      TAOS_CHECK_EXIT(code);
+      msmFillExtOrigTblReaderAddr(pCtx, pReader, pRsp);
+      goto _exit;
+    }
+    msmFillExtOrigTblReaderAddr(pCtx, pReader, pRsp);
+    mstsDebug("reuse external original reader, registry:%" PRId64 ", task:%" PRId64 ", node:%d",
+              pReq->registryEntryId, pReader->id.taskId, pReader->id.nodeId);
+    goto _exit;
+  }
+
+  int32_t snodeId = atomic_load_32(&pStream->mainSnodeId);
+  if (snodeId <= 0) {
+    code = TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    goto _exit;
+  }
+
+  TAOS_CHECK_EXIT(msmEnsureGetOReaderList(streamId, pStatus, &pReaderList));
+  readerListSize = taosArrayGetSize(pReaderList);
+  pReader = taosArrayReserve(pReaderList, 1);
+  TSDB_CHECK_NULL(pReader, code, lino, _exit, terrno);
+  pNewReader = pReader;
+  TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pReader, snodeId, pStatus, streamId, pSpec, true, pStream));
+  deployQueued = true;
+  pReader->id.uid = pReq->registryEntryId;
+  pReader->extReaderCleaned = 0;
+  TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pReader));
+  taskMapAdded = true;
+  TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, NULL, pReader, 1, pReader->id.deployId));
+  msmFillExtOrigTblReaderAddr(pCtx, pReader, pRsp);
+  pNewReader = NULL;
+  mstsDebug("deploy external original reader, registry:%" PRId64 ", task:%" PRId64 ", snode:%d",
+            pReq->registryEntryId, pReader->id.taskId, pReader->id.nodeId);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS && pNewReader != NULL) {
+    msmRollbackExtOrigTblReaderRuntime(streamId, pReaderList, readerListSize, pNewReader, taskMapAdded, deployQueued);
+  }
+  if (pSpec != NULL) {
+    tFreeSStreamExtTriggerSpec(pSpec);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    pRsp->code = code;
+    mstsError("%s failed at line %d, registry:%" PRId64 ", error:%s", __FUNCTION__, lino,
+              pReq == NULL ? 0 : pReq->registryEntryId, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t msmFetchExtOrigTblReaderMeta(const SExtSourceObj *pSource, const SStreamExtOrigTblReaderReq *pReq,
+                                            SExtTableMeta **ppMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SExtConnectorHandle *pHandle = NULL;
+  char plainPassword[TSDB_EXT_SOURCE_PASSWORD_LEN] = {0};
+  SExtSourceCfg cfg = {0};
+  SExtTableNode table = {0};
+
+  if (pSource == NULL || pReq == NULL || ppMeta == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppMeta = NULL;
+  if (pReq->identity.tableName[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  tstrncpy(cfg.source_name, pSource->sourceName, sizeof(cfg.source_name));
+  cfg.source_type = (EExtSourceType)pSource->type;
+  tstrncpy(cfg.host, pSource->host, sizeof(cfg.host));
+  cfg.port = pSource->port;
+  tstrncpy(cfg.user, pSource->user, sizeof(cfg.user));
+  decryptExtSourcePassword(pSource->encryptedPassword, plainPassword);
+  tstrncpy(cfg.password, plainPassword, sizeof(cfg.password));
+  tstrncpy(cfg.default_database, pReq->identity.dbName[0] ? pReq->identity.dbName : pSource->defaultDatabase,
+           sizeof(cfg.default_database));
+  tstrncpy(cfg.default_schema, pReq->identity.schemaName[0] ? pReq->identity.schemaName : pSource->defaultSchema,
+           sizeof(cfg.default_schema));
+  tstrncpy(cfg.options, pSource->options, sizeof(cfg.options));
+  cfg.meta_version = pSource->metaVersion;
+
+  if (cfg.default_database[0] == '\0') {
+    code = TSDB_CODE_EXT_DEFAULT_NS_MISSING;
+    goto _exit;
+  }
+
+  table.table.node.type = QUERY_NODE_EXTERNAL_TABLE;
+  tstrncpy(table.sourceName, pReq->identity.sourceName, sizeof(table.sourceName));
+  tstrncpy(table.table.dbName, cfg.default_database, sizeof(table.table.dbName));
+  tstrncpy(table.schemaName, cfg.default_schema, sizeof(table.schemaName));
+  tstrncpy(table.table.tableName, pReq->identity.tableName, sizeof(table.table.tableName));
+
+  code = extConnectorOpen(&cfg, &pHandle);
+  if (code != TSDB_CODE_SUCCESS) {
+    mstWarn("external reader schema connector open failed, source:%s, table:%s, code:%s",
+            pReq->identity.sourceName, pReq->identity.tableName, tstrerror(code));
+    goto _exit;
+  }
+  code = extConnectorGetTableSchema(pHandle, &table, ppMeta);
+  if (code != TSDB_CODE_SUCCESS) {
+    mstWarn("external reader schema fetch failed, source:%s, table:%s, code:%s",
+            pReq->identity.sourceName, pReq->identity.tableName, tstrerror(code));
+  }
+
+_exit:
+  if (pHandle != NULL) {
+    extConnectorClose(pHandle);
+  }
+  memset(plainPassword, 0, sizeof(plainPassword));
+  memset(cfg.password, 0, sizeof(cfg.password));
+  return code;
+}
+
+static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, SStreamObj *pStream,
+                                         const SStreamExtOrigTblReaderReq *pReq,
+                                         SStreamExtOrigTblReaderRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t streamId = pStream->pCreate->streamId;
+  SExtSourceObj *pSource = NULL;
+  SExtTableMeta *pMeta = NULL;
+  int64_t deployTimes = 0;
+  int64_t sourceVersion = 0;
+
+  msmInitExtOrigTblReaderRsp(pReq, pRsp);
+  if (taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId)) != pStatus ||
+      atomic_load_8(&pStatus->stopped)) {
+    pRsp->code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
+    return pRsp->code;
+  }
+  deployTimes = pStatus->deployTimes;
+  if ((pReq->capabilities & STREAM_EXT_ORIGTBL_READER_CAP_PATCH) != 0 && TARRAY_SIZE(pReq->bindings) == 0) {
+    return msmCleanupExtOrigTblReader(pCtx, pStatus, pStream, pReq, pRsp);
+  }
+  pSource = mndAcquireExtSource(pCtx->pMnode, pReq->identity.sourceName);
+  if (pSource == NULL) {
+    pRsp->code = TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+    mstsWarn("external reader source not found, source:%s, registry:%" PRId64,
+             pReq->identity.sourceName, pReq->registryEntryId);
+    return pRsp->code;
+  }
+
+  // Remote schema fetch may block on an external provider. Do not hold the
+  // global stream-management write lock while waiting for that provider.
+  mstsDebug("release stream action lock before external schema fetch, stream:%" PRId64 ", registry:%" PRId64,
+            streamId, pReq->registryEntryId);
+  sourceVersion = pSource->metaVersion;
+  taosWUnLockLatch(&mStreamMgmt.actionQLock);
+  code = msmFetchExtOrigTblReaderMeta(pSource, pReq, &pMeta);
+  (void)mstWaitLock(&mStreamMgmt.actionQLock, false);
+  mstsDebug("reacquire stream action lock after external schema fetch, stream:%" PRId64 ", registry:%" PRId64,
+            streamId, pReq->registryEntryId);
+  if (code == TSDB_CODE_SUCCESS) {
+    SStmStatus *pCurrentStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+    SExtSourceObj *pCurrentSource = mndAcquireExtSource(pCtx->pMnode, pReq->identity.sourceName);
+    if (pCurrentStatus != pStatus || pCurrentStatus->deployTimes != deployTimes ||
+        atomic_load_8(&pCurrentStatus->stopped) || pCurrentSource == NULL ||
+        pCurrentSource->metaVersion != sourceVersion) {
+      code = TSDB_CODE_EXT_SOURCE_CHANGED;
+      mstsWarn("external schema result became stale while action lock was released, stream:%" PRId64
+               ", registry:%" PRId64,
+               streamId, pReq->registryEntryId);
+    }
+    if (pCurrentSource != NULL) mndReleaseExtSource(pCtx->pMnode, pCurrentSource);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = msmDeployExtOrigTblReaderFromMeta(pCtx, pStatus, pStream, pSource, pReq, pMeta, pRsp);
+  } else {
+    pRsp->code = code;
+  }
+
+  extConnectorFreeTableSchema(pMeta);
+  mndReleaseExtSource(pCtx->pMnode, pSource);
+  return code;
+}
+
+/*
+ * Column-name comparison for external column references. Only MySQL folds identifiers
+ * case-insensitively; every other external source is case-sensitive. This mirrors the parser-side
+ * contract externalColumnNamesEqual() (parTranslater.c) so that a reference accepted by DDL
+ * resolves to the same external column when the reader bindings are built: a PostgreSQL table
+ * holding both "Value" and value would otherwise map the lowercase reference onto "Value" and
+ * silently produce a mapping with a different TDengine type.
+ */
+static bool msmExtColumnNameEqual(int8_t sourceType, const char *schemaName, const char *bindingName) {
+  return EXT_SOURCE_MYSQL == sourceType ? strcasecmp(schemaName, bindingName) == 0
+                                        : strcmp(schemaName, bindingName) == 0;
+}
+
+int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
+                                     const SStreamExtOrigTblReaderReq *pReq,
+                                     const SExtTableMeta *pMeta,
+                                     SStreamExtTriggerSpec **ppSpec,
+                                     SStreamExtOrigTblReaderRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SStreamExtTriggerSpec *pSpec = NULL;
+  int32_t bindingNum = pReq == NULL || pReq->bindings == NULL ? 0 : taosArrayGetSize(pReq->bindings);
+
+  if (ppSpec == NULL || pRsp == NULL || pSource == NULL || pReq == NULL || pMeta == NULL ||
+      pMeta->pCols == NULL || pMeta->numOfCols <= 0 || bindingNum <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pSpec = taosMemoryCalloc(1, sizeof(*pSpec));
+  if (pSpec == NULL) return terrno;
+  pSpec->sourceType = pReq->sourceType;
+  tstrncpy(pSpec->sourceName, pSource->sourceName, sizeof(pSpec->sourceName));
+  tstrncpy(pSpec->host, pSource->host, sizeof(pSpec->host));
+  pSpec->port = (uint16_t)pSource->port;
+  tstrncpy(pSpec->user, pSource->user, sizeof(pSpec->user));
+  memcpy(pSpec->encryptedPassword, pSource->encryptedPassword, sizeof(pSpec->encryptedPassword));
+  tstrncpy(pSpec->extDb, pReq->identity.dbName[0] ? pReq->identity.dbName : pSource->defaultDatabase,
+           sizeof(pSpec->extDb));
+  tstrncpy(pSpec->extSchema, pReq->identity.schemaName[0] ? pReq->identity.schemaName : pSource->defaultSchema,
+           sizeof(pSpec->extSchema));
+  tstrncpy(pSpec->extTable, pReq->identity.tableName, sizeof(pSpec->extTable));
+  tstrncpy(pSpec->options, pSource->options, sizeof(pSpec->options));
+  pSpec->connCfgVersion = (uint64_t)pSource->metaVersion;
+  pSpec->tagCondLen = pReq->tagCondLen;
+  if (pReq->tagCondLen > 0) {
+    pSpec->tagCondJson = taosStrdup(pReq->tagCondJson);
+    if (pSpec->tagCondJson == NULL) {
+      code = terrno;
+      goto _error;
+    }
+  }
+  int32_t columnCapacity = TMIN(pMeta->numOfCols, STREAM_EXT_ORIGTBL_READER_MAX_COLUMNS);
+  pSpec->triggerColumns = taosArrayInit(columnCapacity, TSDB_COL_NAME_LEN);
+  pSpec->calcColumns = taosArrayInit(columnCapacity, TSDB_COL_NAME_LEN);
+  pSpec->pColMappings = taosMemoryCalloc(columnCapacity, sizeof(SExtColTypeMapping));
+  pSpec->pCalcMappings = taosMemoryCalloc(columnCapacity, sizeof(SExtColTypeMapping));
+  pRsp->results = taosArrayInit(bindingNum, sizeof(SStreamExtOrigTblReaderResult));
+  if (pSpec->triggerColumns == NULL || pSpec->calcColumns == NULL || pSpec->pColMappings == NULL ||
+      pSpec->pCalcMappings == NULL || pRsp->results == NULL) {
+    code = terrno;
+    goto _error;
+  }
+
+  int32_t tsIndex = -1;
+  int32_t tsCount = 0;
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (pMeta->pCols[i].isPrimaryKey || pMeta->pCols[i].isRemotePrimaryKey) {
+      SDataType mappedType = {0};
+      code = extTypeNameToTDengineType((EExtSourceType)pReq->sourceType, pMeta->pCols[i].extTypeName,
+                                      pMeta->pCols[i].extCharsetName, &mappedType);
+      if (code != TSDB_CODE_SUCCESS) goto _error;
+      if (mappedType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        tsIndex = i;
+        ++tsCount;
+      }
+    }
+  }
+  if (tsIndex >= 0) {
+    mstDebug("external reader timestamp column selected, registry:%" PRId64 ", table:%s, column:%s, remotePrimary:%d",
+             pReq->registryEntryId, pReq->identity.tableName, pMeta->pCols[tsIndex].colName,
+             pMeta->pCols[tsIndex].isRemotePrimaryKey);
+  }
+  if (tsCount != 1 || tsIndex < 0 || pMeta->pCols[tsIndex].colName[0] == '\0') {
+    mstWarn("external reader requires one timestamp primary key, registry:%" PRId64 ", table:%s, count:%d",
+            pReq->registryEntryId, pReq->identity.tableName, tsCount);
+    code = TSDB_CODE_EXT_NO_TS_PRIMARY_KEY;
+    goto _error;
+  }
+  tstrncpy(pSpec->tsColumn, pMeta->pCols[tsIndex].colName, sizeof(pSpec->tsColumn));
+  for (int32_t kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+       kind <= STREAM_EXT_ORIGTBL_READER_BINDING_CALC; ++kind) {
+    SArray *pColumns = kind == STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER ? pSpec->triggerColumns
+                                                                         : pSpec->calcColumns;
+    SExtColTypeMapping *pMapping = kind == STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER ? pSpec->pColMappings
+                                                                                      : pSpec->pCalcMappings;
+    char *pColumn = taosArrayReserve(pColumns, 1);
+    if (pColumn == NULL) {
+      code = terrno;
+      goto _error;
+    }
+    tstrncpy(pColumn, pMeta->pCols[tsIndex].colName, TSDB_COL_NAME_LEN);
+	    code = extTypeNameToTDengineType((EExtSourceType)pReq->sourceType, pMeta->pCols[tsIndex].extTypeName,
+	                                     pMeta->pCols[tsIndex].extCharsetName, &pMapping->tdType);
+	    if (code != TSDB_CODE_SUCCESS) goto _error;
+	    if (pMapping->tdType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+	      mstWarn("external reader primary key is not timestamp, registry:%" PRId64 ", table:%s, column:%s, type:%s",
+	              pReq->registryEntryId, pReq->identity.tableName, pMeta->pCols[tsIndex].colName,
+	              pMeta->pCols[tsIndex].extTypeName);
+	      code = TSDB_CODE_EXT_NO_TS_PRIMARY_KEY;
+	      goto _error;
+	    }
+	    tstrncpy(pMapping->extTypeName, pMeta->pCols[tsIndex].extTypeName, sizeof(pMapping->extTypeName));
+    tstrncpy(pMapping->colName, pMeta->pCols[tsIndex].colName, sizeof(pMapping->colName));
+    pMapping->tsPrecision = pMeta->tsPrecision;
+    if (kind == STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER) {
+      pSpec->numColMappings = 1;
+    } else {
+      pSpec->numCalcMappings = 1;
+    }
+  }
+
+  for (int32_t i = 0; i < bindingNum; ++i) {
+    const SStreamExtOrigTblReaderBinding *pBinding = taosArrayGet(pReq->bindings, i);
+    SStreamExtOrigTblReaderResult result = {.binding = *pBinding, .code = TSDB_CODE_SUCCESS};
+    const SExtColumnDef *pCol = NULL;
+    int32_t              matchedColIdx = -1;
+    for (int32_t j = 0; j < pMeta->numOfCols; ++j) {
+      if (msmExtColumnNameEqual(pReq->sourceType, pMeta->pCols[j].colName, pBinding->externalColumn)) {
+        pCol = pMeta->pCols + j;
+        matchedColIdx = j;
+        break;
+      }
+    }
+    // A virtual column may legitimately reference the external table's timestamp column: the
+    // source timestamp already occupies mapping slot 0 (see the trigger/calc mapping pre-fill
+    // above), so such a binding has to resolve to slot 0 instead of being rejected as an unmapped
+    // primary key. Primary keys other than the timestamp stay unavailable.
+    bool isTsCol = matchedColIdx >= 0 && matchedColIdx == tsIndex;
+    if (pBinding->kind != STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER &&
+        pBinding->kind != STREAM_EXT_ORIGTBL_READER_BINDING_CALC) {
+      result.code = TSDB_CODE_INVALID_MSG;
+    } else if (pCol == NULL || (pCol->isPrimaryKey && !isTsCol) || pBinding->externalColumn[0] == '\0') {
+      result.code = TSDB_CODE_EXT_COLUMN_NOT_EXIST;
+    } else {
+      int32_t *pMapCount = pBinding->kind == STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER ? &pSpec->numColMappings
+                                                                                     : &pSpec->numCalcMappings;
+      SExtColTypeMapping *pMappings = pBinding->kind == STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER
+                                          ? pSpec->pColMappings : pSpec->pCalcMappings;
+      int32_t mapIndex = 0;
+      while (mapIndex < *pMapCount &&
+             !msmExtColumnNameEqual(pReq->sourceType, pMappings[mapIndex].colName, pCol->colName)) {
+        ++mapIndex;
+      }
+      bool newMapping = mapIndex == *pMapCount;
+      if (newMapping && mapIndex >= columnCapacity) {
+        mstWarn("external reader exceeds physical column limit, registry:%" PRId64 ", columns:%d",
+                pReq->registryEntryId, mapIndex + 1);
+        code = TSDB_CODE_INVALID_MSG;
+        goto _error;
+      }
+      SExtColTypeMapping *pMapping = &pMappings[mapIndex];
+      result.code = extTypeNameToTDengineType((EExtSourceType)pReq->sourceType, pCol->extTypeName,
+                                               pCol->extCharsetName, &pMapping->tdType);
+      if (result.code == TSDB_CODE_SUCCESS && pBinding->expectedType != TSDB_DATA_TYPE_NULL &&
+          pBinding->expectedType != pMapping->tdType.type) {
+        result.code = TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+      }
+      if (result.code == TSDB_CODE_SUCCESS) {
+        result.binding.resultColumnSlot = mapIndex;
+        if (newMapping) {
+          SArray *pColumns = pBinding->kind == STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER ? pSpec->triggerColumns
+                                                                                       : pSpec->calcColumns;
+          char *pColumn = taosArrayReserve(pColumns, 1);
+          if (pColumn == NULL) {
+            code = terrno;
+            goto _error;
+          }
+          tstrncpy(pColumn, pCol->colName, TSDB_COL_NAME_LEN);
+          tstrncpy(pMapping->extTypeName, pCol->extTypeName, sizeof(pMapping->extTypeName));
+          tstrncpy(pMapping->colName, pCol->colName, sizeof(pMapping->colName));
+          ++*pMapCount;
+        }
+        result.actualType = pMapping->tdType.type;
+        if (pBinding->kind == STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER) {
+          pRsp->acceptedTriggerBindingCount++;
+        } else {
+          pRsp->acceptedCalcBindingCount++;
+        }
+      }
+    }
+    if (taosArrayPush(pRsp->results, &result) == NULL) {
+      code = terrno;
+      goto _error;
+    }
+    if (result.code != TSDB_CODE_SUCCESS) code = result.code;
+  }
+  pRsp->code = code;
+  if (code != TSDB_CODE_SUCCESS) goto _error;
+  *ppSpec = pSpec;
+  mstDebug("external reader spec built, registry:%" PRId64 ", bindings:%d, triggerColumns:%d, calcColumns:%d",
+           pReq->registryEntryId, bindingNum, pSpec->numColMappings, pSpec->numCalcMappings);
+  return TSDB_CODE_SUCCESS;
+
+_error:
+  pRsp->code = code;
+  tFreeSStreamExtTriggerSpec(pSpec);
+  return code;
+}
+#endif
+
+static void msmInitExtOrigTblReaderRspFields(const SStreamExtOrigTblReaderReq *pReq,
+                                             SStreamExtOrigTblReaderRsp *pRsp) {
+  pRsp->registryEntryId = pReq->registryEntryId;
+  pRsp->deploymentGeneration = pReq->deploymentGeneration;
+  pRsp->protocolVersion = pReq->protocolVersion;
+  pRsp->capabilities = pReq->capabilities;
+  pRsp->identity = pReq->identity;
+}
+
+static int32_t msmDeployTriggerExtOrigReader(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  int64_t         streamId = pTask->streamId;
+  SStreamMgmtReq *pMgmtReq = NULL;
+  SStreamMgmtRsp  rsp = {0};
+  SStmStatus     *pStatus = NULL;
+  SStreamObj     *pStream = NULL;
+
+  if (mStreamMgmt.streamMap != NULL) {
+    pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  }
+
+#ifdef TD_ENTERPRISE
+  if (pCtx != NULL && pCtx->pMnode != NULL && mndAcquireStreamById(pCtx->pMnode, streamId, &pStream) != TSDB_CODE_SUCCESS) {
+    pStream = NULL;
+  }
+#endif
+
+  SStreamExtOrigTblReaderReq *pReq = pTask->pMgmtReq->cont.pExtOrigTblReader;
+  TSDB_CHECK_NULL(pReq, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+
+  rsp.reqId = pTask->pMgmtReq->reqId;
+  rsp.header.msgType = STREAM_MSG_EXT_ORIGTBL_READER_INFO;
+  if (pCtx->pRsp->rsps.rspList == NULL) {
+    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
+    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
+  }
+
+  TSWAP(pTask->pMgmtReq, pMgmtReq);
+  rsp.task = *(SStreamTask *)pTask;
+  rsp.cont.pExtOrigTblReader =
+      taosMemoryCalloc(1, sizeof(SStreamExtOrigTblReaderRsp));
+  TSDB_CHECK_NULL(rsp.cont.pExtOrigTblReader, code, lino, _exit, terrno);
+  msmInitExtOrigTblReaderRspFields(pReq, rsp.cont.pExtOrigTblReader);
+
+#ifdef TD_ENTERPRISE
+  if (pStatus != NULL && pStream != NULL) {
+    (void)msmDeployExtOrigTblReader(pCtx, pStatus, pStream, pReq, rsp.cont.pExtOrigTblReader);
+  } else {
+    rsp.cont.pExtOrigTblReader->code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
+  }
+#else
+  rsp.cont.pExtOrigTblReader->code = TSDB_CODE_OPS_NOT_SUPPORT;
+  mstsDebug("external reader deployment is unavailable in community build, registry:%" PRId64,
+            pReq->registryEntryId);
+#endif
+
+_exit:
+  tFreeSStreamMgmtReq(pMgmtReq);
+  taosMemoryFree(pMgmtReq);
+  if (code != TSDB_CODE_SUCCESS) {
+    rsp.code = code;
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  if (pCtx->pRsp->rsps.rspList != NULL) {
+    int32_t pushCode = taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp) == NULL ? terrno : TSDB_CODE_SUCCESS;
+    if (pushCode != TSDB_CODE_SUCCESS) {
+      tFreeSStreamMgmtRsp(&rsp);
+      msmHandleStreamTaskErr(pCtx, STM_ERR_PROCESSING_ERR, pTask);
+#ifdef TD_ENTERPRISE
+      mndReleaseStream(pCtx->pMnode, pStream);
+#endif
+      return pushCode;
+    }
+  }
+#ifdef TD_ENTERPRISE
+  if (pCtx != NULL && pCtx->pMnode != NULL) {
+    mndReleaseStream(pCtx->pMnode, pStream);
+  }
+#endif
+  return code;
+}
+
+static int32_t msmDeployTriggerMixedOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int64_t          streamId = pTask->streamId;
+  SStreamMgmtReq*  pMgmtReq = NULL;
+  SStreamMgmtReq*  pMixedReq = NULL;
+  SStreamMgmtRsp   rsp = {0};
+  SArray*          pExtReqs = pTask->pMgmtReq->cont.pExtOrigTblReaders;
+  int32_t          extNum = taosArrayGetSize(pExtReqs);
+  SStmStatus*      pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  SStreamObj*      pStream = NULL;
+
+#ifdef TD_ENTERPRISE
+  if (pCtx != NULL && pCtx->pMnode != NULL &&
+      mndAcquireStreamById(pCtx->pMnode, streamId, &pStream) != TSDB_CODE_SUCCESS) {
+    pStream = NULL;
+  }
+#endif
+
+  if (taosArrayGetSize(pTask->pMgmtReq->cont.pReqs) > 0) {
+    pMixedReq = pTask->pMgmtReq;
+    SStreamMgmtReq* pInternalReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
+    TSDB_CHECK_NULL(pInternalReq, code, lino, _exit, terrno);
+    mstsDebug("deploy mixed original readers, internal:%d external:%d", (int32_t)taosArrayGetSize(pMixedReq->cont.pReqs),
+              extNum);
+    *pInternalReq = *pMixedReq;
+    pInternalReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
+    pInternalReq->cont.pExtOrigTblReaders = NULL;
+    pMixedReq->cont.pReqs = NULL;
+    pTask->pMgmtReq = pInternalReq;
+
+    code = msmDeployTriggerOrigReader(pCtx, pTask);
+    TAOS_CHECK_EXIT(code);
+    SStreamMgmtRsp* pInternalRsp =
+        taosArrayGet(pCtx->pRsp->rsps.rspList, taosArrayGetSize(pCtx->pRsp->rsps.rspList) - 1);
+    TSDB_CHECK_NULL(pInternalRsp, code, lino, _exit, TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    pInternalRsp->header.msgType = STREAM_MSG_MIXED_ORIGTBL_READER_INFO;
+    pInternalRsp->cont.pExtOrigTblReaders = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderRsp), extNum);
+    TSDB_CHECK_NULL(pInternalRsp->cont.pExtOrigTblReaders, code, lino, _exit, terrno);
+    for (int32_t i = 0; i < extNum; ++i) {
+      SStreamExtOrigTblReaderReq* pReq = taosArrayGet(pExtReqs, i);
+      SStreamExtOrigTblReaderRsp* pExtRsp = taosArrayGet(pInternalRsp->cont.pExtOrigTblReaders, i);
+      TSDB_CHECK_NULL(pReq, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+      pExtRsp->registryEntryId = pReq->registryEntryId;
+      pExtRsp->deploymentGeneration = pReq->deploymentGeneration;
+      pExtRsp->protocolVersion = pReq->protocolVersion;
+      pExtRsp->capabilities = pReq->capabilities;
+      pExtRsp->identity = pReq->identity;
+#ifdef TD_ENTERPRISE
+      if (pStatus != NULL && pStream != NULL) {
+        (void)msmDeployExtOrigTblReader(pCtx, pStatus, pStream, pReq, pExtRsp);
+      } else {
+        pExtRsp->code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
+      }
+#else
+      pExtRsp->code = TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+    }
+    mstsDebug("completed mixed original reader response, internal:%d external:%d",
+              (int32_t)taosArrayGetSize(pInternalRsp->cont.vgIds),
+              extNum);
+    tFreeSStreamMgmtReq(pMixedReq);
+    taosMemoryFree(pMixedReq);
+    pMixedReq = NULL;
+#ifdef TD_ENTERPRISE
+    if (pCtx != NULL && pCtx->pMnode != NULL) {
+      mndReleaseStream(pCtx->pMnode, pStream);
+    }
+#endif
+    return TSDB_CODE_SUCCESS;
+  }
+
+  rsp.reqId = pTask->pMgmtReq->reqId;
+  rsp.header.msgType = STREAM_MSG_MIXED_ORIGTBL_READER_INFO;
+  if (pCtx->pRsp->rsps.rspList == NULL) {
+    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
+    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
+  }
+
+  TSWAP(pTask->pMgmtReq, pMgmtReq);
+  rsp.task = *(SStreamTask*)pTask;
+  rsp.cont.pExtOrigTblReaders = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderRsp), extNum);
+  TSDB_CHECK_NULL(rsp.cont.pExtOrigTblReaders, code, lino, _exit, terrno);
+
+  for (int32_t i = 0; i < extNum; ++i) {
+    SStreamExtOrigTblReaderReq* pReq = taosArrayGet(pExtReqs, i);
+    SStreamExtOrigTblReaderRsp* pExtRsp = taosArrayGet(rsp.cont.pExtOrigTblReaders, i);
+    TSDB_CHECK_NULL(pReq, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+    TSDB_CHECK_NULL(pExtRsp, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+
+    pExtRsp->registryEntryId = pReq->registryEntryId;
+    pExtRsp->deploymentGeneration = pReq->deploymentGeneration;
+    pExtRsp->protocolVersion = pReq->protocolVersion;
+    pExtRsp->capabilities = pReq->capabilities;
+    pExtRsp->identity = pReq->identity;
+#ifdef TD_ENTERPRISE
+    if (pStatus != NULL && pStream != NULL) {
+      (void)msmDeployExtOrigTblReader(pCtx, pStatus, pStream, pReq, pExtRsp);
+    } else {
+      pExtRsp->code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
+    }
+#else
+    pExtRsp->code = TSDB_CODE_OPS_NOT_SUPPORT;
+    mstsDebug("mixed external reader deployment is unavailable in community build, registry:%" PRId64,
+              pReq->registryEntryId);
+#endif
+  }
+
+_exit:
+  tFreeSStreamMgmtReq(pMixedReq);
+  taosMemoryFree(pMixedReq);
+  tFreeSStreamMgmtReq(pMgmtReq);
+  taosMemoryFree(pMgmtReq);
+  if (code != TSDB_CODE_SUCCESS) {
+    rsp.code = code;
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  if (pCtx->pRsp->rsps.rspList != NULL) {
+    int32_t pushCode = taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp) == NULL ? terrno : TSDB_CODE_SUCCESS;
+    if (pushCode != TSDB_CODE_SUCCESS) {
+      tFreeSStreamMgmtRsp(&rsp);
+      msmHandleStreamTaskErr(pCtx, STM_ERR_PROCESSING_ERR, pTask);
+      code = pushCode;
+      mstsError("failed to append mixed original reader response, error:%s", tstrerror(code));
+    }
+  }
+#ifdef TD_ENTERPRISE
+  if (pCtx != NULL && pCtx->pMnode != NULL) {
+    mndReleaseStream(pCtx->pMnode, pStream);
+  }
+#endif
+  return code;
+}
 
 int32_t msmHandleTaskMgmtReq(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -5322,6 +6601,19 @@ int32_t msmHandleTaskMgmtReq(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
       break;
     case STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER:
       msmDeployRunnerOrigReader(pCtx, pTask);
+      break;
+    case STREAM_MGMT_REQ_TRIGGER_EXT_SOURCE_IDENTITY:
+      code = msmHandleTriggerExtSourceIdentity(pCtx, pTask);
+      break;
+    case STREAM_MGMT_REQ_TRIGGER_EXT_ORIGTBL_READER:
+      code = msmDeployTriggerExtOrigReader(pCtx, pTask);
+      break;
+    case STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER:
+      if (taosArrayGetSize(pTask->pMgmtReq->cont.pExtOrigTblReaders) == 0) {
+        code = msmDeployTriggerOrigReader(pCtx, pTask);
+      } else {
+        code = msmDeployTriggerMixedOrigReader(pCtx, pTask);
+      }
       break;
     default:
       msttError("Invalid mgmtReq type:%d", pTask->pMgmtReq->type);
@@ -5659,7 +6951,20 @@ static bool msmCheckLoopStreamSdb(SMnode *pMnode, void *pObj, void *p1, void *p2
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   SStmCheckStatusCtx* pCtx = (SStmCheckStatusCtx*)p1;
   int8_t userDropped = atomic_load_8(&pStream->userDropped), userStopped = atomic_load_8(&pStream->userStopped);
-  
+
+  // Batch meta txn (stream phase 2): a stream created inside a transaction is written to
+  // SDB immediately as PRE_CREATE, but must not deploy until COMMIT clears the marker.
+  // Deploying early would run a stream the user can still ROLLBACK, and on rollback the
+  // undo path assumes it was never deployed (mndTxn.c, undo CREATE_STREAM does no
+  // snode-side compensation). Skip it explicitly rather than relying on the isolation
+  // window, which is a timing parameter and would let a long-running txn's stream through.
+  if (pStream->txnId != 0 && (pStream->txnStatus == META_TXN_PRE_CREATE ||
+                              pStream->txnStatus == META_TXN_PRE_CREATE_DROP)) {
+    mstsDebug("stream is uncommitted in txn:%" PRId64 " (txnStatus:%d), skip deploy until COMMIT",
+              pStream->txnId, pStream->txnStatus);
+    return true;
+  }
+
   if ((userDropped || userStopped) && (NULL == pStatus)) {
     mstsDebug("stream userDropped %d userStopped %d and not in streamMap, ignore it", userDropped, userStopped);
     return true;
@@ -5713,7 +7018,7 @@ void msmCheckLoopStreamMap(SMnode *pMnode) {
     }
 
     if (!sdbCheckExists(pMnode->pSdb, SDB_STREAM, pStatus->streamName)) {
-      mstsDebug("stream already not exists, deployTimes:%" PRId64, pStatus->deployTimes);
+      mstsDebug("stream no longer exists, deployTimes:%" PRId64, pStatus->deployTimes);
       (void)msmRemoveStreamFromMaps(pMnode, *(int64_t*)taosHashGetKey(pIter, NULL));
       continue;
     }
@@ -6133,7 +7438,7 @@ int32_t msmGetTriggerTaskAddr(SMnode *pMnode, int64_t streamId, SStreamTaskAddr*
   
   SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
-    mstsError("stream not exists in streamMap, streamRemains:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    mstsError("stream does not exist in streamMap, streamRemains:%d", taosHashGetSize(mStreamMgmt.streamMap));
     code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
     goto _exit;
   }

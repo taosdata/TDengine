@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -119,6 +121,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x010A) // internal
 #define TSDB_CODE_DLL_NOT_LOAD                  TAOS_DEF_ERROR_CODE(0, 0x010B) 
 #define TSDB_CODE_DLL_FUNC_NOT_LOAD             TAOS_DEF_ERROR_CODE(0, 0x010C)
+#define TSDB_CODE_OSS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x010D)
 
 #define TSDB_CODE_APP_ERROR                     TAOS_DEF_ERROR_CODE(0, 0x0110) //
 #define TSDB_CODE_ACTION_IN_PROGRESS            TAOS_DEF_ERROR_CODE(0, 0x0111) // internal
@@ -183,6 +186,8 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_MAC_NO_WRITE_DOWN             TAOS_DEF_ERROR_CODE(0, 0x0148)
 #define TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE  TAOS_DEF_ERROR_CODE(0, 0x0149)
 #define TSDB_CODE_MAC_PRECHECK_FAILED           TAOS_DEF_ERROR_CODE(0, 0x014A)
+#define TSDB_CODE_CHARSET_CONVERT_ERROR         TAOS_DEF_ERROR_CODE(0, 0x014B)
+#define TSDB_CODE_CHARSET_CONVERT_CACHE_FULL    TAOS_DEF_ERROR_CODE(0, 0x014C)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)
@@ -235,7 +240,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TSC_FAIL_GENERATE_JSON        TAOS_DEF_ERROR_CODE(0, 0x0235)
 #define TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR    TAOS_DEF_ERROR_CODE(0, 0x0236)
 #define TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS      TAOS_DEF_ERROR_CODE(0, 0x0237)
-#define TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS     TAOS_DEF_ERROR_CODE(0, 0x0237)  // same as TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS
+#define TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS    TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS
 
 #define TSDB_CODE_TSC_INVALID_TOTP_CODE         TAOS_DEF_ERROR_CODE(0, 0x0238)
 #define TSDB_CODE_TSC_SESS_PER_USER_LIMIT        TAOS_DEF_ERROR_CODE(0, 0x0239)
@@ -448,6 +453,8 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_MND_STABLE_UID_NOT_MATCH      TAOS_DEF_ERROR_CODE(0, 0x03C7)
 #define TSDB_CODE_MND_FIELD_CONFLICT_WITH_TSMA  TAOS_DEF_ERROR_CODE(0, 0x03C8)
 #define TSDB_CODE_MND_EXCEED_MAX_COL_ID         TAOS_DEF_ERROR_CODE(0, 0x03C9)
+#define TSDB_CODE_MND_COL_REF_BY_USER_PRIV      TAOS_DEF_ERROR_CODE(0, 0x03CA)
+#define TSDB_CODE_MND_COL_REF_BY_ROLE_PRIV      TAOS_DEF_ERROR_CODE(0, 0x03CB)
 
 // mnode-stable-vst-inherit
 #define TSDB_CODE_MND_VST_HAS_CHILDREN          TAOS_DEF_ERROR_CODE(0, 0x04A2)
@@ -561,6 +568,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_MND_ANODE_TOO_MANY_ALGO       TAOS_DEF_ERROR_CODE(0, 0x0436)
 #define TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME  TAOS_DEF_ERROR_CODE(0, 0x0437)
 #define TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE  TAOS_DEF_ERROR_CODE(0, 0x0438)
+#define TSDB_CODE_MND_ANODE_BLOCKED_URL         TAOS_DEF_ERROR_CODE(0, 0x0439)
 
 // analysis
 #define TSDB_CODE_ANA_URL_RSP_IS_NULL          TAOS_DEF_ERROR_CODE(0, 0x0440)
@@ -801,6 +809,10 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_QRY_SUBQ_EXEC_ERROR           TAOS_DEF_ERROR_CODE(0, 0x0740)
 #define TSDB_CODE_QRY_VSTB_SLOTID_NOT_FOUND     TAOS_DEF_ERROR_CODE(0, 0x0741)
 #define TSDB_CODE_QRY_WINDOW_STATE_NOT_EXIST    TAOS_DEF_ERROR_CODE(0, 0x0742)
+#define TSDB_CODE_QRY_TWO_PASS_RESCAN_STALLED   TAOS_DEF_ERROR_CODE(0, 0x0743)
+#define TSDB_CODE_QRY_INVALID_CORRELATION_NODE  TAOS_DEF_ERROR_CODE(0, 0x0744)
+#define TSDB_CODE_QRY_CORRELATION_CALL_LIMIT    TAOS_DEF_ERROR_CODE(0, 0x0745)
+#define TSDB_CODE_QRY_CORRELATION_BLOCK_LIMIT   TAOS_DEF_ERROR_CODE(0, 0x0746)
 
 // grant
 #define TSDB_CODE_GRANT_EXPIRED                 TAOS_DEF_ERROR_CODE(0, 0x0800)
@@ -923,6 +935,12 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_WAL_CHKSUM_MISMATCH           TAOS_DEF_ERROR_CODE(0, 0x1006)
 #define TSDB_CODE_WAL_LOG_INCOMPLETE            TAOS_DEF_ERROR_CODE(0, 0x1007)
 
+// backup/restore
+#define TSDB_CODE_BACKUP_ALREADY_EXIST          TAOS_DEF_ERROR_CODE(0, 0x1100)
+#define TSDB_CODE_BACKUP_IN_PROGRESS            TAOS_DEF_ERROR_CODE(0, 0x1101)
+#define TSDB_CODE_BACKUP_CANCELLED              TAOS_DEF_ERROR_CODE(0, 0x1102)
+#define TSDB_CODE_RESTORE_CANCELLED             TAOS_DEF_ERROR_CODE(0, 0x1103)
+
 // tfs
 // #define TSDB_CODE_FS_OUT_OF_MEMORY           TAOS_DEF_ERROR_CODE(0, 0x2200) // 2.x
 #define TSDB_CODE_FS_INVLD_CFG                  TAOS_DEF_ERROR_CODE(0, 0x2201)
@@ -966,7 +984,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT    TAOS_DEF_ERROR_CODE(0, 0x2609)
 #define TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260A)
 #define TSDB_CODE_PAR_NOT_SELECT_EXPRESSION     TAOS_DEF_ERROR_CODE(0, 0x260B)
-#define TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260B)  // same as TSDB_CODE_PAR_NOT_SELECT_EXPRESSION
+#define TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION  TSDB_CODE_PAR_NOT_SELECT_EXPRESSION
 #define TSDB_CODE_PAR_NOT_SINGLE_GROUP          TAOS_DEF_ERROR_CODE(0, 0x260C)
 #define TSDB_CODE_PAR_TAGS_NOT_MATCHED          TAOS_DEF_ERROR_CODE(0, 0x260D)
 #define TSDB_CODE_PAR_INVALID_TAG_NAME          TAOS_DEF_ERROR_CODE(0, 0x260E)
@@ -1131,6 +1149,19 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_PAR_WINDOW_RANGE_MULTI_ORDER       TAOS_DEF_ERROR_CODE(0, 0x26BA)
 #define TSDB_CODE_PAR_WINDOW_INVALID_BOUND           TAOS_DEF_ERROR_CODE(0, 0x26BB)
 #define TSDB_CODE_PAR_WINDOW_INVALID_ARGUMENT        TAOS_DEF_ERROR_CODE(0, 0x26BC)
+#define TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR     TAOS_DEF_ERROR_CODE(0, 0x26BD)
+#define TSDB_CODE_PAR_DELETE_WHERE_OR_NOT_SUPPORT    TAOS_DEF_ERROR_CODE(0, 0x26BE)
+#define TSDB_CODE_PAR_DELETE_FILTER_PK_NOT_SUPPORT   TAOS_DEF_ERROR_CODE(0, 0x26BF)
+#define TSDB_CODE_PAR_DELETE_FILTER_TOO_MANY_RANGES  TAOS_DEF_ERROR_CODE(0, 0x26C0)
+#define TSDB_CODE_PAR_CORRELATION_TABLE_REF_NOT_FOUND TAOS_DEF_ERROR_CODE(0, 0x26C1)
+#define TSDB_CODE_PAR_CORRELATION_BINDING_SCOPE_NOT_VISIBLE TAOS_DEF_ERROR_CODE(0, 0x26C2)
+#define TSDB_CODE_PAR_CORRELATION_SCOPE_NOT_FOUND TAOS_DEF_ERROR_CODE(0, 0x26C3)
+#define TSDB_CODE_PAR_CORRELATION_BINDING_NOT_FOUND TAOS_DEF_ERROR_CODE(0, 0x26C4)
+#define TSDB_CODE_PAR_CORRELATION_EXPR_SCOPE_MISMATCH TAOS_DEF_ERROR_CODE(0, 0x26C5)
+#define TSDB_CODE_PAR_CORRELATION_FREE_BINDINGS_MISSING TAOS_DEF_ERROR_CODE(0, 0x26C6)
+#define TSDB_CODE_PAR_CORRELATION_AGG_BINDING_SOURCE_INVALID TAOS_DEF_ERROR_CODE(0, 0x26C7)
+#define TSDB_CODE_PAR_CORRELATION_AGG_OWNER_NOT_SELECT TAOS_DEF_ERROR_CODE(0, 0x26C8)
+#define TSDB_CODE_PAR_CORRELATION_AGG_OWNER_CLAUSE_NOT_FOUND TAOS_DEF_ERROR_CODE(0, 0x26C9)
 //
 #define TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT       TAOS_DEF_ERROR_CODE(0, 0x26E0)
 #define TSDB_CODE_PAR_COL_PERMISSION_DENIED           TAOS_DEF_ERROR_CODE(0, 0x26E1)
@@ -1140,6 +1171,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_PAR_TB_INSERT_PERMISSION_DENIED     TAOS_DEF_ERROR_CODE(0, 0x26E5)
 #define TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED     TAOS_DEF_ERROR_CODE(0, 0x26E6)
 #define TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED TAOS_DEF_ERROR_CODE(0, 0x26E7)
+#define TSDB_CODE_PAR_NOT_SUPPORT_VTABLE_TWO_PASS     TAOS_DEF_ERROR_CODE(0, 0x26E8)
 #define TSDB_CODE_PAR_INTERNAL_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x26FF)
 
 //planner
@@ -1151,6 +1183,9 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_PLAN_INVALID_TABLE_TYPE       TAOS_DEF_ERROR_CODE(0, 0x2705)
 #define TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE    TAOS_DEF_ERROR_CODE(0, 0x2706)
 #define TSDB_CODE_PLAN_INVALID_WINDOW_TYPE      TAOS_DEF_ERROR_CODE(0, 0x2707)
+#define TSDB_CODE_PLAN_TSPK_NOT_FOUND           TAOS_DEF_ERROR_CODE(0, 0x2708)
+#define TSDB_CODE_PLAN_DEP_TABLE_SCAN_NOT_FOUND TAOS_DEF_ERROR_CODE(0, 0x2709)
+#define TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN   TAOS_DEF_ERROR_CODE(0, 0x270A)
 
 //function
 #define TSDB_CODE_FUNC_FUNTION_ERROR            TAOS_DEF_ERROR_CODE(0, 0x2800)
@@ -1267,29 +1302,44 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TXN_ROLLEDBACK                 TAOS_DEF_ERROR_CODE(0, 0x3316)  // txn already rolled back (MNode retained record)
 
 // Transaction conflict error codes - for DDL-level conflict detection.
-// Conflict matrix:
+// The PREPARED_* block below describes how each in-txn shadow state behaves towards
+// other connections. These are behavioural semantics (which other code paths enforce),
+// not claims that every row maps to one of the listed codes:
 //   PREPARED_CREATE: table is being created (shadow state, invisible)
 //     - SELECT/INSERT/DELETE: Table does not exist (invisible)
 //     - CREATE: Resource busy / Conflict (physical slot conflict)
 //     - ALTER/DROP: Table does not exist (invisible)
 //   PREPARED_DROP: table is being deleted (logically deleted state)
-//     - SELECT/INSERT: executes normally (snapshot isolation, reads old data)
+//     - SELECT/INSERT: executes normally (snapshot isolation; the drop is invisible
+//       outside the owning txn, so the table still looks normal to other connections)
 //     - DELETE: Resource busy / Conflict (protect metadata)
-//     - CREATE: Table already exists (name conflict)
+//     - CREATE: Table already exists (name conflict); if the same txn already dropped
+//       this object, TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED (0x3320) instead
 //     - ALTER/DROP: Resource busy / Conflict
 //   PREPARED_ALTER: table is being modified (tag-change state)
 //     - SELECT/INSERT/DELETE: executes normally (transparent)
 //     - CREATE: Table already exists (name conflict)
 //     - ALTER/DROP: Resource busy / Conflict
+//
+// Note: TSDB_CODE_TXN_PREPARED_DROP is kept only for source compatibility - no code
+// path ever returns it, and none should be added. An in-txn DROP is invisible outside
+// the owning txn (snapshot isolation), so external connections never observe a "being
+// dropped" error for it - they see a normal table and their operations either proceed
+// (SELECT/INSERT) or collide via the codes above (0x3317 RESOURCE_BUSY, name-conflict,
+// or 0x331B DELETE_ON_DROPPING on the metadata-protect DELETE path). The 0x331A slot is
+// never returned and must not be reused.
 #define TSDB_CODE_TXN_RESOURCE_BUSY              TAOS_DEF_ERROR_CODE(0, 0x3317)  // Resource busy, table is being modified by another transaction
 #define TSDB_CODE_TXN_PREPARED_CREATE            TAOS_DEF_ERROR_CODE(0, 0x3318)  // Table is being created in a transaction (shadow state, invisible)
 #define TSDB_CODE_TXN_PREPARED_ALTER             TAOS_DEF_ERROR_CODE(0, 0x3319)  // Table is being altered in a transaction (old schema visible)
-#define TSDB_CODE_TXN_PREPARED_DROP              TAOS_DEF_ERROR_CODE(0, 0x331A)  // Table is being dropped in a transaction (old data visible)
+// Deprecated: kept for source compatibility with released versions (3.4.2.x). Never
+// returned by any code path; do not use. The 0x331A value is reserved and not reused.
+#define TSDB_CODE_TXN_PREPARED_DROP              TAOS_DEF_ERROR_CODE(0, 0x331A)  // Deprecated: never returned; 0x331A reserved (see comment above)
 #define TSDB_CODE_TXN_DELETE_ON_DROPPING         TAOS_DEF_ERROR_CODE(0, 0x331B)  // Cannot DELETE on a table being dropped (protect metadata)
 #define TSDB_CODE_TXN_INVALID_OPERATION          TAOS_DEF_ERROR_CODE(0, 0x331C)  // Only table DDL allowed in transaction
 #define TSDB_CODE_TXN_TOO_MANY_DDL_OPS           TAOS_DEF_ERROR_CODE(0, 0x331D)  // Transaction DDL operation count exceeds per-transaction limit
 #define TSDB_CODE_TXN_EXCEEDED_LIFETIME          TAOS_DEF_ERROR_CODE(0, 0x331E)  // Transaction exceeded maximum lifetime
 #define TSDB_CODE_TXN_TIMEOUT_KILLED             TAOS_DEF_ERROR_CODE(0, 0x331F)  // Transaction was forcibly rolled back by server due to inactivity timeout; execute ROLLBACK to clean up
+#define TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED     TAOS_DEF_ERROR_CODE(0, 0x3320)  // Object was dropped in this transaction; creating it again with the same name is not supported until COMMIT/ROLLBACK
 
 //tmq
 #define TSDB_CODE_TMQ_INVALID_MSG                TAOS_DEF_ERROR_CODE(0, 0x4000)
@@ -1389,6 +1439,14 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_VTABLE_INVALID_REF_COLUMN      TAOS_DEF_ERROR_CODE(0, 0x620D)
 #define TSDB_CODE_VTABLE_CIRCULAR_REF            TAOS_DEF_ERROR_CODE(0, 0x620E)
 #define TSDB_CODE_VTABLE_DATA_SRC_EP_MISS         TAOS_DEF_ERROR_CODE(0, 0x620F)
+#define TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST      TAOS_DEF_ERROR_CODE(0, 0x6210)
+#define TSDB_CODE_VTABLE_SRC_COL_NOT_FOUND        TAOS_DEF_ERROR_CODE(0, 0x6211)
+#define TSDB_CODE_VTABLE_REF_UNRESOLVED           TAOS_DEF_ERROR_CODE(0, 0x6212)
+#define TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED TAOS_DEF_ERROR_CODE(0, 0x6213)
+#define TSDB_CODE_VTABLE_EXT_FILTER_SQL_FAILED   TAOS_DEF_ERROR_CODE(0, 0x6214)
+#define TSDB_CODE_VTABLE_INVALID_EXT_FILTER      TAOS_DEF_ERROR_CODE(0, 0x6215)
+#define TSDB_CODE_VTABLE_DUPLICATE_EXT_FILTER_COLUMN TAOS_DEF_ERROR_CODE(0, 0x6216)
+#define TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER TAOS_DEF_ERROR_CODE(0, 0x6217)
 
 // blob 
 #define TSDB_CODE_BLOB_SEQ_NOT_FOUND             TAOS_DEF_ERROR_CODE(0, 0x6300)
@@ -1430,7 +1488,18 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_EXT_SOURCE_NAME_CONFLICT       TAOS_DEF_ERROR_CODE(0, 0x641A)  // Mnode: CREATE DATABASE conflicts with existing external source name
 #define TSDB_CODE_EXT_COLUMN_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x641B)  // Parser: external column not found in remote table
 #define TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED        TAOS_DEF_ERROR_CODE(0, 0x641C)  // Parser: InfluxDB tag columns cannot be referenced as virtual table column sources
-// 0x641D-0x64FF reserved for extension
+#define TSDB_CODE_EXT_IDENTIFIER_TOO_LONG         TAOS_DEF_ERROR_CODE(0, 0x641D)  // Parser/Connector: external object identifier exceeds TDengine limit
+#define TSDB_CODE_EXT_REQUIRED_COLUMNS_TOO_MANY   TAOS_DEF_ERROR_CODE(0, 0x641E)  // Parser: current external query needs too many columns
+#define TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY      TAOS_DEF_ERROR_CODE(0, 0x641F)  // Parser: current external query needs too many tags
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC       TAOS_DEF_ERROR_CODE(0, 0x6425)  // Internal: demote function-level pushdown and retry
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP         TAOS_DEF_ERROR_CODE(0, 0x6426)  // Internal: demote operator-level pushdown and retry
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE     TAOS_DEF_ERROR_CODE(0, 0x6427)  // Internal: demote clause-level pushdown and retry
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE       TAOS_DEF_ERROR_CODE(0, 0x6428)  // Internal: demote type-level pushdown and retry
+#define TSDB_CODE_EXT_SQL_RENDER_ERROR           TAOS_DEF_ERROR_CODE(0, 0x6429)  // Nodes: federated query SQL rendering encountered unexpected internal state
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY    TAOS_DEF_ERROR_CODE(0, 0x642A)  // Internal: apply session overlay demotion and retry
+#define TSDB_CODE_EXT_PUSHDOWN_BASELINE          TAOS_DEF_ERROR_CODE(0, 0x642B)  // Internal: force baseline path
+#define TSDB_CODE_EXT_PUSHDOWN_BAILOUT_BROKEN    TAOS_DEF_ERROR_CODE(0, 0x642C)  // Internal: baseline path still triggered pushdown demotion
+// 0x642D-0x64FF reserved for extension
 
 // NEW-STREAM
 #define TSDB_CODE_MND_STREAM_INTERNAL_ERROR      TAOS_DEF_ERROR_CODE(0, 0x7000)
@@ -1463,6 +1532,8 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST TAOS_DEF_ERROR_CODE(0, 0x701B)
 #define TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST   TAOS_DEF_ERROR_CODE(0, 0x701C)
 #define TSDB_CODE_STREAM_VTB_TAG_CHANGED         TAOS_DEF_ERROR_CODE(0, 0x701D)
+#define TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG TAOS_DEF_ERROR_CODE(0, 0x701E)
+#define TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED    TAOS_DEF_ERROR_CODE(0, 0x701F)
 
 // xnode
 #define TSDB_CODE_MND_XNODE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x8000)
@@ -1498,6 +1569,9 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_MND_XNODE_TASK_PARSER_TOO_LONG     TAOS_DEF_ERROR_CODE(0, 0x8023)
 #define TSDB_CODE_MND_XNODE_NO_PRIV                  TAOS_DEF_ERROR_CODE(0, 0x8024)
 #define TSDB_CODE_MND_XNODE_TASK_NO_PRIV             TAOS_DEF_ERROR_CODE(0, 0x8025)
+#define TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED    TAOS_DEF_ERROR_CODE(0, 0x8026)
+#define TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED   TAOS_DEF_ERROR_CODE(0, 0x8027)
+#define TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER   TAOS_DEF_ERROR_CODE(0, 0x8028)
 
 #ifdef __cplusplus
 }

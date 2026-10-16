@@ -44,7 +44,7 @@ With its “one table per device” design, unique supertable and virtual table 
 
 1. [Data Ingestion](../04-quick-start/04-write-data.md): Write data with standard SQL or in schemaless mode over the InfluxDB Line Protocol, OpenTSDB Telnet Protocol, and OpenTSDB JSON Protocol. TDengine also integrates with collectors such as Telegraf and Prometheus.
 2. [Data Querying](../04-quick-start/05-query-and-aggregate.md): In addition to standard SQL, TDengine includes time-series extensions such as downsampling and windowing, plus functions such as cumulative sum and time-weighted average. It also supports user-defined functions (UDFs) in C or Python.
-3. [Read Caching](../05-tdengine-sql/04-data-query/08-cache-query.md): A time-driven first-in, first-out (FIFO) cache keeps the most recent data in memory, so you can quickly read the real-time status of any metric without Redis or similar tools—simplifying architecture and reducing operational cost.
+3. [Read Caching](../05-tdengine-sql/04-data-query/09-cache-query.md): A time-driven first-in, first-out (FIFO) cache keeps the most recent data in memory, so you can quickly read the real-time status of any metric without Redis or similar tools—simplifying architecture and reducing operational cost.
 4. [Stream Processing](../07-stream-processing/index.md): The built-in stream engine processes data as it is written, supporting continuous queries and event-driven stream processing. This lightweight solution can return results in milliseconds even under high-throughput ingest.
 5. [Data Subscription](../06-data-subscription/index.md): Data subscription is built in, so you do not need a separate message queue. Define topics in SQL—subscribing to a query, a supertable, or a database—and consume them with a Kafka-like API.
 6. [Visualization](../13-ecosystem-integrations/02-visual/index.md) and [BI](../13-ecosystem-integrations/03-bi/index.md): Through its REST API and standard JDBC and ODBC interfaces, TDengine integrates with platforms such as Grafana, Power BI, and Seeq.
@@ -67,7 +67,7 @@ With its high performance, standard SQL support, and built-in components, TDengi
 
 With its open ecosystem, TDengine lets you build the data stack that fits your business. Standard SQL, zero-code connectors for industrial protocols and data solutions, and integration with visualization, analytics, and BI applications make it straightforward to fit TDengine into existing infrastructure.
 
-![TDengine TSDB Ecosystem](../assets/product-intro-01.png)
+![TDengine TSDB Ecosystem](../assets/product-intro-01.webp)
 
 As shown in the figure, TDengine TSDB acts as the central source of truth in an industrial data ecosystem, ingesting data from a variety of sources and sharing that data with business applications and stakeholders.
 

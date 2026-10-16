@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_18_source_specific.py
 
@@ -43,6 +58,8 @@ Since: v3.4.0.0
 
 Labels: common,ci
 """
+from typing import List, Tuple
+
 
 import os
 import shutil
@@ -58,7 +75,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     TSDB_CODE_OPS_NOT_SUPPORT,
     TSDB_CODE_PAR_INVALID_COLUMN,
-    TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+    TSDB_CODE_PAR_INVALID_TAGS_PC,
     parity_serialize_case,
     parity_serialize_cell,
 )
@@ -153,6 +170,37 @@ _PG_VIEW_SQLS = [
 ]
 
 
+# ── SQL Server push_t data (s04 / PARTITION BY TBNAME error group) ───────────
+_SQLSERVER_PUSH_DB = "fq18_push_sdb"
+_SQLSERVER_PUSH_SQLS = [
+    "IF OBJECT_ID('dbo.push_t') IS NOT NULL DROP TABLE dbo.push_t",
+    "CREATE TABLE dbo.push_t "
+    "(val INT, score FLOAT, name NVARCHAR(32), flag BIT, status NVARCHAR(16))",
+    "INSERT INTO dbo.push_t VALUES "
+    "(1,1.5,'alpha',1,'active'),"
+    "(2,2.5,'beta',0,'idle'),"
+    "(3,3.5,'gamma',1,'active'),"
+    "(4,4.5,'delta',0,'idle'),"
+    "(5,5.5,'epsilon',1,'active')",
+]
+
+# ── SQL Server VIEW data (vw-s group) ───────────────────────────────────────
+_SQLSERVER_VIEW_DB = "fq18_view_sdb"
+_SQLSERVER_VIEW_SQLS = [
+    "IF OBJECT_ID('dbo.v_summary') IS NOT NULL DROP VIEW dbo.v_summary",
+    "IF OBJECT_ID('dbo.v_users') IS NOT NULL DROP VIEW dbo.v_users",
+    "IF OBJECT_ID('dbo.orders') IS NOT NULL DROP TABLE dbo.orders",
+    "IF OBJECT_ID('dbo.users') IS NOT NULL DROP TABLE dbo.users",
+    "CREATE TABLE dbo.users (id INT, name NVARCHAR(50))",
+    "CREATE TABLE dbo.orders (id INT, user_id INT, amount INT, status INT)",
+    "INSERT INTO dbo.users VALUES (1, 'Alice'), (2, 'Bob')",
+    "INSERT INTO dbo.orders VALUES (1, 1, 100, 1), (2, 1, 200, 2)",
+    "CREATE VIEW dbo.v_summary AS "
+    "  SELECT status, sum(amount) as total FROM dbo.orders GROUP BY status",
+    "CREATE VIEW dbo.v_users AS SELECT id, name FROM dbo.users WHERE id <= 10",
+]
+
+
 # ---------------------------------------------------------------------------
 # Unified case array  (case_id, sql_template, positive, expected_errno, opts)
 # ---------------------------------------------------------------------------
@@ -165,6 +213,9 @@ _PG_VIEW_SQLS = [
 #   {M_INFO_DB} — MySQL INFORMATION_SCHEMA database name
 #   {M_PUSH}    — MySQL push_t source
 #   {P_PUSH}    — PostgreSQL push_t source
+#   {S_PUSH}    — SQL Server push_t source
+#   {S_VIEW}    — SQL Server view source
+#   {S_VIEW_DB} — SQL Server view database name
 #
 # opts keys:
 #   float_cols  — set of column indices compared as float (default empty)
@@ -180,6 +231,11 @@ _CASES = [
     ("itag-02",
      "SELECT AVG(usage) FROM {I_TAG}.{I_TAG_DB}.cpu PARTITION BY host ORDER BY host",
      True, None, dict(float_cols={0})),
+    # _TAGS should expand to the InfluxDB tag set once the source is modeled as
+    # a super table; ORDER BY usage gives a stable row order.
+    ("itag-03",
+     "SELECT _TAGS, usage FROM {I_TAG}.{I_TAG_DB}.cpu ORDER BY usage",
+     True, None, {}),
 
     # ── InfluxDB: PARTITION BY TBNAME → GROUP BY all tags (i04, from fq_06) ──
     # cpu has 2 distinct host tags (a, b); partition order is hash-based → unordered.
@@ -217,6 +273,9 @@ _CASES = [
     ("m04-02",
      "SELECT tbname FROM {M_PUSH}.push_t",
      False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("m04-03",
+     "SELECT _TAGS FROM {M_PUSH}.push_t",
+     False, TSDB_CODE_PAR_INVALID_TAGS_PC, {}),
 
     # ── PostgreSQL: PARTITION BY / SELECT TBNAME → EXT_SYNTAX_UNSUPPORTED (p04) ─
     ("p04-01",
@@ -225,6 +284,9 @@ _CASES = [
     ("p04-02",
      "SELECT tbname FROM {P_PUSH}.push_t",
      False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("p04-03",
+     "SELECT _TAGS FROM {P_PUSH}.push_t",
+     False, TSDB_CODE_PAR_INVALID_TAGS_PC, {}),
 
     # ── MySQL: VIEW query (vw-m group) ───────────────────────────────────────────
     # v_summary: SELECT status, SUM(amount) FROM orders GROUP BY status
@@ -232,13 +294,13 @@ _CASES = [
     ("vw-m-01",
      "SELECT * FROM {M_VIEW}.{M_VIEW_DB}.v_summary ORDER BY status",
      True, None, {}),
-    # v_users JOIN orders: non-ts JOIN → PAR_NOT_SUPPORT_JOIN
+    # v_users JOIN orders: ordinary-column JOIN is supported for external views
     ("vw-m-02",
      "SELECT v.id, v.name, SUM(o.amount) AS total "
      "FROM {M_VIEW}.{M_VIEW_DB}.v_users v "
      "JOIN {M_VIEW}.{M_VIEW_DB}.orders o ON v.id = o.user_id "
      "GROUP BY v.id, v.name ORDER BY v.id",
-     False, TSDB_CODE_PAR_NOT_SUPPORT_JOIN, {}),
+     True, None, {}),
 
     # ── PostgreSQL: VIEW query (vw-p group) ────────────────────────────────────────
     ("vw-p-01",
@@ -249,7 +311,42 @@ _CASES = [
      "FROM {P_VIEW}.public.v_users v "
      "JOIN {P_VIEW}.public.orders o ON v.id = o.user_id "
      "GROUP BY v.id, v.name ORDER BY v.id",
-     False, TSDB_CODE_PAR_NOT_SUPPORT_JOIN, {}),
+     True, None, {}),
+
+    # ── SQL Server: PARTITION BY / SELECT TBNAME / _TAGS (s04 group) ─────────
+    # SQL Server (zero pushdown) still shares the TDengine-side rejection
+    # rules: PARTITION BY TBNAME and TBNAME/_TAGS pseudo columns are not
+    # defined for external relational sources.
+    ("s04-01",
+     "SELECT COUNT(*) FROM {S_PUSH}.push_t PARTITION BY tbname",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("s04-02",
+     "SELECT tbname FROM {S_PUSH}.push_t",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("s04-03",
+     "SELECT _TAGS FROM {S_PUSH}.push_t",
+     False, TSDB_CODE_PAR_INVALID_TAGS_PC, {}),
+
+    # ── SQL Server: VIEW query (vw-s group) ──────────────────────────────────
+    # v_summary: status=1 -> total=100; status=2 -> total=200
+    ("vw-s-01",
+     "SELECT * FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_summary ORDER BY status",
+     True, None, {}),
+    ("vw-s-02",
+     "SELECT v.id, v.name, SUM(o.amount) AS total "
+     "FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_users v "
+     "JOIN {S_VIEW}.{S_VIEW_DB}.dbo.orders o ON v.id = o.user_id "
+     "GROUP BY v.id, v.name ORDER BY v.id",
+     True, None, {}),
+    # SQL Server collation/case: with zero pushdown the predicate is evaluated
+    # locally by TDengine, so string comparison follows TDengine semantics
+    # (case-sensitive) rather than the remote column's CI collation.
+    ("s-coll-01",
+     "SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'ALPHA' ORDER BY val",
+     True, None, {}),
+    ("s-coll-02",
+     "SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'alpha' ORDER BY val",
+     True, None, {}),
 
     # ── InfluxDB: "ts" column not found (i-neg group) ─────────────────────────
     # InfluxDB primary key is always "time"; querying with "ts" must fail at
@@ -290,6 +387,8 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
     _SRC_P_PUSH = "fq18_s04_p"
     _SRC_M_VIEW = "fq18_view_m"
     _SRC_P_VIEW = "fq18_view_p"
+    _SRC_S_PUSH = "fq18_s04_s"
+    _SRC_S_VIEW = "fq18_view_s"
     _SRC_I18    = "fq18_influx18"
 
     # ── Remote databases / buckets ───────────────────────────────────────────
@@ -326,6 +425,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             self._SRC_I_TAG, self._SRC_I_CPU,
             self._SRC_M_INFO, self._SRC_M_PUSH, self._SRC_P_PUSH,
             self._SRC_M_VIEW, self._SRC_P_VIEW,
+            self._SRC_S_PUSH, self._SRC_S_VIEW,
             self._SRC_I18,
         )
         for fn in [
@@ -336,6 +436,8 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), self._P_PUSH_DB),
             lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), self._M_VIEW_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), self._P_VIEW_DB),
+            lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_PUSH_DB),
+            lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_VIEW_DB),
         ]:
             try:
                 fn()
@@ -401,6 +503,19 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         ExtSrcEnv.pg_exec_cfg(
             self._pg_cfg(), self._P_VIEW_DB, _PG_VIEW_SQLS)
         self._mk_pg_real(self._SRC_P_VIEW, database=self._P_VIEW_DB)
+
+        # ── SQL Server push_t source (s04 group) ─────────────────────────────
+        self._cleanup_src(self._SRC_S_PUSH)
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_PUSH_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_PUSH_DB, _SQLSERVER_PUSH_SQLS)
+        self._mk_sqlserver_real(self._SRC_S_PUSH, database=_SQLSERVER_PUSH_DB, schema="dbo")
+
+        # ── SQL Server VIEW source (vw-s group) ──────────────────────────────
+        self._cleanup_src(self._SRC_S_VIEW)
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_VIEW_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_VIEW_DB, _SQLSERVER_VIEW_SQLS)
+        self._mk_sqlserver_real(self._SRC_S_VIEW, database=_SQLSERVER_VIEW_DB, schema="dbo")
+
         # ── InfluxDB 1.8 source (i18 group, conditional) ─────────────────────
         # Only created when "1.8" is listed in FQ_INFLUX_VERSIONS.
         # Uses protocol='http' so the HTTP connector probes /api/v3/query_sql
@@ -412,10 +527,14 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             cfg18 = influx18_cfgs[0]
             self._cleanup_src(self._SRC_I18)
             tdSql.execute(
-                f"CREATE EXTERNAL SOURCE {self._SRC_I18} "
-                f"TYPE='influxdb' HOST='{cfg18.host}' PORT={cfg18.port} "
-                f"USER='u' PASSWORD='' "
-                f"OPTIONS('api_token'='','protocol'='http')"
+                self._mk_influx_source_sql(
+                    self._SRC_I18,
+                    cfg18.host,
+                    cfg18.port,
+                    "",
+                    database=None,
+                    protocol="http",
+                )
             )
             TestFq18SourceSpecific._i18_available = True
 
@@ -438,6 +557,9 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             M_VIEW=self._SRC_M_VIEW,
             M_VIEW_DB=self._M_VIEW_DB,
             P_VIEW=self._SRC_P_VIEW,
+            S_PUSH=self._SRC_S_PUSH,
+            S_VIEW=self._SRC_S_VIEW,
+            S_VIEW_DB=_SQLSERVER_VIEW_DB,
             I18=self._SRC_I18,
         )
 
@@ -457,8 +579,8 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
 
         Returns a list of ``(case_id, sql_template, detail)`` failure tuples.
         """
-        failed: list[tuple[str, str, str]] = []
-        serialized_blocks: list[str] = []
+        failed: List[Tuple[str, str, str]] = []
+        serialized_blocks: List[str] = []
 
         for case_id, sql_template, opts in cases:
             float_cols = opts.get("float_cols") or set()
@@ -516,7 +638,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         baseline_file = self._BASELINE_FILE
         if baseline_file:
             tmp_file    = baseline_file + ".tmp"
-            tmp_content = "\n".join(serialized_blocks) + "\n"
+            tmp_content = ExtSrcEnv.baseline_environment("\n".join(serialized_blocks) + "\n")
             os.makedirs(os.path.dirname(baseline_file), exist_ok=True)
             with open(tmp_file, "w") as f:
                 f.write(tmp_content)
@@ -569,7 +691,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
 
         Returns a list of ``(case_id, sql_template, detail)`` failure tuples.
         """
-        failed: list[tuple[str, str, str]] = []
+        failed: List[Tuple[str, str, str]] = []
         for case_id, sql_template, expected_errno in cases:
             # i18 cases are conditional on InfluxDB 1.8 availability
             if "{I18}" in sql_template and not self._i18_available:
@@ -612,11 +734,14 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         Cases:
           itag-01   DISTINCT host, region from InfluxDB cpu → 2 rows (h1/us, h2/eu)
           itag-02   AVG(usage) PARTITION BY host from InfluxDB → 40.0 / 15.0
+          itag-03   InfluxDB _TAGS expansion → host/region tags plus usage
           i04-01    COUNT(*) PARTITION BY tbname from InfluxDB cpu → 2 rows of 2
           i04-02    AVG(usage_idle) PARTITION BY tbname → {77.5, 87.5} (unordered)
           minfo-01  MySQL INFORMATION_SCHEMA.TABLES count ≥ 1
           vw-m-01   MySQL VIEW v_summary → 2 rows
+          vw-m-02   MySQL v_users JOIN orders with grouped totals
           vw-p-01   PostgreSQL VIEW v_summary → 2 rows
+          vw-p-02   PostgreSQL v_users JOIN orders with grouped totals
 
         Catalog: - Query:FederatedSourceSpecific
 
@@ -625,6 +750,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         Labels: common,ci
 
         History:
+            - 2026-09-24 Document vw-m-02/vw-p-02 positive view JOIN coverage
             - 2026-06-xx wpan  Migrated from fq_04 test_fq_sql_influxdb_tags_partition,
                                 fq_04 test_fq_sql_infoschema,
                                 and fq_06 test_fq_push_s04_influx_partition_tbname_to_groupby_tags
@@ -650,8 +776,10 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
           i-neg-02 InfluxDB ORDER BY ts (column not found)    → error
           m04-01   MySQL PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
           m04-02   MySQL SELECT TBNAME       → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+          m04-03   MySQL SELECT _TAGS        → TSDB_CODE_PAR_INVALID_TAGS_PC
           p04-01   PG PARTITION BY TBNAME    → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
           p04-02   PG SELECT TBNAME          → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+          p04-03   PG SELECT _TAGS           → TSDB_CODE_PAR_INVALID_TAGS_PC
           i04-03   InfluxDB SELECT TBNAME    → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
           i18-01   InfluxDB 1.8 query        → TSDB_CODE_OPS_NOT_SUPPORT
                    (skipped when "1.8" is not in FQ_INFLUX_VERSIONS)

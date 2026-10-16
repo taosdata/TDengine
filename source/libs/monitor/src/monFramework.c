@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "monitor.h"
 #include "monInt.h"
 
@@ -555,9 +558,9 @@ void monGenDnodeStatusInfoTable(SMonInfo *pMonitor){
     if (taos_counter_destroy(gauge) != 0) {
       uError("failed to delete metric " DNODE_STATUS);
     }
-    // 修复 Use-After-Free：注册失败时 gauge 已被销毁释放，
-    // 必须将指针置空，否则下方循环中 (gauge != NULL) 判断仍成立，
-    // 会通过 taos_gauge_set 访问已释放内存，导致内存损坏或崩溃（DoS）。
+    // Avoid a use-after-free: registration failure destroys the gauge.
+    // Clear the pointer so the later (gauge != NULL) check cannot pass.
+    // Otherwise taos_gauge_set may access freed memory and cause corruption or a crash.
     gauge = NULL;
   }
 

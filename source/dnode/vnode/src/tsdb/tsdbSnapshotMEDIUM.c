@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -292,12 +294,12 @@ static int32_t tsdbSnapMediumDiff(STsdb *tsdb, TFileSetArray *leaderArr,
           code = TARRAY2_APPEND(diffArr, entry);
           TSDB_CHECK_CODE(code, lino, _exit);
         } else {
-          // same size + not missing → SKIP
+          // same size + not missing  ->  SKIP
           tsdbDebug("vgId:%d, medium diff: SKIP fid:%d ftype:%d level:0, reason: same size and not missing",
                     TD_VID(tsdb->pVnode), fid, ftype);
         }
       } else {
-        // Leader has, follower doesn't → TRANSFER as CREATE
+        // Leader has, follower doesn't  ->  TRANSFER as CREATE
         // For non-STT files: cid = follower's same ftype max cid + 1
         // For STT files: cid stays unchanged (handled in STT section below)
         int64_t newCid = leaderInfo.cid;
@@ -375,7 +377,7 @@ static int32_t tsdbSnapMediumDiff(STsdb *tsdb, TFileSetArray *leaderArr,
           code = TARRAY2_APPEND(diffArr, createEntry);
           TSDB_CHECK_CODE(code, lino, _exit);
 
-          // Mark this key as handled — DELETE check will DELETE all follower files with this key
+          // Mark this key as handled  -  DELETE check will DELETE all follower files with this key
           int32_t handled = 1;
           code = taosHashPut(sttModifiedKey, key, keyLen, &handled, sizeof(int32_t));
           if (code != 0) {
@@ -383,7 +385,7 @@ static int32_t tsdbSnapMediumDiff(STsdb *tsdb, TFileSetArray *leaderArr,
             TSDB_CHECK_CODE(code, lino, _exit);
           }
         } else {
-          // Leader has, follower doesn't → TRANSFER as CREATE
+          // Leader has, follower doesn't  ->  TRANSFER as CREATE
           // For STT files: if follower has any STT in same fid, use max(follower stt cid) + 1
           //                otherwise keep leader's cid unchanged
           int64_t newCid = leaderInfo.cid;
@@ -464,7 +466,7 @@ static int32_t tsdbSnapMediumDiff(STsdb *tsdb, TFileSetArray *leaderArr,
         }
 
         if (leaderHas) {
-          // Leader has same key. Check if handled (CREATE already emitted) → DELETE this follower file
+          // Leader has same key. Check if handled (CREATE already emitted)  ->  DELETE this follower file
           if (taosHashGet(sttModifiedKey, sttKey, sttKeyLen) != NULL) {
             // This key was handled: all follower files with this key should be DELETE'd
             leaderHas = false;
@@ -472,13 +474,13 @@ static int32_t tsdbSnapMediumDiff(STsdb *tsdb, TFileSetArray *leaderArr,
                      " disk.level:%d disk.id:%d",
                      TD_VID(tsdb->pVnode), fi->fid, fi->level, fi->cid, fi->diskLevel, fi->diskId);
           }
-          // else: leader has the key but it wasn't in selected fids processing → keep file
+          // else: leader has the key but it wasn't in selected fids processing  ->  keep file
         } else {
           tsdbInfo("vgId:%d, check delete: stt not found on leader, fid:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64,
                    TD_VID(tsdb->pVnode), fi->fid, fi->level, fi->minVer, fi->maxVer);
         }
       } else {
-        // Non-stt key: (fid, ftype) per spec 2.4.1 — just check if slot exists
+        // Non-stt key: (fid, ftype) per spec 2.4.1  -  just check if slot exists
         int32_t ftype = fi->ftype;
         if (ftype >= 0 && ftype < TSDB_FTYPE_MAX && fset->farr[ftype] != NULL) {
           leaderHas = true;

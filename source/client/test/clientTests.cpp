@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,12 +20,16 @@
 #include "gtest/gtest.h"
 #include <iostream>
 #include "clientInt.h"
+#include "clientTmq.h"
 #include "osSemaphore.h"
 #include "tglobal.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "thash.h"
 #include "totp.h"
+#if defined(LINUX) || defined(WINDOWS)
+#include "stub.h"
+#endif
 
 // clang-format on
 
@@ -38,6 +44,24 @@
 namespace {
 
 #define nDup 10
+
+struct TmqCloseTestContext {
+  tmq_t   tmq = {0};
+  int32_t unsubscribeCount = 0;
+  int32_t releaseCount = 0;
+};
+
+void countTmqCloseRelease(void* param) {
+  TmqCloseTestContext* context = static_cast<TmqCloseTestContext*>(param);
+  context->releaseCount++;
+}
+
+int32_t failTmqUnsubscribe(tmq_t* tmq) {
+  TmqCloseTestContext* context = reinterpret_cast<TmqCloseTestContext*>(tmq);
+  context->unsubscribeCount++;
+  return TSDB_CODE_TMQ_INVALID_STATUS;
+}
+
 static int32_t queryDB(TAOS* taos, char* command) {
   int       i;
   TAOS_RES* pSql = NULL;
@@ -401,7 +425,225 @@ TEST(clientCase, driverInit_Test) {
   // taosInitGlobalCfg();
   //  taos_init();
 }
-TEST(clientCase, sessControl) { testSessionCtrl(); }
+
+TEST(clientCase, tmq_close_releases_creator_ref_after_unsubscribe_failure) {
+  SMqMgmt mgmt = {0};
+  ASSERT_EQ(taosThreadMutexInit(&mgmt.lock, NULL), 0);
+  mgmt.rsetId = taosOpenRef(1, countTmqCloseRelease);
+  ASSERT_GT(mgmt.rsetId, 0);
+
+  TmqCloseTestContext context = {};
+  context.tmq.consumerId = 0x1234;
+  atomic_store_8(&context.tmq.status, TMQ_CONSUMER_STATUS__READY);
+  context.tmq.refId = taosAddRef(mgmt.rsetId, &context);
+  ASSERT_GT(context.tmq.refId, 0);
+
+  tmq_t* retained = static_cast<tmq_t*>(
+      taosAcquireRef(mgmt.rsetId, context.tmq.refId));
+  ASSERT_EQ(retained, &context.tmq);
+
+  EXPECT_EQ(
+      tmqConsumerCloseImpl(&context.tmq, &mgmt, failTmqUnsubscribe), 0);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(atomic_load_8(&context.tmq.status), TMQ_CONSUMER_STATUS__CLOSED);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 1);
+  EXPECT_EQ(taosAcquireRef(mgmt.rsetId, context.tmq.refId), nullptr);
+  EXPECT_EQ(context.releaseCount, 0);
+
+  EXPECT_EQ(
+      tmqConsumerCloseImpl(&context.tmq, &mgmt, failTmqUnsubscribe), 0);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(context.releaseCount, 0);
+
+  EXPECT_EQ(taosReleaseRef(mgmt.rsetId, context.tmq.refId), 0);
+  EXPECT_EQ(context.releaseCount, 1);
+  taosCloseRef(mgmt.rsetId);
+  EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
+}
+
+TEST(clientCase, tmq_close_removes_creator_ref_when_already_closed) {
+  SMqMgmt mgmt = {0};
+  ASSERT_EQ(taosThreadMutexInit(&mgmt.lock, NULL), 0);
+  mgmt.rsetId = taosOpenRef(1, countTmqCloseRelease);
+  ASSERT_GT(mgmt.rsetId, 0);
+
+  TmqCloseTestContext context = {};
+  context.tmq.consumerId = 0x5678;
+  atomic_store_8(&context.tmq.status, TMQ_CONSUMER_STATUS__CLOSED);
+  context.tmq.refId = taosAddRef(mgmt.rsetId, &context);
+  ASSERT_GT(context.tmq.refId, 0);
+
+  tmq_t* retained = static_cast<tmq_t*>(
+      taosAcquireRef(mgmt.rsetId, context.tmq.refId));
+  ASSERT_EQ(retained, &context.tmq);
+
+  EXPECT_EQ(
+      tmqConsumerCloseImpl(&context.tmq, &mgmt, failTmqUnsubscribe), 0);
+  EXPECT_EQ(context.unsubscribeCount, 0);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 1);
+  EXPECT_EQ(taosAcquireRef(mgmt.rsetId, context.tmq.refId), nullptr);
+  EXPECT_EQ(context.releaseCount, 0);
+
+  EXPECT_EQ(taosReleaseRef(mgmt.rsetId, context.tmq.refId), 0);
+  EXPECT_EQ(context.releaseCount, 1);
+  taosCloseRef(mgmt.rsetId);
+  EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
+}
+
+TEST(clientCase, tmq_close_retries_creator_ref_removal_after_failure) {
+  SMqMgmt mgmt = {0};
+  ASSERT_EQ(taosThreadMutexInit(&mgmt.lock, NULL), 0);
+  mgmt.rsetId = taosOpenRef(1, countTmqCloseRelease);
+  ASSERT_GT(mgmt.rsetId, 0);
+
+  TmqCloseTestContext context = {};
+  context.tmq.consumerId = 0x9abc;
+  atomic_store_8(&context.tmq.status, TMQ_CONSUMER_STATUS__READY);
+  context.tmq.refId = 1;
+
+  EXPECT_EQ(tmqConsumerCloseImpl(&context.tmq, &mgmt,
+                                 failTmqUnsubscribe),
+            TSDB_CODE_REF_NOT_EXIST);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(atomic_load_8(&context.tmq.status), TMQ_CONSUMER_STATUS__CLOSED);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 0);
+
+  EXPECT_EQ(tmqConsumerCloseImpl(&context.tmq, &mgmt,
+                                 failTmqUnsubscribe),
+            TSDB_CODE_REF_NOT_EXIST);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 0);
+
+  taosCloseRef(mgmt.rsetId);
+  EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
+}
+
+TEST(clientCase, sessControl) {
+#ifdef TD_ENTERPRISE
+  testSessionCtrl();
+#else
+  GTEST_SKIP() << "Session limits and GRANT privileges require TDengine Enterprise edition";
+#endif
+}
+
+TEST(clientMetaRefresh, refreshScopeByError) {
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_SUCCESS), CLIENT_META_REFRESH_NONE);
+
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_PAR_TABLE_NOT_EXIST), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_TDB_TABLE_NOT_EXIST), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_TDB_INVALID_TABLE_ID), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_MND_INVALID_SCHEMA_VER), CLIENT_META_REFRESH_TABLE);
+
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_VND_HASH_MISMATCH), CLIENT_META_REFRESH_FULL);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_VND_INVALID_VGROUP_ID), CLIENT_META_REFRESH_FULL);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_SCH_DATA_SRC_EP_MISS), CLIENT_META_REFRESH_FULL);
+}
+
+#if defined(LINUX) || defined(WINDOWS)
+struct AsyncParseRetryContext {
+  SRequestObj request = {};
+  STscObj connection = {};
+  SSqlCallbackWrapper wrapper = {};
+  SParseContext parse = {};
+  SCatalogReq catalog = {};
+  SQuery query = {};
+  SNode root = {};
+  catalogCallback callback = nullptr;
+  void* callbackParam = nullptr;
+  EClientMetaRefreshScope scope = CLIENT_META_REFRESH_NONE;
+  int32_t parseCode = 0;
+  int32_t prepareCount = 0;
+  int32_t destroyCount = 0;
+  int32_t callbackCount = 0;
+  int32_t callbackCode = 0;
+};
+
+static AsyncParseRetryContext* asyncParseRetry;
+
+static int32_t prepareAsyncParseRetry(SSqlCallbackWrapper** wrapper, SRequestObj* request,
+                                      EClientMetaRefreshScope scope) {
+  auto* context = asyncParseRetry;
+  context->scope = scope;
+  ++context->prepareCount;
+  context->root.type = QUERY_NODE_INSERT_STMT;
+  context->query.pRoot = &context->root;
+  context->query.execStage = QUERY_EXEC_STAGE_PARSE;
+  context->wrapper.pRequest = request;
+  context->wrapper.pParseCtx = &context->parse;
+  context->wrapper.pCatalogReq = &context->catalog;
+  request->pQuery = &context->query;
+  request->pWrapper = &context->wrapper;
+  request->pTscObj = &context->connection;
+  *wrapper = &context->wrapper;
+  return 0;
+}
+
+static int32_t captureAsyncParseMeta(SCatalog*, SRequestConnInfo*, const SCatalogReq*, catalogCallback callback,
+                                     void* param, int64_t*) {
+  asyncParseRetry->callback = callback;
+  asyncParseRetry->callbackParam = param;
+  return 0;
+}
+
+static int32_t failAsyncContinueParse(SParseContext*, SCatalogReq*, SMetaData*, SQuery*) {
+  return asyncParseRetry->parseCode;
+}
+
+static void destroyAsyncParseWrapper(SSqlCallbackWrapper*) { ++asyncParseRetry->destroyCount; }
+static void destroyAsyncParseContext(SRequestObj* request) {
+  EXPECT_EQ(request->pWrapper, nullptr);
+  request->pQuery = nullptr;
+}
+static SRequestObj* acquireAsyncParseRequest(int64_t) { return &asyncParseRetry->request; }
+static int32_t releaseAsyncParseRequest(int64_t) { return 0; }
+static void captureAsyncParseResult(SRequestObj*, int32_t code) {
+  ++asyncParseRetry->callbackCount;
+  asyncParseRetry->callbackCode = code;
+}
+
+TEST(clientMetaRefresh, asyncInsertParseRoutingRetryIsBounded) {
+  Stub stub;
+  stub.set(prepareAndParseSqlSyntax, prepareAsyncParseRetry);
+  stub.set(catalogAsyncGetAllMeta, captureAsyncParseMeta);
+  stub.set(qContinueParseSql, failAsyncContinueParse);
+  stub.set(destorySqlCallbackWrapper, destroyAsyncParseWrapper);
+  stub.set(destroyCtxInRequest, destroyAsyncParseContext);
+  stub.set(acquireRequest, acquireAsyncParseRequest);
+  stub.set(releaseRequest, releaseAsyncParseRequest);
+  stub.set(doRequestCallback, captureAsyncParseResult);
+
+  for (int32_t code : {TSDB_CODE_VND_HASH_MISMATCH, TSDB_CODE_VND_INVALID_VGROUP_ID,
+                       TSDB_CODE_SCH_DATA_SRC_EP_MISS, TSDB_CODE_PAR_INVALID_COLUMN}) {
+    for (int32_t stmtVersion : {0, 1, 2}) {
+      for (bool catalogError : {false, true}) {
+        AsyncParseRetryContext context;
+        asyncParseRetry = &context;
+        context.request.stmtBindVersion = stmtVersion;
+        context.parseCode = code;
+        doAsyncQuery(&context.request, CLIENT_META_REFRESH_TABLE);
+        ASSERT_NE(context.callback, nullptr);
+        bool retry = stmtVersion == 0 && clientGetMetaRefreshScope(code) == CLIENT_META_REFRESH_FULL;
+        int32_t attempts = retry ? REQUEST_TOTAL_EXEC_TIMES + 1 : 1;
+        for (int32_t attempt = 0; attempt < attempts; ++attempt) {
+          ASSERT_EQ(context.callbackCount, 0);
+          context.callback(nullptr, context.callbackParam, catalogError ? code : 0);
+          if (retry && attempt + 1 < attempts) {
+            EXPECT_EQ(context.scope, CLIENT_META_REFRESH_FULL);
+            EXPECT_EQ(context.prepareCount, attempt + 2);
+          }
+        }
+        EXPECT_EQ(context.callbackCount, 1);
+        EXPECT_EQ(context.callbackCode, code);
+        EXPECT_EQ(context.prepareCount, attempts);
+        EXPECT_EQ(context.destroyCount, attempts);
+        EXPECT_EQ(context.request.pWrapper, nullptr);
+      }
+    }
+  }
+  asyncParseRetry = nullptr;
+}
+#endif
 
 TEST(clientCase, connect_Test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
@@ -469,6 +711,15 @@ TEST(clientCase, connect_totp_Test) {
     (void)printf("failed to create totp secret, reason:%s\n", taos_errstr(NULL));
   }
   ASSERT_NE(pRes, nullptr);
+#ifndef TD_ENTERPRISE
+  EXPECT_EQ(taos_errno(pRes), TSDB_CODE_OSS_NOT_SUPPORT);
+  taos_free_result(pRes);
+  pRes = taos_query(pConn, "drop user totp_u");
+  EXPECT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+  taos_close(pConn);
+  return;
+#endif
   ASSERT_EQ(taos_errno(pRes), 0);
 
   char secretStr[64] = {0};
@@ -526,6 +777,12 @@ TEST(clientCase, connect_token_Test) {
     (void)printf("failed to create token, reason:%s\n", taos_errstr(NULL));
   }
   ASSERT_NE(pRes, nullptr);
+#ifndef TD_ENTERPRISE
+  EXPECT_EQ(taos_errno(pRes), TSDB_CODE_OSS_NOT_SUPPORT);
+  taos_free_result(pRes);
+  taos_close(pConn);
+  return;
+#endif
   ASSERT_EQ(taos_errno(pRes), 0);
 
   TAOS_ROW row = taos_fetch_row(pRes);

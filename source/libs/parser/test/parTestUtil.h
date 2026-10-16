@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -83,6 +85,9 @@ class ParserDdlTest : public ParserTestBase {
 
 extern bool g_dump;
 
+// Idempotent; required before any code path that reaches tGetToken(), which
+// otherwise reports every keyword as TK_NK_ILLEGAL.
+extern void    initKeywordsTableOnce();
 extern void    setAsyncFlag(const char* pArg);
 extern bool    getAsyncFlag();
 extern void    setLogLevel(const char* pArg);

@@ -1,10 +1,60 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+import time
 
 
 class TestTime:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+
+    def do_now_returns_unix_time(self):
+        for precision, divisor in (("ms", 1000000), ("us", 1000), ("ns", 1)):
+            db = f"scalar_now_clock_{precision}"
+            tdSql.execute(f"drop database if exists {db}")
+            try:
+                tdSql.execute(
+                    f"create database {db} precision '{precision}'"
+                )
+                tdSql.execute(f"use {db}")
+                tdSql.execute("create table t (ts timestamp, v int)")
+                tdSql.execute(
+                    "insert into t values ('2024-01-01 00:00:00', 1)"
+                )
+                for suffix in ("", " from t"):
+                    before = time.time_ns()
+                    tdSql.query(
+                        "select cast(now as bigint), "
+                        "cast(now() as bigint)" + suffix
+                    )
+                    after = time.time_ns()
+                    tdSql.checkRows(1)
+                    actual = tdSql.getData(0, 0)
+                    tdSql.checkData(0, 1, actual)
+                    # Queries without FROM use the default ms precision.
+                    scale = divisor if suffix else 1000000
+                    # Python and native Windows clocks differ in resolution.
+                    margin = 1000000000
+                    assert (before - margin) // scale <= actual <= (
+                        after + margin
+                    ) // scale, (precision, suffix, before, actual, after)
+            finally:
+                tdSql.execute(f"drop database if exists {db}")
+        print("Current Unix time in now/now() ............. [ passed ]")
 
     def test_time(self):
         """Scalar: Time
@@ -17,6 +67,7 @@ class TestTime:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -24,6 +75,7 @@ class TestTime:
 
         """
 
+        self.do_now_returns_unix_time()
         tdLog.info(f"======== step1")
         tdSql.prepare("db1", drop=True)
         tdSql.execute(f"use db1;")

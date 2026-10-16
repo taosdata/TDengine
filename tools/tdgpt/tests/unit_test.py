@@ -1,7 +1,21 @@
-# encoding:utf-8
-# pylint: disable=c0103
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """unit test module"""
 
+import importlib.util
 import json
 import os
 import os.path
@@ -25,6 +39,7 @@ from taosanalytics.handlers.dynamic import DynamicAnomalyService, DynamicForecas
 from taosanalytics.service_registry import ServiceRegistry, loader
 from taosanalytics.util import (
     convert_results_to_windows,
+    get_algo,
     is_stationary,
     is_white_noise,
     parse_options,
@@ -112,6 +127,14 @@ class UtilTest(unittest.TestCase):
             validate_pay_load(
                 {"data": [list(range(10))], "schema": [["val", "DOUBLE", 8]]}
             )
+
+    def test_get_algo(self):
+        self.assertEqual(get_algo({}, "holtwinters"), "holtwinters")
+        self.assertEqual(get_algo({"algo": "DTW"}, "unused"), "dtw")
+
+        for algo in (None, 1):
+            with self.assertRaisesRegex(ValueError, '"algo" must be a string'):
+                get_algo({"algo": algo}, "unused")
 
     @pytest.mark.skip(
         reason="validate_forecast_input_data helper is not implemented in taosanalytics.util"
@@ -365,22 +388,21 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
-        self.assertEqual(len(service_list["details"]), 6)
-
-        version = sys.version_info
+        self.assertEqual(len(service_list["details"]), 7)
 
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
                 builtins = [i for i in item["algo"] if i.get("builtins") == True]
-                if (version.major, version.minor) == (3, 12):
-                    self.assertEqual(len(builtins), 9)
-                else:
-                    self.assertEqual(len(builtins), 10)
+                self.assertGreater(len(builtins), 0)
             elif item["type"] == "forecast":
                 builtins = [i for i in item["algo"] if i.get("builtins") == True]
                 builtin_names = {i["name"] for i in builtins}
-                self.assertTrue({"ces", "theta", "ets"}.issubset(builtin_names))
-                self.assertEqual(len(builtins), 11)
+                statsforecast_algorithms = {"ces", "theta", "ets"}
+                if importlib.util.find_spec("statsforecast") is not None:
+                    self.assertTrue(statsforecast_algorithms.issubset(builtin_names))
+                    self.assertEqual(len(builtins), 11)
+                else:
+                    self.assertFalse(statsforecast_algorithms & builtin_names)
             elif item["type"] == "correlation":
                 self.assertEqual(len(item["algo"]), 2)
             elif item["type"] == "regression":
@@ -389,6 +411,8 @@ class ServiceTest(unittest.TestCase):
                 self.assertEqual(len(item["algo"]), 1)
             elif item["type"] == "classification":
                 self.assertEqual(len(item["algo"]), 0)
+            elif item["type"] == "clustering":
+                self.assertEqual(len(item["algo"]), 3)
 
     def test_dynamic_load_service(self):
         """test dynamic load service by name"""

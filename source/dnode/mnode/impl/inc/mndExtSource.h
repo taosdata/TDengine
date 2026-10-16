@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -39,7 +41,7 @@ void    mndCancelGetNextExtSource(SMnode *pMnode, void *pIter);
 
 #ifdef TD_ENTERPRISE
 
-// SDB action callbacks — implemented in enterprise mndExtSource.c
+// SDB action callbacks  -  implemented in enterprise mndExtSource.c
 SSdbRaw *mndExtSourceActionEncode(SExtSourceObj *pSource);
 SSdbRow *mndExtSourceActionDecode(SSdbRaw *pRaw);
 int32_t  mndExtSourceActionInsert(SSdb *pSdb, SExtSourceObj *pSource);

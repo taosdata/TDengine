@@ -1,12 +1,18 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "compatAvroSchema.h"
@@ -133,6 +139,16 @@ AvroFieldInfo *avroParseJsonFields(json_t *jsonFields, int *outCount) {
     }
 
     int count = (int)json_array_size(jsonFields);
+    // The record schema comes from the (untrusted) dump file.  Downstream code
+    // sizes bind arrays and builds SQL statements from this count, so fields
+    // beyond the engine column limit are rejected here instead of being
+    // propagated.
+    if (count > TSDB_MAX_COLUMNS) {
+        logError("avro: schema declares %d fields, exceeding the %d column limit",
+                 count, TSDB_MAX_COLUMNS);
+        *outCount = 0;
+        return NULL;
+    }
     AvroFieldInfo *fields = (AvroFieldInfo *)taosMemoryCalloc(count, sizeof(AvroFieldInfo));
     if (!fields) {
         *outCount = 0;
@@ -236,6 +252,16 @@ int avroReadMFile(const char *avroFile, AvroRecordSchema *recordSchema) {
 
     int nCols = colsArr ? (int)json_array_size(colsArr) : 0;
     int nTags = tagsArr ? (int)json_array_size(tagsArr) : 0;
+
+    // The .m metadata file ships with the (untrusted) backup.  Reject a column
+    // count beyond the engine limit rather than building a TableDes the rest of
+    // the restore path does not expect (this mirrors the record-schema bound).
+    if (nCols + nTags > TSDB_MAX_COLUMNS) {
+        logError("avro: %s declares %d columns + %d tags, exceeding the %d limit",
+                 mFile, nCols, nTags, TSDB_MAX_COLUMNS);
+        json_decref(root);
+        return -1;
+    }
 
     if (nCols > 0 || nTags > 0) {
         AvroTableDes *td = avroAllocTableDes(nCols + nTags);

@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import platform
 import subprocess
@@ -18,6 +33,7 @@ _TABLE_COUNT   = 10
 _ROWS_PER_TBL  = 10_000
 _TOTAL_ROWS    = _TABLE_COUNT * _ROWS_PER_TBL   # 100,000
 _ALTER_TRIGGER = 30_000                          # alter replica after consuming 30,000 rows
+_POLL_ERROR_STALL_SEC = 120
 
 
 class TestCase:
@@ -67,6 +83,7 @@ class TestCase:
 
             lastLogged = 0
             noDataCount = 0
+            pollErrorStart = None
             while True:
                 res = consumer.poll(2)
                 if not res:
@@ -78,7 +95,20 @@ class TestCase:
                             break
                         continue
                     else:
-                        tdLog.info(f"poll error: {taos_errstr(None)}")
+                        pollError = taos_errstr(None)
+                        if pollErrorStart is None:
+                            pollErrorStart = time.monotonic()
+                        stalled = time.monotonic() - pollErrorStart
+                        tdLog.info(
+                            f"poll error: {pollError}, code={err}, "
+                            f"consumed={consumedCounter[0]}, stalled={stalled:.1f}s"
+                        )
+                        if stalled >= _POLL_ERROR_STALL_SEC:
+                            errorHolder.append(
+                                f"poll errors without data for {stalled:.1f}s: "
+                                f"code={err}, error={pollError}, consumed={consumedCounter[0]}"
+                            )
+                            break
                         time.sleep(2)
                         continue
 
@@ -91,7 +121,10 @@ class TestCase:
                 val = res.value()
                 if val:
                     for block in val:
-                        consumedCounter[0] += len(block.fetchall())
+                        blockRows = len(block.fetchall())
+                        consumedCounter[0] += blockRows
+                        if blockRows:
+                            pollErrorStart = None
 
                 # print progress every 10,000 rows
                 if consumedCounter[0] // 10000 > lastLogged // 10000:
@@ -201,6 +234,12 @@ class TestCase:
 
         # 8. Validate
         if errorHolder:
+            for sql in ("SHOW DNODES", "SHOW CONSUMERS", "SHOW SUBSCRIPTIONS",
+                        f"SHOW {self.dbName}.VGROUPS"):
+                try:
+                    tdLog.info(f"TMQ failure snapshot: sql={sql}, result={tdSql.getResult(sql)}")
+                except Exception as e:
+                    tdLog.info(f"TMQ failure snapshot unavailable: sql={sql}, error={e}")
             tdLog.exit(f"consumer thread errors: {errorHolder}")
 
         tdSql.query(f"select count(*) from {self.dbName}.{self.stbName}")
@@ -218,6 +257,9 @@ class TestCase:
                 f"inserted rows {totalInserted} != expected {_TOTAL_ROWS}"
             )
 
+        # Replica migration may redeliver a row while the consumer is moving
+        # between replicas. Ensure all written rows were consumed without
+        # treating that transient redelivery as data loss.
         if consumedRows < _TOTAL_ROWS:
             tdLog.exit(
                 f"consumed rows {consumedRows} < expected {_TOTAL_ROWS}"

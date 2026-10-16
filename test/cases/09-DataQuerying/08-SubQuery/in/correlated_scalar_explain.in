@@ -1,0 +1,27 @@
+set max_binary_display_width 300;
+
+use correlated_scalar_positions;
+
+explain select r.v, (select t.lim from thresholds t where t.device = r.device) from readings r order by r.ts;
+explain analyze select r.v, (select t.lim from thresholds t where t.device = r.device) from readings r order by r.ts;
+
+explain select /*+ hash_join() */ r.v, t.lim from readings r inner join thresholds t on t.ts = r.ts and t.device = r.device;
+explain select /*+ hash_join() */ r.v, t.lim from readings r inner join thresholds t on t.ts = r.ts and t.device = r.device and t.lim = (select max(x.lim) from thresholds x where x.device = r.device) order by r.ts;
+explain select r.v, t.lim from readings r left join thresholds t on t.ts = r.ts and t.device = r.device and t.lim = (select max(x.lim) from thresholds x where x.device = r.device);
+explain select r.v, t.lim from readings r right join thresholds t on t.ts = r.ts and t.device = r.device and t.lim = (select max(x.lim) from thresholds x where x.device = r.device);
+explain select r.v, t.lim from readings r full join thresholds t on t.ts = r.ts and t.device = r.device and t.lim = (select max(x.lim) from thresholds x where x.device = r.device);
+
+explain select r.v from readings r where r.v < (select max(t.lim) from thresholds t where t.device = r.device);
+explain select sum((select max(t.lim) from thresholds t where t.device = r.device)) from readings r;
+explain select count(*) from readings r group by (select max(t.lim) from thresholds t where t.device = r.device);
+explain select r.v from readings r partition by (select max(t.lim) from thresholds t where t.device = r.device);
+explain select r.device from readings r group by r.device having (select max(t.lim) from thresholds t where t.device = r.device) > 0;
+explain select sum(r.v), (select count(*) from thresholds t where t.lim < sum(r.v)) from readings r interval(1m) order by _wstart;
+explain select r.v from readings r order by (select max(t.lim) from thresholds t where t.device = r.device);
+
+explain analyze select sum(case when r.v > 0 then 0 else (select t.lim from thresholds t where t.device = r.device) end) from readings r;
+explain select x.v from (select (select t.lim from thresholds t where t.device = r.device) as v from readings r) x;
+explain analyze select x.v + x.v from (select r.ts, (select t.lim from thresholds t where t.device = r.device) as v from readings r) x order by x.ts;
+explain analyze select (select sum(t.lim + (select avg(i.v) from readings i where i.device = t.device and i.ts <= t.ts)) from thresholds t) from readings r order by r.ts;
+explain select r.v, (select max(t.lim + (select avg(i.v) from readings i)) from thresholds t where t.device = r.device) from readings r order by r.ts;
+explain select r.v, (select max(t.lim + (select avg(i.v) from readings i where i.device = t.device and i.ts <= r.ts)) from thresholds t where t.device = r.device) from readings r order by r.ts;

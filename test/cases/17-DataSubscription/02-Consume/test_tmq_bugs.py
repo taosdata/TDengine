@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import taos
 import sys
 import time
@@ -39,11 +54,11 @@ class TestTmqBugs:
         tdSql.query("select * from st")
         tdSql.checkRows(8)
         
-        tdSql.error(f'create topic t1 with meta as database d2', expectErrInfo="Database not exist")
-        tdSql.error(f'create topic t1 as database d2', expectErrInfo="Database not exist")
+        tdSql.error(f'create topic t1 with meta as database d2', expectErrInfo="Database does not exist")
+        tdSql.error(f'create topic t1 as database d2', expectErrInfo="Database does not exist")
         tdSql.error(f'create topic t2 as select * from st2', expectErrInfo="Table does not exist")
-        tdSql.error(f'create topic t3 as stable st2', expectErrInfo="STable not exist")
-        tdSql.error(f'create topic t3 with meta as stable st2', expectErrInfo="STable not exist")
+        tdSql.error(f'create topic t3 as stable st2', expectErrInfo="STable does not exist")
+        tdSql.error(f'create topic t3 with meta as stable st2', expectErrInfo="STable does not exist")
 
         tdSql.execute(f'create topic t1 with meta as database d1')
         
@@ -1048,6 +1063,64 @@ class TestTmqBugs:
 
         print("test tmq_token ................ [passed]")       
 
+    def do_consumer_owner_check(self, *arguments):
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_consumer_owner_check' % buildPath
+        tdLog.info(f"Running consumer owner check: {cmdStr} {arguments}")
+        result = subprocess.run([cmdStr, *arguments], capture_output=True, text=True, timeout=120)
+        tdLog.info(result.stdout.strip())
+        if result.returncode != 0:
+            tdLog.error(result.stderr.strip())
+            tdLog.exit(f"Consumer owner check failed with exit code {result.returncode}")
+        print("consumer owner check ........... [passed]")
+
+    def test_consumer_owner_check(self):
+        """Reject cross-user TMQ endpoint requests.
+
+        1. Issue 7059626859:
+         - Verify that the owning user can request endpoints using their consumer ID.
+         - Verify that a different user cannot request endpoints with the owner's consumer ID.
+         - Verify that a different user cannot resubscribe or unsubscribe the owner.
+
+        Catalog:
+            - DataSubscription
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional,security
+
+        Jira: None
+
+        History:
+            - 2026-09-16 Mingming Wang Added an independent TMQ consumer owner authorization check.
+
+        """
+        self.do_consumer_owner_check()
+
+    def test_consumer_owner_recovery(self):
+        """Recover a token consumer after a legacy owner mismatch.
+
+        1. Model a persisted root owner and commit a consumed row.
+        2. Reject the token user's request for that consumer without changing its owner.
+        3. Close the rejected handle and retire the modeled legacy consumer.
+        4. Recreate the token consumer with the same group and topic.
+        5. Verify that the committed offset survives and only the next row is consumed.
+
+        Catalog:
+            - DataSubscription
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional,security
+
+        Jira: None
+
+        History:
+            - 2026-09-22 Mingming Wang Added legacy token consumer recovery coverage.
+
+        """
+        self.do_consumer_owner_check("--token-recovery")
+
     #
     # ------------------- main ----------------
     #
@@ -1093,9 +1166,11 @@ class TestTmqBugs:
          - Test tmq consumption with meta topic created on stable with where clause.
         19. Jira TS-4674:
          - Test tmq consumption behavior during vgroup leader rebalance in multi-replica environment.
+
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+        
         Jira: None
 
         History:

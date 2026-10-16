@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -41,7 +56,23 @@ type ClusterInfo struct {
 	Mnodes           []Mnode `json:"mnodes"`
 }
 
-var dnodeEpLen = strconv.Itoa(255)
+// Character widths of the nchar columns that receive request-controlled text,
+// declared once so the DDL and the truncation width cannot drift apart. nchar
+// widths are characters, so values are truncated with util.EscapeTruncRunes and
+// may occupy up to four bytes each (TSDB_NCHAR_SIZE).
+const (
+	DnodeEpChars   = 255 // dnode_ep / mnode_ep
+	ClusterIDChars = 32  // cluster_id
+	DirNameChars   = 200 // data_dir / log_dir / temp_dir name
+	IdentifyChars  = 50  // keeper_monitor.identify
+)
+
+var (
+	dnodeEpLen   = strconv.Itoa(DnodeEpChars)
+	clusterIDLen = strconv.Itoa(ClusterIDChars)
+	dirNameLen   = strconv.Itoa(DirNameChars)
+	identifyLen  = strconv.Itoa(IdentifyChars)
+)
 
 var CreateClusterInfoSql = "create table if not exists cluster_info (" +
 	"ts timestamp, " +
@@ -65,7 +96,7 @@ var CreateClusterInfoSql = "create table if not exists cluster_info (" +
 	"topics_total int, " +
 	"streams_total int, " +
 	"`protocol` int " +
-	") tags (cluster_id nchar(32))"
+	") tags (cluster_id nchar(" + clusterIDLen + "))"
 
 type Dnode struct {
 	DnodeID int    `json:"dnode_id"`
@@ -76,7 +107,7 @@ type Dnode struct {
 var CreateDnodeSql = "create table if not exists d_info (" +
 	"ts timestamp, " +
 	"status binary(10)" +
-	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(" + clusterIDLen + "))"
 
 type Mnode struct {
 	MnodeID int    `json:"mnode_id"`
@@ -87,7 +118,7 @@ type Mnode struct {
 var CreateMnodeSql = "create table if not exists m_info (" +
 	"ts timestamp, " +
 	"`role` binary(10)" +
-	") tags (mnode_id int, mnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (mnode_id int, mnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(" + clusterIDLen + "))"
 
 type DnodeInfo struct {
 	Uptime                float32 `json:"uptime"`
@@ -156,7 +187,7 @@ var CreateDnodeInfoSql = "create table if not exists dnodes_info (" +
 	"has_qnode int, " +
 	"has_snode int, " +
 	"has_bnode int " +
-	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(" + clusterIDLen + "))"
 
 type DiskInfo struct {
 	Datadir []DataDir `json:"datadir"`
@@ -174,12 +205,12 @@ type DataDir struct {
 
 var CreateDataDirSql = "create table if not exists data_dir (" +
 	"ts timestamp, " +
-	"name nchar(200), " +
+	"name nchar(" + dirNameLen + "), " +
 	"`level` int, " +
 	"avail bigint, " +
 	"used bigint, " +
 	"total bigint" +
-	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(" + clusterIDLen + "))"
 
 type LogDir struct {
 	Name  string          `json:"name"`
@@ -190,11 +221,11 @@ type LogDir struct {
 
 var CreateLogDirSql = "create table if not exists log_dir (" +
 	"ts timestamp, " +
-	"name nchar(200), " +
+	"name nchar(" + dirNameLen + "), " +
 	"avail bigint, " +
 	"used bigint, " +
 	"total bigint" +
-	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(" + clusterIDLen + "))"
 
 type TempDir struct {
 	Name  string          `json:"name"`
@@ -205,11 +236,11 @@ type TempDir struct {
 
 var CreateTempDirSql = "create table if not exists temp_dir(" +
 	"ts timestamp, " +
-	"name nchar(200), " +
+	"name nchar(" + dirNameLen + "), " +
 	"avail bigint, " +
 	"used bigint, " +
 	"total bigint " +
-	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(" + clusterIDLen + "))"
 
 type StbInfo struct {
 	StbName      string `json:"stb_name"`
@@ -230,7 +261,7 @@ var CreateVgroupsInfoSql = "create table if not exists vgroups_info (" +
 	"database_name binary(33), " +
 	"tables_num bigint, " + // change to bigint since TS-3003
 	"status binary(512) " +
-	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(" + clusterIDLen + "))"
 
 type Vnode struct {
 	DnodeID   int    `json:"dnode_id"`
@@ -240,7 +271,7 @@ type Vnode struct {
 var CreateVnodeRoleSql = "create table if not exists vnodes_role (" +
 	"ts timestamp, " +
 	"vnode_role binary(10) " +
-	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(" + clusterIDLen + "))"
 
 type LogInfo struct {
 	Summary []Summary `json:"summary"`
@@ -263,7 +294,7 @@ var CreateSummarySql = "create table if not exists log_summary(" +
 	"info int, " +
 	"debug int, " +
 	"trace int " +
-	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
+	") tags (dnode_id int, dnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(" + clusterIDLen + "))"
 
 type GrantInfo struct {
 	ExpireTime      int64 `json:"expire_time"`
@@ -276,11 +307,11 @@ var CreateGrantInfoSql = "create table if not exists grants_info(" +
 	"expire_time bigint, " +
 	"timeseries_used bigint, " +
 	"timeseries_total bigint " +
-	") tags (cluster_id nchar(32))"
+	") tags (cluster_id nchar(" + clusterIDLen + "))"
 
 var CreateKeeperSql = "create table if not exists keeper_monitor (" +
 	"ts timestamp, " +
 	"cpu float, " +
 	"mem float, " +
 	"total_reports int " +
-	") tags (identify nchar(50))"
+	") tags (identify nchar(" + identifyLen + "))"

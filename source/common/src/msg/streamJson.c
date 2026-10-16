@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "streamMsg.h"
 #include "tbase64.h"
 #include "tjson.h"
@@ -391,7 +408,7 @@ static int32_t jsonToCalcScanPlan(const SJson* pJson, void* pObj) {
     pJson, jkSstreamCalcScanReadFromCache, &pPlan->readFromCache));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
     pJson, jkSstreamCalcScanScanPlan, (char**)&pPlan->scanPlan));
-  /* Missing keys leave the fields empty (old streams) — tjsonGetStringValue1
+  /* Missing keys leave the fields empty (old streams)  -  tjsonGetStringValue1
    * returns SUCCESS without touching the buffer, so single-source fallback holds. */
   TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, jkSstreamCalcScanSourceName, pPlan->sourceName,
                                          sizeof(pPlan->sourceName)));
@@ -500,6 +517,8 @@ static const char* jkCreateStreamReqTriggerCols          = "triggerCols";
 static const char* jkCreateStreamReqPartitionCols        = "partitionCols";
 static const char* jkCreateStreamReqRollupTagCols        = "rollupTagCols";
 static const char* jkCreateStreamReqOutCols              = "outCols";
+static const char* jkCreateStreamReqOutStbFullCols       = "outStbFullCols";
+static const char* jkCreateStreamReqOutStbFullColCids    = "outStbFullColCids";
 static const char* jkCreateStreamReqOutTags              = "outTags";
 static const char* jkCreateStreamReqMaxDelay             = "maxDelay";
 static const char* jkCreateStreamReqFillHistoryStartTime = 
@@ -558,6 +577,16 @@ static const char* jkStreamWindowLayerInputConditionSlotIds = "conditionSlotIds"
 static const char* jkCreateStreamReqColCids = "colCids";
 static const char* jkCreateStreamReqTagCids = "tagCids";
 static const char* jkCreateStreamReqNodelayCreateSubtable = "nodelayCreateSubtable";
+static const char* jkCreateStreamReqTimeConfig = "TimeConfig";
+static const char* jkStreamTimeConfigTimezone = "Timezone";
+static const char* jkStreamTimeConfigFirstDayOfWeek = "FirstDayOfWeek";
+
+static int32_t streamTimeConfigToJson(const void* pObj, SJson* pJson) {
+  const SStreamTimeConfig* pTimeConfig = (const SStreamTimeConfig*)pObj;
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkStreamTimeConfigTimezone, pTimeConfig->timezone));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStreamTimeConfigFirstDayOfWeek, pTimeConfig->firstDayOfWeek));
+  return TSDB_CODE_SUCCESS;
+}
 
 /* === Federated query: extSpecs JSON keys (Pt A6) ===
  * Wire format mirrors SStreamExtTriggerSpec (streamMsg.h). This is the sole
@@ -574,6 +603,7 @@ static const char* jkExtSpecExtDb                       = "extDb";
 static const char* jkExtSpecExtSchema                   = "extSchema";
 static const char* jkExtSpecExtTable                    = "extTable";
 static const char* jkExtSpecTsColumn                    = "tsColumn";
+static const char* jkExtSpecPrecision                   = "precision";
 static const char* jkExtSpecTriggerColumns               = "triggerColumns";
 static const char* jkExtSpecHost                        = "host";
 static const char* jkExtSpecPort                        = "port";
@@ -588,7 +618,7 @@ static const char* jkExtSpecPartitionByTbname             = "partitionByTbname";
 static const char* jkExtSpecPartitionTagCols             = "partitionTagCols";
 static const char* jkExtSpecPartitionTagExprs             = "partitionTagExprs";
 
-/* partitionTagCols element codec: SArray<char[TSDB_COL_NAME_LEN]> — the
+/* partitionTagCols element codec: SArray<char[TSDB_COL_NAME_LEN]>  -  the
  * element IS the fixed-size name buffer itself (not a char*), unlike
  * stringToJson/jsonToString above which operate on SArray<char*>. */
 static int32_t extSpecTagColToJson(const void* pObj, SJson* pJson) {
@@ -609,6 +639,7 @@ static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecExtSchema, pSpec->extSchema));
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecExtTable, pSpec->extTable));
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTsColumn, pSpec->tsColumn));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecPrecision, pSpec->precision));
   /* triggerColumns: col names referenced by the trigger. Currently always
    * empty (attached at reader-task deploy time, not by the parser), but
    * round-tripped for completeness since SCMCreateStreamReq.extSpecs is now
@@ -643,7 +674,7 @@ static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTriggerPrefilter, pSpec->triggerPrefilter));
   }
   /* partitionByTag / partitionTagCols: PARTITION BY groupId derivation (see
-   * streamReaderExt.c). Must cross the wire here — unlike calcColumns
+   * streamReaderExt.c). Must cross the wire here  -  unlike calcColumns
    * (deferred to reader-task deploy time, derivable from the already-
    * transmitted scan plan), the PARTITION BY tag subset is a parse-time-only
    * fact the mnode cannot re-derive later. */
@@ -660,7 +691,7 @@ static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj) {
+static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj, int8_t defaultPrecision) {
   /* tjsonToTArray decodes into a calloc'd buffer of size elemSize. We pass
    * sizeof(SStreamExtTriggerSpec*) and decode INTO a stack copy first, then
    * allocate a real heap spec and store its pointer. This matches the
@@ -678,6 +709,12 @@ static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj) {
   if ((code = tjsonGetStringValue(pJson, jkExtSpecExtSchema, pSpec->extSchema)) != 0) goto _err;
   if ((code = tjsonGetStringValue(pJson, jkExtSpecExtTable, pSpec->extTable)) != 0) goto _err;
   if ((code = tjsonGetStringValue(pJson, jkExtSpecTsColumn, pSpec->tsColumn)) != 0) goto _err;
+  pSpec->precision = defaultPrecision;
+  if (tjsonGetObjectItem(pJson, jkExtSpecPrecision) != NULL) {
+    if ((code = tjsonGetTinyIntValue(pJson, jkExtSpecPrecision, &pSpec->precision)) != 0) goto _err;
+  }
+  uDebug("decode stream ext spec: source=%s precision=%d defaultPrecision=%d",
+         pSpec->sourceName, (int)pSpec->precision, (int)defaultPrecision);
   /* triggerColumns: absent means empty (currently always the case). */
   if ((code = tjsonToTArray(pJson, jkExtSpecTriggerColumns, jsonToExtSpecTagCol,
                             &pSpec->triggerColumns, TSDB_COL_NAME_LEN)) != 0) {
@@ -1040,6 +1077,16 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pReq->outCols ? TARRAY_GET_ELEM(pReq->outCols, 0) : NULL,
     pReq->outCols ? pReq->outCols->elemSize : 0,
     pReq->outCols ? pReq->outCols->size : 0));
+  TAOS_CHECK_RETURN(tjsonAddArray(
+    pJson, jkCreateStreamReqOutStbFullCols, sfieldWithOptionsToJson,
+    pReq->outStbFullCols ? TARRAY_GET_ELEM(pReq->outStbFullCols, 0) : NULL,
+    pReq->outStbFullCols ? pReq->outStbFullCols->elemSize : 0,
+    pReq->outStbFullCols ? pReq->outStbFullCols->size : 0));
+  TAOS_CHECK_RETURN(tjsonAddArray(
+    pJson, jkCreateStreamReqOutStbFullColCids, int16ToJson,
+    pReq->outStbFullColCids ? TARRAY_GET_ELEM(pReq->outStbFullColCids, 0) : NULL,
+    pReq->outStbFullColCids ? pReq->outStbFullColCids->elemSize : 0,
+    pReq->outStbFullColCids ? pReq->outStbFullColCids->size : 0));
   // out tags
   TAOS_CHECK_RETURN(tjsonAddArray(
     pJson, jkCreateStreamReqOutTags, stagFieldWithOptionsToJson,
@@ -1181,6 +1228,9 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
       pReq->tagCids ? pReq->tagCids->size : 0));
   TAOS_CHECK_RETURN(
       tjsonAddIntegerToObject(pJson, jkCreateStreamReqNodelayCreateSubtable, pReq->nodelayCreateSubtable));
+  if (pReq->timeConfig.timezone[0] != '\0') {
+    TAOS_CHECK_RETURN(tjsonAddObject(pJson, jkCreateStreamReqTimeConfig, streamTimeConfigToJson, &pReq->timeConfig));
+  }
 
   if (pReq->pWindowPlan != NULL) {
     TAOS_CHECK_RETURN(tjsonAddObject(pJson, jkCreateStreamReqWindowPlan, streamWindowPlanToJson, pReq->pWindowPlan));
@@ -1318,6 +1368,12 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonToTArray(
     pJson, jkCreateStreamReqOutCols, jsonToSFieldWithOptions,
     &pReq->outCols, sizeof(SFieldWithOptions)));
+  TAOS_CHECK_RETURN(tjsonToTArray(
+    pJson, jkCreateStreamReqOutStbFullCols, jsonToSFieldWithOptions,
+    &pReq->outStbFullCols, sizeof(SFieldWithOptions)));
+  TAOS_CHECK_RETURN(tjsonToTArray(
+    pJson, jkCreateStreamReqOutStbFullColCids, jsonToInt16,
+    &pReq->outStbFullColCids, sizeof(int16_t)));
   // out tags
   TAOS_CHECK_RETURN(tjsonToTArray(
     pJson, jkCreateStreamReqOutTags, jsonToSTagFieldWithOptions,
@@ -1433,8 +1489,15 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqColCids, jsonToInt16, &pReq->colCids, sizeof(int16_t)));
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqTagCids, jsonToInt16, &pReq->tagCids, sizeof(int16_t)));
   (void)tjsonGetTinyIntValue(pJson, jkCreateStreamReqNodelayCreateSubtable, &pReq->nodelayCreateSubtable);
+  const SJson* pTimeConfig = tjsonGetObjectItem(pJson, jkCreateStreamReqTimeConfig);
+  if (pTimeConfig != NULL) {
+    TAOS_CHECK_RETURN(tjsonGetStringValue1(pTimeConfig, jkStreamTimeConfigTimezone, pReq->timeConfig.timezone,
+                                           sizeof(pReq->timeConfig.timezone)));
+    TAOS_CHECK_RETURN(
+        tjsonGetTinyIntValue(pTimeConfig, jkStreamTimeConfigFirstDayOfWeek, &pReq->timeConfig.firstDayOfWeek));
+  }
 
-  /* Pt A6: decode extSpecs array (optional — absent on streams without
+  /* Pt A6: decode extSpecs array (optional  -  absent on streams without
    * EXTERNAL sources and on messages from older taosc). */
   SJson* pExtArr = tjsonGetObjectItem(pJson, jkCreateStreamReqExtSpecs);
   if (pExtArr != NULL) {
@@ -1446,7 +1509,7 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
         SJson* pItem = tjsonGetArrayItem(pExtArr, i);
         if (pItem == NULL) continue;
         SStreamExtTriggerSpec* pSpec = NULL;
-        int32_t c = jsonToExtTriggerSpec(pItem, &pSpec);
+        int32_t c = jsonToExtTriggerSpec(pItem, &pSpec, pReq->triggerPrec);
         if (c != TSDB_CODE_SUCCESS) return c;
         if (taosArrayPush(pReq->extSpecs, &pSpec) == NULL) {
           tFreeSStreamExtTriggerSpec(pSpec);

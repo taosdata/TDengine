@@ -1,3 +1,18 @@
+// Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package process
 
 import (
@@ -5,6 +20,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// rejectedEntriesDesc describes the rejection counter. It is a package-level
+// variable so every scrape reuses one consistent descriptor.
+var rejectedEntriesDesc = prometheus.NewDesc("taoskeeper_memory_store_rejected_total",
+	"Metric entries rejected by the memory store because it was full: either the entry count or the byte budget was reached, or a refreshed series no longer fit the byte budget",
+	nil, nil)
 
 // MemoryStoreCollector Prometheus Collector for memory store
 type MemoryStoreCollector struct {
@@ -49,5 +70,13 @@ func (m *MemoryStoreCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- metric
 			}
 		}
+	}
+
+	// Always expose the rejection counter, its zero value included. A counter
+	// that only appears once it is non-zero cannot be alerted on beforehand,
+	// and the series has no history to compute a rate from when it does.
+	metric, err := prometheus.NewConstMetric(rejectedEntriesDesc, prometheus.CounterValue, float64(m.store.RejectedTotal()))
+	if err == nil {
+		ch <- metric
 	}
 }

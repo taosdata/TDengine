@@ -1,15 +1,25 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
 #include "mndStreamRecalc.h"
 
 #include "mndTrans.h"
+#include "tlogKeyOp.h"
 
 typedef enum EStreamRecalcPersistOpType {
   MND_STREAM_RECALC_OP_ACCEPT = 1,
@@ -782,6 +792,8 @@ static int32_t mndStreamRecalcStartClaimed(SMnode *pMnode, SStmStatus *pStatus, 
     code = code != TSDB_CODE_SUCCESS ? code : TSDB_CODE_MND_STREAM_NOT_EXIST;
     goto _failed;
   }
+  mInfo(KEYOP("stream-recalc", "START") "streamId:%" PRIx64 " recalcId:%" PRIx64 " opType:%d start claimed recalc",
+        op.streamId, op.recalcId, op.type);
   TAOS_CHECK_GOTO(mndStreamRecalcSnapshotWithRevision(pStream, &pRequests, &baseRevision), NULL, _failed);
 
   int32_t requestIndex = mndStreamRecalcFindRequest(pRequests, op.recalcId);
@@ -922,6 +934,9 @@ int32_t mndStreamRecalcAccept(SMnode *pMnode, SStreamObj *pStream, SStmStatus *p
     listNodeFree(pOpNode);
     return code;
   }
+  mInfo(KEYOP("stream-recalc", "STEP") "streamId:%" PRIx64 " recalcId:%" PRIx64
+                                       " recalc request accepted, range:[%" PRId64 ",%" PRId64 "]",
+        pStream->pCreate->streamId, recalcId, pRange->skey, pRange->ekey);
   if (!claimed) return TSDB_CODE_SUCCESS;
   SStreamRecalcPostActions postActions = {0};
   mndStreamRecalcInitPostActions(&postActions);
@@ -1014,6 +1029,14 @@ static int32_t mndStreamRecalcFinishImpl(SMnode *pMnode, int64_t streamId,
   if (code != TSDB_CODE_SUCCESS || !needsEnqueue) goto _unlock;
 
   SStmRecalcRecord *pRecord = taosArrayGet(pStatus->recalcRecords, recordIndex);
+
+  {
+    const char *keyOpPhase =
+        (pCandidate->snapshot.status == STREAM_RECALC_STATUS_FINISHED) ? KEYOP_PHASE_END : KEYOP_PHASE_FAIL;
+    mInfo(KEYOP_TAG_FMT "streamId:%" PRIx64 " recalcId:%" PRIx64 " progressPct:%d errorCode:0x%x", "stream-recalc",
+          keyOpPhase, streamId, pCandidate->snapshot.recalcId, pCandidate->snapshot.progressPct,
+          pCandidate->errorCode);
+  }
 
   if (pRecord->snapshot.status == STREAM_RECALC_STATUS_PENDING) {
     pRecord->snapshot.status = STREAM_RECALC_STATUS_RUNNING;

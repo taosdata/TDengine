@@ -1,13 +1,15 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
- * This program is free software: you can redistribute it and/or modify
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
@@ -431,6 +433,87 @@ TEST(StreamRecalcTrackerTest, ReaderDoneWithoutRunnerDoneDoesNotCommit) {
   ASSERT_NE(finished, nullptr);
   EXPECT_EQ(finished->progressPct, 100);
   EXPECT_EQ(finished->status, STREAM_RECALC_STATUS_FINISHED);
+}
+
+TEST(StreamRecalcTrackerTest, GroupedRunnerRequestRegistersOneProgressToken) {
+  auto tracker = MakeTracker();
+  ASSERT_NE(tracker, nullptr);
+  auto groups = MakeGroups({10});
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 150, {100, 200}, groups.get()), TSDB_CODE_SUCCESS);
+  auto contributors = MakeContributors(tracker.get(), {{150, 0, {100, 200}}});
+  ASSERT_NE(contributors, nullptr);
+
+  uint64_t stepId = 0;
+  ASSERT_EQ(stRecalcTrackerBeginStep(tracker.get(), 10, {100, 200}, contributors.get(), &stepId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerAddRunner(tracker.get(), stepId, 220), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(stRecalcTrackerAddRunner(tracker.get(), stepId, 220), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetTriggerDone(tracker.get(), stepId, 0), TSDB_CODE_SUCCESS);
+
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  const auto *waiting = FindSnapshot(snapshots.get(), 150);
+  ASSERT_NE(waiting, nullptr);
+  EXPECT_EQ(waiting->progressPct, 0);
+  EXPECT_EQ(waiting->status, STREAM_RECALC_STATUS_RUNNING);
+}
+
+TEST(StreamRecalcTrackerTest, GroupedPendingRunnerDoesNotAdvanceCommittedThrough) {
+  auto tracker = MakeTracker();
+  ASSERT_NE(tracker, nullptr);
+  auto groups = MakeGroups({10});
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 151, {100, 200}, groups.get()), TSDB_CODE_SUCCESS);
+  auto contributors = MakeContributors(tracker.get(), {{151, 0, {100, 200}}});
+  ASSERT_NE(contributors, nullptr);
+
+  uint64_t stepId = 0;
+  ASSERT_EQ(stRecalcTrackerBeginStep(tracker.get(), 10, {100, 200}, contributors.get(), &stepId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerAddRunner(tracker.get(), stepId, 222), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetTriggerDone(tracker.get(), stepId, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetTriggerDone(tracker.get(), stepId, 0), TSDB_CODE_SUCCESS);
+
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  const auto *retrying = FindSnapshot(snapshots.get(), 151);
+  ASSERT_NE(retrying, nullptr);
+  EXPECT_EQ(retrying->progressPct, 0);
+  EXPECT_EQ(retrying->status, STREAM_RECALC_STATUS_RUNNING);
+}
+
+TEST(StreamRecalcTrackerTest, GroupedCompletionAdvancesEveryContributorTogether) {
+  auto tracker = MakeTracker();
+  ASSERT_NE(tracker, nullptr);
+  auto groups = MakeGroups({10});
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 152, {100, 200}, groups.get()), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 153, {100, 200}, groups.get()), TSDB_CODE_SUCCESS);
+  auto contributors = MakeContributors(tracker.get(), {{152, 0, {100, 200}}, {153, 0, {100, 200}}});
+  ASSERT_NE(contributors, nullptr);
+
+  uint64_t stepId = 0;
+  ASSERT_EQ(stRecalcTrackerBeginStep(tracker.get(), 10, {100, 200}, contributors.get(), &stepId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerAddRunner(tracker.get(), stepId, 223), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetTriggerDone(tracker.get(), stepId, 0), TSDB_CODE_SUCCESS);
+
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  ASSERT_NE(FindSnapshot(snapshots.get(), 152), nullptr);
+  ASSERT_NE(FindSnapshot(snapshots.get(), 153), nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 152)->progressPct, 0);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 153)->progressPct, 0);
+
+  ASSERT_EQ(stRecalcTrackerCompleteRunner(tracker.get(), stepId, 223), TSDB_CODE_SUCCESS);
+  snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  const auto *first = FindSnapshot(snapshots.get(), 152);
+  const auto *second = FindSnapshot(snapshots.get(), 153);
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(second, nullptr);
+  EXPECT_EQ(first->progressPct, 100);
+  EXPECT_EQ(first->status, STREAM_RECALC_STATUS_FINISHED);
+  EXPECT_EQ(second->progressPct, 100);
+  EXPECT_EQ(second->status, STREAM_RECALC_STATUS_FINISHED);
 }
 
 TEST(StreamRecalcTrackerTest, NoDataStepCommitsAfterTriggerDone) {

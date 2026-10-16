@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -466,6 +468,11 @@ int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver, uint3
     if ((code = tBufferGetU32(br, &pBlockCol->alg))) return code;
   } else {
     pBlockCol->alg = defaultCmprAlg;
+  }
+
+  if ((code = tsCheckCompressAlg(pBlockCol->alg)) != TSDB_CODE_SUCCESS) {
+    tsdbError("invalid compression alg:0x%x in block col, cid:%d", pBlockCol->alg, pBlockCol->cid);
+    return TSDB_CODE_FILE_CORRUPTED;
   }
 
   return 0;
@@ -1563,6 +1570,15 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
   } else {
     // more data fmt ver
   }
+
+  // only those two layouts carry a cmprAlg on disk.
+  if (pHdr->fmtVer <= 2) {
+    if ((code = tsCheckCompressAlg(pHdr->cmprAlg)) != TSDB_CODE_SUCCESS) {
+      tsdbError("invalid compression alg:0x%x in disk data hdr", pHdr->cmprAlg);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+  }
+
   if (pHdr->fmtVer >= 1) {
     if ((code = tBufferGetI8(br, &pHdr->numOfPKs))) return code;
     for (int i = 0; i < pHdr->numOfPKs; i++) {

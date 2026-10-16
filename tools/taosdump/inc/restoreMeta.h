@@ -1,12 +1,18 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef INC_RESTOREMETA_H_
@@ -45,7 +51,7 @@ int restoreDatabaseMeta(const char *dbName);
 //
 // Split into a "prepare" phase and an "apply" phase so restoreMain() can
 // create EVERY database (prepare) before applying ANY DDL (apply).  Applying
-// DDL per-database in discovery order fails with "Database not exist" whenever
+// DDL per-database in discovery order fails with "Database does not exist" whenever
 // a cross-database stream/virtual table is restored before the database it
 // references — and the discovery order comes from raw readdir() and is
 // filesystem-dependent.

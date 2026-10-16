@@ -1,7 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
-###################################################################
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 """DDL tests for DROP VTABLE / DROP STABLE … VIRTUAL referencing ext sources.
 
@@ -21,27 +31,35 @@ if _FQ_DIR not in sys.path:
     sys.path.insert(0, _FQ_DIR)
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
-    create_ext_source, create_remote_db, create_pg_table, create_mysql_table)
+    create_ext_source, create_remote_db, create_pg_table, create_mysql_table,
+    create_sqlserver_table)
 
 
 _LOCAL_DB = "vdrop_local"
 _PG_DB    = "vdrop_pg"
 _MY_DB    = "vdrop_my"
+_SS_DB    = "vdrop_ss"
 _PG_SRC   = "vdrop_pg_src"
 _MY_SRC   = "vdrop_my_src"
+_SS_SRC   = "vdrop_ss_src"
 
 
 def _ensure_env():
     create_remote_db("postgresql", _PG_DB)
     create_remote_db("mysql", _MY_DB)
+    create_remote_db("sqlserver", _SS_DB)
     create_pg_table(_PG_DB, "r",
                     "ts TIMESTAMP PRIMARY KEY, v INTEGER",
                     ["('2024-01-01 00:00:00', 1)"])
     create_mysql_table(_MY_DB, "r",
                        "ts DATETIME(3) NOT NULL PRIMARY KEY, v INT",
                        ["('2024-01-01 00:00:00', 100)"])
+    create_sqlserver_table(_SS_DB, "r",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v INT",
+                           ["('2024-01-01 00:00:00.000', 1000)"])
     create_ext_source(_PG_SRC, "postgresql", _PG_DB)
     create_ext_source(_MY_SRC, "mysql", _MY_DB)
+    create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
 
 
 # ===========================================================================
@@ -54,13 +72,13 @@ class TestVtableDropExtSource:
         ExtSrcEnv.ensure_qnode()
         _ensure_env()
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
 
     @classmethod
     def teardown_class(cls):
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        for n in (_PG_SRC, _MY_SRC):
+        for n in (_PG_SRC, _MY_SRC, _SS_SRC):
             tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {n}")
 
     def setup_method(self, method):
@@ -69,6 +87,13 @@ class TestVtableDropExtSource:
     # -------------------------------------------------------------------
 
     def test_drop_normal_vtable(self):
+        """Drop normal vtable
+
+        Drop normal vtable
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             f"CREATE VTABLE v_drop_n (ts timestamp, "
             f"v int FROM {_PG_SRC}.{_PG_DB}.r.v)")
@@ -78,12 +103,33 @@ class TestVtableDropExtSource:
         tdSql.checkData(0, 0, 0)
 
     def test_drop_if_exists_missing(self):
+        """Drop if exists missing
+
+        Drop if exists missing
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute("DROP VTABLE IF EXISTS v_drop_missing")
 
     def test_drop_missing_without_if_exists_fails(self):
+        """Drop missing without if exists fails
+
+        Drop missing without if exists fails
+
+        Since: v3.4.0.0
+
+        """
         tdSql.error("DROP VTABLE v_drop_missing2")
 
     def test_drop_child_vtable(self):
+        """Drop child vtable
+
+        Drop child vtable
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             "CREATE STABLE stb_drop (ts timestamp, v int) "
             "TAGS (s nchar(8)) VIRTUAL 1")
@@ -100,6 +146,13 @@ class TestVtableDropExtSource:
         # DROP STABLE removes the stable AND all of its child vtables.
         # If the product enforces "must be empty", flip the expectation —
         # the test then asserts the error.
+        """Drop vstable with children
+
+        DROP STABLE removes the stable AND all of its child vtables. If the product enforces "must be empty", flip the expectation — the test then asserts the error.
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             "CREATE STABLE stb_drop_c (ts timestamp, v int) "
             "TAGS (s nchar(8)) VIRTUAL 1")
@@ -118,6 +171,13 @@ class TestVtableDropExtSource:
     def test_drop_vstable_heterogeneous_children(self):
         # Same as above but the children come from different ext sources —
         # ensures the drop cleans up references in both source bookkeepings.
+        """Drop vstable heterogeneous children
+
+        Same as above but the children come from different ext sources — ensures the drop cleans up references in both source bookkeepings.
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             "CREATE STABLE stb_drop_het (ts timestamp, v int) "
             "TAGS (s nchar(8)) VIRTUAL 1")
@@ -127,15 +187,62 @@ class TestVtableDropExtSource:
         tdSql.execute(
             f"CREATE VTABLE vctb_dh_my ("
             f"v FROM {_MY_SRC}.{_MY_DB}.r.v) USING stb_drop_het TAGS ('my')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_dh_ss ("
+            f"v FROM {_SS_SRC}.{_SS_DB}.dbo.r.v) USING stb_drop_het TAGS ('ss')")
         tdSql.execute("DROP STABLE stb_drop_het")
-        # After drop, both ext sources are still droppable — proves the
+        # After drop, all ext sources are still droppable — proves the
         # references were released.
         tdSql.execute(f"DROP EXTERNAL SOURCE {_PG_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE {_MY_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE {_SS_SRC}")
+        _ensure_env()
+        tdSql.execute(f"USE {_LOCAL_DB}")
+
+    def test_drop_sqlserver_referencing_vtables(self):
+        """Drop vtable / vstable that reference SQL Server
+
+        DROP VTABLE and DROP STABLE remove SQL Server-referencing virtual
+        tables (5-segment paths); afterwards the source is still droppable,
+        which proves the reference bookkeeping was cleaned up.
+
+        Since: v3.4.4.0
+
+        """
+        tdSql.execute(
+            "CREATE VTABLE v_drop_ss (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r.v)")
+        tdSql.query("SELECT count(*) FROM v_drop_ss")
+        tdSql.checkData(0, 0, 1)
+        tdSql.execute("DROP VTABLE v_drop_ss")
+        tdSql.query("SELECT count(*) FROM information_schema.ins_tables "
+                    f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_drop_ss'")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.execute(
+            "CREATE STABLE stb_drop_ss (ts timestamp, v int) "
+            "TAGS (s nchar(8)) VIRTUAL 1")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_drop_ss ("
+            f"v FROM {_SS_SRC}.{_SS_DB}.dbo.r.v) USING stb_drop_ss TAGS ('a')")
+        tdSql.execute("DROP VTABLE vctb_drop_ss")
+        tdSql.query("SELECT count(*) FROM information_schema.ins_tables "
+                    f"WHERE db_name='{_LOCAL_DB}' AND stable_name='stb_drop_ss'")
+        tdSql.checkData(0, 0, 0)
+        tdSql.execute("DROP STABLE stb_drop_ss")
+
+        tdSql.execute(f"DROP EXTERNAL SOURCE {_SS_SRC}")
         _ensure_env()
         tdSql.execute(f"USE {_LOCAL_DB}")
 
     def test_drop_recreate_same_name(self):
+        """Drop recreate same name
+
+        Drop recreate same name
+
+        Since: v3.4.0.0
+
+        """
         tdSql.execute(
             f"CREATE VTABLE v_drop_rc (ts timestamp, "
             f"v int FROM {_PG_SRC}.{_PG_DB}.r.v)")
@@ -152,9 +259,16 @@ class TestVtableDropExtSource:
 
     def test_drop_database_cascade(self):
         # Create a fresh DB with vtable/vstb on it and drop the whole DB.
+        """Drop database cascade
+
+        Create a fresh DB with vtable/vstb on it and drop the whole DB.
+
+        Since: v3.4.0.0
+
+        """
         db = "vdrop_cascade"
         tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
-        tdSql.execute(f"CREATE DATABASE {db} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {db} PRECISION 'ns'")
         tdSql.execute(f"USE {db}")
         tdSql.execute(
             f"CREATE VTABLE v_casc (ts timestamp, "

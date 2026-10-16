@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,9 +14,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include <tlog.h>
 #include "decimal.h"
 #include "nodes.h"
+#include "querynodes.h"
 #include "os.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -22,6 +26,8 @@
 #include "filter.h"
 #include "filterInt.h"
 #include "functionMgt.h"
+#include "function.h"
+#include "scalar.h"
 #include "sclInt.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -567,7 +573,7 @@ static FORCE_INLINE int32_t filterNewRange(SFilterRangeCtx *ctx, SFilterRange *r
 int32_t filterInitRangeCtx(int32_t type, int32_t options, SFilterRangeCtx **ctx) {
   if (type > TSDB_DATA_TYPE_UBIGINT || type < TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_BINARY ||
       type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
-    qError("not supported range type:%d", type);
+    qError("unsupported range type: %d", type);
     return TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE;
   }
 
@@ -2308,6 +2314,9 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
     if (unit->compare.optr == OP_TYPE_IN) {
       // QUERY_NODE_NODE_LIST
+      // Materialize the set during filter initialization. In particular, an
+      // NCHAR column's VARCHAR literals are converted here once per literal,
+      // never once per input row.
       FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type, 0, 0));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
@@ -2338,6 +2347,9 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
       assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
     } else {
+      // The comparison type is the left column type. Convert and cache the
+      // constant now so row evaluation never performs charset conversion for
+      // `NCHAR column op VARCHAR literal`.
       SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
       if (out.columnData == NULL) {
         FLT_ERR_RET(terrno);
@@ -2366,6 +2378,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
       fi->data = taosMemoryCalloc(1, bufBytes);
       if (fi->data == NULL) {
+        colDataDestroy(out.columnData);
+        taosMemoryFree(out.columnData);
         FLT_ERR_RET(terrno);
       }
 
@@ -3726,6 +3740,16 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     // match/nmatch for nchar type need convert from ucs4 to mbs
     if (info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR &&
         (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)) {
+      // The conversion buffer is sized by the declared column width; a virtual table column
+      // may carry a value wider than declared (full source value by design) -- refuse to
+      // overrun the buffer.  Threshold basis: taosUcs4ToMbs emits at most one UTF-8 code
+      // point (<= 4 bytes) per UCS-4 code point (4 bytes), so its output never exceeds
+      // the ucs4 input byte count; the buffer holds dataSize code points' worth of ucs4.
+      int32_t colDataCap = (int32_t)(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE);
+      if ((int32_t)varDataLen(colData) > colDataCap) {
+        qError("%s nchar value needs %d bytes, buffer width is %d", __func__, (int32_t)varDataLen(colData), colDataCap);
+        FLT_ERR_RET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+      }
       char *newColData = taosMemoryCalloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
       if (newColData == NULL) {
         FLT_ERR_RET(terrno);
@@ -3809,6 +3833,16 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
           } else {
             if (cunit->dataType == TSDB_DATA_TYPE_NCHAR &&
                 (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH)) {
+              // The conversion buffer is sized by the declared column width; a virtual table
+              // column may carry a value wider than declared (full source value by design) --
+              // the ucs4-to-mbs output is bounded by the actual ucs4 length (<= 4 output
+              // bytes per 4-byte ucs4 code point), refuse to overrun the buffer.
+              int32_t colDataCap = (int32_t)(cunit->dataSize * TSDB_NCHAR_SIZE);
+              if ((int32_t)varDataLen(colData) > colDataCap) {
+                qError("%s nchar value needs %d bytes, buffer width is %d", __func__, (int32_t)varDataLen(colData),
+                       colDataCap);
+                FLT_ERR_RET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+              }
               char *newColData = taosMemoryCalloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
               if (newColData == NULL) {
                 FLT_ERR_RET(terrno);
@@ -4074,7 +4108,7 @@ int32_t fltSclCompareWithFloat64(SFltSclDatum *val1, SFltSclDatum *val2) {
       return compareDoubleVal(&d, &val2->d);
     }
     default:
-      qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
+      qError("unsupported comparison, kind1:%d, kind2:%d", val1->kind, val2->kind);
       return (val1->kind - val2->kind);
   }
 }
@@ -4092,7 +4126,7 @@ int32_t fltSclCompareWithInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
       return compareDoubleInt64(&val1->d, &val2->i);
     }
     default:
-      qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
+      qError("unsupported comparison, kind1:%d, kind2:%d", val1->kind, val2->kind);
       return (val1->kind - val2->kind);
   }
 }
@@ -4110,7 +4144,7 @@ int32_t fltSclCompareWithUInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
       return compareDoubleUint64(&val1->d, &val2->u);
     }
     default:
-      qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
+      qError("unsupported comparison, kind1:%d, kind2:%d", val1->kind, val2->kind);
       return (val1->kind - val2->kind);
   }
 }
@@ -4159,7 +4193,7 @@ int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
       return fltSclCompareWithDecimal(pData1, &val1->type, &val2->dec, &val2->type);
     }
     default:
-      qError("not supported kind when compare datum. kind2 : %d", val2->kind);
+      qError("unsupported kind when comparing datums, kind2: %d", val2->kind);
       return 0;
       break;
   }
@@ -4354,7 +4388,7 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum *datum, SColumn
         datum->dec = *(Decimal *)valNode->datum.p;
         FLT_RET(0);
       default:
-        qError("not supported type %d when build decimal datum from value node", valNode->node.resType.type);
+        qError("unsupported type %d when building decimal datum from value node", valNode->node.resType.type);
         return TSDB_CODE_INVALID_PARA;
     }
 
@@ -4427,7 +4461,7 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SColumnNode *pColNode
         break;
       }
       default: {
-        qDebug("not supported type %d when build datum from value node", valNode->node.resType.type);
+        qDebug("unsupported type %d when building datum from value node", valNode->node.resType.type);
         break;
       }
     }
@@ -4481,7 +4515,7 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, voi
     }
     default: {
       datum->kind = FLT_SCL_DATUM_KIND_NULL;
-      qDebug("not supported type %d when build datum from block sma value", type);
+      qDebug("unsupported type %d when building datum from block sma value", type);
       break;
     }
   }
@@ -4870,7 +4904,7 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
       d->i = v;
     }
   } else {
-    qError("not supported type %d when get datum from point", d->type.type);
+    qError("unsupported type %d when getting datum from point", d->type.type);
     return TSDB_CODE_FAILED;
   }
   return TSDB_CODE_SUCCESS;
@@ -4894,6 +4928,15 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
+
+  if (nodesExprHasCorrelation(pNode)) {
+    TAOS_SET_OBJ_ALIGNED(win, TSWINDOW_INITIALIZER);
+    *isStrict = false;
+    if (hasRemoteNode) {
+      *hasRemoteNode = false;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
 
   *isStrict = true;
 
@@ -4946,82 +4989,73 @@ _return:
   FLT_RET(code);
 }
 
-int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar) {
-  if (FILTER_EMPTY_RES(info) || FILTER_ALL_RES(info)) {
+int32_t filterCalcSemanticTimeRange(const SNode* pCondition, bool allowNonPrimaryTimeColumn,
+                                    STimeWindow* pRange) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pConditionCopy = NULL;
+  SNode*  pPrimaryKeyCond = NULL;
+  SNode*  pFallbackCond = NULL;
+  SNode*  pCalculated = NULL;
+  bool    isStrict = false;
+
+  TAOS_SET_OBJ_ALIGNED(pRange, TSWINDOW_INITIALIZER);
+  if (NULL == pCondition) {
+    return code;
+  }
+  FLT_ERR_JRET(nodesCloneNode(pCondition, &pConditionCopy));
+  FLT_ERR_JRET(filterPartitionCond(&pConditionCopy, &pPrimaryKeyCond, NULL, NULL, NULL));
+  if (NULL == pPrimaryKeyCond) {
+    if (!allowNonPrimaryTimeColumn) {
+      goto _return;
+    }
+    FLT_ERR_JRET(nodesCloneNode(pCondition, &pFallbackCond));
+  }
+  SNode* pTimeCond = NULL != pPrimaryKeyCond ? pPrimaryKeyCond : pFallbackCond;
+  if (nodesExprHasCorrelation(pTimeCond)) {
+    FLT_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+  }
+  FLT_ERR_JRET(scalarCalculateConstants(pTimeCond, &pCalculated));
+  // scalarCalculateConstants takes ownership of pTimeCond, including when it returns the same pointer.
+  if (NULL != pPrimaryKeyCond) {
+    pPrimaryKeyCond = NULL;
+  } else {
+    pFallbackCond = NULL;
+  }
+  if (QUERY_NODE_VALUE != nodeType(pCalculated)) {
+    FLT_ERR_JRET(filterGetTimeRange(pCalculated, pRange, &isStrict, NULL));
+  }
+
+_return:
+  nodesDestroyNode(pConditionCopy);
+  nodesDestroyNode(pPrimaryKeyCond);
+  nodesDestroyNode(pFallbackCond);
+  nodesDestroyNode(pCalculated);
+  FLT_RET(code);
+}
+
+int32_t filterValidateFillTimeRange(const STimeWindow* pRange, int64_t interval, int8_t intervalUnit,
+                                    uint8_t precision, bool allowNoTimeRange) {
+  if (TSWINDOW_IS_EQUAL(*pRange, TSWINDOW_INITIALIZER)) {
+    return allowNoTimeRange ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE;
+  }
+  if (TSWINDOW_IS_EQUAL(*pRange, TSWINDOW_DESC_INITIALIZER) || interval <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
-    SFilterField *fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
-    int32_t       type = FILTER_GET_COL_FIELD_TYPE(fi);
-    if (type == TSDB_DATA_TYPE_NCHAR) {
-      SFilterField nfi = {0};
-      nfi.desc = fi->desc;
-      int32_t bytes = FILTER_GET_COL_FIELD_SIZE(fi);
-      nfi.data = taosMemoryMalloc(rows * bytes);
-      if (nfi.data == NULL) {
-        FLT_ERR_RET(terrno);
-      }
-      int32_t bufSize = bytes - VARSTR_HEADER_SIZE;
-      for (int32_t j = 0; j < rows; ++j) {
-        char   *src = FILTER_GET_COL_FIELD_DATA(fi, j);
-        char   *dst = FILTER_GET_COL_FIELD_DATA(&nfi, j);
-        int32_t len = 0;
-        char   *varSrc = varDataVal(src);
-        size_t  k = 0, varSrcLen = varDataLen(src);
-        while (k < varSrcLen && varSrc[k++] == -1) {
-        }
-        if (k == varSrcLen) {
-          /* NULL */
-          varDataLen(dst) = (VarDataLenT)varSrcLen;
-          varDataCopy(dst, src);
-          continue;
-        }
-        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4 *)varDataVal(dst), bufSize, &len, NULL);
-        if (!ret) {
-          qError("%s failed to convert NCHAR column value, srcLen:%d", __func__, (int32_t)varDataLen(src));
-          return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
-        }
-        varDataLen(dst) = len;
-      }
-
-      fi->data = nfi.data;
-
-      *gotNchar = true;
-    }
+  uint64_t span = pRange->skey <= pRange->ekey
+                      ? (uint64_t)pRange->ekey - (uint64_t)pRange->skey
+                      : (uint64_t)pRange->skey - (uint64_t)pRange->ekey;
+  int64_t timeRange = span > INT64_MAX ? INT64_MAX : (int64_t)span;
+  int64_t intervalRange = interval;
+  if (IS_CALENDAR_TIME_DURATION(intervalUnit)) {
+    int64_t tickPerDay = convertTimePrecision(MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, precision);
+    int64_t days = intervalUnit == 'n' ? 30LL : intervalUnit == 'y' ? 365LL : 1LL;
+    int64_t scale = days * tickPerDay;
+    intervalRange = interval > INT64_MAX / scale ? INT64_MAX : interval * scale;
   }
-
-  if (*gotNchar) {
-    FLT_ERR_RET(filterUpdateComUnits(info));
+  if (intervalRange <= 0 || timeRange / intervalRange >= MAX_INTERVAL_TIME_WINDOW) {
+    return TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE;
   }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t filterFreeNcharColumns(SFilterInfo *info) {
-  for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
-    SFilterField *fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
-    int32_t       type = FILTER_GET_COL_FIELD_TYPE(fi);
-    if (type == TSDB_DATA_TYPE_NCHAR) {
-      taosMemoryFreeClear(fi->data);
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t fltAddValueNodeToConverList(SFltTreeStat *stat, SValueNode *pNode) {
-  if (NULL == stat->nodeList) {
-    stat->nodeList = taosArrayInit(10, POINTER_BYTES);
-    if (NULL == stat->nodeList) {
-      FLT_ERR_RET(terrno);
-    }
-  }
-
-  if (NULL == taosArrayPush(stat->nodeList, &pNode)) {
-    FLT_ERR_RET(terrno);
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5053,7 +5087,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
 
   if (QUERY_NODE_VALUE == nodeType(*pNode)) {
     SValueNode *valueNode = (SValueNode *)*pNode;
-    if (valueNode->placeholderNo >= 1) {
+    if (valueNode->placeholderNo >= 1 || valueNode->isNull) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }
@@ -5276,8 +5310,6 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
   FLT_ERR_JRET(pStat->code);
 
 _return:
-
-  taosArrayDestroy(pStat->nodeList);
   FLT_RET(code);
 }
 
@@ -5467,7 +5499,7 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       break;
     }
     default: {
-      qError("not supported operator type : %d when build range points", oper->type);
+      qError("unsupported operator type: %d when building range points", oper->type);
       break;
     }
   }
@@ -5519,7 +5551,7 @@ static int32_t fltSclProcessCNF(SFilterInfo *pInfo, SArray *sclOpListCNF, SArray
 }
 
 static bool fltSclIsCollectableNode(SNode *pNode) {
-  if (nodeType(pNode) != QUERY_NODE_OPERATOR) {
+  if (nodeType(pNode) != QUERY_NODE_OPERATOR || nodesExprHasCorrelation(pNode)) {
     return false;
   }
 
@@ -5971,6 +6003,14 @@ bool filterBlockSmaOnlyUsesNumOfNull(const SFilterInfo *info) {
   return hasNumOfNullOnlyUsage;
 }
 
+static EDealRes fltFindCorrelatedSubquery(SNode *pNode, void *pContext) {
+  if (QUERY_NODE_CORRELATED_SUBQUERY == nodeType(pNode)) {
+    *(bool *)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, void* pSclExtraParams) {
   SFilterInfo *info = NULL;
   if (pNode == NULL) {
@@ -5995,7 +6035,12 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, 
   info->options = options;
   info->pStreamRtInfo = pSclExtraParams;
 
-  if (options & FLT_OPTION_SCALAR_MODE) {
+  bool hasCorrelation = nodesExprHasCorrelation(pNode);
+  bool hasCorrelatedCall = false;
+  if (hasCorrelation) {
+    nodesWalkExpr(pNode, fltFindCorrelatedSubquery, &hasCorrelatedCall);
+  }
+  if ((options & FLT_OPTION_SCALAR_MODE) || hasCorrelation) {
     info->scalarMode = true;
     fltDebug("force set scalar mode: %d", info->scalarMode);
   } else {
@@ -6012,13 +6057,17 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, 
     fltDebug("scalar mode: %d", info->scalarMode);
   }
 
-  FLT_ERR_JRET(fltBuildBlkOrNotNullGroups(pNode, &info->pBlkOrNotNullGroups));
+  if (!hasCorrelatedCall) {
+    FLT_ERR_JRET(fltBuildBlkOrNotNullGroups(pNode, &info->pBlkOrNotNullGroups));
+  }
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
   } else {
     info->sclCtx.node = pNode;
-    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node));
+    if (!hasCorrelatedCall) {
+      FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node));
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -6030,8 +6079,9 @@ _return:
   FLT_RET(code);
 }
 
-int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
-                      int16_t numOfCols, int32_t *pResultStatus) {
+int32_t filterExecuteWithCorrelation(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
+                                     SColumnDataAgg *statis, int16_t numOfCols, int32_t *pResultStatus,
+                                     const SCorrelationEvalContext *pCorrelation) {
   if (NULL == info) {
     *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
     return TSDB_CODE_SUCCESS;
@@ -6052,13 +6102,15 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       FLT_ERR_JRET(terrno);
     }
 
-    gTaskScalarExtra.pStreamInfo  = (void*)info->pStreamRtInfo;
-    gTaskScalarExtra.pStreamRange = NULL;
     output.param = info->pTable;
-    gTaskScalarExtra.pTaskInfo    = info->pTaskInfo    ? info->pTaskInfo    : gTaskScalarExtra.pTaskInfo;
-    gTaskScalarExtra.isTaskKilled = info->isTaskKilled ? info->isTaskKilled : gTaskScalarExtra.isTaskKilled;
-    code =
-        scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
+    SScalarExtraInfo extra = gTaskScalarExtra;
+    SScalarExtraInfo *pExtra = NULL == pCorrelation ? &gTaskScalarExtra : &extra;
+    pExtra->pStreamInfo = (void *)info->pStreamRtInfo;
+    pExtra->pStreamRange = NULL;
+    pExtra->pTaskInfo = info->pTaskInfo ? info->pTaskInfo : pExtra->pTaskInfo;
+    pExtra->isTaskKilled = info->isTaskKilled ? info->isTaskKilled : pExtra->isTaskKilled;
+    pExtra->pCorrelation = pCorrelation;
+    code = scalarCalculate(info->sclCtx.node, pList, &output, pExtra);
     taosArrayDestroy(pList);
 
     *p = output.columnData;
@@ -6113,6 +6165,11 @@ _return:
   return code;
 }
 
+int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
+                      int16_t numOfCols, int32_t *pResultStatus) {
+  return filterExecuteWithCorrelation(info, pSrc, p, statis, numOfCols, pResultStatus, NULL);
+}
+
 typedef struct SClassifyConditionCxt {
   bool hasPrimaryKey;
   bool hasTagIndexCol;
@@ -6156,6 +6213,9 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
 }
 
 EConditionType filterClassifyCondition(SNode *pNode) {
+  if (nodesExprHasCorrelation(pNode)) {
+    return COND_TYPE_NORMAL;
+  }
   SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
   nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
   if (cxt.hasOtherCol || (cxt.hasPrimaryKey && cxt.hasTagCol)) {

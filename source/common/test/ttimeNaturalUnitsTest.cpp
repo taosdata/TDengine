@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,6 +22,9 @@
 
 using PerformanceClock = std::chrono::steady_clock;
 static_assert(PerformanceClock::is_steady, "Performance tests require a steady clock");
+
+constexpr int64_t kMaxMonthsAtMillisecondPrecision = 3509654504;
+constexpr int64_t kMaxYearsAtMillisecondPrecision = 292471208;
 
 /**
  * Test suite for natural time unit boundary alignment
@@ -82,6 +87,24 @@ class TimeNaturalUnitsTest : public ::testing::Test {
     return makeTimestampAt(year, month, day, hour, minute, second, tz, precision);
   }
 
+  void expectWeekAlignmentMatchesTruncate(int64_t timestamp, int64_t value, timezone_t timezone) {
+    const int64_t week = 7LL * 24 * 60 * 60 * 1000;
+    for (int8_t firstDayOfWeek = 0; firstDayOfWeek <= 6; ++firstDayOfWeek) {
+      SCOPED_TRACE(firstDayOfWeek);
+      SInterval interval = {};
+      interval.timezone = timezone;
+      interval.intervalUnit = 'w';
+      interval.slidingUnit = 'w';
+      interval.precision = TSDB_TIME_PRECISION_MILLI;
+      interval.firstDayOfWeek = firstDayOfWeek;
+      interval.interval = value * week;
+      interval.sliding = value * week;
+
+      EXPECT_EQ(alignToNaturalBoundary(timestamp, 'w', value, 0, TSDB_TIME_PRECISION_MILLI, firstDayOfWeek, timezone),
+                taosTimeTruncate(timestamp, &interval));
+    }
+  }
+
   timezone_t tz;
 };
 
@@ -93,7 +116,7 @@ TEST_F(TimeNaturalUnitsTest, WeekAlignmentBasic) {
   // Expected: align to 2026-03-09 00:00:00 (Monday)
 
   int64_t ts = makeTimestamp(2026, 3, 10, 15, 30, 0);
-  int64_t result = alignToNaturalBoundary(ts, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result = alignToNaturalBoundary(ts, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
 
   // Convert result to struct tm to verify
   time_t    t = result / 1000;
@@ -114,7 +137,7 @@ TEST_F(TimeNaturalUnitsTest, WeekAlignmentBasic) {
 
 TEST_F(TimeNaturalUnitsTest, WeekAlignmentThursdayAnchorsToPreviousMonday) {
   int64_t ts = makeTimestamp(2026, 4, 30, 10, 0, 0);
-  int64_t result = alignToNaturalBoundary(ts, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result = alignToNaturalBoundary(ts, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
 
   int64_t expected = makeTimestamp(2026, 4, 27, 0, 0, 0);
   EXPECT_EQ(result, expected);
@@ -122,7 +145,7 @@ TEST_F(TimeNaturalUnitsTest, WeekAlignmentThursdayAnchorsToPreviousMonday) {
 
 TEST_F(TimeNaturalUnitsTest, MultiPeriodWeekAlignmentExactBoundary) {
   int64_t ts = makeTimestamp(2026, 4, 30, 10, 0, 0);
-  int64_t result = alignToNaturalBoundary(ts, 'w', 2, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result = alignToNaturalBoundary(ts, 'w', 2, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
 
   /*
    * The current implementation uses 1970-01-05 (the first Monday after epoch)
@@ -131,6 +154,69 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodWeekAlignmentExactBoundary) {
    */
   int64_t expected = makeTimestamp(2026, 4, 27, 0, 0, 0);
   EXPECT_EQ(result, expected);
+}
+
+TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentMatchesTruncateForEveryFirstDayOfWeekInUtc) {
+#ifndef WINDOWS
+  timezone_t utc = tzalloc("UTC");
+  ASSERT_NE(utc, nullptr);
+
+  expectWeekAlignmentMatchesTruncate(makeTimestampAt(2026, 3, 10, 15, 30, 0, utc), 1, utc);
+  tzfree(utc);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentMatchesTruncateForEveryFirstDayOfWeekNearDst) {
+#ifndef WINDOWS
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  expectWeekAlignmentMatchesTruncate(makeTimestampAt(2024, 3, 12, 15, 30, 0, ny), 1, ny);
+  tzfree(ny);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, MultiWeekAlignmentMatchesTruncateAcrossSpringDst) {
+#ifndef WINDOWS
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  expectWeekAlignmentMatchesTruncate(makeTimestampAt(2024, 3, 19, 15, 30, 0, ny), 2, ny);
+  tzfree(ny);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, MultiWeekAlignmentMatchesTruncateAcrossFallDst) {
+#ifndef WINDOWS
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  expectWeekAlignmentMatchesTruncate(makeTimestampAt(2024, 11, 12, 15, 30, 0, ny), 3, ny);
+  tzfree(ny);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentRejectsInvalidFirstDayOfWeek) {
+  int64_t timestamp = makeTimestamp(2026, 3, 10, 15, 30, 0);
+
+  EXPECT_EQ(alignToNaturalBoundary(timestamp, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, -1, tz), timestamp);
+  EXPECT_EQ(alignToNaturalBoundary(timestamp, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, 7, tz), timestamp);
+}
+
+TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentRejectsUnrepresentablePeriod) {
+  int64_t timestamp = makeTimestamp(2026, 3, 10, 15, 30, 0);
+
+  EXPECT_EQ(alignToNaturalBoundary(timestamp, 'w', INT64_MAX, 0, TSDB_TIME_PRECISION_MILLI, 1, tz), timestamp);
+}
+
+TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentRejectsNanosecondUnderflow) {
+#ifndef WINDOWS
+  timezone_t utc = tzalloc("UTC");
+  ASSERT_NE(utc, nullptr);
+
+  EXPECT_EQ(alignToNaturalBoundary(INT64_MIN, 'w', 1, 0, TSDB_TIME_PRECISION_NANO, 1, utc), INT64_MIN);
+  tzfree(utc);
+#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, TruncateMultiWeekSlidingKeepsEpochPhase) {
@@ -362,11 +448,38 @@ TEST_F(TimeNaturalUnitsTest, CalendarDayAddRejectsNanosecondOverflow) {
 #endif
 }
 
+TEST_F(TimeNaturalUnitsTest, CalendarTimeAddRejectsUnrepresentableDuration) {
+#ifndef WINDOWS
+  timezone_t utc = tzalloc("UTC");
+  ASSERT_NE(utc, nullptr);
+
+  int64_t timestamp = makeTimestampAt(2026, 3, 15, 12, 0, 0, utc);
+  EXPECT_EQ(taosTimeAdd(timestamp, INT64_MAX, 'n', TSDB_TIME_PRECISION_MILLI, utc), timestamp);
+  EXPECT_EQ(taosTimeAdd(timestamp, INT64_MIN, 'n', TSDB_TIME_PRECISION_MILLI, utc), timestamp);
+  EXPECT_EQ(taosTimeAdd(timestamp, INT64_MAX, 'y', TSDB_TIME_PRECISION_MILLI, utc), timestamp);
+  EXPECT_EQ(taosTimeAdd(timestamp, INT64_MIN, 'y', TSDB_TIME_PRECISION_MILLI, utc), timestamp);
+
+  tzfree(utc);
+#endif
+}
+
 TEST_F(TimeNaturalUnitsTest, CalendarDurationConversionRejectsNanosecondOverflow) {
   int64_t ticks = 0;
   EXPECT_EQ(convertCalendarTimeFromUnitToPrecision(292, 'y', TSDB_TIME_PRECISION_NANO, &ticks), TSDB_CODE_SUCCESS);
   EXPECT_EQ(ticks, 9208512000000000000LL);
   EXPECT_EQ(convertCalendarTimeFromUnitToPrecision(293, 'y', TSDB_TIME_PRECISION_NANO, &ticks), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(
+      convertCalendarTimeFromUnitToPrecision(kMaxMonthsAtMillisecondPrecision, 'n', TSDB_TIME_PRECISION_MILLI, &ticks),
+      TSDB_CODE_SUCCESS);
+  EXPECT_EQ(convertCalendarTimeFromUnitToPrecision(kMaxMonthsAtMillisecondPrecision + 1, 'n', TSDB_TIME_PRECISION_MILLI,
+                                                   &ticks),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(
+      convertCalendarTimeFromUnitToPrecision(kMaxYearsAtMillisecondPrecision, 'y', TSDB_TIME_PRECISION_MILLI, &ticks),
+      TSDB_CODE_SUCCESS);
+  EXPECT_EQ(convertCalendarTimeFromUnitToPrecision(kMaxYearsAtMillisecondPrecision + 1, 'y', TSDB_TIME_PRECISION_MILLI,
+                                                   &ticks),
+            TSDB_CODE_INVALID_PARA);
   EXPECT_EQ(convertCalendarTimeFromUnitToPrecision(INT64_MAX, 'n', TSDB_TIME_PRECISION_MILLI, &ticks),
             TSDB_CODE_INVALID_PARA);
 }
@@ -379,7 +492,7 @@ TEST_F(TimeNaturalUnitsTest, MonthAlignmentBasic) {
   // Expected: align to 2026-03-01 00:00:00
 
   int64_t ts = makeTimestamp(2026, 3, 15, 12, 0, 0);
-  int64_t result = alignToNaturalBoundary(ts, 'n', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result = alignToNaturalBoundary(ts, 'n', 1, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
 
   time_t    t = result / 1000;
   struct tm tm;
@@ -405,7 +518,7 @@ TEST_F(TimeNaturalUnitsTest, YearAlignmentBasic) {
   // Expected: align to 2026-01-01 00:00:00
 
   int64_t ts = makeTimestamp(2026, 6, 15, 12, 0, 0);
-  int64_t result = alignToNaturalBoundary(ts, 'y', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result = alignToNaturalBoundary(ts, 'y', 1, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
 
   time_t    t = result / 1000;
   struct tm tm;
@@ -433,7 +546,7 @@ TEST_F(TimeNaturalUnitsTest, WeekAlignmentWithOffset) {
 
   int64_t ts = makeTimestamp(2026, 3, 10, 15, 30, 0);
   int64_t offset = 24LL * 60LL * 60LL * 1000LL;  // 1 day in milliseconds
-  int64_t result = alignToNaturalBoundary(ts, 'w', 1, offset, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result = alignToNaturalBoundary(ts, 'w', 1, offset, TSDB_TIME_PRECISION_MILLI, 1, tz);
 
   time_t    t = result / 1000;
   struct tm tm;
@@ -458,8 +571,8 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodWeekAlignment) {
   int64_t ts1 = makeTimestamp(2026, 3, 10, 0, 0, 0);  // 2026-03-10 (Tuesday, week 1)
   int64_t ts2 = makeTimestamp(2026, 3, 13, 0, 0, 0);  // 2026-03-13 (Friday, week 1)
 
-  int64_t result1 = alignToNaturalBoundary(ts1, 'w', 2, 0, TSDB_TIME_PRECISION_MILLI, tz);
-  int64_t result2 = alignToNaturalBoundary(ts2, 'w', 2, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result1 = alignToNaturalBoundary(ts1, 'w', 2, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
+  int64_t result2 = alignToNaturalBoundary(ts2, 'w', 2, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   std::cout << "Timestamp 1: " << ts1 << ", Aligned 1: " << result1 << std::endl;
   std::cout << "Timestamp 2: " << ts2 << ", Aligned 2: " << result2 << std::endl;
 
@@ -468,7 +581,7 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodWeekAlignment) {
 
   // Test that adjacent 2-week periods align to different boundaries
   int64_t ts3 = makeTimestamp(2026, 3, 17, 0, 0, 0);  // 2026-03-17 (next week)
-  int64_t result3 = alignToNaturalBoundary(ts3, 'w', 2, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result3 = alignToNaturalBoundary(ts3, 'w', 2, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   std::cout << "Timestamp 3: " << ts3 << ", Aligned 3: " << result3 << std::endl;
   EXPECT_NE(result1, result3);  // Should be different 2-week boundary
 
@@ -487,8 +600,8 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodMonthAlignment) {
   int64_t ts1 = makeTimestamp(2026, 2, 15, 0, 0, 0);  // 2026-02-15 (Q1)
   int64_t ts2 = makeTimestamp(2026, 3, 20, 0, 0, 0);  // 2026-03-20 (Q1)
 
-  int64_t result1 = alignToNaturalBoundary(ts1, 'n', 3, 0, TSDB_TIME_PRECISION_MILLI, tz);
-  int64_t result2 = alignToNaturalBoundary(ts2, 'n', 3, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result1 = alignToNaturalBoundary(ts1, 'n', 3, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
+  int64_t result2 = alignToNaturalBoundary(ts2, 'n', 3, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   std::cout << "Timestamp 1: " << ts1 << ", Aligned 1: " << result1 << std::endl;
   std::cout << "Timestamp 2: " << ts2 << ", Aligned 2: " << result2 << std::endl;
 
@@ -505,7 +618,7 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodMonthAlignment) {
 
   // Test that next quarter aligns to different boundary
   int64_t ts3 = makeTimestamp(2026, 4, 15, 0, 0, 0);  // 2026-04-15 (Q2)
-  int64_t result3 = alignToNaturalBoundary(ts3, 'n', 3, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result3 = alignToNaturalBoundary(ts3, 'n', 3, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   std::cout << "Timestamp 3: " << ts3 << ", Aligned 3: " << result3 << std::endl;
   EXPECT_NE(result1, result3);
 
@@ -532,8 +645,8 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodYearAlignment) {
   int64_t ts1 = makeTimestamp(2026, 3, 15, 0, 0, 0);  // 2026-03-15
   int64_t ts2 = makeTimestamp(2027, 8, 20, 0, 0, 0);  // 2027-08-20
 
-  int64_t result1 = alignToNaturalBoundary(ts1, 'y', 2, 0, TSDB_TIME_PRECISION_MILLI, tz);
-  int64_t result2 = alignToNaturalBoundary(ts2, 'y', 2, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result1 = alignToNaturalBoundary(ts1, 'y', 2, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
+  int64_t result2 = alignToNaturalBoundary(ts2, 'y', 2, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   std::cout << "Timestamp 1: " << ts1 << ", Aligned 1: " << result1 << std::endl;
   std::cout << "Timestamp 2: " << ts2 << ", Aligned 2: " << result2 << std::endl;
 
@@ -551,7 +664,7 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodYearAlignment) {
 
   // Test that next 2-year period aligns to different boundary
   int64_t ts3 = makeTimestamp(2028, 6, 15, 0, 0, 0);  // 2028-06-15
-  int64_t result3 = alignToNaturalBoundary(ts3, 'y', 2, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result3 = alignToNaturalBoundary(ts3, 'y', 2, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   std::cout << "Timestamp 3: " << ts3 << ", Aligned 3: " << result3 << std::endl;
   EXPECT_NE(result1, result3);
 
@@ -575,7 +688,7 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodYearAlignment) {
 TEST_F(TimeNaturalUnitsTest, MicrosecondPrecision) {
   // Test with microsecond precision
   int64_t ts = makeTimestamp(2026, 3, 10, 15, 30, 0, TSDB_TIME_PRECISION_MICRO);
-  int64_t result = alignToNaturalBoundary(ts, 'w', 1, 0, TSDB_TIME_PRECISION_MICRO, tz);
+  int64_t result = alignToNaturalBoundary(ts, 'w', 1, 0, TSDB_TIME_PRECISION_MICRO, 1, tz);
 
   // Result should be in microseconds
   EXPECT_GT(result, 1000000000000LL);  // Should be > 1 trillion (microseconds)
@@ -597,7 +710,7 @@ TEST_F(TimeNaturalUnitsTest, MicrosecondPrecision) {
 TEST_F(TimeNaturalUnitsTest, NanosecondPrecision) {
   // Test with nanosecond precision
   int64_t ts = makeTimestamp(2026, 3, 10, 15, 30, 0, TSDB_TIME_PRECISION_NANO);
-  int64_t result = alignToNaturalBoundary(ts, 'n', 1, 0, TSDB_TIME_PRECISION_NANO, tz);
+  int64_t result = alignToNaturalBoundary(ts, 'n', 1, 0, TSDB_TIME_PRECISION_NANO, 1, tz);
 
   // Result should be in nanoseconds
   EXPECT_GT(result, 1000000000000000LL);  // Should be > 1 quadrillion (nanoseconds)
@@ -620,11 +733,11 @@ TEST_F(TimeNaturalUnitsTest, NonNaturalUnitsPassthrough) {
   int64_t ts = makeTimestamp(2026, 3, 10, 15, 30, 0);
 
   // Test with 'd' (day) unit - should return as-is
-  int64_t result = alignToNaturalBoundary(ts, 'd', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  int64_t result = alignToNaturalBoundary(ts, 'd', 1, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   EXPECT_EQ(result, ts);
 
   // Test with 'h' (hour) unit - should return as-is
-  result = alignToNaturalBoundary(ts, 'h', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+  result = alignToNaturalBoundary(ts, 'h', 1, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   EXPECT_EQ(result, ts);
 }
 
@@ -740,7 +853,7 @@ TEST_F(TimeNaturalUnitsTest, PerformanceAlignToNaturalBoundary) {
   // Test week unit performance
   auto start = PerformanceClock::now();
   for (int i = 0; i < iterations; i++) {
-    alignToNaturalBoundary(ts + i * 1000, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+    alignToNaturalBoundary(ts + i * 1000, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   }
   auto   end = PerformanceClock::now();
   auto   duration_week = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -753,7 +866,7 @@ TEST_F(TimeNaturalUnitsTest, PerformanceAlignToNaturalBoundary) {
   // Test month unit performance
   start = PerformanceClock::now();
   for (int i = 0; i < iterations; i++) {
-    alignToNaturalBoundary(ts + i * 1000, 'n', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+    alignToNaturalBoundary(ts + i * 1000, 'n', 1, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   }
   end = PerformanceClock::now();
   auto   duration_month = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -766,7 +879,7 @@ TEST_F(TimeNaturalUnitsTest, PerformanceAlignToNaturalBoundary) {
   // Test year unit performance
   start = PerformanceClock::now();
   for (int i = 0; i < iterations; i++) {
-    alignToNaturalBoundary(ts + i * 1000, 'y', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+    alignToNaturalBoundary(ts + i * 1000, 'y', 1, 0, TSDB_TIME_PRECISION_MILLI, 1, tz);
   }
   end = PerformanceClock::now();
   auto   duration_year = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();

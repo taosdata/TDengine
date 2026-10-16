@@ -1,3 +1,18 @@
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package sqlparser
 
 import (
@@ -408,6 +423,7 @@ type JoinTableExpr struct {
 	Right        TableExpr
 	JoinType     JoinType
 	Condition    interface{}
+	WindowTime   []Expr
 	WindowOffset Expr
 	JLimit       *LimitExpr
 }
@@ -452,6 +468,10 @@ func (j *JoinTableExpr) Format(buf *TrackedBuffer) {
 	if condExpr, ok := j.Condition.(Expr); ok && condExpr != nil {
 		buf.Myprintf(" on %v", condExpr)
 	}
+	if len(j.WindowTime) == 2 {
+		buf.Myprintf(" window_time(%v, %v)", j.WindowTime[0],
+			j.WindowTime[1])
+	}
 	if j.WindowOffset != nil {
 		buf.Myprintf(" window_offset %v", j.WindowOffset)
 	}
@@ -463,7 +483,15 @@ func (j *JoinTableExpr) walkSubtree(visit Visit) error {
 	if j == nil {
 		return nil
 	}
-	if err := Walk(visit, j.Left, j.Right, j.WindowOffset); err != nil {
+	if err := Walk(visit, j.Left, j.Right); err != nil {
+		return err
+	}
+	for _, expr := range j.WindowTime {
+		if err := Walk(visit, expr); err != nil {
+			return err
+		}
+	}
+	if err := Walk(visit, j.WindowOffset); err != nil {
 		return err
 	}
 	if condExpr, ok := j.Condition.(Expr); ok {
@@ -1052,6 +1080,14 @@ func SetJoinWindowOffsetAndLimit(join *JoinTableExpr, windowOffset Expr, jlimit 
 	}
 	join.WindowOffset = windowOffset
 	join.JLimit = jlimit
+	return join
+}
+
+func SetJoinWindowTime(join *JoinTableExpr, windowTime []Expr) *JoinTableExpr {
+	if join == nil {
+		return nil
+	}
+	join.WindowTime = windowTime
 	return join
 }
 

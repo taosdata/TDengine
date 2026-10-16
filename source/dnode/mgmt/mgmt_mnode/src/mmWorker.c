@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -145,6 +147,10 @@ static inline int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker
 
 int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->writeWorker, pMsg);
+}
+
+int32_t mmPutMsgToXnodeCreateQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->xnodeCreateWorker, pMsg);
 }
 
 int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -290,10 +296,17 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   return code;
 }
 
-int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx) {
-  SRpcMsg* pMsg = (SRpcMsg*)pParam;
-  SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
-  *pWorkerIdx = pHeader->streamGid % tsNumOfMnodeStreamMgmtThreads;
+int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
+  SRpcMsg *pMsg = (SRpcMsg *)pParam;
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SStreamMsgGrpHeader *pHeader = (SStreamMsgGrpHeader *)pMsg->pCont;
+  if (pHeader->streamGid < 0 || pHeader->streamGid >= STREAM_MAX_GROUP_NUM) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  int32_t workerNum = pPool->num > 0 ? pPool->num : 1;
+  *pWorkerIdx = pHeader->streamGid % workerNum;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -542,6 +555,19 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   }
   taosQueueSetFreeFp(pMgmt->writeWorker.queue, mmFreeRpcQitem);
 
+  SSingleWorkerCfg xnodeCreateCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-xnode-create",
+      .fp = (FItem)mmProcessRpcMsg,
+      .param = pMgmt,
+  };
+  if ((code = tSingleWorkerInit(&pMgmt->xnodeCreateWorker, &xnodeCreateCfg)) != 0) {
+    dError("failed to start mnode-xnode-create worker since %s", tstrerror(code));
+    return code;
+  }
+  taosQueueSetFreeFp(pMgmt->xnodeCreateWorker.queue, mmFreeRpcQitem);
+
   SSingleWorkerCfg sCfg = {
       .min = 1,
       .max = 1,
@@ -550,7 +576,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->syncWorker, &sCfg)) != 0) {
-    dError("failed to start mnode mnode-sync worker since %s", tstrerror(code));
+    dError("failed to start mnode-sync worker since %s", tstrerror(code));
     return code;
   }
   taosQueueSetFreeFp(pMgmt->syncWorker.queue, mmFreeRpcQitem);
@@ -563,7 +589,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->syncRdWorker, &scCfg)) != 0) {
-    dError("failed to start mnode mnode-sync-rd worker since %s", tstrerror(code));
+    dError("failed to start mnode-sync-rd worker since %s", tstrerror(code));
     return code;
   }
   taosQueueSetFreeFp(pMgmt->syncRdWorker.queue, mmFreeRpcQitem);
@@ -576,7 +602,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->arbWorker, &arbCfg)) != 0) {
-    dError("failed to start mnode mnode-arb worker since %s", tstrerror(code));
+    dError("failed to start mnode-arb worker since %s", tstrerror(code));
     return code;
   }
   taosQueueSetFreeFp(pMgmt->arbWorker.queue, mmFreeRpcQitem);
@@ -589,7 +615,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->auditWorker, &auditCfg)) != 0) {
-    dError("failed to start mnode mnode-audit worker since %s", tstrerror(code));
+    dError("failed to start mnode-audit worker since %s", tstrerror(code));
     return code;
   }
 
@@ -626,6 +652,7 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->statusWorker);
+  tSingleWorkerCleanup(&pMgmt->xnodeCreateWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
   tSingleWorkerCleanup(&pMgmt->arbWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);

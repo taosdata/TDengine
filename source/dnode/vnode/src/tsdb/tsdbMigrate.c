@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -19,6 +21,7 @@
 #include "tsdbFSet2.h"
 #include "vnd.h"
 #include "tsdbInt.h"
+#include "tlogKeyOp.h"
 
 extern int32_t tsdbAsyncCompact(STsdb* tsdb, const STimeWindow* tw, ETsdbOpType type, bool force);
 
@@ -521,7 +524,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   tsdbRemoveSsGarbageFiles(vid, rtner->fset);
 
   setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SUCCEEDED);
-  tsdbInfo("vgId:%d, fid:%d, leader migration succeeded", vid, f->fid);
+  tsdbInfo(KEYOP("ss-migrate", "END") "vgId:%d, fid:%d, leader migration succeeded", vid, f->fid);
 
   // no new chunks generated, no need to copy the last chunk
   if (totalChunks == lcn) {
@@ -573,7 +576,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
 
   *pCode = 0;
   if (!flocal) {
-    tsdbInfo("vgId:%d, fid:%d, migration cancelled, local data file not exist", vid, pLocalFset->fid);
+    tsdbInfo("vgId:%d, fid:%d, migration cancelled, local data file does not exist", vid, pLocalFset->fid);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false;
   }
@@ -625,7 +628,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   // be skipped, so we also check 'mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact', note
   // this is not an acurate condition, but is simple and good enough.
   if (mtime >= rtner->tw.ekey - tsSsUploadDelaySec && (mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact)) {
-    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is active writting, modified at %" PRId64, vid, pLocalFset->fid, mtime);
+    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is being actively written, modified at %" PRId64, vid, pLocalFset->fid, mtime);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false; // still active writing, postpone migration
   }
@@ -859,7 +862,7 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     return code;
   }
 
-  tsdbInfo("vgId:%d, fid:%d, data file downloaded", vid, fset->fid);
+  tsdbInfo(KEYOP("ss-migrate", "END") "vgId:%d, fid:%d, data file downloaded", vid, fset->fid);
   tsdbTFileSetClear(&pRemoteFset);
   return 0;
 }
@@ -931,6 +934,9 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
 
 
 int32_t tsdbDoSsMigrate(SRTNer *rtner) {
+  tsdbInfo(KEYOP("ss-migrate", "START") "vgId:%d, fid:%d, start ss migration", TD_VID(rtner->tsdb->pVnode),
+           rtner->fset->fid);
+
   // note: leader is decided when the task is scheduled, the actual leader may change after that,
   // but this is ok.
   if (rtner->nodeId == vnodeNodeId(rtner->tsdb->pVnode)) {

@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -312,11 +316,23 @@ class TestAlterTable:
                 for v in self.column_dict.values():
                     tdSql.error(f'alter table {self.stbname} modify column {key} {v}')
                     tdSql.error(f'alter table {self.stbname} set tag {key} = "abcd1"')
+        # RENAME COLUMN on a super table is supported since 3.4.3.0. COL_NAME_LENGTH_MAX (64) is the
+        # longest name that is still valid (TSDB_COL_NAME_LEN is 65 including the terminator), so a
+        # name of exactly that length must be ACCEPTED; only one char more is an invalid identifier.
+        # A child table still cannot rename anything - the schema belongs to the stable.
         for key,values in self.column_dict.items():
             rename_str = f'{tdCom.getLongName(constant.COL_NAME_LENGTH_MAX,"letters")}'
-            tdSql.error(f'alter table {self.stbname} rename column {key} {rename_str}')
+            too_long_str = f'{tdCom.getLongName(constant.COL_NAME_LENGTH_MAX+1,"letters")}'
+            tdSql.error(f'alter table {self.stbname} rename column {key} {too_long_str}')
             for i in range(self.tbnum):
                 tdSql.error(f'alter table {self.stbname}_{i} rename column {key} {rename_str}')
+            tdSql.execute(f'alter table {self.stbname} rename column {key} {rename_str}')
+            tdSql.query(f'describe {self.stbname}')
+            names = [row[0] for row in tdSql.queryResult]
+            assert rename_str in names, f'{rename_str} expected in {self.stbname}, got {names}'
+            assert key not in names, f'{key} unexpected in {self.stbname}, got {names}'
+            # rename back so the remaining assertions still address the original names
+            tdSql.execute(f'alter table {self.stbname} rename column {rename_str} {key}')
     def test_alter_table(self):
         """Alter super/normal table
 
@@ -329,6 +345,7 @@ class TestAlterTable:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

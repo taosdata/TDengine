@@ -24,7 +24,9 @@ For TDengine 2.x installation packages, visit the [TDengine Download Center](htt
 
 ## TDengine 3.x Downloads
 
-For TDengine `v3.3.7.0` and later, visit the [TDengine Download Center](https://tdengine.com/downloads/).
+For TDengine `v3.3.7.0` and later, visit the [TDengine Download Center](https://tdengine.com/downloads).
+
+Starting with `v3.4.3.0`, TDengine Enterprise Linux installation packages use the `.tar.xz` format. Package formats for other platforms and earlier versions remain unchanged.
 
 ## TDengine Releases
 

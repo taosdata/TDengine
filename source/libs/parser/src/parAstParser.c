@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -79,6 +81,17 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
   return TSDB_CODE_SUCCESS;
 }
 
+static void destroyParserStreamTimeInfo(SStreamCreateTimeInfo* pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+  if (pInfo->timezone != NULL) {
+    tzfree(pInfo->timezone);
+  }
+  taosArrayDestroy(pInfo->pNonConfigOptionSpans);
+  taosMemoryFree(pInfo);
+}
+
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
@@ -88,6 +101,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   while (1) {
     SToken t0 = {0};
     if (cxt.pQueryCxt->pSql[i] == 0) {
+      cxt.lookaheadPos = cxt.trailingTriviaPos >= 0 ? cxt.trailingTriviaPos : pParseCxt->sqlLen;
       Parse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
@@ -104,9 +118,13 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
     switch (t0.type) {
       case TK_NK_SPACE:
       case TK_NK_COMMENT: {
+        if (cxt.trailingTriviaPos < 0) {
+          cxt.trailingTriviaPos = i - (int32_t)t0.n;
+        }
         break;
       }
       case TK_NK_SEMI: {
+        cxt.lookaheadPos = cxt.trailingTriviaPos >= 0 ? cxt.trailingTriviaPos : i - (int32_t)t0.n;
         Parse(pParser, 0, t0, &cxt);
         goto abort_parse;
       }
@@ -122,6 +140,8 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       }
       default:
         // ParseTrace(stdout, "");
+        cxt.lookaheadPos = i - (int32_t)t0.n;
+        cxt.trailingTriviaPos = -1;
         Parse(pParser, t0.type, t0, &cxt);
         if (TSDB_CODE_SUCCESS != cxt.errCode) {
           goto abort_parse;
@@ -133,7 +153,7 @@ abort_parse:
   ParseFree(pParser, (FFree)taosAutoMemoryFree);
   /* PAR_INCOMPLETE_SQL means the grammar hit EOF while expecting more tokens.
    * For CREATE EXTERNAL SOURCE this means a missing mandatory field, which
-   * semantically is a syntax error — map it to PAR_SYNTAX_ERROR so callers
+   * semantically is a syntax error  -  map it to PAR_SYNTAX_ERROR so callers
    * see a consistent error code. */
   if (cxt.errCode == TSDB_CODE_PAR_INCOMPLETE_SQL && isCreateExtSourceStatement(cxt.pQueryCxt->pSql)) {
     SMsgBuf msgBuf = {.len = cxt.pQueryCxt->msgLen, .buf = cxt.pQueryCxt->pMsg};
@@ -145,6 +165,17 @@ abort_parse:
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
+    // FQ diagnostic: log pWindow state right after AST build
+    if (*pQuery && (*pQuery)->pRoot && QUERY_NODE_SELECT_STMT == nodeType((*pQuery)->pRoot)) {
+      SSelectStmt* pSel = (SSelectStmt*)(*pQuery)->pRoot;
+      parserDebug("FQ-AFTERPARSE: pWindow=%p(%d) hasAggFuncs=%d",
+                  pSel->pWindow,
+                  pSel->pWindow ? (int)nodeType(pSel->pWindow) : -1,
+                  (int)pSel->hasAggFuncs);
+    }
+  }
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    destroyParserStreamTimeInfo(cxt.pStreamTimeInfo);
   }
   taosArrayDestroy(cxt.pPlaceholderValues);
   return cxt.errCode;
@@ -183,15 +214,6 @@ static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFu
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
-static bool needGetTableIndex(SNode* pStmt) {
-  return false;
-  if (QUERY_SMA_OPTIMIZE_ENABLE == tsQuerySmaOptimize && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    SSelectStmt* pSelect = (SSelectStmt*)pStmt;
-    return (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow));
-  }
-  return false;
-}
-
 static int32_t collectMetaKeyFromInsTagsImpl(SCollectMetaKeyCxt* pCxt, SName* pName) {
   if (0 == pName->type) {
     return TSDB_CODE_SUCCESS;
@@ -205,8 +227,22 @@ static int32_t collectMetaKeyFromInsTagsImpl(SCollectMetaKeyCxt* pCxt, SName* pN
 static int32_t collectMetaKeyFromInsTags(SCollectMetaKeyCxt* pCxt) {
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pStmt;
   SName        name = {0};
-  int32_t      code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &name);
+  int32_t      code =
+      getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pSelect->pWhere, &name);
   if (TSDB_CODE_SUCCESS == code) {
+    code = collectMetaKeyFromInsTagsImpl(pCxt, &name);
+  }
+  return code;
+}
+
+static int32_t collectMetaKeyFromVirtualTableReferencing(SCollectMetaKeyCxt* pCxt) {
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pStmt;
+  SName        name = {0};
+  int32_t      code =
+      getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pSelect->pWhere, &name);
+  if (TSDB_CODE_SUCCESS == code && name.dbname[0] != '\0') {
+    name.type = TSDB_DB_NAME_T;
+    name.tname[0] = '\0';
     code = collectMetaKeyFromInsTagsImpl(pCxt, &name);
   }
   return code;
@@ -238,17 +274,19 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pDb, pCxt->pMetaCache);
   }
-  if (TSDB_CODE_SUCCESS == code && needGetTableIndex(pCxt->pStmt)) {
-    code = reserveTableIndexInCache(pCxt->pParseCxt->acctId, pDb, pTable, pCxt->pMetaCache);
-  }
   if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES) ||
                                      0 == strcmp(pTable, TSDB_INS_TABLE_CPU_ALLOCATION))) {
     code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
   }
+  if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pTable, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) &&
+      QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
+    code = collectMetaKeyFromVirtualTableReferencing(pCxt);
+  }
   if (TSDB_CODE_SUCCESS == code &&
       (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES) ||
        0 == strcmp(pTable, TSDB_INS_TABLE_COLS) || 0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS) ||
-       0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || 0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS) ||
+       0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || 0 == strcmp(pTable, TSDB_INS_TABLE_LAST_CACHE_STATS) ||
+       0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS) ||
        0 == strcmp(pTable, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) ||
        0 == strcmp(pTable, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
@@ -260,7 +298,7 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCxt->pStmt;
     SName        targetName = {0};
-    code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &targetName);
+    code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pSelect->pWhere, &targetName);
     if (TSDB_CODE_SUCCESS == code && targetName.dbname[0] != '\0') {
       code = reserveDbVgInfoInCache(targetName.acctId, targetName.dbname, pCxt->pMetaCache);
     }
@@ -285,7 +323,6 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
       nSeg = (pRealTable->table.dbName[0] != '\0') ? 2 : 1;
     }
   } else if (nSeg == 1 && pRealTable->table.dbName[0] != '\0') {
-    // Canonicalize malformed 2-segment paths recorded as 1 segment.
     nSeg = 2;
   }
 
@@ -295,8 +332,6 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
               pCxt->pComCxt->pParseCxt->currentExtSource, pCxt->pComCxt->pParseCxt->currentExtNs1,
               pCxt->pComCxt->pParseCxt->currentExtNs2, tsFederatedQueryEnable ? 1 : 0);
 
-  // 3/4-segment paths require enterprise edition with federated query enabled.
-  // Catch this early so downstream meta lookup doesn't waste time with a misleading error.
 #ifndef TD_ENTERPRISE
   if (nSeg >= 3) {
     parserDebug("collectMetaKeyFromRealTable reject: multi-segment path in non-enterprise, nSeg:%d db:%s table:%s",
@@ -306,9 +341,6 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
   }
 #endif
 
-  // For 1-segment and 2-segment paths, register standard TDengine table meta lookup.
-  // 3/4-segment paths are always external and skip the regular table meta registration.
-  // Skip when dbName is empty (1-seg path with ext source context only, no local db set).
   if (nSeg <= 2 && pRealTable->table.dbName[0] != '\0') {
     parserDebug("collectMetaKeyFromRealTable reserve local meta: db:%s table:%s", pRealTable->table.dbName,
                 pRealTable->table.tableName);
@@ -326,9 +358,6 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
   }
 
 #ifdef TD_ENTERPRISE
-  // For 3/4-segment paths, register external source check when federated query is enabled.
-  // A 2-segment db.table path is handled as a local TDengine table here; otherwise a
-  // valid local db name would be treated as a required external source during meta collection.
   if (tsFederatedQueryEnable && nSeg >= 3) {
     const char* sourceName = pRealTable->extSeg[0];
     if (sourceName && sourceName[0] != '\0') {
@@ -340,44 +369,43 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
                     sourceName, pCxt->errCode);
         return DEAL_RES_ERROR;
       }
-      // Register ext table meta request for this path
-      const char* mid0       = (nSeg >= 3) ? pRealTable->extSeg[1] : "";
-      const char* mid1       = "";
-      parserDebug("collectMetaKeyFromRealTable reserve ext table meta: source:%s mid0:%s mid1:%s table:%s",
-                  sourceName, mid0, mid1, pRealTable->table.tableName);
-      pCxt->errCode = reserveExtTableMetaInCache(sourceName, mid0, mid1,
-                                                  pRealTable->table.tableName,
-                                                  pCxt->pComCxt->pMetaCache);
-      if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-        parserDebug("collectMetaKeyFromRealTable reserve ext table meta failed: source:%s table:%s code:0x%x",
-                    sourceName, pRealTable->table.tableName, pCxt->errCode);
-        return DEAL_RES_ERROR;
+
+      {
+        const char* mid0 = (nSeg >= 3) ? pRealTable->extSeg[1] : "";
+        const char* mid1 = (nSeg >= 4) ? pRealTable->extSeg[2] : "";
+        parserDebug("collectMetaKeyFromRealTable reserve ext table meta: source:%s mid0:%s mid1:%s table:%s",
+                    sourceName, mid0, mid1, pRealTable->table.tableName);
+        pCxt->errCode = reserveExtTableMetaInCache(sourceName, mid0, mid1,
+                                                   pRealTable->table.tableName,
+                                                   pCxt->pComCxt->pMetaCache);
+        if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+          parserDebug("collectMetaKeyFromRealTable reserve ext table meta failed: source:%s table:%s code:0x%x",
+                      sourceName, pRealTable->table.tableName, pCxt->errCode);
+          return DEAL_RES_ERROR;
+        }
       }
 
     }
   }
 
-  // 1-seg with active ext source context (after USE ext_source): also reserve ext table meta.
-  // This allows SELECT * FROM tbl to resolve against the active external source.
-  if (tsFederatedQueryEnable && nSeg == 1) {
+  if (tsFederatedQueryEnable && rawNSeg == 1) {
     const SParseContext* pParCxt = pCxt->pComCxt->pParseCxt;
     if (pParCxt->currentExtSource[0] != '\0') {
-      parserDebug("collectMetaKeyFromRealTable reserve 1-seg ext(use ctx): source:%s ns1:%s ns2:%s table:%s",
+      parserDebug("collectMetaKeyFromRealTable reserve raw-1seg ext(use ctx): source:%s ns1:%s ns2:%s table:%s db:%s",
                   pParCxt->currentExtSource, pParCxt->currentExtNs1,
-                  pParCxt->currentExtNs2, pRealTable->table.tableName);
+                  pParCxt->currentExtNs2, pRealTable->table.tableName, pRealTable->table.dbName);
       pCxt->errCode = reserveExtSourceInCache(pParCxt->currentExtSource, pCxt->pComCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-        parserDebug("collectMetaKeyFromRealTable reserve 1-seg ext source failed: source:%s code:0x%x",
+        parserDebug("collectMetaKeyFromRealTable reserve raw-1seg ext source failed: source:%s code:0x%x",
                     pParCxt->currentExtSource, pCxt->errCode);
         return DEAL_RES_ERROR;
       }
-      // mid0 = ns1 (db/schema), mid1 = ns2 (PG schema, if any)
       pCxt->errCode = reserveExtTableMetaInCache(pParCxt->currentExtSource,
-                                                  pParCxt->currentExtNs1, pParCxt->currentExtNs2,
-                                                  pRealTable->table.tableName,
-                                                  pCxt->pComCxt->pMetaCache);
+                                                 pParCxt->currentExtNs1, pParCxt->currentExtNs2,
+                                                 pRealTable->table.tableName,
+                                                 pCxt->pComCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-        parserDebug("collectMetaKeyFromRealTable reserve 1-seg ext table meta failed: source:%s table:%s code:0x%x",
+        parserDebug("collectMetaKeyFromRealTable reserve raw-1seg ext table meta failed: source:%s table:%s code:0x%x",
                     pParCxt->currentExtSource, pRealTable->table.tableName, pCxt->errCode);
         return DEAL_RES_ERROR;
       }
@@ -386,11 +414,11 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
 
   // 2-segment path (source.table): dbName may actually be an ext source name rather
   // than a local db name. Speculatively reserve it too - if it isn't a real ext
-  // source, getExtSourceInfoFromCache reports not-found later and the local-table
+  // source, getExternalSourceInfo reports not-found later and the local-table
   // reservation already done above is used instead. This mirrors translateRealTable's
   // 2-seg precheck/fallback and createStreamReqBuildTriggerAst's EXT precheck, both
   // of which read this same cache entry but were never being fed data for nSeg==2.
-  if (tsFederatedQueryEnable && nSeg == 2 && pRealTable->table.dbName[0] != '\0') {
+  if (tsFederatedQueryEnable && rawNSeg == 2 && pRealTable->table.dbName[0] != '\0') {
     const char* sourceName = pRealTable->table.dbName;
     parserDebug("collectMetaKeyFromRealTable reserve 2-seg ext(speculative): source:%s table:%s",
                 sourceName, pRealTable->table.tableName);
@@ -406,6 +434,20 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
       parserDebug("collectMetaKeyFromRealTable reserve 2-seg ext table meta failed: source:%s table:%s code:0x%x",
                   sourceName, pRealTable->table.tableName, pCxt->errCode);
       return DEAL_RES_ERROR;
+    }
+
+    const SParseContext* pParCxt = pCxt->pComCxt->pParseCxt;
+    if (pParCxt->currentExtNs1[0] != '\0' &&
+        0 == strcasecmp(pParCxt->currentExtSource, sourceName)) {
+      pCxt->errCode = reserveExtTableMetaInCache(sourceName, pParCxt->currentExtNs1, "",
+                                                  pRealTable->table.tableName,
+                                                  pCxt->pComCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+        parserDebug("collectMetaKeyFromRealTable reserve 2-seg ext(use ctx) table meta failed: "
+                    "source:%s ns:%s table:%s code:0x%x",
+                    sourceName, pParCxt->currentExtNs1, pRealTable->table.tableName, pCxt->errCode);
+        return DEAL_RES_ERROR;
+      }
     }
   }
 #endif
@@ -441,12 +483,12 @@ static int32_t isTbnameEqCondOperator(SOperatorNode* pOperator, char** ppTableNa
   return TSDB_CODE_SUCCESS;
 }
 
-/* ── Phase-1 correlated-EXISTS detection ─────────────────────────────────────
+/* -- Phase-1 correlated-EXISTS detection -------------------------------------
  * Walk an expression looking for SColumnNode whose tableAlias matches the
  * outer query's FROM table alias (while excluding the inner SELECT's own alias).
  * This is used to detect correlated EXISTS/NOT EXISTS during the metadata-key
  * collection phase so that the rejection error is raised before any external
- * source metadata fetch — ensuring all FQ sources (including InfluxDB) return
+ * source metadata fetch  -  ensuring all FQ sources (including InfluxDB) return
  * the same errno (PAR_INVALID_EXPR_SUBQ) instead of connector-level errors.
  */
 typedef struct SPhase1CorrelCxt {
@@ -539,9 +581,9 @@ static int32_t collectMetaKeyFromExprs(SCollectMetaKeyCxt* pCxt, SNodeList* pLis
 }
 
 static int32_t collectMetaKeyFromSetOperator(SCollectMetaKeyCxt* pCxt, SSetOperator* pStmt) {
-  int32_t code = collectMetaKeyFromQuery(pCxt, pStmt->pLeft);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectMetaKeyFromQuery(pCxt, pStmt->pRight);
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < setOperatorChildCount(pStmt) && TSDB_CODE_SUCCESS == code; ++i) {
+    code = collectMetaKeyFromQuery(pCxt, setOperatorChildAt(pStmt, i));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromExprs(pCxt, pStmt->pOrderByList);
@@ -621,7 +663,7 @@ static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTa
   }
 #endif
   // CREATE TABLE with TAGS goes down the vnode normal-table path when every tag carries an
-  // inline `= literal` value (valueless TAGS keeps the mnode super-table path) — mirror the
+  // inline `= literal` value (valueless TAGS keeps the mnode super-table path)  -  mirror the
   // rewrite gate in parTranslater.c so the table vgroup is pre-fetched for the normal-table
   // path; otherwise the async meta cache misses and translate yields PAR_INTERNAL_ERROR.
   // CREATE STABLE never takes the normal-table path, whatever the tag values are.
@@ -679,6 +721,17 @@ static bool isSeriesAliasInCreateVTable(SNodeList* pSeriesList, const char* pRef
   return false;
 }
 
+static int32_t collectMetaKeyFromPossibleExtRef(SCollectMetaKeyCxt* pCxt, const char* dbName,
+                                               const char* tableName) {
+#ifdef TD_ENTERPRISE
+  if (tsFederatedQueryEnable && dbName[0] != '\0') {
+    PAR_ERR_RET(reserveExtSourceInCache(dbName, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveExtTableMetaInCache(dbName, "", "", tableName, pCxt->pMetaCache));
+  }
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateVTableStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache));
@@ -687,36 +740,40 @@ static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateV
                                      PRIV_OBJ_DB, pCxt->pMetaCache));
   PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_TBL_CREATE,
                                      PRIV_OBJ_DB, pCxt->pMetaCache));
+
   SNode* pNode = NULL;
   FOREACH(pNode, pStmt->pCols) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     if (NULL == pCol) {
       PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
     }
+
     SColumnOptions* pOptions = (SColumnOptions*)pCol->pOptions;
-    if (pOptions && pOptions->hasRef) {
-      if (pOptions->refSourceName[0] != '\0') {
-        // 4-segment external ref: reserve ext source + ext table meta for DDL validation
-        PAR_ERR_RET(reserveExtSourceInCache(pOptions->refSourceName, pCxt->pMetaCache));
-        PAR_ERR_RET(reserveExtTableMetaInCache(pOptions->refSourceName, pOptions->refDb, "",
-                                               pOptions->refTable, pCxt->pMetaCache));
-      } else {
-        // Check if refTable matches a SERIES alias — if so, skip internal table lookup
-        // (the SERIES ext source metadata is reserved separately below)
-        if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable)) {
-          continue;
-        }
-        // Internal ref (2-seg or 3-seg): reserve TDengine table metadata
-        PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache));
-        PAR_ERR_RET(
-            reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache));
-        PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache));
-        PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pOptions->refDb,
-                                           pOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
-      }
+    if (NULL == pOptions || !pOptions->hasRef) {
+      continue;
     }
+
+    if (pOptions->refSourceName[0] != '\0') {
+      PAR_ERR_RET(reserveExtSourceInCache(pOptions->refSourceName, pCxt->pMetaCache));
+      PAR_ERR_RET(reserveExtTableMetaInCache(pOptions->refSourceName, pOptions->refDb,
+                                             pOptions->refSchema,
+                                             pOptions->refTable, pCxt->pMetaCache));
+      continue;
+    }
+
+    if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable)) {
+      continue;
+    }
+
+    PAR_ERR_RET(collectMetaKeyFromPossibleExtRef(pCxt, pOptions->refDb, pOptions->refTable));
+    PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache));
+    PAR_ERR_RET(
+        reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pOptions->refDb,
+                                       pOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
   }
-  // Reserve ext source/table metadata for each SERIES declaration
+
   PAR_ERR_RET(collectMetaKeyFromSeriesList(pCxt, pStmt->pSeriesList));
   // tag-ref source tables must be pre-fetched too (symmetric with column refs above):
   // TAGS(name TYPE FROM src.tag) references a source child table whose meta is read in the
@@ -778,21 +835,27 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
         code = TSDB_CODE_PAR_INVALID_COLUMN;
         break;
       }
+
       // Expand empty refDbName to vtable's database for 2-segment refs
       if (pColRef->refDbName[0] == '\0' && pColRef->refTableName[0] != '\0' && pColRef->refSourceName[0] == '\0') {
         tstrncpy(pColRef->refDbName, pStmt->dbName, TSDB_DB_NAME_LEN);
       }
+
       // External source 4-part refs: reserve ext source + ext table meta for DDL validation.
       if (pColRef->refSourceName[0] != '\0') {
         PAR_ERR_RET(reserveExtSourceInCache(pColRef->refSourceName, pCxt->pMetaCache));
-        PAR_ERR_RET(reserveExtTableMetaInCache(pColRef->refSourceName, pColRef->refDbName, "",
+        PAR_ERR_RET(reserveExtTableMetaInCache(pColRef->refSourceName, pColRef->refDbName,
+                                               pColRef->refSchemaName,
                                                pColRef->refTableName, pCxt->pMetaCache));
         continue;
       }
-      // Check if refTableName matches a SERIES alias — skip internal table lookup if so
+
+      // Check if refTableName matches a SERIES alias - skip internal table lookup if so
       if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pColRef->refTableName)) {
         continue;
       }
+
+      PAR_ERR_RET(collectMetaKeyFromPossibleExtRef(pCxt, pColRef->refDbName, pColRef->refTableName));
       PAR_ERR_RET(
           reserveTableMetaInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName, pCxt->pMetaCache));
       PAR_ERR_RET(
@@ -801,6 +864,33 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
                                             pCxt->pMetaCache));
       PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pColRef->refDbName,
                                          pColRef->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
+    }
+  }
+
+  // Handle pColDefs: column_def_list with FROM clauses (used for ext source refs with explicit types).
+  // Skip TDengine table meta reservation for external source (4-part) refs.
+  if (pStmt->pColDefs) {
+    FOREACH(pNode, pStmt->pColDefs) {
+      SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
+      SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
+      if (pOptions && pOptions->hasRef && pOptions->refSourceName[0] != '\0') {
+        PAR_ERR_RET(reserveExtSourceInCache(pOptions->refSourceName, pCxt->pMetaCache));
+        PAR_ERR_RET(reserveExtTableMetaInCache(pOptions->refSourceName, pOptions->refDb, "",
+                                             pOptions->refTable, pCxt->pMetaCache));
+        continue;
+      }
+      if (pOptions && isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable)) {
+        continue;
+      }
+      if (pOptions && pOptions->hasRef && pOptions->refSourceName[0] == '\0') {
+        PAR_ERR_RET(collectMetaKeyFromPossibleExtRef(pCxt, pOptions->refDb, pOptions->refTable));
+        PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable,
+                                            pCxt->pMetaCache));
+        PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable,
+                                              pCxt->pMetaCache));
+        PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pOptions->refDb,
+                                           pOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
+      }
     }
   }
 
@@ -1102,6 +1192,11 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
                                   PRIV_SECURITY_POLICY_ALTER, 0, pCxt->pMetaCache);
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->dbName[0] != '\0') {
+    code = reserveExtSourceInCache(pStmt->dbName, pCxt->pMetaCache);
+  }
+#endif
   if (TSDB_CODE_SUCCESS == code &&
       (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
        pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
@@ -1119,12 +1214,19 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
       code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName,
                                     pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
     }
-  }
 #ifdef TD_ENTERPRISE
-  if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->dbName[0] != '\0') {
-    code = reserveExtSourceInCache(pStmt->dbName, pCxt->pMetaCache);
-  }
+    if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->refType == 1) {
+      // External column reference: the auth phase and checkExternalColRef both read the
+      // ext source info from the parse meta cache, so pre-fetch it like
+      // collectMetaKeyFromAlterVtable does for the ALTER VTABLE form.
+      code = reserveExtSourceInCache(pStmt->refSourceName, pCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = reserveExtTableMetaInCache(pStmt->refSourceName, pStmt->refDbName, "", pStmt->refTableName,
+                                          pCxt->pMetaCache);
+      }
+    }
 #endif
+  }
   return code;
 }
 
@@ -1191,9 +1293,14 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF) {
     if (pStmt->refType == 1) {
-      // External reference: pre-fetch ext source info and ext table meta
+      // External reference: pre-fetch ext source info and ext table meta.
+      // The cache key is (database, schema)  -  the schema segment must be part of
+      // the reservation, otherwise a 5-part SQL Server reference registers (db, "")
+      // while translate-time looks it up as (db, schema) and reports the table as
+      // missing (same rule as the CREATE VTABLE reservations above).
       PAR_ERR_RET(reserveExtSourceInCache(pStmt->refSourceName, pCxt->pMetaCache));
-      PAR_ERR_RET(reserveExtTableMetaInCache(pStmt->refSourceName, pStmt->refDbName, "",
+      PAR_ERR_RET(reserveExtTableMetaInCache(pStmt->refSourceName, pStmt->refDbName,
+                                             pStmt->refSchemaName,
                                              pStmt->refTableName, pCxt->pMetaCache));
     } else if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
                pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF) {
@@ -1237,7 +1344,7 @@ static int32_t collectMetaKeyFromUseDatabase(SCollectMetaKeyCxt* pCxt, SUseDatab
   // to treating `USE name` as `USE ext_source` when no matching local DB exists.
   if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable) {
     int32_t extCode = reserveExtSourceInCache(pStmt->dbName, pCxt->pMetaCache);
-    // Ignore TSDB_CODE_EXT_SOURCE_NOT_FOUND — it simply means no ext source with this name.
+    // Ignore TSDB_CODE_EXT_SOURCE_NOT_FOUND  -  it simply means no ext source with this name.
     if (extCode != TSDB_CODE_SUCCESS && extCode != TSDB_CODE_EXT_SOURCE_NOT_FOUND) {
       code = extCode;
     }
@@ -1261,7 +1368,7 @@ static int32_t collectMetaKeyFromCreateIndex(SCollectMetaKeyCxt* pCxt, SCreateIn
   }
 #endif
   int32_t code = TSDB_CODE_SUCCESS;
-  if (INDEX_TYPE_SMA == pStmt->indexType || INDEX_TYPE_NORMAL == pStmt->indexType) {
+  if (INDEX_TYPE_NORMAL == pStmt->indexType) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
     if (TSDB_CODE_SUCCESS == code) {
       code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
@@ -1365,7 +1472,7 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
       code = reserveExtSourceInCache(srcName, pCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS == code) {
         const char* mid0 = (nSeg >= 3) ? pStmt->extSeg[1] : "";
-        const char* mid1 = "";
+        const char* mid1 = (nSeg >= 4) ? pStmt->extSeg[2] : "";
         parserDebug("collectMetaKeyFromDescribe reserve ext table meta: source:%s mid0:%s mid1:%s table:%s",
                     srcName, mid0, mid1, pStmt->tableName);
         code = reserveExtTableMetaInCache(srcName, mid0, mid1, pStmt->tableName, pCxt->pMetaCache);
@@ -1884,6 +1991,12 @@ static int32_t collectMetaKeyFromShowScans(SCollectMetaKeyCxt* pCxt, SShowStmt* 
   return code;
 }
 
+static int32_t collectMetaKeyFromShowBackups(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_BACKUPS,
+                                         pCxt->pMetaCache);
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowCompactDetails(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
                                          TSDB_INS_TABLE_COMPACT_DETAILS, pCxt->pMetaCache);
@@ -2111,7 +2224,9 @@ static int32_t collectMetaKeyFromDelete(SCollectMetaKeyCxt* pCxt, SDeleteStmt* p
     SRealTableNode* pReal = (SRealTableNode*)pStmt->pFromTable;
     int8_t nSeg = pReal->numPathSegments;
     if (nSeg == 0) nSeg = (pReal->table.dbName[0] != '\0') ? 2 : 1;
-    if (nSeg >= 2 && pReal->table.dbName[0] != '\0') {
+    bool isSystemDbDel = (nSeg == 2) && (strcasecmp(pReal->table.dbName, TSDB_INFORMATION_SCHEMA_DB) == 0 ||
+                                          strcasecmp(pReal->table.dbName, TSDB_PERFORMANCE_SCHEMA_DB) == 0);
+    if (nSeg >= 2 && pReal->table.dbName[0] != '\0' && !isSystemDbDel) {
       code = reserveExtSourceInCache(pReal->table.dbName, pCxt->pMetaCache);
     }
   }
@@ -2128,7 +2243,9 @@ static int32_t collectMetaKeyFromInsert(SCollectMetaKeyCxt* pCxt, SInsertStmt* p
     SRealTableNode* pReal = (SRealTableNode*)pStmt->pTable;
     int8_t nSeg = pReal->numPathSegments;
     if (nSeg == 0) nSeg = (pReal->table.dbName[0] != '\0') ? 2 : 1;
-    if (nSeg >= 2 && pReal->table.dbName[0] != '\0') {
+    bool isSystemDbIns = (nSeg == 2) && (strcasecmp(pReal->table.dbName, TSDB_INFORMATION_SCHEMA_DB) == 0 ||
+                                           strcasecmp(pReal->table.dbName, TSDB_PERFORMANCE_SCHEMA_DB) == 0);
+    if (nSeg >= 2 && pReal->table.dbName[0] != '\0' && !isSystemDbIns) {
       code = reserveExtSourceInCache(pReal->table.dbName, pCxt->pMetaCache);
     }
   }
@@ -2778,6 +2895,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       code = collectMetaKeyFromShowCompacts(pCxt, (SShowStmt*)pStmt);
       break;
+    case QUERY_NODE_SHOW_BACKUPS_STMT:
+      code = collectMetaKeyFromShowBackups(pCxt, (SShowStmt*)pStmt);
+      break;
     case QUERY_NODE_SHOW_SCANS_STMT:
       code = collectMetaKeyFromShowScans(pCxt, (SShowStmt*)pStmt);
       break;
@@ -3007,10 +3127,18 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
       // Pre-fetch the external source info so the rewrite can populate the stmt
-      // (LOCAL execution — no SELECT rewrite, no ins_ext_sources table meta needed).
+      // (LOCAL execution  -  no SELECT rewrite, no ins_ext_sources table meta needed).
       if (tsFederatedQueryEnable) {
         SDescribeExtSourceStmt* pDescStmt = (SDescribeExtSourceStmt*)pStmt;
         code = reserveExtSourceInCache(pDescStmt->sourceName, pCxt->pMetaCache);
+      }
+      break;
+    case QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT:
+      // Pre-fetch external source info so rewrite can clone capability snapshot
+      // into the statement for local execution.
+      if (tsFederatedQueryEnable) {
+        SShowExtSourceCapabilityStmt* pCapStmt = (SShowExtSourceCapabilityStmt*)pStmt;
+        code = reserveExtSourceInCache(pCapStmt->sourceName, pCxt->pMetaCache);
       }
       break;
 #endif

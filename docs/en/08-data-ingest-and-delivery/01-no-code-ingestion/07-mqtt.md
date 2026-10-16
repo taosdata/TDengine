@@ -30,7 +30,7 @@ Enter the MQTT broker's username in **User**.
 
 Enter the MQTT broker's password in **Password**.
 
-![Configure connection information](../../assets/mqtt-01.png)
+![Configure connection information](../../assets/mqtt-01.webp)
 
 ### Configure TLS
 
@@ -40,13 +40,13 @@ In **TLS Verification**, select one of the following modes:
 2. **One-way authentication**: Use TLS and verify the server certificate. Upload the CA certificate.
 3. **Mutual authentication**: Use mutual TLS. Upload the CA certificate, client certificate, and client private key.
 
-![Configure SSL certificate](../../assets/mqtt-02.png)
+![Configure SSL certificate](../../assets/mqtt-02.webp)
 
 ### Configure Collection Information
 
 Fill in the collection task related configuration parameters in the **Collection Configuration** area.
 
-Select the MQTT protocol version from the **MQTT Protocol** dropdown list. There are three options: `3.1`, `3.1.1`, `5.0`. The default value is 3.1.
+Select the MQTT protocol version from the **MQTT Protocol** dropdown list. There are two options: `3.1.1` and `5.0`. The default value is `3.1.1`. MQTT 3.1 (legacy, MQIsdp) is not supported.
 
 Enter the client identifier in **Client ID**, after which a client id with the prefix `taosx` will be generated (for example, if the identifier entered is `foo`, the generated client id will be `taosxfoo`). If the switch at the end is turned on, the current task's task id will be concatenated after `taosx` and before the entered identifier (the generated client id will look like `taosx100foo`). All client ids connecting to the same MQTT address must be unique.
 
@@ -67,7 +67,7 @@ In the **Char Encoding**, configure the message body encoding format. After rece
 
 Click the **Check Connection** button to check if the data source is available.
 
-![Configure collection settings](../../assets/mqtt-03.png)
+![Configure collection settings](../../assets/mqtt-03.webp)
 
 ### Configure MQTT Payload Parsing
 
@@ -100,17 +100,17 @@ or
 
 The analysis results are as follows:
 
-![Payload parsing results](../../assets/mqtt-04.png)
+![Payload parsing results](../../assets/mqtt-04.webp)
 
 Click the **magnifying glass icon** to view the preview of the analysis results.
 
-![Preview analysis results](../../assets/mqtt-05.png)
+![Preview analysis results](../../assets/mqtt-05.webp)
 
 #### Field Splitting
 
 In **Extract or Split from Column**, fill in the fields to extract or split from the message body, for example: split the `message` field into `message_0` and `message_1`, select the split extractor, fill in the separator as -, and number as 2.
 
-![Extract or split from column](../../assets/mqtt-06.png)
+![Extract or split from column](../../assets/mqtt-06.webp)
 
 Click **Delete** to remove the current extraction rule.
 
@@ -118,19 +118,19 @@ Click **Add** to add more extraction rules.
 
 Click the **magnifying glass icon** to view the preview of the extraction/split results.
 
-![Preview results](../../assets/mqtt-07.png)
+![Preview results](../../assets/mqtt-07.webp)
 
 #### Data Filtering
 
 In **Filter**, fill in the filtering conditions, for example: write `id != 1`, then only data with id not equal to 1 will be written to TDengine.
 
-![Data filtering conditions](../../assets/mqtt-08.png)
+![Data filtering conditions](../../assets/mqtt-08.webp)
 
 Click **Delete** to remove the current filtering rule.
 
 Click the **magnifying glass icon** to view the preview of the filtering results.
 
-![Preview filtering results](../../assets/mqtt-09.png)
+![Preview filtering results](../../assets/mqtt-09.webp)
 
 #### Table Mapping
 
@@ -140,11 +140,11 @@ If the supertable must be generated dynamically from each message, select **Crea
 
 In **Mapping**, fill in the subtable name in the target supertable, for example: `t_{id}`. Fill in the mapping rules according to the requirements, where mapping supports setting default values.
 
-![Table mapping](../../assets/mqtt-10.png)
+![Table mapping](../../assets/mqtt-10.webp)
 
 Click **Preview** to view the mapping results.
 
-![Preview mapping results](../../assets/mqtt-11.png)
+![Preview mapping results](../../assets/mqtt-11.webp)
 
 If a supertable column name is a template variable, mapping performs a pivot: the template-variable values become column names and the mapped field supplies their values.
 
@@ -154,7 +154,7 @@ import AdvancedOptionsMqtt from './resources/_02-advanced-options-mqtt.mdx'
 
 <AdvancedOptionsMqtt />
 
-![Configure advanced options](../../assets/mqtt-12.png)
+![Configure advanced options](../../assets/mqtt-12.webp)
 
 ### Exception Handling
 

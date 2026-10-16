@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -150,6 +152,7 @@ int  tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, i
 int  tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn);
 // int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn);
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
+int tdbBtreeGetBatch(SBTree *pBt, STdbTbBatchGetArg *pArgs, int32_t numOfArgs);
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt);
 

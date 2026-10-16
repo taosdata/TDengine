@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -291,6 +293,7 @@ SQPTPlan qptPlans[] = {
   {QUERY_NODE_PHYSICAL_SUBPLAN, QPT_PLAN_SUBPLAN, "subplan", qptCreateSubplanNode},
   {QUERY_NODE_PHYSICAL_PLAN, QPT_PLAN_PLAN, "plan", qptCreateQueryPlanNode},
   {QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN, QPT_PLAN_PHYSIC, "tableCountScan", qptCreateTableCountScanPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE, QPT_PLAN_PHYSIC, "tableCountScanByType", qptCreateTableCountScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, QPT_PLAN_PHYSIC, "eventWindow", qptCreateMergeEventPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, QPT_PLAN_PHYSIC, "hashJoin", qptCreateHashJoinPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, QPT_PLAN_PHYSIC, "groupCache", qptCreateGroupCachePhysiNode},
@@ -2156,6 +2159,7 @@ SNode* qptCreateLastRowScanPhysiNode(int32_t nodeType) {
   
   pLRScanNode->groupSort = QPT_RAND_BOOL_V;
   pLRScanNode->ignoreNull = QPT_RAND_BOOL_V;
+  pLRScanNode->batchMultiTableRead = QPT_RAND_BOOL_V;
 
   if (QPT_CORRECT_HIGH_PROB()) {
     int16_t blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();    
@@ -2185,7 +2189,15 @@ SNode* qptCreateLastRowScanPhysiNode(int32_t nodeType) {
 }
 
 SNode* qptCreateTableCountScanPhysiNode(int32_t nodeType) {
-  return qptCreateLastRowScanPhysiNode(nodeType);
+  SNode* pNode = qptCreateLastRowScanPhysiNode(nodeType);
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE == nodeType) {
+    // BY_TYPE exists to carry a nonzero tbCountType filter; leaving it 0 would
+    // make the node indistinguishable from a plain table count scan.
+    static const int8_t kTypes[] = {TSDB_CHILD_TABLE, TSDB_NORMAL_TABLE, TSDB_VIRTUAL_NORMAL_TABLE,
+                                    TSDB_VIRTUAL_CHILD_TABLE};
+    ((STableCountScanPhysiNode*)pNode)->tbCountType = kTypes[taosRand() % (int32_t)(sizeof(kTypes) / sizeof(kTypes[0]))];
+  }
+  return pNode;
 }
 
 
@@ -3108,6 +3120,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
       qptCtx.result.code = createTableCountScanOperatorInfo(pReadHandle, (STableCountScanPhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
@@ -3312,6 +3325,402 @@ void qptDestroyTestCtx() {
   qptCtx.param.tbl.pColList = NULL;
   qptCtx.param.tbl.pTagList = NULL;
   qptCtx.param.tbl.pColTagList = NULL;
+}
+
+}  // namespace
+
+namespace {
+
+SNode* qptMakeExternalWindowDurationCondition() {
+  SOperatorNode* pCondition = NULL;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pCondition));
+  if (pCondition == NULL) {
+    return NULL;
+  }
+
+  pCondition->opType = OP_TYPE_LOWER_EQUAL;
+  pCondition->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pCondition->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+
+  SColumnNode* pDuration = NULL;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pDuration));
+  if (pDuration == NULL) {
+    nodesDestroyNode((SNode*)pCondition);
+    return NULL;
+  }
+  pDuration->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  pDuration->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  pDuration->colType = COLUMN_TYPE_PLACE_HOLDER;
+  tstrncpy(pDuration->colName, "_twduration", sizeof(pDuration->colName));
+  pCondition->pLeft = (SNode*)pDuration;
+
+  SValueNode* pLimit = NULL;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit));
+  if (pLimit == NULL) {
+    nodesDestroyNode((SNode*)pCondition);
+    return NULL;
+  }
+  pLimit->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  pLimit->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  pLimit->datum.i = 30000;
+  pLimit->literal = taosStrdup("30000");
+  pCondition->pRight = (SNode*)pLimit;
+
+  return (SNode*)pCondition;
+}
+
+SNode* qptJsonRoundTrip(SNode* pNode) {
+  char*  pJson = NULL;
+  SNode* pResult = NULL;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(pNode, false, &pJson, NULL));
+  if (pJson != NULL) {
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pJson, &pResult));
+  }
+  taosMemoryFree(pJson);
+  return pResult;
+}
+
+SNode* qptJsonRoundTripWithoutFields(SNode* pNode, const char* const* pFields, int32_t numOfFields) {
+  char*  pJson = NULL;
+  char*  pCompatJson = NULL;
+  SJson* pJsonObj = NULL;
+  SNode* pResult = NULL;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(pNode, false, &pJson, NULL));
+  if (pJson != NULL) {
+    pJsonObj = tjsonParse(pJson);
+    EXPECT_NE(nullptr, pJsonObj);
+  }
+  if (pJsonObj != NULL) {
+    SJson* pPayload = tjsonGetObjectItem(pJsonObj, nodesNodeName(pNode->type));
+    EXPECT_NE(nullptr, pPayload);
+    for (int32_t i = 0; i < numOfFields; ++i) {
+      tjsonDeleteItemFromObject(pPayload, pFields[i]);
+    }
+    pCompatJson = tjsonToUnformattedString(pJsonObj);
+    EXPECT_NE(nullptr, pCompatJson);
+  }
+  if (pCompatJson != NULL) {
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pCompatJson, &pResult));
+  }
+  tjsonDelete(pJsonObj);
+  taosMemoryFree(pCompatJson);
+  taosMemoryFree(pJson);
+  return pResult;
+}
+
+SNode* qptTlvRoundTrip(SNode* pNode) {
+  char*   pMsg = NULL;
+  int32_t len = 0;
+  SNode*  pResult = NULL;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(pNode, &pMsg, &len));
+  if (pMsg != NULL) {
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(pMsg, len, &pResult));
+  }
+  taosMemoryFree(pMsg);
+  return pResult;
+}
+
+SNode* qptDecodeWithoutTrailingTlvFields(SNode* pNode, int32_t trailingFieldCount) {
+  char*   pMsg = NULL;
+  int32_t len = 0;
+  SNode*  pResult = NULL;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(pNode, &pMsg, &len));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+
+  constexpr int32_t kTlvHeaderSize = sizeof(int16_t) + sizeof(int32_t);
+  int32_t           outerLen = 0;
+  memcpy(&outerLen, pMsg + sizeof(int16_t), sizeof(outerLen));
+  outerLen = ntohl(outerLen);
+  int32_t offset = kTlvHeaderSize;
+  int32_t retainedLen = outerLen;
+  for (int32_t i = 0; i < trailingFieldCount; ++i) {
+    int32_t previous = kTlvHeaderSize;
+    int32_t next = kTlvHeaderSize;
+    while (next < offset + outerLen) {
+      previous = next;
+      int32_t fieldLen = 0;
+      memcpy(&fieldLen, pMsg + next + sizeof(int16_t), sizeof(fieldLen));
+      next += kTlvHeaderSize + ntohl(fieldLen);
+    }
+    retainedLen = previous - kTlvHeaderSize;
+    outerLen = retainedLen;
+  }
+  int32_t encodedLen = htonl(retainedLen);
+  memcpy(pMsg + sizeof(int16_t), &encodedLen, sizeof(encodedLen));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(pMsg, kTlvHeaderSize + retainedLen, &pResult));
+  taosMemoryFree(pMsg);
+  return pResult;
+}
+
+SNode* qptDecodeWithoutTlvField(SNode* pNode, int16_t fieldType) {
+  char*  pMsg = NULL;
+  int32_t len = 0;
+  SNode* pResult = NULL;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(pNode, &pMsg, &len));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+
+  constexpr int32_t kTlvHeaderSize = sizeof(int16_t) + sizeof(int32_t);
+  int32_t outerLen = 0;
+  memcpy(&outerLen, pMsg + sizeof(int16_t), sizeof(outerLen));
+  outerLen = ntohl(outerLen);
+  int32_t readOffset = kTlvHeaderSize;
+  int32_t writeOffset = kTlvHeaderSize;
+  while (readOffset < kTlvHeaderSize + outerLen) {
+    int16_t type = 0;
+    int32_t fieldLen = 0;
+    memcpy(&type, pMsg + readOffset, sizeof(type));
+    memcpy(&fieldLen, pMsg + readOffset + sizeof(type), sizeof(fieldLen));
+    fieldLen = ntohl(fieldLen);
+    int32_t encodedFieldLen = kTlvHeaderSize + fieldLen;
+    if (ntohs(type) != fieldType) {
+      if (writeOffset != readOffset) {
+        memmove(pMsg + writeOffset, pMsg + readOffset, encodedFieldLen);
+      }
+      writeOffset += encodedFieldLen;
+    }
+    readOffset += encodedFieldLen;
+  }
+  int32_t retainedLen = htonl(writeOffset - kTlvHeaderSize);
+  memcpy(pMsg + sizeof(int16_t), &retainedLen, sizeof(retainedLen));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(pMsg, writeOffset, &pResult));
+  taosMemoryFree(pMsg);
+  return pResult;
+}
+
+void qptAssertDurationCondition(const SNode* pCondition) {
+  ASSERT_NE(nullptr, pCondition);
+  ASSERT_EQ(QUERY_NODE_OPERATOR, nodeType(pCondition));
+  const SOperatorNode* pOperator = (const SOperatorNode*)pCondition;
+  ASSERT_EQ(OP_TYPE_LOWER_EQUAL, pOperator->opType);
+  ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(pOperator->pLeft));
+  ASSERT_EQ(0, strcmp("_twduration", ((const SColumnNode*)pOperator->pLeft)->colName));
+  ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pOperator->pRight));
+  ASSERT_EQ(0, strcmp("30000", ((const SValueNode*)pOperator->pRight)->literal));
+}
+
+TEST(PlanNodeExtensionTest, ExternalWindowLogicCloneKeepsInputModeAndCondition) {
+  SWindowLogicNode* pLogic = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pLogic));
+  pLogic->extWinInputMode = EXT_WIN_INPUT_BROADCAST;
+  pLogic->pWindowConditions = qptMakeExternalWindowDurationCondition();
+
+  SNode* pCloneNode = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode((SNode*)pLogic, &pCloneNode));
+  SWindowLogicNode* pClone = (SWindowLogicNode*)pCloneNode;
+  ASSERT_EQ(EXT_WIN_INPUT_BROADCAST, pClone->extWinInputMode);
+  ASSERT_NE(pLogic->pWindowConditions, pClone->pWindowConditions);
+  qptAssertDurationCondition(pClone->pWindowConditions);
+
+  nodesDestroyNode((SNode*)pLogic);
+  nodesDestroyNode(pCloneNode);
+}
+
+TEST(PlanNodeExtensionTest, ExternalWindowLogicJsonRoundTripKeepsFields) {
+  SWindowLogicNode* pLogic = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pLogic));
+  pLogic->extWinInputMode = EXT_WIN_INPUT_BROADCAST;
+  pLogic->pWindowConditions = qptMakeExternalWindowDurationCondition();
+
+  SNode*            pDecodedNode = qptJsonRoundTrip((SNode*)pLogic);
+  SWindowLogicNode* pDecoded = (SWindowLogicNode*)pDecodedNode;
+  ASSERT_EQ(EXT_WIN_INPUT_BROADCAST, pDecoded->extWinInputMode);
+  qptAssertDurationCondition(pDecoded->pWindowConditions);
+
+  const char*       pFields[] = {"ExtWinInputMode", "WindowConditions"};
+  SNode*            pOldNode = qptJsonRoundTripWithoutFields((SNode*)pLogic, pFields, 2);
+  SWindowLogicNode* pOld = (SWindowLogicNode*)pOldNode;
+  ASSERT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, pOld->extWinInputMode);
+  ASSERT_EQ(nullptr, pOld->pWindowConditions);
+
+  nodesDestroyNode((SNode*)pLogic);
+  nodesDestroyNode(pDecodedNode);
+  nodesDestroyNode(pOldNode);
+}
+
+TEST(PlanNodeExtensionTest, ExternalWindowPhysicalJsonRoundTripKeepsFields) {
+  SExternalWindowPhysiNode* pPhysical = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, (SNode**)&pPhysical));
+  pPhysical->extWinInputMode = EXT_WIN_INPUT_BROADCAST;
+  pPhysical->pWindowConditions = qptMakeExternalWindowDurationCondition();
+
+  SNode*                    pDecodedNode = qptJsonRoundTrip((SNode*)pPhysical);
+  SExternalWindowPhysiNode* pDecoded = (SExternalWindowPhysiNode*)pDecodedNode;
+  ASSERT_EQ(EXT_WIN_INPUT_BROADCAST, pDecoded->extWinInputMode);
+  qptAssertDurationCondition(pDecoded->pWindowConditions);
+
+  const char*               pFields[] = {"ExtWinInputMode", "WindowConditions"};
+  SNode*                    pOldNode = qptJsonRoundTripWithoutFields((SNode*)pPhysical, pFields, 2);
+  SExternalWindowPhysiNode* pOld = (SExternalWindowPhysiNode*)pOldNode;
+  ASSERT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, pOld->extWinInputMode);
+  ASSERT_EQ(nullptr, pOld->pWindowConditions);
+
+  nodesDestroyNode((SNode*)pPhysical);
+  nodesDestroyNode(pDecodedNode);
+  nodesDestroyNode(pOldNode);
+}
+
+TEST(PlanNodeExtensionTest, ExternalWindowPhysicalTlvRoundTripKeepsFields) {
+  SExternalWindowPhysiNode* pPhysical = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, (SNode**)&pPhysical));
+  pPhysical->extWinInputMode = EXT_WIN_INPUT_BROADCAST;
+  pPhysical->pWindowConditions = qptMakeExternalWindowDurationCondition();
+
+  SNode*                    pDecodedNode = qptTlvRoundTrip((SNode*)pPhysical);
+  SExternalWindowPhysiNode* pDecoded = (SExternalWindowPhysiNode*)pDecodedNode;
+  ASSERT_EQ(EXT_WIN_INPUT_BROADCAST, pDecoded->extWinInputMode);
+  qptAssertDurationCondition(pDecoded->pWindowConditions);
+  nodesDestroyNode(pDecodedNode);
+
+  SNode*                    pOldNode = qptDecodeWithoutTrailingTlvFields((SNode*)pPhysical, 2);
+  SExternalWindowPhysiNode* pOld = (SExternalWindowPhysiNode*)pOldNode;
+  ASSERT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, pOld->extWinInputMode);
+  ASSERT_EQ(nullptr, pOld->pWindowConditions);
+
+  nodesDestroyNode((SNode*)pPhysical);
+  nodesDestroyNode(pOldNode);
+}
+
+TEST(PlanNodeExtensionTest, JoinLogicCloneAndJsonRoundTripKeepsMultiGroupFlag) {
+  SJoinLogicNode* pLogic = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN, (SNode**)&pLogic));
+  pLogic->multiGroupJoin = true;
+
+  SNode* pCloneNode = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode((SNode*)pLogic, &pCloneNode));
+  ASSERT_TRUE(((SJoinLogicNode*)pCloneNode)->multiGroupJoin);
+  nodesDestroyNode(pCloneNode);
+
+  SNode* pDecodedNode = qptJsonRoundTrip((SNode*)pLogic);
+  ASSERT_TRUE(((SJoinLogicNode*)pDecodedNode)->multiGroupJoin);
+
+  const char* pFields[] = {"MultiGroupJoin"};
+  SNode*      pOldNode = qptJsonRoundTripWithoutFields((SNode*)pLogic, pFields, 1);
+  ASSERT_FALSE(((SJoinLogicNode*)pOldNode)->multiGroupJoin);
+
+  nodesDestroyNode((SNode*)pLogic);
+  nodesDestroyNode(pDecodedNode);
+  nodesDestroyNode(pOldNode);
+}
+
+TEST(PlanNodeExtensionTest, HashJoinPhysicalRoundTripKeepsMultiGroupFlag) {
+  SHashJoinPhysiNode* pPhysical = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, (SNode**)&pPhysical));
+  pPhysical->multiGroupJoin = true;
+
+  SNode* pCloneNode = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode((SNode*)pPhysical, &pCloneNode));
+  ASSERT_TRUE(((SHashJoinPhysiNode*)pCloneNode)->multiGroupJoin);
+  nodesDestroyNode(pCloneNode);
+
+  SNode* pJsonNode = qptJsonRoundTrip((SNode*)pPhysical);
+  ASSERT_TRUE(((SHashJoinPhysiNode*)pJsonNode)->multiGroupJoin);
+  nodesDestroyNode(pJsonNode);
+
+  const char* pFields[] = {"MultiGroupJoin"};
+  SNode*      pOldJsonNode = qptJsonRoundTripWithoutFields((SNode*)pPhysical, pFields, 1);
+  ASSERT_FALSE(((SHashJoinPhysiNode*)pOldJsonNode)->multiGroupJoin);
+  nodesDestroyNode(pOldJsonNode);
+
+  SNode* pTlvNode = qptTlvRoundTrip((SNode*)pPhysical);
+  ASSERT_TRUE(((SHashJoinPhysiNode*)pTlvNode)->multiGroupJoin);
+  nodesDestroyNode(pTlvNode);
+
+  SNode* pOldNode = qptDecodeWithoutTrailingTlvFields((SNode*)pPhysical, 1);
+  ASSERT_FALSE(((SHashJoinPhysiNode*)pOldNode)->multiGroupJoin);
+
+  nodesDestroyNode((SNode*)pPhysical);
+  nodesDestroyNode(pOldNode);
+}
+
+TEST(PlanNodeExtensionTest, SubplanInheritedMultiGroupJoinSurvivesCloneJsonAndTlv) {
+  SSubplan* pSubplan = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&pSubplan));
+  pSubplan->inheritedMultiGroupJoin = true;
+
+  SNode* pCloneNode = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode((SNode*)pSubplan, &pCloneNode));
+  ASSERT_TRUE(((SSubplan*)pCloneNode)->inheritedMultiGroupJoin);
+  nodesDestroyNode(pCloneNode);
+
+  SNode* pJsonNode = qptJsonRoundTrip((SNode*)pSubplan);
+  ASSERT_TRUE(((SSubplan*)pJsonNode)->inheritedMultiGroupJoin);
+  nodesDestroyNode(pJsonNode);
+
+  const char* pFields[] = {"InheritedMultiGroupJoin"};
+  SNode*      pOldJsonNode = qptJsonRoundTripWithoutFields((SNode*)pSubplan, pFields, 1);
+  ASSERT_FALSE(((SSubplan*)pOldJsonNode)->inheritedMultiGroupJoin);
+  nodesDestroyNode(pOldJsonNode);
+
+  SNode* pTlvNode = qptTlvRoundTrip((SNode*)pSubplan);
+  ASSERT_TRUE(((SSubplan*)pTlvNode)->inheritedMultiGroupJoin);
+  nodesDestroyNode(pTlvNode);
+
+  constexpr int16_t kSubplanCodeInheritedMultiGroupJoin = 6;
+  SNode* pOldTlvNode = qptDecodeWithoutTlvField((SNode*)pSubplan, kSubplanCodeInheritedMultiGroupJoin);
+  ASSERT_FALSE(((SSubplan*)pOldTlvNode)->inheritedMultiGroupJoin);
+
+  nodesDestroyNode((SNode*)pSubplan);
+  nodesDestroyNode(pOldTlvNode);
+}
+
+TEST(PlanNodeExtensionTest, PhysicalScanTriggerTableListRouteSurvivesCloneJsonAndTlv) {
+  STableScanPhysiNode* pPhysical = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, (SNode**)&pPhysical));
+  pPhysical->scan.useTriggerTableList = true;
+
+  SNode* pCloneNode = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode((SNode*)pPhysical, &pCloneNode));
+  ASSERT_TRUE(((STableScanPhysiNode*)pCloneNode)->scan.useTriggerTableList);
+  nodesDestroyNode(pCloneNode);
+
+  SNode* pJsonNode = qptJsonRoundTrip((SNode*)pPhysical);
+  ASSERT_TRUE(((STableScanPhysiNode*)pJsonNode)->scan.useTriggerTableList);
+  nodesDestroyNode(pJsonNode);
+
+  const char* pFields[] = {"UseTriggerTableList"};
+  SNode*      pOldJsonNode = qptJsonRoundTripWithoutFields((SNode*)pPhysical, pFields, 1);
+  ASSERT_FALSE(((STableScanPhysiNode*)pOldJsonNode)->scan.useTriggerTableList);
+  nodesDestroyNode(pOldJsonNode);
+
+  SNode* pTlvNode = qptTlvRoundTrip((SNode*)pPhysical);
+  ASSERT_TRUE(((STableScanPhysiNode*)pTlvNode)->scan.useTriggerTableList);
+  nodesDestroyNode(pTlvNode);
+
+  nodesDestroyNode((SNode*)pPhysical);
+}
+
+TEST(PlanNodeExtensionTest, TableCountScanByTypeJsonRoundTripKeepsTbCountType) {
+  STableCountScanPhysiNode* pPhysical = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE, (SNode**)&pPhysical));
+  pPhysical->tbCountType = TSDB_VIRTUAL_CHILD_TABLE;
+
+  // JSON round-trip must preserve the type filter (stream/TMQ plans serialize
+  // via qSubPlanToString/qStringToSubplan).
+  SNode* pJsonNode = qptJsonRoundTrip((SNode*)pPhysical);
+  ASSERT_NE(nullptr, pJsonNode);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE, nodeType(pJsonNode));
+  ASSERT_EQ(TSDB_VIRTUAL_CHILD_TABLE, ((STableCountScanPhysiNode*)pJsonNode)->tbCountType);
+  nodesDestroyNode(pJsonNode);
+
+  // A plan string written before TbCountType existed still decodes, as 0 (no
+  // filter), so old peers remain compatible.
+  const char* pFields[] = {"TbCountType"};
+  SNode*      pOldJsonNode = qptJsonRoundTripWithoutFields((SNode*)pPhysical, pFields, 1);
+  ASSERT_NE(nullptr, pOldJsonNode);
+  ASSERT_EQ(0, ((STableCountScanPhysiNode*)pOldJsonNode)->tbCountType);
+  nodesDestroyNode(pOldJsonNode);
+
+  SNode* pTlvNode = qptTlvRoundTrip((SNode*)pPhysical);
+  ASSERT_NE(nullptr, pTlvNode);
+  ASSERT_EQ(TSDB_VIRTUAL_CHILD_TABLE, ((STableCountScanPhysiNode*)pTlvNode)->tbCountType);
+  nodesDestroyNode(pTlvNode);
+
+  nodesDestroyNode((SNode*)pPhysical);
 }
 
 }  // namespace
