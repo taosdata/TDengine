@@ -345,7 +345,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic
-100,,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic
+100,1,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb
@@ -624,7 +624,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_invalid_type.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_null_varbinary_between.py
 ## 03-GroupBy
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_alwaysreturn.py
+,1,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_alwaysreturn.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_bugs.py
 #,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_noreturn.py
@@ -1864,4 +1864,4 @@
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_3mnode.py -N 3 -M 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore_cluster.py -N 3
-100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3
+100,1,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3
