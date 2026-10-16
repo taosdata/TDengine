@@ -3573,9 +3573,15 @@ class TDCom:
             )
 
     def compare_testcase_result(
-        self, inputfile, expected_file, test_case, float_tolerance=0.0
+        self, inputfile, expected_file, test_case, float_tolerance=0.0,
+        result_transform=None,
     ):
         test_reulst_file = self.generate_query_result(inputfile, test_case)
+        if result_transform is not None:
+            with open(test_reulst_file, "r", encoding="utf-8", newline="") as result:
+                transformed = result_transform(result.read())
+            with open(test_reulst_file, "w", encoding="utf-8", newline="") as result:
+                result.write(transformed)
 
         if self.compare_result_files(
             expected_file, test_reulst_file, float_tolerance=float_tolerance
