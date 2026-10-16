@@ -688,6 +688,28 @@ ORDER BY _wstart;
 
 The SQL above defines three one-minute external windows. If a window contains no data from `meters`, `avg_vol` and `cnt` are both filled with `0`.
 
+#### Functions Inside a Window
+
+An external window follows the same function rules as `INTERVAL`, `SESSION`, `STATE_WINDOW`, `EVENT_WINDOW`, and `COUNT_WINDOW`. In addition to aggregate functions and scalar expressions, it supports:
+
+- Sequential analysis: `DIFF`, `DERIVATIVE`, `CSUM`, `MAVG`, `STATECOUNT`, `STATEDURATION`, `LAG`, `LEAD`, and `FILL_FORWARD`
+- Multi-row selection: `TOP`, `BOTTOM`, and `SAMPLE`
+- Distribution: `HISTOGRAM`
+
+Parameter, function-combination, related-column, and `FILL` restrictions match the other time windows. `TAIL`, `UNIQUE`, and `INTERP` cannot be used in an external window.
+
+When an external window uses `FILL`:
+
+- With aggregate functions, the modes listed in [FILL for Empty Windows](#fill-for-empty-windows) are supported.
+- With the sequential analysis functions above and no aggregate function, only `NONE`, `NULL`, `NULL_F`, `VALUE`, and `VALUE_F` are supported.
+- With only raw columns and scalar expressions, and no aggregate or sequential analysis function, `FILL` is not allowed. The query fails with `Fill only supports aggregate query with external window`.
+
+```sql
+SELECT _wstart, ts, DIFF(voltage)
+FROM d1001
+EXTERNAL_WINDOW ((SELECT ts, ts + 10s FROM d1001 WHERE voltage > 220) w);
+```
+
 #### Constraints and Limitations
 
 - It is currently not supported in stream processing or subscriptions.
@@ -751,7 +773,7 @@ SELECT AGG _wstart, _wend, location FROM d1001
 
 #### FILL Support
 
-Window projection mode supports the FILL clause, but only the following modes: `NONE`, `NULL`, `NULL_F`, `VALUE`, `VALUE_F`. The modes `PREV`, `NEXT`, `LINEAR`, and `NEAR` are not supported.
+Window projection mode supports the FILL clause, but only the following modes: `NONE`, `NULL`, `NULL_F`, `VALUE`, `VALUE_F`. The modes `PREV`, `NEXT`, `LINEAR`, and `NEAR` are not supported. `EXTERNAL_WINDOW` does not allow `FILL` when it outputs only raw columns without sequential analysis functions; see [Functions Inside a Window](#functions-inside-a-window).
 
 ```sql
 SELECT _wstart, ts, current FROM meters
