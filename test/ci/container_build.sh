@@ -114,13 +114,11 @@ if [[ -d ${WORKDIR}/debugSan ]] ;then
     rm -rf  ${WORKDIR}/debugSan
 fi
 
+# Keep Go/Cargo caches in each disposable container. Writable host caches
+# would let one source-tree build affect later PR or nightly builds.
 if [ "$build_no_asan" = "true" ]; then
     docker run \
         -v $REP_MOUNT_PARAM \
-        -v /root/.cargo/registry:/root/.cargo/registry \
-        -v /root/.cargo/git:/root/.cargo/git \
-        -v /root/go/pkg/mod:/root/go/pkg/mod \
-        -v /root/.cache/go-build:/root/.cache/go-build \
         -v /root/.cos-local.1:/root/.cos-local.2 \
         -v ${REP_REAL_PATH}/enterprise/contrib/grant-lib:${REP_DIR}/enterprise/contrib/grant-lib \
         -v ${REP_REAL_PATH}/community/tools/taosadapter:${REP_DIR}/community/tools/taosadapter \
@@ -143,10 +141,6 @@ fi
 
 docker run \
     -v $REP_MOUNT_PARAM \
-    -v /root/.cargo/registry:/root/.cargo/registry \
-    -v /root/.cargo/git:/root/.cargo/git \
-    -v /root/go/pkg/mod:/root/go/pkg/mod \
-    -v /root/.cache/go-build:/root/.cache/go-build \
     -v /root/.cos-local.1:/root/.cos-local.2 \
     -v ${REP_REAL_PATH}/enterprise/contrib/grant-lib:${REP_DIR}/enterprise/contrib/grant-lib \
     -v ${REP_REAL_PATH}/community/tools/taosadapter:${REP_DIR}/community/tools/taosadapter \
