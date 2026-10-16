@@ -109,6 +109,11 @@ int32_t taosUnLockFile(TdFilePtr pFile);
 
 int32_t taosUmaskFile(int32_t maskVal);
 
+#ifndef WINDOWS
+// Set permissions through an open file descriptor without changing umask.
+int32_t taosFchmodFile(TdFilePtr pFile, int32_t mode);
+#endif
+
 int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *atime);
 int32_t taosGetFileDiskID(const char *path, int64_t *diskid);
 bool    taosCheckFileDiskID(const char *path, int64_t *actDiskID, int64_t expDiskID);
@@ -144,6 +149,12 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 bool taosValidFile(TdFilePtr pFile);
 
 int32_t taosCompressFile(TdFilePtr pSrcFile, char *destFileName);
+
+#ifndef WINDOWS
+// Like taosCompressFile, but explicitly set destination mode regardless of umask.
+int32_t taosCompressFileWithMode(TdFilePtr pSrcFile, char *destFileName,
+                               int32_t mode);
+#endif
 
 int32_t taosSetFileHandlesLimit();
 
