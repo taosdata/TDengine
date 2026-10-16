@@ -377,6 +377,11 @@ if [[ "${CHILD_PIPELINE_NAME:-}" == "tsdb-ci-linux" && "${cmd}" =~ (cases/[^[:sp
   fi
 fi
 
+# Dynamic workers verify and remove containers themselves. Keep --rm for
+# standalone callers, which do not have a worker cleanup owner.
+_ci_remove_flag=--rm
+[[ "${CI_WORKER_MANAGED_CONTAINER:-0}" != 1 ]] || _ci_remove_flag=""
+
 echo "docker run \
     ${name_param:+$name_param }--privileged=true \
     $asan_env \
@@ -391,7 +396,7 @@ echo "docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v \"$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}\" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
+    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 _ci_exit_marker="${TMP_DIR}/thread_volume/${thread_no}/.ci-container-exit"
 rm -f "${_ci_exit_marker}" "${TMP_DIR}/thread_volume/${thread_no}/.ci-test-command-exit"
 _ci_docker_start_ms=$(date +%s%3N)
@@ -412,7 +417,7 @@ echo "[ci-timing] stage=docker-run event=start"
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 _ci_docker_end_ms=$(date +%s%3N)
 echo "[ci-timing] stage=docker-run elapsed_ms=$(( _ci_docker_end_ms - _ci_docker_start_ms )) rc=${ret}"
