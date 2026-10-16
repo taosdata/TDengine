@@ -680,6 +680,28 @@ ORDER BY _wstart;
 
 上面的 SQL 定义了 3 个一分钟的外部窗口。如果某个窗口内没有 `meters` 表的数据，则 `avg_vol` 和 `cnt` 都会被填充为 `0`。
 
+#### 窗口内函数
+
+外部窗口的函数使用规则与 `INTERVAL`、`SESSION`、`STATE_WINDOW`、`EVENT_WINDOW`、`COUNT_WINDOW` 一致。除聚合函数和标量表达式外，还可以使用：
+
+- 序列分析：`DIFF`、`DERIVATIVE`、`CSUM`、`MAVG`、`STATECOUNT`、`STATEDURATION`、`LAG`、`LEAD`、`FILL_FORWARD`
+- 多行选择：`TOP`、`BOTTOM`、`SAMPLE`
+- 分布统计：`HISTOGRAM`
+
+参数、函数并列、关联列以及与 `FILL` 的组合限制，与其他时间窗口相同。`TAIL`、`UNIQUE`、`INTERP` 不能用于外部窗口。
+
+外部窗口使用 `FILL` 时：
+
+- 包含聚合函数时，支持 [空窗口的 FILL](#空窗口的-fill) 中列出的模式；
+- 包含上述序列分析函数、不含聚合函数时，只支持 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`；
+- 只输出原始列和标量表达式、不含聚合函数和序列分析函数时，不能使用 `FILL`，查询报错 `Fill only supports aggregate query with external window`。
+
+```sql
+SELECT _wstart, ts, DIFF(voltage)
+FROM d1001
+EXTERNAL_WINDOW ((SELECT ts, ts + 10s FROM d1001 WHERE voltage > 220) w);
+```
+
 #### 约束与限制
 
 - 暂时不支持在流式计算和订阅中使用。
@@ -743,7 +765,7 @@ SELECT AGG _wstart, _wend, location FROM d1001
 
 #### FILL 支持
 
-窗口投影模式支持 `FILL` 子句，但仅支持以下模式：`NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`。不支持 `PREV`、`NEXT`、`LINEAR` 和 `NEAR`。
+窗口投影模式支持 `FILL` 子句，但仅支持以下模式：`NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`。不支持 `PREV`、`NEXT`、`LINEAR` 和 `NEAR`。`EXTERNAL_WINDOW` 只输出原始列、不含序列分析函数时不能使用 `FILL`，详见 [窗口内函数](#窗口内函数)。
 
 ```sql
 SELECT _wstart, ts, current FROM meters
