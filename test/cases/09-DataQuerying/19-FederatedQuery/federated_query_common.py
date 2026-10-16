@@ -502,10 +502,114 @@ class ExtSrcEnv:
     POOL_TEST_MAX_CONN = int(os.getenv("FQ_POOL_TEST_MAX_CONN", "1"))
 
     @classmethod
+    def _env_mode(cls):
+        mode = os.getenv("FQ_ENV_MODE", "local")
+        if mode not in ("local", "external"):
+            raise RuntimeError(f"Unknown FQ_ENV_MODE: {mode!r}")
+        return mode
+
+    @classmethod
+    def baseline_environment(cls, text):
+        """Canonicalize configured connection parameters, never query results.
+
+        Existing baselines describe local endpoints. Match only the actual
+        configured values so incorrect hosts/ports/passwords still differ.
+        """
+        if cls._env_mode() != "external":
+            return text
+        sources = (("mysql", cls.MYSQL_HOST, cls.MYSQL_PORT, cls.MYSQL_PASS, 13306, "taosdata"),
+                   ("postgresql", cls.PG_HOST, cls.PG_PORT, cls.PG_PASS, 15434, "taosdata"),
+                   ("influxdb", cls.INFLUX_HOST, cls.INFLUX_PORT, None, 18086, None),
+                   ("sqlserver", cls.SQLSERVER_HOST, cls.SQLSERVER_PORT, cls.SQLSERVER_PASS,
+                    1433, "TaosFq!2026"))
+        lines = []
+        metadata = None
+        source_query = False
+        for line in text.splitlines(keepends=True):
+            if line.startswith("ERROR:") or (line.startswith("SQL:") and (
+                    "external source" in line.lower() or
+                    "information_schema.ins_ext_sources" in line.lower())):
+                for provider, host, port, password, canonical_port, canonical_password in sources:
+                    for host_key in ("host", "`host`"):
+                        line = line.replace(f"{host_key}='{host}'", f"{host_key}='127.0.0.1'")
+                    line = re.sub(rf"\bport={port}\b", f"port={canonical_port}", line)
+                    if password:
+                        line = line.replace(f"password='{password}'", f"password='{canonical_password}'")
+            if line.lstrip().startswith("Source:"):
+                for provider, host, port, password, canonical_port, canonical_password in sources:
+                    line = line.replace(f"Source: {host}:{port} ",
+                                        f"Source: 127.0.0.1:{canonical_port} ")
+            # Source metadata rows have a declared header, not arbitrary SQL rows.
+            header = line.rstrip("\n").split("|")
+            if source_query and "host" in header:
+                metadata = {column: index for index, column in enumerate(header)}
+            elif line.startswith("---") or line.startswith("SQL:"):
+                metadata = None
+                source_query = line.startswith("SQL:") and (
+                    "information_schema.ins_ext_sources" in line.lower() or
+                    "external source" in line.lower())
+            elif metadata:
+                columns = line.rstrip("\n").split("|")
+                if len(columns) == len(metadata):
+                    for provider, host, port, password, canonical_port, canonical_password in sources:
+                        if "type" not in metadata or columns[metadata["type"]] == provider:
+                            if columns[metadata["host"]] == host:
+                                columns[metadata["host"]] = "127.0.0.1"
+                            if "port" in metadata and columns[metadata["port"]] == str(port):
+                                columns[metadata["port"]] = str(canonical_port)
+                    line = "|".join(columns) + ("\n" if line.endswith("\n") else "")
+            lines.append(line)
+        return "".join(lines)
+
+    @classmethod
+    def _external_service_action(cls, action, service, ver):
+        """Delegate lifecycle operations to the owner of an exclusive lease.
+
+        The hook receives three arguments, without shell evaluation. Test
+        containers must not receive the host Docker socket. A runner can
+        provide a narrowly scoped controller instead.
+        """
+        if cls._env_mode() == "local":
+            return False
+        endpoint = os.getenv("FQ_SERVICE_SOCKET")
+        if endpoint:
+            import json
+            import socket
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+                conn.settimeout(120)
+                conn.connect(endpoint)
+                conn.sendall(json.dumps([action, service, ver]).encode() + b"\n")
+                with conn.makefile("rb") as reply:
+                    result = json.loads(reply.readline(4096))
+            if not result.get("ok"):
+                raise RuntimeError(f"External lifecycle operation failed: {result.get('error')}")
+            return True
+        hook = os.getenv("FQ_SERVICE_CONTROL")
+        if not hook:
+            raise RuntimeError(
+                f"External {service} {ver} needs {action}, but no "
+                "FQ_SERVICE_CONTROL is configured for this exclusive lease")
+        subprocess.run([hook, action, service, ver], check=True, timeout=120,
+                       env=_fq_subprocess_env())
+        return True
+
+    @classmethod
+    def required_services(cls):
+        value = os.getenv("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver")
+        services = set() if value == "none" else set(value.split(","))
+        if services - {"mysql", "pg", "influx", "sqlserver"}:
+            raise ValueError("invalid FQ_REQUIRED_SERVICES")
+        return services
+
+    @classmethod
     def ensure_env(cls):
         """Start and verify all external test databases.
 
-        Step 1 — run ensure_ext_env.sh (Linux/macOS) or ensure_ext_env.ps1
+        External mode probes an exclusively leased environment without
+        installing, resetting or stopping its services. The lease owner
+        prepares data isolation and handles final cleanup.
+
+        Step 1 (local mode) — run ensure_ext_env.sh (Linux/macOS) or ensure_ext_env.ps1
         (Windows) — idempotent — with the configured version lists passed as
         env vars so the script can start the correct per-version instances on
         their dedicated non-default ports.
@@ -519,6 +623,9 @@ class ExtSrcEnv:
         Raises RuntimeError (not pytest.skip) so failures are clearly visible.
         """
 
+        started = _time.monotonic()
+        services = cls.required_services()
+
         # ------------------------------------------------------------------
         # Step 1: run platform-appropriate setup script
         # ------------------------------------------------------------------
@@ -527,37 +634,37 @@ class ExtSrcEnv:
         here = os.path.dirname(os.path.abspath(__file__))
 
         env = _fq_subprocess_env()
-        env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
-        env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
-        env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
-        env["FQ_SQLSERVER_VERSIONS"] = (
-            ",".join(cls.SQLSERVER_VERSIONS) if cls._sqlserver_arch_runnable() else "")
+        env["FQ_MYSQL_VERSIONS"] = ",".join(cls.MYSQL_VERSIONS) if "mysql" in services else ""
+        env["FQ_PG_VERSIONS"] = ",".join(cls.PG_VERSIONS) if "pg" in services else ""
+        env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS) if "influx" in services else ""
+        env["FQ_SQLSERVER_VERSIONS"] = ",".join(cls.SQLSERVER_VERSIONS) if "sqlserver" in services and cls._sqlserver_arch_runnable() else ""
         env["FQ_SQLSERVER_PASS"]  = cls.SQLSERVER_PASS
         env["FQ_SQLSERVER_USER"]  = cls.SQLSERVER_USER
         cls._sqlserver_lib_env(env)
 
-        if sys.platform == "win32":
-            ps1 = os.path.join(here, "ensure_ext_env.ps1")
-            if os.path.exists(ps1):
-                cmd = [
-                    "powershell.exe",
-                    "-ExecutionPolicy", "Bypass",
-                    "-NoProfile",
-                    "-File", ps1,
-                ]
-                ret = subprocess.call(cmd, env=env)
-                if ret != 0:
-                    raise RuntimeError(
-                        f"ensure_ext_env.ps1 failed (exit={ret}). "
-                        f"Check that MySQL/PG/InfluxDB test instances can start.")
-        else:
-            sh = os.path.join(here, "ensure_ext_env.sh")
-            if os.path.exists(sh):
-                ret = subprocess.call(["bash", sh], env=env)
-                if ret != 0:
-                    raise RuntimeError(
-                        f"ensure_ext_env.sh failed (exit={ret}). "
-                        f"Check that MySQL/PG/InfluxDB test instances can start.")
+        if services and cls._env_mode() == "local":
+            if sys.platform == "win32":
+                ps1 = os.path.join(here, "ensure_ext_env.ps1")
+                if os.path.exists(ps1):
+                    cmd = [
+                        "powershell.exe",
+                        "-ExecutionPolicy", "Bypass",
+                        "-NoProfile",
+                        "-File", ps1,
+                    ]
+                    ret = subprocess.call(cmd, env=env)
+                    if ret != 0:
+                        raise RuntimeError(
+                            f"ensure_ext_env.ps1 failed (exit={ret}). "
+                            f"Check that MySQL/PG/InfluxDB test instances can start.")
+            else:
+                sh = os.path.join(here, "ensure_ext_env.sh")
+                if os.path.exists(sh):
+                    ret = subprocess.call(["bash", sh], env=env)
+                    if ret != 0:
+                        raise RuntimeError(
+                            f"ensure_ext_env.sh failed (exit={ret}). "
+                            f"Check that MySQL/PG/InfluxDB test instances can start.")
 
         # ------------------------------------------------------------------
         # Step 2: connectivity probe — verify every configured version
@@ -567,7 +674,7 @@ class ExtSrcEnv:
 
         # --- MySQL (all configured versions) ---
         import pymysql
-        for cfg in cls.mysql_version_configs():
+        for cfg in (cls.mysql_version_configs() if "mysql" in services else []):
             try:
                 conn = pymysql.connect(
                     host=cfg.host, port=cfg.port,
@@ -582,7 +689,7 @@ class ExtSrcEnv:
 
         # --- PostgreSQL (all configured versions) ---
         import psycopg2
-        for cfg in cls.pg_version_configs():
+        for cfg in (cls.pg_version_configs() if "pg" in services else []):
             try:
                 conn = psycopg2.connect(
                     host=cfg.host, port=cfg.port,
@@ -595,7 +702,7 @@ class ExtSrcEnv:
 
         # --- InfluxDB (all configured versions) ---
         import requests
-        for cfg in cls.influx_version_configs():
+        for cfg in (cls.influx_version_configs() if "influx" in services else []):
             try:
                 # InfluxDB 1.x uses /ping (HTTP 204); 3.x uses /health (JSON)
                 if cfg.version.startswith("1."):
@@ -625,12 +732,12 @@ class ExtSrcEnv:
         # ELF interpreter and an emulation layer (rosetta/qemu) the engine
         # cannot start at all on other architectures.  Degrade to a warning in
         # that case so non-SQL-Server scenarios stay runnable.
-        if not cls._sqlserver_arch_runnable():
+        if "sqlserver" in services and not cls._sqlserver_arch_runnable():
             tdLog.info(
                 f"SQL Server {','.join(cls.SQLSERVER_VERSIONS)}: x86-64 engine "
                 f"cannot run on {platform.machine()} (missing x86-64 interpreter/"
                 f"emulator); skipping SQL Server probes")
-        else:
+        elif "sqlserver" in services:
             for cfg in cls.sqlserver_version_configs():
                 if not cls._tcp_probe(cfg.host, cfg.port):
                     # The script's readiness probe can pass and the engine still
@@ -658,7 +765,7 @@ class ExtSrcEnv:
 
         if errors:
             raise RuntimeError(
-                "External test databases not reachable after ensure_ext_env.sh.\n"
+                "External test databases not reachable after environment preparation.\n"
                 "(Override hosts/ports via FQ_MYSQL_HOST/FQ_PG_HOST/"
                 "FQ_INFLUX_HOST/FQ_SQLSERVER_HOST env vars)\n"
                 + "\n".join(errors))
@@ -678,6 +785,10 @@ class ExtSrcEnv:
         # them here so every test class starts from a clean state.
         # ------------------------------------------------------------------
         cls.purge_all_external_sources()
+        tdLog.info(
+            f"[FQ env] mode={cls._env_mode()} ready in "
+            f"{_time.monotonic() - started:.3f}s")
+
 
     @classmethod
     def purge_all_external_sources(cls):
@@ -760,25 +871,20 @@ class ExtSrcEnv:
         and safe to call when ext DBs are healthy (fast TCP probe, no
         subprocess overhead).
         """
+        services = cls.required_services()
+        configs_by_service = {
+            "mysql": list(cls.mysql_version_configs()) if "mysql" in services else [],
+            "pg": list(cls.pg_version_configs()) if "pg" in services else [],
+            "influx": list(cls.influx_version_configs()) if "influx" in services else [],
+            "sqlserver": list(cls.sqlserver_version_configs()) if "sqlserver" in services else [],
+        }
         dead = []
-        dead_mysql = []
-        dead_pg = []
-        dead_influx = []
-        for cfg in cls.mysql_version_configs():
-            if not cls._tcp_probe(cfg.host, cfg.port):
-                dead.append(f"MySQL {cfg.version} @ {cfg.host}:{cfg.port}")
-                dead_mysql.append(cfg.version)
-        for cfg in cls.pg_version_configs():
-            if not cls._tcp_probe(cfg.host, cfg.port):
-                dead.append(f"PG {cfg.version} @ {cfg.host}:{cfg.port}")
-                dead_pg.append(cfg.version)
-        for cfg in cls.influx_version_configs():
-            if not cls._tcp_probe(cfg.host, cfg.port):
-                dead.append(f"InfluxDB {cfg.version} @ {cfg.host}:{cfg.port}")
-                dead_influx.append(cfg.version)
-        for cfg in cls.sqlserver_version_configs():
-            if not cls._tcp_probe(cfg.host, cfg.port):
-                dead.append(f"SQL Server {cfg.version} @ {cfg.host}:{cfg.port}")
+        dead_versions = {service: [] for service in configs_by_service}
+        for service, configs in configs_by_service.items():
+            for cfg in configs:
+                if not cls._tcp_probe(cfg.host, cfg.port):
+                    dead.append(f"{service} {cfg.version} @ {cfg.host}:{cfg.port}")
+                    dead_versions[service].append(cfg.version)
 
         if not dead:
             return False      # all alive — nothing to do
@@ -789,6 +895,17 @@ class ExtSrcEnv:
                 f"[FQ revive] ext DBs died again (attempt {cls._revive_attempts}/"
                 f"{cls._REVIVE_MAX}); giving up.  Dead: {dead}")
 
+        if cls._env_mode() == "external":
+            for service, versions in dead_versions.items():
+                for ver in versions:
+                    cls._external_service_action("start", service, ver)
+            for configs in configs_by_service.values():
+                for cfg in configs:
+                    if not cls._tcp_probe(cfg.host, cfg.port):
+                        raise RuntimeError(
+                            f"External database recovery failed: {cfg.host}:{cfg.port}")
+            return True
+
         tdLog.info(
             f"[FQ revive] ext-DB processes dead mid-test (attempt "
             f"{cls._revive_attempts}/{cls._REVIVE_MAX}): {dead}")
@@ -796,10 +913,10 @@ class ExtSrcEnv:
 
         here = os.path.dirname(os.path.abspath(__file__))
         env = _fq_subprocess_env()
-        env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
-        env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
-        env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
-        env["FQ_SQLSERVER_VERSIONS"] = ",".join(cls.SQLSERVER_VERSIONS)
+        env["FQ_MYSQL_VERSIONS"]  = ",".join(dead_versions["mysql"])
+        env["FQ_PG_VERSIONS"]     = ",".join(dead_versions["pg"])
+        env["FQ_INFLUX_VERSIONS"] = ",".join(dead_versions["influx"])
+        env["FQ_SQLSERVER_VERSIONS"] = ",".join(dead_versions["sqlserver"])
         env["FQ_SQLSERVER_PASS"]  = cls.SQLSERVER_PASS
         env["FQ_SQLSERVER_USER"]  = cls.SQLSERVER_USER
         cls._sqlserver_lib_env(env)
@@ -817,20 +934,12 @@ class ExtSrcEnv:
             raise RuntimeError(
                 f"[FQ revive] ensure_ext_env.sh failed (exit={ret})")
 
-        # Re-verify
+        # Re-verify only the services requested by this test.
         still_dead = []
-        for cfg in cls.mysql_version_configs():
-            if not cls._tcp_probe(cfg.host, cfg.port):
-                still_dead.append(f"MySQL {cfg.version}")
-        for cfg in cls.pg_version_configs():
-            if not cls._tcp_probe(cfg.host, cfg.port):
-                still_dead.append(f"PG {cfg.version}")
-        for cfg in cls.influx_version_configs():
-            if not cls._tcp_probe(cfg.host, cfg.port):
-                still_dead.append(f"InfluxDB {cfg.version}")
-        for cfg in cls.sqlserver_version_configs():
-            if not cls._tcp_probe(cfg.host, cfg.port):
-                still_dead.append(f"SQL Server {cfg.version}")
+        for service, configs in configs_by_service.items():
+            for cfg in configs:
+                if not cls._tcp_probe(cfg.host, cfg.port):
+                    still_dead.append(f"{service} {cfg.version}")
         if still_dead:
             raise RuntimeError(
                 f"[FQ revive] ext DBs still dead after restart: {still_dead}")
@@ -877,6 +986,9 @@ class ExtSrcEnv:
         Uses ensure_ext_env.sh --teardown which is a no-op if processes are
         already stopped.
         """
+        if cls._env_mode() == "external":
+            # The lease owner collects logs and destroys only its own project.
+            return
         here = os.path.dirname(os.path.abspath(__file__))
         env = _fq_subprocess_env()
         env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
@@ -1127,6 +1239,9 @@ class ExtSrcEnv:
     @classmethod
     def kill_mysql_instance(cls, ver):
         """Send SIGKILL to the MySQL process."""
+        if cls._external_service_action("kill", "mysql", ver):
+            return
+
         fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
         pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
         cls._kill_process_sigkill(pidfile)
@@ -1134,6 +1249,9 @@ class ExtSrcEnv:
     @classmethod
     def kill_pg_instance(cls, ver):
         """Send SIGKILL to the PostgreSQL process."""
+        if cls._external_service_action("kill", "pg", ver):
+            return
+
         # postmaster.pid: first line is PID
         fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
         pidfile = os.path.join(fq_base, "pg", ver, "data", "postmaster.pid")
@@ -1142,6 +1260,9 @@ class ExtSrcEnv:
     @classmethod
     def kill_influx_instance(cls, ver):
         """Send SIGKILL to the InfluxDB process."""
+        if cls._external_service_action("kill", "influx", ver):
+            return
+
         fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
         pidfile = os.path.join(fq_base, "influxdb", ver, "run", "influxd.pid")
         cls._kill_process_sigkill(pidfile)
@@ -1153,6 +1274,9 @@ class ExtSrcEnv:
         After this call the MySQL port for 'ver' is unreachable.
         Always pair with start_mysql_instance() in a try/finally block.
         """
+        if cls._external_service_action("stop", "mysql", ver):
+            return
+
         fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
         pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
         cls._kill_process_by_pidfile(pidfile)
@@ -1160,6 +1284,9 @@ class ExtSrcEnv:
     @classmethod
     def start_mysql_instance(cls, ver, wait_s=30):
         """Start the MySQL instance for the given version and wait until ready."""
+        if cls._external_service_action("start", "mysql", ver):
+            return
+
         import subprocess, time
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "ensure_ext_env.sh")
@@ -1211,6 +1338,9 @@ class ExtSrcEnv:
     @classmethod
     def stop_pg_instance(cls, ver):
         """Stop the PostgreSQL instance for the given version."""
+        if cls._external_service_action("stop", "pg", ver):
+            return
+
         import subprocess
         fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
         datadir = os.path.join(fq_base, "pg", ver, "data")
@@ -1232,6 +1362,9 @@ class ExtSrcEnv:
     @classmethod
     def start_pg_instance(cls, ver, wait_s=10):
         """Start the PostgreSQL instance for the given version and wait until ready."""
+        if cls._external_service_action("start", "pg", ver):
+            return
+
         import subprocess, time
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "ensure_ext_env.sh")
@@ -1280,6 +1413,9 @@ class ExtSrcEnv:
     @classmethod
     def stop_influx_instance(cls, ver):
         """Stop the InfluxDB instance and verify that its port is closed."""
+        if cls._external_service_action("stop", "influx", ver):
+            return
+
         import signal, time
         fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
         data_dir = os.path.join(fq_base, "influxdb", ver, "data")
@@ -1392,6 +1528,8 @@ class ExtSrcEnv:
     @classmethod
     def kill_sqlserver_instance(cls, ver):
         """Hard-stop the engine process (kill -9 equivalent)."""
+        if cls._external_service_action("kill", "sqlserver", ver):
+            return
         import signal
         for pid in cls._sqlserver_pids(ver):
             try:
@@ -1402,6 +1540,8 @@ class ExtSrcEnv:
     @classmethod
     def stop_sqlserver_instance(cls, ver, wait_s=30):
         """Graceful engine stop (service disruption scenarios)."""
+        if cls._external_service_action("stop", "sqlserver", ver):
+            return
         import signal
         import time
         for pid in cls._sqlserver_pids(ver):
@@ -1422,6 +1562,8 @@ class ExtSrcEnv:
     @classmethod
     def start_sqlserver_instance(cls, ver, wait_s=120):
         """Start the engine process and wait until a probe query succeeds."""
+        if cls._external_service_action("start", "sqlserver", ver):
+            return True
         import subprocess
         import time
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -1462,6 +1604,9 @@ class ExtSrcEnv:
     @classmethod
     def start_influx_instance(cls, ver, wait_s=10):
         """Start the InfluxDB instance for the given version and wait until ready."""
+        if cls._external_service_action("start", "influx", ver):
+            return
+
         import subprocess, time, requests
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "ensure_ext_env.sh")
@@ -1995,6 +2140,24 @@ class ExtSrcEnv:
         """
         import subprocess
         sqlcmd = cls.sqlserver_sqlcmd_path(cfg.version)
+        if cls._env_mode() == "external":
+            import json
+            import socket
+            endpoint = os.getenv("FQ_SERVICE_SOCKET")
+            if not endpoint:
+                raise RuntimeError(
+                    "External SQL Server statement needs FQ_SERVICE_SOCKET, "
+                    "but it is not configured for this exclusive lease")
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+                conn.settimeout(120)
+                conn.connect(endpoint)
+                conn.sendall(json.dumps(["exec", "sqlserver", cfg.version, database, sql,
+                                         cfg.user, cfg.password]).encode() + b"\n")
+                with conn.makefile("rb") as reply:
+                    result = json.loads(reply.readline(1048576))
+            if not result.get("ok"):
+                raise RuntimeError(f"SQL Server lease statement failed: {result.get('error')}")
+            return result["output"]
         if sqlcmd is None:
             raise RuntimeError(
                 "[FQ] sqlcmd not found — run ensure_ext_env.sh to install the "

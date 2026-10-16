@@ -206,40 +206,45 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         pg_ver     = self._pg_ver()
         influx_ver = self._influx_ver()
 
-        try:
-            conn = pymysql.connect(
-                host=mysql_cfg.host, port=mysql_cfg.port,
-                user=mysql_cfg.user, password=mysql_cfg.password,
-                connect_timeout=3)
-            conn.close()
-        except Exception:
-            tdLog.info("[fq15 setup_method] MySQL is down — restarting ...")
-            ExtSrcEnv.start_mysql_instance(mysql_ver)
+        if "mysql" in ExtSrcEnv.required_services():
+            try:
+                conn = pymysql.connect(
+                    host=mysql_cfg.host, port=mysql_cfg.port,
+                    user=mysql_cfg.user, password=mysql_cfg.password,
+                    connect_timeout=3)
+                conn.close()
+            except Exception:
+                tdLog.info("[fq15 setup_method] MySQL is down — restarting ...")
+                ExtSrcEnv.start_mysql_instance(mysql_ver)
 
-        try:
-            conn = psycopg2.connect(
-                host=pg_cfg.host, port=pg_cfg.port,
-                user=pg_cfg.user, password=pg_cfg.password,
-                connect_timeout=3)
-            conn.close()
-        except Exception:
-            tdLog.info("[fq15 setup_method] PostgreSQL is down — restarting ...")
-            ExtSrcEnv.start_pg_instance(pg_ver)
+        if "pg" in ExtSrcEnv.required_services():
+            try:
+                conn = psycopg2.connect(
+                    host=pg_cfg.host, port=pg_cfg.port,
+                    user=pg_cfg.user, password=pg_cfg.password,
+                    connect_timeout=3)
+                conn.close()
+            except Exception:
+                tdLog.info("[fq15 setup_method] PostgreSQL is down — restarting ...")
+                ExtSrcEnv.start_pg_instance(pg_ver)
 
-        try:
-            r = requests.get(f"http://{influx_cfg.host}:{influx_cfg.port}/health",
-                             timeout=3)
-            if r.status_code not in (200, 204, 401):
-                raise RuntimeError(f"InfluxDB health check returned {r.status_code}")
-        except Exception:
-            tdLog.info("[fq15 setup_method] InfluxDB is down — restarting ...")
-            ExtSrcEnv.start_influx_instance(influx_ver)
+        if "influx" in ExtSrcEnv.required_services():
+            try:
+                r = requests.get(f"http://{influx_cfg.host}:{influx_cfg.port}/health",
+                                 timeout=3)
+                if r.status_code not in (200, 204, 401):
+                    raise RuntimeError(f"InfluxDB health check returned {r.status_code}")
+            except Exception:
+                tdLog.info("[fq15 setup_method] InfluxDB is down — restarting ...")
+                ExtSrcEnv.start_influx_instance(influx_ver)
 
-        try:
-            ExtSrcEnv.sqlserver_query_cfg(self._sqlserver_cfg(), "master", "SELECT 1")
-        except Exception:
-            tdLog.info("[fq15 setup_method] SQL Server is down — restarting ...")
-            ExtSrcEnv.start_sqlserver_instance(self._sqlserver_ver())
+        if "sqlserver" in ExtSrcEnv.required_services():
+            try:
+                ExtSrcEnv.sqlserver_query_cfg(self._sqlserver_cfg(), "master", "SELECT 1")
+            except Exception:
+                tdLog.info("[fq15 setup_method] SQL Server is down — restarting ...")
+                ExtSrcEnv.start_sqlserver_instance(self._sqlserver_ver())
+
 
     def teardown_class(self):
         # ---- Timing summary ----
@@ -262,26 +267,28 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             tdLog.info(f"  {'Max':<50s} {mx:5.2f}s")
             tdLog.info(f"  {'Avg':<50s} {avg:5.2f}s")
             tdLog.info("=" * 65)
-        # Best-effort cleanup of any leftover test databases
+        # Each grouped CI task owns only its declared provider.
+        services = ExtSrcEnv.required_services()
         for db in ("fq_svc_my", "fq_svc_pg"):
+            for service, drop in (("mysql", ExtSrcEnv.mysql_drop_db),
+                                  ("pg", ExtSrcEnv.pg_drop_db)):
+                if service in services:
+                    try:
+                        drop(db)
+                    except Exception:
+                        pass
+        if "sqlserver" in services:
+            for db in ("fq_svc_s01_ss", "fq_svc_s02_ss", "fq_svc_s03_ss",
+                       "fq_svc_s04_ss", "fq_svc_s05_ss", "fq_svc_s07_ss"):
+                try:
+                    ExtSrcEnv.sqlserver_drop_db_cfg(self._sqlserver_cfg(), db)
+                except Exception:
+                    pass
+        if "influx" in services:
             try:
-                ExtSrcEnv.mysql_drop_db(db)
+                ExtSrcEnv.influx_drop_db(_INFLUX_BUCKET)
             except Exception:
                 pass
-            try:
-                ExtSrcEnv.pg_drop_db(db)
-            except Exception:
-                pass
-        for db in ("fq_svc_s01_ss", "fq_svc_s02_ss", "fq_svc_s03_ss",
-                   "fq_svc_s04_ss", "fq_svc_s05_ss", "fq_svc_s07_ss"):
-            try:
-                ExtSrcEnv.sqlserver_drop_db_cfg(self._sqlserver_cfg(), db)
-            except Exception:
-                pass
-        try:
-            ExtSrcEnv.influx_drop_db(_INFLUX_BUCKET)
-        except Exception:
-            pass
 
     # ==================================================================
     # Internal helpers

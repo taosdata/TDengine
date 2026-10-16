@@ -598,6 +598,7 @@ class TestVTablePlanAggFederated:
             os.path.join(os.path.dirname(__file__), "in", f"{test_case}.in"),
             os.path.join(os.path.dirname(__file__), "ans", f"{test_case}.ans"),
             test_case,
+            result_transform=ExtSrcEnv.baseline_environment,
         )
         print("federated VStableAgg plans ..................... [ passed ]")
 
