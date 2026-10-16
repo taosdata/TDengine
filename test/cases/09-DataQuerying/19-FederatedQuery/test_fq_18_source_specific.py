@@ -638,7 +638,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         baseline_file = self._BASELINE_FILE
         if baseline_file:
             tmp_file    = baseline_file + ".tmp"
-            tmp_content = "\n".join(serialized_blocks) + "\n"
+            tmp_content = ExtSrcEnv.baseline_environment("\n".join(serialized_blocks) + "\n")
             os.makedirs(os.path.dirname(baseline_file), exist_ok=True)
             with open(tmp_file, "w") as f:
                 f.write(tmp_content)

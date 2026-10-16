@@ -297,6 +297,8 @@ class TestVirtualStreamMixedExternalPerf:
     def _log_failure_snapshot(cls, rows, count_window):
         tdLog.info(f"mixed external failure snapshot: rows={rows}, window={count_window}")
         queries = [
+            "SELECT status, message FROM information_schema.ins_streams "
+            f"WHERE db_name='{cls.DB}' AND stream_name='{cls.STREAM}'",
             f"SELECT count(*), min(ts), max(ts), sum(local_v) FROM {cls.DB}.{cls.LOCAL_TABLE}",
             f"SELECT count(*), min(ts), max(ts), count(local_v), count(ext_v), "
             f"sum(local_v), sum(ext_v) FROM {cls.DB}.{cls.VTABLE}",
