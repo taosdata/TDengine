@@ -1,5 +1,7 @@
 # TDgpt Lite 三平台离线资源构建
 
+Linux 新产物统一使用 `tar.xz`；构建机和安装目标机需提供 `xz`（Debian/Ubuntu 安装 `xz-utils`，RHEL 系安装 `xz`）。Python 资源构建/导入需有 `lzma` 模块。历史 gzip 资源仍兼容，Windows EXE/ZIP 不变。
+
 本文说明 TDgpt Lite 在 Linux x64、Linux ARM64 和 Windows x64 上使用的
 Python runtime 与主 venv 构建流程。各架构必须在对应的原生节点构建，不支持
 交叉构建。
@@ -41,13 +43,13 @@ packaging/
 Linux Python runtime：
 
 ```text
-tdengine-python-runtime-3.12.12-linux-<x64|arm64>.tar.gz
+tdengine-python-runtime-3.12.12-linux-<x64|arm64>.tar.xz
 ```
 
 Linux Lite 主 venv：
 
 ```text
-tdengine-tdgpt-lite-venv-<version>-linux-<x64|arm64>.tar.gz
+tdengine-tdgpt-lite-venv-<version>-linux-<x64|arm64>.tar.xz
 ```
 
 Windows Lite 主 venv：
@@ -146,11 +148,14 @@ python packaging\build_windows_lite_venv.py ^
   --runtime-dir D:\tdgpt-build\python-runtime ^
   --work-dir D:\tdgpt-build\lite-main-venv ^
   --output-dir D:\tdgpt-build\dist ^
-  --version 1.0.1
+  --version 1.0.2
 ```
 
 脚本会创建全新 venv、执行 `pip check`、校验关键模块导入，并写入
 `requirements.lock` 和 `manifest.json`。ZIP 根路径固定为 `venvs/venv/`。
+打包前删除缓存、依赖库 test/tests 目录及普通文档/man；保留 .pyi、许可证、
+Include/include 下的头文件、静态库和 pip/setuptools/wheel/Cython。清理后执行
+pip check 和运行库导入验证，最终再清缓存后生成 ZIP。
 工作目录必须为空，防止历史 venv 混入发布包。
 
 Windows Lite EXE 使用 `win_release.py` 构建，构建机需要 Python 3.10、3.11 或
@@ -194,8 +199,8 @@ python ../offline-pkgs/build_tsfm_runtime.py `
 输出文件分别为：
 
 ```text
-tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz
-tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz
+tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.xz
+tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.xz
 tdengine-tdgpt-tsfm-runtime-1.0.0-windows-x64.zip
 ```
 

@@ -40,11 +40,11 @@ while [ "$#" -gt 0 ]; do
     *) shift 2 ;;
   esac
 done
-printf payload > "$output/ARTIFACT-linux-$arch.tar.gz"
+printf payload > "$output/ARTIFACT-linux-$arch.tar.xz"
 '''
     for filename, artifact in [
         ("build_python_runtime_linux.sh", "tdengine-python-runtime-3.12.12"),
-        ("build_linux_offline_assets.sh", "tdengine-tdgpt-lite-venv-1.0.1"),
+        ("build_linux_offline_assets.sh", "tdengine-tdgpt-lite-venv-1.0.2"),
     ]:
         stub = packaging / filename
         stub.write_text(builder.replace("ARTIFACT", artifact))
@@ -54,7 +54,7 @@ printf payload > "$output/ARTIFACT-linux-$arch.tar.gz"
     release_sh = script / "release.sh"
     release_sh.write_text(
         'set -eu\ntest "$5" = -l\nmkdir -p ../release\n'
-        f'printf installer > ../release/tdengine-tdgpt-enterprise-lite-3.4.2.9.0909-linux-{arch}.tar.gz\n'
+        f'printf installer > ../release/tdengine-tdgpt-enterprise-lite-3.4.2.9.0909-linux-{arch}.tar.xz\n'
     )
     release_sh.chmod(0o755)
     result = subprocess.run(
@@ -64,7 +64,7 @@ printf payload > "$output/ARTIFACT-linux-$arch.tar.gz"
     )
     assert result.returncode == 0, result.stderr
     output = tmp_path / "output dir"
-    assert len(list(output.glob("*.tar.gz"))) == 3
+    assert len(list(output.glob("*.tar.xz"))) == 3
     assert len((output / "SHA256SUMS").read_text().splitlines()) == 3
     for line in (output / "SHA256SUMS").read_text().splitlines():
         expected, filename = line.split(maxsplit=1)

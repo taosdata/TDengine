@@ -56,7 +56,7 @@ echo -e ${top_dir}
 
 serverName="taosanoded"
 configFile="taosanode.config.py"
-tarName="package.tar.gz"
+command -v xz >/dev/null 2>&1 || { echo "xz is required to build tar.xz packages (install xz-utils)" >&2; exit 1; }
 initFile="__init__.py"
 
 # create compressed install file.
@@ -70,7 +70,10 @@ install_files="${script_dir}/install.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
-mkdir -p ${install_dir}/resource &&  cp ${top_dir}/resource/*  ${install_dir}/resource/
+mkdir -p "${install_dir}/resource"
+if [ -d "${top_dir}/resource" ]; then
+  cp -R "${top_dir}/resource/." "${install_dir}/resource/"
+fi
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
@@ -147,18 +150,7 @@ if [ "$lite" != "1" ] && [ -d "${model_dir}" ]; then
   fi
 fi
 
-# tar lib and model files
-cd ${install_dir} && tar -zcv -f ${tarName} ./lib/* || :
-
-# shellcheck disable=SC2115
-[ -d "${lib_install_dir}" ] && rm -rf ${lib_install_dir} || :
-
-exitcode=$?
-if [ "$exitcode" != "0" ]; then
-  echo "failed to pack ${tarName} !!!"
-  exit $exitcode
-fi
-
+# Keep lib directly in the product archive; compress only the outer package.
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
 
@@ -181,15 +173,15 @@ pkg_name=${install_dir}-${platform}-${arch}
 echo -e "pkg_name is: ${pkg_name}"
 
 if [ "${os_type}" != "Darwin" ]; then
-    tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" --remove-files || :
+    tar -Jcv -f "$(basename ${pkg_name}).tar.xz" "$(basename ${install_dir})" --remove-files || exit $?
 else
-    tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" || :
+    tar -Jcv -f "$(basename ${pkg_name}).tar.xz" "$(basename ${install_dir})" || exit $?
     rm -rf "${install_dir}" ||:
 fi
 
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
-  echo "failed to pack ${pkg_name}.tar.gz !!!"
+  echo "failed to pack ${pkg_name}.tar.xz !!!"
   exit $exitcode
 fi
 
