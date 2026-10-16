@@ -1029,6 +1029,14 @@ TEST_F(ParserInitialATest, balanceVgroup) {
 TEST_F(ParserInitialATest, balanceVgroupLeader) {
   useDb("root", "test");
 
+#ifndef TD_ENTERPRISE
+  run("BALANCE VGROUP LEADER", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER ON 1", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER DATABASE test", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER FORCE", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER ON 1 FORCE", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("BALANCE VGROUP LEADER DATABASE test FORCE", TSDB_CODE_OSS_NOT_SUPPORT);
+#else
   // Expected value of req.reserved for the statement currently under test. The check
   // lambda captures this by reference; set it before each run() call.
   int32_t expectedReserved = 0;
@@ -1054,6 +1062,7 @@ TEST_F(ParserInitialATest, balanceVgroupLeader) {
   run("BALANCE VGROUP LEADER FORCE");
   run("BALANCE VGROUP LEADER ON 1 FORCE");
   run("BALANCE VGROUP LEADER DATABASE test FORCE");
+#endif
 }
 
 }  // namespace ParserTest
