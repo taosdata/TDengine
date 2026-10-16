@@ -1705,7 +1705,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         )
 
     def _fw_compare_baseline(self, blocks: List[str]):
-        actual   = "\n".join(blocks) + "\n"
+        actual   = ExtSrcEnv.baseline_environment("\n".join(blocks) + "\n")
         # Normalise dynamic influxdb3 admin tokens (apiv3_...) to the stable
         # placeholder "test-token" so that the baseline comparison is stable
         # across test runs even though influxdb3 generates a new random token

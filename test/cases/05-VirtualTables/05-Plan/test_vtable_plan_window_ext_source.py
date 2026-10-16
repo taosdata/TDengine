@@ -232,7 +232,10 @@ class TestVTablePlanWindowExtSource:
         answer_file = os.path.join(
             os.path.dirname(__file__), "ans", f"{test_case}.ans"
         )
-        tdCom.compare_testcase_result(input_file, answer_file, test_case)
+        tdCom.compare_testcase_result(
+            input_file, answer_file, test_case,
+            result_transform=ExtSrcEnv.baseline_environment,
+        )
         tdLog.info("federated VtableWindow plans ............... [ passed ]")
 
     def test_vtable_window_ext_source(self):
