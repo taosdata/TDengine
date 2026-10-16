@@ -10806,12 +10806,12 @@ TEST_F(MndStreamCreateMetadataTest, ExtCandidateRequiresExistingAuthoritativeSou
   }
 }
 #else
-TEST_F(MndStreamCreateMetadataTest, CommunityExtCandidateReturnsSourceNotFound) {
+TEST_F(MndStreamCreateMetadataTest, CommunityExtCandidateReturnsDisabled) {
   SCMCreateStreamReq req = makeRequest();
   ASSERT_NE(nullptr, req.pWindowPlan);
   addExtSpec(&req, "cluster.0.ext_source", "remote_meters", "ts");
 
-  EXPECT_EQ(TSDB_CODE_EXT_SOURCE_NOT_FOUND, runCreate(&req));
+  EXPECT_EQ(TSDB_CODE_STREAM_EXT_DISABLED, runCreate(&req));
   EXPECT_EQ(0, asyncSendCalls_);
   EXPECT_EQ(0, createTransCalls_);
 

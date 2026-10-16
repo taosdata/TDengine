@@ -819,6 +819,9 @@ TEST_F(PlanJoinTest, temporalJoinWithoutRedundantSortRule) {
 }
 
 TEST_F(PlanJoinTest, temporalJoinFederatedPrecision) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
   const bool previous = tsFederatedQueryEnable;
   struct RestoreFlag {
     bool value;
@@ -858,9 +861,13 @@ TEST_F(PlanJoinTest, temporalJoinFederatedPrecision) {
       "join_remote.metrics r WINDOW_OFFSET(-1s, 1s)");
   run("SELECT l.c1, r.c1 FROM stream_t2 l LEFT ASOF JOIN "
       "join_remote.metrics r");
+#endif
 }
 
 TEST_F(PlanJoinTest, temporalJoinFederatedFilteredOrder) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
   struct RestoreFlag {
     bool value;
     ~RestoreFlag() { tsFederatedQueryEnable = value; }
@@ -911,9 +918,13 @@ TEST_F(PlanJoinTest, temporalJoinFederatedFilteredOrder) {
           " WHERE " + kept + ".c1 > 20 ORDER BY " + kept + ".ts");
     }
   }
+#endif
 }
 
 TEST_F(PlanJoinTest, temporalJoinFederatedSubqueryTimeSlot) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
   struct RestoreFlag {
     bool value;
     ~RestoreFlag() { tsFederatedQueryEnable = value; }
@@ -1029,6 +1040,7 @@ TEST_F(PlanJoinTest, temporalJoinFederatedSubqueryTimeSlot) {
       }
     }
   }
+#endif
 }
 
 TEST_F(PlanJoinTest, temporalJoinHiddenConditionInputSlot) {
