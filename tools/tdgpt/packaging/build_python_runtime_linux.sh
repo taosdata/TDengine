@@ -17,6 +17,8 @@
 
 set -euo pipefail
 
+command -v xz >/dev/null 2>&1 || { echo "xz is required to build tar.xz packages (install xz-utils)" >&2; exit 1; }
+
 work_dir="${PWD}/tdgpt-python-runtime-build"
 output_dir="${PWD}/dist"
 python_version="3.12.12"
@@ -75,7 +77,7 @@ patchelf_bin="${patchelf_bin:-$(command -v patchelf || true)}"
 
 uv_store="${work_dir}/uv-python-store"
 runtime_dir="${work_dir}/python-runtime-${python_version}"
-output_file="${output_dir}/tdengine-python-runtime-${python_version}-linux-${arch}.tar.gz"
+output_file="${output_dir}/tdengine-python-runtime-${python_version}-linux-${arch}.tar.xz"
 
 runtime_elf_files() {
   find "${runtime_dir}/bin" "${runtime_dir}/lib" -type f \
@@ -210,5 +212,5 @@ env -u LD_LIBRARY_PATH "${runtime_dir}/bin/python3" -c \
 
 rm -f "$output_file"
 # Apex extracts this archive into <deps-root>/python-runtime, so bin/ is root.
-tar -C "$runtime_dir" -czf "$output_file" .
+tar -C "$runtime_dir" -cJf "$output_file" .
 sha256sum "$output_file"

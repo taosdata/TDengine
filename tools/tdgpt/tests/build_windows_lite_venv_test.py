@@ -87,7 +87,7 @@ def test_main_builds_versioned_windows_lite_zip(tmp_path, monkeypatch):
         requirements=requirements,
         work_dir=work_dir,
         output_dir=output_dir,
-        version="1.0.1",
+        version="1.0.2",
         index_url="",
         extra_index_url="",
         trusted_host="",
@@ -101,6 +101,14 @@ def test_main_builds_versioned_windows_lite_zip(tmp_path, monkeypatch):
             (venv_dir / "pyvenv.cfg").write_text(
                 "home = C:\\Python\n", encoding="utf-8"
             )
+            cache = venv_dir / "Lib/site-packages/module/__pycache__"
+            cache.mkdir(parents=True)
+            (cache / "module.pyc").write_bytes(b"cache")
+        elif "-c" in command:
+            # Simulate a dependency generating bytecode during validation.
+            cache = work_dir / "venvs/venv/Lib/site-packages/regenerated/__pycache__"
+            cache.mkdir(parents=True)
+            (cache / "module.pyc").write_bytes(b"cache")
 
     monkeypatch.setattr(module, "parse_args", lambda: args)
     monkeypatch.setattr(module, "ensure_windows_x64", lambda: None)
@@ -116,10 +124,30 @@ def test_main_builds_versioned_windows_lite_zip(tmp_path, monkeypatch):
 
     assert module.main() == 0
 
-    output = output_dir / "tdengine-tdgpt-lite-venv-1.0.1-windows-x64.zip"
+    output = output_dir / "tdengine-tdgpt-lite-venv-1.0.2-windows-x64.zip"
     with zipfile.ZipFile(output) as archive:
         names = set(archive.namelist())
         manifest = archive.read("venvs/venv/manifest.json").decode("utf-8")
     assert "venvs/venv/requirements.lock" in names
+    assert not any("__pycache__" in name for name in names)
     assert '"kind": "tdgpt-lite-main-venv"' in manifest
     assert '"python_version": "3.12.12"' in manifest
+
+
+def test_pruning_preserves_windows_include_headers_and_libraries(tmp_path):
+    module = load_module()
+    header = tmp_path / "Include/tests/model.h"
+    header.parent.mkdir(parents=True)
+    header.write_text("/* user model header */")
+    library = tmp_path / "Lib/site-packages/model.lib"
+    library.parent.mkdir(parents=True)
+    library.write_bytes(b"Windows import library")
+    test_dir = tmp_path / "Lib/site-packages/model/tests"
+    test_dir.mkdir(parents=True)
+    (test_dir / "test_model.py").write_text("unused = True")
+
+    module.prune_runtime(tmp_path)
+
+    assert header.read_text() == "/* user model header */"
+    assert library.read_bytes() == b"Windows import library"
+    assert not test_dir.exists()
