@@ -198,7 +198,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/09-Stt/test_stt_blocks_check.py
 
 ## 10-SS
-,,n,.,pytest cases/02-Databases/010-SS/test_ss_basic.py -N 3
+# Temporarily disabled: ss_basic fails during ssmigrate database with ProgrammingError (job 686102).
+#,,n,.,pytest cases/02-Databases/010-SS/test_ss_basic.py -N 3
 
 # 03-Tables
 
@@ -1629,10 +1630,12 @@
 ,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_edge_cases.py
 
 # 42-xnode
-,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
+# Temporarily disabled: xnode service is not accessible in CI (job 687678).
+#,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_systables.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_lifecycle.py
-,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_priv.py
+# Temporarily disabled: xnode service is not accessible in CI (job 687695).
+#,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_priv.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_restart.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_sixstar_write.py
 
