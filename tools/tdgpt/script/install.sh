@@ -131,7 +131,6 @@ serverName="${PRODUCTPREFIX}d"
 configFile="taosanode.config.py"
 productName="TDengine TSDB TDgpt"
 emailName="taosdata.com"
-tarName="package.tar.gz"
 global_conf_dir="/etc/${PREFIX}"
 tar_td_model_name="tdtsfm.tar.gz"
 tar_xhs_model_name="timemoe.tar.gz"
@@ -1110,14 +1109,12 @@ function install_service() {
 }
 
 function installProduct() {
-  # Start to install
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
+  # The outer product archive contains the application files directly.
+  if [ ! -d "lib/taosanalytics" ]; then
+    echo "Directory lib/taosanalytics does not exist"
     exit 1
   fi
 
-  tar -zxf ${tarName}
- 
   echo "Start to install ${productName}..."
   validate_offline_packages
 

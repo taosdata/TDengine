@@ -279,6 +279,8 @@ def resolve_tar_write_mode(output_file: Path) -> str:
     suffixes = "".join(output_file.suffixes).lower()
     if suffixes.endswith(".tar.gz") or suffixes.endswith(".tgz"):
         return "w:gz"
+    if suffixes.endswith((".tar.xz", ".txz")):
+        return "w:xz"
     return "w"
 
 
@@ -390,7 +392,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--seed-package",
-        help="Existing tar/tar.gz package that already contains offline model payloads and optional model venvs.",
+        help="Existing tar/tar.gz/tar.xz package that already contains offline model payloads and optional model venvs.",
     )
     parser.add_argument(
         "--main-venv-dir",

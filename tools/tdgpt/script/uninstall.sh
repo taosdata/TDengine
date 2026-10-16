@@ -287,6 +287,9 @@ function clean_log() {
 }
 
 function remove_deploy_binary() {
+  # install.sh creates this launcher as a regular file, not a symlink.
+  ${csudo}rm -f "${bin_link_dir}/taosanodectl"
+
   if [ ! -z "${bin_dir}" ]; then
     ${csudo}rm -rf ${bin_dir} || :
   fi

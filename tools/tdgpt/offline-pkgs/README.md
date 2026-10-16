@@ -52,11 +52,13 @@ ARM64 节点使用 `--arch arm64`，Windows x64 使用 `--platform windows --arc
 输出文件为：
 
 ```text
-tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz
-tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz
+tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.xz
+tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.xz
 tdengine-tdgpt-tsfm-runtime-1.0.0-windows-x64.zip
 ```
 
 ARM64 构建会修复 `jaxlib/libjax_common.so` 对 `librt.so.1` 的错误依赖，要求
 `patchelf >= 0.14.0`。`patchelf 0.9` 不满足要求；发布前必须在目标 ARM64 系统
 验证 JAX 导入和 Moirai 启动。
+
+Linux 新构建的 Python runtime、venv、TSFM runtime 及产品安装包使用 tar.xz；Windows 继续 ZIP/EXE。已发布的旧资源及其清单保持原文件名与校验值，导入仍兼容 tar.gz。新资源发布时必须重新生成文件大小与 SHA256，不能只改旧清单后缀。Linux 构建与安装环境需要 xz（xz-utils），Python TSFM 打包/导入需支持 lzma。
