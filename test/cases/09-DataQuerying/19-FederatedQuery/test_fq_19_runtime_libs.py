@@ -20,7 +20,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+import pytest
 from contextlib import contextmanager
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -141,6 +144,175 @@ def _odbcinst_registers_driver18():
 class TestFq19RuntimeLibs(FederatedQueryTestMixin):
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+
+    @pytest.mark.parametrize("action", ["start", "stop", "kill"])
+    @pytest.mark.parametrize("service,version", [("mysql", "8.0"), ("pg", "16"),
+                                                ("influx", "3.0"), ("sqlserver", "2022")])
+    def test_external_lifecycle_requires_lease_controller(self, monkeypatch, action,
+                                                        service, version):
+        """External fault operations fail explicitly without a lease owner.
+
+        1. Reject start, stop and kill when no lifecycle controller is configured.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Simon Guan Add external lifecycle coverage
+
+        """
+        self.do_external_lifecycle_requires_lease_controller(monkeypatch, action, service, version)
+
+    def do_external_lifecycle_requires_lease_controller(self, monkeypatch, action, service, version):
+        monkeypatch.setenv("FQ_ENV_MODE", "external")
+        monkeypatch.delenv("FQ_SERVICE_CONTROL", raising=False)
+        monkeypatch.delenv("FQ_SERVICE_SOCKET", raising=False)
+        with pytest.raises(RuntimeError, match="FQ_SERVICE_CONTROL"):
+            getattr(ExtSrcEnv, f"{action}_{service}_instance")(version)
+        print("external lifecycle guard ......................... [ passed ]")
+
+    def test_external_environment_does_not_reset_local_services(self, monkeypatch):
+        """Repeated external setup preserves the leased database environment.
+
+        1. Probe configured databases without invoking the local reset installer.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Simon Guan Add external environment preservation coverage
+
+        """
+        self.do_external_environment_does_not_reset_local_services(monkeypatch)
+
+    def do_external_environment_does_not_reset_local_services(self, monkeypatch):
+        monkeypatch.setenv("FQ_ENV_MODE", "external")
+        import pymysql
+        import psycopg2
+        import requests
+
+        # This mode test must not require databases before the first full case
+        # provisions them in local-mode CI. Real probes run in the full cases.
+        monkeypatch.setattr(pymysql, "connect", MagicMock())
+        monkeypatch.setattr(psycopg2, "connect", MagicMock())
+        monkeypatch.setattr(requests, "get", lambda *args, **kwargs: MagicMock(status_code=200))
+        monkeypatch.setattr(ExtSrcEnv, "ensure_qnode", lambda: None)
+        monkeypatch.setattr(ExtSrcEnv, "purge_all_external_sources", lambda: None)
+        def reject_local_script(*args, **kwargs):
+            raise AssertionError("external mode invoked a local reset/teardown script")
+
+        monkeypatch.setattr(subprocess, "call", reject_local_script)
+        ExtSrcEnv.ensure_env()
+        ExtSrcEnv.ensure_env()
+        ExtSrcEnv.teardown_env()
+        print("external environment preservation ......................... [ passed ]")
+
+    def test_external_baseline_preserves_result_and_endpoint_errors(self, monkeypatch):
+        """Canonicalize deployment parameters while retaining regression evidence.
+
+        1. Map fixture endpoints without masking wrong addresses or query values.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Simon Guan Cover deployment-independent baseline comparison
+
+        """
+        self.do_external_baseline_preserves_result_and_endpoint_errors(monkeypatch)
+
+    def do_external_baseline_preserves_result_and_endpoint_errors(self, monkeypatch):
+        monkeypatch.setenv("FQ_ENV_MODE", "external")
+        monkeypatch.setattr(ExtSrcEnv, "MYSQL_HOST", "mysql")
+        monkeypatch.setattr(ExtSrcEnv, "MYSQL_PORT", 3306)
+        monkeypatch.setattr(ExtSrcEnv, "MYSQL_PASS", "lease-password")
+        text = ("SQL: create external source s type='mysql' host='mysql' port=3306 "
+                "password='lease-password'\n"
+                "source_name|type|host|port|user|password|database\n"
+                "s|mysql|mysql|3306|root|******|db\n---\n"
+                "SQL: create external source bad host='wrong' port=3307 password='bad'\n"
+                "SQL: select host from information_schema.ins_ext_sources\n"
+                "host\nmysql\nwrong\n---\n"
+                "      Source: mysql:3306 user=root\n"
+                "      Source: wrong:3307 user=root\n"
+                "SQL: select host from ordinary_table\n"
+                "source_name|type|host\ns|mysql|mysql\n---\n"
+                "RESULT:\nmysql\n3306\n")
+        normalized = ExtSrcEnv.baseline_environment(text)
+        assert "host='127.0.0.1' port=13306 password='taosdata'" in normalized
+        assert "s|mysql|127.0.0.1|13306|root|******|db" in normalized
+        assert "host='wrong' port=3307 password='bad'" in normalized
+        assert "host\n127.0.0.1\nwrong\n" in normalized
+        assert "Source: 127.0.0.1:13306 user=root" in normalized
+        assert "Source: wrong:3307 user=root" in normalized
+        assert "source_name|type|host\ns|mysql|mysql\n" in normalized
+        assert normalized.endswith("RESULT:\nmysql\n3306\n")
+        monkeypatch.setattr(ExtSrcEnv, "SQLSERVER_HOST", "sqlserver")
+        monkeypatch.setattr(ExtSrcEnv, "SQLSERVER_PORT", 25003)
+        monkeypatch.setattr(ExtSrcEnv, "SQLSERVER_PASS", "private-sqlserver-password")
+        sqlserver_text = (
+            "SQL: create external source s type='sqlserver' host='sqlserver' "
+            "port=25003 password='private-sqlserver-password'\n"
+            "SQL: create external source bad host='wrong' port=1434 password='bad'\n"
+            "RESULT:\nsqlserver\n25003\n")
+        sqlserver_normalized = ExtSrcEnv.baseline_environment(sqlserver_text)
+        assert "host='127.0.0.1' port=1433 password='TaosFq!2026'" in sqlserver_normalized
+        assert "host='wrong' port=1434 password='bad'" in sqlserver_normalized
+        assert sqlserver_normalized.endswith("RESULT:\nsqlserver\n25003\n")
+        monkeypatch.setenv("FQ_ENV_MODE", "local")
+        assert ExtSrcEnv.baseline_environment(text) == text
+        print("external baseline normalization ......................... [ passed ]")
+
+    def test_external_lifecycle_delegates_without_shell(self, monkeypatch):
+        """Pass the lifecycle operation to one explicit controller executable.
+
+        1. Delegate the service operation and version without shell evaluation.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-10 Simon Guan Add controller delegation coverage
+
+        """
+        self.do_external_lifecycle_delegates_without_shell(monkeypatch)
+
+    def do_external_lifecycle_delegates_without_shell(self, monkeypatch):
+        monkeypatch.setenv("FQ_ENV_MODE", "external")
+        monkeypatch.setenv("FQ_SERVICE_CONTROL", "/runner/lease controller")
+        monkeypatch.delenv("FQ_SERVICE_SOCKET", raising=False)
+        calls = []
+        monkeypatch.setattr(
+            subprocess, "run", lambda args, **kwargs: calls.append((args, kwargs)))
+        ExtSrcEnv.stop_mysql_instance("8.0")
+        assert calls[0][0] == ["/runner/lease controller", "stop", "mysql", "8.0"]
+        assert calls[0][1]["check"] is True
+        assert not calls[0][1].get("shell", False)
+        print("external lifecycle delegation ......................... [ passed ]")
 
     def test_prepare_runtime_libs_sanitizes_shell_helper_env(self, monkeypatch):
         """Sanitize inherited loader and sanitizer variables before setup.
@@ -534,11 +706,12 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
     @contextmanager
     def _isolated_runtime_copy(self):
         runtime_dir = self._runtime_lib_dir()
-        build_dir = os.path.dirname(runtime_dir)
         original_taosd_paths = [dnode.binPath for dnode in tdDnodes.dnodes]
         original_global_bin_path = getattr(tdDnodes, "binPath", None)
         original_taosd = original_taosd_paths[0]
-        copy_root = tempfile.mkdtemp(prefix="fq-runtime-copy.", dir=os.path.dirname(build_dir))
+        # CI build trees are shared by concurrent workers. Keep the temporary
+        # taosd outside them so another worker's build-path scan cannot select it.
+        copy_root = tempfile.mkdtemp(prefix="fq-runtime-copy.")
         copy_build = os.path.join(copy_root, "build")
         copy_bin_dir = os.path.join(copy_build, "bin")
         copy_lib_dir = os.path.join(copy_build, "lib")

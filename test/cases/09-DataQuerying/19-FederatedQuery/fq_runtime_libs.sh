@@ -26,6 +26,29 @@ _fq_runtime_prepend_path() {
   esac
 }
 
+fq_ci_needs_databases() {
+  local arg
+  # Explicit audited tasks still stage provider libraries, but need no servers.
+  [[ "$*" == *FQ_REQUIRED_SERVICES=none* ]] && return 1
+  for arg in "$@"; do
+    case "${arg}" in
+      *19-FederatedQuery*|*05-VirtualTables/*03-ExtSource*|\
+      *test_vtable_auth_ext_source.py*|\
+      *test_vtable_plan_agg_federated.py*|\
+      *test_vtable_plan_pushdown_agg_ext_source.py*|\
+      *test_vtable_plan_pushdown_ext_source_ts_precision.py*|\
+      *test_vtable_plan_window_ext_source.py*|\
+      *test_vtable_plan_window_federated_batch.py*|\
+      *test_vtable_series_meta.py*|*test_vtable_series_smoke.py*|\
+      *test_virtual_stream_mixed_external.py*|*test_virtual_stream_mixed_external_perf.py*|\
+      *test_fs_0[1-7]_*.py*|*test_meta_batch_txn_series.py*)
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
 _fq_runtime_should_enable() {
   local arg
 
@@ -34,12 +57,11 @@ _fq_runtime_should_enable() {
     0|off|OFF|false|FALSE) return 1 ;;
   esac
 
+  fq_ci_needs_databases "$@" && return 0
+
   for arg in "$@"; do
     case "${arg}" in
-      *09-DataQuerying/19-FederatedQuery/*|*19-FederatedQuery/*)
-        return 0
-        ;;
-      *05-VirtualTables/*ExtSource*|*05-VirtualTables/*ext_source*|*05-VirtualTables/*federated*|*05-VirtualTables/06-Meta/test_vtable_series*)
+      *19-FederatedQuery*|*05-VirtualTables/*ExtSource*|*05-VirtualTables/*ext_source*|*05-VirtualTables/*federated*|*05-VirtualTables/06-Meta/test_vtable_series*)
         return 0
         ;;
       # Federated-stream suites drive the same external sources (SQL Server

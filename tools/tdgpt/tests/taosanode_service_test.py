@@ -29,6 +29,51 @@ class TestTaosanodeService:
         assert taosanode_service.process_mgr is not None
         assert taosanode_service.logger is not None
 
+    def test_linux_start_uses_daemon_pid_not_launcher_pid(self, taosanode_service, monkeypatch):
+        monkeypatch.setattr(service_module, "IS_WINDOWS", False)
+        monkeypatch.setattr(service_module, "IS_LINUX", True)
+        proc = MagicMock(pid=111)
+        proc.wait.return_value = 0
+        with patch.object(taosanode_service.process_mgr, "is_running", return_value=False), \
+                patch.object(taosanode_service.process_mgr, "_get_python_exe", return_value="python3"), \
+                patch.object(taosanode_service, "_build_runtime_env", return_value={}), \
+                patch.object(service_module.subprocess, "Popen", return_value=proc), \
+                patch.object(taosanode_service.process_mgr, "remove_pid") as remove_pid, \
+                patch.object(taosanode_service.process_mgr, "write_pid") as write_pid, \
+                patch.object(taosanode_service.process_mgr, "wait_for_service", return_value=True) as wait, \
+                patch.object(taosanode_service.process_mgr, "read_pid", return_value=222):
+            assert taosanode_service.start() is True
+        remove_pid.assert_called_once_with("taosanode")
+        write_pid.assert_not_called()
+        proc.wait.assert_called_once_with(timeout=taosanode_service.config.timeouts["service_startup"])
+        wait.assert_called_once()
+
+    def test_linux_launcher_failure_is_not_success(self, taosanode_service, monkeypatch):
+        monkeypatch.setattr(service_module, "IS_WINDOWS", False)
+        monkeypatch.setattr(service_module, "IS_LINUX", True)
+        proc = MagicMock()
+        proc.wait.return_value = 1
+        with patch.object(taosanode_service.process_mgr, "is_running", return_value=False), \
+                patch.object(taosanode_service.process_mgr, "_get_python_exe", return_value="python3"), \
+                patch.object(taosanode_service, "_build_runtime_env", return_value={}), \
+                patch.object(service_module.subprocess, "Popen", return_value=proc), \
+                patch.object(taosanode_service.process_mgr, "wait_for_service") as wait:
+            assert taosanode_service.start() is False
+        wait.assert_not_called()
+
+    def test_linux_start_without_daemon_pid_is_failure(self, taosanode_service, monkeypatch):
+        monkeypatch.setattr(service_module, "IS_WINDOWS", False)
+        monkeypatch.setattr(service_module, "IS_LINUX", True)
+        proc = MagicMock()
+        proc.wait.return_value = 0
+        proc.poll.return_value = 0
+        with patch.object(taosanode_service.process_mgr, "is_running", return_value=False), \
+                patch.object(taosanode_service.process_mgr, "_get_python_exe", return_value="python3"), \
+                patch.object(taosanode_service, "_build_runtime_env", return_value={}), \
+                patch.object(service_module.subprocess, "Popen", return_value=proc), \
+                patch.object(taosanode_service.process_mgr, "wait_for_service", return_value=False):
+            assert taosanode_service.start() is False
+
     def test_status(self, taosanode_service):
         with patch.object(
             taosanode_service.process_mgr, "is_running", return_value=True

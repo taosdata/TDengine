@@ -17,6 +17,8 @@
 
 set -euo pipefail
 
+command -v xz >/dev/null 2>&1 || { echo "xz is required to build tar.xz packages (install xz-utils)" >&2; exit 1; }
+
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 tdgpt_root=$(cd "${script_dir}/.." && pwd)
 build_python_home=""
@@ -29,7 +31,7 @@ pip_extra_args=""
 bundle="all"
 patchelf_exe="patchelf"
 lite=0
-venv_version="1.0.1"
+venv_version="1.0.2"
 
 usage() {
   cat <<'EOF'
@@ -49,7 +51,7 @@ Options:
   --bundle all|main|model      Build all venvs (default), only the TDgpt main venv,
                                or only the complete model venv.
   --lite                       Build Lite main venv and use Lite archive names.
-  --venv-version VERSION      Version used in venv archive names. Default: 1.0.1.
+  --venv-version VERSION      Version used in venv archive names. Default: 1.0.2.
   --patchelf PATH              patchelf executable for the ARM64 Moirai fix.
                                Version 0.14.0 or newer is required.
   --pip-extra-args STRING      Extra pip arguments, such as --index-url <url>.
@@ -164,6 +166,25 @@ create_venv() {
   PATH="${venv_dir}/bin:${PATH}" "${venv_dir}/bin/pip3" install "${pip_args[@]}" -r "$requirements"
 }
 
+prune_venv() {
+  local venv_dir="$1"
+  # Keep pip for offline repair and user package installation. Remove files
+  # that are not imported by the runtime after all packages are installed.
+  # Keep .a libraries: user C/Cython extensions may link against NumPy
+  # libnpymath.a or other package libraries. Imports alone do not test linking.
+  # Any removal needs a package-specific audit and compilation/linking test.
+  find "$venv_dir" -depth -type d \( -name '__pycache__' -o \( \( -name 'test' -o -name 'tests' \) ! -path '*/include/*' \) \) \
+    -exec rm -rf {} + 2>/dev/null || true
+  # Keep .pyi stubs for type checking and user model development.
+  # Preserve legal notices; drop other docs and manuals.
+  if [[ -d "$venv_dir/share/doc" ]]; then
+    find "$venv_dir/share/doc" \( -type f -o -type l \) \
+      ! -ipath '*license*' ! -ipath '*licence*' ! -ipath '*copyright*' \
+      ! -ipath '*copying*' ! -ipath '*notice*' -delete
+  fi
+  rm -rf "$venv_dir/share/man"
+}
+
 resolve_patchelf() {
   local version
   if [[ "$patchelf_exe" == */* ]]; then
@@ -226,11 +247,13 @@ if [[ "$bundle" == "all" || "$bundle" == "main" ]]; then
   cleanup_paths+=("$main_stage")
   main_venv="${main_stage}/venv"
   create_venv "$main_requirements" "$main_venv"
-  "${main_venv}/bin/python3" -c 'import flask; print("tdgpt-venv-ok")'
+  prune_venv "$main_venv"
+  "${main_venv}/bin/python3" -B -c 'import flask; print("tdgpt-venv-ok")'
+  prune_venv "$main_venv"
   rewrite_runtime_refs "$main_venv"
-  main_archive="${output_dir}/${archive_prefix}-venv-${venv_version}-linux-${arch}.tar.gz"
+  main_archive="${output_dir}/${archive_prefix}-venv-${venv_version}-linux-${arch}.tar.xz"
   rm -f "$main_archive"
-  tar -C "$main_venv" -czf "$main_archive" .
+  tar -C "$main_venv" -cJf "$main_archive" .
   archives+=("$main_archive")
 fi
 
@@ -244,14 +267,18 @@ if [[ "$bundle" == "all" || "$bundle" == "model" ]]; then
   create_venv "${requirements_dir}/requirements_moment.txt" "$moment_venv"
   PATH="${moment_venv}/bin:${PATH}" "${moment_venv}/bin/pip3" install --no-deps momentfm==0.1.4
   patch_moirai_jaxlib_for_arm64 "$moirai_venv"
-  "${moirai_venv}/bin/python3" -c 'from uni2ts.model.moirai_moe import MoiraiMoEForecast; print("moirai-venv-ok")'
-  "${moirai_venv}/bin/python3" -c 'import jax, jaxlib; print("moirai-jax-ok", jax.__version__, jaxlib.__version__)'
-  "${moment_venv}/bin/python3" -c 'from momentfm import MOMENTPipeline; print("moment-venv-ok")'
+  prune_venv "$moirai_venv"
+  prune_venv "$moment_venv"
+  "${moirai_venv}/bin/python3" -B -c 'from uni2ts.model.moirai_moe import MoiraiMoEForecast; print("moirai-venv-ok")'
+  "${moirai_venv}/bin/python3" -B -c 'import jax, jaxlib; print("moirai-jax-ok", jax.__version__, jaxlib.__version__)'
+  "${moment_venv}/bin/python3" -B -c 'from momentfm import MOMENTPipeline; print("moment-venv-ok")'
+  prune_venv "$moirai_venv"
+  prune_venv "$moment_venv"
   rewrite_runtime_refs "$moirai_venv"
   rewrite_runtime_refs "$moment_venv"
-  model_archive="${output_dir}/${archive_prefix}-model-venv-${venv_version}-linux-${arch}.tar.gz"
+  model_archive="${output_dir}/${archive_prefix}-model-venv-${venv_version}-linux-${arch}.tar.xz"
   rm -f "$model_archive"
-  tar -C "$model_stage" -czf "$model_archive" venvs
+  tar -C "$model_stage" -cJf "$model_archive" venvs
   archives+=("$model_archive")
 fi
 
@@ -260,11 +287,13 @@ if [[ "$bundle" == "all" ]]; then
   cleanup_paths+=("$tdmodel_stage")
   tdmodel_venv="${tdmodel_stage}/tdmodel-venv"
   create_venv "$tdmodel_requirements" "$tdmodel_venv"
-  "${tdmodel_venv}/bin/python3" -c 'import flask; print("tdmodel-venv-ok")'
+  prune_venv "$tdmodel_venv"
+  "${tdmodel_venv}/bin/python3" -B -c 'import flask; print("tdmodel-venv-ok")'
+  prune_venv "$tdmodel_venv"
   rewrite_runtime_refs "$tdmodel_venv"
-  tdmodel_archive="${output_dir}/tdengine-tdmodel-venv-${venv_version}-linux-${arch}.tar.gz"
+  tdmodel_archive="${output_dir}/tdengine-tdmodel-venv-${venv_version}-linux-${arch}.tar.xz"
   rm -f "$tdmodel_archive"
-  tar -C "$tdmodel_stage" -czf "$tdmodel_archive" tdmodel-venv
+  tar -C "$tdmodel_stage" -cJf "$tdmodel_archive" tdmodel-venv
   archives+=("$tdmodel_archive")
 fi
 

@@ -310,6 +310,13 @@ TEST_F(ParserInitialCTest, xnodeTaskParserBinaryLength) {
  * COMPACT DATABASE db_name [START WITH start_time] [END WITH END_time]
  */
 TEST_F(ParserInitialCTest, compact) {
+#ifndef TD_ENTERPRISE
+  run("COMPACT DATABASE test", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("COMPACT DATABASE test START WITH '2023-03-07 14:01:23' END WITH '2023-03-08 14:01:23'",
+      TSDB_CODE_OSS_NOT_SUPPORT);
+  run("COMPACT DATABASE testus START WITH TIMESTAMP '2023-01-07 14:01:23'", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("COMPACT DATABASE testus END WITH 1675749683000000000", TSDB_CODE_OSS_NOT_SUPPORT);
+#else
   SCompactDbReq expect = {0};
 
   auto setCompactDbReq = [&](const char* pDb, int64_t start = INT64_MIN, int64_t end = INT64_MAX) {
@@ -340,6 +347,7 @@ TEST_F(ParserInitialCTest, compact) {
 
   setCompactDbReq("testus", INT64_MIN, 1675749683000000000);
   run("COMPACT DATABASE testus END WITH 1675749683000000000");
+#endif
 }
 
 /*

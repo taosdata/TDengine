@@ -183,6 +183,8 @@ else
     mkdir -p "$SOURCEDIR"
 fi
 
+source "$REPDIR/test/cases/09-DataQuerying/19-FederatedQuery/fq_runtime_libs.sh"
+
 function _needs_fq_ext_env_cache() {
     local case_cmd="$1"
     case "$case_cmd" in
@@ -347,6 +349,23 @@ if [[ "${buildSan}" == "y" ]]; then
   asan_env="-e CI_NO_ASAN=1 -e CI_ASAN_BUILD=1"
 fi
 
+# TSDB FQ tasks provision one exclusive database lease on the runner. Keep an
+# explicit local-mode escape hatch while rolling out to older worker hosts.
+fq_runner=()
+if fq_ci_needs_databases "$cmd" && \
+   [[ "${FQ_CI_CONTAINER_ENV:-1}" == "1" ]] && \
+   [[ -n "${TSDB_COMMUNITY:-}" ]]; then
+    FQ_COMMUNITY="$(cd "$REPDIR" && pwd -P)"
+    FQ_RUNNER="$(dirname "$(dirname "$FQ_COMMUNITY")")/tools/cicd/tsdb-test-pipeline/fq/run-ci.py"
+    if [[ ! -f "$FQ_RUNNER" ]]; then
+        echo "ERROR: FQ container runner missing: $FQ_RUNNER"
+        exit 1
+    fi
+    fq_runner=(python3 "$FQ_RUNNER" --artifacts "$MOUNT_SOURCE/fq-artifacts/attempt-${FQ_CI_ATTEMPT:-1}"
+               --cert-dir "$REPDIR/test/cases/09-DataQuerying/19-FederatedQuery/certs" --)
+    export FQ_CI_HYBRID="${FQ_CI_HYBRID:-1}"
+fi
+
 mock_env=""
 if [[ "${CHILD_PIPELINE_NAME:-}" == "tsdb-ci-linux" && "${cmd}" =~ (cases/[^[:space:]]+\.py) ]]; then
   case_file="${REPDIR}/test/${BASH_REMATCH[1]}"
@@ -374,14 +393,15 @@ echo "docker run \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
     --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 _ci_exit_marker="${TMP_DIR}/thread_volume/${thread_no}/.ci-container-exit"
-rm -f "${_ci_exit_marker}"
+rm -f "${_ci_exit_marker}" "${TMP_DIR}/thread_volume/${thread_no}/.ci-test-command-exit"
 _ci_docker_start_ms=$(date +%s%3N)
 echo "[ci-timing] stage=docker-run event=start"
-docker run \
+"${fq_runner[@]}" docker run \
     ${name_param:+$name_param} --privileged=true \
     $asan_env \
     $mock_env \
     -e CI_CONTAINER_EXIT_MARKER="$CONTAINER_TESTDIR/test/.ci-container-exit" \
+    -e CI_TEST_COMMAND_EXIT_MARKER="$CONTAINER_TESTDIR/test/.ci-test-command-exit" \
     -e "CI_MIN_RESERVED_MEMORY_MB=${CI_MIN_RESERVED_MEMORY_MB:-2048}" \
     -v $REP_MOUNT_PARAM \
     ${REP_MOUNT_INTERNAL:+-v $REP_MOUNT_INTERNAL} \

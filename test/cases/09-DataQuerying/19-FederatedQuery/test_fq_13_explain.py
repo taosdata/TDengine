@@ -16490,7 +16490,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                             f"{sql_tpl[:55]}  {e}")
                         failed.append((expanded_id, "post_sql", str(e)))
 
-        output = "\n".join(blocks) + "\n"
+        output = ExtSrcEnv.baseline_environment("\n".join(blocks) + "\n")
         # When either filter is active, extract only the matching blocks from
         # the baseline so we compare like-for-like (filtered subset vs subset).
         if _case_filter or _id_filter:

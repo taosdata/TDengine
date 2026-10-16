@@ -41,8 +41,8 @@ def _runtime_archive(tmp_path):
         "python_version": "3.12.12", "platform": "linux", "arch": "x64",
         "requirements_sha256": hashlib.sha256(lock).hexdigest(),
     }), encoding="utf-8")
-    archive = Path(tmp_path) / "runtime.tar.gz"
-    with tarfile.open(archive, "w:gz") as output:
+    archive = Path(tmp_path) / "runtime.tar.xz"
+    with tarfile.open(archive, "w:xz") as output:
         output.add(root, arcname="model_venvs/tsfm")
     return archive
 

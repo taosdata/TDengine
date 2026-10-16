@@ -29,7 +29,7 @@ python_version="3.12.12"
 target_python_home="/usr/local/taos-deps/python-runtime"
 pip_extra_args=""
 lite=0
-venv_version="1.0.1"
+venv_version="1.0.2"
 
 usage() {
   cat <<'EOF'
@@ -54,7 +54,7 @@ Options:
                                  Default: /usr/local/taos-deps/python-runtime
   --pip-extra-args STRING        Extra pip arguments passed to venv builder.
   --lite                         Build Lite installer and Lite TDgpt venv archives.
-  --venv-version VERSION         Version used in venv archive names. Default: 1.0.1.
+  --venv-version VERSION         Version used in venv archive names. Default: 1.0.2.
 EOF
 }
 
@@ -144,18 +144,18 @@ if [[ "$lite" == "1" ]]; then
   product_name="${product_name}-lite"
   offline_asset_prefix="tdengine-tdgpt-lite"
 fi
-installer="${tdgpt_root}/release/${product_name}-${version}-linux-${arch}.tar.gz"
+installer="${tdgpt_root}/release/${product_name}-${version}-linux-${arch}.tar.xz"
 [[ -f "$installer" ]] || { echo "Installer was not produced: $installer" >&2; exit 1; }
 cp -f "$installer" "$output_dir/"
 
 artifacts=(
-  "${output_dir}/tdengine-python-runtime-${python_version}-linux-${arch}.tar.gz"
-  "${output_dir}/${offline_asset_prefix}-venv-${venv_version}-linux-${arch}.tar.gz"
+  "${output_dir}/tdengine-python-runtime-${python_version}-linux-${arch}.tar.xz"
+  "${output_dir}/${offline_asset_prefix}-venv-${venv_version}-linux-${arch}.tar.xz"
 )
 if [[ "$lite" != "1" ]]; then
   artifacts+=(
-    "${output_dir}/${offline_asset_prefix}-model-venv-${venv_version}-linux-${arch}.tar.gz"
-    "${output_dir}/tdengine-tdmodel-venv-${venv_version}-linux-${arch}.tar.gz"
+    "${output_dir}/${offline_asset_prefix}-model-venv-${venv_version}-linux-${arch}.tar.xz"
+    "${output_dir}/tdengine-tdmodel-venv-${venv_version}-linux-${arch}.tar.xz"
   )
 fi
 artifacts+=("${output_dir}/$(basename "$installer")")

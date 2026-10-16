@@ -507,6 +507,8 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b ON a.ts =
 - 普通 JOIN 不强制要求主键时间戳列作为连接条件；子查询未输出时间列时仍可按其他列关联，详见 [主键时间线](#主键时间线)。
 - 指定 Merge Hint 不改变子查询自身的排序和取行语义。
 - 子查询内部的 `ORDER BY` 与 `LIMIT` 仍先决定选取哪些行，JOIN 不改变该语义。
+- 子查询的 `ORDER BY` 与 JOIN 时间条件不一致时，查询可以执行，结果按 `ON` 条件匹配。包括子查询按非时间列或 `CAST(ts AS BIGINT)` 排序、按与 `ON` 不同时区或更粗粒度的 `TIMETRUNCATE` 排序，以及 `ON` 两侧 `TIMETRUNCATE` 时区不同。
+- 需要按连接键做 Merge、而输入尚未按该键有序时，系统会补排序，或改用其他可用算法。补排序不改变子查询 `ORDER BY` 与 `LIMIT` 已经选出的行。外层没有 `ORDER BY` 时，不保证最终结果顺序。
 - ASOF/WINDOW 仍须满足各自的时间输入要求；使用 JOIN 结果时，
   详见 [多表混合嵌套 JOIN](#多表混合嵌套-join)。
 

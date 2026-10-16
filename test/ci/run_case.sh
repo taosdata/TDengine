@@ -182,6 +182,13 @@ echo "[ci-timing] stage=test-command elapsed_ms=$(( $(date +%s%3N) - _ci_command
 [ $RET -eq 5 ] && RET=0
 echo "cmd exit code: $RET"
 
+# Publish only after the test command returned. The EXIT trap alone is not
+# proof of completion: it can also run when a timed-out container is stopped.
+if [[ -n "${CI_TEST_COMMAND_EXIT_MARKER:-}" ]]; then
+    printf '%s %s\n' "$(date +%s%3N)" "${RET}" > "${CI_TEST_COMMAND_EXIT_MARKER}.tmp"
+    mv -f "${CI_TEST_COMMAND_EXIT_MARKER}.tmp" "${CI_TEST_COMMAND_EXIT_MARKER}"
+fi
+
 mkdir -p ${_SIM_BASE}/var_taoslog
 if [ -d "/var/log/taos" ]; then
     cp /var/log/taos/* ${_SIM_BASE}/var_taoslog/ 2>/dev/null || true

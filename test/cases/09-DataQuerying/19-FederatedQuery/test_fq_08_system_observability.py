@@ -1037,7 +1037,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         )
 
     def _fw_compare_baseline(self, blocks: List[str]):
-        actual   = "\n".join(blocks) + "\n"
+        actual   = ExtSrcEnv.baseline_environment("\n".join(blocks) + "\n")
         import re as _re
         _PROTOCOL_SQL_NORM = _re.compile(
             r"('protocol'\s*=\s*')(?:flight_sql|http)(')",

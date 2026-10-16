@@ -344,7 +344,7 @@ function run_thread() {
         local exec_dir
         exec_dir=$(echo "$line" | cut -d, -f4)
         local case_cmd
-        case_cmd=$(echo "$line" | cut -d, -f5)
+        case_cmd=$(echo "$line" | cut -d, -f5-)
         local case_file=""
         # get the docs-examples test case from cases.task file
         if echo "$case_cmd" | grep -q "\.sh"; then
@@ -352,7 +352,7 @@ function run_thread() {
         fi
 
         # get python cases from cases.task file with asan
-        if echo "$case_cmd" | grep -q "^./ci/pytest.sh"; then
+        if echo "$case_cmd" | grep -qE '(^|[[:space:]])\./ci/pytest\.sh([[:space:]]|$)'; then
             case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         fi
 

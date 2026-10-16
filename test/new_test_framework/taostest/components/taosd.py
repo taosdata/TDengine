@@ -331,20 +331,27 @@ class TaosD:
                     self.logger.error(msg)
                     raise RuntimeError(msg)
 
-                with open(logFile) as f:
-                    timeout = time.time() + _start_timeout
-                    while True:
-                        line = f.readline().encode('utf-8')
-                        if bkey in line:
-                            break
-                        if time.time() > timeout:
-                            msg = (
-                                f"wait too long for taosd start (dnode:{index}, "
-                                f"log:{logFile}); abort to avoid connecting to stale taosd"
-                            )
-                            self.logger.error(msg)
-                            self._dump_startup_diagnostics(logFile, error_output)
-                            raise RuntimeError(msg)
+                timeout = time.time() + _start_timeout
+                while True:
+                    # Startup can replace/truncate the log after it first
+                    # appears. Reopen it instead of following an obsolete inode
+                    # forever (observed with the FQ timezone fixture).
+                    try:
+                        with open(logFile, "rb") as startup_log:
+                            ready = any(bkey in line for line in startup_log)
+                    except FileNotFoundError:
+                        ready = False
+                    if ready:
+                        break
+                    if time.time() > timeout:
+                        msg = (
+                            f"wait too long for taosd start (dnode:{index}, "
+                            f"log:{logFile}); abort to avoid connecting to stale taosd"
+                        )
+                        self.logger.error(msg)
+                        self._dump_startup_diagnostics(logFile, error_output)
+                        raise RuntimeError(msg)
+                    time.sleep(0.1)
                 self.logger.debug("the dnode:%d has been started." % (index))
                 # Probe the TCP port until taosd is truly ready to serve connections.
                 # "from offline to online" only means the dnode joined the cluster;

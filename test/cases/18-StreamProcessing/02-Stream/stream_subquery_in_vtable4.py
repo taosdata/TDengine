@@ -42,7 +42,8 @@ class TestStreamSubQueryInVtable4:
             4. InSubqueryVirtualTableWithAggregation - sliding(1s) over featured product_ids; expects 4 forwarded rows.
             5. InSubqueryVirtualTableWithGroupBy     - sliding(1s) over active store_ids; expects 4 forwarded rows.
 
-        Basic IN/NOT IN and empty-result cases live in stream_subquery_in_vtable.py.
+        Basic IN cases live in stream_subquery_in_vtable.py. NOT IN,
+        multiple-vtable, and empty-result cases live in stream_subquery_in_vtable5.py.
 
         Since: v3.3.4.0
 

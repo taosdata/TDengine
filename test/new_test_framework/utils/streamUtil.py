@@ -33,6 +33,9 @@ from enum import Enum
 from new_test_framework.utils import clusterComCheck
 
 
+TSDB_CODE_PAR_TABLE_NOT_EXIST = 0x2603
+
+
 class StreamTableType(Enum):
     TYPE_SUP_TABLE = "SUP_TABLE"
     TYPE_SUB_TABLE = "SUB_TABLE"
@@ -1431,12 +1434,34 @@ class StreamItem:
 
 # wait for expected rows
 def waitForRows(sql, expectedRows, waitSeconds=60):
-    for loop in range(waitSeconds):
-        tdSql.query(sql)
-        if tdSql.queryRows == expectedRows:
-            tdLog.info(f"got {expectedRows} rows as expected")
-            return
-        time.sleep(1)
+    deadline = time.monotonic() + waitSeconds
+    last_error = None
+    while time.monotonic() < deadline:
+        try:
+            tdSql.query(sql)
+            last_error = None
+            if tdSql.queryRows == expectedRows:
+                tdLog.info(f"got {expectedRows} rows as expected")
+                return
+        except taos.error.ProgrammingError as error:
+            # Stream sink tables are created asynchronously.  A Trigger task can
+            # be Running before its sink table becomes visible on a loaded node.
+            if (
+                not isinstance(error.errno, int)
+                or (error.errno & 0xFFFF) != TSDB_CODE_PAR_TABLE_NOT_EXIST
+            ):
+                raise
+            last_error = error
+
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(1, remaining))
+
+    if last_error is not None:
+        tdLog.exit(
+            f"waitForRows: result table was not created after {waitSeconds}s, "
+            f"last error: {last_error}, sql: {sql}"
+        )
     tdLog.exit(f"waitForRows: expect {expectedRows} rows, got {tdSql.queryRows} after {waitSeconds}s, sql: {sql}")
 
 

@@ -250,7 +250,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         """Write recorded blocks to tmp file and compare with baseline."""
         baseline_file = os.path.join(self._BASELINE_DIR, f"{name}.txt")
         tmp_file = baseline_file + ".tmp"
-        tmp_content = "\n".join(self._rec_blocks) + "\n"
+        tmp_content = ExtSrcEnv.baseline_environment("\n".join(self._rec_blocks) + "\n")
         os.makedirs(self._BASELINE_DIR, exist_ok=True)
         with open(tmp_file, "w") as f:
             f.write(tmp_content)
@@ -336,18 +336,20 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
     def _block_port(port):
         """Add iptables DROP rule to silently drop outgoing TCP to 127.0.0.1:port."""
         import subprocess
+        import socket
         subprocess.run(
             ["iptables", "-I", "OUTPUT", "-p", "tcp",
-             "-d", "127.0.0.1", "--dport", str(port), "-j", "DROP"],
+             "-d", socket.gethostbyname(ExtSrcEnv.MYSQL_HOST), "--dport", str(port), "-j", "DROP"],
             check=True, capture_output=True)
 
     @staticmethod
     def _unblock_port(port):
         """Remove iptables DROP rule (idempotent)."""
         import subprocess
+        import socket
         subprocess.run(
             ["iptables", "-D", "OUTPUT", "-p", "tcp",
-             "-d", "127.0.0.1", "--dport", str(port), "-j", "DROP"],
+             "-d", socket.gethostbyname(ExtSrcEnv.MYSQL_HOST), "--dport", str(port), "-j", "DROP"],
             capture_output=True)  # no check — ignore if rule doesn't exist
 
     def _restore_all_defaults(self):
