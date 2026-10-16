@@ -155,7 +155,10 @@ static bool adjustSystemTime(int64_t offsetMs) {
 // ============================================================
 // Test 1: System time jumps forward (+1 hour), timer should trigger within expected time
 // ============================================================
-TEST(timerTest, TimerCorrectWhenTimeJumpForward) {
+// Disabled in normal runs: changing the host clock disrupts concurrent tests,
+// and an early assertion failure can bypass clock restoration. Run only on an
+// isolated host with --gtest_also_run_disabled_tests and an explicit filter.
+TEST(timerTest, DISABLED_TimerCorrectWhenTimeJumpForward) {
   void* ctrl = taosTmrInit(100, 10, 10000, "timerTest");
   ASSERT_NE(ctrl, nullptr);
 
@@ -219,7 +222,7 @@ TEST(timerTest, TimerCorrectWhenTimeJumpForward) {
 // ============================================================
 // Test 2: System time jumps backward (-1 hour), timer should trigger within expected time
 // ============================================================
-TEST(timerTest, TimerCorrectWhenTimeJumpBackward) {
+TEST(timerTest, DISABLED_TimerCorrectWhenTimeJumpBackward) {
   void* ctrl = taosTmrInit(100, 10, 10000, "timerTest");
   ASSERT_NE(ctrl, nullptr);
 
