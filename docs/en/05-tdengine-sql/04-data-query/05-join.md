@@ -552,7 +552,9 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b ON a.ts =
 
 - Ordinary JOINs do not require a primary timestamp column in the join condition; subqueries without a time column can still join on other columns. See [Primary Key Timeline](#primary-key-timeline).
 - A JOIN algorithm Hint does not change the ordering or row-selection semantics of a subquery.
-- A subquery's ORDER BY and LIMIT still determine which rows it selects before the join; JOIN does not change that behavior.
+- A subquery's `ORDER BY` and `LIMIT` still determine which rows it selects before the join; JOIN does not change that behavior.
+- A query can run when the subquery `ORDER BY` does not match the JOIN time condition, and rows are matched by the `ON` condition. This includes ordering by a non-time column or `CAST(ts AS BIGINT)`, ordering by `TIMETRUNCATE` with a different time zone or a coarser unit than `ON`, and using different `TIMETRUNCATE` time zones on the two sides of `ON`.
+- When Merge needs the join key order and an input is not ordered by that key, TDengine adds a sort or selects another available algorithm. The added sort does not change the rows already selected by the subquery `ORDER BY` and `LIMIT`. Without an outer `ORDER BY`, the final result order is not guaranteed.
 - ASOF/WINDOW inputs must still meet their respective time requirements.
   For JOIN results as inputs, see [Mixed Nested Joins](#mixed-nested-joins).
 
