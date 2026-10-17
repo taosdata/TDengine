@@ -5435,8 +5435,7 @@ static int32_t doHandleFillforward(SFillforwardInfo* pFillforwardInfo, int32_t t
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      colDataSetInt64(pOutput, pos, &pFillforwardInfo->v);
-      break;
+      return colDataSetVal(pOutput, pos, (const char*)&pFillforwardInfo->v, false);
     case TSDB_DATA_TYPE_FLOAT:
       colDataSetFloat(pOutput, pos, &pFillforwardInfo->fv);
       break;

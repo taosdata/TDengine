@@ -34,6 +34,7 @@ BUILD_BINARIES = ("taosd.exe", "taos.exe", "taosBenchmark.exe", "taosadapter.exe
 SERIAL_CTEST_PATTERN = "timerTest|cunit_test|pcre.*|example.*|clientTest|connectOptionsTest|tmqTest|taoscTest|cosTest|tcs_test|osFileTests|idxFstTest"
 CTEST_READY_TIMEOUT_SECONDS = 300
 GIT_LOCK_WAIT_SECONDS = 60
+WINDOWS_CMAKE_BUILD_TYPE = "Debug"
 
 
 def print_host_identity():
@@ -224,6 +225,11 @@ def require_command(name, environment):
         fail(f"{name} is not available after loading Visual Studio environment")
 
 
+def rust_shared_library_path(debug_dir, build_type=WINDOWS_CMAKE_BUILD_TYPE):
+    profile = "debug" if build_type.lower() == "debug" else "release"
+    return debug_dir / "build" / "taos-connector-rust" / "target" / profile / "taosws.dll"
+
+
 def install_go_toolchain(source_dir, environment):
     cache_root = Path(os.environ.get("WIN_GO_TOOLCHAIN_CACHE", source_dir.parent / "ci-cache" / "go-toolchains"))
     version = "v0.0.1-go1.26.4.windows-amd64"
@@ -262,8 +268,10 @@ def build(source_dir, debug_dir):
         require_command(command, environment)
     install_go_toolchain(source_dir, environment)
 
+    # Avoid Release inlining/LTO when unit tests patch function entries with cppstub.
     configure = [
-        "cmake", "..", "-G", "NMake Makefiles JOM", "-DCMAKE_MAKE_PROGRAM=jom", "-DCMAKE_BUILD_TYPE=Release",
+        "cmake", "..", "-G", "NMake Makefiles JOM", "-DCMAKE_MAKE_PROGRAM=jom",
+        f"-DCMAKE_BUILD_TYPE={WINDOWS_CMAKE_BUILD_TYPE}",
         "-DBUILD_ENTERPRISE=ON", "-DBUILD_TEST=ON", "-DBUILD_TOOLS=ON", "-DBUILD_ADAPTER=ON", "-DBUILD_KEEPER=ON",
         "-DBUILD_RUST=ON", "-DBUILD_WITH_MARIADB=OFF", "-DBUILD_WITH_ARROW=OFF", "-DBUILD_ROCKSDB=ON",
         "-DBUILD_CONTRIB=ON", "-DBUILD_ASSERT_NOT_CORE=ON", "-DCPUTYPE=x64", "-DOSTYPE=Windows",
@@ -286,7 +294,7 @@ def build(source_dir, debug_dir):
     adapter_environment["PATH"] = f"{adapter.parent}{os.pathsep}{adapter_environment['PATH']}"
     if run([str(adapter), "--version"], cwd=adapter.parent, env=adapter_environment).returncode:
         fail("taosadapter.exe cannot start after build")
-    taosws = debug_dir / "build" / "taos-connector-rust" / "target" / "release" / "taosws.dll"
+    taosws = rust_shared_library_path(debug_dir)
     if not taosws.exists():
         run(["jom", "taos_connector_rust"], cwd=debug_dir, env=environment)
         fail("taosws.dll is missing from build output")
@@ -424,7 +432,7 @@ def run_pytest(source_dir, debug_dir, log_dir):
     for name in ("taos.dll", "pthreadVC3.dll", "taosnative.dll"):
         if (bin_dir / name).exists():
             shutil.copy2(bin_dir / name, system_dir / name)
-    taosws = debug_dir / "build" / "taos-connector-rust" / "target" / "release" / "taosws.dll"
+    taosws = rust_shared_library_path(debug_dir)
     if taosws.exists():
         shutil.copy2(taosws, system_dir / taosws.name)
     stop_processes()
