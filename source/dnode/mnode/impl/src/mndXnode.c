@@ -778,6 +778,49 @@ static int32_t mndWaitCreatedXnode(SMnode *pMnode, const char *url, bool waitUse
   return TSDB_CODE_SUCCESS;
 }
 
+// mndStartXnoded returns about 100ms after spawn, which is not enough for xnoded to
+// bind its control endpoint. Sending POST /xnode before that fails as URL_CANT_ACCESS.
+static int32_t mndWaitXnodedSocket(SMnode *pMnode, int32_t timeoutMs) {
+#ifndef WINDOWS
+  char socketPath[PATH_MAX] = {0};
+  getXnodedPipeName(socketPath, sizeof(socketPath));
+  int64_t deadlineMs = taosGetTimestampMs() + timeoutMs;
+  while (true) {
+    if (mndGetStop(pMnode)) return TSDB_CODE_MNODE_STOPPED;
+    if (!mndIsLeader(pMnode)) return TSDB_CODE_SYN_NOT_LEADER;
+    if (taosCheckPrivateSocket(socketPath) == TSDB_CODE_SUCCESS) break;
+    if (taosGetTimestampMs() >= deadlineMs) {
+      mError("xnode xnoded socket:%s not ready after %dms", socketPath, timeoutMs);
+      return TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
+    }
+    taosMsleep(100);
+  }
+#else
+  char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
+  snprintf(xnodeUrl, sizeof(xnodeUrl), "%s/xnode/0", XNODED_PIPE_SOCKET_URL);
+  int64_t deadlineMs = taosGetTimestampMs() + timeoutMs;
+  while (true) {
+    if (mndGetStop(pMnode)) return TSDB_CODE_MNODE_STOPPED;
+    if (!mndIsLeader(pMnode)) return TSDB_CODE_SYN_NOT_LEADER;
+    SJson *pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_GET, 100, NULL, 0);
+    int32_t requestCode = terrno;
+    bool ready = pJson != NULL ||
+                 (requestCode != TSDB_CODE_MND_XNODE_URL_CANT_ACCESS &&
+                  requestCode != TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT);
+    if (pJson != NULL) tjsonDelete(pJson);
+    if (ready) break;
+    if (taosGetTimestampMs() >= deadlineMs) {
+      mError("xnode xnoded endpoint:%s not ready after %dms", xnodeUrl, timeoutMs);
+      return TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
+    }
+    taosMsleep(100);
+  }
+#endif
+  if (mndGetStop(pMnode)) return TSDB_CODE_MNODE_STOPPED;
+  if (!mndIsLeader(pMnode)) return TSDB_CODE_SYN_NOT_LEADER;
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool mndCancelCreatedXnode(int32_t id, int64_t deadlineMs) {
   int64_t remainingMs = deadlineMs - taosGetTimestampMs();
   if (remainingMs > 0) taosMsleep((int32_t)remainingMs);
@@ -877,6 +920,15 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
       goto _CLEANUP;
     }
     xnodedStarted = true;
+    code = mndWaitXnodedSocket(pMnode, createXnodeHttpTimeout);
+    if (code != TSDB_CODE_SUCCESS) {
+      lino = __LINE__;
+      if (code == TSDB_CODE_MNODE_STOPPED || code == TSDB_CODE_SYN_NOT_LEADER) {
+        mndCloseXnd();
+        goto _OVER;
+      }
+      goto _CLEANUP;
+    }
   }
 
   // send request
@@ -8322,6 +8374,12 @@ int32_t mndRestartXnoded(SMnode *pMnode) {
   int32_t code = mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);
   mndReleaseXnodeUserPass(pMnode, pObj);
   if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = mndWaitXnodedSocket(pMnode, createXnodeHttpTimeout);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("mndxnode xnoded restart is still being monitored after readiness check failed since %s",
+           tstrerror(code));
     return code;
   }
   mInfo("mndxnode xnoded restarted");

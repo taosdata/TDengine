@@ -50,7 +50,11 @@ The taosAdapter provides the following features:
 
 Through the WebSocket interface of taosAdapter, connectors in various languages can achieve SQL execution, schemaless writing, parameter binding, and data subscription functionalities. Refer to the [Development Guide](../../10-developer-guide/01-connect/index.md#websocket-connection) for more details.
 
-### InfluxDB v1 write interface
+### InfluxDB v1 interface
+
+taosAdapter is compatible with the InfluxDB v1 write and ping APIs.
+
+#### InfluxDB v1 write interface
 
 You can use any client that supports the HTTP protocol to write data in InfluxDB compatible format to TDengine by accessing the Restful interface URL `http://<fqdn>:6041/influxdb/v1/write`.
 
@@ -65,6 +69,23 @@ Supported InfluxDB parameters are as follows:
 
 Note: Currently, InfluxDB's token authentication method is not supported, only Basic authentication and query parameter verification are supported.
 Example: `curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"`
+
+#### InfluxDB v1 ping interface
+
+taosAdapter is compatible with the InfluxDB v1 ping API, which can be used for health checks and connectivity probing. You can use any client that supports the HTTP protocol to access `http://<fqdn>:6041/influxdb/v1/ping`.
+
+This interface supports the GET and HEAD methods and does not require authentication. Its behavior is consistent with the `/ping` API of InfluxDB 1.x:
+
+- The response carries the `X-InfluxDB-Version` header, whose value is the taosAdapter version.
+- By default, it returns `204 No Content` with an empty response body.
+- When the value of the `verbose` query parameter is not empty and is neither `false` nor `0` (for example, `verbose=true`), it returns `200 OK` with a JSON body containing the version information, for example `{"version":"3.4.0.0"}`.
+
+Example:
+
+```shell
+curl -i http://127.0.0.1:6041/influxdb/v1/ping
+curl http://127.0.0.1:6041/influxdb/v1/ping?verbose=true
+```
 
 ### OpenTSDB JSON and telnet format writing
 

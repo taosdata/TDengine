@@ -109,6 +109,7 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
         PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
+add_test(NAME hashJoinTests COMMAND hashJoinTests)
 
 ADD_EXECUTABLE(thetaJoinTests thetaJoinTests.cpp)
 DEP_ext_gtest(thetaJoinTests)
@@ -156,6 +157,10 @@ TARGET_INCLUDE_DIRECTORIES(
 ADD_EXECUTABLE(execUtilTests execUtilTests.cpp)
 DEP_ext_gtest(execUtilTests)
 DEP_ext_cppstub(execUtilTests)
+if(MSVC)
+        # The large test translation unit exceeds the COFF section limit in Debug.
+        target_compile_options(execUtilTests PRIVATE /bigobj)
+endif()
 if(BUILD_TEST)
         target_compile_definitions(execUtilTests PRIVATE BUILD_TEST)
 endif()
@@ -170,6 +175,7 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
         PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
+add_test(NAME execUtilTests COMMAND execUtilTests)
 
 ADD_EXECUTABLE(windowFuncFrameTests windowFuncFrameTests.cpp)
 DEP_ext_gtest(windowFuncFrameTests)

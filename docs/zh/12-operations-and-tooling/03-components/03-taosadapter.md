@@ -51,7 +51,11 @@ taosAdapter 提供了以下功能：
 
 各语言连接器通过 taosAdapter 的 WebSocket 接口，能够实现 SQL 执行、无模式写入、参数绑定和数据订阅功能。参考 [开发指南](../../10-developer-guide/01-connect/index.md#websocket-连接)。
 
-### InfluxDB v1 数据写入
+### InfluxDB v1 接口
+
+taosAdapter 兼容 InfluxDB v1 的写入和 ping 接口。
+
+#### InfluxDB v1 数据写入
 
 你可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
 
@@ -69,6 +73,23 @@ taosAdapter 提供了以下功能：
 
 ```shell
 curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
+```
+
+#### InfluxDB v1 ping 接口
+
+taosAdapter 兼容 InfluxDB v1 的 ping 接口，可用于健康检查与连通性探测。你可以使用任何支持 HTTP 协议的客户端访问 `http://<fqdn>:6041/influxdb/v1/ping`。
+
+该接口支持 GET 和 HEAD 方法，无需认证，行为与 InfluxDB 1.x 的 `/ping` 保持一致：
+
+- 响应头携带 `X-InfluxDB-Version`，值为 taosAdapter 的版本号。
+- 默认返回 `204 No Content`，无响应体。
+- 当查询参数 `verbose` 的值非空且不为 `false` 或 `0`（例如 `verbose=true`）时，返回 `200 OK`，响应体为 JSON 格式的版本信息，例如 `{"version":"3.4.0.0"}`。
+
+示例：
+
+```shell
+curl -i http://127.0.0.1:6041/influxdb/v1/ping
+curl http://127.0.0.1:6041/influxdb/v1/ping?verbose=true
 ```
 
 ### OpenTSDB JSON 和 telnet 格式写入

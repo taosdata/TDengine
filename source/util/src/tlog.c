@@ -212,14 +212,23 @@ static void getFullPathName(char *fullName, const char *logName) {
 // meantime merely makes the retry fail and the caller keeps using the file it
 // already has.
 //
-// The log files are the one kind of file this process creates that other users are
-// meant to be able to read, so they opt in to TD_FILE_SHARE_READ.
+// Set log permissions explicitly so restrictive umasks do not hide root's logs.
 static TdFilePtr taosOpenLogFile(const char *name, int32_t tdFileOptions) {
   TdFilePtr pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ);
   if (pFile == NULL && terrno == TAOS_SYSTEM_ERROR(ELOOP)) {
     TAOS_UNUSED(taosRemoveFile(name));
     pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ);
   }
+#ifndef WINDOWS
+  if (pFile != NULL) {
+    int32_t code = taosFchmodFile(pFile, 0666);
+    if (code != 0) {
+      (void)taosCloseFile(&pFile);
+      terrno = code;
+      return NULL;
+    }
+  }
+#endif
   return pFile;
 }
 
@@ -418,7 +427,12 @@ static void taosKeepOldLog(char *oldName) {
     TAOS_CHECK_GOTO(taosLockFile(oldFile), &lino, _close_file);
     char compressFileName[PATH_MAX + 20];
     snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
+#ifdef WINDOWS
     TAOS_CHECK_GOTO(taosCompressFile(oldFile, compressFileName), &lino, _unlock_file);
+#else
+    TAOS_CHECK_GOTO(taosCompressFileWithMode(oldFile, compressFileName, 0666),
+                    &lino, _unlock_file);
+#endif
 
   _unlock_file:
     TAOS_UNUSED(taosUnLockFile(oldFile));
