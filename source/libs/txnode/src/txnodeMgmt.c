@@ -419,7 +419,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   char path[PATH_MAX] = {0};
   if (taosLocateCompanionExec(XNODED_DEFAULT_EXEC_NAME, path, sizeof(path)) != 0) {
     xndError("cannot find xnoded exec file in taosd directory or install directories");
-    return UV_ENOENT;
+    return TSDB_CODE_XNODE_UV_EXEC_FAILURE;
   }
 
   xndInfo("xnode mgmt spawn xnoded path: %s", path);
@@ -643,7 +643,10 @@ _exit:
   if (code != 0) {
     pData->isStarted = false;
     pData->needCleanUp = false;
-    xndError("xnoded start failed with lino:%d, code:%d, error: %s", code, lino, uv_strerror(code));
+    // uv_strerror allocates and never frees a string for codes outside the libuv
+    // range, which LeakSanitizer reports. TSDB_CODE_* values take that path.
+    const char *reason = (code > -4096 && code < 0) ? uv_strerror(code) : tstrerror(code);
+    xndError("xnoded start failed with lino:%d, code:%d, error: %s", code, lino, reason);
   }
   return code;
 }

@@ -109,8 +109,10 @@ if [[ -n "${XNODED_TEST_MOCK_MODE:-}" ]]; then
         echo "ERROR: failed to build mock xnoded: ${_mock_source}"
         exit 1
     fi
-    ln -sf "${_mock_binary}" /usr/bin/xnoded || exit 1
-    test -x /usr/bin/xnoded || exit 1
+    # taosd only spawns companion binaries that are regular files, so a symlink is skipped.
+    rm -f /usr/bin/xnoded || exit 1
+    install -m 0755 "${_mock_binary}" /usr/bin/xnoded || exit 1
+    test -f /usr/bin/xnoded -a ! -L /usr/bin/xnoded -a -x /usr/bin/xnoded || exit 1
     echo "[xnode-ci] mock xnoded: ${_mock_binary}, mode=${XNODED_TEST_MOCK_MODE}"
 fi
 ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
