@@ -471,7 +471,13 @@ function install_resource() {
   if [ ${custom_dir_set} -eq 0 ];then 
     ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
   fi
-  ${csudo}cp ${script_dir}/resource/*.sql ${resourceDir}/
+  # Legacy SQL samples are optional in current release packages.
+  local resource_file
+  for resource_file in "${script_dir}/resource/"*.sql; do
+    if [ -f "${resource_file}" ]; then
+      ${csudo}cp "${resource_file}" "${resourceDir}/"
+    fi
+  done
 }
 
 function require_existing_path() {
