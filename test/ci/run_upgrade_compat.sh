@@ -330,6 +330,22 @@ fi
 # ── Step 3: Run upgrade compatibility tests in isolated Docker container ───────
 
 CONTAINER_NAME="upgrade-compat-mr${CI_MERGE_REQUEST_IID:-0}_${CI_PIPELINE_ID:-0}_${CI_JOB_ID:-0}"
+DOCKER_RUN_PID=""
+
+function cancel_upgrade_compat() {
+    local exit_code="$1"
+    trap '' TERM INT
+    echo "[upgrade-compat] Job cancelled; removing container ${CONTAINER_NAME}"
+    timeout 30s docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
+    if [ -n "${DOCKER_RUN_PID}" ]; then
+        kill "${DOCKER_RUN_PID}" 2>/dev/null || true
+        wait "${DOCKER_RUN_PID}" 2>/dev/null || true
+    fi
+    exit "${exit_code}"
+}
+
+trap 'cancel_upgrade_compat 143' TERM
+trap 'cancel_upgrade_compat 130' INT
 
 echo ""
 echo "=== Step 2/2: Running upgrade compatibility tests in Docker ==="
@@ -345,8 +361,11 @@ docker run \
     -v "${LOG_DIR}:/upgrade_logs" \
     --rm --ulimit core=-1 \
     ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} \
-    ${CONTAINER_SCRIPT}
+    ${CONTAINER_SCRIPT} &
+DOCKER_RUN_PID=$!
+wait "${DOCKER_RUN_PID}"
 ret=$?
+DOCKER_RUN_PID=""
 
 echo ""
 echo "======================================================"
