@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -89,7 +90,7 @@ class StreamJoinFilterTest : public ::testing::Test {
     desc.buildType.bytes = desc.probeType.bytes = bytes;
     desc.buildType.precision = buildPrecision;
     desc.probeType.precision = probePrecision;
-    desc.keyPrecision = std::max(buildPrecision, probePrecision);
+    desc.keyPrecision = (std::max)(buildPrecision, probePrecision);
     ASSERT_NE(nullptr, taosArrayPush(spec.pColumns, &desc));
   }
   void create() {
