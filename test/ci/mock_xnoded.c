@@ -27,7 +27,12 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
+
+// The real xnoded binds its socket well after taosd's 100ms spawn check, so
+// the first CREATE XNODE must wait for readiness. Binding late keeps that path covered.
+#define MOCK_DEFAULT_BIND_DELAY_MS 500
 
 static volatile sig_atomic_t stop_requested = 0;
 static int last_lost_id = -1;
@@ -175,6 +180,15 @@ int main(void) {
   signal(SIGPIPE, SIG_IGN);
   signal(SIGTERM, request_stop);
   signal(SIGINT, request_stop);
+
+  const char *delay_env = getenv("XNODED_TEST_MOCK_BIND_DELAY_MS");
+  long delay_ms = delay_env != NULL ? strtol(delay_env, NULL, 10) : MOCK_DEFAULT_BIND_DELAY_MS;
+  if (delay_ms > 0) {
+    struct timespec delay = {.tv_sec = delay_ms / 1000, .tv_nsec = (delay_ms % 1000) * 1000000L};
+    while (nanosleep(&delay, &delay) != 0 && errno == EINTR && !stop_requested) {
+    }
+  }
+  if (stop_requested) return 0;
 
   int listener = socket(AF_UNIX, SOCK_STREAM, 0);
   if (listener < 0 || bind(listener, (struct sockaddr *)&address, sizeof(address)) != 0 || listen(listener, 16) != 0) {
