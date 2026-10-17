@@ -60,8 +60,6 @@ class HotUpgradeTask:
         if len(parts) < 3:
             raise ValueError(f"Invalid version format: {targetVersion}")
 
-        majorMinorPatch = f"{parts[0]}.{parts[1]}.{parts[2]}"
-
         if not os.path.exists(self.greenVersionsPath):
             return []
 
@@ -70,7 +68,8 @@ class HotUpgradeTask:
             itemPath = os.path.join(self.greenVersionsPath, item)
             if not os.path.isdir(itemPath):
                 continue
-            if item.startswith(majorMinorPatch):
+            if (re.fullmatch(r'[0-9]+(?:\.[0-9]+){3,}', item)
+                    and item.split('.')[:3] == parts[:3]):
                 matchedVersions.append(item)
 
         matchedVersions.sort(key=lambda v: [int(x) for x in v.split('.')])
