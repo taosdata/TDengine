@@ -19,6 +19,12 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "misc"))
 
+# Initialize uni2ts (and its JAX dependency) before NumPy/Pandas/GluonTS.
+# On Windows, importing those libraries first can make jaxlib DLL initialization
+# fail, preventing Moirai from starting even though each dependency imports alone.
+from uni2ts.model.moirai_moe import MoiraiMoEForecast, MoiraiMoEModule
+
+# isort: split
 import numpy as np
 import pandas as pd
 import torch
@@ -28,7 +34,6 @@ from gluonts.dataset.pandas import PandasDataset
 from gluonts.dataset.split import split
 from hf_download import snapshot_download_with_fallback
 from tqdm import tqdm
-from uni2ts.model.moirai_moe import MoiraiMoEForecast, MoiraiMoEModule
 
 app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
