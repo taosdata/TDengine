@@ -48,7 +48,7 @@ INSERT INTO stb_name (tbname, field1_name, ...) subquery
 ### 子句说明
 
 - `tb_name` / `stb_name`：可以写成 `db_name.tb_name`；不写库名时使用当前数据库。虚拟表、系统库中的表和联邦查询的外部表不能作为写入目标。
-- `USING ... TAGS`：写入时按超级表自动建表，见 [写入时自动建表](#写入时自动建表)。`TTL` 和 `COMMENT` 只在新建子表时生效，含义与 [数据表](../02-ddl/02-table.md) 中的同名选项相同。
+- `USING ... TAGS`：写入时按超级表自动建表，见 [写入时自动建表](#automatic-table-creation-on-insert)。`TTL` 和 `COMMENT` 只在新建子表时生效，含义与 [数据表](../02-ddl/02-table.md) 中的同名选项相同。
 - `(field1_name, ...)`：列清单。未出现的列填 `NULL`；时间戳主键列必须出现，表定义了复合主键时，第二主键列也必须出现。向超级表写入时必须给出列清单，并包含 `tbname`，见 [向超级表写入](#向超级表写入)。
 - `VALUES`：每个括号是一行，多行之间、多张表之间的逗号都可以省略。值的写法见下文。
 - `FILE`：从客户端本地的 CSV 文件读取数据，见 [从文件写入](#从文件写入)。
@@ -103,7 +103,12 @@ INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-
 
 这些子表可能分布在不同 vnode 上。某个 vnode 写入失败时，其他 vnode 已经写入的数据不会回滚，见 [部分写入成功](#部分写入成功)。
 
-## 写入时自动建表
+import Link from "@docusaurus/Link";
+
+<Link id="插入记录时自动建表" />
+<Link id="写入时自动建表" />
+
+## 写入时自动建表 {#automatic-table-creation-on-insert}
 
 写入时如果表可能还不存在，用 `USING` 按超级表自动建表。表已经存在时，不会建新表，也不会修改标签值。自动建表必须给出超级表名和 `TAGS`。
 

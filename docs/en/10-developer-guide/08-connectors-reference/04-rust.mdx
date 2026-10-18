@@ -22,7 +22,7 @@ Supports Rust 1.70 and above.
 - The platforms supported by the native connection are consistent with those supported by the TDengine client driver.
 - WebSocket connection supports all platforms that can run Rust.
 
-## Version History
+## Version History {#version-history}
 
 | Rust Connector Version | Major Changes                                                                                         | TDengine Version   |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- | ------------------ |
@@ -84,7 +84,7 @@ Please refer to: [rust example](https://github.com/taosdata/TDengine/tree/main/d
 
 Please refer to [FAQ](../../16-faq/01-faq.md)
 
-## API Reference
+## API Reference {#api-reference}
 
 The Rust connector interfaces are divided into synchronous and asynchronous interfaces, where the synchronous interfaces are generally implemented by the asynchronous ones, and the method signatures are basically the same except for the async keyword. For interfaces where the synchronous and asynchronous functionalities are the same, this document only provides explanations for the synchronous interfaces.  
 For WebSocket connections and native connections, other than the different DSNs required to establish the connections, there is no difference in calling other interfaces.
