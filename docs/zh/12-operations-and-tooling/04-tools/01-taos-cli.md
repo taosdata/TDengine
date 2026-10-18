@@ -100,7 +100,11 @@ taos> quit
 
 - 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 `insert into d0 file '/root/d0.csv';` 表示把上面导出的数据全部再导入至 d0 表中。
 
-## 执行 SQL 脚本
+import Link from "@docusaurus/Link";
+
+<Link id="execute-sql-script-file" />
+
+## 执行 SQL 脚本 {#执行-sql-脚本}
 
 在 `taos` shell 里可以通过 `source` 命令来运行脚本文件中的多条 SQL 命令，脚本文件中多条 SQL 按行书写即可。
 
