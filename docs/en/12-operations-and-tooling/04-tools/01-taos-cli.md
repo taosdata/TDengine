@@ -96,7 +96,11 @@ You can change the behavior of the TDengine CLI by configuring command line para
 
 - You can use insert into table_name file 'input file name', to import the data file exported in the previous step back into the specified table. For example, `insert into d0 file '/root/d0.csv';` means to import all the data exported above back into the d0 table.
 
-## Execute SQL Scripts
+import Link from "@docusaurus/Link";
+
+<Link id="execute-sql-script-file" />
+
+## Execute SQL Scripts {#execute-sql-scripts}
 
 In the TDengine CLI, you can run multiple SQL commands from a script file using the `source` command, multiple SQL statements in the script file can be written in line.
 
