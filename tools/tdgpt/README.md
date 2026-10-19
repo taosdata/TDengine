@@ -86,10 +86,10 @@ Please use the following commands to install taosanode in your system.
 ```bash
 # enter the release directory and then unpack the tarball
 cd ./release
-tar -zxvf ./tdengine-tdgpt-oss-3.3.7.0.alpha-linux-x64.tar.gz
+tar -zxvf ./tdengine-tdgpt-oss-3.3.7.0-linux-x64.tar.gz
 
 # enter into the package
-cd tdengine-tdgpt-oss-3.3.7.0.alpha-linux-x64
+cd tdengine-tdgpt-oss-3.3.7.0-linux-x64
 
 # execute the install script
 ./install.sh
