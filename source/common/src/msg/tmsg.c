@@ -22779,28 +22779,247 @@ int32_t tEncodeMqSubTopicEp(void **buf, const SMqSubTopicEp *pTopicEp) {
   return tlen;
 }
 
-void *tDecodeMqSubTopicEp(void *buf, SMqSubTopicEp *pTopicEp) {
-  buf = taosDecodeStringTo(buf, pTopicEp->topic);
-  buf = taosDecodeStringTo(buf, pTopicEp->db);
-  int32_t sz;
-  buf = taosDecodeFixedI32(buf, &sz);
-  pTopicEp->vgs = taosArrayInit(sz, sizeof(SMqSubVgEp));
-  if (pTopicEp->vgs == NULL) {
+// =============================================================================
+// Bounded legacy-walker decoders for the TMQ ask-ep response (TDMT_MND_TMQ_ASK_EP_RSP).
+// The mnode encodes this message with the pre-SDecoder legacy format, so the wire layout
+// must stay unchanged; these decoders keep that format but check every string against its
+// destination capacity and every count/field against the remaining payload length, so a
+// malicious server cannot overflow the stack topic[]/db[] arrays or read past the received
+// buffer (CWE-121).
+// =============================================================================
+
+// Decode a legacy u64 7-bit varint, bounded by the remaining payload length.
+static void *tDecodeVarU64Bounded(const void *buf, int32_t *pLen, uint64_t *pVal) {
+  const uint8_t *p = (const uint8_t *)buf;
+  uint64_t       tval = 0;
+  for (int32_t i = 0; i < 10; i++) {
+    if (*pLen <= 0) {
+      return NULL;
+    }
+    uint8_t byte = p[i];
+    (*pLen)--;
+    if (byte < ENCODE_LIMIT) {
+      *pVal = tval | ((uint64_t)byte << (7 * i));
+      return (void *)(p + i + 1);
+    }
+    if (i == 9) {
+      // lengths/counts never legitimately use the 10th byte; bail out before the shift wraps
+      return NULL;
+    }
+    tval |= ((uint64_t)(byte & (ENCODE_LIMIT - 1)) << (7 * i));
+  }
+  return NULL;
+}
+
+// Decode a legacy zigzag-encoded fixed-width int32, bounded by the remaining length.
+static void *tDecodeFixedI32Bounded(const void *buf, int32_t *pLen, int32_t *pVal) {
+  if (*pLen < (int32_t)sizeof(uint32_t)) {
     return NULL;
   }
-  for (int32_t i = 0; i < sz; i++) {
-    SMqSubVgEp vgEp;
-    buf = tDecodeSMqSubVgEp(buf, &vgEp);
-    if (taosArrayPush(pTopicEp->vgs, &vgEp) == NULL) {
-      taosArrayDestroy(pTopicEp->vgs);
-      pTopicEp->vgs = NULL;
+  uint32_t tval = 0;
+  if (IS_LITTLE_ENDIAN()) {
+    memcpy(&tval, buf, sizeof(tval));
+  } else {
+    ((uint8_t *)&tval)[3] = ((const uint8_t *)buf)[0];
+    ((uint8_t *)&tval)[2] = ((const uint8_t *)buf)[1];
+    ((uint8_t *)&tval)[1] = ((const uint8_t *)buf)[2];
+    ((uint8_t *)&tval)[0] = ((const uint8_t *)buf)[3];
+  }
+  *pLen -= (int32_t)sizeof(tval);
+  *pVal = ZIGZAGD(int32_t, tval);
+  return POINTER_SHIFT(buf, sizeof(tval));
+}
+
+// Decode a legacy zigzag-encoded fixed-width int64, bounded by the remaining length.
+static void *tDecodeFixedI64Bounded(const void *buf, int32_t *pLen, int64_t *pVal) {
+  if (*pLen < (int32_t)sizeof(uint64_t)) {
+    return NULL;
+  }
+  uint64_t tval = 0;
+  if (IS_LITTLE_ENDIAN()) {
+    memcpy(&tval, buf, sizeof(tval));
+  } else {
+    ((uint8_t *)&tval)[7] = ((const uint8_t *)buf)[0];
+    ((uint8_t *)&tval)[6] = ((const uint8_t *)buf)[1];
+    ((uint8_t *)&tval)[5] = ((const uint8_t *)buf)[2];
+    ((uint8_t *)&tval)[4] = ((const uint8_t *)buf)[3];
+    ((uint8_t *)&tval)[3] = ((const uint8_t *)buf)[4];
+    ((uint8_t *)&tval)[2] = ((const uint8_t *)buf)[5];
+    ((uint8_t *)&tval)[1] = ((const uint8_t *)buf)[6];
+    ((uint8_t *)&tval)[0] = ((const uint8_t *)buf)[7];
+  }
+  *pLen -= (int32_t)sizeof(tval);
+  *pVal = ZIGZAGD(int64_t, tval);
+  return POINTER_SHIFT(buf, sizeof(tval));
+}
+
+// Decode a legacy fixed-width int8, bounded by the remaining length.
+static void *tDecodeFixedI8Bounded(const void *buf, int32_t *pLen, int8_t *pVal) {
+  if (*pLen < (int32_t)sizeof(*pVal)) {
+    return NULL;
+  }
+  memcpy(pVal, buf, sizeof(*pVal));
+  *pLen -= (int32_t)sizeof(*pVal);
+  return POINTER_SHIFT(buf, sizeof(*pVal));
+}
+
+// Decode a legacy fixed-width uint16, bounded by the remaining length.
+static void *tDecodeFixedU16Bounded(const void *buf, int32_t *pLen, uint16_t *pVal) {
+  if (*pLen < (int32_t)sizeof(*pVal)) {
+    return NULL;
+  }
+  if (IS_LITTLE_ENDIAN()) {
+    memcpy(pVal, buf, sizeof(*pVal));
+  } else {
+    ((uint8_t *)pVal)[1] = ((const uint8_t *)buf)[0];
+    ((uint8_t *)pVal)[0] = ((const uint8_t *)buf)[1];
+  }
+  *pLen -= (int32_t)sizeof(*pVal);
+  return POINTER_SHIFT(buf, sizeof(*pVal));
+}
+
+// Decode a legacy length-prefixed string into a fixed-size destination. The legacy encoding
+// carries the string length (excluding the terminating NUL) followed by the raw bytes; a
+// string that does not fit dstCap-1 bytes or exceeds the remaining payload is rejected
+// without writing a single byte.
+static void *tDecodeStringToBounded(const void *buf, int32_t *pLen, char *dst, int32_t dstCap) {
+  uint64_t size = 0;
+  buf = tDecodeVarU64Bounded(buf, pLen, &size);
+  if (buf == NULL || size >= (uint64_t)dstCap || size > (uint64_t)*pLen) {
+    return NULL;
+  }
+  memcpy(dst, buf, (size_t)size);
+  dst[size] = '\0';
+  *pLen -= (int32_t)size;
+  return POINTER_SHIFT(buf, size);
+}
+
+void *tDecodeSMqSubVgEp(void *buf, int32_t *pLen, SMqSubVgEp *pVgEp) {
+  buf = tDecodeFixedI32Bounded(buf, pLen, &pVgEp->vgId);
+  if (buf == NULL) {
+    return NULL;
+  }
+  buf = tDecodeFixedI64Bounded(buf, pLen, &pVgEp->offset);
+  if (buf == NULL) {
+    return NULL;
+  }
+
+  SEpSet *pEpSet = &pVgEp->epSet;
+  buf = tDecodeFixedI8Bounded(buf, pLen, &pEpSet->inUse);
+  if (buf == NULL) {
+    return NULL;
+  }
+  buf = tDecodeFixedI8Bounded(buf, pLen, &pEpSet->numOfEps);
+  if (buf == NULL) {
+    return NULL;
+  }
+  if (pEpSet->numOfEps < 0 || pEpSet->numOfEps > TSDB_MAX_REPLICA || pEpSet->inUse < 0 ||
+      (pEpSet->numOfEps > 0 && pEpSet->inUse > pEpSet->numOfEps)) {
+    uDebug("TMQ ask-ep decode rejected invalid ep set, inUse:%d numOfEps:%d", pEpSet->inUse, pEpSet->numOfEps);
+    return NULL;
+  }
+  if (pEpSet->inUse != 0 && (pEpSet->numOfEps == 0 || pEpSet->inUse == pEpSet->numOfEps)) {
+    uDebug("TMQ ask-ep decode normalized ep set, inUse:%d numOfEps:%d", pEpSet->inUse, pEpSet->numOfEps);
+    pEpSet->inUse = 0;
+  }
+  for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
+    buf = tDecodeFixedU16Bounded(buf, pLen, &pEpSet->eps[i].port);
+    if (buf == NULL) {
+      return NULL;
+    }
+    buf = tDecodeStringToBounded(buf, pLen, pEpSet->eps[i].fqdn, TSDB_FQDN_LEN);
+    if (buf == NULL) {
       return NULL;
     }
   }
   return buf;
 }
 
+void *tDecodeMqSubTopicEp(void *buf, int32_t *pLen, SMqSubTopicEp *pTopicEp) {
+  buf = tDecodeStringToBounded(buf, pLen, pTopicEp->topic, TSDB_TOPIC_FNAME_LEN);
+  if (buf == NULL) {
+    goto _err;
+  }
+  buf = tDecodeStringToBounded(buf, pLen, pTopicEp->db, TSDB_DB_FNAME_LEN);
+  if (buf == NULL) {
+    goto _err;
+  }
+
+  int32_t sz = 0;
+  buf = tDecodeFixedI32Bounded(buf, pLen, &sz);
+  if (buf == NULL) {
+    goto _err;
+  }
+  // every vgroup entry consumes at least a few bytes, so a count larger than the remaining
+  // payload cannot be valid; reject it before allocating
+  if (sz < 0 || sz > *pLen) {
+    uDebug("TMQ ask-ep decode rejected invalid vgroup count:%d, remaining:%d bytes", sz, *pLen);
+    goto _err;
+  }
+
+  pTopicEp->vgs = taosArrayInit(sz, sizeof(SMqSubVgEp));
+  if (pTopicEp->vgs == NULL) {
+    goto _err;
+  }
+  for (int32_t i = 0; i < sz; i++) {
+    SMqSubVgEp vgEp = {0};
+    buf = tDecodeSMqSubVgEp(buf, pLen, &vgEp);
+    if (buf == NULL || taosArrayPush(pTopicEp->vgs, &vgEp) == NULL) {
+      taosArrayDestroy(pTopicEp->vgs);
+      pTopicEp->vgs = NULL;
+      return NULL;
+    }
+  }
+  return buf;
+
+_err:
+  uDebug("TMQ ask-ep decode failed for topic ep, remaining:%d bytes", *pLen);
+  return NULL;
+}
+
 void tDeleteMqSubTopicEp(SMqSubTopicEp *pSubTopicEp) { taosArrayDestroy(pSubTopicEp->vgs); }
+
+void *tDecodeSMqAskEpRsp(void *buf, int32_t bufLen, SMqAskEpRsp *pRsp) {
+  int32_t len = bufLen;
+  int32_t sz = 0;
+
+  buf = tDecodeFixedI32Bounded(buf, &len, &sz);
+  if (buf == NULL) {
+    goto _err;
+  }
+  // reject a topic count that the remaining payload cannot possibly contain
+  if (sz < 0 || sz > len) {
+    uDebug("TMQ ask-ep decode rejected invalid topic count:%d, remaining:%d bytes", sz, len);
+    goto _err;
+  }
+
+  pRsp->topics = taosArrayInit(sz, sizeof(SMqSubTopicEp));
+  if (pRsp->topics == NULL) {
+    goto _err;
+  }
+  for (int32_t i = 0; i < sz; i++) {
+    SMqSubTopicEp topicEp = {0};
+    buf = tDecodeMqSubTopicEp(buf, &len, &topicEp);
+    if (buf == NULL) {
+      tDeleteMqSubTopicEp(&topicEp);
+      goto _err;
+    }
+    if (taosArrayPush(pRsp->topics, &topicEp) == NULL) {
+      tDeleteMqSubTopicEp(&topicEp);
+      goto _err;
+    }
+  }
+
+  buf = tDecodeFixedI32Bounded(buf, &len, &pRsp->code);
+  if (buf == NULL) {
+    goto _err;
+  }
+  return buf;
+
+_err:
+  uDebug("TMQ ask-ep decode failed, remaining:%d bytes", len);
+  return NULL;
+}
 
 int32_t tSerializeSCMCreateViewReq(void *buf, int32_t bufLen, const SCMCreateViewReq *pReq) {
   SEncoder encoder = {0};
