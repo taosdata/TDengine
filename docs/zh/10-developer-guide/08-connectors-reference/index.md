@@ -65,7 +65,7 @@ import VerifyWindows from "./resources/_verify_windows.mdx";
 import VerifyLinux from "./resources/_verify_linux.mdx";
 import VerifyMacOS from "./resources/_verify_macos.mdx";
 
-## 安装客户端驱动
+## 安装客户端驱动 {#安装客户端驱动}
 
 :::info
 在没有安装 TDengine 服务端软件的系统上使用原生接口连接器，或使用 C/C++ WebSocket 连接器时，才需要安装客户端驱动。

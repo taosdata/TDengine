@@ -22,6 +22,24 @@ TDgpt Lite 基础安装只需要以下资源：
 
 Windows 安装器通过 `/PYTHON_RUNTIME_DIR=<path>` 接收已解压的 Python runtime，通过 `/OFFLINE=<path>` 接收 Lite 主 venv ZIP。Linux 安装器使用等价的 runtime 和主 venv 参数。Python runtime 只负责执行安装、导入和修复主 venv；TDgpt 服务安装完成后使用主 venv 中的 Python 启动。
 
+### 2.1.1 打包工具与产品 Python 环境
+
+打包机用于执行 `build_tdgpt.py` 等发版脚本的 Python，与产品运行环境分开管理，
+不会因为用于构建而被复制进安装包或替换离线 venv。本轮打包工具已使用 Python
+3.10 验证通过；无需为构建统一改成 Python 3.12。执行前确认解释器及构建依赖可用，
+构建失败后不得将旧输出误认为本次产物。
+
+产品安装和验收必须使用既有的对应平台、架构资源：
+
+| 环境 | 用途 |
+| --- | --- |
+| Python runtime | 为安装器导入、创建或修复主 venv 提供解释器，当前资源为 Python 3.12.12 |
+| Lite 主 venv | 运行 TDgpt 主服务，使用已交付的 Lite 离线 venv |
+| TSFM runtime / 模型 venv | 运行动态模型，使用匹配平台与架构的共享 TSFM runtime |
+
+模型权重使用独立模型资源包。产品验收应记录实际运行的解释器路径及版本，
+不得以打包工具 Python 或系统 Python 代替主 venv、TSFM runtime 执行导入和推理检查。
+
 ### 2.2 安装行为
 
 Lite 安装流程必须显式使用 `--model-source none`，只安装 TDgpt 程序、配置、控制脚本和主 venv，并注册对应平台的服务。安装过程中不得扫描、下载或导入模型资源、TSFM runtime 或用户模型 venv。

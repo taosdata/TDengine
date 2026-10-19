@@ -22,7 +22,7 @@ import PlatformSupported from "./resources/_platform_supported.mdx";
 
 <PlatformSupported />
 
-## Version Support
+## Version Support {#version-support}
 
 TDengine version updates often add new features. The list below shows the best matching connector versions for each TDengine version.
 
@@ -65,7 +65,7 @@ Due to differences in database framework specifications across programming langu
 
 Supports **Execute SQL**
 
-## Install Client Driver
+## Install Client Driver {#install-client-driver}
 
 :::info
 You only need to install the client driver if you are using a native interface connector on a system where the TDengine server software is not installed, or if you are using the C/C++ WebSocket connector.

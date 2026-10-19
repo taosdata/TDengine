@@ -1576,3 +1576,197 @@ TEST_F(WalKeepEnv, corruptionInMiddleOfFile) {
 
   printf("SUCCESS: Middle corruption detected at read time as expected\n");
 }
+
+// ---------------------------------------------------------------------------
+// Recovery-scan hardening (forged framing / unbounded bodyLen / termination)
+// ---------------------------------------------------------------------------
+
+// Fill `body` with back-to-back records that are indistinguishable from real framing:
+// WAL_MAGIC, a valid header CRC32C and a valid body CRC32C, all of which an entry
+// proposer can precompute because none of them is keyed. `forgedVer` is the version the
+// forged chain claims. This is what a WAL body looks like when someone wants the
+// recovery scan to adopt their framing instead of the real record chain.
+static void fillWithForgedRecords(char* body, int32_t bodyLen, int64_t forgedVer) {
+  const int32_t kForgedBodyLen = 8;
+  const int32_t kForgedRecLen = (int32_t)sizeof(SWalCkHead) + kForgedBodyLen;
+
+  memset(body, 0x5A, bodyLen);
+
+  for (int32_t pos = 0; pos + kForgedRecLen <= bodyLen; pos += kForgedRecLen) {
+    SWalCkHead* pForged = (SWalCkHead*)(body + pos);
+    memset(pForged, 0, sizeof(SWalCkHead));
+    pForged->magic = WAL_MAGIC;
+    pForged->head.version = forgedVer;
+    pForged->head.bodyLen = kForgedBodyLen;
+    pForged->head.msgType = 0;
+    pForged->head.ingestTs = 0;
+    memset(pForged->head.body, 0x5A, kForgedBodyLen);
+    pForged->cksumBody = walCalcBodyCksum(pForged->head.body, kForgedBodyLen);
+    pForged->cksumHead = walCalcHeadCksum(pForged);
+  }
+}
+
+// Bodies carrying a forged record chain must not influence recovery at all: the segment
+// has to come back with exactly the lastVer/fileSize it would have had if the bodies
+// were ordinary data. The scan used to search the 3 MB below the meta-saved fileSize for
+// the first WAL_MAGIC, which lands inside a body, so the forged chain decided lastVer.
+TEST_F(WalKeepEnv, walScanIgnoresForgedFramingInBody) {
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  taosSetSkipKeyCheckMode();
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  // The old scan started its backward magic search at (meta fileSize - WAL_SCAN_BUF_SIZE),
+  // so the forged chain has to cover at least that much of the segment to be the first
+  // magic found. Keep a margin above the buffer size.
+  //
+  // kBodyLen is deliberately not a multiple of the forged record size: a forged chain
+  // that happened to end exactly on the next real header would rejoin the real chain and
+  // hide the bug. With a remainder, the forged chain dead-ends inside the body, which is
+  // what makes the forged version the scan's answer.
+  const int32_t kBodyLen = 4000;
+  const int64_t kForgedVer = 1000000;
+  const int32_t kRecords = (int32_t)(((int64_t)WAL_SCAN_BUF_SIZE + 512 * 1024) / kBodyLen) + 1;
+
+  std::vector<char> body(kBodyLen);
+  for (int32_t i = 0; i < kRecords; i++) {
+    fillWithForgedRecords(body.data(), kBodyLen, kForgedVer);
+    ASSERT_EQ(walAppendLog(pWal, i, 0, syncMeta, body.data(), kBodyLen, 0, NULL), 0);
+  }
+
+  int64_t realLastVer = kRecords - 1;
+  ASSERT_EQ(pWal->vers.lastVer, realLastVer);
+
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t realFileSize = pFileInfo->fileSize;
+  int64_t firstVer = pFileInfo->firstVer;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, firstVer);
+
+  // meta is saved on close, then an unclean shutdown is simulated by making the on-disk
+  // size differ from the saved one -- which is what makes walOpen run the scan
+  walClose(pWal);
+  pWal = NULL;
+
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE | TD_FILE_APPEND);
+  ASSERT_NE(pFile, nullptr);
+  char garbage[64];
+  memset(garbage, 0xFF, sizeof(garbage));
+  ASSERT_EQ(taosWriteFile(pFile, garbage, sizeof(garbage)), sizeof(garbage));
+  taosCloseFile(&pFile);
+
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  // the forged version must be nowhere in sight, and the damaged tail must be the only
+  // thing that was dropped
+  ASSERT_EQ(pWal->vers.lastVer, realLastVer);
+  pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  ASSERT_EQ(pFileInfo->fileSize, realFileSize);
+
+  // and the real records are all still readable
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+  for (int64_t ver : {(int64_t)0, realLastVer / 2, realLastVer}) {
+    ASSERT_EQ(walReadVer(pRead, ver), 0) << "failed to read index " << ver;
+    ASSERT_EQ(pRead->pHead->head.version, ver);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, kBodyLen);
+  }
+  walCloseReader(pRead);
+}
+
+// A header declaring a negative bodyLen must be rejected before the length reaches a
+// checksum, a read or an offset advance. walValidBodyCksum passes bodyLen to
+// taosCheckChecksum as a uint32_t, so -1 used to mean "CRC32C about 4 GB of heap".
+TEST_F(WalKeepEnv, walScanRejectsNegativeBodyLen) {
+  walResetEnv();
+
+  char newStr[100];
+  sprintf(newStr, "%s-%d", ranStr, 0);
+  int len = strlen(newStr);
+  ASSERT_EQ(walAppendLog(pWal, 0, 0, syncMeta, newStr, len, 0, NULL), 0);
+
+  // append a header whose checksum is valid but whose bodyLen is negative
+  SWalCkHead forged;
+  memset(&forged, 0, sizeof(forged));
+  forged.magic = WAL_MAGIC;
+  forged.head.version = 1;
+  forged.head.bodyLen = -1;
+  forged.head.msgType = 0;
+  forged.head.ingestTs = 0;
+  forged.head.syncMeta = syncMeta;
+  forged.cksumBody = 0;
+  forged.cksumHead = walCalcHeadCksum(&forged);
+  ASSERT_EQ(taosWriteFile(pWal->pLogFile, &forged, sizeof(forged)), sizeof(forged));
+
+  int64_t lastVer = -1;
+  int32_t code = walScanLogGetLastVer(pWal, 0, &lastVer);
+
+  // the valid record survives, the bogus header is reported and dropped
+  ASSERT_NE(code, 0);
+  ASSERT_EQ(lastVer, 0);
+}
+
+// The scan must terminate on every path. The window-based scan exited its outer loop
+// only on terrno != 0 or "window reached EOF"; a forward-stage header failure set
+// neither, so a segment with more than WAL_SCAN_BUF_SIZE of trailing non-record bytes
+// made walOpen re-read the same window forever.
+TEST_F(WalKeepEnv, walScanTerminatesOnLongGarbageTail) {
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  taosSetSkipKeyCheckMode();
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  for (int i = 0; i < 10; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    ASSERT_EQ(walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL), 0);
+  }
+
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t realFileSize = pFileInfo->fileSize;
+  int64_t firstVer = pFileInfo->firstVer;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, firstVer);
+
+  walClose(pWal);
+  pWal = NULL;
+
+  // more than one scan buffer worth of trailing garbage: the records end well below
+  // (EOF - WAL_SCAN_BUF_SIZE), which is exactly the case that used to spin
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE | TD_FILE_APPEND);
+  ASSERT_NE(pFile, nullptr);
+  std::vector<char> garbage((size_t)WAL_SCAN_BUF_SIZE + 1024 * 1024, (char)0xFF);
+  ASSERT_EQ(taosWriteFile(pFile, garbage.data(), garbage.size()), (int64_t)garbage.size());
+  taosCloseFile(&pFile);
+
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  ASSERT_EQ(pWal->vers.lastVer, 9);
+  pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  ASSERT_EQ(pFileInfo->fileSize, realFileSize);
+}

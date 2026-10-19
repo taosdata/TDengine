@@ -103,7 +103,11 @@ INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-
 
 These subtables may reside on different vnodes. If one vnode fails, rows already written on the other vnodes are not rolled back. See [Partial Success](#partial-success).
 
-## Automatic Table Creation on Insert
+import Link from "@docusaurus/Link";
+
+<Link id="automatic-table-creation-during-record-insertion" />
+
+## Automatic Table Creation on Insert {#automatic-table-creation-on-insert}
 
 If the table might not exist yet, use `USING` to create it from a supertable. When the table already exists, the statement does not create a new table and does not change tag values. Automatic creation requires the supertable name and `TAGS`.
 
