@@ -226,7 +226,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -3716,7 +3731,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3803,6 +3835,17 @@
     <li class="md-nav__item">
       <a href="#81-Tools.04-Taosdump.test_taosdump_precision.TestTaosdumpPrecision.test_taosdump_precision" class="md-nav__link">
         taosdump precision 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.04-Taosdump.test_taosdump_stream_time_config.TestTaosdumpStreamTimeConfig.test_taosdump_stream_time_config" class="md-nav__link">
+        taosdump preserves frozen stream context and excludes TSMA CONFIG. 
       </a>
       
     </li>
@@ -3872,7 +3915,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3959,6 +4019,17 @@
     <li class="md-nav__item">
       <a href="#81-Tools.04-Taosdump.test_taosdump_precision.TestTaosdumpPrecision.test_taosdump_precision" class="md-nav__link">
         taosdump precision 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.04-Taosdump.test_taosdump_stream_time_config.TestTaosdumpStreamTimeConfig.test_taosdump_stream_time_config" class="md-nav__link">
+        taosdump preserves frozen stream context and excludes TSMA CONFIG. 
       </a>
       
     </li>
@@ -4295,6 +4366,38 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/04-Taosdump/test_taosdump_schema_change.py" target="_blank">
                       cases/81-Tools/04-Taosdump/test_taosdump_schema_change.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="81-Tools.04-Taosdump.test_taosdump_stream_time_config.TestTaosdumpStreamTimeConfig.test_taosdump_stream_time_config" class="doc doc-heading">
+
+<a href="#81-Tools.04-Taosdump.test_taosdump_stream_time_config.TestTaosdumpStreamTimeConfig.test_taosdump_stream_time_config" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>taosdump preserves frozen stream context and excludes TSMA CONFIG.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a configured weekly stream, a TSMA, and deterministic data.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Export basic data, then add a TSMA and export extended metadata.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Restore with different client timezone/fdow defaults.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify metadata plus pre- and post-restore window boundaries.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/04-Taosdump/test_taosdump_stream_time_config.py" target="_blank">
+                      cases/81-Tools/04-Taosdump/test_taosdump_stream_time_config.py
                     </a>
                   </div>
         </div>

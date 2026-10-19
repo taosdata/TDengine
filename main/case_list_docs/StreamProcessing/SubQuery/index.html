@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -2747,7 +2762,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -2788,6 +2820,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_new_order_starts_with_zero_soc" class="md-nav__link">
+        A new order must not reuse the previous order's nonzero SOC scope. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reader_group_switch" class="md-nav__link">
+        Compare sequential SOC groups with the same offline window SQL. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window.TestSubqueryExternalWindow.test_subquery_external_window" class="md-nav__link">
         Compare stream CPU for derived-table filter and direct aggregate forms. 
       </a>
@@ -2799,8 +2853,118 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_nested_on_only_keys_preserve_null_and_duplicate_matches" class="md-nav__link">
+        Composite JOIN keys preserve NULL exclusion and duplicate multiplicity. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.07-SubQuery.test_subquery_count_scalar.TestStreamSubqueryCountScalar.test_count_window_scalar_subquery_reuses_current_window" class="md-nav__link">
         Count window stream scalar subquery should use one window at a time 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_count_distinct_external_window" class="md-nav__link">
+        COUNT(DISTINCT) in a stream external-window sub-query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_runtime_filter_results" class="md-nav__link">
+        Customer five-leaf SOC JOIN preserves results with sparse dimension matches. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reloads_dimensions_between_requests" class="md-nav__link">
+        Customer SOC JOIN reloads fixed dimensions for the next request. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_many_groups_with_empty_results" class="md-nav__link">
+        Customer SOC preserves groups and empty results across Reader sources. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_continuous_same_group_batches" class="md-nav__link">
+        Customer SOC publishes exact results across continuous batches. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_grouped_external_window_matches_single_group_baselines" class="md-nav__link">
+        Five-leaf external-window JOINs preserve per-trigger-group results. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_local_window_join_fixed_sources" class="md-nav__link">
+        Fixed normal/child sources preserve grouped JOIN results. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_empty_group_order.TestExternalWindowEmptyGroupOrder.test_history_aggregate_with_empty_vgroup_inputs" class="md-nav__link">
+        Merge daily aggregates when a group has no input on other vgroups. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_external_window_set_functions" class="md-nav__link">
+        Sequence and selection results in the stream external-window path. 
       </a>
       
     </li>
@@ -2845,6 +3009,28 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.07-SubQuery.test_subquery_event.TestStreamSubqueryEvent.test_stream_subquery_event" class="md-nav__link">
         Subquery: event 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_mixed_nested_join.TestStreamSubqueryMixedNestedJoin.test_stream_subquery_mixed_nested_join" class="md-nav__link">
+        Subquery: mixed nested ordinary joins 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_mixed_nested_join.TestStreamSubqueryMixedNestedJoin.test_stream_join_output_compatibility" class="md-nav__link">
+        Subquery: preserve existing stream JOIN output behavior. 
       </a>
       
     </li>
@@ -2933,6 +3119,105 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.07-SubQuery.test_subquery_vtable_change.TestStreamSubQueryVtableChange.test_stream_subquery_vtable_change" class="md-nav__link">
         Subquery: virtual table meta change 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_multiple_distinct_aggregates" class="md-nav__link">
+        Two DISTINCT aggregates on different columns in one stream window 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_count_window_no_output.TestSubqueryCountWindowNoOutput.test_subquery_count_window_no_output" class="md-nav__link">
+        Verify count_window subquery emits rows with boundary predicates. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_event_window_subquery_external_window" class="md-nav__link">
+        Verify event-window derived aggregates use external-window execution. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_interval_window_subquery_external_window" class="md-nav__link">
+        Verify interval-window derived calculations use external-window boundaries. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_period_window_subquery_external_window" class="md-nav__link">
+        Verify period-window derived calculations use external-window boundaries. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reader_fetch_tag_dimension" class="md-nav__link">
+        Verify Reader fetch results with a TAG-filtered SOC dimension table. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_session_window_subquery_external_window" class="md-nav__link">
+        Verify session-window derived aggregates use external-window execution. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_sliding_window_subquery_external_window" class="md-nav__link">
+        Verify sliding-window derived calculations use external-window boundaries. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_state_window_subquery_external_window" class="md-nav__link">
+        Verify state-window derived aggregates use external-window execution. 
       </a>
       
     </li>
@@ -3940,7 +4225,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3981,6 +4283,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_new_order_starts_with_zero_soc" class="md-nav__link">
+        A new order must not reuse the previous order's nonzero SOC scope. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reader_group_switch" class="md-nav__link">
+        Compare sequential SOC groups with the same offline window SQL. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window.TestSubqueryExternalWindow.test_subquery_external_window" class="md-nav__link">
         Compare stream CPU for derived-table filter and direct aggregate forms. 
       </a>
@@ -3992,8 +4316,118 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_nested_on_only_keys_preserve_null_and_duplicate_matches" class="md-nav__link">
+        Composite JOIN keys preserve NULL exclusion and duplicate multiplicity. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.07-SubQuery.test_subquery_count_scalar.TestStreamSubqueryCountScalar.test_count_window_scalar_subquery_reuses_current_window" class="md-nav__link">
         Count window stream scalar subquery should use one window at a time 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_count_distinct_external_window" class="md-nav__link">
+        COUNT(DISTINCT) in a stream external-window sub-query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_runtime_filter_results" class="md-nav__link">
+        Customer five-leaf SOC JOIN preserves results with sparse dimension matches. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reloads_dimensions_between_requests" class="md-nav__link">
+        Customer SOC JOIN reloads fixed dimensions for the next request. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_many_groups_with_empty_results" class="md-nav__link">
+        Customer SOC preserves groups and empty results across Reader sources. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_continuous_same_group_batches" class="md-nav__link">
+        Customer SOC publishes exact results across continuous batches. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_grouped_external_window_matches_single_group_baselines" class="md-nav__link">
+        Five-leaf external-window JOINs preserve per-trigger-group results. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_local_window_join_fixed_sources" class="md-nav__link">
+        Fixed normal/child sources preserve grouped JOIN results. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_empty_group_order.TestExternalWindowEmptyGroupOrder.test_history_aggregate_with_empty_vgroup_inputs" class="md-nav__link">
+        Merge daily aggregates when a group has no input on other vgroups. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_external_window_set_functions" class="md-nav__link">
+        Sequence and selection results in the stream external-window path. 
       </a>
       
     </li>
@@ -4038,6 +4472,28 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.07-SubQuery.test_subquery_event.TestStreamSubqueryEvent.test_stream_subquery_event" class="md-nav__link">
         Subquery: event 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_mixed_nested_join.TestStreamSubqueryMixedNestedJoin.test_stream_subquery_mixed_nested_join" class="md-nav__link">
+        Subquery: mixed nested ordinary joins 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_mixed_nested_join.TestStreamSubqueryMixedNestedJoin.test_stream_join_output_compatibility" class="md-nav__link">
+        Subquery: preserve existing stream JOIN output behavior. 
       </a>
       
     </li>
@@ -4132,6 +4588,105 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_multiple_distinct_aggregates" class="md-nav__link">
+        Two DISTINCT aggregates on different columns in one stream window 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_count_window_no_output.TestSubqueryCountWindowNoOutput.test_subquery_count_window_no_output" class="md-nav__link">
+        Verify count_window subquery emits rows with boundary predicates. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_event_window_subquery_external_window" class="md-nav__link">
+        Verify event-window derived aggregates use external-window execution. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_interval_window_subquery_external_window" class="md-nav__link">
+        Verify interval-window derived calculations use external-window boundaries. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_period_window_subquery_external_window" class="md-nav__link">
+        Verify period-window derived calculations use external-window boundaries. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reader_fetch_tag_dimension" class="md-nav__link">
+        Verify Reader fetch results with a TAG-filtered SOC dimension table. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_session_window_subquery_external_window" class="md-nav__link">
+        Verify session-window derived aggregates use external-window execution. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_sliding_window_subquery_external_window" class="md-nav__link">
+        Verify sliding-window derived calculations use external-window boundaries. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_state_window_subquery_external_window" class="md-nav__link">
+        Verify state-window derived aggregates use external-window execution. 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4151,6 +4706,448 @@
 
 <h1 id="07-subquery">07-SubQuery<a class="headerlink" href="#07-subquery" title="Permanent link">&para;</a></h1>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_empty_group_order.TestExternalWindowEmptyGroupOrder.test_history_aggregate_with_empty_vgroup_inputs" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_empty_group_order.TestExternalWindowEmptyGroupOrder.test_history_aggregate_with_empty_vgroup_inputs" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Merge daily aggregates when a group has no input on other vgroups.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Distribute 48 meter groups over four vgroups, filtering out 16 groups.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Replay three historical daily windows with and without COUNT.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check every group&#39;s timestamps, tags, aggregates and empty results.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_empty_group_order.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_empty_group_order.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_grouped_external_window_matches_single_group_baselines" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_grouped_external_window_matches_single_group_baselines" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Five-leaf external-window JOINs preserve per-trigger-group results.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Trigger one group first to cover a singleton multi-group request.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Add two groups with colliding timestamps and JOIN keys.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Run two window-bound and three broadcast leaves through four JOINs.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Compare every grouped output subtable with its single-child stream.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Prove valid-input empty-middle, duplicate, collision, and fallback cases.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reloads_dimensions_between_requests" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reloads_dimensions_between_requests" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Customer SOC JOIN reloads fixed dimensions for the next request.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Use four groups with three distinct piles and an all-zero group.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Join fragmented one-row brand/rule children with duplicate keys.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify group-specific thresholds and the pre-filtered sibling.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Restart the cluster to restore the saved customer Broadcast plan.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Update dimensions and verify the next request reloads both relations.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_runtime_filter_results" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_runtime_filter_results" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Customer five-leaf SOC JOIN preserves results with sparse dimension matches.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Replay four groups against 2737 brand/rule rows and a duplicate brand.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Keep p2&#39;s valid trigger group unmatched while other groups publish.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Change p1&#39;s brand/station keys between completed request batches.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Compare every ordered output column and the newly loaded rule values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_local_window_join_fixed_sources" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_local_window_join_fixed_sources" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Fixed normal/child sources preserve grouped JOIN results.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Build three trigger groups and independent fixed normal/child sources.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Exercise aggregate, time-bound scalar fallback, and Broadcast scalar.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check exact values, all-NULL empty outcomes, and fixed-source routing.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify output tables and %%1/%%2/_tgrpid partition identities.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_nested_on_only_keys_preserve_null_and_duplicate_matches" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_nested_on_only_keys_preserve_null_and_duplicate_matches" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Composite JOIN keys preserve NULL exclusion and duplicate multiplicity.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The TAG key is only referenced by the outer ON clause. Compare ordinary</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">planning and hash JOIN on the same timestamp with duplicate TAG values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_continuous_same_group_batches" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_continuous_same_group_batches" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Customer SOC publishes exact results across continuous batches.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Share one pile across two gun groups and add a filtered sibling.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Run the exact five-branch state/count-window customer query.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Send twelve four-row batches without waiting between writes.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check all SOC deltas and thresholds from both gun groups.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Prove the filtered group creates no output subtable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_new_order_starts_with_zero_soc" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_new_order_starts_with_zero_soc" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>A new order must not reuse the previous order's nonzero SOC scope.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Run the exact five-branch SQL across an order transition, then keep the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">new order zero before introducing nonzero rows. A third group stays</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">legally empty. Assert literal window ends, order values and SOC deltas.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_many_groups_with_empty_results" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_many_groups_with_empty_results" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Customer SOC preserves groups and empty results across Reader sources.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create forty gun groups across three vgroups with one shared pile.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Keep every seventh group&#39;s SOC zero and add a pre-filtered sibling.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Execute the five-branch state/count-window customer query.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Write eight batches without waiting for individual group results.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify exact SOC values, cardinality and output table identities.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reader_group_switch" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reader_group_switch" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Compare sequential SOC groups with the same offline window SQL.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Stagger four groups&#39; ranges and use distinct orders per group.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Write three equal batches, flushing after the first publication.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Keep one group empty and start another group&#39;s new order at zero.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Expand the stream SELECT for every valid adjacent-frame window.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Compare each group&#39;s exact rows, including the persisted prefix.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reader_fetch_tag_dimension" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_external_window_multigroup.TestExternalWindowMultiGroup.test_customer_soc_reader_fetch_tag_dimension" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify Reader fetch results with a TAG-filtered SOC dimension table.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create twelve monitor groups across three vgroups.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Store pile_code as a TAG on the pile dimension stable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Keep two groups empty and write continuous four-row batches.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Give two dimension rows distinct sink timestamps and verify every row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Change TAG membership, create/drop a matching child between batches.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify another batch after restoring the original TAG membership.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_external_window_set_functions" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_external_window_set_functions" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Sequence and selection results in the stream external-window path.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify CSUM and TOP results from stream subqueries after the window closes.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_stream_distinct_external_window.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_stream_distinct_external_window.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_count_distinct_external_window" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_count_distinct_external_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) in a stream external-window sub-query</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies stream count distinct external window.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_stream_distinct_external_window.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_stream_distinct_external_window.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_multiple_distinct_aggregates" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_stream_distinct_external_window.TestStreamDistinctExternalWindow.test_stream_multiple_distinct_aggregates" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Two DISTINCT aggregates on different columns in one stream window</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies stream multiple distinct aggregates.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_stream_distinct_external_window.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_stream_distinct_external_window.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
   
 <div class="doc doc-object doc-function">
   
@@ -4355,6 +5352,37 @@
   
   
   
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_count_window_no_output.TestSubqueryCountWindowNoOutput.test_subquery_count_window_no_output" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_count_window_no_output.TestSubqueryCountWindowNoOutput.test_subquery_count_window_no_output" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify count_window subquery emits rows with boundary predicates.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create one super table and one child table with two trigger rows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a count_window(1) stream whose calculation query uses a derived table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the stream emits one result row for each trigger row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_count_window_no_output.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_count_window_no_output.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="18-StreamProcessing.07-SubQuery.test_subquery_event.TestStreamSubqueryEvent.test_stream_subquery_event" class="doc doc-heading">
 
 <a href="#18-StreamProcessing.07-SubQuery.test_subquery_event.TestStreamSubqueryEvent.test_stream_subquery_event" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4475,6 +5503,256 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_join.py" target="_blank">
                       cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_join.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_session_window_subquery_external_window" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_session_window_subquery_external_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify session-window derived aggregates use external-window execution.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a session stream whose calculation statement contains a derived table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Restrict calculation rows with _c0 &gt;= _twstart and _c0 &lt;= _twend.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the closed session result and enabled external-window execution log.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_state_window_subquery_external_window" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_state_window_subquery_external_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify state-window derived aggregates use external-window execution.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a state stream whose calculation statement contains a derived table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Restrict calculation rows with _c0 &gt;= _twstart and _c0 &lt;= _twend.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the closed state result and enabled external-window execution log.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_event_window_subquery_external_window" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_event_window_subquery_external_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify event-window derived aggregates use external-window execution.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create an event stream whose calculation statement contains a derived table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Restrict calculation rows with _c0 &gt;= _twstart and _c0 &lt;= _twend.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the closed event result and enabled external-window execution log.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_interval_window_subquery_external_window" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_interval_window_subquery_external_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify interval-window derived calculations use external-window boundaries.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create an interval stream whose calculation statement contains a derived table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Restrict calculation rows with _c0 &gt;= _twstart and _c0 &lt;= _twend.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the closed interval result and external-window execution log.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_sliding_window_subquery_external_window" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_sliding_window_subquery_external_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify sliding-window derived calculations use external-window boundaries.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a sliding stream whose calculation statement contains a derived table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Restrict rows with sliding-current and sliding-next timestamps.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the sliding result and external-window execution log.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_period_window_subquery_external_window" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_external_window_trigger_types.TestSubqueryExternalWindowTriggerTypes.test_period_window_subquery_external_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify period-window derived calculations use external-window boundaries.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a period stream whose calculation statement contains a derived table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Restrict rows with cast period-local start and end timestamps.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the period result and external-window execution log.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_mixed_nested_join.TestStreamSubqueryMixedNestedJoin.test_stream_subquery_mixed_nested_join" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_mixed_nested_join.TestStreamSubqueryMixedNestedJoin.test_stream_subquery_mixed_nested_join" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Subquery: mixed nested ordinary joins</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Execute nested LEFT and FULL joins through the stream Runner</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Exercise Hash and Merge operators in the same physical tree</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify history, realtime, manual recalculation, and checkpoint</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify dnode recovery and a subsequent calculation request</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Compare final rows with the equivalent batch JOIN</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_mixed_nested_join.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_mixed_nested_join.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_mixed_nested_join.TestStreamSubqueryMixedNestedJoin.test_stream_join_output_compatibility" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_mixed_nested_join.TestStreamSubqueryMixedNestedJoin.test_stream_join_output_compatibility" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Subquery: preserve existing stream JOIN output behavior.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Reject a non-TIMESTAMP first output column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Accept nullable, unordered, and one-sided FULL JOIN timestamps</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify NULL timestamps are skipped when writing results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_mixed_nested_join.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_mixed_nested_join.py
                     </a>
                   </div>
         </div>

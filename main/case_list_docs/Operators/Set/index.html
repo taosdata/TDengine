@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -1711,7 +1726,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -1748,6 +1780,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#10-Operators.04-Set.test_union_depth_limit.TestUnionDepthLimit.test_union_depth_limit" class="md-nav__link">
+        Execute a large UNION ALL chain without recursive AST traversal 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -1798,6 +1841,17 @@
     <li class="md-nav__item">
       <a href="#10-Operators.04-Set.test_union_bugs.TestUnionBugs.test_setOp_orderby_normal_func" class="md-nav__link">
         Operator union order by functions 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#10-Operators.04-Set.test_union_perf_repro.TestUnionPerfRepro.test_union_perf_repro" class="md-nav__link">
+        union all empty branch pruning 
       </a>
       
     </li>
@@ -3852,7 +3906,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3889,6 +3960,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#10-Operators.04-Set.test_union_depth_limit.TestUnionDepthLimit.test_union_depth_limit" class="md-nav__link">
+        Execute a large UNION ALL chain without recursive AST traversal 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -3939,6 +4021,17 @@
     <li class="md-nav__item">
       <a href="#10-Operators.04-Set.test_union_bugs.TestUnionBugs.test_setOp_orderby_normal_func" class="md-nav__link">
         Operator union order by functions 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#10-Operators.04-Set.test_union_perf_repro.TestUnionPerfRepro.test_union_perf_repro" class="md-nav__link">
+        union all empty branch pruning 
       </a>
       
     </li>
@@ -4033,7 +4126,6 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Use number column in order by clause in union query</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check error when order by column is not in select columns in union query</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
@@ -4065,7 +4157,6 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data into 3 subtables 1 rows each</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Use union operator to combine the result from 3 subtables</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Use order by pseudo columns tbname, _wstart in union query</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4165,6 +4256,70 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/10-Operators/04-Set/test_union_bugs.py" target="_blank">
                       cases/10-Operators/04-Set/test_union_bugs.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="10-Operators.04-Set.test_union_depth_limit.TestUnionDepthLimit.test_union_depth_limit" class="doc doc-heading">
+
+<a href="#10-Operators.04-Set.test_union_depth_limit.TestUnionDepthLimit.test_union_depth_limit" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Execute a large UNION ALL chain without recursive AST traversal</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Execute 3000 UNION ALL operands and verify every row is returned</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify the same connection can execute a normal query afterwards</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify mixed UNION and UNION ALL semantics remain unchanged</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Align all operands and nested set operators to the final column width</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Align ms/us/ns timestamps for every operand order and mixed set operators</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/10-Operators/04-Set/test_union_depth_limit.py" target="_blank">
+                      cases/10-Operators/04-Set/test_union_depth_limit.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="10-Operators.04-Set.test_union_perf_repro.TestUnionPerfRepro.test_union_perf_repro" class="doc doc-heading">
+
+<a href="#10-Operators.04-Set.test_union_perf_repro.TestUnionPerfRepro.test_union_perf_repro" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>union all empty branch pruning</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Build a field-shaped UNION ALL workload with empty time-range branches</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Compare branch results and explain plans to verify empty-branch pruning</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Cover nested SELECT, derived tables, JOIN inputs and empty FROM traversal</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/10-Operators/04-Set/test_union_perf_repro.py" target="_blank">
+                      cases/10-Operators/04-Set/test_union_perf_repro.py
                     </a>
                   </div>
         </div>

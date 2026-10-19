@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -2974,7 +2989,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3011,6 +3043,39 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_table_not_exist_retry_rpc" class="md-nav__link">
+        Avoid USE DB amplification during table-not-exist retry 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_meta_batch_txn_stream" class="md-nav__link">
+        Batch meta txn phase 2: CREATE/DROP STREAM in a transaction. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_series.TestBatchMetaTxnSeries.test_meta_batch_txn_series" class="md-nav__link">
+        Batch meta txn: ADD/REMOVE SERIES (actions #22/#23) inside a transaction. 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -3070,8 +3135,30 @@
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_batch_ops.TestBatchMetaTxnBatchOps.test_meta_batch_txn_batch_ops" class="md-nav__link">
+        Batch meta txn: batch (multi-object) statement semantics. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_ddl_visibility.TestBatchMetaTxnDdlVisibility.test_meta_batch_txn_ddl_visibility" class="md-nav__link">
         Batch meta txn: DDL visibility and isolation comprehensive tests. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_op_matrix.TestBatchMetaTxnOpMatrix.test_meta_batch_txn_op_matrix" class="md-nav__link">
+        Batch meta txn: full ALTER action matrix inside a transaction. 
       </a>
       
     </li>
@@ -3093,7 +3180,7 @@
   
     <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_stress2.TestBatchMetaTxnStress2.test_meta_batch_txn_stress2" class="md-nav__link">
-        Batch meta txn: vacuum, TMQ & timeout (s106-s113, s116-s118) 
+        Batch meta txn: vacuum, TMQ & timeout (s106-s113, s116-s119) 
       </a>
       
     </li>
@@ -3202,6 +3289,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_cluster_stream.TestBatchMetaTxnClusterStream.test_meta_batch_txn_cluster_stream" class="md-nav__link">
+        Cluster batch meta txn: stream failover (cs72-cs77) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_taosx_txn_cluster.TestTaosxTxnCluster.test_taosx_txn_cluster" class="md-nav__link">
         Cluster taosx consumer tests: s21 (MNode switch), s22 (VNode restart), 
       </a>
@@ -3279,6 +3377,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_rename_column_concurrent.TestRenameColumnConcurrent.test_rename_column_concurrent" class="md-nav__link">
+        MetaData: concurrent RENAME COLUMN and cross-session cache refresh 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_txn_consumer_mixed_snapshot_wal.TestTxnConsumerMixedSnapshotWal.test_txn_consumer_mixed_snapshot_wal" class="md-nav__link">
         Mixed backlog/snapshot + live WAL consumption (mA1, mB1) 
       </a>
@@ -3301,8 +3410,30 @@
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_log_rpc_observation" class="md-nav__link">
+        Observe RPC logs across rotation without false zero counts 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_stability.TestBatchMetaTxnStability.test_rapid_commit_vacuum_backlog" class="md-nav__link">
         Rapid successive COMMITs stressing vacuum queue. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_recreated_table_meta_refresh" class="md-nav__link">
+        Refresh and cache new meta after recreating a stale table 
       </a>
       
     </li>
@@ -4235,7 +4366,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -4272,6 +4420,39 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_table_not_exist_retry_rpc" class="md-nav__link">
+        Avoid USE DB amplification during table-not-exist retry 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_meta_batch_txn_stream" class="md-nav__link">
+        Batch meta txn phase 2: CREATE/DROP STREAM in a transaction. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_series.TestBatchMetaTxnSeries.test_meta_batch_txn_series" class="md-nav__link">
+        Batch meta txn: ADD/REMOVE SERIES (actions #22/#23) inside a transaction. 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -4331,8 +4512,30 @@
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_batch_ops.TestBatchMetaTxnBatchOps.test_meta_batch_txn_batch_ops" class="md-nav__link">
+        Batch meta txn: batch (multi-object) statement semantics. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_ddl_visibility.TestBatchMetaTxnDdlVisibility.test_meta_batch_txn_ddl_visibility" class="md-nav__link">
         Batch meta txn: DDL visibility and isolation comprehensive tests. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_op_matrix.TestBatchMetaTxnOpMatrix.test_meta_batch_txn_op_matrix" class="md-nav__link">
+        Batch meta txn: full ALTER action matrix inside a transaction. 
       </a>
       
     </li>
@@ -4354,7 +4557,7 @@
   
     <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_stress2.TestBatchMetaTxnStress2.test_meta_batch_txn_stress2" class="md-nav__link">
-        Batch meta txn: vacuum, TMQ & timeout (s106-s113, s116-s118) 
+        Batch meta txn: vacuum, TMQ & timeout (s106-s113, s116-s119) 
       </a>
       
     </li>
@@ -4463,6 +4666,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_cluster_stream.TestBatchMetaTxnClusterStream.test_meta_batch_txn_cluster_stream" class="md-nav__link">
+        Cluster batch meta txn: stream failover (cs72-cs77) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_taosx_txn_cluster.TestTaosxTxnCluster.test_taosx_txn_cluster" class="md-nav__link">
         Cluster taosx consumer tests: s21 (MNode switch), s22 (VNode restart), 
       </a>
@@ -4540,6 +4754,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_rename_column_concurrent.TestRenameColumnConcurrent.test_rename_column_concurrent" class="md-nav__link">
+        MetaData: concurrent RENAME COLUMN and cross-session cache refresh 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_txn_consumer_mixed_snapshot_wal.TestTxnConsumerMixedSnapshotWal.test_txn_consumer_mixed_snapshot_wal" class="md-nav__link">
         Mixed backlog/snapshot + live WAL consumption (mA1, mB1) 
       </a>
@@ -4562,8 +4787,30 @@
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_log_rpc_observation" class="md-nav__link">
+        Observe RPC logs across rotation without false zero counts 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_stability.TestBatchMetaTxnStability.test_rapid_commit_vacuum_backlog" class="md-nav__link">
         Rapid successive COMMITs stressing vacuum queue. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_recreated_table_meta_refresh" class="md-nav__link">
+        Refresh and cache new meta after recreating a stale table 
       </a>
       
     </li>
@@ -4851,6 +5098,9 @@
                           <div style="margin-left: 3.2em; white-space: pre-wrap;">    (mirrors the user-reported virtual-table repro)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">17. Repeated SET TAG via super table with a single named child (`using stb ...</div>
                           <div style="margin-left: 3.2em; white-space: pre-wrap;">    where tbname=&#39;x&#39;`, action 20 pre-scan, nChildren==1): keeps ORIGINAL version</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">18. WHERE-based bulk SET TAG takes a per-child txn lock on every matched child, so</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    a concurrent non-txn ALTER on those children is refused and cannot clobber the</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    recorded pre-txn version; unmatched children stay writable (regression)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4989,6 +5239,55 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_basic_c.py" target="_blank">
                       cases/21-MetaData/test_meta_batch_txn_basic_c.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_meta_batch_txn_batch_ops.TestBatchMetaTxnBatchOps.test_meta_batch_txn_batch_ops" class="doc doc-heading">
+
+<a href="#21-MetaData.test_meta_batch_txn_batch_ops.TestBatchMetaTxnBatchOps.test_meta_batch_txn_batch_ops" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Batch meta txn: batch (multi-object) statement semantics.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1.  DROP TABLE batch: in-txn isolation, ROLLBACK restores all, COMMIT removes all</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2.  DROP TABLE batch is atomic when a clause names a missing table (nothing is</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    dropped); a duplicated name succeeds outright without dedup</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3.  IF EXISTS protects only the clause it is attached to; a later missing table</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    still fails the whole statement atomically</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4.  DROP VTABLE batch rejects a non-virtual table and a missing table atomically,</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    then rollback/commit behave correctly for a clean batch</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5.  Cross-database batch drop in one statement: isolation, ROLLBACK, COMMIT</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6.  Multi-subtable CREATE in one statement: isolation, ROLLBACK, COMMIT</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7.  Multi-table SET TAG across vgroups: isolation, ROLLBACK, COMMIT</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8.  WHERE-based bulk SET TAG (vnode pre-scan path): isolation, ROLLBACK, COMMIT</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9.  WHERE-based bulk SET TAG takes a per-child txn lock so a concurrent session</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    cannot clobber the recorded pre-txn version (regression)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Object counting: a batch statement is charged per object and there is no</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    per-statement object cap</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. WHERE-based bulk SET TAG accounting: the vnode reports its real match count</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    back so the statement is charged per object rather than as 1, and the</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    per-vnode budget share does not spuriously reject statements that fit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. CREATE TABLE .. FILE and uid-replay DROP .. WITH &lt;uid&gt;: both batch forms</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    behave transactionally (isolation / ROLLBACK / COMMIT)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_batch_ops.py" target="_blank">
+                      cases/21-MetaData/test_meta_batch_txn_batch_ops.py
                     </a>
                   </div>
         </div>
@@ -5296,6 +5595,40 @@
   
   
   
+<h2 id="21-MetaData.test_meta_batch_txn_cluster_stream.TestBatchMetaTxnClusterStream.test_meta_batch_txn_cluster_stream" class="doc doc-heading">
+
+<a href="#21-MetaData.test_meta_batch_txn_cluster_stream.TestBatchMetaTxnClusterStream.test_meta_batch_txn_cluster_stream" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Cluster batch meta txn: stream failover (cs72-cs77)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">72. txn_drop_stream_leader_switch_rollback</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">73. txn_create_stream_leader_switch_commit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">74. txn_create_stream_leader_switch_rollback</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">75. cluster_restart_stream_txn_survives</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">76. cluster_restart_pre_create_drop</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">77. cluster_restart_pre_drop_rollback</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_cluster_stream.py" target="_blank">
+                      cases/21-MetaData/test_meta_batch_txn_cluster_stream.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="21-MetaData.test_meta_batch_txn_crash_recovery.TestBatchMetaTxnCrashRecovery.test_crash_recovery" class="doc doc-heading">
 
 <a href="#21-MetaData.test_meta_batch_txn_crash_recovery.TestBatchMetaTxnCrashRecovery.test_crash_recovery" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -5337,10 +5670,14 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Section F: Mixed operations</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Section G: ALTER TAG schema (same-session)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Section H: CREATE table in transactions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Section I: TAG ops isolation (non-virtual + virtual)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Section I: TAG ops isolation (non-virtual + virtual, incl. RENAME TAG on</div>
+                          <div style="margin-left: 8.8em; white-space: pre-wrap;">           STB / normal table / virtual normal table)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Section J: DDL lock conflict — other sessions blocked when table is modified</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Section K: Drop depended-upon table (virtual table dependency)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Section L: Bulk drop &gt;1000 virtual CTBs — txn visibility, rollback, commit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Section M: Post-COMMIT/ROLLBACK catalog freshness on the committing</div>
+                          <div style="margin-left: 8.8em; white-space: pre-wrap;">           connection — the next DDL must resolve the committed schema</div>
+                          <div style="margin-left: 8.8em; white-space: pre-wrap;">           with no intervening DESCRIBE/SELECT to refresh the cache</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -5348,6 +5685,60 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_ddl_visibility.py" target="_blank">
                       cases/21-MetaData/test_meta_batch_txn_ddl_visibility.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_meta_batch_txn_op_matrix.TestBatchMetaTxnOpMatrix.test_meta_batch_txn_op_matrix" class="doc doc-heading">
+
+<a href="#21-MetaData.test_meta_batch_txn_op_matrix.TestBatchMetaTxnOpMatrix.test_meta_batch_txn_op_matrix" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Batch meta txn: full ALTER action matrix inside a transaction.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies, each through in-txn visibility / ROLLBACK / COMMIT. Numbers match the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m&lt;N&gt; case names, so a gap here means a genuinely missing case:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m1.  MODIFY COLUMN (widen varchar) on super table and normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m2.  MODIFY TAG (widen tag) on super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m3.  RENAME COLUMN on super table (new this release); child tables follow and</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     data stays readable since colId is preserved</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m4.  ADD COLUMN with ENCODE/COMPRESS/LEVEL, then MODIFY that column&#39;s compression</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     within the same txn</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m5.  MODIFY COLUMN compress/level on a column that predates the txn, so ROLLBACK</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     restores the old codec instead of dropping the column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m6.  Table options: TTL on a normal table, COMMENT on both normal and super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m7.  Virtual table column references: ADD COLUMN .. FROM, ALTER COLUMN .. SET ref,</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     ALTER COLUMN .. SET NULL</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m8.  Virtual normal table tag references: ADD TAG .. FROM, ADD TAG (owned),</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     SET TAG = literal, SET TAG = ref, DROP TAG</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m9.  Six different ALTER actions on one super table in a single txn: the schema</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     observed in-txn must be exactly what COMMIT publishes (guards against the</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     statement-time and COMMIT-time action sets drifting apart)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m10. CREATE INDEX / DROP INDEX rejected inside a txn without poisoning it, and</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     still working outside</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m11. DROP TAG / RENAME TAG cascade onto an existing tag index: applied on COMMIT</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     (regression — the COMMIT path used to leave a dangling index object),</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     untouched by ROLLBACK</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">m12. ADD/DROP BASE ON virtual super table inheritance in a txn (regression — a</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     groupId-0 redo action broke COMMIT under TRN_EXEC_GROUP_PARALLEL), plus the</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     parent-with-children guard inside a txn</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_op_matrix.py" target="_blank">
+                      cases/21-MetaData/test_meta_batch_txn_op_matrix.py
                     </a>
                   </div>
         </div>
@@ -5367,10 +5758,66 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Run all mndTxnSeq edge case tests.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Covers txnId range exhaustion, monotonic txnId allocation across</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">concurrent writers, and txnId continuity across a dnode restart:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">s90. range_exhaustion_seamless</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">s91. monotonic_ids</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">s92. concurrent_unique_ids</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">s93. restart_preserves_range</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_seq_edge.py" target="_blank">
                       cases/21-MetaData/test_meta_batch_txn_seq_edge.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_meta_batch_txn_series.TestBatchMetaTxnSeries.test_meta_batch_txn_series" class="doc doc-heading">
+
+<a href="#21-MetaData.test_meta_batch_txn_series.TestBatchMetaTxnSeries.test_meta_batch_txn_series" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Batch meta txn: ADD/REMOVE SERIES (actions #22/#23) inside a transaction.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">SERIES is an InfluxDB-only binding from an alias to one fully-specified</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">tag set. Its ALTER actions change only the entry&#39;s `series` array and</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">`colRef.version`, never the column schema, so they need coverage</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">independent of the column-ref cases in the op_matrix file.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">x1. ADD SERIES is visible in-txn, invisible to other sessions, undone by</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    ROLLBACK</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">x2. ADD SERIES + a column bound to it COMMIT together and the column then</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    reads through to the pinned InfluxDB series</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">x3. REMOVE SERIES of a pre-txn series: ROLLBACK restores the series array</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    even though no column schema ever changed</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">x4. Repeated ADD/REMOVE of one alias in a single txn keeps `txnOrigVer` at</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    the pre-txn version, so the rollback restores the pre-txn set rather</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    than an intermediate one</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">x5. SERIES plus a column-ref repoint in one txn revert and commit together</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    (FS §7.4)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_series.py" target="_blank">
+                      cases/21-MetaData/test_meta_batch_txn_series.py
                     </a>
                   </div>
         </div>
@@ -5474,6 +5921,73 @@
   
   
   
+<h2 id="21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_meta_batch_txn_stream" class="doc doc-heading">
+
+<a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_meta_batch_txn_stream" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Batch meta txn phase 2: CREATE/DROP STREAM in a transaction.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Stream-only scenarios (s1-s13):</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create_commit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. create_rollback</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. drop_commit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. drop_rollback</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. create_then_drop_same_txn</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. recreate_same_name_rejected</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. rename_replacement_allowed</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. committed_stream_produces_output</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. no_stale_txnid_after_commit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. batch_drop_stream (pending_drop in-txn, ROLLBACK restores, IF EXISTS per name)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. streams_share_ddl_budget</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. definition_replacement_no_gap</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. txn_markers_cleared_after_commit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Mixed table-DDL + stream scenarios (m1-m18):</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. table_and_stream_commit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. table_and_stream_rollback</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. stream_over_table_created_in_same_txn</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">17. stream_over_same_txn_table_rollback</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">18. drop_stream_and_its_source_table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">19. precreated_out_stable_with_partitioned_stream</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">20. alter_stable_with_stream_commit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">21. alter_stable_with_stream_rollback</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">22. failed_stream_stmt_keeps_txn_usable</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">23. multiple_streams_share_out_table (allowed, matching the non-txn baseline)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">24. out_table_drop_outside_txn_is_not_blocked (no guard on DROP)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">25. stream_no_snode (0x042C on both txn and non-txn paths)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">26. snode_protected_by_uncommitted_stream (uncommitted stream pins its snode)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">27. uncommitted_stream_does_not_start (no deploy before COMMIT)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">28. out_stable_created_in_txn (form A output STB is created in-txn, undone on ROLLBACK)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">29. nodelay_out_table_created_in_txn (form B nodelay created in-txn, txn-isolated)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">30. runtime_ops_blocked_outside_owning_txn (STOP/START/RECALCULATE from another</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    session refused with TXN_RESOURCE_BUSY while the stream is pending_drop)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">31. txn_drop_refuses_tsma_stream (txn DROP path runs the same TSMA guard as non-txn)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">32. preexisting_normal_out_table (form D: INTO an existing NORMAL table is a</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    reference, not a create outTblExists vs outStbExists dispatch)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">33. nested_window_rejected_in_txn (nested-window streams are refused inside a</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    txn with TXN_INVALID_OPERATION, accepted outside one)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_stream.py" target="_blank">
+                      cases/21-MetaData/test_meta_batch_txn_stream.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="21-MetaData.test_meta_batch_txn_stress.TestBatchMetaTxnStress.test_meta_batch_txn_stress" class="doc doc-heading">
 
 <a href="#21-MetaData.test_meta_batch_txn_stress.TestBatchMetaTxnStress.test_meta_batch_txn_stress" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -5524,7 +6038,7 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Batch meta txn: vacuum, TMQ & timeout (s106-s113, s116-s118)</strong> 
+                    <strong>Batch meta txn: vacuum, TMQ & timeout (s106-s113, s116-s119)</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
@@ -5537,7 +6051,11 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">113. rapid_rollback_vacuum_serialization</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">116. tmq_pre_create_invisibility</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">117. heartbeat_keepalive_idle_gap</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">118. replicated_txn_timeout_exemption</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">118. large_alter_rollback_async_vacuum - a bulk ALTER rollback above the inline</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     threshold takes the lazy/vacuum path instead of undoing every object on the</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     vnode write thread</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">119. ddl_ops_counted_per_object - batch statements consume the per-txn DDL budget</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     per affected object, with no per-statement cap</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -5717,6 +6235,7 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check table count scan with group by db_name and stable_name</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check table count scan after taosd restart</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check count(distinct ...) function succeeds on ins_tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check count with table type filter on ins_tables</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -5754,6 +6273,130 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_sysdb2.py" target="_blank">
                       cases/21-MetaData/test_meta_sysdb2.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_rename_column_concurrent.TestRenameColumnConcurrent.test_rename_column_concurrent" class="doc doc-heading">
+
+<a href="#21-MetaData.test_rename_column_concurrent.TestRenameColumnConcurrent.test_rename_column_concurrent" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>MetaData: concurrent RENAME COLUMN and cross-session cache refresh</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. TC-20: a query in flight is unaffected by a concurrent rename</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. TC-22: another session sees the new name within a heartbeat period</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. TC-21: concurrent renames of the same column serialize, one wins</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_rename_column_concurrent.py" target="_blank">
+                      cases/21-MetaData/test_rename_column_concurrent.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_log_rpc_observation" class="doc doc-heading">
+
+<a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_log_rpc_observation" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Observe RPC logs across rotation without false zero counts</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Count appended records in either numbered log and in a new rotation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Reject missing, replaced, truncated, or overwritten log evidence</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_table_not_exist_retry_rpc.py" target="_blank">
+                      cases/21-MetaData/test_table_not_exist_retry_rpc.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_table_not_exist_retry_rpc" class="doc doc-heading">
+
+<a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_table_not_exist_retry_rpc" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Avoid USE DB amplification during table-not-exist retry</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Warm table metadata in independent client processes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Drop the table and trigger concurrent stale-cache retries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Assert retries fail correctly without sending USE DB to mnode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_table_not_exist_retry_rpc.py" target="_blank">
+                      cases/21-MetaData/test_table_not_exist_retry_rpc.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_recreated_table_meta_refresh" class="doc doc-heading">
+
+<a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_recreated_table_meta_refresh" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Refresh and cache new meta after recreating a stale table</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Warm old table metadata in an independent client process</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Drop and recreate the same table name with a different schema</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify stale-column failure and two successful new-schema queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify table-only refresh does not send USE DB to mnode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_table_not_exist_retry_rpc.py" target="_blank">
+                      cases/21-MetaData/test_table_not_exist_retry_rpc.py
                     </a>
                   </div>
         </div>

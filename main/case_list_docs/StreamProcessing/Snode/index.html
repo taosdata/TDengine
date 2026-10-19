@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -2579,7 +2594,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -2743,6 +2775,17 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.01-Snode.test_snode_mgmt_replicas.TestSnodeReplicas.test_snode_mgmt_replicas" class="md-nav__link">
         Snode: replica test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.01-Snode.test_stream_vgroup_topology_change.TestStreamVgroupTopologyChange.test_stream_vgroup_topology_change" class="md-nav__link">
+        Stream results stay correct across vgroup topology changes. 
       </a>
       
     </li>
@@ -3918,7 +3961,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -4082,6 +4142,17 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.01-Snode.test_snode_mgmt_replicas.TestSnodeReplicas.test_snode_mgmt_replicas" class="md-nav__link">
         Snode: replica test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.01-Snode.test_stream_vgroup_topology_change.TestStreamVgroupTopologyChange.test_stream_vgroup_topology_change" class="md-nav__link">
+        Stream results stay correct across vgroup topology changes. 
       </a>
       
     </li>
@@ -4514,6 +4585,40 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/01-Snode/test_snode_runner_parallelism_failover.py" target="_blank">
                       cases/18-StreamProcessing/01-Snode/test_snode_runner_parallelism_failover.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.01-Snode.test_stream_vgroup_topology_change.TestStreamVgroupTopologyChange.test_stream_vgroup_topology_change" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.01-Snode.test_stream_vgroup_topology_change.TestStreamVgroupTopologyChange.test_stream_vgroup_topology_change" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream results stay correct across vgroup topology changes.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Trigger stream calculation, then switch a source vnode leader.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Trigger a virtual-table stream calculation, then switch its source</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   vnode leader.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Trigger stream calculation, then redistribute a source vgroup.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Trigger stream calculation, then split a source vgroup.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify final stream output equals the source-table aggregate.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/01-Snode/test_stream_vgroup_topology_change.py" target="_blank">
+                      cases/18-StreamProcessing/01-Snode/test_stream_vgroup_topology_change.py
                     </a>
                   </div>
         </div>

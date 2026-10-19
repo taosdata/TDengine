@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -314,7 +329,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -379,6 +411,28 @@
     <li class="md-nav__item">
       <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob" class="md-nav__link">
         DataTypes: blob 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_functions" class="md-nav__link">
+        DataTypes: BLOB in aggregate, window and scalar functions 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_max_size" class="md-nav__link">
+        DataTypes: BLOB payload size boundary after the 4 MB -> 16 MB raise 
       </a>
       
     </li>
@@ -478,6 +532,17 @@
     <li class="md-nav__item">
       <a href="#01-DataTypes.test_datatype_json.TestDatatypeJson.test_datatype_json" class="md-nav__link">
         DataTypes: json 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_large_values" class="md-nav__link">
+        DataTypes: many maximum size BLOB values in one table 
       </a>
       
     </li>
@@ -4048,7 +4113,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -4113,6 +4195,28 @@
     <li class="md-nav__item">
       <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob" class="md-nav__link">
         DataTypes: blob 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_functions" class="md-nav__link">
+        DataTypes: BLOB in aggregate, window and scalar functions 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_max_size" class="md-nav__link">
+        DataTypes: BLOB payload size boundary after the 4 MB -> 16 MB raise 
       </a>
       
     </li>
@@ -4212,6 +4316,17 @@
     <li class="md-nav__item">
       <a href="#01-DataTypes.test_datatype_json.TestDatatypeJson.test_datatype_json" class="md-nav__link">
         DataTypes: json 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_large_values" class="md-nav__link">
+        DataTypes: many maximum size BLOB values in one table 
       </a>
       
     </li>
@@ -4463,6 +4578,103 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check auto create table with blob cols</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/01-DataTypes/test_datatype_blob.py" target="_blank">
+                      cases/01-DataTypes/test_datatype_blob.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_max_size" class="doc doc-heading">
+
+<a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_max_size" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DataTypes: BLOB payload size boundary after the 4 MB -> 16 MB raise</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. STMT2 write and read back of payloads around the old 4 MB ceiling and up to the new 16 MB ceiling</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Payloads of 64 KB +/- 1, where the length and the CRC stop fitting into 16 bits</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. One byte above the ceiling is rejected and taosd stays alive</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Every accepted payload is byte-exact and its length() is reported correctly</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/01-DataTypes/test_datatype_blob.py" target="_blank">
+                      cases/01-DataTypes/test_datatype_blob.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_large_values" class="doc doc-heading">
+
+<a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_large_values" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DataTypes: many maximum size BLOB values in one table</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Every value is larger than a storage engine block, so it needs its own block</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. No row is lost or turned into NULL, every length() is exact</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. select * spanning several query result blocks returns all rows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. first/last/last_row and order by ... desc read back whole values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/01-DataTypes/test_datatype_blob.py" target="_blank">
+                      cases/01-DataTypes/test_datatype_blob.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_functions" class="doc doc-heading">
+
+<a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob_functions" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DataTypes: BLOB in aggregate, window and scalar functions</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. first/last/last_row/mode are byte-exact on multi-megabyte values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. first_value/nth_value window functions work on BLOB</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. length/substr/substring/cast/crc32 return whole values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. cast to every numeric, bool, string and timestamp type, in both directions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. sample/tail/min/max/greatest/least/unique reject BLOB without killing taosd</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

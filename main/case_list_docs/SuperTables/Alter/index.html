@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -815,7 +830,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -891,6 +923,17 @@
     <li class="md-nav__item">
       <a href="#04-SuperTables.03-Alter.test_stable_alter_write_data.TestStableAlterThenWriteData.test_stable_alter_then_write_data" class="md-nav__link">
         Alter then write data 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.03-Alter.test_stable_rename_column.TestStableRenameColumn.test_stable_rename_column" class="md-nav__link">
+        Alter: super-table and virtual super-table RENAME COLUMN / RENAME TAG 
       </a>
       
     </li>
@@ -3830,7 +3873,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3906,6 +3966,17 @@
     <li class="md-nav__item">
       <a href="#04-SuperTables.03-Alter.test_stable_alter_write_data.TestStableAlterThenWriteData.test_stable_alter_then_write_data" class="md-nav__link">
         Alter then write data 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.03-Alter.test_stable_rename_column.TestStableRenameColumn.test_stable_rename_column" class="md-nav__link">
+        Alter: super-table and virtual super-table RENAME COLUMN / RENAME TAG 
       </a>
       
     </li>
@@ -4057,6 +4128,53 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/03-Alter/test_stable_alter_write_data.py" target="_blank">
                       cases/04-SuperTables/03-Alter/test_stable_alter_write_data.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="04-SuperTables.03-Alter.test_stable_rename_column.TestStableRenameColumn.test_stable_rename_column" class="doc doc-heading">
+
+<a href="#04-SuperTables.03-Alter.test_stable_rename_column.TestStableRenameColumn.test_stable_rename_column" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Alter: super-table and virtual super-table RENAME COLUMN / RENAME TAG</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Basic super-table normal-column rename (new capability) + tag rename + colId stability</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Rename back to the original name</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Error cases: missing column, duplicate name, child table, illegal names</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3a. Timestamp column and composite primary key column rename are both allowed; DROP /</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    MODIFY on the primary key column stay rejected</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Virtual super-table column and tag rename; colRef is not checked; VST with children</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   rejects the rename</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. TSMA blocks rename until dropped</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. RESTRICT: column-level / tag-cond privilege blocks rename, releasable, and reports</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   user vs role in the error; tag-cond matching is conservative and may over-reject</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Not a column reference: table-level and db-level grants, and built-in system roles;</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   RESTRICT still fires for a very long table name</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. A db owner can rename its own columns but is still subject to RESTRICT</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Not checked by design: view (weak reference), topic (colId-bound)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Streams bind by colId: renaming a trigger column or partition tag is allowed and the</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    stream keeps producing; DROP TAG on a referenced tag is still rejected; output tables</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    (stream-created, bound, and normal-table form) are not checked either</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Metadata propagation: other sessions converge within a heartbeat; SHOW CREATE reflects</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    the new names; the rename persists across a taosd restart</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/03-Alter/test_stable_rename_column.py" target="_blank">
+                      cases/04-SuperTables/03-Alter/test_stable_rename_column.py
                     </a>
                   </div>
         </div>

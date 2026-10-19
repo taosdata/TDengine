@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -1542,7 +1557,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -1607,17 +1639,6 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.15-Explain.test_explain_case_when.TestExplainCaseWhen.test_explain_case_when_scan_range" class="md-nav__link">
         explain verbose true with CASE WHEN subquery 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_exchange_coalesce_and_merge_input_wait" class="md-nav__link">
-        Regression for Data Exchange small-block coalescing and sort-Merge input_wait. 
       </a>
       
     </li>
@@ -3841,7 +3862,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3906,17 +3944,6 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.15-Explain.test_explain_case_when.TestExplainCaseWhen.test_explain_case_when_scan_range" class="md-nav__link">
         explain verbose true with CASE WHEN subquery 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_exchange_coalesce_and_merge_input_wait" class="md-nav__link">
-        Regression for Data Exchange small-block coalescing and sort-Merge input_wait. 
       </a>
       
     </li>
@@ -4032,50 +4059,6 @@
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">These cases cover almost all operators and their combinations.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/15-Explain/test_query_explain.py" target="_blank">
-                      cases/09-DataQuerying/15-Explain/test_query_explain.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_exchange_coalesce_and_merge_input_wait" class="doc doc-heading">
-
-<a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_exchange_coalesce_and_merge_input_wait" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Regression for Data Exchange small-block coalescing and sort-Merge input_wait.</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The exchange now coalesces many tiny upstream blocks into fuller ones on</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the no limit/offset path, and must NOT merge blocks across group</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">boundaries.  The sort-Merge operator now records input_wait (time blocked</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">on downstream) instead of folding it into its own compute.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Build a multi-vgroup grouped dataset whose groups are deliberately</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   uneven in size, to exercise same-group accumulation and group-boundary</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   flushing inside the coalescing path.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify per-group aggregates, full ordered scans and union-all through</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the Data Exchange are byte-for-byte correct -- the strongest guard</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   against blocks of different groups being merged together.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the limit/offset path (a different, non-coalescing branch)</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   returns results consistent with the full ordered result.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Run EXPLAIN ANALYZE on a distributed partition-by query and validate</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the plan with the shared rule checker, which now also parses the</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   sort-Merge input_wait field.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

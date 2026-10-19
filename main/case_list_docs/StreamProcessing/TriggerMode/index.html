@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -2635,7 +2650,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -2676,6 +2708,83 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_single_leaf_end_condition" class="md-nav__link">
+        A single leaf closes on mismatch only when END WITH is omitted. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_pending_break_keeps_active_leaf" class="md-nav__link">
+        Broken higher priority pending leaf does not interrupt active lower leaf. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_paths" class="md-nav__link">
+        EVENT_WINDOW nested START WITH emits stable condition paths. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_leaf_true_for_is_local" class="md-nav__link">
+        EVENT_WINDOW tree applies true_for on the matching leaf only. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_end_without_leaf_uses_last_leaf_row" class="md-nav__link">
+        EVENT_WINDOW tree closes at the last descendant leaf row. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_fill_history_matches_realtime_paths" class="md-nav__link">
+        EVENT_WINDOW tree history replay matches realtime condition paths. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_compatibility" class="md-nav__link">
+        Existing single-condition and flat sub-event streams remain legal. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_fill_history_skips_tables_without_data_after_start" class="md-nav__link">
         FILL_HISTORY skips tables without data after the history start 
       </a>
@@ -2689,6 +2798,116 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_fill_history_start_time_filters_late_rows" class="md-nav__link">
         FILL_HISTORY start time filters later writes with older event times 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_does_not_delay_single_leaf_start" class="md-nav__link">
+        Global true_for filters output but does not delay single leaf start. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_parent_true_for_is_global" class="md-nav__link">
+        Global true_for suppresses parent nodes but not local leaf windows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_filters_parent_open" class="md-nav__link">
+        Global true_for suppresses parent open. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_backtracking_preemption" class="md-nav__link">
+        Higher priority leaf preempts active lower priority from its streak start. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_does_not_duplicate_parent_open" class="md-nav__link">
+        History replay does not duplicate non-leaf open at close. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_emits_parent_open_and_close" class="md-nav__link">
+        History replay emits satisfied non-leaf open and close. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_does_not_delay_single_leaf_start" class="md-nav__link">
+        History replay keeps global true_for separate from single leaf start. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_parallel_pending_fallback" class="md-nav__link">
+        Lower priority leaf wins from its own streak if higher priority breaks. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_stream_natural_time_units.TestStreamNaturalTimeUnits.test_stream_natural_time_units" class="md-nav__link">
+        Natural-unit stream triggers use frozen query-compatible semantics. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window_context.TestNestedWindowContext.test_external_window_batches_gids_and_lineages_on_one_vnode" class="md-nav__link">
+        Nested external window: grouped leaf ranges keep lineage context. 
       </a>
       
     </li>
@@ -2995,6 +3214,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_does_not_duplicate_parent_open" class="md-nav__link">
+        Non-leaf open already emitted before close is not emitted again. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_stream_fill_history" class="md-nav__link">
         Options: fill history 
       </a>
@@ -3061,6 +3291,39 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_emits_parent_open_and_close" class="md-nav__link">
+        Satisfied global true_for emits non-leaf open and close. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_leaf_true_for_resets_after_close" class="md-nav__link">
+        Single leaf true_for streak is cleared when the window closes. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_single_condition_close_reopens_from_next_row" class="md-nav__link">
+        Single-condition event tree starts a fresh window after close. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sliding_trigger_check_again" class="md-nav__link">
         Sliding trigger should continue checking after one calc batch 
       </a>
@@ -3074,6 +3337,17 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_true_for_start_end.TestTrueFor.test_truefor_start_streak_cross_block" class="md-nav__link">
         Start-streak rows in separate batches must all contribute to window COUNT. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_stream_tmq_client_charset.TestStreamTmqClientCharset.test_stream_tmq_client_charset" class="md-nav__link">
+        Stream and subscription results are driven by the creator's charset. 
       </a>
       
     </li>
@@ -3182,6 +3456,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_prefilter_empty_subtable_slice" class="md-nav__link">
+        Trigger mode: a filtered-out subtable does not fail nested input. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_creation_matrix" class="md-nav__link">
         Trigger mode: creation matrix preserves valid and invalid contracts. 
       </a>
@@ -3206,6 +3491,17 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_leaf_equivalence" class="md-nav__link">
         Trigger mode: nested leaves equal direct-window results. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_soc_dimension_joins" class="md-nav__link">
+        Trigger mode: nested SOC windows join per-group dimension rows. 
       </a>
       
     </li>
@@ -4402,7 +4698,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -4443,6 +4756,83 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_single_leaf_end_condition" class="md-nav__link">
+        A single leaf closes on mismatch only when END WITH is omitted. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_pending_break_keeps_active_leaf" class="md-nav__link">
+        Broken higher priority pending leaf does not interrupt active lower leaf. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_paths" class="md-nav__link">
+        EVENT_WINDOW nested START WITH emits stable condition paths. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_leaf_true_for_is_local" class="md-nav__link">
+        EVENT_WINDOW tree applies true_for on the matching leaf only. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_end_without_leaf_uses_last_leaf_row" class="md-nav__link">
+        EVENT_WINDOW tree closes at the last descendant leaf row. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_fill_history_matches_realtime_paths" class="md-nav__link">
+        EVENT_WINDOW tree history replay matches realtime condition paths. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_compatibility" class="md-nav__link">
+        Existing single-condition and flat sub-event streams remain legal. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_fill_history_skips_tables_without_data_after_start" class="md-nav__link">
         FILL_HISTORY skips tables without data after the history start 
       </a>
@@ -4456,6 +4846,116 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_fill_history_start_time_filters_late_rows" class="md-nav__link">
         FILL_HISTORY start time filters later writes with older event times 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_does_not_delay_single_leaf_start" class="md-nav__link">
+        Global true_for filters output but does not delay single leaf start. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_parent_true_for_is_global" class="md-nav__link">
+        Global true_for suppresses parent nodes but not local leaf windows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_filters_parent_open" class="md-nav__link">
+        Global true_for suppresses parent open. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_backtracking_preemption" class="md-nav__link">
+        Higher priority leaf preempts active lower priority from its streak start. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_does_not_duplicate_parent_open" class="md-nav__link">
+        History replay does not duplicate non-leaf open at close. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_emits_parent_open_and_close" class="md-nav__link">
+        History replay emits satisfied non-leaf open and close. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_does_not_delay_single_leaf_start" class="md-nav__link">
+        History replay keeps global true_for separate from single leaf start. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_parallel_pending_fallback" class="md-nav__link">
+        Lower priority leaf wins from its own streak if higher priority breaks. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_stream_natural_time_units.TestStreamNaturalTimeUnits.test_stream_natural_time_units" class="md-nav__link">
+        Natural-unit stream triggers use frozen query-compatible semantics. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window_context.TestNestedWindowContext.test_external_window_batches_gids_and_lineages_on_one_vnode" class="md-nav__link">
+        Nested external window: grouped leaf ranges keep lineage context. 
       </a>
       
     </li>
@@ -4762,6 +5262,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_does_not_duplicate_parent_open" class="md-nav__link">
+        Non-leaf open already emitted before close is not emitted again. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_stream_fill_history" class="md-nav__link">
         Options: fill history 
       </a>
@@ -4828,6 +5339,39 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_emits_parent_open_and_close" class="md-nav__link">
+        Satisfied global true_for emits non-leaf open and close. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_leaf_true_for_resets_after_close" class="md-nav__link">
+        Single leaf true_for streak is cleared when the window closes. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_single_condition_close_reopens_from_next_row" class="md-nav__link">
+        Single-condition event tree starts a fresh window after close. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sliding_trigger_check_again" class="md-nav__link">
         Sliding trigger should continue checking after one calc batch 
       </a>
@@ -4841,6 +5385,17 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_true_for_start_end.TestTrueFor.test_truefor_start_streak_cross_block" class="md-nav__link">
         Start-streak rows in separate batches must all contribute to window COUNT. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_stream_tmq_client_charset.TestStreamTmqClientCharset.test_stream_tmq_client_charset" class="md-nav__link">
+        Stream and subscription results are driven by the creator's charset. 
       </a>
       
     </li>
@@ -4949,6 +5504,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_prefilter_empty_subtable_slice" class="md-nav__link">
+        Trigger mode: a filtered-out subtable does not fail nested input. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_creation_matrix" class="md-nav__link">
         Trigger mode: creation matrix preserves valid and invalid contracts. 
       </a>
@@ -4973,6 +5539,17 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_leaf_equivalence" class="md-nav__link">
         Trigger mode: nested leaves equal direct-window results. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_soc_dimension_joins" class="md-nav__link">
+        Trigger mode: nested SOC windows join per-group dimension rows. 
       </a>
       
     </li>
@@ -5369,6 +5946,576 @@
   
   
   
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_paths" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_paths" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>EVENT_WINDOW nested START WITH emits stable condition paths.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Switch between nested leaves and verify the envelope, group, and leaf</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">condition paths and row counts emitted on window close.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_compatibility" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_compatibility" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Existing single-condition and flat sub-event streams remain legal.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Create single-condition and flat sub-event streams without END WITH</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">and verify that both trigger tasks reach the Running state.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_single_leaf_end_condition" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_single_leaf_end_condition" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>A single leaf closes on mismatch only when END WITH is omitted.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Compare implicit and explicit closing in ordinary and event-tree paths,</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">for realtime input and history replay, checking window bounds and counts.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_single_condition_close_reopens_from_next_row" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_single_condition_close_reopens_from_next_row" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Single-condition event tree starts a fresh window after close.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Insert successive START and END matches and verify that each closed</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">single-condition window is followed by a new window with its own bounds.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_does_not_delay_single_leaf_start" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_does_not_delay_single_leaf_start" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Global true_for filters output but does not delay single leaf start.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Feed windows of different durations and verify that the global duration</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">filter preserves the first START row and suppresses short windows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_does_not_delay_single_leaf_start" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_does_not_delay_single_leaf_start" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>History replay keeps global true_for separate from single leaf start.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Replay existing rows with fill_history and verify that the global duration</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">filter preserves the first START row and suppresses short windows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_fill_history_matches_realtime_paths" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_fill_history_matches_realtime_paths" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>EVENT_WINDOW tree history replay matches realtime condition paths.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Create the stream after inserting data and verify that history replay</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">produces the expected envelope, group, and leaf paths and row counts.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_end_without_leaf_uses_last_leaf_row" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_end_without_leaf_uses_last_leaf_row" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>EVENT_WINDOW tree closes at the last descendant leaf row.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Make END match a row that satisfies no START leaf and verify that the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">closing envelope and descendant windows exclude that final row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_leaf_true_for_resets_after_close" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_leaf_true_for_resets_after_close" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Single leaf true_for streak is cleared when the window closes.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Close two consecutive windows whose leaf requires two matching rows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">and verify that each window starts from a fresh leaf streak.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_leaf_true_for_is_local" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_leaf_true_for_is_local" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>EVENT_WINDOW tree applies true_for on the matching leaf only.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Switch from a leaf with a local count threshold to its sibling and verify</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">that each leaf retains its own window bounds and row count.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_parallel_pending_fallback" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_parallel_pending_fallback" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Lower priority leaf wins from its own streak if higher priority breaks.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Break the higher-priority pending streak while the lower-priority leaf</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">meets its threshold, then verify the selected path starts at its first match.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_backtracking_preemption" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_backtracking_preemption" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Higher priority leaf preempts active lower priority from its streak start.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Satisfy a higher-priority leaf after a lower-priority window opens and</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">verify that preemption splits the windows at the new streak start.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_parent_true_for_is_global" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_parent_true_for_is_global" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Global true_for suppresses parent nodes but not local leaf windows.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Close a window before the global count threshold is met and verify that</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the matching leaf emits a result while the envelope remains filtered.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_filters_parent_open" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_filters_parent_open" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Global true_for suppresses parent open.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Request WINDOW_OPEN for a window below the global count threshold and</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">verify that only the leaf whose local threshold is satisfied emits a row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_emits_parent_open_and_close" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_emits_parent_open_and_close" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Satisfied global true_for emits non-leaf open and close.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Satisfy the global count threshold on the closing row and verify that</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">both the envelope and leaf emit their opening and closing results.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_emits_parent_open_and_close" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_emits_parent_open_and_close" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>History replay emits satisfied non-leaf open and close.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Replay rows that satisfy the global count threshold at close and verify</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">opening and closing results for both the envelope and leaf.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_does_not_duplicate_parent_open" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_global_true_for_does_not_duplicate_parent_open" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Non-leaf open already emitted before close is not emitted again.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Open a nested leaf after its ancestors satisfy the global count threshold</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">and verify exactly one opening and one closing result for each path.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_does_not_duplicate_parent_open" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_history_global_true_for_does_not_duplicate_parent_open" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>History replay does not duplicate non-leaf open at close.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Replay a nested leaf whose ancestors satisfy the global count threshold</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">and verify exactly one opening and one closing result for each path.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_pending_break_keeps_active_leaf" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_event_window_tree.TestEventWindowTree.test_event_window_tree_pending_break_keeps_active_leaf" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Broken higher priority pending leaf does not interrupt active lower leaf.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Break a higher-priority pending streak while a lower-priority leaf is</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">active and verify that the active window retains all its matching rows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_stream_fill_history" class="doc doc-heading">
 
 <a href="#18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_stream_fill_history" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -5536,6 +6683,70 @@
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Validate leaf equivalence behavior.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_nested_window.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_nested_window.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_prefilter_empty_subtable_slice" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_prefilter_empty_subtable_slice" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Trigger mode: a filtered-out subtable does not fail nested input.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Mix a valid subtable and a fully filtered subtable in one WAL batch.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Filter an existing group completely without losing its open window.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify later input from both groups produces the expected SOC pairs.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_nested_window.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_nested_window.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_soc_dimension_joins" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_nested_window.TestNestedWindow.test_soc_dimension_joins" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Trigger mode: nested SOC windows join per-group dimension rows.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Join ancestor and leaf aggregates with three dimension tables.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Mix valid and filtered groups, then resume both open windows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check SOC differences and the threshold belonging to each group.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Mix a late row with new input without moving the realtime window backward.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Clear the output and recalculate both groups through the same JOINs.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -6134,6 +7345,35 @@
   
   
   
+<h2 id="18-StreamProcessing.03-TriggerMode.test_nested_window_context.TestNestedWindowContext.test_external_window_batches_gids_and_lineages_on_one_vnode" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_nested_window_context.TestNestedWindowContext.test_external_window_batches_gids_and_lineages_on_one_vnode" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Nested external window: grouped leaf ranges keep lineage context.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Validate external window batches gids and lineages on one vnode behavior.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_nested_window_context.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_nested_window_context.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="18-StreamProcessing.03-TriggerMode.test_nested_window_create.TestNestedWindowCreate.test_depth_two_and_eight_execute" class="doc doc-heading">
 
 <a href="#18-StreamProcessing.03-TriggerMode.test_nested_window_create.TestNestedWindowCreate.test_depth_two_and_eight_execute" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -6679,6 +7919,76 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_state_window_close.py" target="_blank">
                       cases/18-StreamProcessing/03-TriggerMode/test_state_window_close.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_stream_natural_time_units.TestStreamNaturalTimeUnits.test_stream_natural_time_units" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_stream_natural_time_units.TestStreamNaturalTimeUnits.test_stream_natural_time_units" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Natural-unit stream triggers use frozen query-compatible semantics.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Compare INTERVAL n/q/y output and offset semantics with ordinary queries.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Cover fixed sliding, DST data, independent SLIDING n/q/y, and fdow.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify gap windows, the stream-specific 1% exception, and offsets.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_stream_natural_time_units.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_stream_natural_time_units.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_stream_tmq_client_charset.TestStreamTmqClientCharset.test_stream_tmq_client_charset" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_stream_tmq_client_charset.TestStreamTmqClientCharset.test_stream_tmq_client_charset" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream and subscription results are driven by the creator's charset.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Subscription: topics filtering NCHAR via =, IN, LIKE, concat(), CASE</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">WHEN, and an NCHAR tag deliver exactly the matching rows for a GBK</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">creator (== the expected count computed from the data).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Stream: a GBK-created and a UTF-8-created interval stream both count all</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">matching NCHAR rows per window (identical), and an event-window stream</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">whose start/end conditions compare NCHAR opens/closes identically for</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">both creators.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">A server-charset fallback would mis-decode the GBK literal bytes and</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">diverge on any of these.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_stream_tmq_client_charset.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_stream_tmq_client_charset.py
                     </a>
                   </div>
         </div>

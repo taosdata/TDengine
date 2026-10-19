@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -3414,7 +3429,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3457,6 +3489,17 @@
     <li class="md-nav__item">
       <a href="#70-Cluster.test_balance_vgroup_leader_db_name.TestBalanceVgroupLeaderDbName.test_balance_vgroup_leader_db_name" class="md-nav__link">
         BALANCE VGROUP LEADER DATABASE with backtick-quoted db names 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_balance_vgroup_leader_split.TestBalanceVgroupLeaderSplit.test_balance_vgroup_leader_split" class="md-nav__link">
+        BALANCE VGROUP LEADER non-forced (random) vs forced modes 
       </a>
       
     </li>
@@ -3950,6 +3993,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#70-Cluster.test_ins_columns_offline_vnode.TestInsColumnsOfflineVnode.test_ins_columns_offline_vnode" class="md-nav__link">
+        INS_COLUMNS database() pruning with an offline vnode 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="md-nav__link">
         KILL COMPACT <id> FORCE removes SDB records even when a dnode is offline 
       </a>
@@ -3961,8 +4015,140 @@
         
   
     <li class="md-nav__item">
+      <a href="#70-Cluster.test_redistribute_with_subscribe.TestRedistributeWithSubscribe.test_redistribute_with_subscribe" class="md-nav__link">
+        Redistribute concurrent with data subscription 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_redistribute_with_meta.TestRedistributeWithMeta.test_redistribute_with_meta" class="md-nav__link">
+        Redistribute concurrent with metadata operations 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_redistribute_with_stream.TestRedistributeWithStream.test_redistribute_with_stream" class="md-nav__link">
+        Redistribute concurrent with stream processing 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_redistribute_with_vtable_query.TestRedistributeWithVtableQuery.test_redistribute_with_vtable_query" class="md-nav__link">
+        Redistribute concurrent with virtual table query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Cluster.test_mnode_redeploy_after_metadata_wiped.TestMnodeRedeployAfterMetadataWiped.test_mnode_redeploy_after_metadata_wiped" class="md-nav__link">
         Single mnode redeploys and self-heals after core metadata is wiped 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_03_force_does_not_bypass_db_in_use" class="md-nav__link">
+        SPLIT VGROUP FORCE 不能绕过 Db used by stream(0x700E) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_02_force_bypasses_vtable_stream" class="md-nav__link">
+        SPLIT VGROUP FORCE 可绕过虚拟表流计算限制(0x700F) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_01_force_split_without_stream" class="md-nav__link">
+        SPLIT VGROUP FORCE 在无流计算时可正常执行 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_stream.TestSplitWithStream.test_stream_ops_during_split" class="md-nav__link">
+        SPLIT VGROUP 执行过程中执行 stream 操作 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_meta.TestSplitWithMeta.test_split_with_meta" class="md-nav__link">
+        SPLIT VGROUP 期间执行元数据操作 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_vtable_query.TestSplitWithVtableQuery.test_split_with_vtable_query" class="md-nav__link">
+        SPLIT VGROUP 期间查询虚拟表 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_stream.TestSplitWithStream.test_split_with_stream" class="md-nav__link">
+        SPLIT VGROUP 期间运行流计算 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_subscribe.TestSplitWithSubscribe.test_split_with_subscribe" class="md-nav__link">
+        SPLIT VGROUP 期间进行数据订阅消费 
       </a>
       
     </li>
@@ -3985,6 +4171,61 @@
     <li class="md-nav__item">
       <a href="#70-Cluster.test_wal_corruption_three_replica.TestWalCorruptionThreeReplica.test_wal_corruption_three_replica" class="md-nav__link">
         taosd starts normally and queries succeed after WAL corruption 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_dnode_parallel_syntax" class="md-nav__link">
+        Test RESTORE DNODE with PARALLEL parameter syntax. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_vnode_parallel_syntax" class="md-nav__link">
+        Test RESTORE VNODE ON DNODE with PARALLEL parameter syntax. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_negative_rejected" class="md-nav__link">
+        Test that negative PARALLEL values are rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_non_integer_rejected" class="md-nav__link">
+        Test that non-integer PARALLEL values are rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_missing_value_rejected" class="md-nav__link">
+        Test that PARALLEL without an integer value is rejected. 
       </a>
       
     </li>
@@ -4323,7 +4564,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -4366,6 +4624,17 @@
     <li class="md-nav__item">
       <a href="#70-Cluster.test_balance_vgroup_leader_db_name.TestBalanceVgroupLeaderDbName.test_balance_vgroup_leader_db_name" class="md-nav__link">
         BALANCE VGROUP LEADER DATABASE with backtick-quoted db names 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_balance_vgroup_leader_split.TestBalanceVgroupLeaderSplit.test_balance_vgroup_leader_split" class="md-nav__link">
+        BALANCE VGROUP LEADER non-forced (random) vs forced modes 
       </a>
       
     </li>
@@ -4859,6 +5128,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#70-Cluster.test_ins_columns_offline_vnode.TestInsColumnsOfflineVnode.test_ins_columns_offline_vnode" class="md-nav__link">
+        INS_COLUMNS database() pruning with an offline vnode 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="md-nav__link">
         KILL COMPACT <id> FORCE removes SDB records even when a dnode is offline 
       </a>
@@ -4870,8 +5150,140 @@
         
   
     <li class="md-nav__item">
+      <a href="#70-Cluster.test_redistribute_with_subscribe.TestRedistributeWithSubscribe.test_redistribute_with_subscribe" class="md-nav__link">
+        Redistribute concurrent with data subscription 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_redistribute_with_meta.TestRedistributeWithMeta.test_redistribute_with_meta" class="md-nav__link">
+        Redistribute concurrent with metadata operations 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_redistribute_with_stream.TestRedistributeWithStream.test_redistribute_with_stream" class="md-nav__link">
+        Redistribute concurrent with stream processing 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_redistribute_with_vtable_query.TestRedistributeWithVtableQuery.test_redistribute_with_vtable_query" class="md-nav__link">
+        Redistribute concurrent with virtual table query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Cluster.test_mnode_redeploy_after_metadata_wiped.TestMnodeRedeployAfterMetadataWiped.test_mnode_redeploy_after_metadata_wiped" class="md-nav__link">
         Single mnode redeploys and self-heals after core metadata is wiped 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_03_force_does_not_bypass_db_in_use" class="md-nav__link">
+        SPLIT VGROUP FORCE 不能绕过 Db used by stream(0x700E) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_02_force_bypasses_vtable_stream" class="md-nav__link">
+        SPLIT VGROUP FORCE 可绕过虚拟表流计算限制(0x700F) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_01_force_split_without_stream" class="md-nav__link">
+        SPLIT VGROUP FORCE 在无流计算时可正常执行 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_stream.TestSplitWithStream.test_stream_ops_during_split" class="md-nav__link">
+        SPLIT VGROUP 执行过程中执行 stream 操作 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_meta.TestSplitWithMeta.test_split_with_meta" class="md-nav__link">
+        SPLIT VGROUP 期间执行元数据操作 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_vtable_query.TestSplitWithVtableQuery.test_split_with_vtable_query" class="md-nav__link">
+        SPLIT VGROUP 期间查询虚拟表 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_stream.TestSplitWithStream.test_split_with_stream" class="md-nav__link">
+        SPLIT VGROUP 期间运行流计算 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_with_subscribe.TestSplitWithSubscribe.test_split_with_subscribe" class="md-nav__link">
+        SPLIT VGROUP 期间进行数据订阅消费 
       </a>
       
     </li>
@@ -4894,6 +5306,61 @@
     <li class="md-nav__item">
       <a href="#70-Cluster.test_wal_corruption_three_replica.TestWalCorruptionThreeReplica.test_wal_corruption_three_replica" class="md-nav__link">
         taosd starts normally and queries succeed after WAL corruption 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_dnode_parallel_syntax" class="md-nav__link">
+        Test RESTORE DNODE with PARALLEL parameter syntax. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_vnode_parallel_syntax" class="md-nav__link">
+        Test RESTORE VNODE ON DNODE with PARALLEL parameter syntax. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_negative_rejected" class="md-nav__link">
+        Test that negative PARALLEL values are rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_non_integer_rejected" class="md-nav__link">
+        Test that non-integer PARALLEL values are rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_missing_value_rejected" class="md-nav__link">
+        Test that PARALLEL without an integer value is rejected. 
       </a>
       
     </li>
@@ -5934,6 +6401,45 @@
   
   
   
+<h2 id="70-Cluster.test_balance_vgroup_leader_split.TestBalanceVgroupLeaderSplit.test_balance_vgroup_leader_split" class="doc doc-heading">
+
+<a href="#70-Cluster.test_balance_vgroup_leader_split.TestBalanceVgroupLeaderSplit.test_balance_vgroup_leader_split" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>BALANCE VGROUP LEADER non-forced (random) vs forced modes</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create 3-dnode cluster</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create database (replica 3, vgroups 2)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Non-forced mode (no FORCE):</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - balance vgroup leader                  (ALL)</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - balance vgroup leader on &lt;vgId&gt;        (single vgroup)</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - balance vgroup leader database &lt;db&gt;    (per-database)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Forced mode (FORCE keyword):</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - balance vgroup leader force</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - balance vgroup leader on &lt;vgId&gt; force</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - balance vgroup leader database &lt;db&gt; force</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. After each command, verify no deadlock: every vgroup has a leader</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_balance_vgroup_leader_split.py" target="_blank">
+                      cases/70-Cluster/test_balance_vgroup_leader_split.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="70-Cluster.test_cluster_arbitrator.TestClusterArbitrator.test_cluster_arbitrator" class="doc doc-heading">
 
 <a href="#70-Cluster.test_cluster_arbitrator.TestClusterArbitrator.test_cluster_arbitrator" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -6256,6 +6762,154 @@
   
   
   
+<h2 id="70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_dnode_parallel_syntax" class="doc doc-heading">
+
+<a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_dnode_parallel_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Test RESTORE DNODE with PARALLEL parameter syntax.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that RESTORE DNODE &lt;id&gt; PARALLEL &lt;n&gt; syntax can be parsed correctly.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Since in a single-node environment dnode 1 may not be in a state that needs restoring,</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">business-level errors are tolerated; only that no syntax error is reported at the parse level.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_cluster_restore_parallel.py" target="_blank">
+                      cases/70-Cluster/test_cluster_restore_parallel.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_vnode_parallel_syntax" class="doc doc-heading">
+
+<a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_vnode_parallel_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Test RESTORE VNODE ON DNODE with PARALLEL parameter syntax.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that RESTORE VNODE ON DNODE &lt;id&gt; PARALLEL &lt;n&gt; syntax can be parsed correctly.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_cluster_restore_parallel.py" target="_blank">
+                      cases/70-Cluster/test_cluster_restore_parallel.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_negative_rejected" class="doc doc-heading">
+
+<a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_negative_rejected" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Test that negative PARALLEL values are rejected.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The NK_INTEGER token does not include a minus sign; the - in PARALLEL -1 is a separate</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">token, so the parser should report an error directly.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_cluster_restore_parallel.py" target="_blank">
+                      cases/70-Cluster/test_cluster_restore_parallel.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_missing_value_rejected" class="doc doc-heading">
+
+<a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_missing_value_rejected" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Test that PARALLEL without an integer value is rejected.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">PARALLEL must be followed by an integer; a missing integer should raise a syntax error.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_cluster_restore_parallel.py" target="_blank">
+                      cases/70-Cluster/test_cluster_restore_parallel.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_non_integer_rejected" class="doc doc-heading">
+
+<a href="#70-Cluster.test_cluster_restore_parallel.TestRestoreParallel.test_restore_parallel_non_integer_rejected" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Test that non-integer PARALLEL values are rejected.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">A non-integer after PARALLEL (such as an identifier or a float) should raise a syntax error.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_cluster_restore_parallel.py" target="_blank">
+                      cases/70-Cluster/test_cluster_restore_parallel.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="70-Cluster.test_cluster_restore_qnode.TestClusterRestoreQnode.test_cluster_restore_qnode" class="doc doc-heading">
 
 <a href="#70-Cluster.test_cluster_restore_qnode.TestClusterRestoreQnode.test_cluster_restore_qnode" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -6508,6 +7162,38 @@
   
   
   
+<h2 id="70-Cluster.test_ins_columns_offline_vnode.TestInsColumnsOfflineVnode.test_ins_columns_offline_vnode" class="doc doc-heading">
+
+<a href="#70-Cluster.test_ins_columns_offline_vnode.TestInsColumnsOfflineVnode.test_ins_columns_offline_vnode" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>INS_COLUMNS database() pruning with an offline vnode</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create replica-3 and replica-1 databases on three dnodes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Stop a dnode that owns an unrelated replica-1 vgroup</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Compare literal db_name filtering with db_name=database()</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify both queries avoid the unrelated offline vnode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_ins_columns_offline_vnode.py" target="_blank">
+                      cases/70-Cluster/test_ins_columns_offline_vnode.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="doc doc-heading">
 
 <a href="#70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -6610,6 +7296,420 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_mnode_redeploy_after_metadata_wiped.py" target="_blank">
                       cases/70-Cluster/test_mnode_redeploy_after_metadata_wiped.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_redistribute_with_meta.TestRedistributeWithMeta.test_redistribute_with_meta" class="doc doc-heading">
+
+<a href="#70-Cluster.test_redistribute_with_meta.TestRedistributeWithMeta.test_redistribute_with_meta" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Redistribute concurrent with metadata operations</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that creating super tables / child tables and altering the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">schema keep working while a REDISTRIBUTE VGROUP transaction is running</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">in the background.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Deploy a 4-dnode cluster (dnode1 mnode-only) and prepare a database</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   with data.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Start a background thread that keeps redistributing the vgroups.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. In parallel, create super tables, create child tables and alter the</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   super table schema; verify every operation succeeds and the</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   metadata is visible.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Stop the background thread and verify data integrity.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_redistribute_with_meta.py" target="_blank">
+                      cases/70-Cluster/test_redistribute_with_meta.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_redistribute_with_stream.TestRedistributeWithStream.test_redistribute_with_stream" class="doc doc-heading">
+
+<a href="#70-Cluster.test_redistribute_with_stream.TestRedistributeWithStream.test_redistribute_with_stream" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Redistribute concurrent with stream processing</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that a stream keeps producing correct results while a</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">REDISTRIBUTE VGROUP transaction is running in the background on an</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">UNRELATED database.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">NOTE: redistributing the stream&#39;s OWN database is destructive (it moves</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the output table&#39;s vgroup and wipes emitted rows), so this test keeps</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the stream in a dedicated database that is never redistributed and</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">churns a separate data database instead.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Deploy a 4-dnode cluster (dnode1 mnode-only) and create a snode.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Prepare a CHURN database (super table + bulk data) whose vgroups</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   will be redistributed.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create a STREAM database (never redistributed) with an interval</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   stream that aggregates trigger rows into an output table; warm it up</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   so it is fully live.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Start a background thread that keeps redistributing the CHURN</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   database&#39;s vgroups.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. In parallel, keep writing new trigger data into the stream database;</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the stream must keep generating result rows for the new windows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Stop the background thread, verify the stream results, and verify</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the churn database&#39;s data stayed intact across all the moves.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_redistribute_with_stream.py" target="_blank">
+                      cases/70-Cluster/test_redistribute_with_stream.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_redistribute_with_subscribe.TestRedistributeWithSubscribe.test_redistribute_with_subscribe" class="doc doc-heading">
+
+<a href="#70-Cluster.test_redistribute_with_subscribe.TestRedistributeWithSubscribe.test_redistribute_with_subscribe" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Redistribute concurrent with data subscription</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that a TMQ consumer keeps consuming correctly while a</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">REDISTRIBUTE VGROUP transaction is running in the background.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Deploy a 4-dnode cluster (dnode1 mnode-only), prepare a database</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   with a super table and a batch of data, then create a topic.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Start a background thread that keeps redistributing the vgroups.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. In parallel, subscribe with a TMQ consumer and consume all the data;</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the consumer must eventually receive every row despite the vnodes</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   being moved between dnodes.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Stop the background thread and verify data integrity.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_redistribute_with_subscribe.py" target="_blank">
+                      cases/70-Cluster/test_redistribute_with_subscribe.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_redistribute_with_vtable_query.TestRedistributeWithVtableQuery.test_redistribute_with_vtable_query" class="doc doc-heading">
+
+<a href="#70-Cluster.test_redistribute_with_vtable_query.TestRedistributeWithVtableQuery.test_redistribute_with_vtable_query" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Redistribute concurrent with virtual table query</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that querying virtual tables keeps returning correct results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">while a REDISTRIBUTE VGROUP transaction is running in the background.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Deploy a 4-dnode cluster (dnode1 mnode-only), prepare a database</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   with data, origin tables and virtual tables.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Start a background thread that keeps redistributing the vgroups.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. In parallel, repeatedly query the virtual tables (projection and</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   aggregation) and verify the results are stable and correct.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Stop the background thread and verify data integrity.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_redistribute_with_vtable_query.py" target="_blank">
+                      cases/70-Cluster/test_redistribute_with_vtable_query.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_01_force_split_without_stream" class="doc doc-heading">
+
+<a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_01_force_split_without_stream" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SPLIT VGROUP FORCE 在无流计算时可正常执行</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">集群内不存在任何流计算时，`split vgroup &lt;id&gt; force` 应当与不带</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">FORCE 的语句行为一致：被接受并把 1 个 vgroup 拆分为 2 个。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">该用例先于其它场景执行，用于验证 FORCE 语法与执行路径本身可用，</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">同时确认 FORCE 不会引入额外的限制。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_split_vgroup_force.py" target="_blank">
+                      cases/70-Cluster/test_split_vgroup_force.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_02_force_bypasses_vtable_stream" class="doc doc-heading">
+
+<a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_02_force_bypasses_vtable_stream" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SPLIT VGROUP FORCE 可绕过虚拟表流计算限制(0x700F)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">当集群中存在“虚拟表相关”的流计算时，即使被拆分的库与该流无关，</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">不带 FORCE 的 `split vgroup` 也会被拒绝，错误码 0x700F</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">（Virtual table stream exists, use FORCE when ensure no impact）；</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">加上 FORCE 后应当被接受并完成拆分。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">随后删除该虚拟表流，普通 `split vgroup` 应恢复可用，</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">证明 0x700F 确实由虚拟表流触发。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_split_vgroup_force.py" target="_blank">
+                      cases/70-Cluster/test_split_vgroup_force.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_03_force_does_not_bypass_db_in_use" class="doc doc-heading">
+
+<a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_03_force_does_not_bypass_db_in_use" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SPLIT VGROUP FORCE 不能绕过 Db used by stream(0x700E)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">当被拆分的库本身是某个（普通、非虚拟表）流计算的触发库或计算库时，</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">`split vgroup` 会被拒绝，错误码 0x700E（Db used by stream）。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">该检查在 mnode 中先于 FORCE 判断，且完全忽略 force 标记，</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">因此 `split vgroup &lt;id&gt; force` 同样必须被拒绝。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">删除该流之后，普通 `split vgroup` 应恢复可用。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_split_vgroup_force.py" target="_blank">
+                      cases/70-Cluster/test_split_vgroup_force.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_split_with_meta.TestSplitWithMeta.test_split_with_meta" class="doc doc-heading">
+
+<a href="#70-Cluster.test_split_with_meta.TestSplitWithMeta.test_split_with_meta" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SPLIT VGROUP 期间执行元数据操作</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">验证在 split vgroup 事务进行过程中，创建子表 / 创建超级表等元数据</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">DDL 操作是否能够正常执行。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_split_with_meta.py" target="_blank">
+                      cases/70-Cluster/test_split_with_meta.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_split_with_stream.TestSplitWithStream.test_split_with_stream" class="doc doc-heading">
+
+<a href="#70-Cluster.test_split_with_stream.TestSplitWithStream.test_split_with_stream" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SPLIT VGROUP 期间运行流计算</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">验证在 split vgroup 事务进行过程中，流计算是否能够继续运行并产生</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">正确的输出结果。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_split_with_stream.py" target="_blank">
+                      cases/70-Cluster/test_split_with_stream.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_split_with_stream.TestSplitWithStream.test_stream_ops_during_split" class="doc doc-heading">
+
+<a href="#70-Cluster.test_split_with_stream.TestSplitWithStream.test_stream_ops_during_split" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SPLIT VGROUP 执行过程中执行 stream 操作</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">先在没有 stream 的库上触发 split vgroup，在 split 事务仍在进行的</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">窗口内，尝试在同一个库上执行 stream 操作（create stream / drop</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">stream），记录这些操作是否被允许；split 结束后再验证 stream 能否</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">正常创建。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_split_with_stream.py" target="_blank">
+                      cases/70-Cluster/test_split_with_stream.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_split_with_subscribe.TestSplitWithSubscribe.test_split_with_subscribe" class="doc doc-heading">
+
+<a href="#70-Cluster.test_split_with_subscribe.TestSplitWithSubscribe.test_split_with_subscribe" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SPLIT VGROUP 期间进行数据订阅消费</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">验证在 split vgroup 事务进行过程中，TMQ 消费者是否能够持续正常地</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">poll 到数据。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_split_with_subscribe.py" target="_blank">
+                      cases/70-Cluster/test_split_with_subscribe.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_split_with_vtable_query.TestSplitWithVtableQuery.test_split_with_vtable_query" class="doc doc-heading">
+
+<a href="#70-Cluster.test_split_with_vtable_query.TestSplitWithVtableQuery.test_split_with_vtable_query" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SPLIT VGROUP 期间查询虚拟表</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">验证在 split vgroup 事务进行过程中，对虚拟表执行查询是否能够正常</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">返回结果。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_split_with_vtable_query.py" target="_blank">
+                      cases/70-Cluster/test_split_with_vtable_query.py
                     </a>
                   </div>
         </div>

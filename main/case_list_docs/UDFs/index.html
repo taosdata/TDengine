@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -2053,7 +2068,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -2090,6 +2122,28 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#12-UDFs.test_udf_c_examples.TestUdfCExamples.test_extract_avg" class="md-nav__link">
+        extract_avg aggregate UDF (docs/examples/udf/extract_avg.c) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#12-UDFs.test_udf_c_examples.TestUdfCExamples.test_max_vol" class="md-nav__link">
+        max_vol aggregate UDF (docs/examples/udf/max_vol.c) 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -3916,7 +3970,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3953,6 +4024,28 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#12-UDFs.test_udf_c_examples.TestUdfCExamples.test_extract_avg" class="md-nav__link">
+        extract_avg aggregate UDF (docs/examples/udf/extract_avg.c) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#12-UDFs.test_udf_c_examples.TestUdfCExamples.test_max_vol" class="md-nav__link">
+        max_vol aggregate UDF (docs/examples/udf/max_vol.c) 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -4132,6 +4225,75 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/12-UDFs/test_udf_c.py" target="_blank">
                       cases/12-UDFs/test_udf_c.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="12-UDFs.test_udf_c_examples.TestUdfCExamples.test_max_vol" class="doc doc-heading">
+
+<a href="#12-UDFs.test_udf_c_examples.TestUdfCExamples.test_max_vol" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>max_vol aggregate UDF (docs/examples/udf/max_vol.c)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Locate libmax_vol.so built from the documented example</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Register it as aggregate function: binary(64) output, bufsize 10240</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check the documented full-table result (max value + device id + position)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check the result for a subset of the voltage columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check per-window results with interval(2s)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check the input validation (column count / column types)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/12-UDFs/test_udf_c_examples.py" target="_blank">
+                      cases/12-UDFs/test_udf_c_examples.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="12-UDFs.test_udf_c_examples.TestUdfCExamples.test_extract_avg" class="doc doc-heading">
+
+<a href="#12-UDFs.test_udf_c_examples.TestUdfCExamples.test_extract_avg" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>extract_avg aggregate UDF (docs/examples/udf/extract_avg.c)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Locate libextract_avg.so built from the documented example</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Register it as aggregate function: double output, bufsize 16</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check that all values of all rows are counted (comma separated string,</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   spaces around the values, empty string, invalid token, NULL row)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check per-window results, including a window without any value</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check a constant input and the input validation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check aggregation across the child tables of a super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/12-UDFs/test_udf_c_examples.py" target="_blank">
+                      cases/12-UDFs/test_udf_c_examples.py
                     </a>
                   </div>
         </div>

@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -3161,7 +3176,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3314,6 +3346,17 @@
     <li class="md-nav__item">
       <a href="#26-NodeManager.01-Dnode.test_use_dropped_dnode.TestUseDroppedDnode.test_use_dropped_dnode" class="md-nav__link">
         Drop reuse dropped dnode 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#26-NodeManager.01-Dnode.test_snapshot_medium_on_lag.TestSnapshotMediumOnLag.test_snapshot_medium_on_lag_param" class="md-nav__link">
+        snapshotMediumOnLag parameter visibility and dynamic update 
       </a>
       
     </li>
@@ -3918,7 +3961,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -4071,6 +4131,17 @@
     <li class="md-nav__item">
       <a href="#26-NodeManager.01-Dnode.test_use_dropped_dnode.TestUseDroppedDnode.test_use_dropped_dnode" class="md-nav__link">
         Drop reuse dropped dnode 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#26-NodeManager.01-Dnode.test_snapshot_medium_on_lag.TestSnapshotMediumOnLag.test_snapshot_medium_on_lag_param" class="md-nav__link">
+        snapshotMediumOnLag parameter visibility and dynamic update 
       </a>
       
     </li>
@@ -4399,6 +4470,38 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/26-NodeManager/01-Dnode/test_offline_reason.py" target="_blank">
                       cases/26-NodeManager/01-Dnode/test_offline_reason.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="26-NodeManager.01-Dnode.test_snapshot_medium_on_lag.TestSnapshotMediumOnLag.test_snapshot_medium_on_lag_param" class="doc doc-heading">
+
+<a href="#26-NodeManager.01-Dnode.test_snapshot_medium_on_lag.TestSnapshotMediumOnLag.test_snapshot_medium_on_lag_param" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>snapshotMediumOnLag parameter visibility and dynamic update</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify the default value is 0 (feature disabled)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify ALTER on a single dnode is rejected (the parameter is global)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Enable it for all dnodes and verify every dnode reports the new value</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Disable it again and verify every dnode reports the restored value</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/26-NodeManager/01-Dnode/test_snapshot_medium_on_lag.py" target="_blank">
+                      cases/26-NodeManager/01-Dnode/test_snapshot_medium_on_lag.py
                     </a>
                   </div>
         </div>

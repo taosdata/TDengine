@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -1880,7 +1895,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -2055,6 +2087,17 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_int" class="md-nav__link">
         AVG(DISTINCT) on INT column — average of unique values 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_mixed_with_plain_agg" class="md-nav__link">
+        COUNT(*) mixed with COUNT(DISTINCT) in a window 
       </a>
       
     </li>
@@ -2262,6 +2305,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_count_window" class="md-nav__link">
+        COUNT(DISTINCT) with COUNT_WINDOW 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by_respects_timestamp_filter" class="md-nav__link">
+        COUNT(DISTINCT) with GROUP BY must preserve the timestamp predicate. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_group_spill" class="md-nav__link">
         COUNT(DISTINCT) with GROUP BY tag under spill-to-disk. 
       </a>
@@ -2275,6 +2340,17 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by" class="md-nav__link">
         COUNT(DISTINCT) with GROUP BY — per-group dedup 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_interval_no_partition" class="md-nav__link">
+        COUNT(DISTINCT) with INTERVAL only — the path that already worked 
       </a>
       
     </li>
@@ -2306,6 +2382,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_by_interval" class="md-nav__link">
+        COUNT(DISTINCT) with PARTITION BY tbname + INTERVAL 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_with_where" class="md-nav__link">
         COUNT(DISTINCT) with WHERE filter 
       </a>
@@ -2317,8 +2404,85 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_matches_int_on_same_values" class="md-nav__link">
+        Decimal and int DISTINCT agree when they hold the same values 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_mixed_distinct_and_normal" class="md-nav__link">
         DISTINCT and normal aggregates in same query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal64_distinct_resident" class="md-nav__link">
+        DISTINCT count/sum/avg on decimal(18,2), set stays resident 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal128_distinct_resident" class="md-nav__link">
+        DISTINCT count/sum/avg on decimal(38,4), set stays resident 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_mixed_with_plain_agg" class="md-nav__link">
+        DISTINCT decimal beside a plain aggregate 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_allowed_window_types" class="md-nav__link">
+        DISTINCT is accepted for exactly the window types that release the set 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal64_distinct_spilled" class="md-nav__link">
+        DISTINCT on decimal(18,2) past the memory budget, forcing spill 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal128_distinct_spilled" class="md-nav__link">
+        DISTINCT on decimal(38,4) past the memory budget, forcing spill 
       </a>
       
     </li>
@@ -2352,17 +2516,6 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_anomaly_window" class="md-nav__link">
         DISTINCT with ANOMALY_WINDOW is not supported 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_count_window" class="md-nav__link">
-        DISTINCT with COUNT_WINDOW is not supported 
       </a>
       
     </li>
@@ -2416,8 +2569,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_distinct_filter" class="md-nav__link">
-        EXPLAIN shows Distinct Filter node for COUNT(DISTINCT) 
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_no_distinct_filter_node" class="md-nav__link">
+        EXPLAIN has no Distinct Filter node: dedup lives in the aggregate 
       </a>
       
     </li>
@@ -2427,8 +2580,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_filter" class="md-nav__link">
-        EXPLAIN VERBOSE TRUE shows Distinct Filter with output info 
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_aggregate" class="md-nav__link">
+        EXPLAIN VERBOSE still describes the aggregate for COUNT(DISTINCT) 
       </a>
       
     </li>
@@ -2647,6 +2800,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_group_tag_and_window_regressions" class="md-nav__link">
+        Keep empty tag groups stable when DISTINCT moves between query layers. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_leastsquares_dup_ts" class="md-nav__link">
         leastsquares on a supertable whose child tables share identical timestamps. 
       </a>
@@ -2660,6 +2824,72 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_on_min_max" class="md-nav__link">
         MIN/MAX(DISTINCT) is accepted but treated as no-op (MySQL compatible) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_plain_decimal_agg_not_deduplicated" class="md-nav__link">
+        Non-DISTINCT decimal sum/avg must NOT dedup 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_nulls_ignored" class="md-nav__link">
+        NULL decimal values are not counted as a distinct value 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_group_by" class="md-nav__link">
+        Per-group decimal DISTINCT keeps groups independent 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_multi_window" class="md-nav__link">
+        Per-partition dedup stays independent per window 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_still_correct_without_filter_node" class="md-nav__link">
+        Removing the plan node did not change results 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_is_stable" class="md-nav__link">
+        Repeated execution returns identical rows 
       </a>
       
     </li>
@@ -2726,6 +2956,28 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_supertable" class="md-nav__link">
         SUM(DISTINCT) on supertable 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_customer_query" class="md-nav__link">
+        The reported query: count(*) + count(distinct) + partition + interval 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_multi_column" class="md-nav__link">
+        Two DISTINCT aggregates on different columns 
       </a>
       
     </li>
@@ -4600,7 +4852,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -4775,6 +5044,17 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_int" class="md-nav__link">
         AVG(DISTINCT) on INT column — average of unique values 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_mixed_with_plain_agg" class="md-nav__link">
+        COUNT(*) mixed with COUNT(DISTINCT) in a window 
       </a>
       
     </li>
@@ -4982,6 +5262,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_count_window" class="md-nav__link">
+        COUNT(DISTINCT) with COUNT_WINDOW 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by_respects_timestamp_filter" class="md-nav__link">
+        COUNT(DISTINCT) with GROUP BY must preserve the timestamp predicate. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_group_spill" class="md-nav__link">
         COUNT(DISTINCT) with GROUP BY tag under spill-to-disk. 
       </a>
@@ -4995,6 +5297,17 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by" class="md-nav__link">
         COUNT(DISTINCT) with GROUP BY — per-group dedup 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_interval_no_partition" class="md-nav__link">
+        COUNT(DISTINCT) with INTERVAL only — the path that already worked 
       </a>
       
     </li>
@@ -5026,6 +5339,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_by_interval" class="md-nav__link">
+        COUNT(DISTINCT) with PARTITION BY tbname + INTERVAL 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_with_where" class="md-nav__link">
         COUNT(DISTINCT) with WHERE filter 
       </a>
@@ -5037,8 +5361,85 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_matches_int_on_same_values" class="md-nav__link">
+        Decimal and int DISTINCT agree when they hold the same values 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_mixed_distinct_and_normal" class="md-nav__link">
         DISTINCT and normal aggregates in same query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal64_distinct_resident" class="md-nav__link">
+        DISTINCT count/sum/avg on decimal(18,2), set stays resident 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal128_distinct_resident" class="md-nav__link">
+        DISTINCT count/sum/avg on decimal(38,4), set stays resident 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_mixed_with_plain_agg" class="md-nav__link">
+        DISTINCT decimal beside a plain aggregate 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_allowed_window_types" class="md-nav__link">
+        DISTINCT is accepted for exactly the window types that release the set 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal64_distinct_spilled" class="md-nav__link">
+        DISTINCT on decimal(18,2) past the memory budget, forcing spill 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal128_distinct_spilled" class="md-nav__link">
+        DISTINCT on decimal(38,4) past the memory budget, forcing spill 
       </a>
       
     </li>
@@ -5072,17 +5473,6 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_anomaly_window" class="md-nav__link">
         DISTINCT with ANOMALY_WINDOW is not supported 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_count_window" class="md-nav__link">
-        DISTINCT with COUNT_WINDOW is not supported 
       </a>
       
     </li>
@@ -5136,8 +5526,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_distinct_filter" class="md-nav__link">
-        EXPLAIN shows Distinct Filter node for COUNT(DISTINCT) 
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_no_distinct_filter_node" class="md-nav__link">
+        EXPLAIN has no Distinct Filter node: dedup lives in the aggregate 
       </a>
       
     </li>
@@ -5147,8 +5537,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_filter" class="md-nav__link">
-        EXPLAIN VERBOSE TRUE shows Distinct Filter with output info 
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_aggregate" class="md-nav__link">
+        EXPLAIN VERBOSE still describes the aggregate for COUNT(DISTINCT) 
       </a>
       
     </li>
@@ -5367,6 +5757,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_group_tag_and_window_regressions" class="md-nav__link">
+        Keep empty tag groups stable when DISTINCT moves between query layers. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_leastsquares_dup_ts" class="md-nav__link">
         leastsquares on a supertable whose child tables share identical timestamps. 
       </a>
@@ -5380,6 +5781,72 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_on_min_max" class="md-nav__link">
         MIN/MAX(DISTINCT) is accepted but treated as no-op (MySQL compatible) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_plain_decimal_agg_not_deduplicated" class="md-nav__link">
+        Non-DISTINCT decimal sum/avg must NOT dedup 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_nulls_ignored" class="md-nav__link">
+        NULL decimal values are not counted as a distinct value 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_group_by" class="md-nav__link">
+        Per-group decimal DISTINCT keeps groups independent 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_multi_window" class="md-nav__link">
+        Per-partition dedup stays independent per window 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_still_correct_without_filter_node" class="md-nav__link">
+        Removing the plan node did not change results 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_is_stable" class="md-nav__link">
+        Repeated execution returns identical rows 
       </a>
       
     </li>
@@ -5446,6 +5913,28 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_supertable" class="md-nav__link">
         SUM(DISTINCT) on supertable 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_customer_query" class="md-nav__link">
+        The reported query: count(*) + count(distinct) + partition + interval 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_multi_column" class="md-nav__link">
+        Two DISTINCT aggregates on different columns 
       </a>
       
     </li>
@@ -5545,6 +6034,66 @@
   
   
   
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by_respects_timestamp_filter" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by_respects_timestamp_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) with GROUP BY must preserve the timestamp predicate.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies that grouped DISTINCT aggregation does not create a result group</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">for a child table whose only row falls outside the timestamp range.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_group_tag_and_window_regressions" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_group_tag_and_window_regressions" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Keep empty tag groups stable when DISTINCT moves between query layers.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies child-table tags, HAVING/ORDER BY-only DISTINCT, and window</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">DISTINCT preserve the ordinary aggregate group set when no rows match.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_int" class="doc doc-heading">
 
 <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_int" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -5553,6 +6102,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on INT column — basic deduplication</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct int.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5576,6 +6131,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on BIGINT column</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct bigint.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5599,6 +6160,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on FLOAT column</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct float.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5622,6 +6189,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on DOUBLE column</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct double.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5645,6 +6218,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on BOOL column</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct bool.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5668,6 +6247,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on VARCHAR column</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct varchar.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5691,6 +6276,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on NCHAR column</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct nchar.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5714,6 +6305,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on all-NULL column returns 0</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct all null.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5737,6 +6334,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on empty table returns 0</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct empty table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5760,6 +6363,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) where all values are same returns 1</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct single value.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5783,6 +6392,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>SUM(DISTINCT) on INT column — sums unique values only</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies sum distinct int.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5806,6 +6421,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>SUM(DISTINCT) on BIGINT column</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies sum distinct bigint.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5829,6 +6450,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>SUM(DISTINCT) on all-NULL column returns NULL</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies sum distinct all null.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5852,6 +6479,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>AVG(DISTINCT) on INT column — average of unique values</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies avg distinct int.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5875,6 +6508,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>AVG(DISTINCT) on all-NULL returns NULL</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies avg distinct all null.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5898,6 +6537,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) with GROUP BY — per-group dedup</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct group by.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5921,6 +6566,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) grouped by tag — status field</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct group by tag.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5944,6 +6595,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on supertable — merges across vnodes</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct supertable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5967,6 +6624,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>SUM(DISTINCT) on supertable</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies sum distinct supertable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -5990,6 +6653,41 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) with INTERVAL — per-window dedup</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct interval.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_count_window" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_count_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) with COUNT_WINDOW</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct count window.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6013,6 +6711,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) with WHERE filter</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct with where.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6036,6 +6740,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DISTINCT and normal aggregates in same query</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies mixed distinct and normal.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6059,6 +6769,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) used inside a subquery</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct in subquery.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6082,6 +6798,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT *) should return syntax error</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies error distinct star.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6105,6 +6827,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DISTINCT on scalar function should error</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies error distinct on scalar.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6128,6 +6856,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DISTINCT on selection functions (FIRST/LAST) should error</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies error distinct on selection.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6151,6 +6885,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DISTINCT with multiple arguments should error</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies error distinct multi args.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6174,6 +6914,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>MIN/MAX(DISTINCT) is accepted but treated as no-op (MySQL compatible)</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies distinct on min max.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6197,6 +6943,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DISTINCT with SESSION window is not supported</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies error distinct with session window.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6220,6 +6972,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DISTINCT with STATE_WINDOW is not supported</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies error distinct with state window.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6243,29 +7001,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DISTINCT with EVENT_WINDOW is not supported</strong> 
                   </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_count_window" class="doc doc-heading">
-
-<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_count_window" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>DISTINCT with COUNT_WINDOW is not supported</strong> 
-                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies error distinct with event window.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6289,6 +7030,41 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DISTINCT with ANOMALY_WINDOW is not supported</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies error distinct with anomaly window.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_allowed_window_types" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_allowed_window_types" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT is accepted for exactly the window types that release the set</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies distinct allowed window types.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6312,6 +7088,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT) on timestamp column</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct timestamp.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6335,6 +7117,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT expr) where expr is a computed expression</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct expression.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6358,6 +7146,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>COUNT(DISTINCT col) must match SELECT COUNT(*) FROM (SELECT DISTINCT col ...)</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct matches subquery.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6381,6 +7175,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>SUM(DISTINCT col) must match SELECT SUM(v) FROM (SELECT DISTINCT col as v ...)</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies sum distinct matches subquery.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6396,14 +7196,20 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_distinct_filter" class="doc doc-heading">
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_no_distinct_filter_node" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_distinct_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_no_distinct_filter_node" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>EXPLAIN shows Distinct Filter node for COUNT(DISTINCT)</strong> 
+                    <strong>EXPLAIN has no Distinct Filter node: dedup lives in the aggregate</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies explain no distinct filter node.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
@@ -6419,18 +7225,517 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_filter" class="doc doc-heading">
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_aggregate" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_aggregate" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>EXPLAIN VERBOSE TRUE shows Distinct Filter with output info</strong> 
+                    <strong>EXPLAIN VERBOSE still describes the aggregate for COUNT(DISTINCT)</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies explain verbose distinct aggregate.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
                       cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_still_correct_without_filter_node" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_still_correct_without_filter_node" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Removing the plan node did not change results</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies distinct still correct without filter node.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal64_distinct_resident" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal64_distinct_resident" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT count/sum/avg on decimal(18,2), set stays resident</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies decimal64 distinct resident.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal128_distinct_resident" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal128_distinct_resident" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT count/sum/avg on decimal(38,4), set stays resident</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies decimal128 distinct resident.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_nulls_ignored" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_nulls_ignored" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>NULL decimal values are not counted as a distinct value</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies decimal distinct nulls ignored.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal64_distinct_spilled" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal64_distinct_spilled" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT on decimal(18,2) past the memory budget, forcing spill</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies decimal64 distinct spilled.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal128_distinct_spilled" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal128_distinct_spilled" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT on decimal(38,4) past the memory budget, forcing spill</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies decimal128 distinct spilled.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_matches_int_on_same_values" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_matches_int_on_same_values" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Decimal and int DISTINCT agree when they hold the same values</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies decimal matches int on same values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_mixed_with_plain_agg" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_mixed_with_plain_agg" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT decimal beside a plain aggregate</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies decimal distinct mixed with plain agg.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_plain_decimal_agg_not_deduplicated" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_plain_decimal_agg_not_deduplicated" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Non-DISTINCT decimal sum/avg must NOT dedup</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies plain decimal agg not deduplicated.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_group_by" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_decimal.TestAggDistinctDecimal.test_decimal_distinct_group_by" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Per-group decimal DISTINCT keeps groups independent</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies decimal distinct group by.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_by_interval" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_by_interval" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) with PARTITION BY tbname + INTERVAL</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct partition by interval.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_mixed_with_plain_agg" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_mixed_with_plain_agg" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(*) mixed with COUNT(DISTINCT) in a window</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct mixed with plain agg.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_customer_query" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_customer_query" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>The reported query: count(*) + count(distinct) + partition + interval</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct customer query.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_multi_column" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_multi_column" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Two DISTINCT aggregates on different columns</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct multi column.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_multi_window" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_multi_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Per-partition dedup stays independent per window</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct partition multi window.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_interval_no_partition" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_interval_no_partition" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) with INTERVAL only — the path that already worked</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct interval no partition.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_is_stable" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_is_stable" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Repeated execution returns identical rows</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies count distinct partition is stable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_partition.py
                     </a>
                   </div>
         </div>

@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -1852,7 +1867,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -2973,17 +3005,6 @@
     <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_tz_scalar_functions._ToIso8601IanaMixin.test_to_iso8601_iana" class="md-nav__link">
         summary: TO_ISO8601 IANA timezone parameter and DST-aware output. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.01-Scalar.test_tz_scalar_functions._ToIso8601SuffixFormatMixin.test_to_iso8601_suffix_format" class="md-nav__link">
-        summary: TO_ISO8601 output suffix must precisely mimic the input offset format. 
       </a>
       
     </li>
@@ -4996,7 +5017,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -6117,17 +6155,6 @@
     <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_tz_scalar_functions._ToIso8601IanaMixin.test_to_iso8601_iana" class="md-nav__link">
         summary: TO_ISO8601 IANA timezone parameter and DST-aware output. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.01-Scalar.test_tz_scalar_functions._ToIso8601SuffixFormatMixin.test_to_iso8601_suffix_format" class="md-nav__link">
-        summary: TO_ISO8601 output suffix must precisely mimic the input offset format. 
       </a>
       
     </li>
@@ -7753,6 +7780,7 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query from boundary timestamp</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query from different time zone string</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query Error timestamp format string</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify statement time constants with default and explicit return types</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -9636,39 +9664,6 @@
                           <div style="margin-left: 3.2em; white-space: pre-wrap;">    offset forms (+0800, -0500), using ISO 8601 sign convention where</div>
                           <div style="margin-left: 3.2em; white-space: pre-wrap;">    local = UTC + offset. The &#39;UTC&#39; prefix is stripped from the output</div>
                           <div style="margin-left: 3.2em; white-space: pre-wrap;">    suffix. Case-insensitive matching is also tested.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/01-Scalar/test_tz_scalar_functions.py" target="_blank">
-                      cases/11-Functions/01-Scalar/test_tz_scalar_functions.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="11-Functions.01-Scalar.test_tz_scalar_functions._ToIso8601SuffixFormatMixin.test_to_iso8601_suffix_format" class="doc doc-heading">
-
-<a href="#11-Functions.01-Scalar.test_tz_scalar_functions._ToIso8601SuffixFormatMixin.test_to_iso8601_suffix_format" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>summary: TO_ISO8601 output suffix must precisely mimic the input offset format.</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: Verifies that TO_ISO8601 preserves the digit/colon pattern</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    of the input timezone parameter in the output suffix.  Single-digit</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    UTC-prefixed offsets (UTC+8, UTC-5, UTC+0) are normalised to ±HHMM.</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    All other forms reproduce the original pattern after stripping the</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    UTC prefix.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

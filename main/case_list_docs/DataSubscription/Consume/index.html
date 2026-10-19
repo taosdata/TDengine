@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -2466,7 +2481,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3488,6 +3520,28 @@
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_update_while_consume.TestCase.test_tmq_update_with_consume" class="md-nav__link">
         Operation: update while consume 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_recovery" class="md-nav__link">
+        Recover a token consumer after a legacy owner mismatch. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_check" class="md-nav__link">
+        Reject cross-user TMQ endpoint requests. 
       </a>
       
     </li>
@@ -4996,7 +5050,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -6027,6 +6098,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_recovery" class="md-nav__link">
+        Recover a token consumer after a legacy owner mismatch. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_check" class="md-nav__link">
+        Reject cross-user TMQ endpoint requests. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_db_topic_stream_result.TestTmqDbTopicStreamResult.test_tmq_db_topic_stream_result" class="md-nav__link">
         Replay a stream-generated normal table through a database topic 
       </a>
@@ -6878,6 +6971,71 @@
   
   
   
+<h2 id="17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_check" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_check" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Reject cross-user TMQ endpoint requests.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Issue 7059626859:</div>
+                          <div style="margin-left: 0.8em; white-space: pre-wrap;"> - Verify that the owning user can request endpoints using their consumer ID.</div>
+                          <div style="margin-left: 0.8em; white-space: pre-wrap;"> - Verify that a different user cannot request endpoints with the owner&#39;s consumer ID.</div>
+                          <div style="margin-left: 0.8em; white-space: pre-wrap;"> - Verify that a different user cannot resubscribe or unsubscribe the owner.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_bugs.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_bugs.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_recovery" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_recovery" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Recover a token consumer after a legacy owner mismatch.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Model a persisted root owner and commit a consumed row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Reject the token user&#39;s request for that consumer without changing its owner.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Close the rejected handle and retire the modeled legacy consumer.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Recreate the token consumer with the same group and topic.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify that the committed offset survives and only the next row is consumed.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_bugs.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_bugs.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_tmq_bugs" class="doc doc-heading">
 
 <a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_tmq_bugs" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -6927,6 +7085,7 @@
                           <div style="margin-left: 0.8em; white-space: pre-wrap;"> - Test tmq consumption with meta topic created on stable with where clause.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">19. Jira TS-4674:</div>
                           <div style="margin-left: 0.8em; white-space: pre-wrap;"> - Test tmq consumption behavior during vgroup leader rebalance in multi-replica environment.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
@@ -8313,8 +8472,9 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Add column during consumption</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Drop column during consumption</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Modify column type</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify schema evolution handled</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check backward compatibility</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Consume values written after a queried column is expanded</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify schema evolution handled</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check backward compatibility</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

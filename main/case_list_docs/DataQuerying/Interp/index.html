@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -1458,7 +1473,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -1495,6 +1527,28 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_table_scan_perf.TestInterpTableScanPerf.test_interp_table_scan_perf" class="md-nav__link">
+        Existing Table Scan INTERP plans have no performance regression. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp.TestTimezoneFillInterp.test_fill_dst" class="md-nav__link">
+        FILL daily intervals honor session-timezone DST transitions 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -1642,6 +1696,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp.TestTimezoneFillInterp.test_interp_dst" class="md-nav__link">
+        INTERP range and EVERY honor session-timezone DST semantics 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_partition_by_tbname_plain_scan" class="md-nav__link">
         Interp RANGE PARTITION BY tbname degenerates to a plain Table Scan 
       </a>
@@ -1664,8 +1729,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._FillDstMixin.test_fill_dst" class="md-nav__link">
-        summary: FILL(...) INTERVAL(1d) honors session-timezone DST calendar days. 
+      <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_merge_resblock" class="md-nav__link">
+        Interp: merge result blocks across independent groups 
       </a>
       
     </li>
@@ -1675,8 +1740,63 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._InterpDstMixin.test_interp_dst" class="md-nav__link">
-        summary: INTERP timezone behavior across DST. 
+      <a href="#09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_column_group_main_membership" class="md-nav__link">
+        Verify interp column groups require MAIN membership 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_multivgroup.TestInterpMultiVgroup.test_interp_multivgroup" class="md-nav__link">
+        Verify INTERP over single- and multi-vgroup super tables 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_mixed_partition.TestInterpMixedPartition.test_interp_mixed_partition" class="md-nav__link">
+        Verify interpolation completion order and group membership. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_large_column_group_result_spill" class="md-nav__link">
+        Verify large column-group interpolation spills and reloads 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_main_first" class="md-nav__link">
+        Verify MAIN_FIRST interp over TableScan and TableMergeScan 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_legacy_routing.TestInterpLegacyRouting.test_interp_legacy_routing" class="md-nav__link">
+        Verify optimizer routing at the permanent LEGACY boundary. 
       </a>
       
     </li>
@@ -3973,7 +4093,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -4010,6 +4147,28 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_table_scan_perf.TestInterpTableScanPerf.test_interp_table_scan_perf" class="md-nav__link">
+        Existing Table Scan INTERP plans have no performance regression. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp.TestTimezoneFillInterp.test_fill_dst" class="md-nav__link">
+        FILL daily intervals honor session-timezone DST transitions 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -4157,6 +4316,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp.TestTimezoneFillInterp.test_interp_dst" class="md-nav__link">
+        INTERP range and EVERY honor session-timezone DST semantics 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_partition_by_tbname_plain_scan" class="md-nav__link">
         Interp RANGE PARTITION BY tbname degenerates to a plain Table Scan 
       </a>
@@ -4179,8 +4349,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._FillDstMixin.test_fill_dst" class="md-nav__link">
-        summary: FILL(...) INTERVAL(1d) honors session-timezone DST calendar days. 
+      <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_merge_resblock" class="md-nav__link">
+        Interp: merge result blocks across independent groups 
       </a>
       
     </li>
@@ -4190,8 +4360,63 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._InterpDstMixin.test_interp_dst" class="md-nav__link">
-        summary: INTERP timezone behavior across DST. 
+      <a href="#09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_column_group_main_membership" class="md-nav__link">
+        Verify interp column groups require MAIN membership 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_multivgroup.TestInterpMultiVgroup.test_interp_multivgroup" class="md-nav__link">
+        Verify INTERP over single- and multi-vgroup super tables 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_mixed_partition.TestInterpMixedPartition.test_interp_mixed_partition" class="md-nav__link">
+        Verify interpolation completion order and group membership. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_large_column_group_result_spill" class="md-nav__link">
+        Verify large column-group interpolation spills and reloads 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_main_first" class="md-nav__link">
+        Verify MAIN_FIRST interp over TableScan and TableMergeScan 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_interp_legacy_routing.TestInterpLegacyRouting.test_interp_legacy_routing" class="md-nav__link">
+        Verify optimizer routing at the permanent LEGACY boundary. 
       </a>
       
     </li>
@@ -4217,6 +4442,243 @@
 
 <h1 id="12-interp">12-Interp<a class="headerlink" href="#12-interp" title="Permanent link">&para;</a></h1>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_interp_legacy_routing.TestInterpLegacyRouting.test_interp_legacy_routing" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_interp_legacy_routing.TestInterpLegacyRouting.test_interp_legacy_routing" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify optimizer routing at the permanent LEGACY boundary.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Direct scans, pushed projections, and composite primary keys use</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   GROUP_FIRST.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Non-primary timelines use LEGACY.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Non-eliminated ordered subqueries and joins use LEGACY.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Normal and child virtual tables use LEGACY.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_interp_legacy_routing.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_interp_legacy_routing.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_main_first" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_main_first" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify MAIN_FIRST interp over TableScan and TableMergeScan</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Cover all FILL modes on ordinary and child tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Cover all FILL modes and empty MAIN on a single-vgroup stable</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Cover SURROUNDING, empty MAIN, and side-only BY tbname groups</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Cover BY tags multi-groups and later side-only groups</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Cover duplicate timestamp rows with legal-candidate assertions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Cover empty/all-null input and a multi-block result store</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Assert literal MAIN_FIRST results and runtime routes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Prove all supported FILL modes send and consume early-stop</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Prove Project preserves phases and forwards early-stop to scans</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Cover scalar-expression interp arguments on every scan shape</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Bound a wide LINEAR hole with a process-level hard timeout</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_interp_main_first.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_interp_main_first.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_column_group_main_membership" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_column_group_main_membership" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify interp column groups require MAIN membership</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Preserve PREV and NEXT rows as references for MAIN groups</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Drop PREV-only and NEXT-only column groups</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Exercise TableScan and TableMergeScan phased producers</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Stop each required side phase once all MAIN groups are resolved</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Keep group state when side data recurs across partition batches</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_interp_main_first.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_interp_main_first.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_large_column_group_result_spill" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_interp_main_first.TestInterpMainFirst.test_interp_large_column_group_result_spill" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify large column-group interpolation spills and reloads</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Block multiple column groups across MAIN, PREV, and NEXT phases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Exceed the default 10 MiB interpolation result-store budget</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify disk flush and reload through paged-buffer statistics</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Validate every timestamp and interpolated value after reload</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_interp_main_first.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_interp_main_first.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_interp_mixed_partition.TestInterpMixedPartition.test_interp_mixed_partition" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_interp_mixed_partition.TestInterpMixedPartition.test_interp_mixed_partition" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify interpolation completion order and group membership.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Pin single-vgroup SLIMIT/SOFFSET to group completion order.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Compare D3b membership in phased and rejected LEGACY routes.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Exercise tag-only and mixed tag-plus-column partitions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify mixed-group outer epochs in single and multiple vgroups.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_interp_mixed_partition.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_interp_mixed_partition.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_interp_multivgroup.TestInterpMultiVgroup.test_interp_multivgroup" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_interp_multivgroup.TestInterpMultiVgroup.test_interp_multivgroup" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify INTERP over single- and multi-vgroup super tables</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Assert the single-vgroup plan keeps Interp above a local scan</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Assert the multi-vgroup plan keeps Interp above the Exchange</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Assert literal result grids for every FILL and partition shape</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Repeat plan and result checks with an interp expression arg</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify remote phase barriers and observable notify propagation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify all remote multi-group early-stop phase combinations</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Verify an empty Exchange source closes every phase barrier</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Verify PREV early-stop after an empty NEXT phase</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Split mixed tag/tbname and ordinary-column partition keys</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_interp_multivgroup.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_interp_multivgroup.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_interp_table_scan_perf.TestInterpTableScanPerf.test_interp_table_scan_perf" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_interp_table_scan_perf.TestInterpTableScanPerf.test_interp_table_scan_perf" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Existing Table Scan INTERP plans have no performance regression.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Cross independent PREV/NEXT distances and left/right MAIN holes.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Run all 36 combinations for single-table and multi-group plans.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify NULL layout and actual scan blocks before measuring median.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_interp_table_scan_perf.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_interp_table_scan_perf.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
   
 <div class="doc doc-object doc-function">
   
@@ -4593,6 +5055,38 @@
   
   
   
+<h2 id="09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_merge_resblock" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_merge_resblock" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Interp: merge result blocks across independent groups</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check values, NULLs and group keys across merged blocks</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Check Exchange calls, multiple points and the final partial block</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Preserve consumer grouping requirements and filtered results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Resume dense input across blocks and preserve global sorting</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_query_interp_fill.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_query_interp_fill.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_extension" class="doc doc-heading">
 
 <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_extension" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4716,19 +5210,18 @@
   
   
   
-<h2 id="09-DataQuerying.12-Interp.test_tz_fill_interp._FillDstMixin.test_fill_dst" class="doc doc-heading">
+<h2 id="09-DataQuerying.12-Interp.test_tz_fill_interp.TestTimezoneFillInterp.test_fill_dst" class="doc doc-heading">
 
-<a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._FillDstMixin.test_fill_dst" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#09-DataQuerying.12-Interp.test_tz_fill_interp.TestTimezoneFillInterp.test_fill_dst" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>summary: FILL(...) INTERVAL(1d) honors session-timezone DST calendar days.</strong> 
+                    <strong>FILL daily intervals honor session-timezone DST transitions</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: FILL(NULL/PREV) over spring-forward / fall-back days must</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    advance filled window boundaries by calendar days (23h / 25h) using</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    the session timezone, not a fixed 24h.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check NULL and PREV fill across spring-forward and fall-back days</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Match filled daily boundaries with the interval operator</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4747,19 +5240,18 @@
   
   
   
-<h2 id="09-DataQuerying.12-Interp.test_tz_fill_interp._InterpDstMixin.test_interp_dst" class="doc doc-heading">
+<h2 id="09-DataQuerying.12-Interp.test_tz_fill_interp.TestTimezoneFillInterp.test_interp_dst" class="doc doc-heading">
 
-<a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._InterpDstMixin.test_interp_dst" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#09-DataQuerying.12-Interp.test_tz_fill_interp.TestTimezoneFillInterp.test_interp_dst" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>summary: INTERP timezone behavior across DST.</strong> 
+                    <strong>INTERP range and EVERY honor session-timezone DST semantics</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: INTERP RANGE boundaries follow the session timezone; EVERY(1d)</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    advances by calendar days (DST-aware, 23h/25h), while EVERY(24h) stays</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    fixed-duration.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Parse RANGE boundaries in the session timezone</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Keep EVERY(1d) calendar-aware and EVERY(24h) fixed-duration</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -843,7 +858,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -952,6 +984,17 @@
     <li class="md-nav__item">
       <a href="#04-SuperTables.04-Query.test_stable_query_tag.TestTagScan.test_tag_scan" class="md-nav__link">
         Query: tag scan 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.04-Query.test_stable_query_tbname_eq_fastpath.TestStableQueryTbnameEqFastpath.test_stable_query_tbname_eq_fastpath" class="md-nav__link">
+        Query: tbname equal-condition fast path 
       </a>
       
     </li>
@@ -3874,7 +3917,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3983,6 +4043,17 @@
     <li class="md-nav__item">
       <a href="#04-SuperTables.04-Query.test_stable_query_tag.TestTagScan.test_tag_scan" class="md-nav__link">
         Query: tag scan 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.04-Query.test_stable_query_tbname_eq_fastpath.TestStableQueryTbnameEqFastpath.test_stable_query_tbname_eq_fastpath" class="md-nav__link">
+        Query: tbname equal-condition fast path 
       </a>
       
     </li>
@@ -4251,6 +4322,39 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/04-Query/test_stable_query_tag_filter.py" target="_blank">
                       cases/04-SuperTables/04-Query/test_stable_query_tag_filter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="04-SuperTables.04-Query.test_stable_query_tbname_eq_fastpath.TestStableQueryTbnameEqFastpath.test_stable_query_tbname_eq_fastpath" class="doc doc-heading">
+
+<a href="#04-SuperTables.04-Query.test_stable_query_tbname_eq_fastpath.TestStableQueryTbnameEqFastpath.test_stable_query_tbname_eq_fastpath" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Query: tbname equal-condition fast path</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">`tbname = &#39;const&#39;` on a super table used to fall back to the generic tag-filter</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">path, which fetches and scalar-filters the tags of every child table, while</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">`tbname IN (...)` and indexed-tag conditions resolve candidate uids directly.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">This case covers the correctness of the tbname equal-condition fast path and a</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">loose performance smoke check against an indexed-tag condition.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/04-Query/test_stable_query_tbname_eq_fastpath.py" target="_blank">
+                      cases/04-SuperTables/04-Query/test_stable_query_tbname_eq_fastpath.py
                     </a>
                   </div>
         </div>

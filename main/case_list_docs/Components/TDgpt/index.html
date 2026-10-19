@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -3549,7 +3564,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3586,6 +3618,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.10-TDgpt.test_tdgpt.TestTDgptBasic.test_anode_url_security" class="md-nav__link">
+        CREATE ANODE URL security checks 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -3841,7 +3884,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -3878,6 +3938,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.10-TDgpt.test_tdgpt.TestTDgptBasic.test_anode_url_security" class="md-nav__link">
+        CREATE ANODE URL security checks 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -3973,6 +4044,40 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Expect create failed</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Show anodes, expect 0 rows</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Drop non-exist anode, expect error</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/80-Components/10-TDgpt/test_tdgpt.py" target="_blank">
+                      cases/80-Components/10-TDgpt/test_tdgpt.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="80-Components.10-TDgpt.test_tdgpt.TestTDgptBasic.test_anode_url_security" class="doc doc-heading">
+
+<a href="#80-Components.10-TDgpt.test_tdgpt.TestTDgptBasic.test_anode_url_security" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>CREATE ANODE URL security checks</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that the server rejects:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Non-http/https schemes (file://, ftp://)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Loopback addresses (127.0.0.1, ::1)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. RFC-1918 private addresses (10.x, 172.16.x, 192.168.x) and IPv6 ULA (fc00::/7)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Link-local addresses (169.254.x.x, fe80::/10)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Bare host:port without scheme</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

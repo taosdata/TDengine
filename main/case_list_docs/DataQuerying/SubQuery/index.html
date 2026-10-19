@@ -228,7 +228,22 @@
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 
 
   
@@ -1346,7 +1361,24 @@
 
       </a>
       
-        
+        <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -1383,6 +1415,83 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_empty_outer_aggregate" class="md-nav__link">
+        An empty outer input keeps the existing zero-row SUM behavior. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_lifecycle.TestCorrelatedScalarLifecycle.test_correlated_inner_node_failure" class="md-nav__link">
+        An inner vnode failure terminates or retries an active scalar call 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_positions.TestCorrelatedScalarPositions.test_correlated_scalar_explain" class="md-nav__link">
+        Compare correlated scalar EXPLAIN and ANALYZE output. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_positions.TestCorrelatedScalarPositions.test_correlated_scalar_positions" class="md-nav__link">
+        Compare correlated scalar results across SQL expression positions. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_integration.TestCorrelatedScalarIntegration.test_correlated_integration" class="md-nav__link">
+        Correlated calls integrate with policies and existing subqueries 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_stages.TestCorrelatedScalarStages.test_correlated_stages" class="md-nav__link">
+        Correlated expressions use the owning operator stage 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_correlated_semantics" class="md-nav__link">
+        Correlated scalar results and ancestor binding 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -1585,6 +1694,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_lifecycle.TestCorrelatedScalarLifecycle.test_correlated_lifecycle" class="md-nav__link">
+        Late errors and cancellation release correlated query state 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.08-SubQuery.test_quantified_sub1.TestQuantifiedSubQuery1.test_quantified_sub_query1" class="md-nav__link">
         quantified expr sub query test case 
       </a>
@@ -1752,6 +1872,28 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.08-SubQuery.test_quantified_sub6d2.TestQuantifiedSubQuery6d2.test_quantified_sub_query6d2" class="md-nav__link">
         quantified sub query test case 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_quantified_sub6b2.TestQuantifiedSubQuery6b2.test_invalid_subquery_cleanup" class="md-nav__link">
+        Reject invalid nested subqueries without double-freeing metadata 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_p00_baseline" class="md-nav__link">
+        Scalar correlation P00 behavior baseline 
       </a>
       
     </li>
@@ -2049,6 +2191,17 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.08-SubQuery.test_text_source.TestTextSource.test_text_source_union" class="md-nav__link">
         TEXT table source: UNION / UNION ALL combined with real tables and other TEXT sources. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_time_range.TestCorrelatedScalarTimeRange.test_correlated_time_range" class="md-nav__link">
+        Time bounds and mixed predicates vary with the outer row 
       </a>
       
     </li>
@@ -4457,7 +4610,24 @@
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+                    <!--
+Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can use, redistribute, and/or modify
+it under the terms of the GNU Affero General Public License, version 3
+or later ("AGPL"), as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+
+
 
 
 <style>
@@ -4494,6 +4664,83 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_empty_outer_aggregate" class="md-nav__link">
+        An empty outer input keeps the existing zero-row SUM behavior. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_lifecycle.TestCorrelatedScalarLifecycle.test_correlated_inner_node_failure" class="md-nav__link">
+        An inner vnode failure terminates or retries an active scalar call 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_positions.TestCorrelatedScalarPositions.test_correlated_scalar_explain" class="md-nav__link">
+        Compare correlated scalar EXPLAIN and ANALYZE output. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_positions.TestCorrelatedScalarPositions.test_correlated_scalar_positions" class="md-nav__link">
+        Compare correlated scalar results across SQL expression positions. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_integration.TestCorrelatedScalarIntegration.test_correlated_integration" class="md-nav__link">
+        Correlated calls integrate with policies and existing subqueries 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_stages.TestCorrelatedScalarStages.test_correlated_stages" class="md-nav__link">
+        Correlated expressions use the owning operator stage 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_correlated_semantics" class="md-nav__link">
+        Correlated scalar results and ancestor binding 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -4696,6 +4943,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_lifecycle.TestCorrelatedScalarLifecycle.test_correlated_lifecycle" class="md-nav__link">
+        Late errors and cancellation release correlated query state 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.08-SubQuery.test_quantified_sub1.TestQuantifiedSubQuery1.test_quantified_sub_query1" class="md-nav__link">
         quantified expr sub query test case 
       </a>
@@ -4863,6 +5121,28 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.08-SubQuery.test_quantified_sub6d2.TestQuantifiedSubQuery6d2.test_quantified_sub_query6d2" class="md-nav__link">
         quantified sub query test case 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_quantified_sub6b2.TestQuantifiedSubQuery6b2.test_invalid_subquery_cleanup" class="md-nav__link">
+        Reject invalid nested subqueries without double-freeing metadata 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_p00_baseline" class="md-nav__link">
+        Scalar correlation P00 behavior baseline 
       </a>
       
     </li>
@@ -5166,6 +5446,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_time_range.TestCorrelatedScalarTimeRange.test_correlated_time_range" class="md-nav__link">
+        Time bounds and mixed predicates vary with the outer row 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -5185,6 +5476,338 @@
 
 <h1 id="08-subquery">08-SubQuery<a class="headerlink" href="#08-subquery" title="Permanent link">&para;</a></h1>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_integration.TestCorrelatedScalarIntegration.test_correlated_integration" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_integration.TestCorrelatedScalarIntegration.test_correlated_integration" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Correlated calls integrate with policies and existing subqueries</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Policies 1/2/3 return equal values and 4 rejects them.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Ordinary IN/ANY and noncorrelated scalar inside a correlated one keep their results.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. STMT2 repeats, INSERT SELECT, view and UNION ALL preserve each binding.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. One- and two-level correlated templates inherit the current</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   session timezone and first day of week.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. A later-row scalar error from a qnode route reaches the root.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Existing noncorrelated dependencies inside the template return</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the same result through vnode, qnode and cross-dnode routes.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_integration.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_integration.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_lifecycle.TestCorrelatedScalarLifecycle.test_correlated_lifecycle" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_lifecycle.TestCorrelatedScalarLifecycle.test_correlated_lifecycle" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Late errors and cancellation release correlated query state</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. A later offending outer row fails the query; the next call succeeds.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Three independent root queries execute concurrently with correct results.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. KILL QUERY and client disconnect interrupt active scalar calls.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. After cancellation, the same client can execute the same SQL again.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_lifecycle.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_lifecycle.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_lifecycle.TestCorrelatedScalarLifecycle.test_correlated_inner_node_failure" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_lifecycle.TestCorrelatedScalarLifecycle.test_correlated_inner_node_failure" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>An inner vnode failure terminates or retries an active scalar call</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Fail the inner vnode&#39;s dnode while a correlated call is active.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. The query leaves perf_queries and a fresh call succeeds after restart.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_lifecycle.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_lifecycle.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_positions.TestCorrelatedScalarPositions.test_correlated_scalar_positions" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_positions.TestCorrelatedScalarPositions.test_correlated_scalar_positions" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Compare correlated scalar results across SQL expression positions.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Each in/ans file fixes one expression position and covers three nesting depths.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Within the file, vary scalar shape and bound outer columns.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Cover tags, tbname, both JOIN inputs, NULLs and unmatched joins.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_positions.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_positions.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_positions.TestCorrelatedScalarPositions.test_correlated_scalar_explain" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_positions.TestCorrelatedScalarPositions.test_correlated_scalar_explain" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Compare correlated scalar EXPLAIN and ANALYZE output.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify the owning operator and correlated template in static plans.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify JOIN algorithms and plans for each expression stage.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify ANALYZE input rows and actual calls without parameter values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify materialized reuse, InitPlan ownership and nested template plans.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_positions.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_positions.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_p00_baseline" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_p00_baseline" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Scalar correlation P00 behavior baseline</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Fixed dataset A and FS 4.1 values with literal substitution controls.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Existing scalar NULL/value/cardinality, aliases and no-FROM behavior.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Unsupported correlation rejection and query policies 1/2/3/4.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Existing scalar behavior remains the baseline; correlated behavior</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   and invocation counts are covered separately.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_semantics.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_semantics.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_correlated_semantics" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_correlated_semantics" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Correlated scalar results and ancestor binding</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Row-specific aggregation, range, expression and cardinality.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. COUNT and AVG over an empty filtered set.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Nested scalar referencing the root and immediate parent.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Duplicate, NULL, long and short parameter values do not retain stale data.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. WHERE, aggregate input, GROUP, PARTITION, HAVING, window and ORDER</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   BY evaluate the current row or group at their owning operator.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Pure outer SUM owns the outer aggregate row; invalid WHERE and</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   nested aggregate uses fail during translation.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Grouping and nested aggregates keep their owners.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_semantics.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_semantics.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_empty_outer_aggregate" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_semantics.TestCorrelatedScalarSemantics.test_empty_outer_aggregate" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>An empty outer input keeps the existing zero-row SUM behavior.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Compare ordinary and correlated scalar SUM queries when the outer</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">filter matches no rows; both must return an empty result.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_semantics.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_semantics.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_stages.TestCorrelatedScalarStages.test_correlated_stages" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_stages.TestCorrelatedScalarStages.test_correlated_stages" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Correlated expressions use the owning operator stage</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Projection, filter and CASE receive row-aligned results;</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   one input table tests value, NULL, then a later scalar error.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. LEFT/RIGHT/FULL JOIN ON preserve unmatched rows even with a</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   hash hint; ordinary INNER hash remains available.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Unselected CASE and aggregate input still report scalar errors.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. SUM over CASE calls the scalar once for each input row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. EXPLAIN result files cover the static template and actual calls.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. GROUP, PARTITION, window, DISTINCT and UNION check final row count.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. A passthrough Project is removed, while reading a derived scalar</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   value twice does not double its calls.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Result columns exclude hidden binding/work columns.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_stages.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_stages.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_correlated_scalar_time_range.TestCorrelatedScalarTimeRange.test_correlated_time_range" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_correlated_scalar_time_range.TestCorrelatedScalarTimeRange.test_correlated_time_range" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Time bounds and mixed predicates vary with the outer row</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Changing outer timestamps alter aggregate and latest row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Time, tag and tbname AND/OR branches remain in the query.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Range pseudocolumns, AUTO offset and FILL match literal controls,</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   including an invalid range after per-row parameter binding.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_time_range.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_time_range.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
   
 <div class="doc doc-object doc-function">
   
@@ -6354,6 +6977,36 @@
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Prepare data.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Explain analyze execute various nested queries with different kind of quantified sub queries.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/08-SubQuery/test_quantified_sub6b2.py" target="_blank">
+                      cases/09-DataQuerying/08-SubQuery/test_quantified_sub6b2.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.08-SubQuery.test_quantified_sub6b2.TestQuantifiedSubQuery6b2.test_invalid_subquery_cleanup" class="doc doc-heading">
+
+<a href="#09-DataQuerying.08-SubQuery.test_quantified_sub6b2.TestQuantifiedSubQuery6b2.test_invalid_subquery_cleanup" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Reject invalid nested subqueries without double-freeing metadata</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check the expected parser error for nested quantified subqueries.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Check valid query results after each rejected statement.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
