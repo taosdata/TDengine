@@ -582,7 +582,8 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t     epoch = atomic_load_32(&tmq->epoch);
   tqDebugC("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d", tmq->consumerId, head->epoch, epoch);
 
-  if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp) == NULL) {
+  int32_t bodyLen = (int32_t)(pMsg->len - sizeof(SMqRspHead));
+  if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), bodyLen, &rsp) == NULL) {
     code = TSDB_CODE_TMQ_INVALID_MSG;
     tqErrorC("consumer:0x%" PRIx64 ", decode ep rsp failed", tmq->consumerId);
     goto END;
