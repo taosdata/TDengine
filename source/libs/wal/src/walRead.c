@@ -136,6 +136,16 @@ static int32_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
     }
   }
 
+  // The slot was computed from `ver`, so the entry stored in it must describe `ver`, and
+  // its offset must land inside the log file. Seeking the log fd to an unvalidated offset
+  // makes every later check (version equality, checksums) run against whatever bytes
+  // happen to be there instead of against the record the caller asked for.
+  if (entry.ver != ver || entry.offset < 0) {
+    wError("vgId:%d, invalid idx entry for index:%" PRId64 ", entry index:%" PRId64 ", offset:%" PRId64,
+           pReader->pWal->cfg.vgId, ver, entry.ver, entry.offset);
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
   ret = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
   if (ret < 0) {
     wError("vgId:%d, failed to seek log file, index:%" PRId64 ", pos:%" PRId64 ", since %s", pReader->pWal->cfg.vgId,
@@ -282,6 +292,16 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
   //   TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
   // }
 
+  // Minimal framing sanity even on this (checksum-free) fetch path: bodyLen is consumed
+  // right after this by walFetchBody/walSkipFetchBody to size a read or a seek, so a
+  // negative or absurd value must not get that far.
+  if (pRead->pHead->magic != WAL_MAGIC || !walValidBodyLen(pRead->pHead->head.bodyLen)) {
+    wError("vgId:%d, unexpected wal log index:%" PRId64 ", magic:0x%" PRIx64 ", body length:%d, reader:0x%" PRIx64,
+           pRead->pWal->cfg.vgId, ver, pRead->pHead->magic, pRead->pHead->head.bodyLen, pRead->readerId);
+
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
   TAOS_CHECK_RETURN(walValidateProtoVer(pRead));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -294,6 +314,15 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
 
   int32_t plainBodyLen = pRead->pHead->head.bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;
+
+  // a negative bodyLen would seek the log fd *backwards*, leaving the reader re-reading
+  // the same region instead of advancing past the body
+  if (!walValidBodyLen(plainBodyLen)) {
+    wError("vgId:%d, invalid body length:%d while skipping index:%" PRId64 ", reader:0x%" PRIx64,
+           pRead->pWal->cfg.vgId, plainBodyLen, pRead->pHead->head.version, pRead->readerId);
+
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
 
   if (pRead->pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
@@ -322,6 +351,14 @@ int32_t walFetchBody(SWalReader *pRead) {
 
   int32_t plainBodyLen = pReadHead->bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;
+
+  // bodyLen sizes the read and the buffer below; reject it here rather than relying on
+  // read(2) to fail on a (size_t)-cast negative length
+  if (!walValidBodyLen(plainBodyLen)) {
+    wError("vgId:%d, invalid body length:%d for index:%" PRId64 ", reader:0x%" PRIx64, vgId, plainBodyLen, ver, id);
+
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
 
   if (pRead->pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
@@ -442,10 +479,28 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
   }
 
-  TAOS_CHECK_RETURN(walValidateProtoVer(pReader));
+  // must not TAOS_CHECK_RETURN here: pReader->mutex is held from the top of this
+  // function, and returning with it held wedges every later read on this reader. The
+  // flags byte this validates comes straight off disk, so a malformed record would be
+  // enough to trigger it.
+  code = walValidateProtoVer(pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    TAOS_UNUSED(taosThreadMutexUnlock(&pReader->mutex));
+
+    TAOS_RETURN(code);
+  }
 
   int32_t plainBodyLen = pReader->pHead->head.bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;
+
+  // same reasoning as walFetchBody: bodyLen must be in range before it sizes a read, a
+  // reallocation or a checksum
+  if (!walValidBodyLen(plainBodyLen)) {
+    wError("vgId:%d, invalid body length:%d for index:%" PRId64, pReader->pWal->cfg.vgId, plainBodyLen, ver);
+    TAOS_UNUSED(taosThreadMutexUnlock(&pReader->mutex));
+
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
 
   if (pReader->pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
